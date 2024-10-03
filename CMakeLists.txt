@@ -75,11 +75,8 @@ if(UNIX AND NOT APPLE)
     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
     find_package(SDL2_ttf REQUIRED)
     set(TTF_LIBS SDL2_ttf::SDL2_ttf)
-    # find_package(SDL2_ttf REQUIRED)
-    # set(TTF_LIBS SDL2_ttf)
-    # Add SDL2 CMake modules
-
 else()
+    # add_subdirectory(${SDL2_ttf_DIR})
     find_package(SDL2_ttf CONFIG REQUIRED)
     set(TTF_LIBS SDL2_ttf::SDL2_ttf)
 endif()
