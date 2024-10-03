@@ -3,7 +3,7 @@
 A pure Entity Component System based Graphical Engine
 
 # Design Goals
-- **Usefull**: A complete 2D set with an upcoming 3D support
+- **Useful**: A complete 2D set with an upcoming 3D support
 - **Simple**: Flexible with access to all the engine code and easy access for new users with a built in editor
 - **Fast**: Make the best use of C++ concept and can execute system in parallel thanks to support of Taskflow
 - **Data Focused**: Heavy use of the Entity Component System Paradigm with support to event between systems
