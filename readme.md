@@ -57,7 +57,11 @@ The next step is to install Cmake
 Once mingw is installed, add the bin folder in your PATH to use make !
 ![Set up mingw in path](docs/mingwpath.png)
 
-Once those depencies are resolved, you can build the application with:
+Once those depencies are resolved, you can build the application by :
+Creating a folder named `release` at the root of the project
+then enter in it and run:
+- `cmake -S ../ -B . -G "MinGW Makefiles"`
+After it is done you can execute any of those command to build the project:
 - `cmake --build release --config Release --target all` in release mode
 - `cmake --build debug --config Debug --target all` in debug mode
 
