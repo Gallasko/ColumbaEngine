@@ -81,21 +81,10 @@ void initGame()
 
     printf("Engine initialized ...\n");
 
-    // mainWindow->ecs.createSystem<ConfiguredKeySystem<TetrisConfig>>(scancodeMap);
-
-    // mainWindow->ecs.createSystem<FpsSystem>();
-
-    // mainWindow->ecs.createSystem<FlagOwner>();
-
-    // mainWindow->ecs.createSystem<CollisionSystem>();
     mainWindow->ecs.createSystem<MoveToSystem>();
-
     mainWindow->ecs.createSystem<ContextMenu>();
-
     mainWindow->ecs.createSystem<InspectorSystem>();
-
     mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
-
     mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
 
     auto ent = mainWindow->ecs.createEntity();
@@ -104,21 +93,13 @@ void initGame()
         if (event.button == SDL_BUTTON_RIGHT)
         {
             mainWindow->ecs.sendEvent(ShowContextMenu{mainWindow->getInputHandler()});
-        }        
+        }
     };
 
     mainWindow->ecs.attach<OnEventComponent>(ent, callback);
 
     mainWindow->ecs.createSystem<EntityFinder>();
 
-    // makeTTFText(&mainWindow->ecs, 100, 100, "res/font/Inter/static/Inter_28pt-Black.ttf", "Hello world", 48);
-
-    // mainWindow->ecs.createSystem<Texture2DAnimatorSystem>();
-
-    // mainWindow->ecs.succeed<Texture2DAnimatorSystem, Texture2DComponentSystem>();
-
-    // mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
-    
     mainWindow->ecs.start();
 
     mainWindow->render();
@@ -128,8 +109,24 @@ void initGame()
     printf("Engine initialized\n");
 }
 
+// New function for syncing manually when needed
+void syncFilesystem()
+{
+#ifdef __EMSCRIPTEN__
+    EM_ASM(
+        FS.syncfs(false, function (err) {
+            if (err) {
+                console.error("Sync error:", err);
+            } else {
+                console.log("Filesystem synced.");
+            }
+        });
+    );
+#endif
+}
+
 void mainloop(void* arg)
-{    
+{
     if (not initialized.load())
         return;
 
@@ -164,13 +161,12 @@ void mainloop(void* arg)
 
     mainWindow->render();
 
-// // Todo don't do this every frame but only when something is written to emscripten filesystem
 #ifdef __EMSCRIPTEN__
-            EM_ASM(
-                FS.syncfs(false, function (err) {
-                    assert(!err);
-                });
-            );
+    // Sync file system at a specific point instead of every frame
+    if (event.type == SDL_QUIT)
+    {
+        syncFilesystem();
+    }
 #endif
 
     if (mainWindow->requestQuit())
@@ -182,50 +178,26 @@ void mainloop(void* arg)
 
 int EditorApp::exec()
 {
-    // pg::Logger::registerSink<pg::TerminalSink>(true);
 #ifdef __EMSCRIPTEN__
-    // Todo only do this once !!!
-    // Make this save folder configurable
     EM_ASM(
-        // Make a directory other than '/'
         FS.mkdir('/save');
-        // Then mount with IDBFS type
-        FS.mount(IDBFS, {autoPersist: true}, '/save');           
-        // Then sync
-
+        FS.mount(IDBFS, {autoPersist: true}, '/save');
         FS.syncfs(true, function (err) {
-            // Error
+            if (err) {
+                console.error("Initial sync error:", err);
+            }
         });
     );
-
-    // Todo Add this !
-    // void func() {
-    // ..
-    // EM_ASM({
-    //     FS.syncfs(.., function(err) {
-    //     Module._continue();
-    //     });
-    // });
-    // // might want to pause the main loop here, if one is running
-    // }
-
-    // extern "C" {
-    // void EMSCRIPTEN_KEEPALIVE continue() {
-    // // data is now here, continue and use it
-    // // can resume main loop, if you are using one
-    // }
 
     printf("Start init thread...\n");
     initThread = new std::thread(initWindow, appName);
     printf("Detach init thread...\n");
 
-    SDL_Window *pWindow = 
-        SDL_CreateWindow("Hello Triangle Minimal", 
+    SDL_Window *pWindow =
+        SDL_CreateWindow("Hello Triangle Minimal",
                          SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                         820, 640, 
+                         820, 640,
                          SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
-
-    // initThread->join();
 
     emscripten_set_main_loop_arg(mainloop, pWindow, 0, 1);
 
