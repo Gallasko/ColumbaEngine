@@ -277,24 +277,24 @@ else()
 
     add_executable(t1 test/maintest.cc)
 
-    # target_sources(t1 PRIVATE
-    #     test/mocksentencesystem.h
-    #     test/sentencesystem.cc
-    #     test/collision2d.cc
-    #     test/ecssystem.cc
-    #     test/filemanager.cc
-    #     test/interpreter.cc
-    #     test/mock2dsimpleshape.h
-    #     test/mockinterpreter.h
-    #     test/mocklogger.h
-    #     test/mockloggertest.cc
-    #     test/renderer.cc
-    #     test/serialize.cc
-    #     test/simple2dobject.cc
-    #     test/taskflow.cc
-    #     test/uiconstanttest.cc
-    #     test/uisystemtest.cc
-    # )
+    target_sources(t1 PRIVATE
+        test/mocksentencesystem.h
+        # test/sentencesystem.cc
+        test/collision2d.cc
+        test/ecssystem.cc
+        test/filemanager.cc
+        test/interpreter.cc
+        # test/mock2dsimpleshape.h
+        # test/simple2dobject.cc
+        test/mockinterpreter.h
+        test/mocklogger.h
+        test/mockloggertest.cc
+        test/renderer.cc
+        test/serialize.cc
+        test/taskflow.cc
+        test/uiconstanttest.cc
+        test/uisystemtest.cc
+    )
 
     target_link_libraries(t1 PRIVATE gtest gtest_main PgEngineSrc)
 

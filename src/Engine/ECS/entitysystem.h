@@ -102,7 +102,7 @@ namespace pg
         };
 
     public:
-        EntitySystem(const std::string& savePath);
+        EntitySystem(const std::string& savePath = "save/savedata.sz");
         ~EntitySystem();
 
         /**
