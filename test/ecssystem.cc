@@ -69,31 +69,14 @@ namespace pg
                 {
                     size_t sum = 0;
 
-                    // for (auto comp : view<C>())
-                    //     sum += comp->value;
-
                     auto list = view<C>();
-                    // auto it = list.begin();
-
-                    // size_t sum = 0;
 
                     for (size_t i = 1; i < list.nbComponents(); i++)
                     {
                         sum += list[i]->value;
                     }
 
-                    std::cout << sum << std::endl;
-
-                    // auto list = view<C>();
-                    // auto it = list.begin();
-
-                    // size_t sum = 0;
-
-                    // for (size_t i = 0; it != list.end(); it++, i++)
-                    // {
-                    //     //  if(i % count == 0)
-                    //         // std::cout << (*it)->text << std::endl;
-                    // }
+                    LOG_TEST("CSystem", sum);
                 }
 
                 size_t count = 1;
@@ -761,7 +744,6 @@ namespace pg
             constexpr size_t nbComps = 1000;
 
             MockLogger<FileSink> logger;
-            // logger.addFilter("Log Level Filter", new Logger::LogSink::FilterLogLevel(Logger::InfoLevel::log));
 
             auto start = std::chrono::steady_clock::now();
 
@@ -769,24 +751,10 @@ namespace pg
 
             auto end = std::chrono::steady_clock::now();
 
-            std::cout << "Ecs creation took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            // Todo make a test with that to verify that component id are not shared between ECS
-            // To get an id of a component you need to interact with the registry
-            // std::cout << A::componentId << " " << B::componentId << " " << C::componentId << std::endl;
-
-            start = std::chrono::steady_clock::now();
             auto system = ecs.createSystem<ASystem>();
-            end = std::chrono::steady_clock::now();
-
-            std::cout << "System A creation took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            // std::cout << A::componentId << " " << B::componentId << " " << C::componentId << std::endl;
 
             auto system2 = ecs.createSystem<ABSystem>();
             auto system3 = ecs.createSystem<CSystem>(nbComps / 50);
-
-            // std::cout << A::componentId << " " << B::componentId << " " << C::componentId << std::endl;
 
             auto entity1 = ecs.createEntity();
             auto entity2 = ecs.createEntity();
@@ -803,60 +771,29 @@ namespace pg
             
             for (size_t i = 0; i < nbComps + 1; i++)
             {
-                // std::cout << "Creating entity: " << i << std::endl;
                 entities.emplace_back(ecs.createEntity());
                 system->createOwnedComponent<A>(entities[i], i, 15);
-                // std::cout << "Created entity: " << i << std::endl;
             }
 
             end = std::chrono::steady_clock::now();
-
-            std::cout << "Creating " << nbComps - 19 << " entities, and adding A took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
 
             start = std::chrono::steady_clock::now();
+
             for (size_t i = 0; i < nbComps + 1; i++)
             {
-                std::cout << "Adding " << i << " on entity: " << entities[i]->id << std::endl;
-                // ecs.attach<C>(entities[i], entities[i]->id, "Value of: " + std::to_string(i));
                 system3->createOwnedComponent<C>(entities[i], entities[i]->id, "Value of: " + std::to_string(i));
             }
+
             end = std::chrono::steady_clock::now();
-
-            std::cout << "Adding C to " << nbComps + 1 << " entities took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            // std::cout << "Entity " << entities[555]->id << " has: [";
-            // for (auto& comp : entities[555]->componentList)
-            // {
-            //     std::cout << std::to_string(comp.getId()) << ", ";
-            // }
-
-            // std::cout << "]" << std::endl;
 
             start = std::chrono::steady_clock::now(); 
             system3->execute();
-            // end = std::chrono::steady_clock::now();
-
-            // std::cout << "System C execution took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            // start = std::chrono::steady_clock::now();
             system3->execute();
-            // end = std::chrono::steady_clock::now();
-
-            // std::cout << "System C execution took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            // start = std::chrono::steady_clock::now();
             system3->execute();
-            // end = std::chrono::steady_clock::now();
-
-            // std::cout << "System C execution took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            // start = std::chrono::steady_clock::now();
             system3->execute();
             end = std::chrono::steady_clock::now();
 
-            std::cout << "System C execution took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            // delete[] entities;
+            LOG_TEST("ECS", "System C execution took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns");
         }
 
         // ----------------------------------------------------------------------------------------
@@ -897,91 +834,8 @@ namespace pg
             ecs.executeOnce();
 
             EXPECT_EQ(ecs.getNbEntities(),  1);
-
-            // ecs.sendEvent(event);
-
-            // EXPECT_EQ(logger.getNbTest(),  1);
         }
 
-/*
-        TEST(system_test, group)
-        {
-            // MockLogger logger;
-            // logger.addFilter("Log Level Filter", new Logger::LogSink::FilterLogLevel(Logger::InfoLevel::log));
-            // logger.addFilter("Mile Level Filter", new Logger::LogSink::FilterLogLevel(Logger::InfoLevel::mile));
-
-            constexpr size_t nbComps = 10000;
-
-            std::cout << "Number of entities: " << nbComps << std::endl;
-
-            // MockLogger logger;
-
-            auto start = std::chrono::steady_clock::now();
-
-            EntitySystem ecs;
-
-            auto end = std::chrono::steady_clock::now();
-
-            std::cout << "Ecs creation took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            auto asys  = ecs.createSystem<ASystem>();
-            
-            auto absys = ecs.createSystem<ABSystem>();
-
-            auto entity = new Entity*[nbComps];
-
-            for(size_t i = 0; i < nbComps; i++)
-            {
-                entity[i] = ecs.createEntity();
-                asys->createComponent<A>(entity[i], i, 5);
-
-                if(i % 2 == 0)
-                    absys->createOwnedComponent<B>(entity[i], i, 5);
-            }
-
-            // MockLogger logger;
-
-            start = std::chrono::steady_clock::now();
-
-            auto group = absys->group<A, B>();
-
-            end = std::chrono::steady_clock::now();
-
-            // MockLogger logger;
-
-            std::cout << "Grouping [" << group->elements.nbElements() << "] entities took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-            start = std::chrono::steady_clock::now();
-
-            {
-                parallelFor(group->elements.nbElements(), [&group](size_t start, size_t end) { 
-                    for(size_t i = start; i < end; i++)
-                    {
-                        // std::cout << "Working on element: " << i << std::endl;
-                        if(i == 0) continue;
-
-                        const auto& element = group->elements[i];
-                        // std::cout << "Showing element: " << element->entityId << std::endl;
-                        // if(!element->toBeDeleted)
-                        element->get<A>()->value++;
-                        // std0::cout << element->entityId << std::endl;
-                        // std::cout << element->get<A>()->value << std::endl;
-                        // std::cout << element->get<B>()->value << std::endl;
-                        
-                        // element.get<A>();
-                        // element.get<B>();
-
-                        // nbTestElements++;
-                    }
-                });
-            }
-
-            end = std::chrono::steady_clock::now();
-
-            std::cout << "Iteration on group took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-        }
-*/
         TEST(system_test, system_perf_owned)
         {
             EntitySystem ecs;
@@ -1016,7 +870,7 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
-        TEST(system_test, system_perf_attach)
+        TEST(system_test, system_reattach)
         {
             EntitySystem ecs;
 
@@ -1024,7 +878,7 @@ namespace pg
 
             auto entity = ecs.createEntity();
 
-            for (size_t i = 20; i < NUMBEROFENTITYTRIES; i++)
+            for (size_t i = 0; i < NUMBEROFENTITYTRIES; i++)
             {
                 ecs.attach<A>(entity, static_cast<int>(i), 15);
             }

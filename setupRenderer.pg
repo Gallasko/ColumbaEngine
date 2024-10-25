@@ -14,18 +14,11 @@ print("Shaders loaded successfully.")
 
 print("Loading textures...")
 
-loadTexture("player", "res/Gmtk/Player.png")
-loadAtlasTexture("tiles", "res/Gmtk/tiles.png", "res/Gmtk/tiles.ft");
-loadAtlasTexture("transi", "res/Gmtk/transi.png", "res/Gmtk/transi.ft");
-loadAtlasTexture("ui", "res/Gmtk/buttonUi.png", "res/Gmtk/ui.ft");
-loadTexture("baseBullet", "res/Gmtk/baseBullet.png");
-loadTexture("back", "res/Gmtk/back.png");
-loadTexture("doodles", "res/Gmtk/doodles.png");
+loadTexture("TabTexture", "res/menu/LightBlueTexture.png");
+loadTexture("cursor", "res/object/cursor.png");
+loadTexture("slider", "res/object/slider.png");
 
 loadTexture("font", "res/font/font.png");
-loadTexture("menu", "res/menu/menutest.png");
-loadTexture("icon", "res/menu/Menu2.png");
-loadAtlasTexture("keys", "res/key/Keys.png", "res/key/key.ft");
 
 loadTexture("I", "res/TetrisRes/tiles/I.png");
 loadTexture("O", "res/TetrisRes/tiles/O.png");
