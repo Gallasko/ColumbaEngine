@@ -159,7 +159,7 @@ namespace pg
          * This function uses one of the main properties of the sparse set, the reciprocity of the id in the dense and sparse array
          * This operation is O(1) as it only need 2 indirections and 3 checks to know if an id is in the list and this is true whatever the size of the array
          */
-        inline bool has(const _unique_id& id) const { return id < sparseCapacity && sparse[id] < denseCapacity && dense[sparse[id]] == id; };
+        inline bool has(const _unique_id& id) const { return id < sparseCapacity and sparse[id] < size and dense[sparse[id]] == id; };
 
         /**
          * @brief Get the id at a given index of the set

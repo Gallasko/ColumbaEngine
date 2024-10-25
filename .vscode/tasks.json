@@ -75,7 +75,7 @@
                     "-c",
                     // "cmake --build x:/Document/GitHub/TeclaEatsDesktop/release --config Release --target PgEngine TetrisClone -j 22 --"
                     // "cmake --build ${workspaceFolder}/release --config Release --target PgEngine TetrisClone -j 22 --"
-                    "cmake --build ${workspaceFolder}/release --config Release --target PgEngine Brackeys -j 22 --"
+                    "cmake --build ${workspaceFolder}/release --config Release --target PgEngine -j 22 --"
                 ]
             },
             "linux": {

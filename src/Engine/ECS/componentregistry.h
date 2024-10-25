@@ -533,7 +533,7 @@ namespace pg
             entity->componentList.emplace(_componentId);
 
             // Call the on component creation callbacks to register the component in potential groups
-            for(const auto& callback : onComponentCreation)
+            for (const auto& callback : onComponentCreation)
                 callback.second(entity);
 
             return comp;
