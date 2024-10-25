@@ -22,21 +22,20 @@
 
 #define _SINGLE_LOG(scope, msg, level) pg::Logger::_single_log(__LINE__, __FILE__ != nullptr ? std::string(__FILE__) : "", __func__ != nullptr ? std::string(__func__) : "", 0, "", scope, pg::Strfy() << msg, level)
 
+#define LOG_TEST(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::test)
+
 #ifdef DEBUG
 #define LOG_THIS(scope)
 #define LOG_THIS_MEMBER(scope)
-#define LOG_TEST(scope, msg)
 #define LOG_MILE(scope, msg)
 // #define LOG_THIS(scope) _LOG(pg::Logger::_log(__LINE__, __FILE__ != nullptr ? std::string(__FILE__) : "", __func__ != nullptr ? std::string(__func__) : "", 0, "", scope, "", pg::Logger::InfoLevel::log))
 // #define LOG_THIS_MEMBER(scope) _LOG(pg::Logger::_log(__LINE__, __FILE__ != nullptr ? std::string(__FILE__) : "", __func__ != nullptr ? std::string(__func__) : "", this, typeid(*this).name(), scope, "", pg::Logger::InfoLevel::log))
-// #define LOG_TEST(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::test)
 // #define LOG_MILE(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::mile)
 #define LOG_INFO(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::info)
 #define LOG_ERROR(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::error)
 #else
 #define LOG_THIS(scope)
 #define LOG_THIS_MEMBER(scope)
-#define LOG_TEST(scope, msg)
 #define LOG_MILE(scope, msg)
 
 #ifdef __EMSCRIPTEN__

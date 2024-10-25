@@ -81,7 +81,7 @@ else()
     set(TTF_LIBS SDL2_ttf::SDL2_ttf)
 endif()
 
-
+# Debug Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -DDEBUG ${USE_FLAGS}")
     set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -DDEBUG  ${USE_FLAGS}")
@@ -92,21 +92,19 @@ endif()
 
 # set(CMAKE_CXX_FLAGS_DEBUG "-std=c++17 -Wall -Wextra -g -pthread -Wa,-mbig-obj -s -O3 -DNDEBUG -mwindows")
 
+# Release Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 # set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -Wa,-mbig-obj -s -O3 -DNDEBUG -mwindows")
-# set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -DGLEW_STATIC -sUSE_PTHREADS -m32 -sGL_ENABLE_GET_PROC_ADDRESS ${USE_FLAGS}")
-# set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -DGLEW_STATIC -sUSE_PTHREADS -m32 -sGL_ENABLE_GET_PROC_ADDRESS ${USE_FLAGS}")
-    # Use -g -O0 for debugging !
+    # Use -g -O0 for fast debugging !
     set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
     set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
     # set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -g -O0 -DNDEBUG -m32 ${USE_FLAGS}")
     # set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -g -O0 -DNDEBUG -m32 ${USE_FLAGS}")
 else()
-# set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -Wa,-mbig-obj -s -O3 -DNDEBUG")
     set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -s -O3 -DNDEBUG")
 endif()
 
-message("Current c++ flags used: '${CMAKE_CXX_FLAGS_RELEASE}'")
+message("Current c++ release flags used: '${CMAKE_CXX_FLAGS_RELEASE}'")
 
 set(ENGINESOURCE
     src/Engine/window.cpp
@@ -249,10 +247,6 @@ else()
     )
 
     target_link_libraries(PgEngine PRIVATE PgEngineSrc)
-
-    # Todo fix ttf doens't work
-
-    #target_link_libraries(PgEngine SDL2main SDL2-static SDL2_mixer-static SDL2_ttf-static glm)
 
     target_sources(TetrisClone PRIVATE
         exemples/TetrisClone/app.cpp
