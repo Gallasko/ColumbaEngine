@@ -19,7 +19,11 @@ namespace
 {
     static constexpr char const * DOM = "ECS";
 
+#ifdef DEBUG
+    static constexpr size_t NBEXECUTORTHREADS = 1;
+#else
     static constexpr size_t NBEXECUTORTHREADS = 3;
+#endif
 }
 
 namespace pg

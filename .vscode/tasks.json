@@ -19,7 +19,7 @@
                 "command": "bash",
                 "args": [
                     "-c",
-                    "make DEBUG=True PROD=True"
+                    "make DEBUG=True PROD=False"
                 ]
             },
             "osx": {

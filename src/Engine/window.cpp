@@ -213,6 +213,9 @@ namespace pg
 
         LOG_INFO(DOM, "SDL initialized successfully");
 
+        // Enable file dropping
+        SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
+
 #ifdef __EMSCRIPTEN__
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
@@ -449,6 +452,17 @@ namespace pg
                         break;
                 }
                 break;
+
+            case SDL_DROPFILE:
+            {
+                char* dropFile = event.drop.file;
+                LOG_INFO(DOM, "User dropped a file: "<< dropFile);
+
+                ecs.sendEvent(DropFileEvent{dropFile});
+
+                SDL_free(dropFile);
+                break;
+            }
 
             case SDL_KEYUP:
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYRELEASED);

@@ -83,11 +83,11 @@ endif()
 
 # Debug Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -DDEBUG ${USE_FLAGS}")
-    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -DDEBUG  ${USE_FLAGS}")
+    set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG ${USE_FLAGS}")
+    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG ${USE_FLAGS}")
 else()
 # todo add a 32bit debug "-m32"
-    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -ggdb -DDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
 endif()
 
 # set(CMAKE_CXX_FLAGS_DEBUG "-std=c++17 -Wall -Wextra -g -pthread -Wa,-mbig-obj -s -O3 -DNDEBUG -mwindows")
@@ -104,6 +104,7 @@ else()
     set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -s -O3 -DNDEBUG")
 endif()
 
+message("Current c++ debug flags used: '${CMAKE_CXX_FLAGS_DEBUG}'")
 message("Current c++ release flags used: '${CMAKE_CXX_FLAGS_RELEASE}'")
 
 set(ENGINESOURCE

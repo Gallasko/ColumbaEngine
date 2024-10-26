@@ -6,7 +6,12 @@
 // TODO add all helper function for file in here
 // TODO Manage binary files
 namespace pg
-{   
+{
+    struct DropFileEvent
+    {
+        std::string filepath;
+    };
+
     struct TextFile
     {
         std::string filepath;

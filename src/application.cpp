@@ -85,7 +85,9 @@ void initGame()
     mainWindow->ecs.createSystem<ContextMenu>();
     mainWindow->ecs.createSystem<InspectorSystem>();
     mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+
     mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
+    mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
     auto ent = mainWindow->ecs.createEntity();
 

@@ -12,7 +12,6 @@ namespace fs = std::filesystem;
 #include <emscripten.h>
 #endif
 
-
 namespace pg
 {
     namespace
@@ -171,14 +170,6 @@ namespace pg
             LOG_ERROR(DOM, e.what());
             return false;
         }
-
-// #ifdef __EMSCRIPTEN__
-//         EM_ASM(
-//             FS.syncfs(false, function (err) {
-//                 assert(!err);
-//             });
-//         );
-// #endif
 
         return true;
     }
