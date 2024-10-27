@@ -202,7 +202,7 @@ else()
     target_link_options(PgEngineSrc PRIVATE -static-libgcc -static-libstdc++)
 
     # target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
+    target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static glm libglew_static freetype)
 
     add_executable(PgEngine src/main.cpp)
 

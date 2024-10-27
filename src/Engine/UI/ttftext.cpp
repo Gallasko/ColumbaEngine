@@ -1,30 +1,5 @@
 #include "ttftext.h"
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
-// #ifdef __EMSCRIPTEN__
-// #define GL_GLEXT_PROTOTYPES 1
-// #include <emscripten.h>
-// #include <SDL2/SDL.h>
-// #include <SDL_opengl.h>
-// // #include <SDL_opengl_glext.h>
-// #include <GLES2/gl2.h>
-// #include <GLFW/glfw3.h>
-// #else
-// #ifdef __linux__
-// #include <SDL2/SDL.h>
-// #include <SDL2/SDL_ttf.h>
-// #elif _WIN32
-// #include <SDL.h>
-// #include <SDL_ttf.h>
-// #endif
-// #include <GL/glew.h>
-// #include <GL/gl.h>
-// #endif
-
-// #include <glm.hpp>
-
 namespace pg
 {
     namespace
@@ -87,10 +62,10 @@ namespace pg
 
     TTFTextSystem::TTFTextSystem(MasterRenderer *renderer) : AbstractRenderer(renderer, RenderStage::Render)
     {
-        // if (TTF_Init() < 0)
-        // {
-        //     LOG_ERROR(DOM, "Couldn't initialize TTF lib: " << TTF_GetError());
-        // }
+        if (FT_Init_FreeType(&ft))
+        {
+            LOG_ERROR(DOM, "ERROR::FREETYPE: Could not init FreeType Library");
+        }
     }
 
     void TTFTextSystem::init()

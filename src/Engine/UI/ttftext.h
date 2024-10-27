@@ -6,6 +6,9 @@
 #include "uisystem.h"
 #include "Renderer/renderer.h"
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 namespace pg
 {
     struct TTFSize
@@ -89,6 +92,8 @@ namespace pg
 
         /** Keep track of the size of a TTF texture */
         std::unordered_map<std::string, TTFSize> sizeMap;
+
+        FT_Library ft;
     };
 
     template <typename Type>
