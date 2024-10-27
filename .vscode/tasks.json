@@ -107,7 +107,7 @@
                 "showOutput": "always",
                 "args": [
                     "-c",
-                    "cd ${workspaceFolder}/em; emcmake cmake .; cmake --build . --config Release --target PgEngine -j 22 --"
+                    "cd ${workspaceFolder}/em; emcmake cmake .; cmake --build . --config Release --target all -j 22 --"
                 ]
             },
             "linux": {

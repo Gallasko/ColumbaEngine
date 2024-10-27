@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.18)
-#cmake_minimum_required(VERSION 3.13)
+# cmake_minimum_required(VERSION 3.13)
 
 project(PgEngine VERSION 1.0)
 
@@ -25,7 +25,6 @@ endif()
 
 set(SDL2_DIR "import/SDL2-2.28.5")
 set(SDL2MIXER_DIR "import/SDL2_mixer-2.6.3")
-# set(SDL2_ttf_DIR "import/SDL2_ttf-2.22.0-mingw/cmake")
 set(GLM_DIR "import/glm")
 set(TASKFLOW_DIR "import/taskflow-3.6.0")
 set(GTEST_DIR "import/googletest-1.14.0")
@@ -46,8 +45,6 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 else()
     add_subdirectory(${SDL2_DIR})
-    #find_package(SDL2 REQUIRED)
-    # add_subdirectory(${SDL2TTF_DIR})
     add_subdirectory(${SDL2MIXER_DIR})
 endif()
 
@@ -56,9 +53,6 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 endif()
 
 set(LINKER_FLAGS "")
-
-# Todo make this work
-# add_subdirectory(${SDL2TTF_DIR})
 
 add_subdirectory(${GLM_DIR})
 add_subdirectory(${TASKFLOW_DIR})
@@ -70,20 +64,9 @@ include_directories(${TTF_DIR}/include)
 
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(${SDL2_DIR}/include)
-    # include_directories(import/SDL2_ttf-2.22.0-mingw/x86_64-w64-mingw32/include/SDL2)
     include_directories(${SDL2MIXER_DIR}/include)
     include_directories(${GLEW_DIR}/include)
 endif()
-
-# if(UNIX AND NOT APPLE)
-#     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
-#     find_package(SDL2_ttf REQUIRED)
-#     set(TTF_LIBS SDL2_ttf::SDL2_ttf)
-# else()
-#     # add_subdirectory(${SDL2_ttf_DIR})
-#     find_package(SDL2_ttf CONFIG REQUIRED)
-#     set(TTF_LIBS SDL2_ttf::SDL2_ttf)
-# endif()
 
 # Debug Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -94,17 +77,15 @@ else()
     set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
 endif()
 
-# set(CMAKE_CXX_FLAGS_DEBUG "-std=c++17 -Wall -Wextra -g -pthread -Wa,-mbig-obj -s -O3 -DNDEBUG -mwindows")
-
 # Release Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-# set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -Wa,-mbig-obj -s -O3 -DNDEBUG -mwindows")
     # Use -g -O0 for fast debugging !
     set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
     set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
     # set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -g -O0 -DNDEBUG -m32 ${USE_FLAGS}")
     # set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -g -O0 -DNDEBUG -m32 ${USE_FLAGS}")
 else()
+    # Todo add -mwindows to disable the shell window opening
     set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -s -O3 -DNDEBUG")
 endif()
 
@@ -184,35 +165,28 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     #     src/Tetris/titlescreen.cpp
     #     ${ENGINESOURCE}
     # )
-    add_executable(Gmtk src/GMTK/gmtk.cpp)
+    add_library(PgEngineSrc ${ENGINESOURCE})
 
-    target_sources(Gmtk PRIVATE
-        src/GMTK/app.cpp
-        src/GMTK/game.cpp
-        src/GMTK/titlescreen.cpp
-        ${ENGINESOURCE}
-        )
-
-    target_include_directories(Gmtk PRIVATE src/GMTK)
-    target_include_directories(Gmtk PUBLIC src/Engine)
-    target_include_directories(Gmtk PUBLIC src/GameElements)
-
-    set_target_properties(Gmtk
-        PROPERTIES SUFFIX ".html"
-        # LINK_FLAGS " -s USE_FREETYPE=1 -sGL_ENABLE_GET_PROC_ADDRESS -s DEMANGLE_SUPPORT=1 -s SAFE_HEAP=1 --bind -s WASM=1 -O3 -s LEGACY_GL_EMULATION=0 -s GL_UNSAFE_OPTS=0 -s ASSERTIONS=1 -s GL_ASSERTIONS=1 -s INVOKE_RUN=0 -std=c++17 -s USE_WEBGL2=1 -s FULL_ES3=1 -s USE_GLFW=3 -s OFFSCREENCANVAS_SUPPORT=1")
-        # LINK_FLAGS " -s USE_FREETYPE=1 -sGL_ENABLE_GET_PROC_ADDRESS -s DEMANGLE_SUPPORT=1 -s SAFE_HEAP=1 --bind -s WASM=1 -O3 -s LEGACY_GL_EMULATION=0 -s GL_UNSAFE_OPTS=0 -s ASSERTIONS=1 -s GL_ASSERTIONS=1 -s INVOKE_RUN=0 -std=c++17 -s USE_WEBGL2=1 -s FULL_ES3=1 -s USE_GLFW=3 -s OFFSCREENCANVAS_SUPPORT=1")
-        # LINK_FLAGS " -s USE_FREETYPE=1 -sGL_ENABLE_GET_PROC_ADDRESS -s DISABLE_EXCEPTION_CATCHING=0 -s DEMANGLE_SUPPORT=1 -s SAFE_HEAP=1 --bind -s WASM=1 -O3 -s LEGACY_GL_EMULATION=0 -s GL_UNSAFE_OPTS=0 -s ASSERTIONS=1 -s GL_ASSERTIONS=1 -s INVOKE_RUN=0 -std=c++17 -s USE_WEBGL2=1 -s FULL_ES3=1 -s USE_GLFW=3 -s OFFSCREENCANVAS_SUPPORT=1")
-
-        #--bind -m32 -s USE_FREETYPE=1 -s USE_WEBGL2=1 -s WASM=0 -s MIN_WEBGL_VERSION=1 -s ABORT_ON_WASM_EXCEPTIONS=1 -g2 -s USE_GLFW=3 -sSAFE_HEAP")
-
-        LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
-        #  -sPTHREAD_POOL_SIZE=30 -s PROXY_TO_PTHREAD=1 -s ALLOW_MEMORY_GROWTH=1 -s USE_GLFW=3 -s USE_WEBGL2=1 -s GL_ASSERTIONS=1 -s WASM=1
-        # LINK_FLAGS " -s USE_FREETYPE=1 -sGL_ENABLE_GET_PROC_ADDRESS -s DISABLE_EXCEPTION_CATCHING=0 -s DEMANGLE_SUPPORT=1 -s SAFE_HEAP=1 --bind -s WASM=1 -O3 -s LEGACY_GL_EMULATION=0 -s GL_UNSAFE_OPTS=0 -s ASSERTIONS=1 -s GL_ASSERTIONS=1 -s INVOKE_RUN=0 -std=c++17 -s USE_WEBGL2=1 -s FULL_ES3=1 -s USE_GLFW=3 -s OFFSCREENCANVAS_SUPPORT=1")
-
-        #--bind -m32 -s USE_FREETYPE=1 -s USE_WEBGL2=1 -s WASM=0 -s MIN_WEBGL_VERSION=1 -s ABORT_ON_WASM_EXCEPTIONS=1 -g2 -s USE_GLFW=3 -sSAFE_HEAP")
+    target_include_directories(PgEngineSrc PUBLIC src/Engine)
+    target_include_directories(PgEngineSrc PUBLIC src/GameElements)
+    target_include_directories(PgEngineSrc PUBLIC src/Editor)
     
+    add_executable(PgEngine src/main.cpp)
 
-    target_link_libraries(Gmtk PRIVATE glm)
+    target_sources(PgEngine PRIVATE
+        src/application.cpp
+        src/application.h
+        src/Editor/Gui/contextmenu.cpp
+        src/Editor/Gui/inspector.cpp
+    )
+
+    target_link_libraries(PgEngine PRIVATE PgEngineSrc)
+
+    set_target_properties(PgEngine
+        PROPERTIES SUFFIX ".html"
+        LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
+
+    target_link_libraries(PgEngine PRIVATE glm)
 
 else()
     add_library(PgEngineSrc ${ENGINESOURCE})
@@ -229,15 +203,6 @@ else()
 
     # target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
     target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    # if(UNIX AND NOT APPLE)
-    #     target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2::TTF SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    # else()
-    #     target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    # endif()
-    
-    # target_link_libraries(PgEngineSrc PRIVATE $<IF:$<TARGET_EXISTS:SDL2_ttf::SDL2_ttf>,SDL2_ttf::SDL2_ttf,SDL2_ttf::SDL2_ttf-static>)
-
-    # find_package(PgEngineSrc REQUIRED)
 
     add_executable(PgEngine src/main.cpp)
 
