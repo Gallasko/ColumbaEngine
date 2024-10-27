@@ -1,26 +1,29 @@
 #include "ttftext.h"
 
-#ifdef __EMSCRIPTEN__
-#define GL_GLEXT_PROTOTYPES 1
-#include <emscripten.h>
-#include <SDL2/SDL.h>
-#include <SDL_opengl.h>
-// #include <SDL_opengl_glext.h>
-#include <GLES2/gl2.h>
-#include <GLFW/glfw3.h>
-#else
-#ifdef __linux__
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#elif _WIN32
-#include <SDL.h>
-#include <SDL_ttf.h>
-#endif
-#include <GL/glew.h>
-#include <GL/gl.h>
-#endif
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
-#include <glm.hpp>
+// #ifdef __EMSCRIPTEN__
+// #define GL_GLEXT_PROTOTYPES 1
+// #include <emscripten.h>
+// #include <SDL2/SDL.h>
+// #include <SDL_opengl.h>
+// // #include <SDL_opengl_glext.h>
+// #include <GLES2/gl2.h>
+// #include <GLFW/glfw3.h>
+// #else
+// #ifdef __linux__
+// #include <SDL2/SDL.h>
+// #include <SDL2/SDL_ttf.h>
+// #elif _WIN32
+// #include <SDL.h>
+// #include <SDL_ttf.h>
+// #endif
+// #include <GL/glew.h>
+// #include <GL/gl.h>
+// #endif
+
+// #include <glm.hpp>
 
 namespace pg
 {
@@ -84,10 +87,10 @@ namespace pg
 
     TTFTextSystem::TTFTextSystem(MasterRenderer *renderer) : AbstractRenderer(renderer, RenderStage::Render)
     {
-        if (TTF_Init() < 0)
-        {
-            LOG_ERROR(DOM, "Couldn't initialize TTF lib: " << TTF_GetError());
-        }
+        // if (TTF_Init() < 0)
+        // {
+        //     LOG_ERROR(DOM, "Couldn't initialize TTF lib: " << TTF_GetError());
+        // }
     }
 
     void TTFTextSystem::init()
@@ -217,120 +220,120 @@ namespace pg
             auto text = obj->text;
 
             auto f = [fontPath, textSize, text, textureName, this]() {
-                OpenGLTexture fontTexture;
+                // OpenGLTexture fontTexture;
 
-                TTF_Font * font = TTF_OpenFont(fontPath.c_str(), textSize);
+                // TTF_Font * font = TTF_OpenFont(fontPath.c_str(), textSize);
 
-                if (not font)
-                {
-                    LOG_ERROR(DOM, "Font could not be loaded: " << fontPath << ", error: " << TTF_GetError());
+                // if (not font)
+                // {
+                //     LOG_ERROR(DOM, "Font could not be loaded: " << fontPath << ", error: " << TTF_GetError());
 
-                    return fontTexture;
-                }
+                //     return fontTexture;
+                // }
 
-                SDL_Color color = {255, 255, 255, 255};
+                // SDL_Color color = {255, 255, 255, 255};
 
-                // SDL_Rect area;
-                // SDL_Surface *sText = SDL_ConvertSurfaceFormat(TTF_RenderUTF8_Blended(font, text.c_str(), color), SDL_PIXELFORMAT_RGBA32, 0);
+                // // SDL_Rect area;
+                // // SDL_Surface *sText = SDL_ConvertSurfaceFormat(TTF_RenderUTF8_Blended(font, text.c_str(), color), SDL_PIXELFORMAT_RGBA32, 0);
 
-                // if (not sText)
+                // // if (not sText)
+                // // {
+                // //     LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
+                // // }
+
+                // // area.x = 0; area.y = 0; area.w = sText->w; area.h = sText->h;
+
+                // // SDL_Surface* temp = SDL_CreateRGBSurface(0, sText->w,sText->h,32,0x000000ff,0x0000ff00,0x00ff0000,0x000000ff);
+
+                // // if (not temp)
+                // // {
+                // //     LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
+                // // }
+
+                // // SDL_BlitSurface(sText, &area, temp, NULL);
+
+                // SDL_Surface * sFont = TTF_RenderText_Blended(font, text.c_str(), color);
+
+                // if (not sFont)
                 // {
                 //     LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
+
+                //     TTF_CloseFont(font);
+
+                //     return fontTexture;
                 // }
 
-                // area.x = 0; area.y = 0; area.w = sText->w; area.h = sText->h;
+                // // auto colors = sFont->format->BytesPerPixel;
 
-                // SDL_Surface* temp = SDL_CreateRGBSurface(0, sText->w,sText->h,32,0x000000ff,0x0000ff00,0x00ff0000,0x000000ff);
+                // // auto texture_format = GL_RGBA;
 
-                // if (not temp)
-                // {
-                //     LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
-                // }
-
-                // SDL_BlitSurface(sText, &area, temp, NULL);
-
-                SDL_Surface * sFont = TTF_RenderText_Blended(font, text.c_str(), color);
-
-                if (not sFont)
-                {
-                    LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
-
-                    TTF_CloseFont(font);
-
-                    return fontTexture;
-                }
-
-                // auto colors = sFont->format->BytesPerPixel;
-
-                // auto texture_format = GL_RGBA;
-
-                // if (colors == 4)
-                // { // alpha
-                //     if (sFont->format->Rmask == 0x000000ff)
-                //         texture_format = GL_RGBA;
-                //     else
-                //         texture_format = GL_BGRA;
-                // }
-                // else
-                // { // no alpha
-                //     if (sFont->format->Rmask == 0x000000ff)
-                //         texture_format = GL_RGB;
-                //     else
-                //         texture_format = GL_BGR;
-                // }
+                // // if (colors == 4)
+                // // { // alpha
+                // //     if (sFont->format->Rmask == 0x000000ff)
+                // //         texture_format = GL_RGBA;
+                // //     else
+                // //         texture_format = GL_BGRA;
+                // // }
+                // // else
+                // // { // no alpha
+                // //     if (sFont->format->Rmask == 0x000000ff)
+                // //         texture_format = GL_RGB;
+                // //     else
+                // //         texture_format = GL_BGR;
+                // // }
 
 
-                auto w = nextpoweroftwo(sFont->w);
-                auto h = nextpoweroftwo(sFont->h);
+                // auto w = nextpoweroftwo(sFont->w);
+                // auto h = nextpoweroftwo(sFont->h);
                 
-                auto intermediary = SDL_CreateRGBSurface(0, w, h, 32, 
-                        0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
+                // auto intermediary = SDL_CreateRGBSurface(0, w, h, 32, 
+                //         0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
 
-                SDL_BlitSurface(sFont, 0, intermediary, 0);
+                // SDL_BlitSurface(sFont, 0, intermediary, 0);
 
-                GLuint texture;
-                glGenTextures(1, &texture);
-                glBindTexture(GL_TEXTURE_2D, texture);
+                // GLuint texture;
+                // glGenTextures(1, &texture);
+                // glBindTexture(GL_TEXTURE_2D, texture);
 
-                glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_NEAREST);
-                // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-                // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
-                // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
+                // glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_NEAREST);
+                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
+                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
+                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
 
-                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                // // set texture filtering parameters
-                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sText->w, sText->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, temp->pixels);
-                glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, intermediary->pixels);
-                // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sFont->w, sFont->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, sFont->pixels);
-                // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 128, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, sFont->pixels);
+                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
+                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
+                // // // set texture filtering parameters
+                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+                // // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sText->w, sText->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, temp->pixels);
+                // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, intermediary->pixels);
+                // // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sFont->w, sFont->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, sFont->pixels);
+                // // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 128, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, sFont->pixels);
 
-                // LOG_INFO(DOM, "Text has size: " << sFont->w << ", " << sFont->h);
-                LOG_INFO(DOM, "Text has size: " << w << ", " << h);
-                // LOG_INFO(DOM, "Text has size: " << sText->w << ", " << sText->h);
+                // // LOG_INFO(DOM, "Text has size: " << sFont->w << ", " << sFont->h);
+                // LOG_INFO(DOM, "Text has size: " << w << ", " << h);
+                // // LOG_INFO(DOM, "Text has size: " << sText->w << ", " << sText->h);
 
-                // sizeMap[textureName] = TTFSize{sFont->w, sFont->h};
-                sizeMap[textureName] = TTFSize{w, h};
-                // sizeMap[textureName] = TTFSize{sText->w, sText->h};
+                // // sizeMap[textureName] = TTFSize{sFont->w, sFont->h};
+                // sizeMap[textureName] = TTFSize{w, h};
+                // // sizeMap[textureName] = TTFSize{sText->w, sText->h};
 
-                fontTexture.id = texture;
-                fontTexture.transparent = false;
+                // fontTexture.id = texture;
+                // fontTexture.transparent = false;
 
-                SDL_FreeSurface(sFont);
-                SDL_FreeSurface(intermediary);
-                // SDL_FreeSurface(sText);
-                // SDL_FreeSurface(temp);
-                TTF_CloseFont(font);
+                // SDL_FreeSurface(sFont);
+                // SDL_FreeSurface(intermediary);
+                // // SDL_FreeSurface(sText);
+                // // SDL_FreeSurface(temp);
+                // TTF_CloseFont(font);
 
-                return fontTexture;
+                // return fontTexture;
             };
 
-            masterRenderer->queueRegisterTexture(textureName, f);
+            // masterRenderer->queueRegisterTexture(textureName, f);
 
             return RenderCall{};
         }

@@ -25,17 +25,19 @@ endif()
 
 set(SDL2_DIR "import/SDL2-2.28.5")
 set(SDL2MIXER_DIR "import/SDL2_mixer-2.6.3")
-set(SDL2_ttf_DIR "import/SDL2_ttf-2.22.0-mingw/cmake")
+# set(SDL2_ttf_DIR "import/SDL2_ttf-2.22.0-mingw/cmake")
 set(GLM_DIR "import/glm")
 set(TASKFLOW_DIR "import/taskflow-3.6.0")
 set(GTEST_DIR "import/googletest-1.14.0")
 set(GLEW_DIR "import/glew-cmake")
+set(TTF_DIR "import/freetype-2.13.3")
 
 find_package(OpenGL REQUIRED)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_TTF=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload-plugins \
+# set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_TTF=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload-plugins \
         --preload-file res \
         --preload-file scripts \
         --preload-file shader \
@@ -60,26 +62,28 @@ set(LINKER_FLAGS "")
 
 add_subdirectory(${GLM_DIR})
 add_subdirectory(${TASKFLOW_DIR})
+add_subdirectory(${TTF_DIR})
 
 include_directories(${GLM_DIR}/glm)
 include_directories(${TASKFLOW_DIR}/taskflow)
+include_directories(${TTF_DIR}/include)
 
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(${SDL2_DIR}/include)
-    include_directories(import/SDL2_ttf-2.22.0-mingw/x86_64-w64-mingw32/include/SDL2)
+    # include_directories(import/SDL2_ttf-2.22.0-mingw/x86_64-w64-mingw32/include/SDL2)
     include_directories(${SDL2MIXER_DIR}/include)
     include_directories(${GLEW_DIR}/include)
 endif()
 
-if(UNIX AND NOT APPLE)
-    list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
-    find_package(SDL2_ttf REQUIRED)
-    set(TTF_LIBS SDL2_ttf::SDL2_ttf)
-else()
-    # add_subdirectory(${SDL2_ttf_DIR})
-    find_package(SDL2_ttf CONFIG REQUIRED)
-    set(TTF_LIBS SDL2_ttf::SDL2_ttf)
-endif()
+# if(UNIX AND NOT APPLE)
+#     list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake/sdl2)
+#     find_package(SDL2_ttf REQUIRED)
+#     set(TTF_LIBS SDL2_ttf::SDL2_ttf)
+# else()
+#     # add_subdirectory(${SDL2_ttf_DIR})
+#     find_package(SDL2_ttf CONFIG REQUIRED)
+#     set(TTF_LIBS SDL2_ttf::SDL2_ttf)
+# endif()
 
 # Debug Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -224,11 +228,12 @@ else()
     target_link_options(PgEngineSrc PRIVATE -static-libgcc -static-libstdc++)
 
     # target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    if(UNIX AND NOT APPLE)
-        target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2::TTF SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    else()
-        target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    endif()
+    target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
+    # if(UNIX AND NOT APPLE)
+    #     target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2::TTF SDL2_mixer::SDL2_mixer-static glm libglew_static)
+    # else()
+    #     target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
+    # endif()
     
     # target_link_libraries(PgEngineSrc PRIVATE $<IF:$<TARGET_EXISTS:SDL2_ttf::SDL2_ttf>,SDL2_ttf::SDL2_ttf,SDL2_ttf::SDL2_ttf-static>)
 
