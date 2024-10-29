@@ -19,7 +19,7 @@ namespace pg
     struct TTFText : public Ctor
     {
         TTFText() {}
-        TTFText(const std::string& text, const std::string& fontPath, int textSize) : text(text), fontPath(fontPath), textSize(textSize) {}
+        TTFText(const std::string& text, const std::string& fontPath, float scale) : text(text), fontPath(fontPath), scale(scale) {}
 
         inline static std::string getType() { return "TTFText"; } 
 
@@ -49,7 +49,7 @@ namespace pg
 
         constant::Vector4D colors = {255, 255, 255, 255};
 
-        int textSize = 18;
+        float scale = 1.0f;
 
         EntitySystem * ecsRef = nullptr;
 
@@ -60,9 +60,9 @@ namespace pg
 
     struct TTFTextCall
     {
-        TTFTextCall(const RenderCall& call) : call(call) {}
+        TTFTextCall(const std::vector<RenderCall>& calls) : calls(calls) {}
 
-        RenderCall call;
+        std::vector<RenderCall> calls;
     };
 
     template <>
@@ -73,6 +73,14 @@ namespace pg
 
     struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, NamedSystem, InitSys>
     {
+        struct Character 
+        {
+            unsigned int textureID;  // ID handle of the glyph texture
+            glm::ivec2   size;       // Size of glyph
+            glm::ivec2   bearing;    // Offset from baseline to left/top of glyph
+            unsigned int advance;    // Offset to advance to next glyph
+        };
+
         TTFTextSystem(MasterRenderer *renderer);
 
         virtual std::string getSystemName() const override { return "TTFText System"; }
@@ -81,11 +89,13 @@ namespace pg
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 
+        void registerFont(const std::string& fontPath, int size = 48);
+
         void onEventUpdate(_unique_id entityId);
 
         virtual void execute() override;
 
-        RenderCall createRenderCall(CompRef<UiComponent> ui, CompRef<TTFText> obj);
+        std::vector<RenderCall> createRenderCall(CompRef<UiComponent> ui, CompRef<TTFText> obj);
 
         // Use this material preset if a material is not specified when creating a ttf component !
         Material baseMaterialPreset;
@@ -94,10 +104,14 @@ namespace pg
         std::unordered_map<std::string, TTFSize> sizeMap;
 
         FT_Library ft;
+
+        std::vector<std::string> loadedFont;
+
+        std::unordered_map<std::string, std::unordered_map<char, Character>> charactersMap;
     };
 
     template <typename Type>
-    CompList<UiComponent, TTFText> makeTTFText(Type *ecs, float x, float y, const std::string& fontPath, const std::string& text, int textSize = 18)
+    CompList<UiComponent, TTFText> makeTTFText(Type *ecs, float x, float y, const std::string& fontPath, const std::string& text, float scale = 1.0f)
     {
         LOG_THIS("TTFText System");
 
@@ -108,7 +122,7 @@ namespace pg
         ui->setX(x);
         ui->setY(y);
 
-        auto sentence = ecs->template attach<TTFText>(entity, text, fontPath, textSize);
+        auto sentence = ecs->template attach<TTFText>(entity, text, fontPath, scale);
 
         ui->setWidth(&sentence->textWidth);
         ui->setHeight(&sentence->textHeight);

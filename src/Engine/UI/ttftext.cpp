@@ -1,21 +1,31 @@
+
 #include "ttftext.h"
+
+#ifdef __EMSCRIPTEN__
+#define GL_GLEXT_PROTOTYPES 1
+#include <emscripten.h>
+#include <SDL2/SDL.h>
+#include <SDL_opengl.h>
+// #include <SDL_opengl_glext.h>
+#include <GLES2/gl2.h>
+#include <GLFW/glfw3.h>
+#else
+#ifdef __linux__
+#include <SDL2/SDL.h>
+#elif _WIN32
+#include <SDL.h>
+#endif
+#include <GL/glew.h>
+#include <GL/gl.h>
+#endif
+
+#include <glm.hpp>
 
 namespace pg
 {
     namespace
     {
         constexpr const char * const DOM = "TTFText System";
-
-        int round(double x)
-        {
-            return (int)(x + 0.5);
-        }
-
-        int nextpoweroftwo(int x)
-        {
-            double logbase2 = log(x) / log(2);
-            return round(pow(2,ceil(logbase2)));
-        }
     }
 
     template <>
@@ -24,7 +34,7 @@ namespace pg
         archive.startSerialization(TTFText::getType());
 
         serialize(archive, "text", value.text);
-        serialize(archive, "size", value.textSize);
+        serialize(archive, "scale", value.scale);
         serialize(archive, "colors", value.colors);
         serialize(archive, "fontPath", value.fontPath);
 
@@ -49,7 +59,7 @@ namespace pg
             TTFText data;
 
             data.text = deserialize<std::string>(serializedString["text"]);
-            data.textSize = deserialize<int>(serializedString["size"]);
+            data.scale = deserialize<float>(serializedString["scale"]);
             data.colors = deserialize<constant::Vector4D>(serializedString["colors"]);
             data.fontPath = deserialize<std::string>(serializedString["fontPath"]);
 
@@ -72,7 +82,7 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        baseMaterialPreset.shader = masterRenderer->getShader("simpleTexture");
+        baseMaterialPreset.shader = masterRenderer->getShader("ttfTexture");
 
         baseMaterialPreset.nbTextures = 1;
 
@@ -114,6 +124,79 @@ namespace pg
         onEventUpdate(event.id);
     }
 
+    void TTFTextSystem::registerFont(const std::string& fontPath, int size)
+    {
+        FT_Face face;
+        if (FT_New_Face(ft, fontPath.c_str(), 0, &face))
+        {
+            LOG_ERROR(DOM, "Failed to load font");
+            return;
+        }
+        
+        FT_Set_Char_Size(face, 0, size * 64, 300, 300);
+        FT_Set_Pixel_Sizes(face, 0, size);
+
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction
+  
+        for (unsigned char c = 0; c < 128; c++)
+        {
+            auto f = [fontPath, face, c, this]() {
+                // load character glyph 
+                if (FT_Load_Char(face, c, FT_LOAD_RENDER))
+                {
+                    LOG_ERROR(DOM, "Failed to load Glyph for: " << std::string(1, c));
+                    return OpenGLTexture{};
+                }
+
+                // generate texture
+                unsigned int texture;
+                glGenTextures(1, &texture);
+                glBindTexture(GL_TEXTURE_2D, texture);
+                glTexImage2D(
+                    GL_TEXTURE_2D,
+                    0,
+                    GL_RED,
+                    face->glyph->bitmap.width,
+                    face->glyph->bitmap.rows,
+                    0,
+                    GL_RED,
+                    GL_UNSIGNED_BYTE,
+                    face->glyph->bitmap.buffer
+                );
+                // set texture options
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+                // now store character for later use
+                Character character = {
+                    texture, 
+                    glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
+                    glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
+                    static_cast<unsigned int>(face->glyph->advance.x)
+                };
+
+                LOG_INFO(DOM, "Character : " << c << " has id " << texture << " " << character.size.x << " " << character.size.y);
+
+                charactersMap[fontPath].insert(std::pair<char, Character>(c, character));
+
+                OpenGLTexture fontTexture;
+
+                fontTexture.id = texture;
+                fontTexture.transparent = true;
+
+                return fontTexture;
+            };
+
+            auto textureName = "TTFText_" + fontPath + "_" + std::to_string(c);
+
+            masterRenderer->queueRegisterTexture(textureName, f);
+
+            // Todo free up the lib stuff once all the texture are registered ! (ft and face)
+        }
+    }
+
     void TTFTextSystem::onEventUpdate(_unique_id entityId)
     {
         LOG_THIS_MEMBER(DOM);
@@ -126,7 +209,7 @@ namespace pg
         auto ui = entity->get<UiComponent>();
         auto shape = entity->get<TTFText>();
 
-        entity->get<TTFTextCall>()->call = createRenderCall(ui, shape);
+        entity->get<TTFTextCall>()->calls = createRenderCall(ui, shape);
 
         changed = true;
     }
@@ -142,205 +225,91 @@ namespace pg
 
         changed = false;
 
-        // renderCallList.reserve(renderCallView.nbComponents());
-
         for (const auto& renderCall : renderCallView)
         {
             auto rCall = renderCall->get<TTFTextCall>();
 
-            if (rCall->call.key == 0 and renderCall->get<TTFText>()->text != "")
-            {
-                rCall->call = createRenderCall(renderCall->get<UiComponent>(), renderCall->get<TTFText>());
-                changed = true;
-            }
-            else
-            {
-                renderCallList.push_back(rCall->call);
-            }
-        }
-
-        
+            renderCallList.insert(renderCallList.end(), rCall->calls.begin(), rCall->calls.end());
+        }        
     }
 
-    RenderCall TTFTextSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<TTFText> obj)
+    std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<TTFText> obj)
     {
         LOG_THIS_MEMBER(DOM);
 
-        RenderCall call;
+        std::vector<RenderCall> calls;
 
-        call.processUiComponent(ui);
+        auto textureName = "TTFText_" + obj->text + "_" + std::to_string(obj->scale);
 
-        call.setOpacity(OpacityType::Additive);
+        float x = ui->pos.x;
+        float y = ui->pos.y;
+        float z = ui->pos.z;
 
-        call.setRenderStage(renderStage);
+        float scale = obj->scale;
 
-        auto textureName = "TTFText_" + obj->text + "_" + std::to_string(obj->textSize);
+        auto colors = obj->colors;
 
-        if (masterRenderer->hasMaterial(textureName))
+        std::string::const_iterator c;
+        for (c = obj->text.begin(); c != obj->text.end(); c++)
         {
-            call.setMaterial(masterRenderer->getMaterialID(textureName));
-        }
-        else if (masterRenderer->hasTexture(textureName))
-        {
-            Material simpleShapeMaterial = baseMaterialPreset;
+            auto textureName = "TTFText_" + obj->fontPath + "_" + std::to_string(*c);
 
-            simpleShapeMaterial.textureId[0] = masterRenderer->getTexture(textureName).id;
+            LOG_INFO(DOM, "Looking for texture: " << textureName);
 
-            call.setMaterial(masterRenderer->registerMaterial(textureName, simpleShapeMaterial));
-        }
-        else
-        {
-            auto fontPath = obj->fontPath;
-            auto textSize = obj->textSize;
-            auto text = obj->text;
+            Character ch = charactersMap[obj->fontPath][*c];
 
-            auto f = [fontPath, textSize, text, textureName, this]() {
-                // OpenGLTexture fontTexture;
+            float xPos = x + ch.bearing.x * scale;
+            float yPos = y - (ch.size.y - ch.bearing.y) * scale;
 
-                // TTF_Font * font = TTF_OpenFont(fontPath.c_str(), textSize);
+            float w = ch.size.x * scale;
+            float h = ch.size.y * scale;
 
-                // if (not font)
-                // {
-                //     LOG_ERROR(DOM, "Font could not be loaded: " << fontPath << ", error: " << TTF_GetError());
+            RenderCall call;
 
-                //     return fontTexture;
-                // }
+            call.processUiComponent(ui);
 
-                // SDL_Color color = {255, 255, 255, 255};
+            if (masterRenderer->hasMaterial(textureName))
+            {
+                call.setMaterial(masterRenderer->getMaterialID(textureName));
+            }
+            else
+            {
+                Material simpleShapeMaterial = baseMaterialPreset;
 
-                // // SDL_Rect area;
-                // // SDL_Surface *sText = SDL_ConvertSurfaceFormat(TTF_RenderUTF8_Blended(font, text.c_str(), color), SDL_PIXELFORMAT_RGBA32, 0);
+                simpleShapeMaterial.textureId[0] = masterRenderer->getTexture(textureName).id;
 
-                // // if (not sText)
-                // // {
-                // //     LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
-                // // }
+                LOG_INFO(DOM, "Got id: " << masterRenderer->getTexture(textureName).id);
 
-                // // area.x = 0; area.y = 0; area.w = sText->w; area.h = sText->h;
+                call.setMaterial(masterRenderer->registerMaterial(textureName, simpleShapeMaterial));
+            }
 
-                // // SDL_Surface* temp = SDL_CreateRGBSurface(0, sText->w,sText->h,32,0x000000ff,0x0000ff00,0x00ff0000,0x000000ff);
-
-                // // if (not temp)
-                // // {
-                // //     LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
-                // // }
-
-                // // SDL_BlitSurface(sText, &area, temp, NULL);
-
-                // SDL_Surface * sFont = TTF_RenderText_Blended(font, text.c_str(), color);
-
-                // if (not sFont)
-                // {
-                //     LOG_ERROR(DOM, "Font surface could not be generated" << ", error: " << TTF_GetError());
-
-                //     TTF_CloseFont(font);
-
-                //     return fontTexture;
-                // }
-
-                // // auto colors = sFont->format->BytesPerPixel;
-
-                // // auto texture_format = GL_RGBA;
-
-                // // if (colors == 4)
-                // // { // alpha
-                // //     if (sFont->format->Rmask == 0x000000ff)
-                // //         texture_format = GL_RGBA;
-                // //     else
-                // //         texture_format = GL_BGRA;
-                // // }
-                // // else
-                // // { // no alpha
-                // //     if (sFont->format->Rmask == 0x000000ff)
-                // //         texture_format = GL_RGB;
-                // //     else
-                // //         texture_format = GL_BGR;
-                // // }
-
-
-                // auto w = nextpoweroftwo(sFont->w);
-                // auto h = nextpoweroftwo(sFont->h);
-                
-                // auto intermediary = SDL_CreateRGBSurface(0, w, h, 32, 
-                //         0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000);
-
-                // SDL_BlitSurface(sFont, 0, intermediary, 0);
-
-                // GLuint texture;
-                // glGenTextures(1, &texture);
-                // glBindTexture(GL_TEXTURE_2D, texture);
-
-                // glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
-                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
-                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_LINEAR_MIPMAP_NEAREST);
-                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_LINEAR);
-                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT);
-                // // glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL_REPEAT);
-
-                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP);
-                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP);
-                // // // set texture filtering parameters
-                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-                // // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                // // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sText->w, sText->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, temp->pixels);
-                // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, w, h, 0, GL_RGBA, GL_UNSIGNED_BYTE, intermediary->pixels);
-                // // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, sFont->w, sFont->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, sFont->pixels);
-                // // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 128, 32, 0, GL_RGBA, GL_UNSIGNED_BYTE, sFont->pixels);
-
-                // // LOG_INFO(DOM, "Text has size: " << sFont->w << ", " << sFont->h);
-                // LOG_INFO(DOM, "Text has size: " << w << ", " << h);
-                // // LOG_INFO(DOM, "Text has size: " << sText->w << ", " << sText->h);
-
-                // // sizeMap[textureName] = TTFSize{sFont->w, sFont->h};
-                // sizeMap[textureName] = TTFSize{w, h};
-                // // sizeMap[textureName] = TTFSize{sText->w, sText->h};
-
-                // fontTexture.id = texture;
-                // fontTexture.transparent = false;
-
-                // SDL_FreeSurface(sFont);
-                // SDL_FreeSurface(intermediary);
-                // // SDL_FreeSurface(sText);
-                // // SDL_FreeSurface(temp);
-                // TTF_CloseFont(font);
-
-                // return fontTexture;
-            };
-
-            // masterRenderer->queueRegisterTexture(textureName, f);
-
-            return RenderCall{};
-        }
-
-        if (masterRenderer->getTexture(textureName).transparent)
-        {
             call.setOpacity(OpacityType::Additive);
+
+            call.setRenderStage(renderStage);
+
+            call.data.resize(11);
+
+            LOG_INFO(DOM, "Glyph: " << scale << " " << xPos << " " << yPos << " " << w << "," << h);
+
+            call.data[0] = xPos;
+            call.data[1] = yPos;
+            call.data[2] = z;
+            call.data[3] = w;
+            call.data[4] = h;
+            call.data[5] = ui->rotation;
+            call.data[6] = colors.w;
+            call.data[7] = colors.x;
+            call.data[8] = colors.y;
+            call.data[9] = colors.z;
+            call.data[10] = 1.0f;
+
+            calls.push_back(call);
+
+            // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
+            x += (ch.advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+            // x += 16; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
         }
-        else
-        {
-            call.setOpacity(OpacityType::Opaque);
-        }
 
-        auto size = sizeMap[textureName];
-
-        obj->textWidth = size.width;
-        obj->textHeight = size.height;
-
-        call.data.resize(11);
-
-        call.data[0] = ui->pos.x;
-        call.data[1] = ui->pos.y;
-        call.data[2] = ui->pos.z;
-        call.data[3] = ui->width;
-        call.data[4] = ui->height;
-        call.data[5] = ui->rotation;
-        call.data[6] = obj->colors.w;
-        call.data[7] = obj->colors.x;
-        call.data[8] = obj->colors.y;
-        call.data[9] = obj->colors.z;
-        call.data[10] = 1.0f;
-
-        return call;
+        return calls;
     }
 }

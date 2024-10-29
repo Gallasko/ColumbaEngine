@@ -84,7 +84,9 @@ void initGame()
     mainWindow->ecs.createSystem<MoveToSystem>();
     mainWindow->ecs.createSystem<ContextMenu>();
     mainWindow->ecs.createSystem<InspectorSystem>();
-    mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
 
     mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();

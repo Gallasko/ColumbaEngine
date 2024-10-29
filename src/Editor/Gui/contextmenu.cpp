@@ -222,7 +222,7 @@ namespace editor
 
                 case UiComponentType::TTFTEXT:
                 {
-                    auto newElement = makeTTFText(ecsRef, currentX, currentY, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 48);
+                    auto newElement = makeTTFText(ecsRef, currentX, currentY, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text OwO nNn", 1);
 
                     ecsRef->attach<SceneElement>(newElement.entity);
                     break;
