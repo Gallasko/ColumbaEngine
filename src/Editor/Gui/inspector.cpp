@@ -84,6 +84,7 @@ namespace pg
             auto sentUi = sentence.get<UiComponent>();
 
             sentUi->setVisibility(false);
+            sentUi->setZ(1);
 
             view->addEntity(sentUi);
         }
@@ -99,6 +100,7 @@ namespace pg
             auto sentUi = sentence.get<UiComponent>();
 
             sentUi->setVisibility(false);
+            sentUi->setZ(1);
 
             auto nbElements = inspectorText.size();
 
@@ -109,6 +111,7 @@ namespace pg
             auto valueInputUi = valueInput.get<UiComponent>();
 
             valueInputUi->setVisibility(false);
+            valueInputUi->setZ(1);
 
             valueInputUi->setLeftAnchor(sentUi->right);
 

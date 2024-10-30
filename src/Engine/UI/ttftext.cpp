@@ -133,7 +133,7 @@ namespace pg
             return;
         }
         
-        FT_Set_Char_Size(face, 0, size * 64, 300, 300);
+        // FT_Set_Char_Size(face, 0, size * 64, 300, 300);
         FT_Set_Pixel_Sizes(face, 0, size);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction
@@ -249,6 +249,9 @@ namespace pg
 
         auto colors = obj->colors;
 
+        float textWidth = 0.0f;
+        float textHeight = 0.0f;
+
         std::string::const_iterator c;
         for (c = obj->text.begin(); c != obj->text.end(); c++)
         {
@@ -259,10 +262,18 @@ namespace pg
             Character ch = charactersMap[obj->fontPath][*c];
 
             float xPos = x + ch.bearing.x * scale;
-            float yPos = y - (ch.size.y - ch.bearing.y) * scale;
+            // Todo fix this position issue right here !
+            // float yPos = y - (ch.size.y + ch.bearing.y) * scale / 2.0f;
+            float yPos = y - ch.bearing.y * scale;
 
             float w = ch.size.x * scale;
             float h = ch.size.y * scale;
+
+            textWidth += w;
+            textWidth += (ch.advance >> 6) * scale;
+
+            if ((ch.size.y + ch.bearing.y) * scale > textHeight)
+                textHeight = (ch.size.y + ch.bearing.y) * scale;
 
             RenderCall call;
 
@@ -310,6 +321,16 @@ namespace pg
             // x += 16; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
         }
 
+        if (obj->textWidth != textWidth)
+        {
+            obj->textWidth = textWidth;
+        }
+
+        if (obj->textHeight != textHeight)
+        {
+            obj->textHeight = textHeight;
+        }
+        
         return calls;
     }
 }
