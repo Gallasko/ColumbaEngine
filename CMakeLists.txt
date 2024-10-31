@@ -215,6 +215,7 @@ else()
         src/application.h
         src/Editor/Gui/contextmenu.cpp
         src/Editor/Gui/inspector.cpp
+        src/Editor/Gui/projectmanager.cpp
     )
 
     target_link_libraries(PgEngine PRIVATE PgEngineSrc)
