@@ -43,7 +43,7 @@
                 "args": [
                     "-c",
                     // "cmake --build x:/Document/GitHub/TeclaEatsDesktop/release --config Release --target t1 -j 22 --"
-                    "cmake --build ${workspaceFolder}/release --config Release --target t1 -j 22 --"
+                    "cmake --build ${workspaceFolder}/release --config Release --target t1 bench -j 22 --"
                 ]
             },
             "linux": {

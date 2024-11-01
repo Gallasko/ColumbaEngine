@@ -268,6 +268,14 @@ else()
                        COMMAND ${CMAKE_COMMAND} -E copy_directory
                        ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:t1>)
 
+    add_executable(bench benchmark/mainbenchmark.cc)
+
+    target_sources(bench PRIVATE
+        benchmark/memorypool.cc
+    )
+
+    target_link_libraries(bench PRIVATE gtest gtest_main PgEngineSrc)
+
 endif()
 
 # add_custom_command(TARGET t1 POST_BUILD 
