@@ -41,31 +41,27 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload
         --preload-file scripts \
         --preload-file shader \
         --preload-file setupRenderer.pg \
+        --preload-file sysRegister.pg \
         --preload-file logManager.pg")
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 else()
     add_subdirectory(${SDL2_DIR})
     add_subdirectory(${SDL2MIXER_DIR})
-endif()
-
-if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_subdirectory(${GLEW_DIR})
+    add_subdirectory(${TTF_DIR})
 endif()
-
-set(LINKER_FLAGS "")
 
 add_subdirectory(${GLM_DIR})
-add_subdirectory(${TASKFLOW_DIR})
-add_subdirectory(${TTF_DIR})
+# add_subdirectory(${TASKFLOW_DIR})
 
 include_directories(${GLM_DIR}/glm)
 include_directories(${TASKFLOW_DIR}/taskflow)
-include_directories(${TTF_DIR}/include)
 
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(${SDL2_DIR}/include)
     include_directories(${SDL2MIXER_DIR}/include)
     include_directories(${GLEW_DIR}/include)
+    include_directories(${TTF_DIR}/include)
 endif()
 
 # Debug Flags
@@ -194,7 +190,7 @@ else()
     target_include_directories(PgEngineSrc PUBLIC src/Engine)
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
 
-    if(TARGET SDL2::SDL2main)
+    if (TARGET SDL2::SDL2main)
         target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2main)
     endif()
 

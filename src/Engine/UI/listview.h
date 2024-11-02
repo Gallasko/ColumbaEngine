@@ -81,12 +81,12 @@ namespace pg
 
         virtual void init() override;
 
-        virtual void onEvent(const AddListViewElementEvent& event)
+        virtual void onEvent(const AddListViewElementEvent& event) override
         {
             eventQueue.push(event);
         }
 
-        virtual void onEvent(const ClearListViewEvent& event)
+        virtual void onEvent(const ClearListViewEvent& event) override
         {
             clearQueue.push(event);
         }
