@@ -157,26 +157,10 @@ namespace pg
 
             if (index >= size) reserve(index);
 
-            const uint64_t n = log2_64(index + 1);
-            const size_t containerSize = N >= 2 ? N : n == 0 ? 0 : 1 << n;
-
-            LOG_MILE("Memory Pool", "Allocate internal, n: " << n <<
-                " container size: "  << containerSize);
-
-            const size_t listPos = N >= 2 ? index / containerSize : n;
-            const size_t vectorPos = N >= 2 ? index % containerSize : n == 0 ? 0 : index + 1 - containerSize;
-
-            LOG_MILE("Memory Pool", "Allocating new element: " << index <<
-                " in chunk: "  << listPos <<
-                " at pos: " << vectorPos <<
-                " with current pool size: " << size);
-
             // Todo Check if the chunk was created before creating a new element 
-            Chunk<T>* chunk = &chunkList[listPos][vectorPos];
+            Chunk<T>* chunk = getChunk(index);
 
-            ::new(&(chunk->element)) T(std::forward<Args>(args)...);
-
-            return reinterpret_cast<T*>(chunk);
+            return ::new(&(chunk->element)) T(std::forward<Args>(args)...);
         } 
 
         // Todo add a bulk allocation and deallocation function
@@ -213,6 +197,13 @@ namespace pg
         inline constexpr size_t getNbElements() const { return nbElements; }
 
         /**
+         * @brief Get the current size of the pool (current nb max elements)
+         * 
+         * @return constexpr size_t The size of the pool
+         */
+        inline constexpr size_t getSize() const { return size; }
+
+        /**
          * @brief Get a specific element in the pool by his index
          * 
          * @param index The position of the item in the pool
@@ -226,9 +217,25 @@ namespace pg
 
             if (index >= size)
             {
-                LOG_ERROR("Memory Pool", "Trying to acces an element outside of the pool");
+                LOG_ERROR("Memory Pool", "Trying to acces a chunk outside of the pool");
                 return nullptr;
             }
+
+            return reinterpret_cast<T*>(getChunk(index));
+        }
+
+    protected:
+        /**
+         * @brief Get a specific chunk in the pool by his index
+         * 
+         * @param index The position of the item in the pool
+         * @return Chunk<T>* A pointer to the chunk
+         * 
+         * @warning The object requested should be allocated prior to calling this
+         */
+        inline Chunk<T>* getChunk(size_t index) const
+        {
+            LOG_THIS_MEMBER("Memory Pool");
 
             const uint64_t n = log2_64(index + 1);
             const size_t containerSize = N >= 2 ? N : n == 0 ? 0 : 1 << n;
@@ -236,9 +243,9 @@ namespace pg
             const size_t listPos = N >= 2 ? index / containerSize : n;
             const size_t vectorPos = N >= 2 ? index % containerSize : n == 0 ? 0 : index + 1 - containerSize;
 
-            return reinterpret_cast<T*>(&chunkList[listPos][vectorPos]);
+            return &chunkList[listPos][vectorPos];
         }
-
+    
     private:
         /** Current size of the memory pool */
         size_t size = 0;

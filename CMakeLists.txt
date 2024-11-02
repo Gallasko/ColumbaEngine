@@ -252,6 +252,7 @@ else()
         test/interpreter.cc
         # test/mock2dsimpleshape.h
         # test/simple2dobject.cc
+        test/memorypool.cc
         test/mockinterpreter.h
         test/mocklogger.h
         test/mockloggertest.cc
