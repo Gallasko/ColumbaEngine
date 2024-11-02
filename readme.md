@@ -32,9 +32,9 @@ PGEngine is still in the early stage of development, important features are miss
 
 # How to build
 
-## Download external depencies
+## Download external dependencies
 
-The first step to build is to download the two external depencies of this project:
+The first step to build is to download the two external dependencies of this project:
 - Any C++ compiler that can handle 64bits build
 - Cmake
 
