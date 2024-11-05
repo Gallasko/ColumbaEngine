@@ -83,15 +83,15 @@ void initGame()
     printf("Engine initialized ...\n");
 
     mainWindow->ecs.createSystem<MoveToSystem>();
-    mainWindow->ecs.createSystem<ContextMenu>();
-    mainWindow->ecs.createSystem<InspectorSystem>();
+    // mainWindow->ecs.createSystem<ContextMenu>();
+    // mainWindow->ecs.createSystem<InspectorSystem>();
     auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf");
 
-    mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
+    // mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
     auto ent = mainWindow->ecs.createEntity();
@@ -113,7 +113,7 @@ void initGame()
 
     mainWindow->resize(820, 640);
 
-    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<ProjectSelectorScene>();
+    mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<ProjectSelectorScene>();
 
     printf("Engine initialized\n");
 }

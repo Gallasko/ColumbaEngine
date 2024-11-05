@@ -235,6 +235,7 @@ namespace pg
 
     std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<TTFText> obj)
     {
+        // Todo fix position issue right here !
         LOG_THIS_MEMBER(DOM);
 
         std::vector<RenderCall> calls;
@@ -252,6 +253,15 @@ namespace pg
         float textWidth = 0.0f;
         float textHeight = 0.0f;
 
+        std::string::const_iterator cha;
+        for (cha = obj->text.begin(); cha != obj->text.end(); cha++)
+        {
+            Character ch = charactersMap[obj->fontPath][*cha];
+
+            if ((ch.size.y + ch.bearing.y) * scale > textHeight)
+                textHeight = (ch.size.y + ch.bearing.y) * scale;
+        }
+
         std::string::const_iterator c;
         for (c = obj->text.begin(); c != obj->text.end(); c++)
         {
@@ -262,18 +272,14 @@ namespace pg
             Character ch = charactersMap[obj->fontPath][*c];
 
             float xPos = x + ch.bearing.x * scale;
-            // Todo fix this position issue right here !
             // float yPos = y - (ch.size.y + ch.bearing.y) * scale / 2.0f;
-            float yPos = y - ch.bearing.y * scale;
+            float yPos = y - ch.bearing.y * scale + textHeight;
 
             float w = ch.size.x * scale;
             float h = ch.size.y * scale;
 
             textWidth += w;
             textWidth += (ch.advance >> 6) * scale;
-
-            if ((ch.size.y + ch.bearing.y) * scale > textHeight)
-                textHeight = (ch.size.y + ch.bearing.y) * scale;
 
             RenderCall call;
 
@@ -321,9 +327,9 @@ namespace pg
             // x += 16; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
         }
 
-        if (obj->textWidth != textWidth)
+        if (obj->textWidth != textWidth / 2.0f)
         {
-            obj->textWidth = textWidth;
+            obj->textWidth = textWidth / 2.0f;
         }
 
         if (obj->textHeight != textHeight)

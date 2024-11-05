@@ -1,6 +1,7 @@
 #include "projectmanager.h"
 
 #include "UI/ttftext.h"
+#include "2D/texture.h"
 
 namespace pg
 {
@@ -20,7 +21,8 @@ namespace pg
 
         makeTTFText(this, 80, 175, "res/font/Inter/static/Inter_28pt-Light.ttf", "Start:", 0.4);
 
-        makeTTFText(this, 100, 220, "res/font/Inter/static/Inter_28pt-Italic.ttf", "Create Project...", 0.5);
+        auto text = makeTTFText(this, 100, 220, "res/font/Inter/static/Inter_28pt-Italic.ttf", "Create Project...", 0.5, {255.0f, 0.0f, 0.0f, 255.0f});
+
         makeTTFText(this, 100, 250, "res/font/Inter/static/Inter_28pt-Italic.ttf", "Open Project...", 0.5);
 
         makeTTFText(this, 80, 300, "res/font/Inter/static/Inter_28pt-Light.ttf", "Recent:", 0.4);

@@ -19,7 +19,7 @@ namespace pg
     struct TTFText : public Ctor
     {
         TTFText() {}
-        TTFText(const std::string& text, const std::string& fontPath, float scale) : text(text), fontPath(fontPath), scale(scale) {}
+        TTFText(const std::string& text, const std::string& fontPath, float scale, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f}) : text(text), fontPath(fontPath), scale(scale), colors(colors) {}
 
         inline static std::string getType() { return "TTFText"; } 
 
@@ -47,9 +47,9 @@ namespace pg
 
         std::string fontPath;
 
-        constant::Vector4D colors = {255, 255, 255, 255};
-
         float scale = 1.0f;
+
+        constant::Vector4D colors;
 
         EntitySystem * ecsRef = nullptr;
 
@@ -111,7 +111,7 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<UiComponent, TTFText> makeTTFText(Type *ecs, float x, float y, const std::string& fontPath, const std::string& text, float scale = 1.0f)
+    CompList<UiComponent, TTFText> makeTTFText(Type *ecs, float x, float y, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
         LOG_THIS("TTFText System");
 
@@ -122,7 +122,7 @@ namespace pg
         ui->setX(x);
         ui->setY(y);
 
-        auto sentence = ecs->template attach<TTFText>(entity, text, fontPath, scale);
+        auto sentence = ecs->template attach<TTFText>(entity, text, fontPath, scale, colors);
 
         ui->setWidth(&sentence->textWidth);
         ui->setHeight(&sentence->textHeight);
