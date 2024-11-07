@@ -49,6 +49,8 @@ else()
     add_subdirectory(${SDL2MIXER_DIR})
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
+
+    set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj")
 endif()
 
 add_subdirectory(${GLM_DIR})
