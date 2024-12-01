@@ -249,6 +249,8 @@ namespace pg
 
         inline bool isEmpty() const { return emptyFlag; }
 
+        explicit operator bool() const;
+
     private:
         friend void serialize<>(Archive& archive, const ElementType& element);
 
@@ -268,7 +270,6 @@ namespace pg
         explicit operator int() const;
         explicit operator size_t() const;
         explicit operator std::string() const;
-        explicit operator bool() const;
 
         U data;
 

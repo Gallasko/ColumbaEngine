@@ -76,7 +76,26 @@ namespace pg
             return ent;
         }
 
+        template <typename Callback>
+        EntityRef listenToStandardEvent(const std::string& eventName, const Callback& callback)
+        {
+            std::function<void(const StandardEvent&)> f = callback;
+
+            return listenToStandardEvent(eventName, f);
+        }
+
+        EntityRef listenToStandardEvent(const std::string& eventName, const std::function<void(const StandardEvent&)>& callback)
+        {
+            auto ent = createEntity();
+
+            ecsRef->attach<OnStandardEventComponent>(ent, eventName, callback);
+
+            return ent;
+        }
+
         EntityRef createEntity();
+
+        inline Entity* getEntity(_unique_id id) const { return ecsRef->getEntity(id); }
 
         template <typename Type, typename... Args>
         CompRef<Type> attach(EntityRef entity, Args&&... args) noexcept

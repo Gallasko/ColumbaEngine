@@ -75,6 +75,7 @@ namespace pg
     friend struct CoreModule;
     friend struct InputModule;
     friend struct OnEventComponent;
+    friend struct OnStandardEventComponent;
     
     private:
         class EventDispatcher

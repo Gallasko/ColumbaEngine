@@ -435,6 +435,8 @@ namespace pg
 
         virtual void execute() override;
 
+        void processTextureRegister();
+
         void renderAll();
 
         void registerShader(const std::string& name, OpenGLShaderProgram *shaderProgram);

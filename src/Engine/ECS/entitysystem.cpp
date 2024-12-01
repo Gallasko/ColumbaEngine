@@ -55,11 +55,11 @@ namespace pg
 
             end = std::chrono::steady_clock::now();
 
-            eventDispatcher.process(); 
-            
             // During the command dispatcher no other system should be running
             // So it should be safe to allow for creation and deletion of entities/components on the spot
             running = false;
+            eventDispatcher.process(); 
+                        
             cmdDispatcher.process();
 
             if (not stopRequested)

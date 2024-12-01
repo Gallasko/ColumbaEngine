@@ -94,7 +94,7 @@ namespace pg
     }
 
     template <typename Type>
-    CompList<UiComponent, TTFText, FocusableComponent, TextInputComponent> makeTTFTextInput(Type *ecs, float x, float y, StandardEvent event, const std::string& font, const std::string& defaultText = "Input", int size = 18)
+    CompList<UiComponent, TTFText, FocusableComponent, TextInputComponent> makeTTFTextInput(Type *ecs, float x, float y, StandardEvent event, const std::string& font, const std::string& defaultText = "Input", float size = 1)
     {
         LOG_THIS("Text Input System");
 

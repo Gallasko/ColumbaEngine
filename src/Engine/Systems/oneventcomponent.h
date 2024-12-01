@@ -44,7 +44,30 @@ namespace pg
         std::function<void(const std::any&)> callback;
     };
 
-    struct OnEventComponentSystem : public System<Own<OnEventComponent>, NamedSystem, StoragePolicy>
+    struct OnStandardEventComponent : public Ctor, public Dtor
+    {
+        OnStandardEventComponent(const std::string& eventName, const std::function<void(const StandardEvent&)>& eventCallback) : eventName(eventName), callback(eventCallback)
+        {
+        }
+
+        OnStandardEventComponent(const std::string& eventName, void(*eventCallback)(const StandardEvent&)) : eventName(eventName), callback(eventCallback)
+        {
+        }
+
+        OnStandardEventComponent(const OnStandardEventComponent& other) : eventName(other.eventName), callback(other.callback)
+        {
+        }
+
+        virtual void onCreation(EntityRef entity) override;
+
+        virtual void onDeletion(EntityRef entity) override;
+
+        std::string eventName;
+
+        std::function<void(const StandardEvent&)> callback;
+    };
+
+    struct OnEventComponentSystem : public System<Own<OnEventComponent>, Own<OnStandardEventComponent>, NamedSystem, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "OnEventComponentSystem"; }
     };

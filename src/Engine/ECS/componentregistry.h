@@ -217,6 +217,23 @@ namespace pg
             }
         }
 
+        void addStandardEventListener(EntityRef entity, const std::string& name, std::function<void(const StandardEvent&)> callback)
+        {
+            LOG_THIS_MEMBER("Component Registry");
+            
+            standardEventStorageMap[name].emplace(entity.id, callback);
+        }
+
+        void removeStandardEventListener(EntityRef entity, const std::string& name)
+        {
+            LOG_THIS_MEMBER("Component Registry");
+
+            if (const auto& it = standardEventStorageMap[name].find(entity.id); it != standardEventStorageMap[name].end())
+            {
+                standardEventStorageMap[name].erase(it);
+            }
+        }
+
         void addEventListener(EntityRef entity, _unique_id eventId, std::function<void(const std::any&)> callback)
         {
             LOG_THIS_MEMBER("Component Registry");

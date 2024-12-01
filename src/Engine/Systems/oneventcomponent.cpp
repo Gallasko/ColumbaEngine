@@ -17,4 +17,14 @@ namespace pg
 
         entity.ecsRef->registry.removeEventListener(entity, id);
     }
+
+    void OnStandardEventComponent::onCreation(EntityRef entity)
+    {
+        entity.ecsRef->registry.addStandardEventListener(entity, eventName, callback);
+    }
+
+    void OnStandardEventComponent::onDeletion(EntityRef entity)
+    {
+        entity.ecsRef->registry.removeStandardEventListener(entity, eventName);
+    }
 }

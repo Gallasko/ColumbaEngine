@@ -267,7 +267,7 @@ namespace pg
         {
             auto textureName = "TTFText_" + obj->fontPath + "_" + std::to_string(*c);
 
-            LOG_INFO(DOM, "Looking for texture: " << textureName);
+            LOG_MILE(DOM, "Looking for texture: " << textureName);
 
             Character ch = charactersMap[obj->fontPath][*c];
 
@@ -306,7 +306,7 @@ namespace pg
 
             call.data.resize(11);
 
-            LOG_INFO(DOM, "Glyph: " << scale << " " << xPos << " " << yPos << " " << w << "," << h);
+            LOG_MILE(DOM, "Glyph: " << scale << " " << xPos << " " << yPos << " " << w << "," << h);
 
             call.data[0] = xPos;
             call.data[1] = yPos;

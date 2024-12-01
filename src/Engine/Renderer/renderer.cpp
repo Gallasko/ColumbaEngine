@@ -226,10 +226,8 @@ namespace pg
         // execCv.notify_all();
     }
 
-    void MasterRenderer::renderAll()
+    void MasterRenderer::processTextureRegister()
     {
-        // Todo Clear screen here
-
         TextureRegisteringQueueItem item;
 
         bool found = textureRegisteringQueue.try_dequeue(item);
@@ -248,6 +246,13 @@ namespace pg
 
             found = textureRegisteringQueue.try_dequeue(item);
         }
+    }
+
+    void MasterRenderer::renderAll()
+    {
+        // Todo Clear screen here
+
+        processTextureRegister();
 
         for (const auto& call : renderCallList[currentRenderList])
         {
