@@ -50,7 +50,8 @@ else()
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
 
-    set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj")
+    set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
+    # set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
 endif()
 
 add_subdirectory(${GLM_DIR})
@@ -203,11 +204,9 @@ else()
     target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static glm libglew_static freetype)
 
     add_executable(PgEngine src/main.cpp)
-
-    target_include_directories(PgEngineSrc PUBLIC src/Editor)
-
-    add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
-
+    
+    target_include_directories(PgEngine PUBLIC src/Editor)
+    
     target_sources(PgEngine PRIVATE
         src/application.cpp
         src/application.h
@@ -215,18 +214,35 @@ else()
         src/Editor/Gui/inspector.cpp
         src/Editor/Gui/projectmanager.cpp
     )
-
+    
     target_link_libraries(PgEngine PRIVATE PgEngineSrc)
+
+    add_executable(GameOff src/GameOff/main.cpp)
+    
+    target_include_directories(GameOff PUBLIC src/GameOff)
+    
+    target_sources(GameOff PRIVATE
+        src/GameOff/application.cpp
+        src/GameOff/character.cpp
+        src/GameOff/characustomizationscene.cpp
+        src/GameOff/fightscene.cpp
+        src/GameOff/inventory.cpp
+        src/GameOff/mainscene.cpp
+    )
+    
+    target_link_libraries(GameOff PRIVATE PgEngineSrc)
+    
+    add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
     target_sources(TetrisClone PRIVATE
         exemples/TetrisClone/app.cpp
         exemples/TetrisClone/tetromino.cpp
         exemples/TetrisClone/keyconfig.cpp
         exemples/TetrisClone/titlescreen.cpp
-        )
+    )
 
     target_include_directories(TetrisClone PRIVATE exemples/TetrisClone)
-
+    
     target_link_libraries(TetrisClone PRIVATE PgEngineSrc)
 
     # enable_testing()
