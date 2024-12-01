@@ -183,16 +183,13 @@ void initGame()
 
     mainWindow->ecs.createSystem<PlayerHandlingSystem>();
 
+    mainWindow->ecs.createSystem<LocationSystem>();
+
     mainWindow->ecs.createSystem<SceneLoader>();
 
     mainWindow->ecs.start();
 
     mainWindow->render();
-
-
-    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<FightScene>();
-    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<PlayerCustomizationScene>();
-    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<InventoryScene>();
 
     mainWindow->resize(820, 640);
 

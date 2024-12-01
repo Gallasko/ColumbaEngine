@@ -22,6 +22,8 @@ namespace pg
 
         SkillTree* skillTreeInUse[MAXSKILLTREEINUSE] = {nullptr};
 
+        bool inCombat = false;
+
         // Todo add equipment
 
         void removeSkillTreeAt(size_t index);

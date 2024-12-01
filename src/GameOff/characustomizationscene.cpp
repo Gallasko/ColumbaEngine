@@ -206,7 +206,7 @@ namespace pg
         float baseX = 400;
         float baseY = 75;
 
-        for (std::string stat : statToDisplay)
+        for (const std::string& stat : statToDisplay)
         {
             auto ttf = makeTTFText(this, baseX, baseY, "res/font/Inter/static/Inter_28pt-Light.ttf", stat, 0.4);
             auto ttfUi = ttf.get<UiComponent>();
