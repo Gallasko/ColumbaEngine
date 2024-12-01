@@ -6,6 +6,18 @@
 
 namespace pg
 {
+    namespace
+    {
+        struct CreateNewPlayerButtonPressed {};
+
+        struct SelectedCharacter
+        {
+            SelectedCharacter(PlayerCharacter *chara) : chara(chara) {}
+
+            PlayerCharacter *chara;
+        };
+    }
+
     void PlayerCharacter::removeSkillTreeAt(size_t index)
     {
         auto skillTree = skillTreeInUse[index];
@@ -73,15 +85,6 @@ namespace pg
 
         character.id = sys->lastGivenId++;
     }
-
-    struct CreateNewPlayerButtonPressed {};
-
-    struct SelectedCharacter
-    {
-        SelectedCharacter(PlayerCharacter *chara) : chara(chara) {}
-
-        PlayerCharacter *chara;
-    };
 
     void PlayerCustomizationScene::init()
     {

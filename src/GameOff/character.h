@@ -63,5 +63,4 @@ namespace pg
 
         Character *chara;
     };
-
 }

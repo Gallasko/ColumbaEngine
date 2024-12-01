@@ -11,6 +11,7 @@
 
 #include "fightscene.h"
 #include "characustomizationscene.h"
+#include "locationscene.h"
 #include "inventory.h"
 
 using namespace pg;
@@ -33,7 +34,8 @@ GameApp::~GameApp()
 enum class SceneName
 {
     Customization,
-    Inventory
+    Inventory,
+    Location
 };
 
 struct SceneToLoad
@@ -57,6 +59,10 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
             ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<InventoryScene>();
             break;
 
+        case SceneName::Location:
+            ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<LocationScene>();
+            break;
+
         default:
             break;
         }
@@ -71,6 +77,9 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
 
         auto titleTTF2 = makeTTFText(ecsRef, 225, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF2.entity, makeCallable<SceneToLoad>(SceneName::Inventory));
+
+        auto titleTTF3 = makeTTFText(ecsRef, 330, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
+        ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));
     }
 };
 

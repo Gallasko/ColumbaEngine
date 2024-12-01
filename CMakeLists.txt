@@ -228,6 +228,7 @@ else()
         src/GameOff/fightscene.cpp
         src/GameOff/inventory.cpp
         src/GameOff/mainscene.cpp
+        src/GameOff/locationscene.cpp
     )
     
     target_link_libraries(GameOff PRIVATE PgEngineSrc)
