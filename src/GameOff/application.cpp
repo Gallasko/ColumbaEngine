@@ -128,57 +128,6 @@ void initGame()
 
     auto fightSys = mainWindow->ecs.createSystem<FightSystem>();
 
-    Character p1{"Player 1", CharacterType::Player, 100};
-
-    p1.stat.speed = 120;
-    p1.spells.push_back(Spell{"Fireball", 20});
-
-    Character p2{"Player 2", CharacterType::Player, 100};
-    p2.stat.speed = 145;
-
-    Spell heal{"Self Heal", -20};
-    heal.selfOnly = true;
-
-    p2.spells.push_back(heal);
-    p2.spells.push_back(Spell{"Taunt", 20});
-    p2.spells.push_back(Spell{"Big ball", 80, 0, 3});
-
-    Character p3{"Player 3", CharacterType::Player, 100};
-    p3.stat.speed = 105;
-    p3.spells.push_back(Spell{"Stab", 20});
-
-    auto healthBoost = makeSimplePlayerBoostPassive(PlayerBoostType::Health, 50, 3);
-    p3.addPassive(healthBoost);
-
-    Character p4{"Player 4", CharacterType::Player, 100};
-    p4.stat.speed = 100;
-    
-    Spell multishot{"Multishot", 10};
-    multishot.nbTargets = 3;
-
-    p4.spells.push_back(Spell{"Scan", 20});
-    p4.spells.push_back(multishot);
-
-    fightSys->addCharacter(p1);
-    fightSys->addCharacter(p2);
-    fightSys->addCharacter(p3);
-    fightSys->addCharacter(p4);
-
-    Spell basicAttack{"Multishot", 10};
-
-    Character e1{"Enemy 1", CharacterType::Enemy, 100};
-    e1.spells.push_back(basicAttack);
-
-    Character e2{"Boss 1",  CharacterType::Enemy, 100};
-    e2.spells.push_back(basicAttack);
-
-    Character e3{"Enemy 2", CharacterType::Enemy, 100};
-    e3.spells.push_back(basicAttack);
-
-    fightSys->addCharacter(e1);
-    fightSys->addCharacter(e2);
-    fightSys->addCharacter(e3);
-
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
     mainWindow->ecs.createSystem<PlayerHandlingSystem>();

@@ -11,7 +11,7 @@ namespace pg
         {
             name = "Bite";
 
-            baseDmg = 10;
+            baseDmg = 25;
         }
     };
 
@@ -32,6 +32,18 @@ namespace pg
         }
     };
 
+    struct SlimeBall : public Item
+    {
+        SlimeBall()
+        {
+            name = "Slime Ball";
+
+            type = ItemType::Material;
+
+            stacksize = 4;
+        }
+    };
+
     struct SlimeForest : public Location
     {
         struct SoloSlimeEncounter : public Encounter
@@ -40,15 +52,30 @@ namespace pg
             {
                 characters = { Slime{} };
 
-                dropTable = { { XpStone{} } };
+                dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f } };
             }
+        };
+
+        struct DuoSlimeEncounter : public Encounter
+        {
+            DuoSlimeEncounter() 
+            {
+                characters = { Slime{}, Slime{}, Slime{} };
+
+                dropTable = { { XpStone {}, 1.0f, 4}, { SlimeBall {}, 0.5f }, { SlimeBall {}, 0.5f } };
+            }
+        };
+
+        struct MetalSlimeEncounter : public Encounter
+        {
+
         };
 
         SlimeForest()
         {
             name = "SlimeForest";
 
-            possibleEnounters = { SoloSlimeEncounter{} };
+            possibleEnounters = { DuoSlimeEncounter{} };
         }
     };
 }

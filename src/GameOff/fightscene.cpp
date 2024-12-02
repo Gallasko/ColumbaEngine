@@ -45,6 +45,7 @@ namespace pg
 
     void FightSystem::onEvent(const StartFight&)
     {
+        LOG_INFO("Fight System", "Load aggro map");
         for (auto& character : characters)
         {
             for (const auto& chara : characters)
@@ -136,6 +137,8 @@ namespace pg
     {
         if (needToProcessEnemyNextTurn)
         {
+            LOG_INFO("Fight System", "Playing an enemy turn...");
+
             processEnemyNextTurn(currentPlayingCharacter);
 
             ecsRef->sendEvent(FightSystemUpdate{});
@@ -205,12 +208,16 @@ namespace pg
             return;
         }
 
+        LOG_INFO("Fight Scene", "Character: " << chara->name << ", has " << chara->spells.size() << ", spells");
+
         auto& spell = chara->spells[0];
 
         float currentTarget = 0;
 
         for (auto& aggro : chara->aggroMap)
         {
+            LOG_INFO("Fight Scene", "Trying to hit: " << aggro.first);
+
             auto& other = characters[aggro.first];
 
             if (other.type == CharacterType::Player)
@@ -220,7 +227,7 @@ namespace pg
                 ++currentTarget;
             }
 
-            if (spell.nbTargets >= currentTarget)
+            if (currentTarget >= spell.nbTargets)
             {
                 break;
             }
@@ -236,6 +243,8 @@ namespace pg
     void FightSystem::addCharacter(Character character)
     {
         character.id = characters.size();
+
+        LOG_INFO("Fight System", "Adding character: " << character.name << ", get id: " << character.id);
 
         // Set up the base states of the spell at startup
         for (auto& spell : character.spells)
