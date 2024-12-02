@@ -32,6 +32,8 @@ namespace pg
         void onEvent(const GainItem& event);
         void onEvent(const LoseItem& event);
 
+        bool hasEnough(const Item& item) const;
+
         std::unordered_map<ItemType, std::vector<Item>> items;
     };
 

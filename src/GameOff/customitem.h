@@ -18,4 +18,16 @@ namespace pg
         }
     };
 
+    struct SlimeBall : public Item
+    {
+        SlimeBall()
+        {
+            name = "Slime Ball";
+
+            type = ItemType::Material;
+
+            stacksize = 4;
+        }
+    };
+
 };

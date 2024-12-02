@@ -70,4 +70,43 @@ namespace pg
             }
         }
     };
+
+    struct AdventurerTree : public SkillTree
+    {
+        AdventurerTree()
+        {
+            name = "Adventurer";
+
+            currentLevel = 0;
+
+            maxLevel = 10;
+
+            for (size_t i = 0; i < maxLevel; i++)
+            {
+                if (i == 0)
+                {
+                    requiredMatForNextLevel.neededMat[i] = { XpStone { i + 1 }, SlimeBall{} };
+                }
+                else
+                {
+                    requiredMatForNextLevel.neededMat[i] = { XpStone { i + 1 } };
+                }
+                
+            }
+        
+            for (size_t i = 0; i < maxLevel; i++)
+            {
+                if (i % 5 == 0)
+                {
+                    levelGains[i].stats.health += 10;
+                }
+                else
+                {
+                    levelGains[i].stats.health += 5;
+                }
+            }
+
+            levelGains[0].learntSpells = { };
+        }
+    };
 }

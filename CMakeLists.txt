@@ -50,8 +50,8 @@ else()
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
 
-    set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
-    # set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+    # set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
 endif()
 
 add_subdirectory(${GLM_DIR})

@@ -18,7 +18,7 @@ namespace pg
     {
         Character character;
 
-        std::vector<SkillTree> learnedSkillTree = { NoneSkillTree{}, WarriorTree{}, MageTree{} };
+        std::vector<SkillTree> learnedSkillTree = { NoneSkillTree{}, WarriorTree{}, MageTree{}, AdventurerTree{} };
 
         SkillTree* skillTreeInUse[MAXSKILLTREEINUSE] = {nullptr};
 
@@ -49,6 +49,13 @@ namespace pg
         Job,
     };
 
+    struct ShowSkillBookUpgradeNeed
+    {
+        ShowSkillBookUpgradeNeed(SkillTree* sTree) : sTree(sTree) {}
+
+        SkillTree* sTree;
+    };
+
     struct PlayerCustomizationScene : public Scene
     {
         virtual void init() override;
@@ -66,6 +73,10 @@ namespace pg
         void showSkillTree();
         void showSkillTreeReplacement(size_t skillTreeSelected);
 
+        void makeUpgradableTab();
+        void showUpgradableTab();
+        void showNeededItemsToLevelUp(SkillTree* sTree);
+
         void makeSpellUi();
         void showSpell();
 
@@ -75,6 +86,8 @@ namespace pg
         CompRef<ListView> characterList;
 
         PlayerCharacter *currentPlayer;
+
+        bool enoughItemsToLevelUp = false;
 
         bool menuShown = false;
 
@@ -86,6 +99,7 @@ namespace pg
 
         std::unordered_map<std::string, EntityRef> characterStatUi;
         std::unordered_map<std::string, EntityRef> skillTreeUi;
+        std::unordered_map<std::string, EntityRef> upgradeTabUi;
         std::unordered_map<std::string, EntityRef> SpellsUi;
     };
 }

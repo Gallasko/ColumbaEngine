@@ -4,6 +4,8 @@
 
 #include "UI/textinput.h"
 
+#include "inventory.h"
+
 namespace pg
 {
     namespace
@@ -119,6 +121,13 @@ namespace pg
 
             showStat();
             showSkillTree();
+            showUpgradableTab();
+        });
+
+        listenToEvent<ShowSkillBookUpgradeNeed>([this](const ShowSkillBookUpgradeNeed& event) {
+            LOG_INFO("Chara STree", "STree selected: " << event.sTree->name);
+
+            showNeededItemsToLevelUp(event.sTree);
         });
 
         listenToStandardEvent("CharaNameChange", [this](const StandardEvent& event) {
@@ -147,6 +156,8 @@ namespace pg
 
         makeStatUi();
         makeSkillTreeUi();
+
+        makeUpgradableTab();
     }
 
     void PlayerCustomizationScene::startUp()
@@ -334,7 +345,7 @@ namespace pg
 
         auto pushInListView = [this, skillTreeSelected](const std::string& name, SkillTree* sTree, ListView* listView)
         {
-            auto ttf = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", name, 0.4);
+            auto ttf = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", name , 0.4);
             listView->addEntity(ttf.get<UiComponent>());
 
             attach<MouseLeftClickComponent>(ttf.entity, makeCallable<ChangeSkillTreeInUse>(sTree, skillTreeSelected));
@@ -352,7 +363,7 @@ namespace pg
             
             if (it == skillTreeNameInUse.end())
             {
-                pushInListView(sTree.name, &sTree, listView);
+                pushInListView(sTree.name + " lv" + std::to_string(sTree.currentLevel), &sTree, listView);
             }
         }
 
@@ -367,4 +378,85 @@ namespace pg
 
         listView->setVisibility(true);
     }
+
+    void PlayerCustomizationScene::makeUpgradableTab()
+    {
+        auto listView = makeListView(this, 650, 150, 300, 200);
+        listView.get<ListView>()->setVisibility(false);
+
+        upgradeTabUi["SelectSkillTreeView"] = listView.entity;
+
+        auto listView2 = makeListView(this, 650, 400, 300, 200);
+        listView2.get<ListView>()->setVisibility(false);
+
+        upgradeTabUi["NeededMatView"] = listView2.entity;
+    }
+
+    void PlayerCustomizationScene::showUpgradableTab()
+    {
+        auto listView = upgradeTabUi["SelectSkillTreeView"].get<ListView>();
+
+        listView->clear();
+
+        listView->setVisibility(true);
+
+        auto pushInListView = [this](const std::string& name, SkillTree* sTree, ListView* listView)
+        {
+            auto ttf = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", name , 0.4);
+            listView->addEntity(ttf.get<UiComponent>());
+
+            attach<MouseLeftClickComponent>(ttf.entity, makeCallable<ShowSkillBookUpgradeNeed>(sTree));
+        };
+
+        for (auto& sTree : currentPlayer->learnedSkillTree)
+        {
+            if (sTree.name == "None")
+            {
+                continue;
+            }
+
+            pushInListView(sTree.name + " lv" + std::to_string(sTree.currentLevel), &sTree, listView);
+        }
+    }
+
+    void PlayerCustomizationScene::showNeededItemsToLevelUp(SkillTree* sTree)
+    {
+        auto listView = upgradeTabUi["NeededMatView"].get<ListView>();
+
+        listView->clear();
+
+        listView->setVisibility(true);
+
+        auto sys = ecsRef->getSystem<InventorySystem>();
+
+        if (not sys)
+        {
+            LOG_ERROR("Inventory System", "Inventory sys not available");
+            return;
+        }
+
+        constant::Vector4D color = {255.0, 255.0, 255.0, 255.0f};
+
+        enoughItemsToLevelUp = true;
+
+        for (auto& requiredItem : sTree->requiredMatForNextLevel.neededMat[sTree->currentLevel])
+        {
+            std::string str = requiredItem.name + " x" + std::to_string(requiredItem.nbItems);
+
+            if (sys->hasEnough(requiredItem))
+            {
+                color = {255.0, 255.0, 255.0, 255.0f};
+            }
+            else
+            {
+                color = {255.0, 0.0, 0.0, 255.0f};
+
+                enoughItemsToLevelUp = false;
+            }
+
+            auto ttf = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", str, 0.4, color);
+            listView->addEntity(ttf.get<UiComponent>());
+        }
+    }
+
 }

@@ -32,18 +32,6 @@ namespace pg
         }
     };
 
-    struct SlimeBall : public Item
-    {
-        SlimeBall()
-        {
-            name = "Slime Ball";
-
-            type = ItemType::Material;
-
-            stacksize = 4;
-        }
-    };
-
     struct SlimeForest : public Location
     {
         struct SoloSlimeEncounter : public Encounter
