@@ -22,6 +22,8 @@
 
 #include <random>
 
+#include "inventory.h"
+
 #include "locationscene.h"
 
 namespace pg
@@ -80,7 +82,11 @@ namespace pg
     {
         clear();
 
+        inEncounter = true;
+
         auto& location = event.location;
+
+        currentLocation = location;
 
         // Todo make unrandom Encounters
         if (location.randomEncounter)
@@ -96,6 +102,8 @@ namespace pg
             int rng = randomNumber() * nbEncounters;
 
             auto encounter = location.possibleEnounters[rng];
+
+            currentEncounter = encounter;
 
             for (const auto& chara : encounter.characters)
             {
@@ -120,6 +128,8 @@ namespace pg
         needToProcessEnemyNextTurn = false;
 
         spellToBeResolved = false;
+
+        inEncounter = false;
     }
 
     void FightSystem::execute()
@@ -380,6 +390,21 @@ namespace pg
     void FightSystem::processWin()
     {
         LOG_INFO("FightSystem", "You Won !");
+
+        if (inEncounter)
+        {
+            for (const auto& drop : currentEncounter.dropTable)
+            {
+                if (randomNumber() < drop.dropChance)
+                {
+                    auto item = drop.item;
+
+                    item.nbItems = drop.quantity;
+
+                    ecsRef->sendEvent(GainItem{item});
+                }
+            }
+        }
 
         ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<LocationScene>();
     }

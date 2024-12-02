@@ -1,12 +1,13 @@
 #pragma once
 
 #include "skilltree.h"
+#include "customitem.h"
 
 namespace pg
 {
-    struct StabSpell : public Spell
+    struct SlashSpell : public Spell
     {
-        StabSpell()
+        SlashSpell()
         {
 
         }
@@ -23,7 +24,7 @@ namespace pg
             maxLevel = 10;
 
             for (size_t i = 0; i < maxLevel; i++)
-                requiredXpForNextLevel.neededXp[i] = i + 1;
+                requiredMatForNextLevel.neededMat[i] = { XpStone { i + 1 } };
         
             for (size_t i = 0; i < maxLevel; i++)
             {
@@ -38,6 +39,8 @@ namespace pg
                     levelGains[i].stats.health += 10;
                 }
             }
+
+            levelGains[0].learntSpells = { SlashSpell{} };
         }
     };
 
@@ -52,7 +55,7 @@ namespace pg
             maxLevel = 10;
 
             for (size_t i = 0; i < maxLevel; i++)
-                requiredXpForNextLevel.neededXp[i] = i + 1;
+                requiredMatForNextLevel.neededMat[i] = { XpStone { i + 1 } };
         
             for (size_t i = 0; i < maxLevel; i++)
             {

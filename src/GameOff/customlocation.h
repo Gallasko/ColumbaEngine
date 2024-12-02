@@ -1,6 +1,7 @@
 #pragma once
 
 #include "location.h"
+#include "customitem.h"
 
 namespace pg
 {
@@ -23,6 +24,10 @@ namespace pg
 
             type = CharacterType::Enemy;
 
+            stat.health = 30;
+
+            stat.speed = 75;
+
             spells = { Bite{} };
         }
     };
@@ -34,6 +39,8 @@ namespace pg
             SoloSlimeEncounter() 
             {
                 characters = { Slime{} };
+
+                dropTable = { { XpStone{} } };
             }
         };
 

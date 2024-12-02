@@ -5,6 +5,7 @@
 #include "characterstats.h"
 #include "spells.h"
 #include "passives.h"
+#include "item.h"
 
 namespace pg
 {
@@ -12,7 +13,7 @@ namespace pg
 
     struct LevelProgression
     {
-        size_t neededXp[MAXLEVEL + 1] = {0};
+        std::vector<Item> neededMat[MAXLEVEL + 1] = {};
     };
 
     struct LevelIncrease
@@ -34,7 +35,7 @@ namespace pg
 
         size_t currentXp = 0;
 
-        LevelProgression requiredXpForNextLevel;
+        LevelProgression requiredMatForNextLevel;
 
         LevelIncrease levelGains[MAXLEVEL + 1];
     };

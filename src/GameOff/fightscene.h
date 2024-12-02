@@ -114,7 +114,11 @@ namespace pg
         bool needToProcessEnemyNextTurn = false;
 
         bool spellToBeResolved = false;
-        SpellCasted spellToResolve; 
+        SpellCasted spellToResolve;
+
+        bool inEncounter = false;
+        Location currentLocation;
+        Encounter currentEncounter;
     };
 
     struct FightMessageEvent
