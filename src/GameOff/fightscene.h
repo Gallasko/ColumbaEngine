@@ -7,6 +7,9 @@
 #include "Scene/scenemanager.h"
 
 #include "character.h"
+
+#include "location.h"
+
 namespace pg
 {
     struct SpellCasted
@@ -63,12 +66,25 @@ namespace pg
 
     struct PlayFightAnimationDone {};
 
-    struct FightSystem : public System<Listener<StartFight>, Listener<SpellCasted>, Listener<PlayFightAnimationDone>, Listener<EnemyNextTurn>>
+    struct StartFightAtLocation
+    {
+        StartFightAtLocation(const Location& location, const std::vector<Character>& characters) : location(location), characters(characters) {}
+        StartFightAtLocation(const StartFightAtLocation& other) : location(other.location), characters(other.characters) {}
+
+        Location location;
+
+        std::vector<Character> characters;
+    };
+
+    struct FightSystem : public System<Listener<StartFightAtLocation>, Listener<StartFight>, Listener<SpellCasted>, Listener<PlayFightAnimationDone>, Listener<EnemyNextTurn>>
     {
         virtual void onEvent(const StartFight& event) override;
         virtual void onEvent(const EnemyNextTurn& event) override;
         virtual void onEvent(const PlayFightAnimationDone& event) override;
         virtual void onEvent(const SpellCasted& event) override;
+        virtual void onEvent(const StartFightAtLocation& event) override;
+
+        void clear();
 
         virtual void execute() override;
 
@@ -83,6 +99,11 @@ namespace pg
         void sendNextTurn(Character* character);
 
         void tickDownPassives(Character* character);
+
+        void checkEndFight();
+
+        void processWin();
+        void processLose();
 
         Character* findNextPlayingCharacter();
 

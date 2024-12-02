@@ -11,6 +11,8 @@
 
 namespace pg
 {
+    constexpr static size_t TEAMSIZE = 3;
+
     struct LocationSystem : public System<StoragePolicy>
     {
         std::vector<Location> locations = { SlimeForest{} };
@@ -26,6 +28,12 @@ namespace pg
 
         CompRef<ListView> characterList;
         CompRef<ListView> locationList;
+
+        Location selectedLocation;
+
+        size_t currentPlayerToChange = 0;
+
+        PlayerCharacter *currentTeam[TEAMSIZE] = { nullptr };
 
         std::unordered_map<std::string, EntityRef> selectedCharaUi;
     };

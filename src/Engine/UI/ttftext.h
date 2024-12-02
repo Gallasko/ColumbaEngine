@@ -41,6 +41,17 @@ namespace pg
             }
         }
 
+        void setColor(const constant::Vector4D& colors)
+        {
+            this->colors = colors;
+
+            if (ecsRef)
+            {
+                changed = true;
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
+        }
+
         std::string text;
 
         UiSize textWidth, textHeight;

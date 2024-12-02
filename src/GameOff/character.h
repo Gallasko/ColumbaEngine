@@ -21,6 +21,16 @@ namespace pg
         Dead
     };
 
+    struct BasicStrike : public Spell
+    {
+        BasicStrike()
+        {
+            name = "BasicStrike";
+
+            baseDmg = 10;
+        }
+    };
+
     struct Character
     {
         std::string name = "Unknown";
@@ -31,7 +41,7 @@ namespace pg
 
         float speedUnits = 0;
 
-        std::vector<Spell> spells = {};
+        std::vector<Spell> spells = { BasicStrike{} };
 
         // Todo create addSpell also
 
@@ -40,6 +50,7 @@ namespace pg
         void addPassive(const Passive& passive);
 
         // In combat charac
+        // Todo make them private !
 
         /** Map containing the aggro of all the character relative to this one.
          * Key: id of the character

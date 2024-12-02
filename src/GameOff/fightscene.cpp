@@ -20,11 +20,25 @@
 #include <GL/gl.h>
 #endif
 
+#include <random>
+
+#include "locationscene.h"
+
 namespace pg
 {
     namespace
     {
         constexpr float SPEEDUNITTHRESHOLD = 999;
+
+        double randomNumber()
+        {
+            // Making rng static ensures that it stays the same
+            // Between different invocations of the function
+            static std::default_random_engine rng;
+
+            std::uniform_real_distribution<double> dist(0.0, 1.0); 
+            return dist(rng); 
+        }
     }
 
     void FightSystem::onEvent(const StartFight&)
@@ -60,6 +74,52 @@ namespace pg
         spellToResolve = event;
 
         spellToBeResolved = true;
+    }
+
+    void FightSystem::onEvent(const StartFightAtLocation& event)
+    {
+        clear();
+
+        auto& location = event.location;
+
+        // Todo make unrandom Encounters
+        if (location.randomEncounter)
+        {
+            auto nbEncounters = location.possibleEnounters.size();
+
+            if (nbEncounters == 0)
+            {
+                LOG_ERROR("Fight System", "Nb encounter = 0 for location: " << location.name << "! Cannont generate combat !");
+                return;
+            }
+
+            int rng = randomNumber() * nbEncounters;
+
+            auto encounter = location.possibleEnounters[rng];
+
+            for (const auto& chara : encounter.characters)
+            {
+                addCharacter(chara);
+            }
+        }
+
+        for (const auto& chara : event.characters)
+        {
+            addCharacter(chara);
+        }
+
+        ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<FightScene>();
+    }
+
+    void FightSystem::clear()
+    {
+        currentPlayingCharacter = nullptr;
+
+        characters.clear();
+
+        needToProcessEnemyNextTurn = false;
+
+        spellToBeResolved = false;
     }
 
     void FightSystem::execute()
@@ -115,6 +175,8 @@ namespace pg
             message = receiver.name + " died !";
 
             ecsRef->sendEvent(FightMessageEvent{message});
+
+            checkEndFight();
         }
 
         ecsRef->sendEvent(PlayFightAnimation{receiverId, FightAnimationEffects::Hit});
@@ -283,6 +345,50 @@ namespace pg
             return chara;
         else
             return nullptr;
+    }
+
+    void FightSystem::checkEndFight()
+    {
+        bool allAlliesDead = true;
+        bool allEnemiesDead = true;
+
+        for (const auto& chara : characters)
+        {
+            if (chara.playingStatus == PlayingStatus::Alive)
+            {
+                if (chara.type == CharacterType::Player)
+                {
+                    allAlliesDead = false;
+                }
+                else
+                {
+                    allEnemiesDead = false;
+                }
+            }
+        }
+
+        if (allAlliesDead)
+        {
+            processLose();
+        }
+        else if (allEnemiesDead)
+        {
+            processWin();
+        }
+    }
+
+    void FightSystem::processWin()
+    {
+        LOG_INFO("FightSystem", "You Won !");
+
+        ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<LocationScene>();
+    }
+
+    void FightSystem::processLose()
+    {
+        LOG_INFO("FightSystem", "You Lost !");
+
+        ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<LocationScene>();
     }
 
     struct SpellDoneClicked {};
