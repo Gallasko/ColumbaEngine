@@ -93,27 +93,34 @@ namespace pg
 
     bool InventorySystem::hasEnough(const Item& item) const
     {
-        auto it = items.at(item.type).begin();
+        try
+        {
+            auto it = items.at(item.type).begin();
 
-        // do
-        // {
-            it = std::find(it, items.at(item.type).end(), item);
-        
-            if (it == items.at(item.type).end())
-                return false;
+            do
+            {
+                it = std::find(it, items.at(item.type).end(), item);
+            
+                if (it == items.at(item.type).end())
+                    return false;
 
-            size_t nbStoredItem = it->nbItems;
+                size_t nbStoredItem = it->nbItems;
 
-            if (nbStoredItem >= item.nbItems)
-                return true;
+                if (nbStoredItem >= item.nbItems)
+                    return true;
 
-            if (it->stacksize == -1)
-                return false;
+                if (it->stacksize == -1)
+                    return false;
 
-            std::next(it);
+                std::next(it);
 
-        // } while (it != items.at(item.type).end());
-        
+            } while (it != items.at(item.type).end());
+        }
+        catch (const std::exception& e)
+        {
+            LOG_MILE("Inventory", "Inventory tab not available, error happend: " << e.what());
+        }
+
         return false;
     }
 

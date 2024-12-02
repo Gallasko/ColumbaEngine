@@ -18,6 +18,23 @@ namespace pg
 
             PlayerCharacter *chara;
         };
+
+        struct ShowSkillBookUpgradeNeed
+        {
+            ShowSkillBookUpgradeNeed(SkillTree* sTree) : sTree(sTree) {}
+
+            SkillTree* sTree;
+        };
+
+        struct ChangeSkillTreeInUse
+        {
+            ChangeSkillTreeInUse(SkillTree *sTree, size_t skillTreeSelected) : sTree(sTree), skillTreeSelected(skillTreeSelected) {}
+
+            SkillTree *sTree;
+            size_t skillTreeSelected;
+        };
+
+        struct LevelUpSkillTree {};
     }
 
     void PlayerCharacter::removeSkillTreeAt(size_t index)
@@ -65,17 +82,22 @@ namespace pg
     {
         for (size_t i = 0; i < sTree->currentLevel + 1; ++i)
         {
-            character.stat += sTree->levelGains[i].stats;
+            applyLevelGain(sTree->levelGains[i]);
+        }
+    }
 
-            for (auto& spell : sTree->levelGains[i].learntSpells)
-            {
-                character.spells.push_back(spell);
-            }
+    void PlayerCharacter::applyLevelGain(const LevelIncrease& levelGain)
+    {
+        character.stat += levelGain.stats;
 
-            for (auto& passive : sTree->levelGains[i].learntPassive)
-            {
-                character.passives.push_back(passive);
-            }
+        for (auto& spell : levelGain.learntSpells)
+        {
+            character.spells.push_back(spell);
+        }
+
+        for (auto& passive : levelGain.learntPassive)
+        {
+            character.passives.push_back(passive);
         }
     }
 
@@ -140,6 +162,34 @@ namespace pg
             currentPlayer->character.name = returnText;
 
             updateCharacterList();
+        });
+
+        listenToEvent<ChangeSkillTreeInUse>([this](const ChangeSkillTreeInUse& event) {
+            currentPlayer->setSkillTreeInUse(event.sTree, event.skillTreeSelected);
+
+            showSkillTree();
+            showStat();
+
+            skillTreeUi["treeList"].get<ListView>()->setVisibility(false);
+        });
+
+        listenToEvent<LevelUpSkillTree>([this](const LevelUpSkillTree&) {
+            if (not enoughItemsToLevelUp or not sTreeToUpgrade)
+                return;
+
+            for (auto& requiredItem : sTreeToUpgrade->requiredMatForNextLevel.neededMat[sTreeToUpgrade->currentLevel])
+            {
+                ecsRef->sendEvent(LoseItem{requiredItem});
+            }
+
+            sTreeToUpgrade->currentLevel++;
+
+            currentPlayer->applyLevelGain(sTreeToUpgrade->levelGains[sTreeToUpgrade->currentLevel]);
+
+            showStat();
+            showUpgradableTab();
+
+            showNeededItemsToLevelUp(sTreeToUpgrade);
         });
 
         auto listView = makeListView(this, 0, 150, 300, 120);
@@ -312,14 +362,6 @@ namespace pg
         }
     }
 
-    struct ChangeSkillTreeInUse
-    {
-        ChangeSkillTreeInUse(SkillTree *sTree, size_t skillTreeSelected) : sTree(sTree), skillTreeSelected(skillTreeSelected) {}
-
-        SkillTree *sTree;
-        size_t skillTreeSelected;
-    };
-
     void PlayerCustomizationScene::showSkillTreeReplacement(size_t skillTreeSelected)
     {
         auto listView = skillTreeUi["treeList"].get<ListView>();
@@ -367,15 +409,6 @@ namespace pg
             }
         }
 
-        listenToEvent<ChangeSkillTreeInUse>([this](const ChangeSkillTreeInUse& event) {
-            currentPlayer->setSkillTreeInUse(event.sTree, event.skillTreeSelected);
-
-            showSkillTree();
-            showStat();
-
-            skillTreeUi["treeList"].get<ListView>()->setVisibility(false);
-        });
-
         listView->setVisibility(true);
     }
 
@@ -390,6 +423,11 @@ namespace pg
         listView2.get<ListView>()->setVisibility(false);
 
         upgradeTabUi["NeededMatView"] = listView2.entity;
+
+        auto upgradeButton = makeTTFText(this, 720, 75, "res/font/Inter/static/Inter_28pt-Light.ttf", "Upgrade !", 0.6f);
+        upgradeButton.get<UiComponent>()->setVisibility(false);
+        attach<MouseLeftClickComponent>(upgradeButton.entity, makeCallable<LevelUpSkillTree>());
+        upgradeTabUi["UpgradeButton"] = upgradeButton.entity;
     }
 
     void PlayerCustomizationScene::showUpgradableTab()
@@ -421,6 +459,8 @@ namespace pg
 
     void PlayerCustomizationScene::showNeededItemsToLevelUp(SkillTree* sTree)
     {
+        sTreeToUpgrade = sTree;
+
         auto listView = upgradeTabUi["NeededMatView"].get<ListView>();
 
         listView->clear();
@@ -456,6 +496,17 @@ namespace pg
 
             auto ttf = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", str, 0.4, color);
             listView->addEntity(ttf.get<UiComponent>());
+        }
+
+        upgradeTabUi["UpgradeButton"].get<UiComponent>()->setVisibility(true);
+
+        if (enoughItemsToLevelUp)
+        {
+            upgradeTabUi["UpgradeButton"].get<TTFText>()->setColor({0.0f, 255.0f, 0.0f, 255.0f});
+        }
+        else
+        {
+            upgradeTabUi["UpgradeButton"].get<TTFText>()->setColor({255.0f, 0.0f, 0.0f, 255.0f});
         }
     }
 

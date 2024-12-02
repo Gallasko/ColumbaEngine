@@ -32,6 +32,8 @@ namespace pg
 
         void applySkillTree(SkillTree* sTree);
 
+        void applyLevelGain(const LevelIncrease& levelGain);
+
         virtual void onCreation(EntityRef entity) override;
     };
 
@@ -47,13 +49,6 @@ namespace pg
         Stat = 0,
         Equipment,
         Job,
-    };
-
-    struct ShowSkillBookUpgradeNeed
-    {
-        ShowSkillBookUpgradeNeed(SkillTree* sTree) : sTree(sTree) {}
-
-        SkillTree* sTree;
     };
 
     struct PlayerCustomizationScene : public Scene
@@ -88,6 +83,7 @@ namespace pg
         PlayerCharacter *currentPlayer;
 
         bool enoughItemsToLevelUp = false;
+        SkillTree* sTreeToUpgrade = nullptr;
 
         bool menuShown = false;
 
