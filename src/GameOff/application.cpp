@@ -14,6 +14,8 @@
 #include "locationscene.h"
 #include "inventory.h"
 
+#include "gamemodule.h"
+
 using namespace pg;
 
 namespace
@@ -126,7 +128,7 @@ void initGame()
 
     mainWindow->masterRenderer->processTextureRegister();
 
-    auto fightSys = mainWindow->ecs.createSystem<FightSystem>();
+    mainWindow->ecs.createSystem<FightSystem>();
 
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
@@ -135,6 +137,10 @@ void initGame()
     mainWindow->ecs.createSystem<LocationSystem>();
 
     mainWindow->ecs.createSystem<SceneLoader>();
+
+    mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
+
+    mainWindow->interpreter->interpretFromFile("main.pg");
 
     mainWindow->ecs.start();
 

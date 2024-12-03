@@ -21,6 +21,9 @@ namespace pg
         int critDamage = 0;
         int evasionRate = 0;
 
+        // Todo
+        // std::map<std::string, int> values = { {"health", 0}, };
+
         int elementalRes[NbElements] = {0};
 
         CharacterStat& operator+=(const CharacterStat& other)

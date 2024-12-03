@@ -169,14 +169,6 @@ namespace pg
         auto listView = makeListView(this, 50, 125, 600, 500);
 
         inventoryUi["InventoryView"] = listView.entity;
-
-        auto addSword = makeTTFText(this, 0, 550, "res/font/Inter/static/Inter_28pt-Light.ttf", "Add sword", 0.5);
-
-        attach<MouseLeftClickComponent>(addSword.entity, makeCallable<GainItem>(Item{"Copper Sword", ItemType::Weapon, 4, 3}));
-
-        auto removeSword = makeTTFText(this, 100, 550, "res/font/Inter/static/Inter_28pt-Light.ttf", "Remove sword", 0.5);
-
-        attach<MouseLeftClickComponent>(removeSword.entity, makeCallable<LoseItem>(Item{"Copper Sword", ItemType::Weapon, 4, 1}));
     }
 
     void InventoryScene::populateView(const ItemType& type)

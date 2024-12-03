@@ -16,6 +16,28 @@ namespace pg
         Key
     };
 
+    const static std::unordered_map<ItemType, std::string> itemTypeToString = {
+        {ItemType::Weapon, "Weapon"},
+        {ItemType::Armor, "Armor"},
+        {ItemType::Consomable, "Consomable"},
+        {ItemType::SkillBook, "SkillBook"},
+        {ItemType::SkillXp, "SkillXp"},
+        {ItemType::Material, "Material"},
+        {ItemType::SpellStone, "SpellStone"},
+        {ItemType::Key, "Key"}
+    };
+
+    const static std::unordered_map<std::string, ItemType> stringToItemType = {
+        {"Weapon", ItemType::Weapon},
+        {"Armor", ItemType::Armor},
+        {"Consomable", ItemType::Consomable},
+        {"SkillBook", ItemType::SkillBook},
+        {"SkillXp", ItemType::SkillXp},
+        {"Material", ItemType::Material},
+        {"SpellStone", ItemType::SpellStone},
+        {"Key", ItemType::Key}
+    };
+
     enum class ItemRarity : uint8_t
     {
         Common = 0,
@@ -29,6 +51,9 @@ namespace pg
 
     struct Item
     {
+        Item() {}
+        Item(const Item& other) : name(other.name), type(other.type), stacksize(other.stacksize), nbItems(other.nbItems), rarity(other.rarity), attributes(other.attributes), description(other.description) {}
+
         /** Name of the item */
         std::string name = "None";
         
