@@ -128,7 +128,7 @@ namespace pg
 
             for (const auto& holder : materialRegisterQueue)
             {            
-                LOG_INFO(DOM, "Registering material");
+                LOG_MILE(DOM, "Registering material");
                 materialListTemp.push_back(holder.material);
 
                 if (holder.materialName != "")
@@ -236,7 +236,7 @@ namespace pg
         {
             if (textureList.find(item.name) == textureList.end())
             {
-                LOG_INFO(DOM, "Registering texture: " << item.name);
+                LOG_MILE(DOM, "Registering texture: " << item.name);
 
                 auto texture = item.callback();
 
@@ -418,7 +418,7 @@ namespace pg
         // Todo initialize material in another call !
         if (not material.mesh->initialized)
         {
-            LOG_INFO(DOM, "Generating mesh");
+            LOG_MILE(DOM, "Generating mesh");
             material.mesh->generateMesh();
         }
 
@@ -456,47 +456,47 @@ namespace pg
         {
             switch (uniform.second.type)
             {
-            case UniformType::INT:
-                shaderProgram->setUniformValue(uniform.first, std::get<int>(uniform.second.value));
-                break;
-            case UniformType::FLOAT:
-                shaderProgram->setUniformValue(uniform.first, std::get<float>(uniform.second.value));
-                break;
-            case UniformType::VEC2D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
-                break;
-            case UniformType::VEC3D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
-                break;
-            case UniformType::VEC4D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec4>(uniform.second.value));
-                break;
-            case UniformType::MAT4D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::mat4>(uniform.second.value));
-                break;
-            case UniformType::ID:
-            {
-                std::string id = std::get<std::string>(uniform.second.value);
-
-                const auto& value = rTable[id];
-
-                switch(value.type)
-                {
-                case ElementType::UnionType::FLOAT:
-                    shaderProgram->setUniformValue(uniform.first, value.get<float>());
+                case UniformType::INT:
+                    shaderProgram->setUniformValue(uniform.first, std::get<int>(uniform.second.value));
                     break;
-                case ElementType::UnionType::INT:
-                case ElementType::UnionType::SIZE_T:
-                    shaderProgram->setUniformValue(uniform.first, value.get<int>());
+                case UniformType::FLOAT:
+                    shaderProgram->setUniformValue(uniform.first, std::get<float>(uniform.second.value));
                     break;
-                case ElementType::UnionType::STRING:
-                case ElementType::UnionType::BOOL:
-                default:
+                case UniformType::VEC2D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
+                    break;
+                case UniformType::VEC3D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
+                    break;
+                case UniformType::VEC4D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec4>(uniform.second.value));
+                    break;
+                case UniformType::MAT4D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::mat4>(uniform.second.value));
+                    break;
+                case UniformType::ID:
                 {
-                    LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());    
+                    std::string id = std::get<std::string>(uniform.second.value);
+
+                    const auto& value = rTable[id];
+
+                    switch(value.type)
+                    {
+                        case ElementType::UnionType::FLOAT:
+                            shaderProgram->setUniformValue(uniform.first, value.get<float>());
+                            break;
+                        case ElementType::UnionType::INT:
+                        case ElementType::UnionType::SIZE_T:
+                            shaderProgram->setUniformValue(uniform.first, value.get<int>());
+                            break;
+                        case ElementType::UnionType::STRING:
+                        case ElementType::UnionType::BOOL:
+                        default:
+                        {
+                            LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());    
+                        }
+                    }
                 }
-                }
-            }
             }
         }
 

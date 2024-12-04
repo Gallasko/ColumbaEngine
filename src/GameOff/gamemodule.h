@@ -38,7 +38,13 @@ namespace pg
             }
 
             // Todo add the rest
-            auto list = makeList(this, { {"name", v.toString()}, {"health", 100}, {"ad", 10}, {"speed", 100} } );
+            auto list = makeList(this, {
+                {"name", v.toString()},
+                {"health", 100},
+                {"ad", 10},
+                {"ap", 10},
+                {"speed", 100}
+                });
 
             return list;
         }
@@ -93,6 +99,7 @@ namespace pg
 
             if (arg->getType() == "ClassInstance")
             {
+                // Todo create an helper funciton for this cast
                 auto charaObject = std::static_pointer_cast<ClassInstance>(arg);
 
                 // auto sysMethods = sysInstance->getMethods();
@@ -100,8 +107,6 @@ namespace pg
 
                 Location location;
                 location.name = locationName.toString();
-
-                // Todo toElement Helper
 
                 for (auto& field : sysFields)
                 {
@@ -115,9 +120,6 @@ namespace pg
                         location.possibleEnounters.push_back(getEncounter(encounterObject));
                     }
                 }
-
-                // encounter.characters = { chara };
-                // encounter.dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f } };
 
                 ecsRef->getSystem<LocationSystem>()->locations.push_back(location);
             }
@@ -309,6 +311,42 @@ namespace pg
         EntitySystem *ecsRef;
     };
 
+    class CreatePassive : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp()
+        {    
+            setArity(1, 1);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto v = args.front()->getElement();
+            args.pop();
+
+            if (not v.isLitteral())
+            {
+                LOG_ERROR("Character module", "Character name should be a literal");
+                
+                return nullptr;
+            }
+
+            auto list = makeList(this, {
+                {"name", v.toString()},
+                {"nbTurn", -1},
+                {"hidden", false},
+                {"nbNeededTrigger", 0},
+                {"trigger", "TurnStart"},
+                {"type", "SpellEffect"}
+                });
+
+            // ApplyOn and RemoveFrom are functions
+
+            return list;
+        }
+    };
+
     struct GameModule : public SysModule
     {
         GameModule(EntitySystem *ecsRef)
@@ -316,6 +354,7 @@ namespace pg
             addSystemFunction<CreateCharacter>("createChara");
             addSystemFunction<CreateLocation>("createLocation", ecsRef);
             addSystemFunction<CreateItem>("createItem");
+            addSystemFunction<CreatePassive>("createPassive");
         }
     };
 }

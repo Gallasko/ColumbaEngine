@@ -2,7 +2,10 @@
 
 #include "commons.h"
 
+#include "passives.h"
+
 #include <string>
+#include <set>
 
 namespace pg
 {
@@ -16,9 +19,15 @@ namespace pg
 
         size_t baseCooldown = 1;
 
-        Element elementType = Element::ElementLess;
+        float physicalMultipler = 0.0f;
+        float magicalMultipler = 0.0f;
+
+        std::set<Element> elementType = {};
         DamageType damageType = DamageType::Physical;
 
+        std::vector<Passive> applyToTarget = {};
+        std::vector<Passive> applyToSelf = {};
+        
         bool selfOnly = false;
 
         size_t nbTargets = 1;

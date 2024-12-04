@@ -17,11 +17,39 @@ namespace pg
         StatBoost
     };
 
+    const static std::unordered_map<TriggerType, std::string> triggerTypeToString = {
+        {TriggerType::TurnStart, "TurnStart"},
+        {TriggerType::TurnEnd, "TurnEnd"},
+        {TriggerType::OnHit, "OnHit"},
+        {TriggerType::OnDamageDealt, "OnDamageDealt"},
+        {TriggerType::StatBoost, "StatBoost"},
+    };
+
+    const static std::unordered_map<std::string, TriggerType> stringToTriggerType = {
+        {"TurnStart", TriggerType::TurnStart},
+        {"TurnEnd", TriggerType::TurnEnd},
+        {"OnHit", TriggerType::OnHit},
+        {"OnDamageDealt", TriggerType::OnDamageDealt},
+        {"StatBoost", TriggerType::StatBoost},
+    };
+
     enum class PassiveType : uint8_t
     {
         CharacterEffect = 0,
         SpellEffect,
         TurnEffect,
+    };
+
+    const static std::unordered_map<PassiveType, std::string> passiveTypeToString = {
+        {PassiveType::CharacterEffect, "CharacterEffect"},
+        {PassiveType::SpellEffect, "SpellEffect"},
+        {PassiveType::TurnEffect, "TurnEffect"},
+    };
+
+    const static std::unordered_map<std::string, PassiveType> stringToPassiveType = {
+        {"CharacterEffect", PassiveType::CharacterEffect},
+        {"SpellEffect", PassiveType::SpellEffect},
+        {"TurnEffect", PassiveType::TurnEffect},
     };
 
     struct Passive
