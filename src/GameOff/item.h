@@ -54,6 +54,19 @@ namespace pg
         Item() {}
         Item(const Item& other) : name(other.name), type(other.type), stacksize(other.stacksize), nbItems(other.nbItems), rarity(other.rarity), attributes(other.attributes), description(other.description) {}
 
+        Item& operator=(const Item& other)
+        {
+            name = other.name;
+            type = other.type;
+            stacksize = other.stacksize;
+            nbItems = other.nbItems;
+            rarity = other.rarity;
+            attributes = other.attributes;
+            description = other.description;
+
+            return *this;
+        }
+
         /** Name of the item */
         std::string name = "None";
         

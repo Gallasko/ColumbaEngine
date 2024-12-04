@@ -184,7 +184,19 @@ namespace pg
 
             sTreeToUpgrade->currentLevel++;
 
-            currentPlayer->applyLevelGain(sTreeToUpgrade->levelGains[sTreeToUpgrade->currentLevel]);
+            bool treeEquiped = false;
+
+            for (size_t i = 0; i < MAXSKILLTREEINUSE; i++)
+            {
+                if (currentPlayer->skillTreeInUse[i] == sTreeToUpgrade)
+                {
+                    treeEquiped = true;
+                    break;
+                }
+            }
+
+            if (treeEquiped)
+                currentPlayer->applyLevelGain(sTreeToUpgrade->levelGains[sTreeToUpgrade->currentLevel]);
 
             showStat();
             showUpgradableTab();
@@ -498,15 +510,22 @@ namespace pg
             listView->addEntity(ttf.get<UiComponent>());
         }
 
-        upgradeTabUi["UpgradeButton"].get<UiComponent>()->setVisibility(true);
-
-        if (enoughItemsToLevelUp)
+        if (sTree->currentLevel >= sTree->maxLevel)
         {
-            upgradeTabUi["UpgradeButton"].get<TTFText>()->setColor({0.0f, 255.0f, 0.0f, 255.0f});
+            upgradeTabUi["UpgradeButton"].get<UiComponent>()->setVisibility(false);
         }
         else
         {
-            upgradeTabUi["UpgradeButton"].get<TTFText>()->setColor({255.0f, 0.0f, 0.0f, 255.0f});
+            upgradeTabUi["UpgradeButton"].get<UiComponent>()->setVisibility(true);
+
+            if (enoughItemsToLevelUp)
+            {
+                upgradeTabUi["UpgradeButton"].get<TTFText>()->setColor({0.0f, 255.0f, 0.0f, 255.0f});
+            }
+            else
+            {
+                upgradeTabUi["UpgradeButton"].get<TTFText>()->setColor({255.0f, 0.0f, 0.0f, 255.0f});
+            }
         }
     }
 
