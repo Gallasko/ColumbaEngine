@@ -205,7 +205,7 @@ namespace pg
                     {
                         auto skillTree = sys->database.at(selectedItem->attributes.at("SkillTree").toString());
 
-                        // Todo only show player that doesn't have the skill tree !
+                        // Only show player that doesn't have the skill tree !
                         auto it = std::find(player->learnedSkillTree.begin(), player->learnedSkillTree.end(), skillTree);
                 
                         if (it == player->learnedSkillTree.end())
@@ -258,7 +258,7 @@ namespace pg
                 ecsRef->sendEvent(LoseItem{item});
             }
 
-            // Todo refresh the inventory (skill tree) tab !
+            // Refresh the inventory (skill tree) tab !
             populateView(ItemType::SkillBook);
 
             characterList->setVisibility(false);
