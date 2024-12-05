@@ -4,6 +4,8 @@
 
 #include "UI/ttftext.h" 
 
+#include "characustomizationscene.h"
+
 namespace pg
 {
     void InventorySystem::onEvent(const GainItem& event)
@@ -131,6 +133,24 @@ namespace pg
         std::string title;
     };
 
+    struct ShowCharaList
+    {
+        ShowCharaList(Item *item) : item(item) {}
+
+        Item *item;
+    };
+
+    struct HideCharaList {};
+
+    struct SelectedCharacter
+    {
+        SelectedCharacter(PlayerCharacter *chara) : chara(chara) {}
+
+        PlayerCharacter *chara;
+    };
+
+    struct LearnNewSkillTree {};
+
     void InventoryScene::init()
     {
         std::vector<std::string> tabNames = {"Weapon", "Armor", "Conso", "SkillBook", "Material", "SStones", "KeyItems"};
@@ -166,9 +186,118 @@ namespace pg
             }
         });
 
+        listenToEvent<ShowCharaList>([this](const ShowCharaList& event) {
+            selectedItem = event.item;
+
+            characterList->clear();
+
+            for (auto player : ecsRef->view<PlayerCharacter>())
+            {
+                LOG_INFO("Player", "Loading players");
+
+                if (player)
+                {
+                    LOG_INFO("Player", "Got player: " << player->character.name);
+
+                    auto sys = ecsRef->getSystem<SkillTreeDatabase>();
+            
+                    try
+                    {
+                        auto skillTree = sys->database.at(selectedItem->attributes.at("SkillTree").toString());
+
+                        // Todo only show player that doesn't have the skill tree !
+                        auto it = std::find(player->learnedSkillTree.begin(), player->learnedSkillTree.end(), skillTree);
+                
+                        if (it == player->learnedSkillTree.end())
+                        {
+                            addPlayerToListView(player);
+                        }                            
+                    }
+                    catch (const std::exception& e)
+                    {
+                        LOG_ERROR("Inventory", "Item is not a skill tree, error: " << e.what());
+                    }
+                }
+            }
+
+            characterList->setVisibility(true);
+        });
+
+        listenToEvent<HideCharaList>([this](const HideCharaList&) {
+            characterList->setVisibility(false);
+
+            learnSkillTreeUi->setVisibility(false);
+        });
+
+        listenToEvent<SelectedCharacter>([this](const SelectedCharacter& event) {
+            selectedCharacter = event.chara;
+
+            learnSkillTreeUi->setVisibility(true);
+        });
+
+        listenToEvent<LearnNewSkillTree>([this](const LearnNewSkillTree&) {
+            auto sys = ecsRef->getSystem<SkillTreeDatabase>();
+            
+            try
+            {
+                auto skillTree = sys->database.at(selectedItem->attributes.at("SkillTree").toString());
+
+                selectedCharacter->learnedSkillTree.emplace_back(skillTree);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("Inventory", "Item is not a skill tree, error: " << e.what());
+            }
+
+            if (selectedItem->attributes.count("ConsumedUponUse") > 0)
+            {
+                auto item = *selectedItem;
+
+                item.nbItems = 1;
+
+                ecsRef->sendEvent(LoseItem{item});
+            }
+
+            // Todo refresh the inventory (skill tree) tab !
+            populateView(ItemType::SkillBook);
+
+            characterList->setVisibility(false);
+
+            learnSkillTreeUi->setVisibility(false);
+        });
+
         auto listView = makeListView(this, 50, 125, 600, 500);
 
         inventoryUi["InventoryView"] = listView.entity;
+
+        auto listView2 = makeListView(this, 0, 150, 300, 120);
+
+        listView2.get<ListView>()->setVisibility(false);
+
+        characterList = listView2.get<ListView>();
+
+        auto ttf = makeTTFText(this, 0, 350, "res/font/Inter/static/Inter_28pt-Light.ttf", "Learn", 0.4);
+        auto ttfUi = ttf.get<UiComponent>();
+        ttfUi->setVisibility(false);
+
+        attach<MouseLeftClickComponent>(ttf.entity, makeCallable<LearnNewSkillTree>());
+
+        learnSkillTreeUi = ttfUi;
+    }
+
+    void InventoryScene::startUp()
+    {
+    }
+
+    void InventoryScene::addPlayerToListView(PlayerCharacter* player)
+    {
+        auto ttf = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
+        auto ttfUi = ttf.get<UiComponent>();
+        ttfUi->setVisibility(false);
+
+        attach<MouseLeftClickComponent>(ttf.entity, makeCallable<SelectedCharacter>(player));
+
+        characterList->addEntity(ttfUi);
     }
 
     void InventoryScene::populateView(const ItemType& type)
@@ -182,6 +311,11 @@ namespace pg
         for (auto& item : sys->items[type])
         {
             auto itemUi = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name + " x" + std::to_string(item.nbItems), 0.4);
+
+            if (item.attributes.count("UsableOnCharacter") > 0)
+            {
+                attach<MouseLeftClickComponent>(itemUi.entity, makeCallable<ShowCharaList>(&item));
+            }
 
             itemUi.get<UiComponent>()->setVisibility(false);
 

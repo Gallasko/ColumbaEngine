@@ -128,6 +128,12 @@ void initGame()
 
     mainWindow->masterRenderer->processTextureRegister();
 
+    auto sTreeDatas = mainWindow->ecs.createSystem<SkillTreeDatabase>();
+
+    sTreeDatas->addSkillTree(AdventurerTree{});
+    sTreeDatas->addSkillTree(MageTree{});
+    sTreeDatas->addSkillTree(WarriorTree{});
+
     mainWindow->ecs.createSystem<FightSystem>();
 
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();

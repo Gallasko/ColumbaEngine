@@ -19,14 +19,14 @@ namespace pg
         {
             name = "Warrior";
 
-            currentLevel = 2;
+            currentLevel = 0;
 
             maxLevel = 10;
 
             for (size_t i = 0; i < maxLevel; i++)
                 requiredMatForNextLevel.neededMat[i] = { XpStone { i + 1 } };
         
-            for (size_t i = 0; i < maxLevel; i++)
+            for (size_t i = 0; i <= maxLevel; i++)
             {
                 if (i % 5 == 0)
                 {
@@ -50,14 +50,14 @@ namespace pg
         {
             name = "Mage";
 
-            currentLevel = 5;
+            currentLevel = 0;
 
             maxLevel = 10;
 
             for (size_t i = 0; i < maxLevel; i++)
                 requiredMatForNextLevel.neededMat[i] = { XpStone { i + 1 } };
         
-            for (size_t i = 0; i < maxLevel; i++)
+            for (size_t i = 0; i <= maxLevel; i++)
             {
                 if (i % 5 == 0)
                 {
@@ -94,7 +94,7 @@ namespace pg
                 
             }
         
-            for (size_t i = 0; i < maxLevel; i++)
+            for (size_t i = 0; i <= maxLevel; i++)
             {
                 if (i % 5 == 0)
                 {

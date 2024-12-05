@@ -40,7 +40,7 @@ namespace pg
             {
                 characters = { Slime{} };
 
-                dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f } };
+                dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f }, { WarriorGrimoire{} } };
             }
         };
 
@@ -48,7 +48,7 @@ namespace pg
         {
             DuoSlimeEncounter() 
             {
-                characters = { Slime{}, Slime{}, Slime{} };
+                characters = { Slime{}, Slime{} };
 
                 dropTable = { { XpStone {}, 1.0f, 4}, { SlimeBall {}, 0.5f }, { SlimeBall {}, 0.5f } };
             }
@@ -63,7 +63,7 @@ namespace pg
         {
             name = "SlimeForest";
 
-            possibleEnounters = { DuoSlimeEncounter{} };
+            possibleEnounters = { SoloSlimeEncounter{}, DuoSlimeEncounter{} };
         }
     };
 }

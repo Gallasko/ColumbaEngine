@@ -3,11 +3,13 @@
 #include "ECS/system.h"
 
 #include "Scene/scenemanager.h"
+#include "UI/listview.h"
 
 #include "item.h"
 
 namespace pg
 {
+    struct PlayerCharacter;
     struct GainItem
     {
         GainItem(const Item& item) : item(item) {}
@@ -40,9 +42,19 @@ namespace pg
     struct InventoryScene : public Scene
     {
         virtual void init() override;
+        virtual void startUp() override;
+
+        void addPlayerToListView(PlayerCharacter* player);
 
         void populateView(const ItemType& type);
 
         std::unordered_map<std::string, EntityRef> inventoryUi;
+
+        PlayerCharacter *selectedCharacter;
+        Item* selectedItem;
+
+        CompRef<ListView> characterList;
+
+        CompRef<UiComponent> learnSkillTreeUi;
     };
 }

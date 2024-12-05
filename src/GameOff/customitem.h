@@ -30,4 +30,20 @@ namespace pg
         }
     };
 
+    struct WarriorGrimoire : public Item
+    {
+        WarriorGrimoire()
+        {
+            name = "Warrior Grimoire";
+
+            type = ItemType::SkillBook;
+
+            stacksize = 1;
+
+            attributes["UsableOnCharacter"] = true;
+            attributes["ConsumedUponUse"] = true;
+            attributes["SkillTree"] = "Warrior";
+        }
+    };
+
 };

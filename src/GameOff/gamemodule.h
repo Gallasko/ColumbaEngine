@@ -347,6 +347,45 @@ namespace pg
         }
     };
 
+    class CreateSpell : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp()
+        {    
+            setArity(1, 1);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto v = args.front()->getElement();
+            args.pop();
+
+            if (not v.isLitteral())
+            {
+                LOG_ERROR("Character module", "Character name should be a literal");
+                
+                return nullptr;
+            }
+
+            auto list = makeList(this, {
+                {"name", v.toString()},
+                {"baseDmg", 1},
+                {"manaCost", 0},
+                {"cooldown", 1},
+                {"physicalMultipler", 0.0f},
+                {"magicalMultipler", 0.0f},
+                {"selfOnly", false},
+                {"multiTarget", true},
+                {"nbTargets", 1},
+                });
+
+            // ApplyOn and RemoveFrom are functions
+
+            return list;
+        }
+    };
+
     struct GameModule : public SysModule
     {
         GameModule(EntitySystem *ecsRef)

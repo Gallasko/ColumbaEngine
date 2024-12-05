@@ -38,10 +38,22 @@ namespace pg
         LevelProgression requiredMatForNextLevel;
 
         LevelIncrease levelGains[MAXLEVEL + 1];
+
+        bool operator==(const SkillTree& other) const
+        {
+            return name == other.name;
+        }
     };
 
     struct NoneSkillTree : public SkillTree 
     {
         NoneSkillTree() { name = "None"; }
+    };
+
+    struct SkillTreeDatabase : public System<StoragePolicy>
+    {
+        void addSkillTree(const SkillTree& sTree) { database[sTree.name] = sTree; }
+
+        std::unordered_map<std::string, SkillTree> database;
     };
 }
