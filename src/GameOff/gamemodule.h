@@ -16,6 +16,66 @@ namespace pg
         }
     }
 
+    struct SerializedInfoHolder
+    {
+        SerializedInfoHolder() {}
+        SerializedInfoHolder(const std::string& className) : className(className) {}
+        SerializedInfoHolder(const std::string& name, const std::string& type, const std::string& value) : name(name), type(type), value(value) {}
+        SerializedInfoHolder(const SerializedInfoHolder& other) = delete;
+        SerializedInfoHolder(SerializedInfoHolder&& other) : className(std::move(other.className)), name(std::move(other.name)), type(std::move(other.type)), value(std::move(other.value)), parent(std::move(other.parent)), children(std::move(other.children)) {}
+
+        std::string className;
+        std::string name;
+        std::string type;
+        std::string value;
+
+        SerializedInfoHolder* parent;
+        std::vector<SerializedInfoHolder> children;
+    };
+
+    struct InspectorArchive : public Archive
+    {
+        /** Start the serialization process of a class */
+        virtual void startSerialization(const std::string& className) override
+        {
+            auto& node = currentNode->children.emplace_back(className);
+
+            node.name = lastAttributeName;
+            lastAttributeName = "";
+
+            node.parent = currentNode;
+
+            currentNode = &node;
+        }
+
+        /** Start the serialization process of a class */
+        virtual void endSerialization() override
+        {
+            currentNode = currentNode->parent;
+        }
+
+        /** Put an Attribute in the serialization process*/
+        virtual void setAttribute(const std::string& value, const std::string& type = "") override
+        {
+            auto& attributeNode = currentNode->children.emplace_back(lastAttributeName, type, value);
+
+            attributeNode.parent = currentNode;
+
+            lastAttributeName = "";
+        }
+
+        virtual void setValueName(const std::string& name) override
+        {
+            lastAttributeName = name;
+        }
+
+        std::string lastAttributeName = "";
+
+        SerializedInfoHolder mainNode;
+
+        SerializedInfoHolder* currentNode = &mainNode;
+    };
+
     class CreateCharacter : public Function
     {
         using Function::Function;
@@ -23,6 +83,103 @@ namespace pg
         void setUp()
         {
             setArity(1, 1);
+        }
+
+        void addNewAttribute(const std::string& text, const std::string& type, std::string& value, std::shared_ptr<ClassInstance> currentList)
+        {
+            LOG_INFO("Game Module", "Adding new attribute: " << text);
+
+            if (type == "int")
+            {
+                int v = 0;
+                std::stringstream sstream(value);
+                sstream >> v;
+
+                addToList(currentList, this->token, {text, v});
+            }
+            else if (type == "bool")
+            {
+                bool v = false;
+
+                if (value == "true")
+                    v = true;
+                
+                addToList(currentList, this->token, {text, v});
+            }
+            // Todo this is casted to a size_t (Should not be !)
+            else if (type == "unsigned int")
+            {
+                unsigned int v = 0;
+                std::stringstream sstream(value);
+                sstream >> v;
+
+                addToList(currentList, this->token, {text, static_cast<size_t>(v)});
+            }
+            else if (type == "float")
+            {
+                float v = 0;
+                std::stringstream sstream(value);
+                sstream >> v;
+
+                addToList(currentList, this->token, {text, v});
+            }
+            // Todo this is casted to a float (Should not be !)
+            else if (type == "double")
+            {
+                double v = 0;
+                std::stringstream sstream(value);
+                sstream >> v;
+
+                addToList(currentList, this->token, {text, static_cast<float>(v)});
+            }
+            else if (type == "size_t")
+            {
+                size_t v = 0;
+                std::stringstream sstream(value);
+                sstream >> v;
+
+                addToList(currentList, this->token, {text, v});
+            }
+            else if (type == "string")
+            {
+                addToList(currentList, this->token, {text, value});
+            }
+            else
+            {
+                LOG_ERROR("Game module", "Unsupported type for interpreter serialization: " << type);
+            }
+        }
+
+        void addNewText(const std::string& text)
+        {
+
+        }
+
+        void printChildren(SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList)
+        {            
+            // If no class name then we got an attribute
+            if (parent.className == "" and indentLevel > 1)
+            {
+                addNewAttribute(parent.name, parent.type, parent.value, currentList);
+            }
+            // We got a class name then it is a class ! So no type nor value
+            else
+            {
+                addToList(currentList, this->token, {"__className", parent.className});
+            }
+
+            if (parent.children.size() > 0)
+            {
+                auto childList = makeList(this, {});
+
+                for (auto& child : parent.children)
+                {
+                    printChildren(child, indentLevel + 1, childList);
+                }
+
+                addToList(currentList, this->token, {"__children", childList});
+            }
+
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
@@ -37,14 +194,24 @@ namespace pg
                 return nullptr;
             }
 
+            Character chara;
+
+            InspectorArchive archive;
+
+            serialize(archive, chara);
+
+            auto list = makeList(this, {});
+
+            printChildren(archive.mainNode, 0, list);
+
             // Todo add the rest
-            auto list = makeList(this, {
-                {"name", v.toString()},
-                {"health", 100},
-                {"ad", 10},
-                {"ap", 10},
-                {"speed", 100}
-                });
+            // auto list = makeList(this, {
+            //     {"name", v.toString()},
+            //     {"health", 100},
+            //     {"ad", 10},
+            //     {"ap", 10},
+            //     {"speed", 100}
+            //     });
 
             return list;
         }

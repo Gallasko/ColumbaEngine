@@ -2,6 +2,11 @@
 
 namespace pg
 {
+    namespace
+    {
+        constexpr const char * const DOM = "Character";
+    }
+
     void addStatOnCharacter(Character& chara, PlayerBoostType type, float value)
     {
         switch (type)
@@ -47,6 +52,41 @@ namespace pg
                 break;
 
         }
+    }
+
+    template <>
+    void serialize(Archive& archive, const Character& value)
+    {
+        archive.startSerialization(Character::getType());
+
+        serialize(archive, "name", value.name);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    Character deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS(DOM);
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR(DOM, "Element is null");
+        }
+        else
+        {
+            LOG_INFO(DOM, "Deserializing Character");
+
+            Character data;
+
+            data.name = deserialize<std::string>(serializedString["name"]);
+
+            return data;
+        }
+
+        return Character{};
     }
 
     Passive makeSimplePlayerBoostPassive(PlayerBoostType type, float value, int32_t duration, std::string name)

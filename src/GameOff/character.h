@@ -3,6 +3,8 @@
 #include <string>
 #include <map>
 
+#include "serialization.h"
+
 #include "characterstats.h"
 #include "spells.h"
 #include "passives.h"
@@ -52,6 +54,8 @@ namespace pg
 
         void addPassive(const Passive& passive);
 
+        inline static std::string getType() { return "Character"; }
+
         // In combat charac
         // Todo make them private !
 
@@ -70,6 +74,12 @@ namespace pg
 
         size_t id = 0;
     };
+
+    template <>
+    void serialize(Archive& archive, const Character& value);
+
+    template <>
+    Character deserialize(const UnserializedObject& serializedString);
 
     struct CharacterLeftClicked
     {

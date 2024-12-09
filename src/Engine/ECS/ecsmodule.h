@@ -26,7 +26,7 @@ namespace pg
 
             auto systemList = makeList(this, {});
 
-            for(auto sys : ecsRef->getSystems())
+            for (auto sys : ecsRef->getSystems())
             {
                 addToList(systemList, this->token, {std::to_string(sys.first), sys.second->name});
             }

@@ -89,7 +89,7 @@ namespace pg
 
                 auto list = makeList(this, {});
 
-                for(auto file : folder)
+                for (auto file : folder)
                 {
                     addToList(list, token, {file.filepath, file.data});
                 }

@@ -597,7 +597,6 @@ namespace pg
 
         inline size_t getNbTasks() const { return tasks.size(); }
 
-        // Todo add this in the fps system
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
 
     private:
@@ -691,6 +690,8 @@ namespace pg
 
         bool running = false;
         bool stopRequested = false;
+
+        /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;
         ComponentRegistry registry;
 

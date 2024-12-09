@@ -16,16 +16,18 @@ namespace pg
 
             auto sentence = makeSentence(ecsRef, 0, 0, {"0"});
             auto s2 = makeSentence(ecsRef, 0, 0, {"0"});
+            auto s3 = makeSentence(ecsRef, 0, 0, {"0"});
 
             sentence.get<UiComponent>()->setZ(2);
             s2.get<UiComponent>()->setZ(2);
+            s3.get<UiComponent>()->setZ(2);
 
             s2.get<UiComponent>()->setTopAnchor(sentence.get<UiComponent>()->bottom);
+            s3.get<UiComponent>()->setTopAnchor(s2.get<UiComponent>()->bottom);
 
-            fpsTextId = sentence.entity.id;
-            generatedTextId = s2.entity.id;
-
-            LOG_INFO("FPS System initialized", "Sentence id: " << fpsTextId);
+            fpsText = sentence.get<SentenceText>();
+            generatedText = s2.get<SentenceText>();
+            executionText = s3.get<SentenceText>();
         }
 
         virtual void onEvent(const TickEvent& event) override
@@ -45,8 +47,6 @@ namespace pg
 
                 auto currentNbOfFrames = rendererSys->getNbRenderedFrames();
                 auto currentNbGOfFrames = rendererSys->getNbGeneratedFrames();
-
-                // LOG_INFO("FPS", currentNbGOfFrames);
 
                 // In case of overflow of size_t
                 if (currentNbOfFrames < lastNbOfFrames)
@@ -71,15 +71,16 @@ namespace pg
                 lastNbOfGeneratedFrames = currentNbGOfFrames;
 
                 // Print FPS
-                // Todo fix this
-                ecsRef->getEntity(fpsTextId)->get<SentenceText>()->setText(fpsStr.getData());
-                ecsRef->getEntity(generatedTextId)->get<SentenceText>()->setText(fpsStr2.getData());
-                // ecsRef->sendEvent(OnTextChanged{fpsTextId, fpsStr.getData()});
+                fpsText->setText(fpsStr.getData());
+                generatedText->setText(fpsStr2.getData());
+                executionText->setText(std::to_string(ecsRef->getCurrentNbOfExecution()));
             }
         }
 
-        _unique_id fpsTextId;
-        _unique_id generatedTextId;
+        CompRef<SentenceText> fpsText;
+        CompRef<SentenceText> generatedText;
+        CompRef<SentenceText> executionText;
+        
         size_t accumulatedTick = 0;
         size_t lastNbOfFrames = 0;
         size_t lastNbOfGeneratedFrames = 0;
