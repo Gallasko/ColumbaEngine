@@ -55,11 +55,36 @@ namespace pg
     }
 
     template <>
+    void serialize(Archive& archive, const CharacterStat& value)
+    {
+        archive.startSerialization("CharacterStat");
+
+        serialize(archive, "health", value.health);
+
+        serialize(archive, "ad", value.physicalAttack);
+        serialize(archive, "ap", value.magicalAttack);
+
+        serialize(archive, "armor", value.physicalDefense);
+        serialize(archive, "rm", value.magicalDefense);
+
+        serialize(archive, "speed", value.speed);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    CharacterStat deserialize(const UnserializedObject& serializedString)
+    {
+        return CharacterStat{};
+    }
+
+    template <>
     void serialize(Archive& archive, const Character& value)
     {
         archive.startSerialization(Character::getType());
 
         serialize(archive, "name", value.name);
+        serialize(archive, "stat", value.stat);
 
         archive.endSerialization();
     }

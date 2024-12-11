@@ -67,6 +67,12 @@ namespace pg
         }
     };
 
+    template <>
+    void serialize(Archive& archive, const CharacterStat& value);
+
+    template <>
+    CharacterStat deserialize(const UnserializedObject& serializedString);
+
     struct BaseCharacterStat : public CharacterStat
     {
         BaseCharacterStat()

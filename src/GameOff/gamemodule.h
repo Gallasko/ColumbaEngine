@@ -150,34 +150,37 @@ namespace pg
             }
         }
 
-        void addNewText(const std::string& text)
+        void printChildren(SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList, const std::string& parentName = "")
         {
+            if (parentName != "")
+            {
+                addToList(currentList, this->token, {"__className", parentName});
+            }
 
-        }
-
-        void printChildren(SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList)
-        {            
             // If no class name then we got an attribute
-            if (parent.className == "" and indentLevel > 1)
+            if (parent.className == "" and indentLevel > 0)
             {
                 addNewAttribute(parent.name, parent.type, parent.value, currentList);
-            }
-            // We got a class name then it is a class ! So no type nor value
-            else
-            {
-                addToList(currentList, this->token, {"__className", parent.className});
             }
 
             if (parent.children.size() > 0)
             {
-                auto childList = makeList(this, {});
+                std::shared_ptr<ClassInstance> childList = indentLevel > 0 ? makeList(this, {}) : currentList;
+
+                LOG_INFO("Module", "Parsing children of : " << parent.className);
 
                 for (auto& child : parent.children)
                 {
-                    printChildren(child, indentLevel + 1, childList);
+                    LOG_INFO("Module", "Child name: " << child.className);
+                    printChildren(child, indentLevel + 1, childList, parent.className);
                 }
 
-                addToList(currentList, this->token, {"__children", childList});
+                LOG_INFO("Module", "Parsing done of : " << parent.className);
+
+                auto className = parent.className == "" ? "__children" : parent.name == "" ? parent.className : parent.name;
+
+                if (indentLevel > 0)
+                    addToList(currentList, this->token, {className, childList});
             }
 
         }
@@ -194,15 +197,20 @@ namespace pg
                 return nullptr;
             }
 
-            Character chara;
+        //    Character chara;
+            TTFText chara;
 
             InspectorArchive archive;
 
             serialize(archive, chara);
-
+                                  
             auto list = makeList(this, {});
 
-            printChildren(archive.mainNode, 0, list);
+            if (archive.mainNode.children.size() > 0)
+            {
+                LOG_INFO("Module", "First class name: " << archive.mainNode.children[0].className);
+                printChildren(archive.mainNode.children[0], 0, list, archive.mainNode.children[0].className);
+            }
 
             // Todo add the rest
             // auto list = makeList(this, {
