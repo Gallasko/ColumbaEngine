@@ -22,11 +22,16 @@ namespace pg
         std::vector<Character> characters;
     };
 
+    struct DropChanceList
+    {
+        std::vector<DropChance> dropTable;
+    };
+
     struct Encounter
     {
-        std::vector<Character> characters;
+        CharacterList charaList;
 
-        std::vector<DropChance> dropTable;
+        DropChanceList dropList;
     };
 
     struct Location
@@ -45,4 +50,19 @@ namespace pg
 
         std::vector<std::string> prerequisiteEnounters;
     };
+
+    template <>
+    void serialize(Archive& archive, const DropChance& value);
+
+    template <>
+    void serialize(Archive& archive, const CharacterList& value);
+
+    template <>
+    void serialize(Archive& archive, const DropChanceList& value);
+
+    template <>
+    void serialize(Archive& archive, const Encounter& value);
+
+    template <>
+    void serialize(Archive& archive, const Location& value);
 }

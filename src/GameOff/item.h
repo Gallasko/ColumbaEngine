@@ -108,7 +108,4 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const Item& value);
-
-    template <>
-    Item deserialize(const UnserializedObject& serializedString);
 }

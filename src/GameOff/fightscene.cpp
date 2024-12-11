@@ -106,7 +106,7 @@ namespace pg
 
             currentEncounter = encounter;
 
-            for (const auto& chara : encounter.characters)
+            for (const auto& chara : encounter.charaList.characters)
             {
                 addCharacter(chara);
             }
@@ -402,7 +402,7 @@ namespace pg
 
         if (inEncounter)
         {
-            for (const auto& drop : currentEncounter.dropTable)
+            for (const auto& drop : currentEncounter.dropList.dropTable)
             {
                 if (randomNumber() < drop.dropChance)
                 {

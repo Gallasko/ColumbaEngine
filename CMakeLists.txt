@@ -229,6 +229,7 @@ else()
         src/GameOff/inventory.cpp
         src/GameOff/item.cpp
         src/GameOff/mainscene.cpp
+        src/GameOff/location.cpp
         src/GameOff/locationscene.cpp
     )
     

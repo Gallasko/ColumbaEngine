@@ -257,14 +257,24 @@ namespace pg
         return list;
     }
 
-    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field> fields, const std::string& className = "");
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className = "");
 
     template <typename Type>
     Type deserializeTo(std::shared_ptr<ClassInstance> list)
     {
         UnserializedObject obj;
 
-        deserializeToHelper(obj, list->getFields());
+        auto fields = list->getFields();
+
+        auto it = std::find(fields.begin(), fields.end(), "__className");
+
+        // If no class name is provided, we insert "InterpretedStruct" as the class name to avoid parsing and struct hierachy missmatch
+        if (it == fields.end())
+        {
+            fields.emplace_back("__className", makeVar("InterpretedStruct"));
+        }
+
+        deserializeToHelper(obj, fields);
 
         if (obj.getNbChildren() > 0)
             return deserialize<Type>(obj.children[0]);

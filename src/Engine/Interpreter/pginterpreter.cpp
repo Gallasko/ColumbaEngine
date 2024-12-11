@@ -306,7 +306,7 @@ namespace pg
         }
     }
 
-    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field> fields, const std::string& className)
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className)
     {
         auto it = std::find(fields.begin(), fields.end(), "__className");
 
@@ -343,7 +343,8 @@ namespace pg
                 {
                     // If it is a class instance, it is a complexe type and we recursively parse it to get all the attributes
                     auto nextClass = std::static_pointer_cast<ClassInstance>(field.value);
-                    deserializeToHelper(holder, nextClass->getFields(), field.key);
+                    auto nextFields = nextClass->getFields();
+                    deserializeToHelper(holder, nextFields, field.key);
                 }
                 // Todo
                 // else if (field.value->getType() == "Function")

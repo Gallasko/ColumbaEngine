@@ -76,6 +76,31 @@ namespace pg
         }
     };
 
+    class ReadCharaList : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp()
+        {
+            setArity(1, 1);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto arg = args.front();
+            args.pop();
+
+            auto charaList = deserializeTo<CharacterList>(arg);
+
+            for (const auto& chara : charaList.characters)
+            {
+                LOG_INFO("Module", "Chara in list: " << chara.name);
+            }
+
+            return nullptr;
+        }
+    };
+
     class CreateLocation : public Function
     {
         using Function::Function;
@@ -142,7 +167,7 @@ namespace pg
                     {
                         auto charaObject = std::static_pointer_cast<ClassInstance>(field.value);
 
-                        encounter.characters = getCharacters(charaObject);
+                        encounter.charaList.characters = getCharacters(charaObject);
                     }
                 }
                 else if (field == "drop")
@@ -156,7 +181,7 @@ namespace pg
                     {
                         auto dropTableObject = std::static_pointer_cast<ClassInstance>(field.value);
 
-                        encounter.dropTable = getDropTables(dropTableObject);
+                        encounter.dropList.dropTable = getDropTables(dropTableObject);
                     }
                 }
             }
@@ -392,6 +417,8 @@ namespace pg
             addSystemFunction<CreateLocation>("createLocation", ecsRef);
             addSystemFunction<CreateItem>("createItem");
             addSystemFunction<CreatePassive>("createPassive");
+
+            addSystemFunction<ReadCharaList>("readCharaList");
         }
     };
 }
