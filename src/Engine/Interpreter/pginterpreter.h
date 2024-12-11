@@ -237,4 +237,23 @@ namespace pg
 
         std::queue<ScriptCall> scriptQueue;
     };
+
+    void archiveToListHelper(const Function *caller, SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList, const std::string& parentName = "");
+
+    template <typename Type>
+    std::shared_ptr<ClassInstance> serializeToInterpreter(const Function *caller, const Type& arg)
+    {
+        InspectorArchive archive;
+
+        serialize(archive, arg);
+                                
+        auto list = makeList(caller, {});
+
+        if (archive.mainNode.children.size() > 0)
+        {
+            archiveToListHelper(caller, archive.mainNode.children[0], 0, list, archive.mainNode.children[0].className);
+        }
+
+        return list;
+    }
 }

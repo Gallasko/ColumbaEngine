@@ -14,67 +14,7 @@ namespace pg
         {
             return value->getValue()->getElement();
         }
-    }
-
-    struct SerializedInfoHolder
-    {
-        SerializedInfoHolder() {}
-        SerializedInfoHolder(const std::string& className) : className(className) {}
-        SerializedInfoHolder(const std::string& name, const std::string& type, const std::string& value) : name(name), type(type), value(value) {}
-        SerializedInfoHolder(const SerializedInfoHolder& other) = delete;
-        SerializedInfoHolder(SerializedInfoHolder&& other) : className(std::move(other.className)), name(std::move(other.name)), type(std::move(other.type)), value(std::move(other.value)), parent(std::move(other.parent)), children(std::move(other.children)) {}
-
-        std::string className;
-        std::string name;
-        std::string type;
-        std::string value;
-
-        SerializedInfoHolder* parent;
-        std::vector<SerializedInfoHolder> children;
-    };
-
-    struct InspectorArchive : public Archive
-    {
-        /** Start the serialization process of a class */
-        virtual void startSerialization(const std::string& className) override
-        {
-            auto& node = currentNode->children.emplace_back(className);
-
-            node.name = lastAttributeName;
-            lastAttributeName = "";
-
-            node.parent = currentNode;
-
-            currentNode = &node;
-        }
-
-        /** Start the serialization process of a class */
-        virtual void endSerialization() override
-        {
-            currentNode = currentNode->parent;
-        }
-
-        /** Put an Attribute in the serialization process*/
-        virtual void setAttribute(const std::string& value, const std::string& type = "") override
-        {
-            auto& attributeNode = currentNode->children.emplace_back(lastAttributeName, type, value);
-
-            attributeNode.parent = currentNode;
-
-            lastAttributeName = "";
-        }
-
-        virtual void setValueName(const std::string& name) override
-        {
-            lastAttributeName = name;
-        }
-
-        std::string lastAttributeName = "";
-
-        SerializedInfoHolder mainNode;
-
-        SerializedInfoHolder* currentNode = &mainNode;
-    };
+    }    
 
     class CreateCharacter : public Function
     {
@@ -83,116 +23,6 @@ namespace pg
         void setUp()
         {
             setArity(1, 1);
-        }
-
-        void addNewAttribute(const std::string& text, const std::string& type, std::string& value, std::shared_ptr<ClassInstance> currentList)
-        {
-            LOG_INFO("Game Module", "Adding new attribute: " << text);
-
-            if (type == "int")
-            {
-                int v = 0;
-                std::stringstream sstream(value);
-                sstream >> v;
-
-                addToList(currentList, this->token, {text, v});
-            }
-            else if (type == "bool")
-            {
-                bool v = false;
-
-                if (value == "true")
-                    v = true;
-                
-                addToList(currentList, this->token, {text, v});
-            }
-            // Todo this is casted to a size_t (Should not be !)
-            else if (type == "unsigned int")
-            {
-                unsigned int v = 0;
-                std::stringstream sstream(value);
-                sstream >> v;
-
-                addToList(currentList, this->token, {text, static_cast<size_t>(v)});
-            }
-            else if (type == "float")
-            {
-                float v = 0;
-                std::stringstream sstream(value);
-                sstream >> v;
-
-                addToList(currentList, this->token, {text, v});
-            }
-            // Todo this is casted to a float (Should not be !)
-            else if (type == "double")
-            {
-                double v = 0;
-                std::stringstream sstream(value);
-                sstream >> v;
-
-                addToList(currentList, this->token, {text, static_cast<float>(v)});
-            }
-            else if (type == "size_t")
-            {
-                size_t v = 0;
-                std::stringstream sstream(value);
-                sstream >> v;
-
-                addToList(currentList, this->token, {text, v});
-            }
-            else if (type == "string")
-            {
-                addToList(currentList, this->token, {text, value});
-            }
-            else
-            {
-                LOG_ERROR("Game module", "Unsupported type for interpreter serialization: " << type);
-            }
-        }
-
-        void printChildren(SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList, const std::string& parentName = "")
-        {
-            if (parentName != "")
-            {
-                addToList(currentList, this->token, {"__className", parentName});
-            }
-
-            // If no class name then we got an attribute
-            if (parent.className == "" and indentLevel > 0)
-            {
-                addNewAttribute(parent.name, parent.type, parent.value, currentList);
-            }
-
-            if (parent.children.size() > 0)
-            {
-                std::shared_ptr<ClassInstance> childList = indentLevel > 0 ? makeList(this, {}) : currentList;
-
-                LOG_INFO("Module", "Parsing children of : " << parent.className);
-
-                for (auto& child : parent.children)
-                {
-                    LOG_INFO("Module", "Child name: " << child.className);
-                    printChildren(child, indentLevel + 1, childList, parent.className);
-                }
-
-                LOG_INFO("Module", "Parsing done of : " << parent.className);
-
-                auto className = parent.className == "" ? "__children" : parent.name == "" ? parent.className : parent.name;
-
-                if (indentLevel > 0)
-                    addToList(currentList, this->token, {className, childList});
-            }
-
-        }
-
-        virtual void deserializeTo(std::shared_ptr<ClassInstance> list)
-        {
-            const auto& fields = list->getFields();
-
-            for (const auto& field : fields)
-            {
-                LOG_INFO("Module", "Field " << field.key << "is a: " << field.value->getType());
-            }
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
@@ -209,18 +39,8 @@ namespace pg
 
         //    Character chara;
             TTFText chara;
-
-            InspectorArchive archive;
-
-            serialize(archive, chara);
                                   
-            auto list = makeList(this, {});
-
-            if (archive.mainNode.children.size() > 0)
-            {
-                LOG_INFO("Module", "First class name: " << archive.mainNode.children[0].className);
-                printChildren(archive.mainNode.children[0], 0, list, archive.mainNode.children[0].className);
-            }
+            auto list = serializeToInterpreter(this, chara);
 
             // Todo add the rest
             // auto list = makeList(this, {

@@ -213,4 +213,96 @@ namespace pg
 
         return ast;
     }
+
+    void addNewAttribute(const Function *caller, const std::string& text, const std::string& type, std::string& value, std::shared_ptr<ClassInstance> currentList)
+    {
+        if (type == "int")
+        {
+            int v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        else if (type == "bool")
+        {
+            bool v = false;
+
+            if (value == "true")
+                v = true;
+            
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        // Todo this is casted to a size_t (Should not be !)
+        else if (type == "unsigned int")
+        {
+            unsigned int v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, static_cast<size_t>(v)});
+        }
+        else if (type == "float")
+        {
+            float v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        // Todo this is casted to a float (Should not be !)
+        else if (type == "double")
+        {
+            double v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, static_cast<float>(v)});
+        }
+        else if (type == "size_t")
+        {
+            size_t v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        else if (type == "string")
+        {
+            addToList(currentList, caller->getToken(), {text, value});
+        }
+        else
+        {
+            LOG_ERROR(DOM, "Unsupported type for interpreter serialization: " << type);
+        }
+    }
+
+    void archiveToListHelper(const Function *caller, SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList, const std::string& parentName)
+    {
+        if (parentName != "")
+        {
+            addToList(currentList, caller->getToken(), {"__className", parentName});
+        }
+
+        // If no class name then we got an attribute
+        if (parent.className == "" and indentLevel > 0)
+        {
+            addNewAttribute(caller, parent.name, parent.type, parent.value, currentList);
+        }
+
+        if (parent.children.size() > 0)
+        {
+            std::shared_ptr<ClassInstance> childList = indentLevel > 0 ? makeList(caller, {}) : currentList;
+
+            for (auto& child : parent.children)
+            {
+                archiveToListHelper(caller, child, indentLevel + 1, childList, parent.className);
+            }
+
+            auto className = parent.className == "" ? "__children" : parent.name == "" ? parent.className : parent.name;
+
+            if (indentLevel > 0)
+                addToList(currentList, caller->getToken(), {className, childList});
+        }
+    }
 }
