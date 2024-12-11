@@ -256,4 +256,40 @@ namespace pg
 
         return list;
     }
+
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field> fields, const std::string& className = "");
+
+    template <typename Type>
+    Type deserializeTo(std::shared_ptr<ClassInstance> list)
+    {
+        UnserializedObject obj;
+
+        deserializeToHelper(obj, list->getFields());
+
+        if (obj.getNbChildren() > 0)
+            return deserialize<Type>(obj.children[0]);
+        else
+        {
+            LOG_ERROR("PG Interpreter", "Error happend when trying to deserialize the list no children found !");
+            return Type {};
+        }
+    }
+
+    template <typename Type>
+    Type deserializeTo(ValuablePtr arg)
+    {
+        if (arg->getType() == "ClassInstance")
+        {
+            // Todo create an helper funciton for this cast
+            auto instance = std::static_pointer_cast<ClassInstance>(arg);
+
+            return deserializeTo<Type>(instance);
+        }
+        else
+        {
+            LOG_ERROR("PG Interpreter", "Can only deserialize class instance, " << arg->getType() << " was given instead !");
+        }
+
+        return Type {};
+    }
 }

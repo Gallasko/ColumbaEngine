@@ -305,4 +305,53 @@ namespace pg
                 addToList(currentList, caller->getToken(), {className, childList});
         }
     }
+
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field> fields, const std::string& className)
+    {
+        auto it = std::find(fields.begin(), fields.end(), "__className");
+
+        // Got a class name, so we can put this name in the unserialized object and parse it correctly as a class
+        if (it != fields.end())
+        {
+            UnserializedObject klass(className, it->value->getElement().toString(), std::string(""));
+            fields.erase(it);
+
+            deserializeToHelper(klass, fields);
+
+            holder.children.push_back(klass);
+        }
+        else
+        {
+            // Parse all the field of the interpreted struct
+            for (const auto& field : fields)
+            {
+                if (field.value->getType() == "Variable")
+                {
+                    // If it is a variable we can convert it from element type to basic type (it is an attribute)
+                    const auto& element = field.value->getElement();
+
+                    std::string str;
+                    
+                    if (strcmp(ARCHIVEVERSION, "1.0.0") == 0)
+                        str = ATTRIBUTECONST + " " + element.getTypeString() + " {" + element.toString() + "}";
+
+                    UnserializedObject attribute(str, field.key, false);
+
+                    holder.children.push_back(attribute);
+                }
+                else if (field.value->getType() == "ClassInstance")
+                {
+                    // If it is a class instance, it is a complexe type and we recursively parse it to get all the attributes
+                    auto nextClass = std::static_pointer_cast<ClassInstance>(field.value);
+                    deserializeToHelper(holder, nextClass->getFields(), field.key);
+                }
+                // Todo
+                // else if (field.value->getType() == "Function")
+                else
+                {
+                    LOG_ERROR(DOM, "Field [" << field.key << "] type is not available for deserialization (" << field.value->getType() << ")");
+                }
+            }
+        }
+    }
 }

@@ -2,6 +2,10 @@
 
 #include <stdint.h>
 
+#include "Memory/elementtype.h"
+
+#include "serialization.h"
+
 namespace pg
 {
     enum class ItemType : uint8_t
@@ -101,4 +105,10 @@ namespace pg
             return name == rhs.name and stacksize == rhs.stacksize and type == rhs.type and rarity == rhs.rarity and attributes == rhs.attributes;
         }
     };
+
+    template <>
+    void serialize(Archive& archive, const Item& value);
+
+    template <>
+    Item deserialize(const UnserializedObject& serializedString);
 }

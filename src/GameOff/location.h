@@ -17,6 +17,11 @@ namespace pg
         size_t quantity = 1;
     };
 
+    struct CharacterList
+    {
+        std::vector<Character> characters;
+    };
+
     struct Encounter
     {
         std::vector<Character> characters;
