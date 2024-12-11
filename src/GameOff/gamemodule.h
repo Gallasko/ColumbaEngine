@@ -185,6 +185,16 @@ namespace pg
 
         }
 
+        virtual void deserializeTo(std::shared_ptr<ClassInstance> list)
+        {
+            const auto& fields = list->getFields();
+
+            for (const auto& field : fields)
+            {
+                LOG_INFO("Module", "Field " << field.key << "is a: " << field.value->getType());
+            }
+        }
+
         virtual ValuablePtr call(ValuableQueue& args) override
         {
             auto v = args.front()->getElement();
@@ -222,6 +232,100 @@ namespace pg
             //     });
 
             return list;
+        }
+    };
+
+    class ReadCharacter : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp()
+        {
+            setArity(1, 1);
+        }
+
+        void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field> fields, const std::string& className = "")
+        {
+            auto it = std::find(fields.begin(), fields.end(), "__className");
+
+            if (it != fields.end())
+            {
+                UnserializedObject klass(className, it->value->getElement().toString(), std::string(""));
+                fields.erase(it);
+
+                deserializeToHelper(klass, fields);
+
+                holder.children.push_back(klass);
+            }
+            else
+            {
+                for (const auto& field : fields)
+                {
+                    if (field.value->getType() == "Variable")
+                    {
+                        const auto& element = field.value->getElement();
+
+                        std::string str;
+                        
+                        if (strcmp(ARCHIVEVERSION, "1.0.0") == 0)
+                            str = ATTRIBUTECONST + " " + element.getTypeString() + " {" + element.toString() + "}";
+
+                        UnserializedObject attribute(str, field.key, false);
+
+                        holder.children.push_back(attribute);
+
+                        LOG_INFO("Module", "Field " << field.key << " is a var of type: " << element.getTypeString());
+                    }
+                    else if (field.value->getType() == "ClassInstance")
+                    {
+                        auto nextClass = std::static_pointer_cast<ClassInstance>(field.value);
+                        deserializeToHelper(holder, nextClass->getFields(), field.key);
+                    }
+                    // Todo
+                    // else if (field.value->getType() == "Function")
+                    else
+                    {
+                        LOG_ERROR("Game Module", "Field " << field.key << " type is not available for deserialization (" << field.value->getType() << ")");
+                    }
+                }
+            }
+        }
+
+        template <typename Type>
+        Type deserializeTo(std::shared_ptr<ClassInstance> list)
+        {
+            UnserializedObject obj;
+
+            deserializeToHelper(obj, list->getFields());
+
+            LOG_INFO("Module", "Nb child: " << obj.getNbChildren());
+            LOG_INFO("Module", "Nb child: " << obj.children[0].getNbChildren());
+
+            if (obj.getNbChildren() > 0)
+                return deserialize<Type>(obj.children[0]);
+            else
+            {
+                LOG_ERROR("Module", "Error happend when trying to deserialize the list no children found !");
+                return Type {};
+            }
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto arg = args.front();
+            args.pop();
+
+            if (arg->getType() == "ClassInstance")
+            {
+                // Todo create an helper funciton for this cast
+                auto charaObject = std::static_pointer_cast<ClassInstance>(arg);
+
+                auto text = deserializeTo<TTFText>(charaObject);
+
+                LOG_INFO("Module", "Deserialized TTFText: " << text.text);
+            }
+
+            return nullptr;
         }
     };
 
@@ -569,6 +673,9 @@ namespace pg
             addSystemFunction<CreateLocation>("createLocation", ecsRef);
             addSystemFunction<CreateItem>("createItem");
             addSystemFunction<CreatePassive>("createPassive");
+
+
+            addSystemFunction<ReadCharacter>("readChara");
         }
     };
 }
