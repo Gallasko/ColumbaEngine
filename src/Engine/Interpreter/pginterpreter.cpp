@@ -306,7 +306,7 @@ namespace pg
         }
     }
 
-    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className)
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, bool useDefaults, const std::string& className)
     {
         auto it = std::find(fields.begin(), fields.end(), "__className");
 
@@ -316,7 +316,7 @@ namespace pg
             UnserializedObject klass(className, it->value->getElement().toString(), std::string(""));
             fields.erase(it);
 
-            deserializeToHelper(klass, fields);
+            deserializeToHelper(klass, fields, useDefaults);
 
             holder.children.push_back(klass);
         }
@@ -344,7 +344,16 @@ namespace pg
                     // If it is a class instance, it is a complexe type and we recursively parse it to get all the attributes
                     auto nextClass = std::static_pointer_cast<ClassInstance>(field.value);
                     auto nextFields = nextClass->getFields();
-                    deserializeToHelper(holder, nextFields, field.key);
+
+                    auto it = std::find(nextFields.begin(), nextFields.end(), "__className");
+
+                    // If no class name is provided, we insert "InterpretedStruct" as the class name to avoid parsing and struct hierachy missmatch
+                    if (it == nextFields.end())
+                    {
+                        nextFields.emplace_back("__className", makeVar("InterpretedStruct"));
+                    }
+
+                    deserializeToHelper(holder, nextFields, useDefaults, field.key);
                 }
                 // Todo
                 // else if (field.value->getType() == "Function")

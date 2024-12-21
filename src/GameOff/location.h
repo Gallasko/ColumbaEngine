@@ -17,21 +17,11 @@ namespace pg
         size_t quantity = 1;
     };
 
-    struct CharacterList
-    {
-        std::vector<Character> characters;
-    };
-
-    struct DropChanceList
-    {
-        std::vector<DropChance> dropTable;
-    };
-
     struct Encounter
     {
-        CharacterList charaList;
+        std::vector<Character> characters;
 
-        DropChanceList dropList;
+        std::vector<DropChance> dropTable;
     };
 
     struct Location
@@ -53,12 +43,6 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const DropChance& value);
-
-    template <>
-    void serialize(Archive& archive, const CharacterList& value);
-
-    template <>
-    void serialize(Archive& archive, const DropChanceList& value);
 
     template <>
     void serialize(Archive& archive, const Encounter& value);

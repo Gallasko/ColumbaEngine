@@ -211,6 +211,20 @@ namespace pg
     template <>
     void serialize(Archive& archive, const constant::ModelInfo& modelInfo);
 
+    template <typename Type>
+    void serialize(Archive& archive, const std::vector<Type>& vec)
+    {
+        archive.startSerialization("Vector");
+
+        for (size_t i = 0; i < vec.size(); i++)
+        {
+            serialize(archive, vec.at(i));
+        }
+
+        archive.endSerialization();
+    }
+
+
     class UnserializedObject
     {
         struct Attribute
@@ -265,7 +279,40 @@ namespace pg
     };
 
     template <typename Type>
-    Type deserialize(const UnserializedObject& name);
+    Type deserialize(const UnserializedObject& serializedString);
+
+    template <typename Type>
+    std::vector<Type> deserializeVector(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("Serializer");
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("Serializer", "Element is null");
+        }
+        else
+        {
+            LOG_INFO("Serializer", "Deserializing Vector of " << typeid(Type).name());
+
+            std::vector<Type> data;
+
+            for (const auto& child : serializedString.children)
+            {
+                if (child.isNull())
+                    continue;
+                
+                auto element = deserialize<Type>(child);
+
+                data.push_back(element);
+            }            
+
+            return data;
+        }
+
+        return std::vector<Type>{};
+    }
 
     // Todo add a version header for serialization
 

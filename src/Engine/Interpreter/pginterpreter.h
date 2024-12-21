@@ -257,10 +257,10 @@ namespace pg
         return list;
     }
 
-    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className = "");
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, bool useDefaults, const std::string& className = "");
 
     template <typename Type>
-    Type deserializeTo(std::shared_ptr<ClassInstance> list)
+    Type deserializeTo(std::shared_ptr<ClassInstance> list, bool useDefaults = false)
     {
         UnserializedObject obj;
 
@@ -274,7 +274,7 @@ namespace pg
             fields.emplace_back("__className", makeVar("InterpretedStruct"));
         }
 
-        deserializeToHelper(obj, fields);
+        deserializeToHelper(obj, fields, useDefaults);
 
         if (obj.getNbChildren() > 0)
             return deserialize<Type>(obj.children[0]);
@@ -286,14 +286,14 @@ namespace pg
     }
 
     template <typename Type>
-    Type deserializeTo(ValuablePtr arg)
+    Type deserializeTo(ValuablePtr arg, bool useDefaults = false)
     {
         if (arg->getType() == "ClassInstance")
         {
             // Todo create an helper funciton for this cast
             auto instance = std::static_pointer_cast<ClassInstance>(arg);
 
-            return deserializeTo<Type>(instance);
+            return deserializeTo<Type>(instance, useDefaults);
         }
         else
         {

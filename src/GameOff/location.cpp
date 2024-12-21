@@ -47,20 +47,18 @@ namespace pg
     }
 
     template <>
-    void serialize(Archive& archive, const CharacterList& value)
+    void serialize(Archive& archive, const Encounter& value)
     {
-        archive.startSerialization("ChracterList");
+        archive.startSerialization("Encouter");
 
-        for (size_t i = 0; i < value.characters.size(); i++)
-        {
-            serialize(archive, value.characters.at(i));
-        }
+        serialize(archive, "enemies", value.characters);
+        serialize(archive, "drops", value.dropTable);
 
         archive.endSerialization();
     }
 
     template <>
-    CharacterList deserialize(const UnserializedObject& serializedString)
+    Encounter deserialize(const UnserializedObject& serializedString)
     {
         LOG_THIS(DOM);
 
@@ -72,54 +70,38 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing Character list");
+            LOG_INFO(DOM, "Deserializing Encounter");
 
-            CharacterList data;
+            LOG_INFO(DOM, "Deserializing: " << serializedString.getObjectType() << ", " << serializedString.children.size());
 
-            LOG_INFO("Module", "Deserialising: " << serializedString.getObjectName() << ", type: " << serializedString.getObjectType());
-
-            for (const auto& child : serializedString.children)
+            for (auto child : serializedString.children)
             {
-                if (child.isNull())
-                    continue;
+                LOG_INFO(DOM, "Child: " << child.getObjectName());
+            }
 
-                LOG_INFO("Module", "Deserialising: " << child.getObjectName() << ", type: " << child.getObjectType());
-                
-                auto chara = deserialize<Character>(child);
+            Encounter data;
 
-                data.characters.push_back(chara);
-            }            
+            data.characters = deserializeVector<Character>(serializedString["enemies"]);
+            data.dropTable = deserializeVector<DropChance>(serializedString["drops"]);
 
             return data;
         }
 
-        return CharacterList{};
-    }
-
-    template <>
-    void serialize(Archive& archive, const DropChanceList& value)
-    {
-        archive.startSerialization("DropChance");
-
-        // serialize(archive, "item", value.item);
-
-        archive.endSerialization();
-    }
-
-    template <>
-    void serialize(Archive& archive, const Encounter& value)
-    {
-        archive.startSerialization("DropChance");
-
-        // serialize(archive, "item", value.item);
-
-        archive.endSerialization();
+        return Encounter{};
     }
 
     template <>
     void serialize(Archive& archive, const Location& value)
     {
-        archive.startSerialization("DropChance");
+        archive.startSerialization("Location");
+        
+        serialize(archive, "name", value.name);
+        serialize(archive, "name", value.name);
+        serialize(archive, "name", value.name);
+        serialize(archive, "name", value.name);
+        serialize(archive, "name", value.name);
+        serialize(archive, "name", value.name);
+        
 
         // serialize(archive, "item", value.item);
 

@@ -90,7 +90,7 @@ namespace pg
             auto arg = args.front();
             args.pop();
 
-            auto charaList = deserializeTo<CharacterList>(arg);
+            auto charaList = deserializeTo<Encounter>(arg);
 
             for (const auto& chara : charaList.characters)
             {
@@ -167,7 +167,7 @@ namespace pg
                     {
                         auto charaObject = std::static_pointer_cast<ClassInstance>(field.value);
 
-                        encounter.charaList.characters = getCharacters(charaObject);
+                        encounter.characters = getCharacters(charaObject);
                     }
                 }
                 else if (field == "drop")
@@ -181,7 +181,7 @@ namespace pg
                     {
                         auto dropTableObject = std::static_pointer_cast<ClassInstance>(field.value);
 
-                        encounter.dropList.dropTable = getDropTables(dropTableObject);
+                        encounter.dropTable = getDropTables(dropTableObject);
                     }
                 }
             }

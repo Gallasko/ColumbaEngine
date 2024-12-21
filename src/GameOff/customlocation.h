@@ -38,9 +38,9 @@ namespace pg
         {
             SoloSlimeEncounter() 
             {
-                charaList.characters = { Slime{} };
+                characters = { Slime{} };
 
-                dropList.dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f }, { WarriorGrimoire{} } };
+                dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f }, { WarriorGrimoire{} } };
             }
         };
 
@@ -48,9 +48,9 @@ namespace pg
         {
             DuoSlimeEncounter() 
             {
-                charaList.characters = { Slime{}, Slime{} };
+                characters = { Slime{}, Slime{} };
 
-                dropList.dropTable = { { XpStone {}, 1.0f, 4}, { SlimeBall {}, 0.5f }, { SlimeBall {}, 0.5f } };
+                dropTable = { { XpStone {}, 1.0f, 4}, { SlimeBall {}, 0.5f }, { SlimeBall {}, 0.5f } };
             }
         };
 
