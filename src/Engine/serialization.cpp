@@ -342,13 +342,13 @@ namespace pg
             {
                 LOG_ERROR(DOM, "String attribute name is not 'string' (" << stringAttribute.name << ")");
                 
-                return std::string();
+                return value;
             }
 
             return stringAttribute.value;
         }
 
-        return std::string();
+        return value;
     }
     
     template <>
@@ -538,7 +538,7 @@ namespace pg
         return attribute;
     }
 
-    const UnserializedObject& UnserializedObject::operator[](const std::string& key)
+    const UnserializedObject& UnserializedObject::operator[](const std::string& key) noexcept
     {
         auto isObjectName = [=](UnserializedObject obj) { return obj.objectName == key; }; 
         auto it = std::find_if(children.begin(), children.end(), isObjectName);
@@ -548,11 +548,11 @@ namespace pg
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + key + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 
-    const UnserializedObject& UnserializedObject::operator[](const std::string& key) const
+    const UnserializedObject& UnserializedObject::operator[](const std::string& key) const noexcept
     {
         auto isObjectName = [=](const UnserializedObject& obj) { return obj.objectName == key; }; 
         const auto& it = std::find_if(children.begin(), children.end(), isObjectName);
@@ -562,29 +562,37 @@ namespace pg
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + key + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 
-    const UnserializedObject& UnserializedObject::operator[](size_t id)
+    bool UnserializedObject::find(const std::string& key) const
+    {
+        auto isObjectName = [=](const UnserializedObject& obj) { return obj.objectName == key; }; 
+        const auto& it = std::find_if(children.begin(), children.end(), isObjectName);
+
+        return it != children.end();
+    }
+
+    const UnserializedObject& UnserializedObject::operator[](size_t id) noexcept
     {
         if (id < children.size())
             return children.at(id);
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + std::to_string(id) + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 
-    const UnserializedObject& UnserializedObject::operator[](size_t id) const
+    const UnserializedObject& UnserializedObject::operator[](size_t id) const noexcept
     {
         if (id < children.size())
             return children.at(id);
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + std::to_string(id)  + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 

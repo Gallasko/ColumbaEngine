@@ -257,7 +257,7 @@ namespace pg
         return list;
     }
 
-    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, bool useDefaults, const std::string& className = "");
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className = "");
 
     template <typename Type>
     Type deserializeTo(std::shared_ptr<ClassInstance> list, bool useDefaults = false)
@@ -274,7 +274,7 @@ namespace pg
             fields.emplace_back("__className", makeVar("InterpretedStruct"));
         }
 
-        deserializeToHelper(obj, fields, useDefaults);
+        deserializeToHelper(obj, fields);
 
         if (obj.getNbChildren() > 0)
             return deserialize<Type>(obj.children[0]);

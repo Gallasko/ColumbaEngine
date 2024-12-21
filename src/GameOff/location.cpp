@@ -37,8 +37,12 @@ namespace pg
             DropChance data;
 
             data.item = deserialize<Item>(serializedString["item"]);
-            data.dropChance = deserialize<float>(serializedString["chance"]);
-            data.quantity = deserialize<size_t>(serializedString["quantity"]);
+
+            if (serializedString.find("chance"))
+                data.dropChance = deserialize<float>(serializedString["chance"]);
+
+            if (serializedString.find("quantity"))
+                data.quantity = deserialize<size_t>(serializedString["quantity"]);
 
             return data;
         }

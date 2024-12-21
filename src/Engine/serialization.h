@@ -157,6 +157,66 @@ namespace pg
         EndOfLine endOfLine;
     };
 
+    struct SerializedInfoHolder
+    {
+        SerializedInfoHolder() {}
+        SerializedInfoHolder(const std::string& className) : className(className) {}
+        SerializedInfoHolder(const std::string& name, const std::string& type, const std::string& value) : name(name), type(type), value(value) {}
+        SerializedInfoHolder(const SerializedInfoHolder& other) = delete;
+        SerializedInfoHolder(SerializedInfoHolder&& other) : className(std::move(other.className)), name(std::move(other.name)), type(std::move(other.type)), value(std::move(other.value)), parent(std::move(other.parent)), children(std::move(other.children)) {}
+
+        std::string className;
+        std::string name;
+        std::string type;
+        std::string value;
+
+        SerializedInfoHolder* parent;
+        std::vector<SerializedInfoHolder> children;
+    };
+
+    struct InspectorArchive : public Archive
+    {
+        /** Start the serialization process of a class */
+        virtual void startSerialization(const std::string& className) override
+        {
+            auto& node = currentNode->children.emplace_back(className);
+
+            node.name = lastAttributeName;
+            lastAttributeName = "";
+
+            node.parent = currentNode;
+
+            currentNode = &node;
+        }
+
+        /** Start the serialization process of a class */
+        virtual void endSerialization() override
+        {
+            currentNode = currentNode->parent;
+        }
+
+        /** Put an Attribute in the serialization process*/
+        virtual void setAttribute(const std::string& value, const std::string& type = "") override
+        {
+            auto& attributeNode = currentNode->children.emplace_back(lastAttributeName, type, value);
+
+            attributeNode.parent = currentNode;
+
+            lastAttributeName = "";
+        }
+
+        virtual void setValueName(const std::string& name) override
+        {
+            lastAttributeName = name;
+        }
+
+        std::string lastAttributeName = "";
+
+        SerializedInfoHolder mainNode;
+
+        SerializedInfoHolder* currentNode = &mainNode;
+    };
+
     // TODO make a specialized renderer for std::nullptr_t to catch nullptr error ?; 
 
     template <typename Type>
@@ -254,11 +314,13 @@ namespace pg
 
         inline bool isClassObject() const { return isClass; }
 
-        const UnserializedObject& operator[](const std::string& key);
-        const UnserializedObject& operator[](const std::string& key) const;
+        const UnserializedObject& operator[](const std::string& key) noexcept;
+        const UnserializedObject& operator[](const std::string& key) const noexcept;
 
-        const UnserializedObject& operator[](size_t id);
-        const UnserializedObject& operator[](size_t id) const;
+        bool find(const std::string& key) const;
+
+        const UnserializedObject& operator[](size_t id) noexcept;
+        const UnserializedObject& operator[](size_t id) const noexcept;
 
         size_t getNbChildren() const { return children.size(); }
 
@@ -277,6 +339,8 @@ namespace pg
         bool isNullObject = false;
         bool isClass = true;
     };
+
+    static const UnserializedObject nullUnserializedObject;
 
     template <typename Type>
     Type deserialize(const UnserializedObject& serializedString);
@@ -382,66 +446,6 @@ namespace pg
         std::string version = ARCHIVEVERSION;
 
         std::unordered_map<std::string, std::string> serializedMap;
-    };
-
-    struct SerializedInfoHolder
-    {
-        SerializedInfoHolder() {}
-        SerializedInfoHolder(const std::string& className) : className(className) {}
-        SerializedInfoHolder(const std::string& name, const std::string& type, const std::string& value) : name(name), type(type), value(value) {}
-        SerializedInfoHolder(const SerializedInfoHolder& other) = delete;
-        SerializedInfoHolder(SerializedInfoHolder&& other) : className(std::move(other.className)), name(std::move(other.name)), type(std::move(other.type)), value(std::move(other.value)), parent(std::move(other.parent)), children(std::move(other.children)) {}
-
-        std::string className;
-        std::string name;
-        std::string type;
-        std::string value;
-
-        SerializedInfoHolder* parent;
-        std::vector<SerializedInfoHolder> children;
-    };
-
-    struct InspectorArchive : public Archive
-    {
-        /** Start the serialization process of a class */
-        virtual void startSerialization(const std::string& className) override
-        {
-            auto& node = currentNode->children.emplace_back(className);
-
-            node.name = lastAttributeName;
-            lastAttributeName = "";
-
-            node.parent = currentNode;
-
-            currentNode = &node;
-        }
-
-        /** Start the serialization process of a class */
-        virtual void endSerialization() override
-        {
-            currentNode = currentNode->parent;
-        }
-
-        /** Put an Attribute in the serialization process*/
-        virtual void setAttribute(const std::string& value, const std::string& type = "") override
-        {
-            auto& attributeNode = currentNode->children.emplace_back(lastAttributeName, type, value);
-
-            attributeNode.parent = currentNode;
-
-            lastAttributeName = "";
-        }
-
-        virtual void setValueName(const std::string& name) override
-        {
-            lastAttributeName = name;
-        }
-
-        std::string lastAttributeName = "";
-
-        SerializedInfoHolder mainNode;
-
-        SerializedInfoHolder* currentNode = &mainNode;
     };
 }
 

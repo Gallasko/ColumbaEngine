@@ -306,7 +306,7 @@ namespace pg
         }
     }
 
-    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, bool useDefaults, const std::string& className)
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className)
     {
         auto it = std::find(fields.begin(), fields.end(), "__className");
 
@@ -316,7 +316,7 @@ namespace pg
             UnserializedObject klass(className, it->value->getElement().toString(), std::string(""));
             fields.erase(it);
 
-            deserializeToHelper(klass, fields, useDefaults);
+            deserializeToHelper(klass, fields);
 
             holder.children.push_back(klass);
         }
@@ -353,7 +353,7 @@ namespace pg
                         nextFields.emplace_back("__className", makeVar("InterpretedStruct"));
                     }
 
-                    deserializeToHelper(holder, nextFields, useDefaults, field.key);
+                    deserializeToHelper(holder, nextFields, field.key);
                 }
                 // Todo
                 // else if (field.value->getType() == "Function")
