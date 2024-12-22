@@ -3,6 +3,8 @@
 #include <string>
 #include <functional>
 
+#include "serialization.h"
+
 namespace pg
 {
     // Type definitions

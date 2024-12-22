@@ -4,7 +4,7 @@
 
 namespace pg
 {
-    static constexpr char * const DOM = "Camera";    
+    static constexpr const char * const DOM = "Camera";    
 
     Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
         movementSpeed(0.5f), mouseSensitivity(0.005f), zoom(0.5f) // Todo make this configurable

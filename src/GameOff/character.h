@@ -17,6 +17,16 @@ namespace pg
         Enemy
     };
 
+    const static std::unordered_map<CharacterType, std::string> charaTypeToString = {
+        {CharacterType::Player, "Player"},
+        {CharacterType::Enemy, "Enemy"},
+    };
+
+    const static std::unordered_map<std::string, CharacterType> stringToCharaType = {
+        {"Player", CharacterType::Player},
+        {"Enemy", CharacterType::Enemy},
+    };
+
     enum class PlayingStatus : uint8_t
     {
         Alive = 0,

@@ -74,15 +74,6 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing Encounter");
-
-            LOG_INFO(DOM, "Deserializing: " << serializedString.getObjectType() << ", " << serializedString.children.size());
-
-            for (auto child : serializedString.children)
-            {
-                LOG_INFO(DOM, "Child: " << child.getObjectName());
-            }
-
             Encounter data;
 
             data.characters = deserializeVector<Character>(serializedString["enemies"]);
@@ -100,15 +91,48 @@ namespace pg
         archive.startSerialization("Location");
         
         serialize(archive, "name", value.name);
-        serialize(archive, "name", value.name);
-        serialize(archive, "name", value.name);
-        serialize(archive, "name", value.name);
-        serialize(archive, "name", value.name);
-        serialize(archive, "name", value.name);
+        serialize(archive, "nbEncounters", value.nbEncounterBeforeBoss);
+        serialize(archive, "random", value.randomEncounter);
+        serialize(archive, "encounters", value.possibleEnounters);
+        serialize(archive, "boss", value.bossEncounter);
+        serialize(archive, "finished", value.finished);
+        serialize(archive, "prerequisite", value.prerequisiteEnounters);
         
-
-        // serialize(archive, "item", value.item);
-
         archive.endSerialization();
+    }
+
+    template <>
+    Location deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS(DOM);
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR(DOM, "Element is null");
+        }
+        else
+        {
+            LOG_INFO(DOM, "Deserializing Location");
+
+            Location data;
+
+            data.name = deserialize<std::string>(serializedString["name"]);
+
+            defaultDeserialize(serializedString, "nbEncounters", data.nbEncounterBeforeBoss);
+            defaultDeserialize(serializedString, "random", data.randomEncounter);
+            defaultDeserialize(serializedString, "boss", data.bossEncounter);
+            defaultDeserialize(serializedString, "finished", data.finished);
+            defaultDeserialize(serializedString, "prerequisite", data.prerequisiteEnounters);
+
+            data.possibleEnounters = deserializeVector<Encounter>(serializedString["encounters"]);
+            
+            LOG_INFO(DOM, "Location deserialized");
+
+            return data;
+        }
+
+        return Location{};
     }
 }

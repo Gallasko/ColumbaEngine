@@ -69,13 +69,50 @@ namespace pg
 
         serialize(archive, "speed", value.speed);
 
+        serialize(archive, "critChance", value.critChance);
+        serialize(archive, "critDamage", value.critDamage);
+        serialize(archive, "evasion", value.evasionRate);
+
+        // Todo change, make a lookup table
+        for (size_t i = 0; i < NbElements; i++)
+        {
+            serialize(archive, "elementRes" + std::to_string(i), value.elementalRes[i]);
+        }
+
         archive.endSerialization();
     }
 
     template <>
     CharacterStat deserialize(const UnserializedObject& serializedString)
     {
-        return CharacterStat{};
+        LOG_THIS(DOM);
+
+        CharacterStat data;
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR(DOM, "Element is null");
+        }
+        else
+        {
+            LOG_INFO(DOM, "Deserializing CharacterStat");
+
+            defaultDeserialize(serializedString, "health", data.health);
+
+            defaultDeserialize(serializedString, "ad", data.physicalAttack);
+            defaultDeserialize(serializedString, "ap", data.magicalAttack);
+
+            defaultDeserialize(serializedString, "armor", data.physicalDefense);
+            defaultDeserialize(serializedString, "rm", data.magicalDefense);
+
+            defaultDeserialize(serializedString, "speed", data.speed);
+
+            defaultDeserialize(serializedString, "critDamage", data.critChance);
+            defaultDeserialize(serializedString, "critChance", data.critDamage);
+            defaultDeserialize(serializedString, "evasion", data.evasionRate);
+        }
+
+        return data;
     }
 
     template <>
@@ -84,6 +121,7 @@ namespace pg
         archive.startSerialization(Character::getType());
 
         serialize(archive, "name", value.name);
+        serialize(archive, "type", charaTypeToString.at(value.type));
         serialize(archive, "stat", value.stat);
 
         archive.endSerialization();
@@ -107,6 +145,13 @@ namespace pg
             Character data;
 
             data.name = deserialize<std::string>(serializedString["name"]);
+
+            std::string temp = "Enemy";
+            defaultDeserialize(serializedString, "type", temp);
+
+            data.type = stringToCharaType.at(temp);
+
+            defaultDeserialize(serializedString, "stat", data.stat);
 
             return data;
         }

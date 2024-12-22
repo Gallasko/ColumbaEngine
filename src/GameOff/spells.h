@@ -44,4 +44,7 @@ namespace pg
             return name == other.name;
         }
     };
+
+    template <>
+    void serialize(Archive& archive, const Spell& value);
 }

@@ -378,6 +378,24 @@ namespace pg
         return std::vector<Type>{};
     }
 
+    template <typename Type>
+    void defaultDeserialize(const UnserializedObject& serializedObject, const std::string& name, Type& output)
+    {
+        if (serializedObject.find(name))
+        {
+            output = deserialize<Type>(serializedObject[name]);
+        }
+    }
+
+    template <typename Type>
+    void defaultDeserialize(const UnserializedObject& serializedObject, const std::string& name, std::vector<Type>& output)
+    {
+        if (serializedObject.find(name))
+        {
+            output = deserializeVector<Type>(serializedObject[name]);
+        }
+    }
+
     // Todo add a version header for serialization
 
     class Serializer

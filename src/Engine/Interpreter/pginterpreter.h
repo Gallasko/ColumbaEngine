@@ -260,7 +260,7 @@ namespace pg
     void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className = "");
 
     template <typename Type>
-    Type deserializeTo(std::shared_ptr<ClassInstance> list, bool useDefaults = false)
+    Type deserializeTo(std::shared_ptr<ClassInstance> list)
     {
         UnserializedObject obj;
 
@@ -286,14 +286,14 @@ namespace pg
     }
 
     template <typename Type>
-    Type deserializeTo(ValuablePtr arg, bool useDefaults = false)
+    Type deserializeTo(ValuablePtr arg)
     {
         if (arg->getType() == "ClassInstance")
         {
             // Todo create an helper funciton for this cast
             auto instance = std::static_pointer_cast<ClassInstance>(arg);
 
-            return deserializeTo<Type>(instance, useDefaults);
+            return deserializeTo<Type>(instance);
         }
         else
         {

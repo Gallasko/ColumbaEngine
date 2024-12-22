@@ -210,7 +210,7 @@ namespace pg
         auto attribute = serializedString.getAsAttribute();
         if (attribute.name != "bool")
         {
-            LOG_ERROR(DOM, "Serialized string is not a bool (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not a bool (" << attribute.name << ")");
             return false;
         }
 
@@ -219,7 +219,7 @@ namespace pg
         else if (attribute.value == "false")
             return false;
 
-        LOG_ERROR(DOM, "Serialized string of bool is neither true or false");
+        LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] of bool is neither true or false");
         return false;
     }
 
@@ -231,9 +231,11 @@ namespace pg
         int value = 0;
 
         auto attribute = serializedString.getAsAttribute();
-        if (attribute.name != "int")
+
+        // Todo check this
+        if (attribute.name != "size_t" and attribute.name != "unsigned int" and attribute.name != "int")
         {
-            LOG_ERROR(DOM, "Serialized string is not an int (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not an integer (" << attribute.name << ")");
             return value;
         }
 
@@ -251,9 +253,11 @@ namespace pg
         unsigned int value = 0;
 
         auto attribute = serializedString.getAsAttribute();
-        if (attribute.name != "unsigned int")
+
+        // Todo check this
+        if (attribute.name != "size_t" and attribute.name != "unsigned int" and attribute.name != "int")
         {
-            LOG_ERROR(DOM, "Serialized string is not an unsigned int (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not an integer (" << attribute.name << ")");
             return value;
         }
 
@@ -273,7 +277,7 @@ namespace pg
         auto attribute = serializedString.getAsAttribute();
         if (attribute.name != "float")
         {
-            LOG_ERROR(DOM, "Serialized string is not a float (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not a float (" << attribute.name << ")");
             return value;
         }
 
@@ -293,7 +297,7 @@ namespace pg
         auto attribute = serializedString.getAsAttribute();
         if (attribute.name != "double")
         {
-            LOG_ERROR(DOM, "Serialized string is not a double (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not a double (" << attribute.name << ")");
             return value;
         }
 
@@ -311,9 +315,11 @@ namespace pg
         size_t value = 0;
 
         auto attribute = serializedString.getAsAttribute();
-        if (attribute.name != "size_t")
+
+        // Todo check this
+        if (attribute.name != "size_t" and attribute.name != "unsigned int" and attribute.name != "int")
         {
-            LOG_ERROR(DOM, "Serialized string is not a size_t (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not an integer (" << attribute.name << ")");
             return value;
         }
 
@@ -340,7 +346,7 @@ namespace pg
 
             if (stringAttribute.name != "string")
             {
-                LOG_ERROR(DOM, "String attribute name is not 'string' (" << stringAttribute.name << ")");
+                LOG_ERROR(DOM, "String [" << serializedString.getObjectName() << "] attribute name is not 'string' (" << stringAttribute.name << ")");
                 
                 return value;
             }
