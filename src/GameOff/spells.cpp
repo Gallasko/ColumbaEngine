@@ -49,20 +49,20 @@ namespace pg
 
             Spell data;
 
-            defaultDeserialize(data.name, "name", serializedString);
-            // serialize(serializedString, "dmg", value.baseDmg);
-            // serialize(archive, "manaCost", value.baseManaCost);
-            // serialize(archive, "cooldown", value.baseCooldown);
-            // serialize(archive, "adMult", value.physicalMultipler);
-            // serialize(archive, "apMult", value.magicalMultipler);
-            // serialize(archive, "elements", value.elementType);
+            defaultDeserialize(serializedString, "name", data.name);
+            defaultDeserialize(serializedString, "dmg", data.baseDmg);
+            defaultDeserialize(serializedString, "manaCost", data.baseManaCost);
+            defaultDeserialize(serializedString, "cooldown", data.baseCooldown);
+            defaultDeserialize(serializedString, "adMult", data.physicalMultipler);
+            defaultDeserialize(serializedString, "apMult", data.magicalMultipler);
+            defaultDeserialize(serializedString, "elements", data.elementType);
 
-            // serialize(archive, "targetPassives", value.applyToTarget);
-            // serialize(archive, "selfPassives", value.applyToSelf);
+            defaultDeserialize(serializedString, "targetPassives", data.applyToTarget);
+            defaultDeserialize(serializedString, "selfPassives", data.applyToSelf);
 
-            // serialize(archive, "selfOnly", value.selfOnly);
-            // serialize(archive, "nbTargets", value.nbTargets);
-            // serialize(archive, "canHitMultipleTime", value.canTargetSameCharacterMultipleTimes);
+            defaultDeserialize(serializedString, "selfOnly", data.selfOnly);
+            defaultDeserialize(serializedString, "nbTargets", data.nbTargets);
+            defaultDeserialize(serializedString, "canHitMultipleTime", data.canTargetSameCharacterMultipleTimes);
 
             return data;
         }

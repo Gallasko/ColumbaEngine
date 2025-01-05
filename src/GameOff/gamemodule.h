@@ -34,7 +34,7 @@ namespace pg
             chara.type = CharacterType::Enemy;
 
             chara.name = v.toString();
-                                  
+
             auto list = serializeToInterpreter(this, chara);
 
             return list;

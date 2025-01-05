@@ -9,6 +9,7 @@ namespace pg
 {
     // Type definitions
     struct Character;
+    struct CallableIntepretedFunction;
 
     enum class TriggerType : uint8_t
     {
@@ -52,6 +53,32 @@ namespace pg
         {"CharacterEffect", PassiveType::CharacterEffect},
         {"SpellEffect", PassiveType::SpellEffect},
         {"TurnEffect", PassiveType::TurnEffect},
+    };
+
+    enum class ApplicableFunctionType : uint8_t
+    {
+        Script = 0,
+        Functional,
+        Noop
+    };
+
+    struct CharacterApplicable
+    {
+        ApplicableFunctionType type = ApplicableFunctionType::Script;
+
+        std::unordered_map<std::string, ElementType> rTable;
+
+        union ApplicableFunctionUnion
+        {
+            std::string functionName;
+            std::shared_ptr<CallableIntepretedFunction> scriptFunction;
+        };
+
+        ApplicableFunctionUnion func;
+
+        void deleteOldType();
+
+        void apply(Character& chara);
     };
 
     struct Passive
