@@ -3,6 +3,7 @@
 #include <string>
 #include <map>
 
+#include "Helpers/helpers.h"
 #include "serialization.h"
 
 #include "characterstats.h"
@@ -22,10 +23,7 @@ namespace pg
         {CharacterType::Enemy, "Enemy"},
     };
 
-    const static std::unordered_map<std::string, CharacterType> stringToCharaType = {
-        {"Player", CharacterType::Player},
-        {"Enemy", CharacterType::Enemy},
-    };
+    const static std::unordered_map<std::string, CharacterType> stringToCharaType = invertMap(charaTypeToString);
 
     enum class PlayingStatus : uint8_t
     {

@@ -424,6 +424,13 @@ namespace pg
 
         auto shaderProgram = material.shader;
 
+        if (not shaderProgram)
+        {
+            LOG_ERROR(DOM, "Shader not found");
+            
+            return;
+        }
+
         shaderProgram->bind();
 
         if (call.state != currentState)

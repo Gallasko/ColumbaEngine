@@ -3,6 +3,7 @@
 #include <string>
 #include <functional>
 
+#include "Helpers/helpers.h"
 #include "serialization.h"
 
 namespace pg
@@ -28,13 +29,7 @@ namespace pg
         {TriggerType::StatBoost, "StatBoost"},
     };
 
-    const static std::unordered_map<std::string, TriggerType> stringToTriggerType = {
-        {"TurnStart", TriggerType::TurnStart},
-        {"TurnEnd", TriggerType::TurnEnd},
-        {"OnHit", TriggerType::OnHit},
-        {"OnDamageDealt", TriggerType::OnDamageDealt},
-        {"StatBoost", TriggerType::StatBoost},
-    };
+    const static std::unordered_map<std::string, TriggerType> stringToTriggerType = invertMap(triggerTypeToString);
 
     enum class PassiveType : uint8_t
     {
@@ -49,11 +44,7 @@ namespace pg
         {PassiveType::TurnEffect, "TurnEffect"},
     };
 
-    const static std::unordered_map<std::string, PassiveType> stringToPassiveType = {
-        {"CharacterEffect", PassiveType::CharacterEffect},
-        {"SpellEffect", PassiveType::SpellEffect},
-        {"TurnEffect", PassiveType::TurnEffect},
-    };
+    const static std::unordered_map<std::string, PassiveType> stringToPassiveType = invertMap(passiveTypeToString);
 
     enum class ApplicableFunctionType : uint8_t
     {
@@ -66,7 +57,7 @@ namespace pg
     {
         ApplicableFunctionType type = ApplicableFunctionType::Script;
 
-        std::unordered_map<std::string, ElementType> rTable;
+        // std::unordered_map<std::string, ElementType> rTable;
 
         union ApplicableFunctionUnion
         {

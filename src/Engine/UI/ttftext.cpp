@@ -86,12 +86,10 @@ namespace pg
 
         baseMaterialPreset.nbTextures = 1;
 
-        baseMaterialPreset.nbAttributes = 11;
-
         baseMaterialPreset.uniformMap.emplace("sWidth", "ScreenWidth");
         baseMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        baseMaterialPreset.mesh = std::make_shared<SimpleTexturedSquareMesh>(std::vector<size_t>{3, 2, 1, 1, 3, 1});
+        baseMaterialPreset.setSimpleMesh({3, 2, 1, 1, 3, 1});
 
         auto group = registerGroup<UiComponent, TTFText>();
 
@@ -177,7 +175,7 @@ namespace pg
                     static_cast<unsigned int>(face->glyph->advance.x)
                 };
 
-                LOG_INFO(DOM, "Character : " << c << " has id " << texture << " " << character.size.x << " " << character.size.y);
+                LOG_MILE(DOM, "Character : " << c << " has id " << texture << " " << character.size.x << " " << character.size.y);
 
                 charactersMap[fontPath].insert(std::pair<char, Character>(c, character));
 

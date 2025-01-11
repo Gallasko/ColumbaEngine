@@ -8,6 +8,7 @@
 #include "Scene/scenemanager.h"
 
 #include "UI/ttftext.h"
+#include "UI/progressbar.h"
 
 #include "fightscene.h"
 #include "characustomizationscene.h"
@@ -47,7 +48,7 @@ struct SceneToLoad
     SceneName name;
 };
 
-struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys>
+struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, StoragePolicy, InitSys>
 {
     virtual void onEvent(const SceneToLoad& event) override
     {
@@ -70,6 +71,18 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
         }
     }
 
+    virtual void onEvent(const TickEvent&) override
+    {
+        auto fill = barComp->percent;
+
+        fill += 0.01f;
+
+        if (fill > 1.0f)
+            fill = 0.0f;
+
+        barComp->setFillPercent(fill);
+    }
+
     virtual void init() override
     {
         // Navigation tabs
@@ -82,7 +95,18 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
 
         auto titleTTF3 = makeTTFText(ecsRef, 330, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));
+
+        auto progressBar = makeProgressBar(ecsRef, 400, 100, "emptyBar", "fullBar", 0.65);
+        progressBar.get<UiComponent>()->setY(250);
+
+        barComp = progressBar.get<ProgressBarComponent>();
+
+        auto overProgressBar = makeUiTexture(ecsRef, 400, 100, "overBar");
+        overProgressBar.get<UiComponent>()->setY(250);
+        overProgressBar.get<UiComponent>()->setZ(1);
     }
+
+    CompRef<ProgressBarComponent> barComp;
 };
 
 std::thread *initThread;

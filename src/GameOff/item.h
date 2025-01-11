@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#include "Helpers/helpers.h"
 #include "Memory/elementtype.h"
 
 #include "serialization.h"
@@ -31,16 +32,7 @@ namespace pg
         {ItemType::Key, "Key"}
     };
 
-    const static std::unordered_map<std::string, ItemType> stringToItemType = {
-        {"Weapon", ItemType::Weapon},
-        {"Armor", ItemType::Armor},
-        {"Consomable", ItemType::Consomable},
-        {"SkillBook", ItemType::SkillBook},
-        {"SkillXp", ItemType::SkillXp},
-        {"Material", ItemType::Material},
-        {"SpellStone", ItemType::SpellStone},
-        {"Key", ItemType::Key}
-    };
+    const static std::unordered_map<std::string, ItemType> stringToItemType = invertMap(itemTypeToString);
 
     enum class ItemRarity : uint8_t
     {

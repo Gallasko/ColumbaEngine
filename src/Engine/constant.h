@@ -456,11 +456,11 @@ namespace pg
             {
                 unsigned int i = 0;
                 this->vertices = new float[rhs.nbVertices];
-                for(i = 0; i < rhs.nbVertices; i++)
+                for (i = 0; i < rhs.nbVertices; i++)
                     this->vertices[i] = rhs.vertices[i];
 
                 this->indices = new unsigned int[rhs.nbIndices];
-                for(i = 0; i < rhs.nbIndices; i++)
+                for (i = 0; i < rhs.nbIndices; i++)
                     this->indices[i] = rhs.indices[i];
 
                 this->nbVertices = rhs.nbVertices;
@@ -479,11 +479,11 @@ namespace pg
                     delete[] this->indices;
 
                 this->vertices = new float[rhs.nbVertices];
-                for(i = 0; i < rhs.nbVertices; i++)
+                for (i = 0; i < rhs.nbVertices; i++)
                     this->vertices[i] = rhs.vertices[i];
 
                 this->indices = new unsigned int[rhs.nbIndices];
-                for(i = 0; i < rhs.nbIndices; i++)
+                for (i = 0; i < rhs.nbIndices; i++)
                     this->indices[i] = rhs.indices[i];	
 
                 this->nbVertices = rhs.nbVertices;

@@ -86,28 +86,24 @@ namespace pg
 
         baseMaterialPreset.nbTextures = 1;
 
-        baseMaterialPreset.nbAttributes = 11;
-
         baseMaterialPreset.uniformMap.emplace("sWidth", "ScreenWidth");
         baseMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        baseMaterialPreset.mesh = std::make_shared<SimpleTexturedSquareMesh>(std::vector<size_t>{3, 2, 1, 1, 3, 1});
+        baseMaterialPreset.setSimpleMesh({3, 2, 1, 1, 3, 1});
 
         atlasMaterialPreset.shader = masterRenderer->getShader("atlasTexture");
 
         atlasMaterialPreset.nbTextures = 1;
 
-        atlasMaterialPreset.nbAttributes = 15;
-
         atlasMaterialPreset.uniformMap.emplace("sWidth", "ScreenWidth");
         atlasMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        atlasMaterialPreset.mesh = std::make_shared<SimpleTexturedSquareMesh>(std::vector<size_t>{3, 2, 1, 4, 1, 3, 1});
+        atlasMaterialPreset.setSimpleMesh({3, 2, 1, 4, 1, 3, 1});
 
         auto group = registerGroup<UiComponent, Texture2DComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
+            LOG_MILE("Texture 2D System", "Add entity " << entity->id << " to ui - texture 2D group !");
 
             auto ui = entity->get<UiComponent>();
             auto shape = entity->get<Texture2DComponent>();
@@ -118,7 +114,7 @@ namespace pg
         });
 
         group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
+            LOG_MILE("Texture 2D System", "Remove entity " << id << " of ui - texture 2D group !");
 
             auto entity = ecsRef->getEntity(id);
 
@@ -252,7 +248,7 @@ namespace pg
         {
             LOG_ERROR(DOM, "Invalid texture name: " << obj->textureName << ", skipping this");
 
-            call.setVisibility(true);
+            call.setVisibility(false);
             call.data.resize(0);
         }
 

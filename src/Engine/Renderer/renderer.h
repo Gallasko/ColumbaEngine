@@ -380,6 +380,16 @@ namespace pg
             return *this;
         }
 
+        void setSimpleMesh(const std::vector<size_t>& attributes)
+        {
+            mesh = std::make_shared<SimpleTexturedSquareMesh>(attributes);
+
+            for (const auto& value : attributes)
+            {
+                nbAttributes += value;
+            }
+        }
+
         OpenGLShaderProgram* shader;
 
         // Todo limit the number of texture to 16 max
@@ -485,7 +495,20 @@ namespace pg
         }
 
         //TODO raise exception on none presence of attribute
-        OpenGLShaderProgram* getShader(const std::string& name) const { return shaderList.at(name); }
+        OpenGLShaderProgram* getShader(const std::string& name) const
+        {
+            try
+            {
+                return shaderList.at(name);
+            }
+            catch (const std::exception&)
+            {
+                LOG_ERROR("Renderer", "Shader named: " << name << " is not available !");
+
+                return nullptr;
+            }
+        }
+
         OpenGLTexture getTexture(const std::string& name) const
         { 
             try

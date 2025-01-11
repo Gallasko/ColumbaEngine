@@ -16,6 +16,7 @@
 
 #include "UI/uisystem.h"
 #include "UI/focusable.h"
+#include "UI/progressbar.h"
 #include "UI/textinput.h"
 #include "UI/sentencesystem.h"
 #include "UI/listview.h"
@@ -368,6 +369,8 @@ namespace pg
         ecs.createSystem<Simple2DObjectSystem>(masterRenderer);
 
         ecs.createSystem<Texture2DComponentSystem>(masterRenderer);
+
+        ecs.createSystem<ProgressBarComponentSystem>(masterRenderer);
 
         ecs.createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
 
