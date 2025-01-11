@@ -7,6 +7,8 @@
 
 #include "Scene/scenemanager.h"
 
+#include "2D/simple2dobject.h"
+
 #include "UI/ttftext.h"
 #include "UI/progressbar.h"
 
@@ -104,6 +106,28 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto overProgressBar = makeUiTexture(ecsRef, 400, 100, "overBar");
         overProgressBar.get<UiComponent>()->setY(250);
         overProgressBar.get<UiComponent>()->setZ(1);
+
+        // auto testText = makeSentence(ecsRef, 200, 400, {"Hello World"});
+        auto testText = makeTTFText(ecsRef, 200, 400, "res/font/Inter/static/Inter_28pt-Light.ttf", "I", 0.7);
+        testText.get<UiComponent>()->setZ(3);
+
+        auto simpleRect = makeSimple2DShape(ecsRef, Shape2D::Square, 1, 1, {255.0f, 0.0f, 0.0f});
+        simpleRect.get<UiComponent>()->setWidth(&testText.get<UiComponent>()->width);
+        simpleRect.get<UiComponent>()->setHeight(&testText.get<UiComponent>()->height);
+        simpleRect.get<UiComponent>()->setX(200);
+        simpleRect.get<UiComponent>()->setY(400);
+        simpleRect.get<UiComponent>()->setZ(0);
+
+        auto testText2 = makeTTFText(ecsRef, 200, 500, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.7);
+        testText2.get<UiComponent>()->setZ(10);
+
+        auto simpleRect2 = makeSimple2DShape(ecsRef, Shape2D::Square, 1, 1, {255.0f, 0.0f, 0.0f});
+        simpleRect2.get<UiComponent>()->setWidth(&testText2.get<UiComponent>()->width);
+        simpleRect2.get<UiComponent>()->setHeight(&testText2.get<UiComponent>()->height);
+        simpleRect2.get<UiComponent>()->setX(200);
+        simpleRect2.get<UiComponent>()->setY(500);
+        simpleRect2.get<UiComponent>()->setZ(0);
+
     }
 
     CompRef<ProgressBarComponent> barComp;

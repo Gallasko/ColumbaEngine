@@ -256,8 +256,8 @@ namespace pg
         {
             Character ch = charactersMap[obj->fontPath][*cha];
 
-            if ((ch.size.y + ch.bearing.y) * scale > textHeight)
-                textHeight = (ch.size.y + ch.bearing.y) * scale;
+            if (ch.size.y * scale > textHeight)
+                textHeight = ch.size.y * scale;
         }
 
         std::string::const_iterator c;
@@ -276,7 +276,7 @@ namespace pg
             float w = ch.size.x * scale;
             float h = ch.size.y * scale;
 
-            textWidth += w;
+            // textWidth += w;
             textWidth += (ch.advance >> 6) * scale;
 
             RenderCall call;
@@ -325,9 +325,9 @@ namespace pg
             // x += 16; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
         }
 
-        if (obj->textWidth != textWidth / 2.0f)
+        if (obj->textWidth != textWidth)
         {
-            obj->textWidth = textWidth / 2.0f;
+            obj->textWidth = textWidth;
         }
 
         if (obj->textHeight != textHeight)
