@@ -50,7 +50,7 @@ namespace pg
     template<>
     FocusableComponent deserialize(const UnserializedObject& serializedString);
 
-    struct FocusableSystem : public System<Own<FocusableComponent>, Listener<OnFocus>, StoragePolicy, NamedSystem>
+    struct FocusableSystem : public System<Own<FocusableComponent>, Listener<OnFocus>, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Focusable System"; }
 

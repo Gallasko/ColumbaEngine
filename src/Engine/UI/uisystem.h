@@ -311,7 +311,7 @@ namespace pg
     template <>
     void serialize(Archive& archive, const UiComponent& value);
 
-    struct UiComponentSystem : public System<Own<UiComponent>, Listener<ResizeEvent>, Listener<UiComponentInternalChangeEvent>, Listener<UiSizeChangeEvent>, NamedSystem>
+    struct UiComponentSystem : public System<Own<UiComponent>, Listener<ResizeEvent>, Listener<UiComponentInternalChangeEvent>, Listener<UiSizeChangeEvent>>
     {
         struct UiOldValue
         {

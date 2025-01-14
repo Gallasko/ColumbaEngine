@@ -108,7 +108,7 @@ namespace pg
         EntitySystem *ecsRef;
     };
 
-    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Own<ListView>, NamedSystem, InitSys>
+    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Own<ListView>, InitSys>
     {
         virtual std::string getSystemName() const override { return "ListView System"; }
 

@@ -6,7 +6,7 @@
 
 namespace pg
 {
-    struct FpsSystem : public System<Listener<TickEvent>, NamedSystem, InitSys, StoragePolicy>
+    struct FpsSystem : public System<Listener<TickEvent>, InitSys, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Fps System"; }
 

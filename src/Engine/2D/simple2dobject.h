@@ -8,6 +8,8 @@
 
 #include "constant.h"
 
+// Todo this system can be faulty during scene changing !
+
 namespace pg
 {
     enum class Shape2D : uint8_t
@@ -66,7 +68,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct Simple2DObjectSystem : public AbstractRenderer, System<Own<Simple2DObject>, Own<Simple2DRenderCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, NamedSystem, InitSys>
+    struct Simple2DObjectSystem : public AbstractRenderer, System<Own<Simple2DObject>, Own<Simple2DRenderCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         Simple2DObjectSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
         virtual ~Simple2DObjectSystem() { }

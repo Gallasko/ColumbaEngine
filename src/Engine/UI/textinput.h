@@ -49,7 +49,7 @@ namespace pg
         AcceptableTextInput acceptableInput = AcceptableTextInput::AllCharacters;
     };
 
-    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, NamedSystem, InitSys, StoragePolicy>
+    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, InitSys, StoragePolicy>
     {
         TextInputSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("Text Input System"); }
 

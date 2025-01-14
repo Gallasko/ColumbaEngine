@@ -406,7 +406,7 @@ namespace pg
 
     struct SkipRenderPass {};
 
-    class MasterRenderer : public System<NamedSystem, Listener<OnSDLScanCode>, Listener<SkipRenderPass>>
+    class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>>
     {
     private:
         struct MaterialHolder

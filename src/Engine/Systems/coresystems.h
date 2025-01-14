@@ -38,7 +38,7 @@ namespace pg
     template <>
     EntityName deserialize(const UnserializedObject& serializedString);
 
-    struct EntityNameSystem : public System<Own<EntityName>, StoragePolicy, NamedSystem>
+    struct EntityNameSystem : public System<Own<EntityName>, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Entity Name System"; }
 
@@ -65,7 +65,7 @@ namespace pg
         int16_t tick;
     };
 
-    struct TickingSystem : public System<NamedSystem>
+    struct TickingSystem : public System<>
     {
         TickingSystem(int16_t duration = 20) : tickDuration(duration), reminder(0)
         { 
@@ -183,7 +183,7 @@ namespace pg
         CallablePtr callback = nullptr;
     };
 
-    struct TimerSystem : public System<Own<Timer>, Listener<TickEvent>, NamedSystem>
+    struct TimerSystem : public System<Own<Timer>, Listener<TickEvent>>
     {
         virtual std::string getSystemName() const override { return "Timer System"; }
 
@@ -233,7 +233,7 @@ namespace pg
         EntityRef entity;
     };
 
-    struct RunScriptFromTextInputSystem : public System<Listener<TextInputTriggeredEvent>, NamedSystem, StoragePolicy>
+    struct RunScriptFromTextInputSystem : public System<Listener<TextInputTriggeredEvent>, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Run Script From Text Input System"; }
 

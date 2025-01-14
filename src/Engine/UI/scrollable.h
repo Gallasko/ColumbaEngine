@@ -17,7 +17,7 @@ namespace pg
         std::vector<EntityRef> entities;
     };
 
-    struct ScrollableSystem : public System<Own<Scrollable>, NamedSystem, StoragePolicy>
+    struct ScrollableSystem : public System<Own<Scrollable>, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Scrollable System"; }
 

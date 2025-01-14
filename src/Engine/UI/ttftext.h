@@ -82,7 +82,7 @@ namespace pg
     template <>
     TTFText deserialize(const UnserializedObject& serializedString);
 
-    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, NamedSystem, InitSys>
+    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         struct Character 
         {

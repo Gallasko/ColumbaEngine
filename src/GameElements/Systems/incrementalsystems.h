@@ -15,7 +15,7 @@ struct OnGoldGain
     size_t gold;
 };
 
-struct GoldSystem : public System<Listener<OnClickGainGold>, Listener<OnGoldGain>, NamedSystem, InitSys, StoragePolicy>
+struct GoldSystem : public System<Listener<OnClickGainGold>, Listener<OnGoldGain>, InitSys, StoragePolicy>
 {
     virtual std::string getSystemName() const override { return "Gold System"; }
 
@@ -56,7 +56,7 @@ struct GoldSystem : public System<Listener<OnClickGainGold>, Listener<OnGoldGain
 
 struct BuyFactory { };
 
-struct FactorySystem : public System<Listener<BuyFactory>, Listener<TickEvent>, NamedSystem, StoragePolicy>
+struct FactorySystem : public System<Listener<BuyFactory>, Listener<TickEvent>, StoragePolicy>
 {
     virtual std::string getSystemName() const override { return "Factory System"; }
 

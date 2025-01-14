@@ -227,7 +227,7 @@ namespace pg
                     auto end = std::chrono::steady_clock::now();
 
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->name << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
                 
                 }).name(std::to_string(system->_id));
 
@@ -327,7 +327,7 @@ namespace pg
                     auto end = std::chrono::steady_clock::now();
 
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->name << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
                 
                 }).name(std::to_string(system->_id));
 
@@ -382,7 +382,7 @@ namespace pg
                     auto end = std::chrono::steady_clock::now();
 
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->name << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
 
                 }).name(std::to_string(system->_id));
 

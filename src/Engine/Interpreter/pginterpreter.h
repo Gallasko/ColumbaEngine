@@ -133,7 +133,7 @@ namespace pg
         CustomSysFunctions functions;
     };
 
-    class PgInterpreter : public System<Listener<ExecuteFileScriptEvent>, Listener<ExecuteCodeScriptEvent>, NamedSystem>
+    class PgInterpreter : public System<Listener<ExecuteFileScriptEvent>, Listener<ExecuteCodeScriptEvent>>
     {
     friend class Interpreter;
     friend class VisitorInterpreter;

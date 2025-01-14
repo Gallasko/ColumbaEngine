@@ -39,9 +39,15 @@ namespace pg
         virtual void init() = 0;
     };
 
-    struct NamedSystem
+    struct SaveSys
     {
-        virtual std::string getSystemName() const = 0;
+        // Pure virtual function to save any data from the system
+        virtual void save(Archive& archive) = 0;
+
+        // Virtual function call when the sys is not present in the save file
+        virtual void firstLoad() {};
+        // Pure virtual function to load any data saved in the sys file
+        virtual void load(const UnserializedObject& serializedString) = 0;
     };
 
     /**
@@ -66,7 +72,9 @@ namespace pg
 
         _unique_id _id;
 
-        std::string name = "UnNamed";
+        bool saveable = false;
+
+        virtual std::string getSystemName() const { return "UnNamed"; }
 
         // Todo make function onAdd and onDelete of a component that default to nothing if not used
     };
@@ -174,18 +182,6 @@ namespace pg
         }
 
         system->setPolicy(ExecutionPolicy::Independent);
-        
-        registerComponents(system, registry, comps...);
-    }
-
-    template <typename... Comps, typename Sys>
-    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<NamedSystem>&, const Comps&... comps)
-    {
-        LOG_THIS("System");
-        
-        LOG_INFO("System", "Naming the system, system id [" << system->_id << "] get name: " << system->getSystemName());
-
-        system->name = system->getSystemName();
         
         registerComponents(system, registry, comps...);
     }

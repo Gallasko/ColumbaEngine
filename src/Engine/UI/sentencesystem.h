@@ -142,7 +142,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct SentenceSystem : public AbstractRenderer, System<Own<SentenceText>, Own<SentenceRenderCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, NamedSystem, InitSys>
+    struct SentenceSystem : public AbstractRenderer, System<Own<SentenceText>, Own<SentenceRenderCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         SentenceSystem(MasterRenderer *renderer, const std::string& fontPath);
 

@@ -107,7 +107,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Own<TextureRenderCall>, Listener<EntityChangedEvent>, Ref<UiComponent>, NamedSystem, InitSys>
+    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Own<TextureRenderCall>, Listener<EntityChangedEvent>, Ref<UiComponent>, InitSys>
     {
         Texture2DComponentSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
 

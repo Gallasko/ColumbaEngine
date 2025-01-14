@@ -121,7 +121,7 @@ namespace pg
         CompRef<UiComponent> ui;
     };
 
-    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, Ref<UiComponent>, NamedSystem, InitSys>
+    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, Ref<UiComponent>, InitSys>
     {
         MouseClickSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseClickSystem"); }
 
@@ -145,7 +145,7 @@ namespace pg
     };
 
     // Todo combine this in the MouseClickSystem
-    struct MouseLeaveClickSystem : public System<Listener<OnMouseClick>, Own<MouseLeaveClickComponent>, Ref<UiComponent>, NamedSystem, InitSys, StoragePolicy>
+    struct MouseLeaveClickSystem : public System<Listener<OnMouseClick>, Own<MouseLeaveClickComponent>, Ref<UiComponent>, InitSys, StoragePolicy>
     {
         MouseLeaveClickSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseLeaveClickSystem"); }
 
