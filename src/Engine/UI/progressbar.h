@@ -80,7 +80,7 @@ namespace pg
 
         EntitySystem *ecsRef = nullptr;
 
-        float percent = 1.0f;
+        float percent = 0.0f;
 
         ProgressBarFillDirection direction = ProgressBarFillDirection::Horizontal;
     };

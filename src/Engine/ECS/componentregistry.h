@@ -382,6 +382,32 @@ namespace pg
             }
         }
 
+        void saveSystem(std::function<void(Archive&)> f, const std::string& objectName)
+        {
+            Serializer::ClassSerializer ar(&systemSerializer, objectName);
+
+            f(ar.archive);
+        }
+
+        bool loadSystem(std::function<void(const UnserializedObject&)> f, const std::string& objectName)
+        {
+            const auto& map = systemSerializer.getSerializedMap();
+
+            const auto& it = map.find(objectName);
+
+            if (it != map.end())
+            {
+                f(UnserializedObject(it->second, objectName));
+                return true;
+            }
+            else 
+            {
+                LOG_WARNING("Registry", "Cannot load system: " << objectName << " system is not saved (This should happend in first load !)");
+            }
+
+            return false;
+        }
+
         inline EntitySystem* world() const noexcept { return ecsRef; }
 
         // Common singleton system
@@ -432,6 +458,8 @@ namespace pg
         std::unordered_map<_unique_id, void*> groupStorageMap;
         std::unordered_map<_unique_id, std::unordered_map<intptr_t, std::function<void(const std::any&)>>> eventStorageMap;
         std::unordered_map<std::string, std::unordered_map<intptr_t, std::function<void(const StandardEvent&)>>> standardEventStorageMap;
+
+        Serializer systemSerializer;
     };
 
     template<>

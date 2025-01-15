@@ -119,6 +119,8 @@ namespace pg
     {
         if (log.level == Logger::InfoLevel::error)
             std::cout << "\033[31m";
+        else if (log.level == Logger::InfoLevel::warning)
+            std::cout << "\033[33m";
 
         std::cout << logLevelString(log.level) << "'" << log.scope << "' " << logPositionString(log.filename, log.objectName, log.function, log.line) << " " << log.message;
 

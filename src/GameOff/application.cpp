@@ -50,8 +50,33 @@ struct SceneToLoad
     SceneName name;
 };
 
-struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, StoragePolicy, InitSys>
+struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, StoragePolicy, InitSys, SaveSys>
 {
+    virtual std::string getSystemName() const override { return "SceneLoader"; }
+
+    virtual void save(Archive& archive) override
+    {
+        archive.startSerialization("SceneLoader");
+
+        serialize(archive, "fill", fill);
+
+        archive.endSerialization();
+    }
+
+    virtual void load(const UnserializedObject& serializedString) override
+    {
+        if (serializedString.isNull())
+        {
+            LOG_ERROR(DOM, "Element is null");
+        }
+        else
+        {
+            LOG_INFO(DOM, "Deserializing SceneLoader");
+
+            fill = deserialize<float>(serializedString["fill"]);
+        }
+    }
+
     virtual void onEvent(const SceneToLoad& event) override
     {
         switch (event.name)
@@ -75,12 +100,12 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
     virtual void onEvent(const TickEvent&) override
     {
-        auto fill = barComp->percent;
-
-        fill += 0.01f;
+        fill += 0.001f;
 
         if (fill > 1.0f)
             fill = 0.0f;
+
+        LOG_INFO("Event", fill);
 
         barComp->setFillPercent(fill);
     }
@@ -103,6 +128,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
         barComp = progressBar.get<ProgressBarComponent>();
 
+        barComp->percent = fill;
+
         auto overProgressBar = makeUiTexture(ecsRef, 400, 100, "overBar");
         overProgressBar.get<UiComponent>()->setY(250);
         overProgressBar.get<UiComponent>()->setZ(1);
@@ -112,6 +139,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     }
 
     CompRef<ProgressBarComponent> barComp;
+
+    float fill = 0.0f;
 };
 
 std::thread *initThread;

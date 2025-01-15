@@ -9,6 +9,8 @@ namespace pg
     ComponentRegistry::ComponentRegistry(EntitySystem *ecs) : ecsRef(ecs)
     {
         LOG_THIS_MEMBER("ComponentRegistry");
+
+        systemSerializer.setFile("systems.sz");
     } 
 
     ComponentRegistry::~ComponentRegistry()

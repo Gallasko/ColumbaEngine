@@ -94,6 +94,8 @@ namespace pg
 
         for (auto& sys : systems)
         {
+            sys.second->removeFromRegistry();
+
             delete sys.second;
         }
 

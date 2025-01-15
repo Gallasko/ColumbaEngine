@@ -76,6 +76,13 @@ namespace pg
 
         virtual std::string getSystemName() const { return "UnNamed"; }
 
+        /**
+         * @brief Remove a component from the registry
+         */
+        virtual void removeFromRegistry() = 0;
+
+        std::string __name = "UnNamed";
+
         // Todo make function onAdd and onDelete of a component that default to nothing if not used
     };
 
@@ -198,6 +205,30 @@ namespace pg
         registerComponents(system, registry, comps...);
     }
 
+    template <typename... Comps, typename Sys>
+    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&, const Comps&... comps)
+    {
+        LOG_THIS("System");
+        
+        LOG_INFO("System", "Loading system data...");
+
+        auto name = system->__name;
+
+        if (name != "UnNamed")
+        {
+            auto loaded = registry->loadSystem([system](const UnserializedObject& ss) { system->load(ss); }, name);
+
+            if (not loaded)
+                system->firstLoad();
+        }
+        else
+        {
+            LOG_ERROR("System", "Trying to load an unnamed system: " << typeid(Sys).name());
+        }
+        
+        registerComponents(system, registry, comps...);
+    }
+
     template <typename Sys>
     void unregisterComponents(Sys*, ComponentRegistry*) { LOG_THIS("System"); }
 
@@ -211,6 +242,26 @@ namespace pg
         // Todo also remove any group that is dependant to this owner
 
         static_cast<Own<Comp>*>(system)->unsetRegistry(registry);
+        unregisterComponents(system, registry, comps...);
+    }
+
+    template <typename... Comps, typename Sys>
+    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&, const Comps&... comps)
+    {
+        LOG_THIS("System");
+        
+        LOG_INFO("System", "Saving system data...");
+
+        auto name = system->__name;
+        if (name != "UnNamed")
+        {
+            registry->saveSystem([system](Archive& ar) { system->save(ar); }, name);
+        }
+        else
+        {
+            LOG_ERROR("System", "Trying to save an unnamed system: " << typeid(Sys).name());
+        }
+        
         unregisterComponents(system, registry, comps...);
     }
 
@@ -243,11 +294,9 @@ namespace pg
             LOG_THIS_MEMBER("System");
         }
 
-        virtual ~System()
+        virtual ~System() override
         {
             LOG_THIS_MEMBER("System");
-
-            removeFromRegistry();
         }
 
         /**
@@ -276,13 +325,16 @@ namespace pg
 
             this->registry = registry;
 
+            // Set the current name of the system
+            __name = getSystemName();
+
             registerComponents(this, registry, tag<Comps>{}...);
         }
 
         /**
          * @brief Remove a component from the registry
          */
-        virtual void removeFromRegistry()
+        virtual void removeFromRegistry() override
         {
             LOG_THIS_MEMBER("System");
 

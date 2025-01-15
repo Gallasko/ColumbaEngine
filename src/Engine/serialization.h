@@ -400,9 +400,12 @@ namespace pg
 
     class Serializer
     {
+    friend class ComponentRegistry;
+
         class ClassSerializer
         {
         friend class Serializer;
+        friend class ComponentRegistry;
             ClassSerializer(Serializer *ser, const std::string& objectName) : serializer(ser), objectName(objectName) {}
             ~ClassSerializer() { archive.container << std::endl; serializer->registerSerialized(objectName, archive.container); }
         
@@ -427,7 +430,7 @@ namespace pg
         // Todo remove baseIndent when removing indent need from serializer
         static std::unordered_map<std::string, std::string> readData(const std::string& vers, const std::string& stringData, size_t baseIndent = 0);
 
-        static std::unique_ptr<Serializer>& getSerializer(const std::string& filename = "serialize.sz")
+        static std::unique_ptr<Serializer>& getSerializer(const std::string& filename = "global.sz")
             {static std::unique_ptr<Serializer> serializer = std::unique_ptr<Serializer>(new Serializer(filename)); return serializer; }
 
         // Todo make a static_assert to check if ": " is present in the objectName and reject it at compile time
