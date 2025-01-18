@@ -100,12 +100,12 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
     virtual void onEvent(const TickEvent&) override
     {
-        fill += 0.001f;
+        // fill += 0.001f;
 
-        if (fill > 1.0f)
-            fill = 0.0f;
+        // if (fill > 1.0f)
+        //     fill = 0.0f;
 
-        barComp->setFillPercent(fill);
+        // barComp->setFillPercent(fill);
     }
 
     virtual void init() override
@@ -121,26 +121,26 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto titleTTF3 = makeTTFText(ecsRef, 330, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));
 
-        auto progressBar = makeProgressBar(ecsRef, 400, 100, "emptyBar", "fullBar", 0.65);
-        progressBar.get<UiComponent>()->setY(250);
+        // auto progressBar = makeProgressBar(ecsRef, 400, 100, "emptyBar", "fullBar", 0.65);
+        // progressBar.get<UiComponent>()->setY(250);
 
-        barComp = progressBar.get<ProgressBarComponent>();
+        // barComp = progressBar.get<ProgressBarComponent>();
 
-        barComp->percent = fill;
+        // barComp->percent = fill;
 
-        auto overProgressBar = makeUiTexture(ecsRef, 400, 100, "overBar");
-        overProgressBar.get<UiComponent>()->setY(250);
-        overProgressBar.get<UiComponent>()->setZ(1);
+        // auto overProgressBar = makeUiTexture(ecsRef, 400, 100, "overBar");
+        // overProgressBar.get<UiComponent>()->setY(250);
+        // overProgressBar.get<UiComponent>()->setZ(1);
 
         // auto testText = makeSentence(ecsRef, 200, 400, {"Hello World"});
 
     }
 
-    CompRef<ProgressBarComponent> barComp;
+    // CompRef<ProgressBarComponent> barComp;
 
     float fill = 0.0f;
 
-    std::vector<int> test = {1};
+    std::vector<int> test = {};
 };
 
 std::thread *initThread;

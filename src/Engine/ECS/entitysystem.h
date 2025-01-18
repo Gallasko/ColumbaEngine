@@ -203,9 +203,9 @@ namespace pg
 
             system->ecsRef = this;
 
-            system->addToRegistry(&registry);
-
             systems.emplace(system->_id, system);
+
+            system->addToRegistry(&registry);
 
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
@@ -310,9 +310,9 @@ namespace pg
 
             system->ecsRef = this;
 
-            system->addToRegistry(&registry);
-
             systems.emplace(system->_id, system);
+
+            system->addToRegistry(&registry);
 
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
@@ -365,9 +365,9 @@ namespace pg
 
             system->ecsRef = this;
 
-            system->addToRegistry(&registry);
-
             systems.emplace(system->_id, system);
+
+            system->addToRegistry(&registry);            
 
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
@@ -459,7 +459,12 @@ namespace pg
 
             try
             {
-                return static_cast<Sys*>(systems.at(id));
+                const auto& it = systems.find(id);
+
+                if (it != systems.end())
+                    return static_cast<Sys*>(systems.at(id));
+                else
+                    return nullptr;
             }
             catch (const std::exception& e)
             {

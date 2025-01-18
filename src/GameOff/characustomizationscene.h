@@ -18,7 +18,7 @@ namespace pg
     {
         Character character;
 
-        std::vector<SkillTree> learnedSkillTree = { NoneSkillTree{}, MageTree{}, AdventurerTree{} };
+        std::vector<SkillTree> learnedSkillTree = { NoneSkillTree{} };
 
         SkillTree* skillTreeInUse[MAXSKILLTREEINUSE] = {nullptr};
 

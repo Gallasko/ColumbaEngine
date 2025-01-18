@@ -603,6 +603,7 @@ namespace pg
         }
     }
 
+    // Todo need to fix when a serialized class is empty
     void UnserializedObject::parseString()
     {
         LOG_THIS_MEMBER(DOM);
@@ -713,7 +714,7 @@ namespace pg
             const auto trimmed = trim(currentLine);
             if (trimmed == "}")
             {
-                LOG_MILE(DOM, "Object: " + objectName + " doesn't have any children in serialization !");
+                LOG_INFO(DOM, "Object: " + objectName + " doesn't have any children in serialization !");
                 
                 isNullObject = false;
                 return;
@@ -1042,7 +1043,7 @@ namespace pg
         for (const auto& serializedString : serializedMap)
             stream << serializedString.first << ": " << serializedString.second;
 
-        LOG_INFO(DOM, "Writing to file: " << file.filepath << " " << stream.str());
+        // LOG_INFO(DOM, "Writing to file: " << file.filepath << " " << stream.str());
 
         UniversalFileAccessor::writeToFile(file, stream.str(), true);
     }

@@ -95,7 +95,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing CharacterStat");
+            LOG_MILE(DOM, "Deserializing CharacterStat");
 
             defaultDeserialize(serializedString, "health", data.health);
 
@@ -107,8 +107,8 @@ namespace pg
 
             defaultDeserialize(serializedString, "speed", data.speed);
 
-            defaultDeserialize(serializedString, "critDamage", data.critChance);
-            defaultDeserialize(serializedString, "critChance", data.critDamage);
+            defaultDeserialize(serializedString, "critChance", data.critChance);
+            defaultDeserialize(serializedString, "critDamage", data.critDamage);
             defaultDeserialize(serializedString, "evasion", data.evasionRate);
         }
 

@@ -4,7 +4,7 @@ namespace pg
 {
     namespace
     {
-        constexpr const char * const DOM = "SkillTree7";
+        constexpr const char * const DOM = "SkillTree";
     }
 
     template <>
@@ -33,7 +33,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing LevelProgression");
+            LOG_MILE(DOM, "Deserializing LevelProgression");
 
             LevelProgression data;
 
@@ -73,7 +73,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing LevelIncrease");
+            LOG_MILE(DOM, "Deserializing LevelIncrease");
 
             LevelIncrease data;
 
@@ -119,7 +119,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing LevelIncrease");
+            LOG_MILE(DOM, "Deserializing LevelIncrease");
 
             SkillTree data;
 

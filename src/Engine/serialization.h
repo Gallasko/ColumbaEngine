@@ -277,9 +277,11 @@ namespace pg
     {
         archive.startSerialization("Vector");
 
+        serialize(archive, "nbElements", vec.size());
+
         for (size_t i = 0; i < vec.size(); i++)
         {
-            serialize(archive, vec.at(i));
+            serialize(archive, std::to_string(i), vec.at(i));
         }
 
         archive.endSerialization();
@@ -351,24 +353,26 @@ namespace pg
     {
         LOG_THIS("Serializer");
 
-        std::string type = "";
-
         if (serializedString.isNull())
         {
-            LOG_ERROR("Serializer", "Element is null");
+            LOG_WARNING("Serializer", "Vector stored is empty");
         }
         else
         {
-            LOG_INFO("Serializer", "Deserializing Vector of " << typeid(Type).name());
+            LOG_MILE("Serializer", "Deserializing Vector of " << typeid(Type).name());
 
             std::vector<Type> data;
 
-            for (const auto& child : serializedString.children)
+            size_t nbElements = 0;
+
+            if (serializedString.find("nbElements"))
             {
-                if (child.isNull())
-                    continue;
-                
-                auto element = deserialize<Type>(child);
+                nbElements = deserialize<size_t>(serializedString["nbElements"]);
+            }
+
+            for (size_t i = 0; i < nbElements; ++i)
+            {
+                auto element = deserialize<Type>(serializedString[std::to_string(i)]);
 
                 data.push_back(element);
             }            

@@ -123,7 +123,8 @@ namespace pg
 
         auto sys = ecsRef->getSystem<PlayerHandlingSystem>();
 
-        character.id = sys->lastGivenId++;
+        if (sys)
+            character.id = sys->lastGivenId++;
     }
 
     template <>
@@ -162,7 +163,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing Player Character");
+            LOG_MILE(DOM, "Deserializing Player Character");
 
             PlayerCharacter data;
 
@@ -170,11 +171,18 @@ namespace pg
 
             auto nbSkillLearned = deserialize<size_t>(serializedString["nbSkillTreeLearned"]);
 
+            data.learnedSkillTree.clear();
+
             for (size_t i = 0; i < nbSkillLearned; i++)
             {
                 auto sTree = deserialize<SkillTree>(serializedString["sTree" + std::to_string(i)]);
 
                 data.learnedSkillTree.push_back(sTree);
+            }
+
+            if (std::find(data.learnedSkillTree.begin(), data.learnedSkillTree.end(), NoneSkillTree{}) == data.learnedSkillTree.end())
+            {
+                data.learnedSkillTree.push_back(NoneSkillTree{});
             }
 
             return data;
