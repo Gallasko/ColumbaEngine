@@ -38,15 +38,19 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing Item");
+            LOG_MILE(DOM, "Deserializing Item");
 
             Item data;
 
-            data.name = deserialize<std::string>(serializedString["name"]);
-            data.type = stringToItemType.at(deserialize<std::string>(serializedString["type"]));
-            data.stacksize = deserialize<int>(serializedString["stacksize"]);
-            data.nbItems = deserialize<size_t>(serializedString["nbItems"]);
-            data.description = deserialize<std::string>(serializedString["description"]);
+            defaultDeserialize(serializedString, "name", data.name);
+
+            std::string type = itemTypeToString.at(data.type);
+            defaultDeserialize(serializedString, "type", type);
+            data.type = stringToItemType.at(type);
+
+            defaultDeserialize(serializedString, "stacksize", data.stacksize);
+            defaultDeserialize(serializedString, "nbItems", data.nbItems);
+            defaultDeserialize(serializedString, "description", data.description);
 
             return data;
         }

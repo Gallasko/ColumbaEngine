@@ -608,6 +608,8 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
+        size_t lineNumber = 0;
+
         std::string currentLine;
         size_t classChildIndent = 0;
 
@@ -714,7 +716,7 @@ namespace pg
             const auto trimmed = trim(currentLine);
             if (trimmed == "}")
             {
-                LOG_INFO(DOM, "Object: " + objectName + " doesn't have any children in serialization !");
+                LOG_MILE(DOM, "Object: " + objectName + " doesn't have any children in serialization !");
                 
                 isNullObject = false;
                 return;
@@ -725,8 +727,18 @@ namespace pg
         while (std::getline(iss, nextLine))
         {
             nextIndent = nbLeadingSpaces(nextLine);
-            if (nextIndent > classChildIndent and startOfClass == false and lockupClass == false)
+
+            bool notInClassCurrently = startOfClass == false and lockupClass == false;
+            
+            if (nextIndent > classChildIndent and notInClassCurrently)
                 startOfClass = true;
+
+            const auto nextLineTrimmed = trim(nextLine);
+            // This can happen if the class is empty
+            if (notInClassCurrently and (nextLineTrimmed == "}" or nextLineTrimmed =="},"))
+            {
+                startOfClass = true;
+            }
 
             if (startOfClass)
             {
@@ -816,6 +828,7 @@ namespace pg
                     // Error the current line describe nothing
                     else if (pos == std::string::npos and lockupAttribute == false)
                     {
+                        LOG_ERROR(DOM, "Current [" << lineNumber << "] line: " << currentLine);
                         LOG_ERROR(DOM, "Line is neither a class definition, a class body nor a attribute, serialization string is ill formed. Exiting Serialization Parsing !");
 
                         errorHappened = true;
@@ -833,6 +846,7 @@ namespace pg
 
             currentLine = nextLine;
             currentIndent = nextIndent;
+            lineNumber++;
         }
 
         // If lockupAttribute is true, then we finished processing the previous attribute

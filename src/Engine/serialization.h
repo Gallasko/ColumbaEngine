@@ -277,11 +277,9 @@ namespace pg
     {
         archive.startSerialization("Vector");
 
-        serialize(archive, "nbElements", vec.size());
-
         for (size_t i = 0; i < vec.size(); i++)
         {
-            serialize(archive, std::to_string(i), vec.at(i));
+            serialize(archive, vec.at(i));
         }
 
         archive.endSerialization();
@@ -363,19 +361,15 @@ namespace pg
 
             std::vector<Type> data;
 
-            size_t nbElements = 0;
-
-            if (serializedString.find("nbElements"))
+            for (const auto& child : serializedString.children)
             {
-                nbElements = deserialize<size_t>(serializedString["nbElements"]);
-            }
-
-            for (size_t i = 0; i < nbElements; ++i)
-            {
-                auto element = deserialize<Type>(serializedString[std::to_string(i)]);
+                if (child.isNull())
+                    continue;
+                
+                auto element = deserialize<Type>(child);
 
                 data.push_back(element);
-            }            
+            }
 
             return data;
         }

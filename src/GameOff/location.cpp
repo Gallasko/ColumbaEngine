@@ -74,6 +74,8 @@ namespace pg
         }
         else
         {
+            LOG_MILE(DOM, "Deserializing Encounter");
+
             Encounter data;
 
             data.characters = deserializeVector<Character>(serializedString["enemies"]);

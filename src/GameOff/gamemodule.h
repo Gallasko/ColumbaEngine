@@ -132,7 +132,11 @@ namespace pg
                     auto type = field.value->getType();
                     LOG_INFO("Game Module", type);
 
-                    location.possibleEnounters.push_back(deserializeTo<Encounter>(field.value));
+                    auto encounter = deserializeTo<Encounter>(field.value);
+
+                    location.possibleEnounters.push_back(encounter);
+
+                    LOG_INFO("Game Module", "nbChara: " <<encounter.characters.size());
                 }
 
                 ecsRef->getSystem<LocationSystem>()->locations.push_back(location);
