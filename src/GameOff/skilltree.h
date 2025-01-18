@@ -16,14 +16,26 @@ namespace pg
         std::vector<Item> neededMat[MAXLEVEL + 1] = {};
     };
 
+    template <>
+    void serialize(Archive& archive, const LevelProgression& value);
+
+    template <>
+    LevelProgression deserialize(const UnserializedObject& serializedString);
+
     struct LevelIncrease
     {
         CharacterStat stats;
 
         std::vector<Spell> learntSpells;
 
-        std::vector<Passive> learntPassive;
+        std::vector<PassiveCall> learntPassives;
     };
+
+    template <>
+    void serialize(Archive& archive, const LevelIncrease& value);
+
+    template <>
+    LevelIncrease deserialize(const UnserializedObject& serializedString);
 
     struct SkillTree
     {
@@ -44,6 +56,12 @@ namespace pg
             return name == other.name;
         }
     };
+
+    template <>
+    void serialize(Archive& archive, const SkillTree& value);
+
+    template <>
+    SkillTree deserialize(const UnserializedObject& serializedString);
 
     struct NoneSkillTree : public SkillTree 
     {

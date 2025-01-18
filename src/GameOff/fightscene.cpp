@@ -310,20 +310,20 @@ namespace pg
             auto& passive = character->passives[i];
 
             // If the passive is not infinite (remainingTurn == -1) tick down a turn from it
-            if (passive.remainingTurns != -1)
+            if (passive.info.remainingTurns != -1)
             {
-                --passive.remainingTurns;
+                --passive.info.remainingTurns;
 
                 // After ticking it down if it reaches 0 delete it
-                if (passive.remainingTurns <= 0)
+                if (passive.info.remainingTurns <= 0)
                 {
                     // In case of a character boost we need to undo the boost first before deleting it
-                    if (passive.type == PassiveType::CharacterEffect and passive.trigger == TriggerType::StatBoost)
+                    if (passive.info.type == PassiveType::CharacterEffect)
                     {
-                        passive.removeFromCharacter(*character);
+                        // passive.removeFromCharacter(*character);
                     }
 
-                    std::string message = character->name + " is no longer under: " + passive.name;
+                    std::string message = character->name + " is no longer under: " + passive.info.name;
 
                     ecsRef->sendEvent(FightMessageEvent{message});
 

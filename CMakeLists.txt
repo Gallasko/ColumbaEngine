@@ -232,6 +232,9 @@ else()
         src/GameOff/mainscene.cpp
         src/GameOff/location.cpp
         src/GameOff/locationscene.cpp
+        src/GameOff/skilltree.cpp
+        src/GameOff/passives.cpp
+        src/GameOff/spells.cpp
     )
     
     target_link_libraries(GameOff PRIVATE PgEngineSrc)

@@ -10,6 +10,8 @@ namespace pg
 {
     namespace
     {
+        constexpr const char * const DOM = "Player Character";
+
         struct CreateNewPlayerButtonPressed {};
 
         struct SelectedCharacter
@@ -56,9 +58,9 @@ namespace pg
                     character.spells.erase(it);
             }
 
-            for (auto& passive : skillTree->levelGains[i].learntPassive)
+            for (auto& passive : skillTree->levelGains[i].learntPassives)
             {
-                auto it = std::find(character.passives.begin(), character.passives.end(), passive);
+                auto it = std::find(character.passives.begin(), character.passives.end(), passive.passiveName);
 
                 if (it != character.passives.end())
                     character.passives.erase(it);
@@ -95,19 +97,90 @@ namespace pg
             character.spells.push_back(spell);
         }
 
-        for (auto& passive : levelGain.learntPassive)
+        if (levelGain.learntPassives.size() > 0 and ecsRef)
         {
-            character.passives.push_back(passive);
+            auto passiveDatabase = ecsRef->getSystem<PassiveDatabase>();
+
+            for (auto& passiveCall : levelGain.learntPassives)
+            {
+                auto passive = passiveDatabase->resolvePassive(passiveCall);
+
+                if (passive.info.name != NOOPPASSIVE)
+                {
+                    character.passives.push_back(passive);
+                }
+                else
+                {
+                    LOG_ERROR("PlayerCharacter", "Passive named: " << passiveCall.passiveName << " is not registered in the database !");
+                }
+            }
         }
     }
 
     void PlayerCharacter::onCreation(EntityRef entity)
     {
-        auto ecsRef = entity->world();
+        ecsRef = entity->world();
 
         auto sys = ecsRef->getSystem<PlayerHandlingSystem>();
 
         character.id = sys->lastGivenId++;
+    }
+
+    template <>
+    void serialize(Archive& archive, const PlayerCharacter& value)
+    {
+        archive.startSerialization(PlayerCharacter::getType());
+
+        serialize(archive, "chara", value.character);
+
+        auto nbSkillTreeLearned = value.learnedSkillTree.size();
+
+        serialize(archive, "nbSkillTreeLearned", nbSkillTreeLearned);
+
+        size_t i = 0;
+
+        for (const auto& sTree : value.learnedSkillTree)
+        {
+            serialize(archive, "sTree" + std::to_string(i), sTree);
+
+            ++i;
+        }
+
+        archive.endSerialization();
+    }
+
+    template <>
+    PlayerCharacter deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS(DOM);
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR(DOM, "Element is null");
+        }
+        else
+        {
+            LOG_INFO(DOM, "Deserializing Player Character");
+
+            PlayerCharacter data;
+
+            data.character = deserialize<Character>(serializedString["chara"]);
+
+            auto nbSkillLearned = deserialize<size_t>(serializedString["nbSkillTreeLearned"]);
+
+            for (size_t i = 0; i < nbSkillLearned; i++)
+            {
+                auto sTree = deserialize<SkillTree>(serializedString["sTree" + std::to_string(i)]);
+
+                data.learnedSkillTree.push_back(sTree);
+            }
+
+            return data;
+        }
+
+        return PlayerCharacter{};
     }
 
     void PlayerCustomizationScene::init()

@@ -6,15 +6,22 @@
 #include "Helpers/helpers.h"
 #include "serialization.h"
 
+#include "Memory/elementtype.h"
+
+#include "ECS/system.h"
+
 namespace pg
 {
     // Type definitions
     struct Character;
     struct CallableIntepretedFunction;
 
+    static const char * const NOOPPASSIVE = "Noop"; 
+
     enum class TriggerType : uint8_t
     {
-        TurnStart = 0,
+        Noop = 0,
+        TurnStart,
         TurnEnd,
         OnHit,
         OnDamageDealt,
@@ -22,6 +29,7 @@ namespace pg
     };
 
     const static std::unordered_map<TriggerType, std::string> triggerTypeToString = {
+        {TriggerType::Noop, NOOPPASSIVE},
         {TriggerType::TurnStart, "TurnStart"},
         {TriggerType::TurnEnd, "TurnEnd"},
         {TriggerType::OnHit, "OnHit"},
@@ -33,12 +41,14 @@ namespace pg
 
     enum class PassiveType : uint8_t
     {
-        CharacterEffect = 0,
+        Noop = 0,
+        CharacterEffect,
         SpellEffect,
         TurnEffect,
     };
 
     const static std::unordered_map<PassiveType, std::string> passiveTypeToString = {
+        {PassiveType::Noop, NOOPPASSIVE},
         {PassiveType::CharacterEffect, "CharacterEffect"},
         {PassiveType::SpellEffect, "SpellEffect"},
         {PassiveType::TurnEffect, "TurnEffect"},
@@ -48,31 +58,28 @@ namespace pg
 
     enum class ApplicableFunctionType : uint8_t
     {
-        Script = 0,
-        Functional,
-        Noop
+        Noop = 0,
+        Script,
+        Functional
     };
 
-    struct CharacterApplicable
+    typedef std::unordered_map<std::string, ElementType> ElementMap;
+
+    template <typename Type>
+    struct ApplicablePassive
     {
-        ApplicableFunctionType type = ApplicableFunctionType::Script;
+        ApplicableFunctionType type = ApplicableFunctionType::Noop;
 
-        // std::unordered_map<std::string, ElementType> rTable;
+        ElementMap args;
 
-        union ApplicableFunctionUnion
-        {
-            std::string functionName;
-            std::shared_ptr<CallableIntepretedFunction> scriptFunction;
-        };
+        // Todo make it an union
+        std::function<void(Type&, const ElementMap&)> function = [](Type&, const ElementMap&) { LOG_ERROR("Passive", "Trying to call a non function"); };
+        std::shared_ptr<CallableIntepretedFunction> scriptFunction = nullptr;
 
-        ApplicableFunctionUnion func;
-
-        void deleteOldType();
-
-        void apply(Character& chara);
+        void apply(Type& type) {};
     };
 
-    struct Passive
+    struct PassiveInfo
     {
         PassiveType type;
 
@@ -92,17 +99,40 @@ namespace pg
 
         /** Keep track of the number of time this passive was activated */
         size_t nbSuccesfulActivation = 0;
+    };
 
-        // Function to use and define when passiveType == CharacterEffect and trigger == StatBoost
-        std::function<void(Character&)> applyOnCharacter;
-        std::function<void(Character&)> removeFromCharacter;
+    struct Passive
+    {
+        PassiveInfo info;
+
+        // Function to use and define when passiveType == CharacterEffect
+        ApplicablePassive<Character> applyOnCharacter;
+        ApplicablePassive<Character> removeFromCharacter;
 
         // Todo upgrade this to be more precise
         bool operator==(const Passive& other)
         {
-            return name == other.name;
+            return info.name == other.info.name;
+        }
+
+        bool operator==(const std::string& name)
+        {
+            return info.name == name;
         }
     };
+
+    struct PassiveCall
+    {
+        std::string passiveName;
+
+        ElementMap args;
+    };
+
+    template <>
+    void serialize(Archive& archive, const PassiveCall& value);
+
+    template <>
+    PassiveCall deserialize(const UnserializedObject& serializedString);
 
     enum class PlayerBoostType : uint8_t
     {
@@ -128,5 +158,12 @@ namespace pg
      * 
      * @return Passive A Passive that gives the "value" amount to a given character
      */
-    Passive makeSimplePlayerBoostPassive(PlayerBoostType type, float value, int32_t duration = -1, std::string name = "PlayerBoost");
+    // Passive makeSimplePlayerBoostPassive(PlayerBoostType type, float value, int32_t duration = -1, std::string name = "PlayerBoost");
+
+    struct PassiveDatabase : public System<StoragePolicy>
+    {
+        std::unordered_map<std::string, Passive> database;
+
+        Passive resolvePassive(const PassiveCall& call) const;
+    };
 }

@@ -22,6 +22,8 @@ namespace pg
 
         SkillTree* skillTreeInUse[MAXSKILLTREEINUSE] = {nullptr};
 
+        inline static std::string getType() { return "PlayerCharacter"; }
+
         bool inCombat = false;
 
         // Todo add equipment
@@ -35,12 +37,54 @@ namespace pg
         void applyLevelGain(const LevelIncrease& levelGain);
 
         virtual void onCreation(EntityRef entity) override;
+
+        EntitySystem *ecsRef = nullptr;
     };
+
+    template <>
+    void serialize(Archive& archive, const PlayerCharacter& value);
+
+    template <>
+    PlayerCharacter deserialize(const UnserializedObject& serializedString);
 
     struct NewPlayerCreated { EntityRef entity; };
 
-    struct PlayerHandlingSystem : public System<Own<PlayerCharacter>, StoragePolicy>
+    struct PlayerHandlingSystem : public System<Own<PlayerCharacter>, StoragePolicy, SaveSys>
     {
+        virtual std::string getSystemName() const override { return "PlayerHandlingSystem"; }
+
+        virtual void save(Archive& archive) override
+        {
+            auto players = view<PlayerCharacter>();
+
+            serialize(archive, "nbPlayers", players.nbComponents() - 1);
+
+            size_t i = 0;
+
+            for (const auto& player : players)
+            {
+                serialize(archive, "player" + std::to_string(i), *player);
+
+                ++i;
+            }
+        }
+
+        virtual void load(const UnserializedObject& ss) override
+        {
+            size_t nbPlayers = 0;
+
+            defaultDeserialize(ss, "nbPlayers", nbPlayers);
+
+            for (size_t i = 0; i < nbPlayers; ++i)
+            {
+                auto player = deserialize<PlayerCharacter>(ss["player" + std::to_string(i)]);
+
+                auto ent = ecsRef->createEntity();
+
+                ecsRef->attach<PlayerCharacter>(ent, player);
+            }
+        }
+
         size_t lastGivenId = 0;
     };
 

@@ -56,11 +56,9 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
     virtual void save(Archive& archive) override
     {
-        archive.startSerialization("SceneLoader");
-
         serialize(archive, "fill", fill);
 
-        archive.endSerialization();
+        serialize(archive, "test", test);
     }
 
     virtual void load(const UnserializedObject& serializedString) override
@@ -74,6 +72,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
             LOG_INFO(DOM, "Deserializing SceneLoader");
 
             fill = deserialize<float>(serializedString["fill"]);
+
+            test = deserializeVector<int>(serializedString["test"]);
         }
     }
 
@@ -104,8 +104,6 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
         if (fill > 1.0f)
             fill = 0.0f;
-
-        LOG_INFO("Event", fill);
 
         barComp->setFillPercent(fill);
     }
@@ -141,6 +139,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     CompRef<ProgressBarComponent> barComp;
 
     float fill = 0.0f;
+
+    std::vector<int> test = {1};
 };
 
 std::thread *initThread;
@@ -195,6 +195,8 @@ void initGame()
     mainWindow->ecs.createSystem<FightSystem>();
 
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
+
+    mainWindow->ecs.createSystem<PassiveDatabase>();
 
     mainWindow->ecs.createSystem<PlayerHandlingSystem>();
 

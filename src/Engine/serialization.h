@@ -271,6 +271,7 @@ namespace pg
     template <>
     void serialize(Archive& archive, const constant::ModelInfo& modelInfo);
 
+    // Todo make this for map and unordered_map also
     template <typename Type>
     void serialize(Archive& archive, const std::vector<Type>& vec)
     {

@@ -25,8 +25,8 @@ namespace pg
         std::set<Element> elementType = {};
         DamageType damageType = DamageType::Physical;
 
-        std::vector<Passive> applyToTarget = {};
-        std::vector<Passive> applyToSelf = {};
+        std::vector<PassiveCall> applyToTarget = {};
+        std::vector<PassiveCall> applyToSelf = {};
         
         bool selfOnly = false;
 

@@ -255,7 +255,13 @@ namespace pg
         auto name = system->__name;
         if (name != "UnNamed")
         {
-            registry->saveSystem([system](Archive& ar) { system->save(ar); }, name);
+            registry->saveSystem([system, name](Archive& ar) {
+                ar.startSerialization(name);
+
+                system->save(ar);
+
+                ar.endSerialization();
+            }, name);
         }
         else
         {

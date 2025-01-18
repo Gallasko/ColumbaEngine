@@ -2,6 +2,8 @@
 
 #include "commons.h"
 
+#include "serialization.h"
+
 namespace pg
 {
     struct CharacterStat

@@ -20,10 +20,12 @@ namespace pg
         serialize(archive, "cooldown", value.baseCooldown);
         serialize(archive, "adMult", value.physicalMultipler);
         serialize(archive, "apMult", value.magicalMultipler);
-        serialize(archive, "elements", value.elementType);
+        
+        // Todo
+        // serialize(archive, "elements", value.elementType);
 
-        serialize(archive, "targetPassives", value.applyToTarget);
-        serialize(archive, "selfPassives", value.applyToSelf);
+        // serialize(archive, "targetPassives", value.applyToTarget);
+        // serialize(archive, "selfPassives", value.applyToSelf);
 
         serialize(archive, "selfOnly", value.selfOnly);
         serialize(archive, "nbTargets", value.nbTargets);
@@ -55,10 +57,12 @@ namespace pg
             defaultDeserialize(serializedString, "cooldown", data.baseCooldown);
             defaultDeserialize(serializedString, "adMult", data.physicalMultipler);
             defaultDeserialize(serializedString, "apMult", data.magicalMultipler);
-            defaultDeserialize(serializedString, "elements", data.elementType);
 
-            defaultDeserialize(serializedString, "targetPassives", data.applyToTarget);
-            defaultDeserialize(serializedString, "selfPassives", data.applyToSelf);
+            // Todo
+            // defaultDeserialize(serializedString, "elements", data.elementType);
+
+            // defaultDeserialize(serializedString, "targetPassives", data.applyToTarget);
+            // defaultDeserialize(serializedString, "selfPassives", data.applyToSelf);
 
             defaultDeserialize(serializedString, "selfOnly", data.selfOnly);
             defaultDeserialize(serializedString, "nbTargets", data.nbTargets);

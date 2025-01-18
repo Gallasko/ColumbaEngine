@@ -46,6 +46,20 @@ namespace pg
         Character() {}
         Character(const Character& other) : name(other.name), type(other.type), stat(other.stat), spells(other.spells), passives(other.passives), aggroMap(other.aggroMap), playingStatus(other.playingStatus), id(other.id) {}
 
+        Character& operator=(const Character& other)
+        {
+            name = other.name;
+            type = other.type;
+            stat = other.stat;
+            spells = other.spells;
+            passives = other.passives;
+            aggroMap = other.aggroMap;
+            playingStatus = other.playingStatus;
+            id = other.id;
+
+            return *this;
+        }
+
         std::string name = "Unknown";
 
         CharacterType type = CharacterType::Player;
