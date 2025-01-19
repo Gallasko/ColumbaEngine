@@ -147,6 +147,21 @@ namespace pg
             ++i;
         }
 
+        for (i = 0; i < MAXSKILLTREEINUSE; ++i)
+        {
+            auto sTreeInUse = value.skillTreeInUse[i];
+
+            if (sTreeInUse)
+            {
+                serialize(archive, "sTreeInUse" + std::to_string(i), sTreeInUse->name);
+            }
+            else
+            {
+                serialize(archive, "sTreeInUse" + std::to_string(i), std::string("None"));
+            }
+
+        }
+
         archive.endSerialization();
     }
 
@@ -183,6 +198,27 @@ namespace pg
             if (std::find(data.learnedSkillTree.begin(), data.learnedSkillTree.end(), NoneSkillTree{}) == data.learnedSkillTree.end())
             {
                 data.learnedSkillTree.push_back(NoneSkillTree{});
+            }
+
+            for (size_t i = 0; i < MAXSKILLTREEINUSE; ++i)
+            {
+                std::string sTreeName = "None";
+                
+                defaultDeserialize(serializedString, "sTreeInUse" + std::to_string(i), sTreeName);
+
+                if (sTreeName != "None")
+                {
+                    size_t pos = std::find(data.learnedSkillTree.begin(), data.learnedSkillTree.end(), sTreeName) - data.learnedSkillTree.begin();
+
+                    if (pos < data.learnedSkillTree.size())
+                    {
+                        data.skillTreeInUse[i] = &data.learnedSkillTree[pos];
+                    }
+                    else
+                    {
+                        LOG_ERROR("Player character", "Skill tree is not learnt for the player: " << sTreeName);
+                    }
+                }
             }
 
             return data;

@@ -55,6 +55,11 @@ namespace pg
         {
             return name == other.name;
         }
+
+        bool operator==(const std::string& name) const
+        {
+            return this->name == name;
+        }
     };
 
     template <>

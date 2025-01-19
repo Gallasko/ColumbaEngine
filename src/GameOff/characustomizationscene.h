@@ -16,6 +16,30 @@ namespace pg
 
     struct PlayerCharacter : public Ctor
     {
+        PlayerCharacter() {}
+
+        PlayerCharacter(const PlayerCharacter& other) : character(other.character), learnedSkillTree(other.learnedSkillTree), inCombat(other.inCombat)
+        {
+            for (size_t i = 0; i < MAXSKILLTREEINUSE; i++)
+            {
+                skillTreeInUse[i] = other.skillTreeInUse[i];
+            }
+        }
+
+        PlayerCharacter& operator=(const PlayerCharacter& other)
+        {
+            character = other.character;
+            learnedSkillTree = other.learnedSkillTree;
+            inCombat = other.inCombat;
+
+            for (size_t i = 0; i < MAXSKILLTREEINUSE; i++)
+            {
+                skillTreeInUse[i] = other.skillTreeInUse[i];
+            }
+
+            return *this;
+        }
+
         Character character;
 
         std::vector<SkillTree> learnedSkillTree = { NoneSkillTree{} };
