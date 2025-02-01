@@ -191,6 +191,8 @@ namespace pg
 
             characterList->clear();
 
+            LOG_INFO("Player", "Loading players");
+
             for (auto player : ecsRef->view<PlayerCharacter>())
             {
                 LOG_INFO("Player", "Loading players");
@@ -308,18 +310,39 @@ namespace pg
 
         auto sys = ecsRef->getSystem<InventorySystem>();
 
+        for (size_t i = 0; i < nbItemShown; i++)
+        {
+            ecsRef->removeEntity(inventoryUi["temp" + std::to_string(i)]);
+        }
+
+        nbItemShown = 0;
+
         for (auto& item : sys->items[type])
         {
+            auto itemTex = makeUiTexture(this, 73 * 3, 17 * 3, "Header2");
+
+            // itemTex.get<UiComponent>()->setZ(1);
+
             auto itemUi = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name + " x" + std::to_string(item.nbItems), 0.4);
 
-            if (item.attributes.count("UsableOnCharacter") > 0)
+            // itemUi.get<UiComponent>()->setTopAnchor(itemTex.get<UiComponent>()->top);
+            // itemUi.get<UiComponent>()->setTopMargin(5);
+            // itemUi.get<UiComponent>()->setLeftAnchor(itemTex.get<UiComponent>()->left);
+            // itemUi.get<UiComponent>()->setLeftMargin(5);
+            // itemUi.get<UiComponent>()->setZ(2);
+
+            if (item.attributes.count("UsableOnCharacter") > 0 and item.attributes.at("UsableOnCharacter") == true)
             {
-                attach<MouseLeftClickComponent>(itemUi.entity, makeCallable<ShowCharaList>(&item));
+                LOG_INFO("Inventory", "Item " << item.name << " is usable !");
+                attach<MouseLeftClickComponent>(itemTex.entity, makeCallable<ShowCharaList>(&item));
             }
 
-            itemUi.get<UiComponent>()->setVisibility(false);
+            itemTex.get<UiComponent>()->setVisibility(false);
 
-            view->addEntity(itemUi.get<UiComponent>());
+            view->addEntity(itemTex.get<UiComponent>());
+
+            inventoryUi["temp" + std::to_string(nbItemShown)] = itemUi.entity;
+            nbItemShown++;
         }
     }
 }

@@ -285,6 +285,26 @@ namespace pg
         archive.endSerialization();
     }
 
+    template <typename Key, typename Value>
+    void serialize(Archive& archive, const std::unordered_map<Key, Value>& m)
+    {
+        archive.startSerialization("UnorderedMap");
+
+        serialize(archive, "nbElements", m.size());
+
+        size_t i = 0;
+
+        for (const auto& elem : m)
+        {
+            serialize(archive, "key" + std::to_string(i), elem.first);
+            serialize(archive, "value" + std::to_string(i), elem.second);
+
+            i++;
+        }
+
+        archive.endSerialization();
+    }
+
 
     class UnserializedObject
     {
@@ -377,6 +397,56 @@ namespace pg
         return std::vector<Type>{};
     }
 
+    template <typename Key, typename Value>
+    std::unordered_map<Key, Value> deserializeUnorderedMap(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("Serializer");
+
+        if (serializedString.isNull())
+        {
+            LOG_WARNING("Serializer", "Unordered Map stored is empty");
+        }
+        else
+        {
+            LOG_INFO("Serializer", "Deserializing Unordered Map of " << typeid(Key).name() << ", " << typeid(Value).name());
+
+            std::unordered_map<Key, Value> data;
+
+            size_t nbElements = 0;
+
+            LOG_INFO("Serializer", "Map as " << serializedString.getNbChildren() << serializedString.getObjectName());
+
+            for (auto& element : serializedString.children)
+            {
+                LOG_INFO("Serializer", "Children: " << element.getObjectName() << ", " << element.getObjectType());
+            }
+
+            if (serializedString.find("nbElements"))
+            {
+                nbElements = deserialize<size_t>(serializedString["nbElements"]);
+            }
+
+            LOG_INFO("Serializer", "Deserializing Unordered Map of nbElements: " << nbElements);
+
+            for (size_t i = 0; i < nbElements; i++)
+            {
+                auto key = deserialize<Key>(serializedString["key" + std::to_string(i)]);
+                auto value = deserialize<Value>(serializedString["value" + std::to_string(i)]);
+
+                for (auto& element : serializedString["value" + std::to_string(i)].children)
+                {
+                    LOG_INFO("Serializer", "Children: " << element.getObjectName() << ", " << element.getObjectType() << "; " << element.getString());
+                }
+
+                data[key] = value;
+            }
+
+            return data;
+        }
+
+        return std::unordered_map<Key, Value>{};
+    }
+
     template <typename Type>
     void defaultDeserialize(const UnserializedObject& serializedObject, const std::string& name, Type& output)
     {
@@ -392,6 +462,15 @@ namespace pg
         if (serializedObject.find(name))
         {
             output = deserializeVector<Type>(serializedObject[name]);
+        }
+    }
+
+    template <typename Key, typename Value>
+    void defaultDeserialize(const UnserializedObject& serializedObject, const std::string& name, std::unordered_map<Key, Value>& output)
+    {
+        if (serializedObject.find(name))
+        {
+            output = deserializeUnorderedMap<Key, Value>(serializedObject[name]);
         }
     }
 

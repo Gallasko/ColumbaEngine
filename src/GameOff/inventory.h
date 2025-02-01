@@ -29,12 +29,34 @@ namespace pg
 
     };
 
-    struct InventorySystem : public System<Listener<GainItem>, Listener<LoseItem>, StoragePolicy>
+    struct InventorySystem : public System<Listener<GainItem>, Listener<LoseItem>, StoragePolicy, SaveSys>
     {
+        virtual std::string getSystemName() const override { return "InventorySystem"; }
+
         void onEvent(const GainItem& event);
         void onEvent(const LoseItem& event);
 
         bool hasEnough(const Item& item) const;
+
+        virtual void save(Archive& archive) override
+        {
+            for (const auto& elem : items)
+            {
+                serialize(archive, itemTypeToString.at(elem.first), elem.second);
+            }
+        }
+
+        virtual void load(const UnserializedObject& ss) override
+        {
+            for (const auto& elem : itemTypeToString)
+            {
+                std::vector<Item> temp;
+
+                defaultDeserialize(ss, elem.second, temp);
+
+                items[elem.first] = temp;
+            }
+        }
 
         std::unordered_map<ItemType, std::vector<Item>> items;
     };
@@ -49,6 +71,7 @@ namespace pg
         void populateView(const ItemType& type);
 
         std::unordered_map<std::string, EntityRef> inventoryUi;
+        size_t nbItemShown = 0;
 
         PlayerCharacter *selectedCharacter;
         Item* selectedItem;

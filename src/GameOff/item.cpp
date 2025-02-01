@@ -17,6 +17,8 @@ namespace pg
         serialize(archive, "stacksize", value.stacksize);
         serialize(archive, "nbItems", value.nbItems);
         serialize(archive, "description", value.description);
+
+        serialize(archive, "attributes", value.attributes);
         
         // Todo
         // serialize(archive, "rarity", itemR value.nbItems);
@@ -51,6 +53,8 @@ namespace pg
             defaultDeserialize(serializedString, "stacksize", data.stacksize);
             defaultDeserialize(serializedString, "nbItems", data.nbItems);
             defaultDeserialize(serializedString, "description", data.description);
+
+            defaultDeserialize(serializedString, "attributes", data.attributes);
 
             return data;
         }

@@ -240,6 +240,9 @@ namespace pg
         ElementType operator<=(const ElementType& other) const;
         ElementType operator==(const ElementType& other) const;
         ElementType operator!=(const ElementType& other) const;
+
+        template <typename Type>
+        ElementType operator==(const Type& other) const { return *this == ElementType{other}; }
         
         ElementType operator-() const;
         

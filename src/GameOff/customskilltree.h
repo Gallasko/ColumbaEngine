@@ -44,6 +44,14 @@ namespace pg
         }
     };
 
+    struct FireBall : public Spell
+    {
+        FireBall()
+        {
+            name = "FireBall";
+        }
+    };
+
     struct MageTree : public SkillTree
     {
         MageTree()
@@ -68,6 +76,8 @@ namespace pg
                     levelGains[i].stats.magicalAttack += 1;
                 }
             }
+
+            levelGains[0].learntSpells = { FireBall{} };
         }
     };
 
@@ -93,7 +103,7 @@ namespace pg
                 }
                 
             }
-        
+
             for (size_t i = 0; i <= maxLevel; i++)
             {
                 if (i % 5 == 0)

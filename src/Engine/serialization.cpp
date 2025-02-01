@@ -624,6 +624,7 @@ namespace pg
         std::string delimiter = ": ";
         std::string tempSerializedString = "";
         size_t pos;
+        size_t attributePos;
         
         // First line should always be the beginning of a class declaration
         bool startOfClass = false;
@@ -734,8 +735,11 @@ namespace pg
                 startOfClass = true;
 
             const auto nextLineTrimmed = trim(nextLine);
+
+            attributePos = currentLine.find(ATTRIBUTECONST);
+
             // This can happen if the class is empty
-            if (notInClassCurrently and (nextLineTrimmed == "}" or nextLineTrimmed =="},"))
+            if (notInClassCurrently and (nextLineTrimmed == "}" or nextLineTrimmed =="},") and attributePos == std::string::npos)
             {
                 startOfClass = true;
             }
@@ -795,10 +799,10 @@ namespace pg
                 }
                 else
                 {
-                    pos = currentLine.find(ATTRIBUTECONST);
+                    // pos = currentLine.find(ATTRIBUTECONST);
 
                     // The current line is the beginning of a new attribute
-                    if (pos != std::string::npos)
+                    if (attributePos != std::string::npos)
                     {
                         // If lockupAttribute is true, then we finished processing the previous attribute
                         if (lockupAttribute)
@@ -808,7 +812,7 @@ namespace pg
                         }
 
                         // Cut the beginning of the current line to look for the attribute name
-                        tempAttributeName = currentLine.substr(0, pos);
+                        tempAttributeName = currentLine.substr(0, attributePos);
 
                         // Try to find ":" to see if the attribute is named or not 
                         pos = tempAttributeName.find(delimiter);

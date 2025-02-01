@@ -30,6 +30,22 @@ namespace pg
         }
     };
 
+    struct WarriorScroll : public Item
+    {
+        WarriorScroll()
+        {
+            name = "Warrior Scroll";
+
+            type = ItemType::SkillBook;
+
+            stacksize = 1;
+
+            attributes["UsableOnCharacter"] = true;
+            attributes["ConsumedUponUse"] = true;
+            attributes["SkillTree"] = "Warrior";
+        }
+    };
+
     struct WarriorGrimoire : public Item
     {
         WarriorGrimoire()
@@ -41,7 +57,7 @@ namespace pg
             stacksize = 1;
 
             attributes["UsableOnCharacter"] = true;
-            attributes["ConsumedUponUse"] = true;
+            attributes["ConsumedUponUse"] = false;
             attributes["SkillTree"] = "Warrior";
         }
     };
