@@ -29,17 +29,7 @@ namespace pg
 
         serialize(archive, "passiveName", value.passiveName);
 
-        serialize(archive, "nbArgs", value.args.size());
-
-        size_t i = 0;
-
-        for (const auto& elem : value.args)
-        {
-            serialize(archive, "key" + std::to_string(i), elem.first);
-            serialize(archive, "value" + std::to_string(i), elem.second);
-
-            i++;
-        }
+        serialize(archive, "args", value.args);
 
         archive.endSerialization();
     }
@@ -63,16 +53,7 @@ namespace pg
 
             defaultDeserialize(serializedString, "passiveName", data.passiveName);
 
-            size_t nbArgs = 0;
-            defaultDeserialize(serializedString, "nbArgs", nbArgs);
-            
-            for (size_t i = 0; i < nbArgs; i++)
-            {
-                auto key = deserialize<std::string>(serializedString["key" + std::to_string(i)]);
-                auto value = deserialize<ElementType>(serializedString["value" + std::to_string(i)]);
-
-                data.args[key] = value;
-            }
+            defaultDeserialize(serializedString, "args", data.args);
 
             return data;
         }

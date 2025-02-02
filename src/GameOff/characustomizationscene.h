@@ -16,7 +16,7 @@ namespace pg
 
     struct PlayerCharacter : public Ctor
     {
-        PlayerCharacter() {}
+        PlayerCharacter() { for (size_t i = 0; i < MAXSKILLTREEINUSE; i ++) { skillTreeInUse[i] = "None"; } }
 
         PlayerCharacter(const PlayerCharacter& other) : character(other.character), learnedSkillTree(other.learnedSkillTree), inCombat(other.inCombat)
         {
@@ -44,7 +44,7 @@ namespace pg
 
         std::vector<SkillTree> learnedSkillTree = { NoneSkillTree{} };
 
-        SkillTree* skillTreeInUse[MAXSKILLTREEINUSE] = {nullptr};
+        std::string skillTreeInUse[MAXSKILLTREEINUSE] = {};
 
         inline static std::string getType() { return "PlayerCharacter"; }
 
@@ -59,6 +59,10 @@ namespace pg
         void applySkillTree(SkillTree* sTree);
 
         void applyLevelGain(const LevelIncrease& levelGain);
+
+        void learnSpells(const LevelIncrease& levelGain);
+
+        void updateSpellList();
 
         virtual void onCreation(EntityRef entity) override;
 
@@ -102,6 +106,8 @@ namespace pg
             for (size_t i = 0; i < nbPlayers; ++i)
             {
                 auto player = deserialize<PlayerCharacter>(ss["player" + std::to_string(i)]);
+
+                player.updateSpellList();
 
                 auto ent = ecsRef->createEntity();
 

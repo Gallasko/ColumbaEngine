@@ -148,6 +148,12 @@ namespace pg
         Res
     };
 
+    struct PassiveEffect
+    {
+        PassiveCall call;
+        PassiveInfo info;
+    };
+
     /**
      * @brief Factory function creating simple Player boost passive
      * 

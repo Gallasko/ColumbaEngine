@@ -293,8 +293,6 @@ namespace pg
 
                 simpleShapeMaterial.textureId[0] = masterRenderer->getTexture(textureName).id;
 
-                LOG_INFO(DOM, "Got id: " << masterRenderer->getTexture(textureName).id);
-
                 call.setMaterial(masterRenderer->registerMaterial(textureName, simpleShapeMaterial));
             }
 

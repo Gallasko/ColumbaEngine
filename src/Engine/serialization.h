@@ -408,35 +408,21 @@ namespace pg
         }
         else
         {
-            LOG_INFO("Serializer", "Deserializing Unordered Map of " << typeid(Key).name() << ", " << typeid(Value).name());
+            LOG_MILE("Serializer", "Deserializing Unordered Map of " << typeid(Key).name() << ", " << typeid(Value).name());
 
             std::unordered_map<Key, Value> data;
 
             size_t nbElements = 0;
-
-            LOG_INFO("Serializer", "Map as " << serializedString.getNbChildren() << serializedString.getObjectName());
-
-            for (auto& element : serializedString.children)
-            {
-                LOG_INFO("Serializer", "Children: " << element.getObjectName() << ", " << element.getObjectType());
-            }
 
             if (serializedString.find("nbElements"))
             {
                 nbElements = deserialize<size_t>(serializedString["nbElements"]);
             }
 
-            LOG_INFO("Serializer", "Deserializing Unordered Map of nbElements: " << nbElements);
-
             for (size_t i = 0; i < nbElements; i++)
             {
                 auto key = deserialize<Key>(serializedString["key" + std::to_string(i)]);
                 auto value = deserialize<Value>(serializedString["value" + std::to_string(i)]);
-
-                for (auto& element : serializedString["value" + std::to_string(i)].children)
-                {
-                    LOG_INFO("Serializer", "Children: " << element.getObjectName() << ", " << element.getObjectType() << "; " << element.getString());
-                }
 
                 data[key] = value;
             }

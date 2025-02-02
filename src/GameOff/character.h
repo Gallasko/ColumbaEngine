@@ -31,16 +31,6 @@ namespace pg
         Dead
     };
 
-    struct BasicStrike : public Spell
-    {
-        BasicStrike()
-        {
-            name = "BasicStrike";
-
-            baseDmg = 10;
-        }
-    };
-
     struct Character
     {
         Character() {}
@@ -68,7 +58,7 @@ namespace pg
 
         float speedUnits = 0;
 
-        std::vector<Spell> spells = { BasicStrike{} };
+        std::vector<Spell> spells = { };
 
         // Todo create addSpell also
 

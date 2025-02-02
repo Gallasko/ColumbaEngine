@@ -41,16 +41,23 @@ namespace pg
 
     void PlayerCharacter::removeSkillTreeAt(size_t index)
     {
-        auto skillTree = skillTreeInUse[index];
+        auto sTreeName = skillTreeInUse[index];
 
-        if (not skillTree)
-            return;
+        const auto& itSTree = std::find(learnedSkillTree.begin(), learnedSkillTree.end(), sTreeName);
 
-        for (size_t i = 0; i < skillTree->currentLevel + 1; ++i)
+        if (itSTree == learnedSkillTree.end())
         {
-            character.stat -= skillTree->levelGains[i].stats;
+            LOG_ERROR("Player Chara", "SkillTree: " << sTreeName << " is not learnt by chara " << character.name);
+            return;
+        }
 
-            for (auto& spell : skillTree->levelGains[i].learntSpells)
+        const auto& skillTree = *itSTree;
+
+        for (size_t i = 0; i < skillTree.currentLevel + 1; ++i)
+        {
+            character.stat -= skillTree.levelGains[i].stats;
+
+            for (auto& spell : skillTree.levelGains[i].learntSpells)
             {
                 auto it = std::find(character.spells.begin(), character.spells.end(), spell);
 
@@ -58,7 +65,7 @@ namespace pg
                     character.spells.erase(it);
             }
 
-            for (auto& passive : skillTree->levelGains[i].learntPassives)
+            for (auto& passive : skillTree.levelGains[i].learntPassives)
             {
                 auto it = std::find(character.passives.begin(), character.passives.end(), passive.passiveName);
 
@@ -74,7 +81,7 @@ namespace pg
         removeSkillTreeAt(index);
 
         // Then replace the skill tree by the new one
-        skillTreeInUse[index] = sTree;
+        skillTreeInUse[index] = sTree->name;
 
         // Finally apply all the statbuff / new spell / new passive to the character
         applySkillTree(sTree);
@@ -92,6 +99,11 @@ namespace pg
     {
         character.stat += levelGain.stats;
 
+        learnSpells(levelGain);
+    }
+
+    void PlayerCharacter::learnSpells(const LevelIncrease& levelGain)
+    {
         for (auto& spell : levelGain.learntSpells)
         {
             character.spells.push_back(spell);
@@ -113,6 +125,33 @@ namespace pg
                 {
                     LOG_ERROR("PlayerCharacter", "Passive named: " << passiveCall.passiveName << " is not registered in the database !");
                 }
+            }
+        }
+    }
+
+    void PlayerCharacter::updateSpellList()
+    {
+        character.spells.clear();
+        character.passives.clear();
+
+        for (size_t i = 0; i < MAXSKILLTREEINUSE; i++)
+        {
+            auto sTreeName = skillTreeInUse[i];
+
+            const auto& itSTree = std::find(learnedSkillTree.begin(), learnedSkillTree.end(), sTreeName);
+
+            if (itSTree == learnedSkillTree.end())
+            {
+                LOG_ERROR("Player Chara", "SkillTree: " << sTreeName << " is not learnt by chara " << character.name);
+                return;
+            }
+
+            const auto& skillTree = *itSTree;
+
+            for (size_t j = 0; j < skillTree.currentLevel + 1; ++j)
+            {
+                const auto& levelGain = skillTree.levelGains[j];
+                learnSpells(levelGain);
             }
         }
     }
@@ -151,15 +190,7 @@ namespace pg
         {
             auto sTreeInUse = value.skillTreeInUse[i];
 
-            if (sTreeInUse)
-            {
-                serialize(archive, "sTreeInUse" + std::to_string(i), sTreeInUse->name);
-            }
-            else
-            {
-                serialize(archive, "sTreeInUse" + std::to_string(i), std::string("None"));
-            }
-
+            serialize(archive, "sTreeInUse" + std::to_string(i), sTreeInUse);
         }
 
         archive.endSerialization();
@@ -206,18 +237,17 @@ namespace pg
                 
                 defaultDeserialize(serializedString, "sTreeInUse" + std::to_string(i), sTreeName);
 
-                if (sTreeName != "None")
-                {
-                    size_t pos = std::find(data.learnedSkillTree.begin(), data.learnedSkillTree.end(), sTreeName) - data.learnedSkillTree.begin();
+                data.skillTreeInUse[i] = sTreeName;
 
-                    if (pos < data.learnedSkillTree.size())
-                    {
-                        data.skillTreeInUse[i] = &data.learnedSkillTree[pos];
-                    }
-                    else
-                    {
-                        LOG_ERROR("Player character", "Skill tree is not learnt for the player: " << sTreeName);
-                    }
+                auto it = std::find(data.learnedSkillTree.begin(), data.learnedSkillTree.end(), sTreeName);
+
+                if (it != data.learnedSkillTree.end())
+                {
+                    data.skillTreeInUse[i] = sTreeName;
+                }
+                else
+                {
+                    LOG_ERROR("Player character", "Skill tree is not learnt for the player: " << sTreeName);
                 }
             }
 
@@ -305,7 +335,7 @@ namespace pg
 
             for (size_t i = 0; i < MAXSKILLTREEINUSE; i++)
             {
-                if (currentPlayer->skillTreeInUse[i] == sTreeToUpgrade)
+                if (currentPlayer->skillTreeInUse[i] == sTreeToUpgrade->name)
                 {
                     treeEquiped = true;
                     break;
@@ -472,18 +502,7 @@ namespace pg
         {
             auto ui = skillTreeUi["skill" + std::to_string(i)];
 
-            auto skillTree = currentPlayer->skillTreeInUse[i];
-
-            std::string skillTreeName = "";
-
-            if (skillTree)
-            {
-                skillTreeName = skillTree->name;
-            }
-            else
-            {
-                skillTreeName = "None";
-            }
+            std::string skillTreeName = currentPlayer->skillTreeInUse[i];
 
             ui.get<TTFText>()->setText(skillTreeName);
 
@@ -502,16 +521,7 @@ namespace pg
 
         for (size_t i = 0; i < MAXSKILLTREEINUSE; i++)
         {
-            auto skillTree = currentPlayer->skillTreeInUse[i];
-
-            if (skillTree)
-            {
-                skillTreeNameInUse.push_back(skillTree->name);
-            }
-            else
-            {
-                skillTreeNameInUse.push_back("None");
-            }
+            skillTreeNameInUse.push_back(currentPlayer->skillTreeInUse[i]);
         }
 
         auto pushInListView = [this, skillTreeSelected](const std::string& name, SkillTree* sTree, ListView* listView)
