@@ -1,4 +1,5 @@
 #include "character.h"
+#include "fightscene.h"
 
 namespace pg
 {
@@ -121,6 +122,7 @@ namespace pg
         archive.startSerialization(Character::getType());
 
         serialize(archive, "name", value.name);
+        serialize(archive, "icon", value.icon);
         serialize(archive, "type", charaTypeToString.at(value.type));
         serialize(archive, "stat", value.stat);
 
@@ -145,6 +147,8 @@ namespace pg
             Character data;
 
             data.name = deserialize<std::string>(serializedString["name"]);
+
+            defaultDeserialize(serializedString, "icon", data.icon);
 
             std::string temp = "Enemy";
             defaultDeserialize(serializedString, "type", temp);
@@ -187,5 +191,19 @@ namespace pg
         }
 
         passives.push_back(passive);
+    }
+
+    void Character::receiveDmg(long long int amount, EntitySystem* ecsRef)
+    {
+        stat.health -= amount;
+
+        if (ecsRef)
+        {
+            std::string gain = amount < 0 ? " gained " : " lost ";
+
+            auto str = "Character " + name + gain + " hp !";
+
+            ecsRef->sendEvent(FightMessageEvent{str});
+        }
     }
 }

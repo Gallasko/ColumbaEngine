@@ -34,11 +34,12 @@ namespace pg
     struct Character
     {
         Character() {}
-        Character(const Character& other) : name(other.name), type(other.type), stat(other.stat), spells(other.spells), passives(other.passives), aggroMap(other.aggroMap), playingStatus(other.playingStatus), id(other.id) {}
+        Character(const Character& other) : name(other.name), icon(other.icon), type(other.type), stat(other.stat), spells(other.spells), passives(other.passives), aggroMap(other.aggroMap), playingStatus(other.playingStatus), id(other.id) {}
 
         Character& operator=(const Character& other)
         {
             name = other.name;
+            icon = other.icon;
             type = other.type;
             stat = other.stat;
             spells = other.spells;
@@ -51,6 +52,8 @@ namespace pg
         }
 
         std::string name = "Unknown";
+
+        std::string icon = "None";
 
         CharacterType type = CharacterType::Player;
 
@@ -81,6 +84,8 @@ namespace pg
          * Todo make sure that this map is ordered with the higher aggro first and the worst aggro last
         */
         std::map<size_t, float> aggroMap = {};
+
+        void receiveDmg(long long int amount, EntitySystem* ecsRef = nullptr);
 
         PlayingStatus playingStatus = PlayingStatus::Alive;
 

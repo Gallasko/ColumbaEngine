@@ -47,4 +47,16 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const Spell& value);
+
+    struct BasicStrike : public Spell
+    {
+        BasicStrike()
+        {
+            name = "Basic Strike";
+
+            baseDmg = 10;
+
+            physicalMultipler = 0.4f;
+        }
+    };
 }

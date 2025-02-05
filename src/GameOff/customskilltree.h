@@ -9,7 +9,11 @@ namespace pg
     {
         SlashSpell()
         {
+            name = "Slash";
 
+            baseDmg = 5;
+
+            physicalMultipler = 1.0f;
         }
     };
 

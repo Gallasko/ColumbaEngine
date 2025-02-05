@@ -68,23 +68,11 @@ namespace pg
     template <>
     SkillTree deserialize(const UnserializedObject& serializedString);
 
-    struct BasicStrike : public Spell
-    {
-        BasicStrike()
-        {
-            name = "BasicStrike";
-
-            baseDmg = 10;
-        }
-    };
-
     struct NoneSkillTree : public SkillTree 
     {
         NoneSkillTree()
         { 
             name = "None";
-
-            levelGains[0].learntSpells = { BasicStrike{} };
         }
     };
 

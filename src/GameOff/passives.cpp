@@ -61,6 +61,11 @@ namespace pg
         return PassiveCall{};
     }
 
+    void PassiveDatabase::storePassive(const Passive& passive)
+    {
+        database[passive.info.name] = passive;
+    }
+
     Passive PassiveDatabase::resolvePassive(const PassiveCall& call) const
     {
         const auto& it = database.find(call.passiveName);

@@ -76,6 +76,15 @@ namespace pg
         std::function<void(Type&, const ElementMap&)> function = [](Type&, const ElementMap&) { LOG_ERROR("Passive", "Trying to call a non function"); };
         std::shared_ptr<CallableIntepretedFunction> scriptFunction = nullptr;
 
+        ApplicablePassive& operator=(const std::function<void(Type&, const ElementMap&)>& f)
+        {
+            type = ApplicableFunctionType::Functional;
+
+            function = f;
+
+            return *this;
+        }
+
         void apply(Type& type) {};
     };
 
@@ -99,6 +108,10 @@ namespace pg
 
         /** Keep track of the number of time this passive was activated */
         size_t nbSuccesfulActivation = 0;
+
+        size_t activationChance = 100;
+
+        size_t activationMaxChance = 100;
     };
 
     struct Passive
@@ -169,6 +182,8 @@ namespace pg
     struct PassiveDatabase : public System<StoragePolicy>
     {
         std::unordered_map<std::string, Passive> database;
+
+        void storePassive(const Passive& passive);
 
         Passive resolvePassive(const PassiveCall& call) const;
     };

@@ -164,19 +164,29 @@ namespace pg
 
     void FightSystem::resolveSpell(size_t casterId, size_t receiverId, Spell* spell)
     {
+        bool critOccured = false;
         auto& caster = characters[casterId];
         auto& receiver = characters[receiverId];
 
         // Todo this is the heart of the fighting system
 
-        float spellDamage = spell->baseDmg; 
+        float spellDamage = spell->baseDmg + spell->physicalMultipler * caster.stat.physicalAttack + spell->magicalMultipler * caster.stat.magicalAttack;
+
+        auto rng = randomNumber() * 100;
+
+        if (rng <= caster.stat.critChance)
+        {
+            critOccured = true;
+            spellDamage *= caster.stat.critDamage / 100.0f;
+        }
 
         receiver.stat.health -= spellDamage;
 
         // Give more aggro to player who deal damage to the character
         receiver.aggroMap[casterId] += spellDamage;
 
-        std::string message = caster.name + " dealt " + std::to_string(static_cast<int>(spellDamage)) + " to " + receiver.name;
+        std::string message = critOccured ? "Critical Hit ! " : "";
+        message += caster.name + " dealt " + std::to_string(static_cast<int>(spellDamage)) + " to " + receiver.name;
 
         ecsRef->sendEvent(FightMessageEvent{message});
 
@@ -503,6 +513,8 @@ namespace pg
         logView = listView2.get<ListView>();
 
         logView->stickToBottom = true;
+
+        logView->spacing = 5;
 
         listenToEvent<OnMouseClick>([this](const OnMouseClick& event) {
             if (event.button == SDL_BUTTON_RIGHT)
