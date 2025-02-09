@@ -67,7 +67,7 @@ namespace pg
 
             for (auto& passive : skillTree.levelGains[i].learntPassives)
             {
-                auto it = std::find(character.passives.begin(), character.passives.end(), passive.passiveName);
+                auto it = std::find_if(character.passives.begin(), character.passives.end(), [passive](const PassiveEffect& effect) { return effect.call.passiveName == passive.passiveName; });
 
                 if (it != character.passives.end())
                     character.passives.erase(it);
@@ -117,9 +117,15 @@ namespace pg
             {
                 auto passive = passiveDatabase->resolvePassive(passiveCall);
 
-                if (passive.info.name != NOOPPASSIVE)
+                if (passive.name != NOOPPASSIVE)
                 {
-                    character.passives.push_back(passive);
+                    PassiveEffect effect;
+
+                    effect.call = passiveCall;
+                    effect.effect = passive;
+                    effect.info = passiveCall.info;
+
+                    character.passives.push_back(effect);
                 }
                 else
                 {

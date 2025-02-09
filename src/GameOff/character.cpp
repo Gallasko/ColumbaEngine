@@ -125,6 +125,10 @@ namespace pg
         serialize(archive, "icon", value.icon);
         serialize(archive, "type", charaTypeToString.at(value.type));
         serialize(archive, "stat", value.stat);
+        serialize(archive, "spells", value.spells);
+
+        // Todo
+        // serialize(archive, "passives", value.passives);
 
         archive.endSerialization();
     }
@@ -157,6 +161,11 @@ namespace pg
 
             defaultDeserialize(serializedString, "stat", data.stat);
 
+            defaultDeserialize(serializedString, "spells", data.spells);
+
+            // Todo
+            // defaultDeserialize(serializedString, "passives", data.passives);
+
             return data;
         }
 
@@ -183,11 +192,11 @@ namespace pg
     //     return passive;
     // }
 
-    void Character::addPassive(const Passive& passive)
+    void Character::addPassive(const PassiveEffect& passive, EntitySystem *ecsRef)
     {
         if (passive.info.type == PassiveType::CharacterEffect and passive.info.trigger == TriggerType::StatBoost)
         {
-            // passive.applyOnCharacter(*this);
+            passive.effect.applyOnCharacter.apply(*this, ecsRef);
         }
 
         passives.push_back(passive);
@@ -201,9 +210,24 @@ namespace pg
         {
             std::string gain = amount < 0 ? " gained " : " lost ";
 
-            auto str = "Character " + name + gain + " hp !";
+            auto str = "Character " + name + gain + std::to_string(amount) + " hp !";
 
             ecsRef->sendEvent(FightMessageEvent{str});
+        }
+
+        if (stat.health <= 0.5f)
+        {
+            speedUnits = 0;
+            playingStatus = PlayingStatus::Dead;
+            
+            if (ecsRef)
+            {
+                std::string message = name + " died !";
+
+                ecsRef->sendEvent(FightMessageEvent{message});
+
+                ecsRef->sendEvent(DeadPlayerEvent{});
+            }
         }
     }
 }

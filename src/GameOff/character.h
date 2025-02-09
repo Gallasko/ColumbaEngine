@@ -34,6 +34,7 @@ namespace pg
     struct Character
     {
         Character() {}
+        Character(const std::string& name) : name(name) {}
         Character(const Character& other) : name(other.name), icon(other.icon), type(other.type), stat(other.stat), spells(other.spells), passives(other.passives), aggroMap(other.aggroMap), playingStatus(other.playingStatus), id(other.id) {}
 
         Character& operator=(const Character& other)
@@ -65,9 +66,9 @@ namespace pg
 
         // Todo create addSpell also
 
-        std::vector<Passive> passives = {};
+        std::vector<PassiveEffect> passives = {};
 
-        void addPassive(const Passive& passive);
+        void addPassive(const PassiveEffect& passive, EntitySystem *ecsRef);
 
         inline static std::string getType() { return "Character"; }
 

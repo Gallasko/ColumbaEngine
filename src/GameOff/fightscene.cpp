@@ -164,7 +164,6 @@ namespace pg
 
     void FightSystem::resolveSpell(size_t casterId, size_t receiverId, Spell* spell)
     {
-        bool critOccured = false;
         auto& caster = characters[casterId];
         auto& receiver = characters[receiverId];
 
@@ -176,30 +175,60 @@ namespace pg
 
         if (rng <= caster.stat.critChance)
         {
-            critOccured = true;
             spellDamage *= caster.stat.critDamage / 100.0f;
+
+            ecsRef->sendEvent(FightMessageEvent{"Critical Hit !"});
         }
 
-        receiver.stat.health -= spellDamage;
+        receiver.receiveDmg(spellDamage, ecsRef);
 
         // Give more aggro to player who deal damage to the character
         receiver.aggroMap[casterId] += spellDamage;
 
-        std::string message = critOccured ? "Critical Hit ! " : "";
-        message += caster.name + " dealt " + std::to_string(static_cast<int>(spellDamage)) + " to " + receiver.name;
+        auto passiveDatabase = ecsRef->getSystem<PassiveDatabase>();
 
-        ecsRef->sendEvent(FightMessageEvent{message});
-
-        if (receiver.stat.health <= 0.5f)
+        for (auto p : spell->applyToSelf)
         {
-            receiver.speedUnits = 0;
-            receiver.playingStatus = PlayingStatus::Dead;
+            LOG_INFO("Fight Sys", "Apply passive ["  << p.passiveName << "] to self !");
 
-            message = receiver.name + " died !";
+            auto passive = passiveDatabase->resolvePassive(p);
 
-            ecsRef->sendEvent(FightMessageEvent{message});
+            if (passive.name != NOOPPASSIVE)
+            {
+                PassiveEffect effect;
 
-            checkEndFight();
+                effect.call = p;
+                effect.effect = passive;
+                effect.info = p.info;
+
+                caster.addPassive(effect, ecsRef);
+            }
+            else
+            {
+                LOG_ERROR("PlayerCharacter", "Passive named: " << p.passiveName << " is not registered in the database !");
+            }
+        }
+
+        for (auto p : spell->applyToTarget)
+        {
+            LOG_INFO("Fight Sys", "Apply passive ["  << p.passiveName << "] to target !");
+
+            auto passive = passiveDatabase->resolvePassive(p);
+
+            if (passive.name != NOOPPASSIVE)
+            {
+                PassiveEffect effect;
+
+                effect.call = p;
+                effect.effect = passive;
+                effect.info = p.info;
+
+                receiver.addPassive(effect, ecsRef);
+            }
+            else
+            {
+                LOG_ERROR("PlayerCharacter", "Passive named: " << p.passiveName << " is not registered in the database !");
+            }
         }
 
         ecsRef->sendEvent(PlayFightAnimation{receiverId, FightAnimationEffects::Hit});
@@ -209,11 +238,20 @@ namespace pg
     {
         // Todo here need to resolve spell and enemy AI
 
+        if (chara->playingStatus == PlayingStatus::Dead)
+        {
+            LOG_ERROR("Fight Scene", "Character: " << chara->name << ", is dead but still try to play !");
+            skipTurn();
+
+            return;
+        }
+
         if (chara->spells.size() == 0)
         {
+            // If the mob couldn't hit anyone we need to at least send one PlayFightAnimation to update the state machine
             LOG_ERROR("Fight Scene", "Character: " << chara->name << ", cannot cast any spell !");
 
-            ecsRef->sendEvent(PlayFightAnimation{0, FightAnimationEffects::Nothing});
+            skipTurn();
             
             return;
         }
@@ -246,6 +284,13 @@ namespace pg
         // If the mob couldn't hit anyone we need to at least send one PlayFightAnimation to update the state machine
         if (currentTarget == 0)
             ecsRef->sendEvent(PlayFightAnimation{0, FightAnimationEffects::Nothing});
+
+        needToProcessEnemyNextTurn = false;
+    }
+
+    void FightSystem::skipTurn(size_t id, const FightAnimationEffects& effect)
+    {
+        ecsRef->sendEvent(PlayFightAnimation{id, effect});
 
         needToProcessEnemyNextTurn = false;
     }
@@ -298,6 +343,8 @@ namespace pg
         character->speedUnits -= SPEEDUNITTHRESHOLD + 1;
         LOG_INFO("Fight System", "Next playing character: " << character->name);
 
+        ecsRef->sendEvent(FightMessageEvent{"Starting turn of " + character->name});
+
         tickDownPassives(character);
 
         if (character->type == CharacterType::Player)
@@ -319,6 +366,12 @@ namespace pg
         {
             auto& passive = character->passives[i];
 
+            // We try to apply the passive if it is a start of turn one
+            if (passive.info.type == PassiveType::CharacterEffect and passive.info.trigger == TriggerType::TurnStart)
+            {
+                passive.effect.applyOnCharacter.apply(*character, ecsRef);
+            }
+
             // If the passive is not infinite (remainingTurn == -1) tick down a turn from it
             if (passive.info.remainingTurns != -1)
             {
@@ -333,7 +386,7 @@ namespace pg
                         // passive.removeFromCharacter(*character);
                     }
 
-                    std::string message = character->name + " is no longer under: " + passive.info.name;
+                    std::string message = character->name + " is no longer under: " + passive.call.passiveName;
 
                     ecsRef->sendEvent(FightMessageEvent{message});
 
@@ -554,14 +607,10 @@ namespace pg
 
         listenToEvent<EnemyNextTurn>([this](const EnemyNextTurn& event) {
             LOG_INFO("Fight Scene", "Current enemy turn: " << event.chara->name);
-
-            writeInLog("Starting turn of " + event.chara->name);
         });
 
         listenToEvent<PlayerNextTurn>([this](const PlayerNextTurn& event) {
             LOG_INFO("Fight Scene", "Current player turn: " << event.chara->name);
-
-            writeInLog("Starting turn of " + event.chara->name);
 
             if (event.chara->type == CharacterType::Player)
             {

@@ -2,6 +2,7 @@
 
 #include "skilltree.h"
 #include "customitem.h"
+#include "custompassive.h"
 
 namespace pg
 {
@@ -14,6 +15,30 @@ namespace pg
             baseDmg = 5;
 
             physicalMultipler = 1.0f;
+        }
+    };
+
+    struct FireSlash : public Spell
+    {
+        FireSlash()
+        {
+            name = "Fire Slash";
+
+            baseDmg = 5;
+
+            physicalMultipler = 1.0f;
+
+            PassiveCall call;
+
+            call.passiveName = "Burn";
+
+            call.info.type = PassiveType::CharacterEffect;
+
+            call.info.trigger = TriggerType::TurnStart;
+
+            call.args["burnDmg"] = 5;
+
+            applyToTarget.push_back(call);
         }
     };
 
@@ -45,6 +70,8 @@ namespace pg
             }
 
             levelGains[0].learntSpells = { SlashSpell{} };
+
+            levelGains[1].learntSpells = { FireSlash{} };
         }
     };
 

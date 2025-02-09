@@ -205,19 +205,9 @@ namespace pg
                 return nullptr;
             }
 
-            auto list = makeList(this, {
-                {"name", v.toString()},
-                {"baseDmg", 1},
-                {"manaCost", 0},
-                {"cooldown", 1},
-                {"physicalMultipler", 0.0f},
-                {"magicalMultipler", 0.0f},
-                {"selfOnly", false},
-                {"multiTarget", true},
-                {"nbTargets", 1},
-                });
+            Spell spell;
 
-            // ApplyOn and RemoveFrom are functions
+            auto list = serializeToInterpreter(this, spell);
 
             return list;
         }
@@ -230,6 +220,7 @@ namespace pg
             addSystemFunction<CreateCharacter>("newChara");
             addSystemFunction<CreateLocation>("createLocation", ecsRef);
             addSystemFunction<CreateItem>("newItem");
+            addSystemFunction<CreateSpell>("newSpell");
             addSystemFunction<CreatePassive>("createPassive");
 
             addSystemFunction<ReadCharaList>("readCharaList");

@@ -73,19 +73,29 @@ namespace pg
         ElementMap args;
 
         // Todo make it an union
-        std::function<void(Type&, const ElementMap&)> function = [](Type&, const ElementMap&) { LOG_ERROR("Passive", "Trying to call a non function"); };
+        std::function<void(Type&, const ElementMap&, EntitySystem*)> func = [](Type&, const ElementMap&, EntitySystem*) { LOG_ERROR("Passive", "Trying to call a non function"); };
         std::shared_ptr<CallableIntepretedFunction> scriptFunction = nullptr;
 
-        ApplicablePassive& operator=(const std::function<void(Type&, const ElementMap&)>& f)
+        ApplicablePassive& operator=(const std::function<void(Type&, const ElementMap&, EntitySystem*)>& f)
         {
             type = ApplicableFunctionType::Functional;
 
-            function = f;
+            func = f;
 
             return *this;
         }
 
-        void apply(Type& type) {};
+        void apply(Type& chara, EntitySystem *ecsRef) const
+        {
+            if (type == ApplicableFunctionType::Functional)
+            {
+                func(chara, args, ecsRef);
+            }
+            else
+            {
+                LOG_ERROR("Passive", "Passive function type is not supported !");
+            }
+        };
     };
 
     struct PassiveInfo
@@ -94,7 +104,7 @@ namespace pg
 
         TriggerType trigger;
 
-        std::string name = "Passive"; 
+        // std::string name = "Passive"; 
         
         // -1 means permanent, once it reach 0, the passive is removed
         int32_t remainingTurns = -1;
@@ -114,9 +124,15 @@ namespace pg
         size_t activationMaxChance = 100;
     };
 
+    template <>
+    void serialize(Archive& archive, const PassiveInfo& value);
+
+    template <>
+    PassiveInfo deserialize(const UnserializedObject& serializedString);
+
     struct Passive
     {
-        PassiveInfo info;
+        std::string name = NOOPPASSIVE;
 
         // Function to use and define when passiveType == CharacterEffect
         ApplicablePassive<Character> applyOnCharacter;
@@ -125,18 +141,32 @@ namespace pg
         // Todo upgrade this to be more precise
         bool operator==(const Passive& other)
         {
-            return info.name == other.info.name;
+            return this->name == other.name;
         }
 
         bool operator==(const std::string& name)
         {
-            return info.name == name;
+            return this->name == name;
         }
     };
 
     struct PassiveCall
     {
+        PassiveCall() {};
+        PassiveCall(const PassiveCall& other) : passiveName(other.passiveName), info(other.info), args(other.args) {}
+
+        PassiveCall& operator=(const PassiveCall& other)
+        {
+            passiveName = other.passiveName;
+            info = other.info;
+            args = other.args;
+
+            return *this;
+        }
+
         std::string passiveName;
+
+        PassiveInfo info;
 
         ElementMap args;
     };
@@ -165,6 +195,7 @@ namespace pg
     {
         PassiveCall call;
         PassiveInfo info;
+        Passive effect;
     };
 
     /**

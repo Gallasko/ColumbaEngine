@@ -45,6 +45,8 @@ namespace pg
         Character* chara;
     };
 
+    struct DeadPlayerEvent {};
+
     enum class FightAnimationEffects : uint8_t
     {
         Nothing = 0, // Used only to advance the state machine (when no spell is casted or the enemy couldn't target anyone !)
@@ -76,13 +78,18 @@ namespace pg
         std::vector<Character> characters;
     };
 
-    struct FightSystem : public System<Listener<StartFightAtLocation>, Listener<StartFight>, Listener<SpellCasted>, Listener<PlayFightAnimationDone>, Listener<EnemyNextTurn>>
+    struct FightSystem : public System<Listener<StartFightAtLocation>, Listener<StartFight>, Listener<SpellCasted>, Listener<PlayFightAnimationDone>, Listener<EnemyNextTurn>, Listener<DeadPlayerEvent>>
     {
         virtual void onEvent(const StartFight& event) override;
         virtual void onEvent(const EnemyNextTurn& event) override;
         virtual void onEvent(const PlayFightAnimationDone& event) override;
         virtual void onEvent(const SpellCasted& event) override;
         virtual void onEvent(const StartFightAtLocation& event) override;
+
+        virtual void onEvent(const DeadPlayerEvent&) override
+        {
+            checkEndFight();
+        }
 
         void clear();
 
@@ -91,6 +98,8 @@ namespace pg
         void resolveSpell(size_t casterId, size_t receiverId, Spell* spell);
 
         void processEnemyNextTurn(Character *chara);
+
+        void skipTurn(size_t id = 0, const FightAnimationEffects& effect = FightAnimationEffects::Nothing);
 
         void addCharacter(Character character);
 

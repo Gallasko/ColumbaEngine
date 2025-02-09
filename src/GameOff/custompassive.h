@@ -9,18 +9,16 @@ namespace pg
     {
         BurnPassive()
         {
-            info.name = "Burn";
+            name = "Burn";
 
-            info.type = PassiveType::CharacterEffect;
+            applyOnCharacter = [](Character& chara, const ElementMap& args, EntitySystem *ecsRef) {
+                LOG_INFO("Custom Passive", "Player " << chara.name << " took some burn damage !");
 
-            info.trigger = TriggerType::TurnStart;
-
-            applyOnCharacter = [](Character& chara, const ElementMap& args) {
-                const auto& it = std::find(args.begin(), args.end(), "burnDmg");
+                const auto& it = args.find("burnDmg");
 
                 if (it != args.end())
                 {
-                    chara.receiveDmg(it->second.get<int>());
+                    chara.receiveDmg(it->second.get<int>(), ecsRef);
                 }
             };
         }

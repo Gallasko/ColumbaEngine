@@ -196,7 +196,9 @@ void initGame()
 
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
-    mainWindow->ecs.createSystem<PassiveDatabase>();
+    auto pDatas = mainWindow->ecs.createSystem<PassiveDatabase>();
+
+    pDatas->storePassive(BurnPassive{});
 
     mainWindow->ecs.createSystem<PlayerHandlingSystem>();
 
