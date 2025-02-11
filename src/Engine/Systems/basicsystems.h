@@ -14,20 +14,33 @@ namespace pg
         {
             LOG_INFO("FPS System initialized", "FPS System initializing");
 
+            auto mainWindowEnt = ecsRef->getEntity(ecsRef->getSystem<EntityNameSystem>()->getEntityId("__MainWindow"));
+
+            auto ui = mainWindowEnt->get<UiComponent>();
+
             auto sentence = makeSentence(ecsRef, 0, 0, {"0"});
             auto s2 = makeSentence(ecsRef, 0, 0, {"0"});
             auto s3 = makeSentence(ecsRef, 0, 0, {"0"});
+            auto s4 = makeSentence(ecsRef, 0, 0, {"0"});
 
             sentence.get<UiComponent>()->setZ(2);
             s2.get<UiComponent>()->setZ(2);
             s3.get<UiComponent>()->setZ(2);
+            s4.get<UiComponent>()->setZ(2);
+
+            sentence.get<UiComponent>()->setRightAnchor(ui->right);
+            s2.get<UiComponent>()->setRightAnchor(sentence.get<UiComponent>()->right);
+            s3.get<UiComponent>()->setRightAnchor(s2.get<UiComponent>()->right);
+            s4.get<UiComponent>()->setRightAnchor(s3.get<UiComponent>()->right);
 
             s2.get<UiComponent>()->setTopAnchor(sentence.get<UiComponent>()->bottom);
             s3.get<UiComponent>()->setTopAnchor(s2.get<UiComponent>()->bottom);
+            s4.get<UiComponent>()->setTopAnchor(s3.get<UiComponent>()->bottom);
 
             fpsText = sentence.get<SentenceText>();
             generatedText = s2.get<SentenceText>();
             executionText = s3.get<SentenceText>();
+            drawCallText = s4.get<SentenceText>();
         }
 
         virtual void onEvent(const TickEvent& event) override
@@ -74,12 +87,14 @@ namespace pg
                 fpsText->setText(fpsStr.getData());
                 generatedText->setText(fpsStr2.getData());
                 executionText->setText(std::to_string(ecsRef->getCurrentNbOfExecution()));
+                drawCallText->setText(std::to_string(rendererSys->getNbRenderCall()));
             }
         }
 
         CompRef<SentenceText> fpsText;
         CompRef<SentenceText> generatedText;
         CompRef<SentenceText> executionText;
+        CompRef<SentenceText> drawCallText;
         
         size_t accumulatedTick = 0;
         size_t lastNbOfFrames = 0;

@@ -20,6 +20,7 @@
 #include "UI/textinput.h"
 #include "UI/sentencesystem.h"
 #include "UI/listview.h"
+#include "UI/prefab.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -389,6 +390,8 @@ namespace pg
 
         ecs.createSystem<SceneElementSystem>();
 
+        ecs.createSystem<PrefabSystem>();
+
         ecs.createSystem<ListViewSystem>();
 
         // Ecs task scheduling
@@ -398,6 +401,8 @@ namespace pg
         ecs.succeed<TimerSystem, TickingSystem>();
 
         ecs.succeed<MouseClickSystem, TickingSystem>();
+
+        ecs.succeed<UiComponentSystem, PrefabSystem>();
 
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
 

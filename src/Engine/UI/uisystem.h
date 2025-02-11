@@ -34,6 +34,7 @@ namespace pg
     {
     friend struct UiComponentSystem;
     friend struct ListView;
+    friend struct Prefab;
         // Type definition
     private:
         /**
@@ -43,6 +44,16 @@ namespace pg
         {
             UiSize verticalAnchor;       ///< The vertical anchor point of the corner
             UiSize horizontalAnchor;     ///< The horizontal anchor point of the corner
+
+            bool operator==(const Corner& other)
+            {
+                return verticalAnchor == other.verticalAnchor and horizontalAnchor == other.horizontalAnchor;
+            }
+
+            bool operator!=(const Corner& other)
+            {
+                return not (*this == other);
+            }
         };
 
         // Public interface

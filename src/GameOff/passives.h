@@ -119,6 +119,8 @@ namespace pg
         /** Keep track of the number of time this passive was activated */
         size_t nbSuccesfulActivation = 0;
 
+        // Todo
+        // size_t acc = 2.0f / 3.0f;
         size_t activationChance = 100;
 
         size_t activationMaxChance = 100;

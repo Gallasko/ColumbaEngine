@@ -3,6 +3,7 @@
 #include "UI/listview.h"
 
 #include "UI/ttftext.h" 
+#include "UI/prefab.h"
 
 #include "characustomizationscene.h"
 
@@ -310,26 +311,33 @@ namespace pg
 
         auto sys = ecsRef->getSystem<InventorySystem>();
 
-        for (size_t i = 0; i < nbItemShown; i++)
-        {
-            ecsRef->removeEntity(inventoryUi["temp" + std::to_string(i)]);
-        }
-
-        nbItemShown = 0;
-
         for (auto& item : sys->items[type])
         {
-            auto itemTex = makeUiTexture(this, 73 * 3, 17 * 3, "Header2");
+            auto prefab = makePrefab(this, 0, 0);
+            prefab.get<Prefab>()->setVisibility(false);
+
+            // Careful here we don't pass this but ecsRef because when using a Prefab we don't want the underlaying element to be deleted by the scene
+            // before deleting it ourselves in the prefab
+            auto itemTex = makeUiTexture(ecsRef, 73 * 3, 17 * 3, "Header2");
+
+            itemTex.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
+            itemTex.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
+
+            prefab.get<UiComponent>()->setWidth(itemTex.get<UiComponent>()->width);
+            prefab.get<UiComponent>()->setHeight(itemTex.get<UiComponent>()->height);
+
+            prefab.get<Prefab>()->addToPrefab(itemTex.get<UiComponent>());
 
             // itemTex.get<UiComponent>()->setZ(1);
 
-            auto itemUi = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name + " x" + std::to_string(item.nbItems), 0.4);
+            auto itemUi = makeTTFText(ecsRef, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name + " x" + std::to_string(item.nbItems), 0.4);
 
-            // itemUi.get<UiComponent>()->setTopAnchor(itemTex.get<UiComponent>()->top);
-            // itemUi.get<UiComponent>()->setTopMargin(5);
-            // itemUi.get<UiComponent>()->setLeftAnchor(itemTex.get<UiComponent>()->left);
-            // itemUi.get<UiComponent>()->setLeftMargin(5);
-            // itemUi.get<UiComponent>()->setZ(2);
+            itemUi.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
+            itemUi.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
+
+            itemUi.get<UiComponent>()->setZ(2);
+
+            prefab.get<Prefab>()->addToPrefab(itemUi.get<UiComponent>());
 
             if (item.attributes.count("UsableOnCharacter") > 0 and item.attributes.at("UsableOnCharacter") == true)
             {
@@ -337,12 +345,7 @@ namespace pg
                 attach<MouseLeftClickComponent>(itemTex.entity, makeCallable<ShowCharaList>(&item));
             }
 
-            itemTex.get<UiComponent>()->setVisibility(false);
-
-            view->addEntity(itemTex.get<UiComponent>());
-
-            inventoryUi["temp" + std::to_string(nbItemShown)] = itemUi.entity;
-            nbItemShown++;
+            view->addEntity(prefab.get<UiComponent>());
         }
     }
 }

@@ -570,6 +570,8 @@ namespace pg
 
         inline size_t getNbRenderedFrames() const { return nbRenderedFrames; }
 
+        inline size_t getNbRenderCall() const { return renderCallList[currentRenderList.load()].size(); }
+
     private:
         std::atomic<bool> inSwap {false};
         std::atomic<bool> newMaterialRegistered {false};
