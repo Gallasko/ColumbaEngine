@@ -19,11 +19,9 @@ namespace pg
         serialize(archive, "description", value.description);
 
         serialize(archive, "attributes", value.attributes);
-        
-        // Todo
-        // serialize(archive, "rarity", itemR value.nbItems);
-        // for (auto att : value.attributes) serialize(archive, att.first, att.second);
 
+        serialize(archive, "icon", value.icon);
+        
         archive.endSerialization();
     }
 
@@ -55,6 +53,8 @@ namespace pg
             defaultDeserialize(serializedString, "description", data.description);
 
             defaultDeserialize(serializedString, "attributes", data.attributes);
+
+            defaultDeserialize(serializedString, "icon", data.icon);
 
             return data;
         }

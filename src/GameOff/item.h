@@ -48,7 +48,7 @@ namespace pg
     struct Item
     {
         Item() {}
-        Item(const Item& other) : name(other.name), type(other.type), stacksize(other.stacksize), nbItems(other.nbItems), rarity(other.rarity), attributes(other.attributes), description(other.description) {}
+        Item(const Item& other) : name(other.name), type(other.type), stacksize(other.stacksize), nbItems(other.nbItems), rarity(other.rarity), attributes(other.attributes), description(other.description), icon(other.icon) {}
 
         Item& operator=(const Item& other)
         {
@@ -59,6 +59,7 @@ namespace pg
             rarity = other.rarity;
             attributes = other.attributes;
             description = other.description;
+            icon = other.icon;
 
             return *this;
         }
@@ -91,6 +92,9 @@ namespace pg
 
         /** Description of the item */
         std::string description = "An item";
+
+        /** Icon of the item */
+        std::string icon = "NoneIcon";
 
         bool operator==(const Item& rhs) const
         {
