@@ -234,15 +234,31 @@ namespace pg
 
         while (found)
         {
-            if (textureList.find(item.name) == textureList.end())
+            const auto& it = textureList.find(item.name);
+
+            size_t oldId = 0;
+
+            if (it == textureList.end())
             {
                 LOG_MILE(DOM, "Registering texture: " << item.name);
-
-                auto texture = item.callback();
-
-                if (texture.id != 0)
-                    registerTexture(item.name, texture);
             }
+            else
+            {
+                LOG_WARNING(DOM, "Replacing registered texture: " << item.name);
+                oldId = it->second.id;
+            }
+
+            auto texture = item.callback(oldId);
+
+            if (texture.id != 0)
+            {
+                registerTexture(item.name, texture);
+            }
+            else
+            {
+                LOG_ERROR(DOM, "Trying to register a null texture: " << item.name);
+            }
+
 
             found = textureRegisteringQueue.try_dequeue(item);
         }
@@ -294,9 +310,9 @@ namespace pg
     }
 
     // TODO mirror or not the texture
-    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...
-    void MasterRenderer::registerTexture(const std::string& name, const char* texturePath)
-    { 
+    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...        
+    OpenGLTexture MasterRenderer::registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId, bool instantRegister)
+    {
         LOG_THIS_MEMBER(DOM);
 
         int width, height, nrChannels;
@@ -315,15 +331,24 @@ namespace pg
                 LOG_ERROR(DOM, "Failed to load texture: Unknown");
             }
 
-            return;
+            return OpenGLTexture{};
         }
 
         LOG_INFO(DOM, "Loaded texture " << name << " from " << texturePath << " with width = " << width << " height = " << height << " nbchannels = " << nrChannels);
+        
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
         unsigned int texture;
 
-        glGenTextures(1, &texture);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        if (oldId)
+        {
+            texture = oldId;
+            glBindTexture(GL_TEXTURE_2D, texture);
+        }
+        else
+        {
+            glGenTextures(1, &texture);
+        }
         glBindTexture(GL_TEXTURE_2D, texture);
         // set the texture wrapping parameters
         //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -362,9 +387,18 @@ namespace pg
 
         glGenerateMipmap(GL_TEXTURE_2D);
 
-        registerTexture(name, tex);
+        if (instantRegister)
+            registerTexture(name, tex);
 
         stbi_image_free(data);
+
+        return tex;
+    }
+
+    
+    void MasterRenderer::registerTexture(const std::string& name, const char* texturePath)
+    { 
+        registerTextureHelper(name, texturePath);
     }
 
     void MasterRenderer::registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath)

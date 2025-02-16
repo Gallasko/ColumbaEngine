@@ -138,7 +138,7 @@ namespace pg
   
         for (unsigned char c = 0; c < 128; c++)
         {
-            auto f = [fontPath, face, c, this]() {
+            auto f = [fontPath, face, c, this](size_t oldId) {
                 // load character glyph 
                 if (FT_Load_Char(face, c, FT_LOAD_RENDER))
                 {
@@ -148,7 +148,15 @@ namespace pg
 
                 // generate texture
                 unsigned int texture;
-                glGenTextures(1, &texture);
+                if (oldId)
+                {
+                    texture = oldId;
+                    glBindTexture(GL_TEXTURE_2D, texture);
+                }
+                else
+                {
+                    glGenTextures(1, &texture);
+                }
                 glBindTexture(GL_TEXTURE_2D, texture);
                 glTexImage2D(
                     GL_TEXTURE_2D,

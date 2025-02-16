@@ -19,6 +19,8 @@
 
 #include "gamemodule.h"
 
+#include "Helpers/tinyfiledialogs.h" 
+
 using namespace pg;
 
 namespace
@@ -49,6 +51,8 @@ struct SceneToLoad
 
     SceneName name;
 };
+
+struct ChangePortraitEvent {};
 
 struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, StoragePolicy, InitSys, SaveSys>
 {
@@ -143,6 +147,58 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     std::vector<int> test = {};
 };
 
+struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePolicy, InitSys>
+{
+    MasterRenderer *renderer;
+    CompRef<Texture2DComponent> tex;
+
+    PortraitLoader(MasterRenderer *renderer) : renderer(renderer)
+    {
+
+    }
+
+    void init() override
+    {
+        auto titleTTF = makeTTFText(ecsRef, 0, 300, "res/font/Inter/static/Inter_28pt-Light.ttf", "ChangePortrait", 0.4);
+        titleTTF.get<UiComponent>()->setZ(1);
+        ecsRef->attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<ChangePortraitEvent>());
+
+        auto portrait = makeUiTexture(ecsRef, 100, 100, "NoneIcon");
+
+        portrait.get<UiComponent>()->setX(250);
+        portrait.get<UiComponent>()->setY(300);
+        
+        tex = portrait.get<Texture2DComponent>();
+    }
+
+    virtual void onEvent(const ChangePortraitEvent&) override
+    {
+        char * lTheOpenFileName;
+    	char const * lFilterPatterns[1] = { "*.png" };
+
+        lTheOpenFileName = tinyfd_openFileDialog(
+            "Open an image file",
+            "", // Starting path
+            1, // Number of patterns
+            lFilterPatterns, // List of patterns
+            "Image (.png)",
+            1);
+
+        if (lTheOpenFileName)
+        {
+            LOG_INFO("Change Portrait", lTheOpenFileName);
+            changeImage(lTheOpenFileName);
+        }
+    }
+
+    void changeImage(const std::string& filePath)
+    {
+        renderer->queueRegisterTexture("Portrait", filePath.c_str());
+
+        tex->setTexture("Portrait");
+    }
+};
+
 std::thread *initThread;
 pg::Window *mainWindow = nullptr;
 std::atomic<bool> initialized = {false};
@@ -205,6 +261,8 @@ void initGame()
     mainWindow->ecs.createSystem<LocationSystem>();
 
     mainWindow->ecs.createSystem<SceneLoader>();
+
+    mainWindow->ecs.createSystem<PortraitLoader>(mainWindow->masterRenderer);
 
     mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
 

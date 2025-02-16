@@ -431,7 +431,7 @@ namespace pg
         struct TextureRegisteringQueueItem
         {
             std::string name;
-            std::function<OpenGLTexture(void)> callback;
+            std::function<OpenGLTexture(size_t)> callback;
         };
 
     public:
@@ -452,11 +452,19 @@ namespace pg
         void registerShader(const std::string& name, OpenGLShaderProgram *shaderProgram);
         void registerShader(const std::string& name, const std::string& vsPath, const std::string& fsPath);
 
+        OpenGLTexture registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId = 0, bool instantRegister = true);
         void registerTexture(const std::string& name, OpenGLTexture texture) { textureList[name] = texture; }
         void registerTexture(const std::string& name, const char* texturePath);
         void registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath);
 
-        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(void)>& callback) { textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback}); }
+        void queueRegisterTexture(const std::string& name, const char* texturePath)
+        {
+            std::string path = texturePath;
+            std::function<OpenGLTexture(size_t)> f = [name, path, this](size_t oldId) { return registerTextureHelper(name, path.c_str(), oldId, false); };
+
+            textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, f});
+        }
+        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback) { textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback}); }
 
         size_t registerMaterial(const Material& material)
         {
