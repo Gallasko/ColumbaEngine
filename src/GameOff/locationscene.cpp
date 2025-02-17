@@ -4,6 +4,8 @@
 
 #include "fightscene.h"
 
+#include "gamefacts.h"
+
 namespace pg
 {
     namespace
@@ -156,9 +158,25 @@ namespace pg
 
         auto sys = ecsRef->getSystem<LocationSystem>();
 
+        auto facts = ecsRef->getSystem<WorldFacts>();
+
         for (const auto& location : sys->locations)
         {
-            addLocation(location);
+            bool available = true;
+
+            for (const auto& fact : location.prerequisiteFacts)
+            {
+                auto factCheck = fact.check(facts->factMap);
+
+                if (not factCheck)
+                {
+                    available = false;
+                    break;
+                }
+            }
+
+            if (available)
+                addLocation(location);
         }
     }
 

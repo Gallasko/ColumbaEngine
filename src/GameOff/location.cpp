@@ -98,7 +98,7 @@ namespace pg
         serialize(archive, "encounters", value.possibleEnounters);
         serialize(archive, "boss", value.bossEncounter);
         serialize(archive, "finished", value.finished);
-        serialize(archive, "prerequisite", value.prerequisiteEnounters);
+        serialize(archive, "prerequisite", value.prerequisiteFacts);
         
         archive.endSerialization();
     }
@@ -126,7 +126,7 @@ namespace pg
             defaultDeserialize(serializedString, "random", data.randomEncounter);
             defaultDeserialize(serializedString, "boss", data.bossEncounter);
             defaultDeserialize(serializedString, "finished", data.finished);
-            defaultDeserialize(serializedString, "prerequisite", data.prerequisiteEnounters);
+            defaultDeserialize(serializedString, "prerequisite", data.prerequisiteFacts);
 
             data.possibleEnounters = deserializeVector<Encounter>(serializedString["encounters"]);
             

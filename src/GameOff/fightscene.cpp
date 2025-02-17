@@ -24,6 +24,8 @@
 
 #include "inventory.h"
 
+#include "gamefacts.h"
+
 #include "locationscene.h"
 
 namespace pg
@@ -118,6 +120,16 @@ namespace pg
         }
 
         ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<FightScene>();
+    }
+
+    void FightSystem::onEvent(const DeadPlayerEvent& event)
+    {
+        if (event.chara.type == CharacterType::Enemy)
+        {
+            ecsRef->sendEvent(IncreaseFact{event.chara.name + "_defeated"});
+        }
+
+        checkEndFight();
     }
 
     void FightSystem::clear()

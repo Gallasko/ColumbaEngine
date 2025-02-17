@@ -226,7 +226,7 @@ namespace pg
 
                 ecsRef->sendEvent(FightMessageEvent{message});
 
-                ecsRef->sendEvent(DeadPlayerEvent{});
+                ecsRef->sendEvent(DeadPlayerEvent{*this});
             }
         }
     }

@@ -6,6 +6,8 @@
 
 #include "item.h"
 
+#include "gamefacts.h"
+
 namespace pg
 {
     struct DropChance
@@ -38,7 +40,7 @@ namespace pg
 
         bool finished = false;
 
-        std::vector<std::string> prerequisiteEnounters;
+        std::vector<FactChecker> prerequisiteFacts;
     };
 
     template <>

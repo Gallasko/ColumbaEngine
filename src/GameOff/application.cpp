@@ -18,6 +18,7 @@
 #include "inventory.h"
 
 #include "gamemodule.h"
+#include "gamefacts.h"
 
 #include "Helpers/tinyfiledialogs.h" 
 
@@ -263,6 +264,8 @@ void initGame()
     mainWindow->ecs.createSystem<SceneLoader>();
 
     mainWindow->ecs.createSystem<PortraitLoader>(mainWindow->masterRenderer);
+
+    mainWindow->ecs.createSystem<WorldFacts>();
 
     mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
 

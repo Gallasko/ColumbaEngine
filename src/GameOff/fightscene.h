@@ -45,7 +45,7 @@ namespace pg
         Character* chara;
     };
 
-    struct DeadPlayerEvent {};
+    struct DeadPlayerEvent { Character chara; };
 
     enum class FightAnimationEffects : uint8_t
     {
@@ -77,6 +77,7 @@ namespace pg
 
         std::vector<Character> characters;
     };
+    
 
     struct FightSystem : public System<Listener<StartFightAtLocation>, Listener<StartFight>, Listener<SpellCasted>, Listener<PlayFightAnimationDone>, Listener<EnemyNextTurn>, Listener<DeadPlayerEvent>>
     {
@@ -85,11 +86,7 @@ namespace pg
         virtual void onEvent(const PlayFightAnimationDone& event) override;
         virtual void onEvent(const SpellCasted& event) override;
         virtual void onEvent(const StartFightAtLocation& event) override;
-
-        virtual void onEvent(const DeadPlayerEvent&) override
-        {
-            checkEndFight();
-        }
+        virtual void onEvent(const DeadPlayerEvent& event) override;
 
         void clear();
 

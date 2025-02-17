@@ -15,7 +15,7 @@ namespace pg
 
     struct LocationSystem : public System<StoragePolicy>
     {
-        std::vector<Location> locations = { SlimeForest{} };
+        std::vector<Location> locations = { SlimeForest{}, SlimeDen{} };
     };
 
     struct LocationScene : public Scene
