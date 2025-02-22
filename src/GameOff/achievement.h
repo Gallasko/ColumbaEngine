@@ -11,6 +11,81 @@
 
 namespace pg
 {
+    enum class AchievementRewardType : uint8_t
+    {
+        NoReward = 0,
+        Event,
+        Add,
+        Remove,
+        Increase
+    };
+
+    const static std::unordered_map<AchievementRewardType, std::string> achievementRewardTypeToString = {
+        {AchievementRewardType::NoReward, "NoReward"},
+        {AchievementRewardType::Event, "Event"},
+        {AchievementRewardType::Add, "Add"},
+        {AchievementRewardType::Remove, "Remove"},
+        {AchievementRewardType::Increase, "Increase"},
+    };
+
+    const static auto stringToAchievementRewardType = invertMap(achievementRewardTypeToString);
+
+    struct AchievementReward
+    {
+        AchievementReward() : type(AchievementRewardType::NoReward), reward(StandardEvent("Noop")) { }
+        AchievementReward(const StandardEvent& event) : type(AchievementRewardType::Event), reward(event) {}
+        AchievementReward(const AddFact& fact) : type(AchievementRewardType::Add), reward(fact) {}
+        AchievementReward(const RemoveFact& fact) : type(AchievementRewardType::Remove), reward(fact) {}
+        AchievementReward(const IncreaseFact& fact) : type(AchievementRewardType::Increase), reward(fact) {}
+
+        AchievementReward(const AchievementReward& other) : type(other.type), reward(other.reward) {}
+
+        AchievementReward& operator=(const AchievementReward& other)
+        {
+            type = other.type;
+            reward = other.reward;
+
+            return *this;
+        }
+
+        inline static std::string getType() { return "AchievementReward"; }
+
+        void call(EntitySystem* ecsRef) const
+        {
+            switch (type)
+            {
+            case AchievementRewardType::Event:
+                ecsRef->sendEvent(std::get<StandardEvent>(reward));
+                break;
+            
+            case AchievementRewardType::Add:
+                ecsRef->sendEvent(std::get<AddFact>(reward));
+                break;
+
+            case AchievementRewardType::Remove:
+                ecsRef->sendEvent(std::get<RemoveFact>(reward));
+                break;
+
+            case AchievementRewardType::Increase:
+                ecsRef->sendEvent(std::get<IncreaseFact>(reward));
+                break;
+
+            default:
+                LOG_ERROR("AchivementReward", "Trying to call an empty reward");
+                break;
+            }
+        }
+
+        AchievementRewardType type;
+        std::variant<StandardEvent, AddFact, RemoveFact, IncreaseFact> reward;
+    };
+
+    template <>
+    void serialize(Archive& archive, const AchievementReward& value);
+
+    template <>
+    AchievementReward deserialize(const UnserializedObject& serializedString);
+
     struct Achievement
     {
         inline static std::string getType() { return "Achievement"; }
@@ -21,7 +96,7 @@ namespace pg
 
         std::vector<FactChecker> prerequisiteFacts;
 
-        // std::vector<Facts> rewardFacts;
+        std::vector<AchievementReward> rewardFacts;
 
         bool isComplete(const std::unordered_map<std::string, ElementType>& facts)
         {
@@ -42,7 +117,12 @@ namespace pg
         // Todo
         void setUnlocked(EntitySystem *ecsRef)
         {
+            unlocked = true;
 
+            for (const auto& reward : rewardFacts)
+            {
+                reward.call(ecsRef);
+            }
         }
     };
 
@@ -75,7 +155,7 @@ namespace pg
 
         virtual void init() override
         {
-
+            firstInit = true;
         }
 
         // Only save and load unlocked achievement !
@@ -97,6 +177,8 @@ namespace pg
 
             if (firstInit)
             {
+                firstInit = false;
+
                 for (const auto& achievement : achievementUnlocked)
                 {
                     const auto& end = achievementLocked.end();
@@ -111,8 +193,16 @@ namespace pg
                 }
 
                 checkAllLockedAchievement();
+            }
 
-                firstInit = false; 
+            while (not achievementToUnlock.empty())
+            {
+                auto achi = achievementToUnlock.front();
+                
+                achi->setUnlocked(ecsRef);
+                achievementUnlocked.push_back(*achi);
+                    
+                achievementToUnlock.pop();
             }
 
             auto worldFacts = ecsRef->getSystem<WorldFacts>();
@@ -143,10 +233,14 @@ namespace pg
             {
                 auto& achievementVec = achievementToResolve[changedFact];
 
-                for (auto it = achievementVec.rbegin(); it != achievementVec.rend();)
+                auto end = achievementVec.rend();
+
+                for (auto it = achievementVec.rbegin(); it != end;)
                 {
+
                     if (not it->factChecker)
                     {
+                        LOG_ERROR("Achievement", "Fact checker not correctly initialized for the achievement: " << it->achievement->name);
                         it = decltype(it)(achievementVec.erase(std::next(it).base()));
                         continue;
                     }
@@ -173,6 +267,10 @@ namespace pg
                         // We erase the it from the achievement to resolve
                         it = decltype(it)(achievementVec.erase(std::next(it).base()));
                     }
+                    else
+                    {
+                        ++it;
+                    }
                 }
             }
         }
@@ -189,12 +287,13 @@ namespace pg
                 
                 if (unlocked)
                 {
-                    achievementUnlocked.push_back(**it);
-                    ++it;
+                    achievementToUnlock.push(*it);
+
+                    it = decltype(it)(achievementLocked.erase(std::next(it).base()));
                 }
                 else
                 {
-                    it = decltype(it)(achievementLocked.erase(std::next(it).base()));
+                    ++it;
                 }
             }
 
@@ -255,6 +354,7 @@ namespace pg
         };
 
         std::vector<Achievement> achievementUnlocked;
+        std::queue<AchievementPtr> achievementToUnlock;
 
         std::vector<AchievementPtr> achievementLocked;
 

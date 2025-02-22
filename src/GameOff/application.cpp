@@ -269,7 +269,20 @@ void initGame()
 
     mainWindow->ecs.createSystem<WorldFacts>();
 
-    mainWindow->ecs.createSystem<AchievementSys>();
+    auto achievementSys = mainWindow->ecs.createSystem<AchievementSys>();
+
+    Achievement slimeSlayed;
+
+    slimeSlayed.name = "SlimeSlayed";
+    slimeSlayed.prerequisiteFacts = { FactChecker{"Slime_defeated", 10, FactCheckEquality::GreaterEqual} };
+    
+    AddFact slimeAchivement{"SlimeAchievement", ElementType{true}};
+
+    slimeSlayed.rewardFacts = { AchievementReward{slimeAchivement} };
+
+    achievementSys->setDefaultAchievement(slimeSlayed);
+
+    mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
 
     mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
 

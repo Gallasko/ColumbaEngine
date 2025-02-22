@@ -95,7 +95,7 @@ namespace pg
 
     struct StandardEvent
     {
-        StandardEvent(const std::string& name) : name(name) {}
+        StandardEvent(const std::string& name = "Noop") : name(name) {}
 
         template <typename Type>
         StandardEvent(const std::string& name, const std::string& valueName, const Type& value) : name(name)
@@ -115,6 +115,9 @@ namespace pg
 
         std::unordered_map<std::string, ElementType> values;
     };
+
+    template <>
+    void serialize(Archive& archive, const StandardEvent& event);
 
     class ComponentRegistry
     {

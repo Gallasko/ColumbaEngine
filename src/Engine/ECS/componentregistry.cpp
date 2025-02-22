@@ -6,6 +6,43 @@ namespace pg
 {
     UniqueIdGenerator ComponentRegistry::globalIdGenerator;
 
+    template <>
+    void serialize(Archive& archive, const StandardEvent& value)
+    {
+        archive.startSerialization("StandardEvent");
+        
+        serialize(archive, "name", value.name);
+        serialize(archive, "values", value.values);
+        
+        archive.endSerialization();
+    }
+
+    template <>
+    StandardEvent deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("IncreaseFact");
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("AddFact", "Element is null");
+        }
+        else
+        {
+            LOG_INFO("AddFact", "Deserializing IncreaseFact");
+
+            StandardEvent data;
+
+            defaultDeserialize(serializedString, "name", data.name);
+            defaultDeserialize(serializedString, "values", data.values);
+
+            return data;
+        }
+
+        return StandardEvent{};
+    }
+
     ComponentRegistry::ComponentRegistry(EntitySystem *ecs) : ecsRef(ecs)
     {
         LOG_THIS_MEMBER("ComponentRegistry");

@@ -23,7 +23,7 @@ namespace pg
 
     struct IncreaseFact
     {
-        IncreaseFact(const std::string& name, int value = 1) : name(name), value(value) {} 
+        IncreaseFact(const std::string& name = "Noop", int value = 1) : name(name), value(value) {} 
         IncreaseFact(const IncreaseFact& other) : name(other.name), value(other.value) {}
 
         IncreaseFact& operator=(const IncreaseFact& other)
@@ -39,7 +39,21 @@ namespace pg
         int value = 1;
     };
 
-    struct WorldFactsUpdate { std::unordered_map<std::string, ElementType> *factMap; std::vector<std::string> changedFacts; };
+    template <>
+    void serialize(Archive& archive, const AddFact& value);
+
+    template <>
+    void serialize(Archive& archive, const RemoveFact& value);
+
+    template <>
+    void serialize(Archive& archive, const IncreaseFact& value);
+
+    struct WorldFactsUpdate
+    {
+        std::unordered_map<std::string, ElementType> *factMap;
+        
+        std::vector<std::string> changedFacts;
+    };
 
     enum class FactCheckEquality
     {
@@ -195,10 +209,10 @@ namespace pg
             }
             else
             {
-                factMap[event.name] = event.value;
-
-                changedFacts.push_back(event.name);
+                factMap[event.name] = event.value;   
             }
+
+            changedFacts.push_back(event.name);
 
             changed = true;
         }
