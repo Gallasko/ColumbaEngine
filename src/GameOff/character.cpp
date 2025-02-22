@@ -172,26 +172,6 @@ namespace pg
         return Character{};
     }
 
-    // Passive makeSimplePlayerBoostPassive(PlayerBoostType type, float value, int32_t duration, std::string name)
-    // {
-    //     Passive passive;
-
-    //     passive.info.type = PassiveType::CharacterEffect;
-
-    //     passive.info.trigger = TriggerType::StatBoost;
-
-    //     passive.info.name = name;
-        
-    //     // Careful need to do + 1 to duration if it is > -1 here as the duration of the buff start ticking down at the start of the player turn !
-    //     // (until the start of the next turn -> set duration == 0, until the end of the next turn -> set duration == 1)
-    //     passive.info.remainingTurns = duration == -1 ? -1 : duration + 1;
-
-    //     passive.applyOnCharacter.function = [type, value](Character& character) { addStatOnCharacter(character, type, value); };
-    //     passive.removeFromCharacter.function = [type, value](Character& character) { addStatOnCharacter(character, type, -value); };
-
-    //     return passive;
-    // }
-
     void Character::addPassive(const PassiveEffect& passive, EntitySystem *ecsRef)
     {
         if (passive.info.type == PassiveType::CharacterEffect and passive.info.trigger == TriggerType::StatBoost)
@@ -208,9 +188,12 @@ namespace pg
 
         if (ecsRef)
         {
-            std::string gain = amount < 0 ? " gained " : " lost ";
-
-            auto str = "Character " + name + gain + std::to_string(amount) + " hp !";
+            auto str = "Character " + name;
+            
+            if (amount < 0)
+                str += " gained " + std::to_string(-amount) + " hp !";
+            else
+                str += " lost " + std::to_string(amount) + " hp !";
 
             ecsRef->sendEvent(FightMessageEvent{str});
         }

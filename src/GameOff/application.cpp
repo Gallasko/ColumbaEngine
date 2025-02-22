@@ -20,6 +20,8 @@
 #include "gamemodule.h"
 #include "gamefacts.h"
 
+#include "achievement.h"
+
 #include "Helpers/tinyfiledialogs.h" 
 
 using namespace pg;
@@ -266,6 +268,8 @@ void initGame()
     mainWindow->ecs.createSystem<PortraitLoader>(mainWindow->masterRenderer);
 
     mainWindow->ecs.createSystem<WorldFacts>();
+
+    mainWindow->ecs.createSystem<AchievementSys>();
 
     mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
 

@@ -16,8 +16,6 @@
 
 #include "Memory/elementtype.h"
 
-#include <iostream>
-
 namespace pg
 {
     class InputSystem;

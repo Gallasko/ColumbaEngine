@@ -155,6 +155,14 @@ set(ENGINESOURCE
     src/Engine/UI/uisystem.cpp
 )
 
+add_library(PgEngineSrc ${ENGINESOURCE})
+
+# target_precompile_headers(PgEngineSrc PUBLIC
+#     src/Engine/stdafx.h)
+
+# target_precompile_headers(PgEngineSrc PRIVATE 
+    # import/taskflow-3.6.0/taskflow/taskflow.hpp)
+
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # add_executable(TetrisClone src/Tetris/tetris.cpp)
 
@@ -165,8 +173,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     #     src/Tetris/titlescreen.cpp
     #     ${ENGINESOURCE}
     # )
-    add_library(PgEngineSrc ${ENGINESOURCE})
-
+    
     target_include_directories(PgEngineSrc PUBLIC src/Engine)
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
     target_include_directories(PgEngineSrc PUBLIC src/Editor)
@@ -189,8 +196,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(PgEngine PRIVATE glm)
 
 else()
-    add_library(PgEngineSrc ${ENGINESOURCE})
-
     target_include_directories(PgEngineSrc PUBLIC src/Engine)
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
 
@@ -223,6 +228,7 @@ else()
     target_include_directories(GameOff PUBLIC src/GameOff)
     
     target_sources(GameOff PRIVATE
+        src/GameOff/achievement.cpp
         src/GameOff/application.cpp
         src/GameOff/character.cpp
         src/GameOff/characustomizationscene.cpp

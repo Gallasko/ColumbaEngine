@@ -99,7 +99,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing an Element Type");
+            LOG_MILE(DOM, "Deserializing an Element Type");
 
             type = deserialize<std::string>(serializedString["type"]);
 

@@ -39,7 +39,7 @@ namespace pg
         int value = 1;
     };
 
-    struct WorldFactsUpdate { std::unordered_map<std::string, ElementType> *factMap; };
+    struct WorldFactsUpdate { std::unordered_map<std::string, ElementType> *factMap; std::vector<std::string> changedFacts; };
 
     enum class FactCheckEquality
     {
@@ -158,6 +158,8 @@ namespace pg
         {
             factMap[event.name] = event.value;
 
+            changedFacts.push_back(event.name);
+
             changed = true;
         }
 
@@ -169,6 +171,8 @@ namespace pg
             {
                 factMap.erase(it);
             }
+
+            changedFacts.push_back(event.name);
 
             changed = true;
         }
@@ -192,6 +196,8 @@ namespace pg
             else
             {
                 factMap[event.name] = event.value;
+
+                changedFacts.push_back(event.name);
             }
 
             changed = true;
@@ -201,10 +207,14 @@ namespace pg
         {
             if (changed)
             {
-                ecsRef->sendEvent(WorldFactsUpdate{&factMap});
+                ecsRef->sendEvent(WorldFactsUpdate{&factMap, changedFacts});
+
+                changedFacts.clear();
                 changed = false;
             }
         }
+
+        std::vector<std::string> changedFacts;
 
         bool changed = false;
 

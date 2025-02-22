@@ -3,14 +3,18 @@
 #include <string>
 #include <unordered_map>
 
-#include <taskflow.hpp>
-
 #include "entity.h"
 #include "componentregistry.h"
 #include "group.h"
 #include "eventlistener.h"
 
 #include "logger.h"
+
+namespace tf
+{
+    // Forward declaration
+    struct Taskflow;
+}
 
 namespace pg
 {

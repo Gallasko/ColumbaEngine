@@ -1,5 +1,7 @@
 #include "gl_debug.hpp"
 
+#include "stdafx.h"
+
 #include "window.h"
 
 #include <string>
