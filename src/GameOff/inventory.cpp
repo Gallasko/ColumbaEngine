@@ -160,7 +160,7 @@ namespace pg
 
         for (auto tabName : tabNames)
         {
-            auto titleTTF = makeTTFText(this, xBase, 20, "res/font/Inter/static/Inter_28pt-Light.ttf", tabName, 0.4);
+            auto titleTTF = makeTTFText(this, xBase, 20, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", tabName, 0.4);
 
             attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<TitleClicked>(tabName));
 
@@ -279,7 +279,7 @@ namespace pg
 
         characterList = listView2.get<ListView>();
 
-        auto ttf = makeTTFText(this, 0, 350, "res/font/Inter/static/Inter_28pt-Light.ttf", "Learn", 0.4);
+        auto ttf = makeTTFText(this, 0, 350, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Learn", 0.4);
         auto ttfUi = ttf.get<UiComponent>();
         ttfUi->setVisibility(false);
 
@@ -294,7 +294,7 @@ namespace pg
 
     void InventoryScene::addPlayerToListView(PlayerCharacter* player)
     {
-        auto ttf = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
+        auto ttf = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
         auto ttfUi = ttf.get<UiComponent>();
         ttfUi->setVisibility(false);
 
@@ -338,24 +338,21 @@ namespace pg
 
             prefab.get<Prefab>()->addToPrefab(iconTex.get<UiComponent>());
 
-            auto itemUi = makeTTFText(ecsRef, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name, 0.4);
+            auto itemUi = makeTTFText(ecsRef, 0, 0, 2, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name, 0.4);
 
             itemUi.get<UiComponent>()->setTopAnchor(iconTex.get<UiComponent>()->top);
             itemUi.get<UiComponent>()->setTopMargin(17);
             itemUi.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->right);
             itemUi.get<UiComponent>()->setLeftMargin(8);
 
-            itemUi.get<UiComponent>()->setZ(2);
-
             prefab.get<Prefab>()->addToPrefab(itemUi.get<UiComponent>());
 
-            auto itemNb = makeTTFText(ecsRef, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(item.nbItems), 0.4);
+            auto itemNb = makeTTFText(ecsRef, 0, 0, iconTex.get<UiComponent>()->pos.z + 1, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(item.nbItems), 0.4);
 
             itemNb.get<UiComponent>()->setBottomAnchor(prefab.get<UiComponent>()->bottom);
             itemNb.get<UiComponent>()->setBottomMargin(5);
             itemNb.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->left);
             itemNb.get<UiComponent>()->setLeftMargin(iconTex.get<UiComponent>()->width / 2.0f - itemNb.get<UiComponent>()->width / 2.0f);
-            itemNb.get<UiComponent>()->setZ(iconTex.get<UiComponent>()->pos.z + 1);
 
             prefab.get<Prefab>()->addToPrefab(itemNb.get<UiComponent>());
 

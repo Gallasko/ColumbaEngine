@@ -122,7 +122,7 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<UiComponent, TTFText> makeTTFText(Type *ecs, float x, float y, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
+    CompList<UiComponent, TTFText> makeTTFText(Type *ecs, UiSize x, UiSize y, UiSize z, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
         LOG_THIS("TTFText System");
 
@@ -132,6 +132,7 @@ namespace pg
 
         ui->setX(x);
         ui->setY(y);
+        ui->setZ(z);
 
         auto sentence = ecs->template attach<TTFText>(entity, text, fontPath, scale, colors);
 

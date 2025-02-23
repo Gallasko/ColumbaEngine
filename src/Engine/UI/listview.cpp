@@ -20,16 +20,19 @@ namespace pg
 
         for (auto& ui : entities)
         {
-            float childTop    = ui->top;
-            float childBottom = ui->bottom;
-            float childLeft   = ui->left;
-            float childRight  = ui->right;
-
             ui->visible = false;
 
-            if (visible and (viewUi->inBound(childLeft, childTop) or viewUi->inBound(childLeft, childBottom) or viewUi->inBound(childRight, childTop) or viewUi->inBound(childRight, childBottom)))
+            if (visible)
             {
-                ui->visible = true;
+                float childTop    = ui->top;
+                float childBottom = ui->bottom;
+                float childLeft   = ui->left;
+                float childRight  = ui->right;
+
+                if (viewUi->inBound(childLeft, childTop) or viewUi->inBound(childLeft, childBottom) or viewUi->inBound(childRight, childTop) or viewUi->inBound(childRight, childBottom))
+                {
+                    ui->visible = true;
+                }
             }
 
             ui->update();

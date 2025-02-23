@@ -118,14 +118,14 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     virtual void init() override
     {
         // Navigation tabs
-        auto titleTTF = makeTTFText(ecsRef, 50, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Customization", 0.4);
+        auto titleTTF = makeTTFText(ecsRef, 50, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Customization", 0.4);
         titleTTF.get<UiComponent>()->setZ(1);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<SceneToLoad>(SceneName::Customization));
 
-        auto titleTTF2 = makeTTFText(ecsRef, 225, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
+        auto titleTTF2 = makeTTFText(ecsRef, 225, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF2.entity, makeCallable<SceneToLoad>(SceneName::Inventory));
 
-        auto titleTTF3 = makeTTFText(ecsRef, 330, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
+        auto titleTTF3 = makeTTFText(ecsRef, 330, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));
 
         // auto progressBar = makeProgressBar(ecsRef, 400, 100, "emptyBar", "fullBar", 0.65);
@@ -162,8 +162,7 @@ struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePoli
 
     void init() override
     {
-        auto titleTTF = makeTTFText(ecsRef, 0, 300, "res/font/Inter/static/Inter_28pt-Light.ttf", "ChangePortrait", 0.4);
-        titleTTF.get<UiComponent>()->setZ(1);
+        auto titleTTF = makeTTFText(ecsRef, 0, 300, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "ChangePortrait", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<ChangePortraitEvent>());
 
         auto portrait = makeUiTexture(ecsRef, 100, 100, "NoneIcon");
@@ -172,6 +171,12 @@ struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePoli
         portrait.get<UiComponent>()->setY(300);
         
         tex = portrait.get<Texture2DComponent>();
+
+        auto fee = makeUiTexture(ecsRef, 100, 100, "Hahahah");
+
+        fee.get<UiComponent>()->setX(250);
+        fee.get<UiComponent>()->setY(420);
+        
     }
 
     virtual void onEvent(const ChangePortraitEvent&) override

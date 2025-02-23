@@ -54,7 +54,7 @@ namespace pg
 
         std::string name = "Unknown";
 
-        std::string icon = "None";
+        std::string icon = "NoneIcon";
 
         CharacterType type = CharacterType::Player;
 

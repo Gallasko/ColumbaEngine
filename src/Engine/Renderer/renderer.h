@@ -221,10 +221,10 @@ namespace pg
 
         void setDepth(int depth)
         {
-            uint64_t normalizedDepth = 0b000000000000111111111111 + depth;
+            uint64_t normalizedDepth = (uint64_t)(0b000000000000111111111111) + (int64_t)(depth);
             if (normalizedDepth > 0b111111111111111111111111)
             {
-                LOG_ERROR("Render call", "Depth is too far from origin[" << depth <<"], should be lesser than: " << 0b111111111111 << " in either positiv or negativ");
+                LOG_ERROR("Render call", "Depth is too far from origin[" << depth << "], should be lesser than: " << 0b111111111111 << " in either positiv or negativ");
             }
 
             key = (key & ~((uint64_t)0b111111111111111111111111 << 30)) | normalizedDepth << 30;
@@ -435,7 +435,7 @@ namespace pg
         };
 
     public:
-        MasterRenderer();
+        MasterRenderer(const std::string& noneTexturePath = "");
         ~MasterRenderer();
 
         virtual std::string getSystemName() const override { return "Renderer System"; }
@@ -526,7 +526,16 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Texture named " << name << " don't exist !");
-                return OpenGLTexture{};
+                
+                auto it = textureList.find("NoneIcon");
+
+                if (it != textureList.end())
+                {
+                    LOG_INFO("Renderer", "Loading None Icon instead");
+                    return it->second;
+                }
+                else
+                    return OpenGLTexture{};
             }
         }
 

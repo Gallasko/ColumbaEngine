@@ -8,6 +8,8 @@ namespace pg
 {
     struct ClearPrefabEvent { std::set<_unique_id> ids; };
 
+    // Todo fix prefab runtime
+    // Currently prefabs only works in events has the prefab need to be realized before adding other components to it
     struct Prefab : public Ctor, public Dtor
     {
         virtual void onCreation(EntityRef entity) override

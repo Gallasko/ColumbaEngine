@@ -355,7 +355,7 @@ namespace pg
 
         // [Start] Master render definition
 
-        masterRenderer = ecs.createSystem<MasterRenderer>();
+        masterRenderer = ecs.createSystem<MasterRenderer>("res/None.png");
         interpreter->addSystemModule("renderer", RendererModule{masterRenderer});
 
         // Configure the master renderer system

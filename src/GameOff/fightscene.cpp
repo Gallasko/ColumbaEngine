@@ -506,11 +506,11 @@ namespace pg
     {
         fightSys = ecsRef->getSystem<FightSystem>();
 
-        auto currentSelectedSpellTextUit = makeTTFText(this, 450, 550, "res/font/Inter/static/Inter_28pt-Light.ttf", "No selection", 0.4);
+        auto currentSelectedSpellTextUit = makeTTFText(this, 450, 550, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "No selection", 0.4);
 
         currentSelectedSpellTextUi = currentSelectedSpellTextUit.entity;
 
-        auto doneUit = makeTTFText(this, 600, 150, "res/font/Inter/static/Inter_28pt-Light.ttf", "Done", 0.6, {255.0f, 0.0f, 0.0f, 255.0f});
+        auto doneUit = makeTTFText(this, 600, 150, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Done", 0.6, {255.0f, 0.0f, 0.0f, 255.0f});
 
         doneUit.get<UiComponent>()->setVisibility(false);
 
@@ -536,13 +536,13 @@ namespace pg
 
             if (character.type == CharacterType::Enemy)
             {
-                auto enemyText = makeTTFText(this, xEnemyName, 20, "res/font/Inter/static/Inter_28pt-Light.ttf", character.name, 0.4);
+                auto enemyText = makeTTFText(this, xEnemyName, 20, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", character.name, 0.4);
 
                 attach<MouseLeftClickComponent>(enemyText.entity, makeCallable<CharacterLeftClicked>(&character));
 
                 enemyNames.push_back(enemyText.entity);
 
-                auto enemyHealth = makeTTFText(this, xEnemyName, 50, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(character.stat.health), 0.4);
+                auto enemyHealth = makeTTFText(this, xEnemyName, 50, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(character.stat.health), 0.4);
 
                 enemyHealths.push_back(enemyHealth.entity);
 
@@ -552,13 +552,13 @@ namespace pg
             }
             else if (character.type == CharacterType::Player)
             {
-                auto playerText = makeTTFText(this, xPlayerName, 120, "res/font/Inter/static/Inter_28pt-Light.ttf", character.name, 0.4);
+                auto playerText = makeTTFText(this, xPlayerName, 120, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", character.name, 0.4);
 
                 attach<MouseLeftClickComponent>(playerText.entity, makeCallable<CharacterLeftClicked>(&character));
 
                 playerNames.push_back(playerText.entity);
 
-                auto playerHealth = makeTTFText(this, xPlayerName, 170, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(character.stat.health), 0.4);
+                auto playerHealth = makeTTFText(this, xPlayerName, 170, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(character.stat.health), 0.4);
 
                 playerHealths.push_back(playerHealth.entity);
 
@@ -647,7 +647,7 @@ namespace pg
                 }
 
                 LOG_INFO("Fight Scene", "Spell: " << spell.name);
-                auto sp = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", spell.name, 0.4);
+                auto sp = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", spell.name, 0.4);
 
                 // The spell can be cast
                 if (spell.numberOfTurnsSinceLastUsed >= spell.baseCooldown)
@@ -765,7 +765,7 @@ namespace pg
 
     void FightScene::writeInLog(const std::string& message)
     {
-        auto playerTurnText = makeTTFText(this, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", message, 0.4);
+        auto playerTurnText = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", message, 0.4);
 
         auto ui = playerTurnText.get<UiComponent>();
 

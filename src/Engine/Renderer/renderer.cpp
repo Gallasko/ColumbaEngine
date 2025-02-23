@@ -50,9 +50,14 @@ namespace pg
         masterRenderer->addRenderer(this);
     }
 
-    MasterRenderer::MasterRenderer()
+    MasterRenderer::MasterRenderer(const std::string& noneTexturePath)
     {
         LOG_THIS_MEMBER(DOM);
+
+        if (noneTexturePath != "")
+        {
+            registerTexture("NoneIcon", noneTexturePath.c_str());
+        }
 
         initializeParameters();
     }
@@ -349,6 +354,7 @@ namespace pg
         {
             glGenTextures(1, &texture);
         }
+
         glBindTexture(GL_TEXTURE_2D, texture);
         // set the texture wrapping parameters
         //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -564,10 +570,11 @@ namespace pg
 
         // LOG_INFO(DOM, call.nbElements * call.nbAttributes);
 
+        // Todo remove nbElement as it can be derived from call.data.size() / call.nbAttributes !
+        material.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
+
         if (call.batchable)
         {
-            // Todo remove nbElement as it can be derived from call.data.size() / call.nbAttributes !
-            material.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
             glDrawElementsInstanced(GL_TRIANGLES, material.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0, nbElements);
         }
         else

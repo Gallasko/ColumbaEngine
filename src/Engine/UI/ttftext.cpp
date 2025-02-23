@@ -227,16 +227,22 @@ namespace pg
 
         renderCallList.clear();
 
-        const auto& renderCallView = viewGroup<UiComponent, TTFText, TTFTextCall>();
+        // const auto& renderCallView = viewGroup<UiComponent, TTFText, TTFTextCall>();
 
-        changed = false;
+        const auto& renderCallView = view<TTFTextCall>();
+
+        renderCallList.reserve(renderCallView.nbComponents());
 
         for (const auto& renderCall : renderCallView)
         {
-            auto rCall = renderCall->get<TTFTextCall>();
-
-            renderCallList.insert(renderCallList.end(), rCall->calls.begin(), rCall->calls.end());
-        }        
+            for (const auto& rCall : renderCall->calls)
+            {
+                renderCallList.push_back(rCall);
+            }
+            // renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
+        }
+        
+        changed = false;
     }
 
     std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<TTFText> obj)
@@ -307,6 +313,8 @@ namespace pg
             call.setOpacity(OpacityType::Additive);
 
             call.setRenderStage(renderStage);
+
+            call.batchable = false;
 
             call.data.resize(11);
 
