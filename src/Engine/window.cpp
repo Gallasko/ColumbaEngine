@@ -413,6 +413,7 @@ namespace pg
         ecs.succeed<MasterRenderer, Texture2DComponentSystem>();
         ecs.succeed<MasterRenderer, SentenceSystem>();
         ecs.succeed<MasterRenderer, ProgressBarComponentSystem>();
+        ecs.succeed<MasterRenderer, PrefabSystem>();
 
         ecs.succeed<MasterRenderer, UiComponentSystem>();
 

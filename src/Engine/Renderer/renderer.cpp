@@ -23,6 +23,21 @@ namespace pg
         constexpr static const char * const DOM = "Renderer";
     }
 
+    void RenderCall::log() const
+    {
+        LOG_INFO("RenderCall", "Key: " << key);
+        LOG_INFO("RenderCall", "Visible : " << getVisibility() << ", depth: " << getDepth() << ", mat: " << getMaterialId());
+        LOG_INFO("RenderCall", "Data size: " << data.size());
+
+        std::string dataString;
+        for (const auto value : data)
+        {
+            dataString += std::to_string(value) + ", ";
+        }
+
+        LOG_INFO("RenderCall", "Data values: " << dataString);
+    }
+
     void RenderCall::processUiComponent(UiComponent *component)
     {
         setVisibility(component->isVisible());
@@ -202,33 +217,7 @@ namespace pg
 
         nbGeneratedFrames++;
 
-        // for ()
-
-        // LOG_INFO(DOM, "Render call list size: " << renderCallList[tempRenderList].size());
-
         inSwap = true;
-
-        // auto end = std::chrono::steady_clock::now();
-
-        // {
-        //     std::unique_lock lk(renderMutex);
-
-        //     currentRenderList = tempRenderList;
-        // }
-
-        // std::cout << "System Renderer execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-        // inSwap = true;
-
-        // {
-        //     std::unique_lock lk(renderMutex);
-            
-        //     renderCv.wait(lk, [this]{ return not inSwap.load();});
-        // }
-        
-        // inSwap = false;
-
-        // execCv.notify_all();
     }
 
     void MasterRenderer::processTextureRegister()
@@ -513,7 +502,7 @@ namespace pg
                     shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
                     break;
                 case UniformType::VEC3D:
-                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec3>(uniform.second.value));
                     break;
                 case UniformType::VEC4D:
                     shaderProgram->setUniformValue(uniform.first, std::get<glm::vec4>(uniform.second.value));
@@ -536,8 +525,10 @@ namespace pg
                         case ElementType::UnionType::SIZE_T:
                             shaderProgram->setUniformValue(uniform.first, value.get<int>());
                             break;
-                        case ElementType::UnionType::STRING:
                         case ElementType::UnionType::BOOL:
+                            shaderProgram->setUniformValue(uniform.first, value.get<bool>());
+                            break;
+                        case ElementType::UnionType::STRING:
                         default:
                         {
                             LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());    
@@ -568,9 +559,6 @@ namespace pg
             return;
         }
 
-        // LOG_INFO(DOM, call.nbElements * call.nbAttributes);
-
-        // Todo remove nbElement as it can be derived from call.data.size() / call.nbAttributes !
         material.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
 
         if (call.batchable)

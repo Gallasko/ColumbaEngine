@@ -235,11 +235,7 @@ namespace pg
 
         for (const auto& renderCall : renderCallView)
         {
-            for (const auto& rCall : renderCall->calls)
-            {
-                renderCallList.push_back(rCall);
-            }
-            // renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
+            renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
         }
         
         changed = false;
@@ -313,8 +309,6 @@ namespace pg
             call.setOpacity(OpacityType::Additive);
 
             call.setRenderStage(renderStage);
-
-            call.batchable = false;
 
             call.data.resize(11);
 

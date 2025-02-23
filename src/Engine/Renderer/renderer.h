@@ -182,6 +182,8 @@ namespace pg
             setMaterial(materialId);
         }
 
+        void log() const;
+
         void processUiComponent(UiComponent *component);
 
         void setVisibility(bool visible)

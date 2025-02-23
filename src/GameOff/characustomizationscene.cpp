@@ -451,23 +451,23 @@ namespace pg
         iconTexUi->setZ(backTexUi->pos.z + 1);
         // iconTexUi->setZ(5);
 
-        auto ttf = makeTTFText(ecsRef, 0, 0, 3, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
+        auto ttf = makeTTFText(ecsRef, 0, 0, backTexUi->pos.z + 2, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
         auto ttfUi = ttf.get<UiComponent>();
 
         ttfUi->setBottomAnchor(prefab.get<UiComponent>()->bottom);
         ttfUi->setBottomMargin(10);
-        ttfUi->setLeftAnchor(prefab.get<UiComponent>()->left);
-        ttfUi->setLeftAnchor(10);
-        // ttfUi->setZ(5);
+        // ttfUi->setLeftAnchor(backTex.get<UiComponent>()->left);
+        // ttfUi->setLeftAnchor(10);
+        ttfUi->setX(&backTex.get<UiComponent>()->left);
 
         prefab.get<Prefab>()->addToPrefab(iconTexUi);
         prefab.get<Prefab>()->addToPrefab(ttfUi);
 
-        // attach<MouseLeftClickComponent>(prefab.entity, makeCallable<SelectedCharacter>(player));
+        attach<MouseLeftClickComponent>(prefab.entity, makeCallable<SelectedCharacter>(player));
 
         characterList->addEntity(prefab.get<UiComponent>());
 
-        // ttfTextIdToCharacter.emplace(ttf.entity.id, &player->character);
+        ttfTextIdToCharacter.emplace(ttf.entity.id, &player->character);
     }
 
     void PlayerCustomizationScene::updateCharacterList()

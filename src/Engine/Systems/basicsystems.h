@@ -23,10 +23,10 @@ namespace pg
             auto s3 = makeSentence(ecsRef, 0, 0, {"0"});
             auto s4 = makeSentence(ecsRef, 0, 0, {"0"});
 
-            sentence.get<UiComponent>()->setZ(2);
-            s2.get<UiComponent>()->setZ(2);
-            s3.get<UiComponent>()->setZ(2);
-            s4.get<UiComponent>()->setZ(2);
+            sentence.get<UiComponent>()->setZ(10);
+            s2.get<UiComponent>()->setZ(10);
+            s3.get<UiComponent>()->setZ(10);
+            s4.get<UiComponent>()->setZ(10);
 
             sentence.get<UiComponent>()->setRightAnchor(ui->right);
             s2.get<UiComponent>()->setRightAnchor(sentence.get<UiComponent>()->right);
