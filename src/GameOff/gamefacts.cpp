@@ -26,7 +26,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO("AddFact", "Deserializing AddFact");
+            LOG_MILE("AddFact", "Deserializing AddFact");
 
             AddFact data;
 
@@ -60,7 +60,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO("RemoveFact", "Deserializing RemoveFact");
+            LOG_MILE("RemoveFact", "Deserializing RemoveFact");
 
             RemoveFact data;
 
@@ -92,11 +92,11 @@ namespace pg
 
         if (serializedString.isNull())
         {
-            LOG_ERROR("AddFact", "Element is null");
+            LOG_ERROR("IncreaseFact", "Element is null");
         }
         else
         {
-            LOG_INFO("AddFact", "Deserializing IncreaseFact");
+            LOG_MILE("IncreaseFact", "Deserializing IncreaseFact");
 
             IncreaseFact data;
 
@@ -134,7 +134,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO("Fact checker", "Deserializing FactChecker");
+            LOG_MILE("Fact checker", "Deserializing FactChecker");
 
             FactChecker data;
 
@@ -145,8 +145,6 @@ namespace pg
             defaultDeserialize(serializedString, "equality", equality);
 
             data.equality = stringToEquality.at(equality);
-            
-            LOG_INFO("Fact checker", "FactChecker deserialized");
 
             return data;
         }

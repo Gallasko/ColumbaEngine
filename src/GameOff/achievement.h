@@ -30,6 +30,8 @@ namespace pg
 
     const static auto stringToAchievementRewardType = invertMap(achievementRewardTypeToString);
 
+    static const std::string AchievementUnlockEventName = "achievementUnlocked";
+
     struct AchievementReward
     {
         AchievementReward() : type(AchievementRewardType::NoReward), reward(StandardEvent("Noop")) { }
@@ -123,6 +125,9 @@ namespace pg
             {
                 reward.call(ecsRef);
             }
+
+            ecsRef->sendEvent(StandardEvent{AchievementUnlockEventName, "name", name});
+            ecsRef->sendEvent(AddFact{name + "_unlocked", ElementType{true}});
         }
     };
 
@@ -201,7 +206,7 @@ namespace pg
                 
                 achi->setUnlocked(ecsRef);
                 achievementUnlocked.push_back(*achi);
-                    
+                
                 achievementToUnlock.pop();
             }
 
