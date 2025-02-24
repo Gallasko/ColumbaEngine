@@ -408,6 +408,8 @@ namespace pg
 
     struct SkipRenderPass {};
 
+    // Todo fix crash on renderer when failure to grab a missing texture or shader
+
     class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>>
     {
     private:

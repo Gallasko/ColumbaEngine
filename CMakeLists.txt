@@ -50,7 +50,12 @@ else()
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
 
-    set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
+    else()
+        set(CMAKE_CXX_FLAGS "-Wall -Wextra -pthread -s -O3 -DNDEBUG")
+    endif()
+
     # set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
 endif()
 

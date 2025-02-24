@@ -310,6 +310,332 @@ namespace pg
         _unique_id entityId = 0;
     };
 
+    struct PositionComponentChangedEvent
+    {
+        _unique_id id = 0;
+    };
+
+    enum class PosOpType
+    {
+        None,
+        Add,
+        Sub,
+        Mul,
+        Div
+    };
+
+    struct PosConstrain
+    {
+        _unique_id id = 0;
+        AnchorDir type = AnchorDir::None;
+
+        PosOpType opType = PosOpType::None;
+        float opValue = 0.0f;
+    };
+
+    struct PosAnchor
+    {
+        _unique_id id = 0;
+        AnchorDir type = AnchorDir::None;
+        float value = 0.0f;
+    };
+
+    struct ParentingEvent
+    {
+        _unique_id parent = 0;
+        _unique_id child = 0;
+    };
+
+    struct UiAnchor : public Ctor
+    {
+        // Current Anchor of this component
+        PosAnchor top;
+        PosAnchor left;
+        PosAnchor right;
+        PosAnchor bottom;
+
+        bool hasTopAnchor = false;
+        bool hasLeftAnchor = false;
+        bool hasRightAnchor = false;
+        bool hasBottomAnchor = false;
+
+        PosAnchor topAnchor;
+        PosAnchor leftAnchor;
+        PosAnchor rightAnchor;
+        PosAnchor bottomAnchor;
+
+        float topMargin = 0.0f;
+        float leftMargin = 0.0f;
+        float rightMargin = 0.0f;
+        float bottomMargin = 0.0f;
+
+        PosConstrain widthConstrain;
+        PosConstrain heightConstrain;
+
+        void setTopAnchor(const PosAnchor& anchor)
+        {
+            topAnchor = anchor;
+            hasTopAnchor = true;
+            ecsRef->sendEvent(ParentingEvent{anchor.id, id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void clearTopAnchor()
+        {
+            hasTopAnchor = false;
+            // Todo send remove parenting event
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setLeftAnchor(const PosAnchor& anchor)
+        {
+            leftAnchor = anchor;
+            hasLeftAnchor = true;
+            ecsRef->sendEvent(ParentingEvent{anchor.id, id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void clearLeftAnchor()
+        {
+            hasLeftAnchor = false;
+            // Todo send remove parenting event
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setRightAnchor(const PosAnchor& anchor)
+        {
+            rightAnchor = anchor;
+            hasRightAnchor = true;
+            ecsRef->sendEvent(ParentingEvent{anchor.id, id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void clearRightAnchor()
+        {
+            hasRightAnchor = false;
+            // Todo send remove parenting event
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setBottomAnchor(const PosAnchor& anchor)
+        {
+            bottomAnchor = anchor;
+            hasBottomAnchor = true;
+            ecsRef->sendEvent(ParentingEvent{anchor.id, id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void clearBottomAnchor()
+        {
+            hasBottomAnchor = false;
+            // Todo send remove parenting event
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setTopMargin(float value)
+        {
+            topMargin = value;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setLeftMargin(float value)
+        {
+            leftMargin = value;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setRightMargin(float value)
+        {
+            rightMargin = value;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setBottomMargin(float value)
+        {
+            bottomMargin = value;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setWidthConstrain(const PosConstrain& constrain)
+        {
+            widthConstrain = constrain;
+            ecsRef->sendEvent(ParentingEvent{constrain.id, id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        void setHeightConstrain(const PosConstrain& constrain)
+        {
+            heightConstrain = constrain;
+            ecsRef->sendEvent(ParentingEvent{constrain.id, id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+
+        // Todo add function to handle center, vertical and horizontal center alignment
+
+        virtual void onCreation(EntityRef entity) override
+        {
+            ecsRef = entity->world();
+
+            id = entity->id;
+
+            top = PosAnchor{id, AnchorDir::Top, 0.0f};
+            left = PosAnchor{id, AnchorDir::Left, 0.0f};
+            right = PosAnchor{id, AnchorDir::Right, 0.0f};
+            bottom = PosAnchor{id, AnchorDir::Bottom, 0.0f};
+        }
+ 
+        void updateAnchor(bool hasAnchor, PosAnchor& anchor);
+
+        void update();
+
+        _unique_id id = 0;
+
+        EntitySystem *ecsRef = nullptr;
+    };
+
+    struct ClippedTo : public Ctor
+    {
+        ClippedTo(_unique_id clipperId) : clipperId(clipperId) {}
+        ClippedTo(const ClippedTo& other) : clipperId(other.clipperId), id(other.id), ecsRef(other.ecsRef) {}
+
+        ClippedTo& operator=(const ClippedTo& other)
+        {
+            clipperId = other.clipperId;
+
+            ecsRef = other.ecsRef;
+            id = other.id;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity) override
+        {
+            id = entity->id;
+            ecsRef = entity->world();
+
+            ecsRef->sendEvent(ParentingEvent{clipperId, id});
+            ecsRef->sendEvent(EntityChangedEvent{id});
+        }
+
+        _unique_id clipperId;
+
+        _unique_id id;
+
+        EntitySystem *ecsRef = nullptr;
+    };
+
+    struct PositionComponent : public Ctor
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+
+        float width = 0.0f;
+        float height = 0.0f;
+
+        bool visible = true;
+
+        void setX(float x)
+        {
+            if (this->x != x)
+            {
+                this->x = x;
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+        }
+
+        void setY(float y)
+        {
+            if (this->y != y)
+            {
+                this->y = y;
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+        }
+
+        void setZ(float z)
+        {
+            if (this->z != z)
+            {
+                this->z = z;
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+        }
+
+        void setWidth(float width)
+        {
+            if (this->width != width)
+            {
+                this->width = width;
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+        }
+
+        void setHeight(float height)
+        {
+            if (this->height != height)
+            {
+                this->height = height;
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+        }
+
+        void setVisibility(bool visible)
+        {
+            if (this->visible != visible)
+            {
+                this->visible = visible;
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+        }
+
+        bool updatefromAnchor(const UiAnchor& anchor)
+        {
+            float oldX = x;
+            float oldY = y;
+
+            if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
+            {
+                this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value - anchor.topMargin);
+                this->y = anchor.topAnchor.value + anchor.topMargin;
+            }
+            else if (anchor.hasTopAnchor and not anchor.hasBottomAnchor)
+            {
+                this->y = anchor.topAnchor.value + anchor.topMargin;
+            }
+            else if (not anchor.hasTopAnchor and anchor.hasBottomAnchor)
+            {
+                this->y = (anchor.bottomAnchor.value - anchor.bottomMargin) - this->height;
+            }
+
+            if (anchor.hasRightAnchor and anchor.hasLeftAnchor)
+            {
+                this->width = (anchor.rightAnchor.value - anchor.rightMargin) - (anchor.leftAnchor.value - anchor.leftMargin);
+                this->x = anchor.leftAnchor.value + anchor.leftMargin;
+            }
+            else if (anchor.hasRightAnchor and not anchor.hasLeftAnchor)
+            {
+                this->x = (anchor.rightAnchor.value - anchor.rightMargin) - this->width;
+            }
+            else if (not anchor.hasRightAnchor and anchor.hasLeftAnchor)
+            {
+                this->x = anchor.leftAnchor.value + anchor.leftMargin;
+            }
+
+            return oldX != x or oldY != y;
+        }
+
+        _unique_id id = 0;
+
+        EntitySystem *ecsRef = nullptr;
+
+        virtual void onCreation(EntityRef entity) override
+        {
+            ecsRef = entity->world();
+            id = entity->id;
+        }
+    };
+
     template <>
     void serialize(Archive& archive, const AnchorDir& value);
 
@@ -321,6 +647,91 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const UiComponent& value);
+
+    // Todo add Listener<ResizeEvent>,
+    struct PositionComponentSystem : public System<Own<PositionComponent>, Listener<ParentingEvent>, Listener<PositionComponentChangedEvent>>
+    {
+        virtual std::string getSystemName() const override { return "Position System"; }
+
+        virtual void onEvent(const ParentingEvent& event) override
+        {
+            parentalMap[event.parent].insert(event.child);
+        }
+
+        void pushChildrenInChange(_unique_id parentId, Entity *entity)
+        {
+            if (entity->has<UiAnchor>())
+            {
+                entity->get<UiAnchor>()->update();
+
+                // Todo check
+                // If the position component get changed by the anchor moving then we push its children to the queue for check
+                entity->get<PositionComponent>()->updatefromAnchor(*entity->get<UiAnchor>());
+            }
+            // Todo check else case should never happen, as if the entity id is in the parentalMap, then the entity should have UiAnchor component.
+
+            for (const auto& child : parentalMap[parentId])
+            {
+                auto childEntity = ecsRef->getEntity(child);
+
+                // Todo, should be impossible to have a child without UiComponent component or non existant.
+                if (childEntity and childEntity->has<UiComponent>())
+                {
+                    changedIds.insert(child);
+
+                    pushChildrenInChange(child, childEntity);
+                }
+            }
+        }
+
+        // void 
+
+        virtual void onEvent(const PositionComponentChangedEvent& event) override
+        {
+            eventQueue.push(event);
+        }
+
+        virtual void execute() override
+        {
+            while (not eventQueue.empty())
+            {
+                const auto& event = eventQueue.front();
+            
+                auto entity = ecsRef->getEntity(event.id);
+
+                if (not entity or not entity->has<PositionComponent>())
+                {
+                    eventQueue.pop();
+                    continue;
+                }
+
+                if (not changedIds.count(event.id))
+                {
+                    pushChildrenInChange(event.id, entity);
+                }
+            
+                eventQueue.pop();
+            }
+
+            if (changedIds.size() > 0)
+            {
+                for (const auto& id : changedIds)
+                {
+                    ecsRef->sendEvent(EntityChangedEvent{id});
+                }
+
+                changedIds.clear();
+            }
+        }
+
+        std::unordered_map<_unique_id, std::set<_unique_id>> parentalMap;
+
+        std::set<_unique_id> changedIds;
+
+        std::queue<PositionComponentChangedEvent> eventQueue;
+
+        bool updated = false;
+    };
 
     struct UiComponentSystem : public System<Own<UiComponent>, Listener<ResizeEvent>, Listener<UiComponentInternalChangeEvent>, Listener<UiSizeChangeEvent>>
     {

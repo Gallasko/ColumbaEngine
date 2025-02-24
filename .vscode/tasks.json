@@ -79,10 +79,17 @@
                 ]
             },
             "linux": {
-                "command": "bash",
+                "command": "cmake",
                 "args": [
-                    "-c",
-                    "make DEBUG=False"
+                    // "-c",
+                    "--build",
+                    "${workspaceFolder}/release",
+                    "--config",
+                    "Release",
+                    "--target",
+                    "GameOff",
+                    "-j",
+                    "8"
                 ]
             },
             "osx": {

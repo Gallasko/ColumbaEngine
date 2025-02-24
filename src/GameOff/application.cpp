@@ -289,6 +289,8 @@ void initGame()
 
     mainWindow->interpreter->interpretFromFile("main.pg");
 
+    LOG_INFO(DOM, "Size of UiComponent: " << sizeof(UiComponent) << " vs size of Position: " << sizeof(PositionComponent) << " and size of Anchor: " << sizeof(UiAnchor));
+
     mainWindow->ecs.start();
 
     mainWindow->render();

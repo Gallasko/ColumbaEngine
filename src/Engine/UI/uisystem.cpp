@@ -532,4 +532,61 @@ namespace pg
         if (ecsRef)
             ecsRef->sendEvent(EntityChangedEvent{entityId});
     }
+
+    float getValueFromType(CompRef<PositionComponent> posComp, const AnchorDir& dir)
+    {
+        switch (dir)
+        {
+            case AnchorDir::Top:
+                return posComp->y;
+                break;
+            case AnchorDir::Left:
+                return posComp->x;
+                break;
+            case AnchorDir::Right:
+                return posComp->x + posComp->width;
+                break;
+            case AnchorDir::Bottom:
+                return posComp->y + posComp->height;
+                break;
+            default:
+                // Todo add support for width, height, center alignment ... to this getter
+                LOG_ERROR("UiAnchor", "Invalid anchor type, type is not yet managed");
+                return 0.0f;
+                break;
+        }
+    }
+
+    void UiAnchor::updateAnchor(bool hasAnchor, PosAnchor& anchor)
+    {
+        if (hasAnchor)
+        {
+            auto ent = ecsRef->getEntity(anchor.id);
+
+            if (ent and ent->has<PositionComponent>())
+            {
+                anchor.value = getValueFromType(ent->get<PositionComponent>(), anchor.type);
+            }
+        }
+    }
+
+    void UiAnchor::update()
+    {
+        auto entity = ecsRef->getEntity(id);
+
+        if (entity and entity->has<PositionComponent>())
+        {
+            auto pos = entity->get<PositionComponent>();
+
+            top.value = pos->y;
+            left.value = pos->x;
+            right.value = pos->x + pos->width;
+            bottom.value = pos->y + pos->height;
+        }
+
+        updateAnchor(hasTopAnchor, topAnchor);
+        updateAnchor(hasLeftAnchor, leftAnchor);
+        updateAnchor(hasRightAnchor, rightAnchor);
+        updateAnchor(hasBottomAnchor, bottomAnchor);
+    }
 }
