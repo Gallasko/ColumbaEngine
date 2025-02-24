@@ -148,6 +148,9 @@ namespace pg
 
         void updateCharacterList();
 
+        void makePlayerIconUi();
+        void showPlayerIcon();
+
         void makeStatUi();
         void showStat();
 
@@ -180,6 +183,7 @@ namespace pg
 
         EntityRef characterName;
 
+        std::unordered_map<std::string, EntityRef> playerIconUi;
         std::unordered_map<std::string, EntityRef> characterStatUi;
         std::unordered_map<std::string, EntityRef> skillTreeUi;
         std::unordered_map<std::string, EntityRef> upgradeTabUi;

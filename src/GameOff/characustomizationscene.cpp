@@ -307,6 +307,7 @@ namespace pg
 
             characterName.get<UiComponent>()->setVisibility(true);
 
+            showPlayerIcon();
             showStat();
             showSkillTree();
             showUpgradableTab();
@@ -376,7 +377,7 @@ namespace pg
 
         /// Character list UI setup
 
-        auto listView = makeListView(this, 0, 150, 300, 120);
+        auto listView = makeListView(this, 0, 150, 240, 120);
 
         listView.get<UiComponent>()->setTopAnchor(windowUi->top);
         listView.get<UiComponent>()->setRightAnchor(windowUi->right);
@@ -394,6 +395,7 @@ namespace pg
         
         charaName.get<TextInputComponent>()->clearTextAfterEnter = false;
 
+        makePlayerIconUi();
         makeStatUi();
         makeSkillTreeUi();
 
@@ -415,7 +417,6 @@ namespace pg
                 LOG_INFO("Player", "Got player: " << player->character.name);
 
                 ecsRef->sendEvent(AddPlayerToListViewEvent{player});
-                // addPlayerToListView(player);
             }
         }
     }
@@ -429,7 +430,7 @@ namespace pg
         auto prefab = makePrefab(this, 0, 0);
         prefab.get<Prefab>()->setVisibility(false);
 
-        auto backTex = makeUiTexture(ecsRef, 280, 60, "SelectedCharaBack");
+        auto backTex = makeUiTexture(ecsRef, 220 , 60, "SelectedCharaBack");
         auto backTexUi = backTex.get<UiComponent>();
 
         backTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
@@ -484,6 +485,38 @@ namespace pg
                 entity->get<TTFText>()->setText(chara->name);
             }
         }
+    }
+
+    void PlayerCustomizationScene::makePlayerIconUi()
+    {
+        auto icon = makeUiTexture(this, 120, 120, "NoneIcon");
+        auto iconUi = icon.get<UiComponent>();
+        iconUi->setX(25);
+        iconUi->setY(25);
+        iconUi->setVisibility(false);
+
+        auto name = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "None", 0.4);
+        auto nameUi = name.get<UiComponent>();
+
+        nameUi->setTopAnchor(iconUi->bottom);
+        nameUi->setTopMargin(5);
+        nameUi->setLeftAnchor(iconUi->left);
+        nameUi->setLeftMargin(iconUi->width / 2.0f - nameUi->width / 2.0f);
+        nameUi->setVisibility(false);
+
+        playerIconUi["icon"] = icon.entity;
+        playerIconUi["name"] = name.entity;
+    }
+
+    void PlayerCustomizationScene::showPlayerIcon()
+    {
+        playerIconUi["icon"].get<Texture2DComponent>()->setTexture(currentPlayer->character.icon);
+
+        playerIconUi["icon"].get<UiComponent>()->setVisibility(true);
+
+        playerIconUi["name"].get<TTFText>()->setText(currentPlayer->character.name);
+
+        playerIconUi["name"].get<UiComponent>()->setVisibility(true);
     }
 
     void PlayerCustomizationScene::makeStatUi()
