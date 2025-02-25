@@ -107,6 +107,8 @@ namespace pg
         void setWidthConstrain(const PosConstrain& constrain);
         void setHeightConstrain(const PosConstrain& constrain);
 
+        // Todo add z constrain
+
         // Todo add function to handle center, vertical and horizontal center alignment
 
         virtual void onCreation(EntityRef entity) override;

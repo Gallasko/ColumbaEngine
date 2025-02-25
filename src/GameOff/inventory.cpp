@@ -347,8 +347,9 @@ namespace pg
 
             // prefab.get<Prefab>()->addToPrefab(itemUi.get<UiComponent>());
 
-            auto itemNb = makeTTFText(ecsRef, 0, 0, iconTex.get<UiComponent>()->pos.z + 1, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(item.nbItems), 0.4);
+            auto itemNb = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(item.nbItems), 0.4);
 
+            // itemNb.get<UiComponent>()->setZ(iconTex.get<UiComponent>()->pos.z + 1);
             // itemNb.get<UiComponent>()->setBottomAnchor(prefab.get<UiComponent>()->bottom);
             // itemNb.get<UiComponent>()->setBottomMargin(5);
             // itemNb.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->left);

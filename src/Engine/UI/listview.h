@@ -198,10 +198,10 @@ namespace pg
 
         // Z + 3 so the cursor is always on top of the slider
         auto cursor = makeUiTexture(ecs, 15, 40, "cursor");
-        cursor.template get<UiComponent>()->setZ(ui->pos.z + 3);
-        cursor.template get<UiComponent>()->setHeight(view->cursorHeight);
-        cursor.template get<UiComponent>()->setTopAnchor(ui->top);
-        cursor.template get<UiComponent>()->setRightAnchor(ui->right);
+        // cursor.template get<PositionComponent>()->setZ(ui->pos.z + 3);
+        // cursor.template get<PositionComponent>()->setHeight(view->cursorHeight);
+        // cursor.template get<PositionComponent>()->setTopAnchor(ui->top);
+        // cursor.template get<PositionComponent>()->setRightAnchor(ui->right);
 
         ecs->template attach<FocusableComponent>(cursor.entity);
 
@@ -257,16 +257,16 @@ namespace pg
 
         // Z + 2 so the slider is always on top of any entity in the list
         auto slider = makeUiTexture(ecs, 15, 1, "slider");
-        slider.template get<UiComponent>()->setZ(ui->pos.z + 2);
-        slider.template get<UiComponent>()->setTopAnchor(ui->top);
-        slider.template get<UiComponent>()->setBottomAnchor(ui->bottom);
-        slider.template get<UiComponent>()->setRightAnchor(ui->right);
+        // slider.template get<UiComponent>()->setZ(ui->pos.z + 2);
+        // slider.template get<UiComponent>()->setTopAnchor(ui->top);
+        // slider.template get<UiComponent>()->setBottomAnchor(ui->bottom);
+        // slider.template get<UiComponent>()->setRightAnchor(ui->right);
 
         view->cursor = cursor.entity;
-        view->cursorUi = cursor.template get<UiComponent>();
+        // view->cursorUi = cursor.template get<UiComponent>();
 
         view->slider = slider.entity;
-        view->sliderUi = slider.template get<UiComponent>();
+        // view->sliderUi = slider.template get<UiComponent>();
 
         return CompList<UiComponent, ListView>(entity, ui, view);
     }

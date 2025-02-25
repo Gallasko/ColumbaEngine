@@ -187,16 +187,15 @@ struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePoli
 
         auto portrait = makeUiTexture(ecsRef, 100, 100, "NoneIcon");
 
-        portrait.get<UiComponent>()->setX(250);
-        portrait.get<UiComponent>()->setY(300);
+        portrait.get<PositionComponent>()->setX(250);
+        portrait.get<PositionComponent>()->setY(300);
         
         tex = portrait.get<Texture2DComponent>();
 
         auto fee = makeUiTexture(ecsRef, 100, 100, "Hahahah");
 
-        fee.get<UiComponent>()->setX(250);
-        fee.get<UiComponent>()->setY(420);
-        
+        fee.get<PositionComponent>()->setX(250);
+        fee.get<PositionComponent>()->setY(420);
     }
 
     virtual void onEvent(const ChangePortraitEvent&) override

@@ -147,6 +147,7 @@ set(ENGINESOURCE
     src/Engine/Shader/shader.cpp
     src/Engine/Systems/coresystems.cpp
     src/Engine/Systems/oneventcomponent.cpp
+    src/Engine/Systems/positionmodule.cpp
     src/Engine/Systems/uimodule.cpp
     src/Engine/UI/button.cpp
     src/Engine/UI/focusable.cpp

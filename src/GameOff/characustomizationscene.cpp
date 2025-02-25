@@ -431,7 +431,7 @@ namespace pg
         prefab.get<Prefab>()->setVisibility(false);
 
         auto backTex = makeUiTexture(ecsRef, 220 , 60, "SelectedCharaBack");
-        auto backTexUi = backTex.get<UiComponent>();
+        auto backTexUi = backTex.get<PositionComponent>();
 
         // backTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
         // backTexUi->setLeftAnchor(prefab.get<UiComponent>()->left);
@@ -452,7 +452,7 @@ namespace pg
         // iconTexUi->setZ(backTexUi->pos.z + 1);
         // iconTexUi->setZ(5);
 
-        auto ttf = makeTTFText(ecsRef, 0, 0, backTexUi->pos.z + 2, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
+        auto ttf = makeTTFText(ecsRef, 0, 0, backTexUi->z + 2, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
         // auto ttfUi = ttf.get<UiComponent>();
 
         // ttfUi->setBottomAnchor(prefab.get<UiComponent>()->bottom);
@@ -490,7 +490,7 @@ namespace pg
     void PlayerCustomizationScene::makePlayerIconUi()
     {
         auto icon = makeUiTexture(this, 120, 120, "NoneIcon");
-        auto iconUi = icon.get<UiComponent>();
+        auto iconUi = icon.get<PositionComponent>();
         iconUi->setX(25);
         iconUi->setY(25);
         iconUi->setVisibility(false);
@@ -498,11 +498,11 @@ namespace pg
         auto name = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "None", 0.4);
         auto nameUi = name.get<UiComponent>();
 
-        nameUi->setTopAnchor(iconUi->bottom);
-        nameUi->setTopMargin(5);
-        nameUi->setLeftAnchor(iconUi->left);
-        nameUi->setLeftMargin(iconUi->width / 2.0f - nameUi->width / 2.0f);
-        nameUi->setVisibility(false);
+        // nameUi->setTopAnchor(iconUi->bottom);
+        // nameUi->setTopMargin(5);
+        // nameUi->setLeftAnchor(iconUi->left);
+        // nameUi->setLeftMargin(iconUi->width / 2.0f - nameUi->width / 2.0f);
+        // nameUi->setVisibility(false);
 
         playerIconUi["icon"] = icon.entity;
         playerIconUi["name"] = name.entity;

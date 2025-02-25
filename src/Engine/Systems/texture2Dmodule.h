@@ -4,6 +4,7 @@
 
 #include "Interpreter/pginterpreter.h"
 
+#include "positionmodule.h"
 #include "uimodule.h"
 
 namespace pg
@@ -44,7 +45,7 @@ namespace pg
             }
 
             auto tex = makeUiTexture(ecsRef, w.get<float>(), h.get<float>(), name.toString());
-            auto texUi = tex.get<UiComponent>();
+            auto texUi = tex.get<PositionComponent>();
 
             if(x.isNumber() and y.isNumber())
             {
@@ -58,6 +59,7 @@ namespace pg
 
             auto list = makeList(this, {});
 
+            // Todo: fix this for position component instead of ui component 
             auto res = addToList(this, list, uiElementFunctionsList(this, ecsRef, texUi));
 
             return res;
