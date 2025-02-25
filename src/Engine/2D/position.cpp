@@ -239,6 +239,9 @@ namespace pg
 
     void UiAnchor::update()
     {
+        if (not ecsRef)
+            return;
+
         auto entity = ecsRef->getEntity(id);
 
         if (entity and entity->has<PositionComponent>())
@@ -399,29 +402,14 @@ namespace pg
         return oldX != x or oldY != y or oldZ != z or oldWidth != width or oldHeight != height;
     }
 
-    void PositionComponentSystem::pushChildrenInChange(_unique_id parentId, Entity *entity)
+    void PositionComponentSystem::pushChildrenInChange(_unique_id parentId)
     {
-        if (entity->has<UiAnchor>())
-        {
-            entity->get<UiAnchor>()->update();
-
-            // Todo check
-            // If the position component get changed by the anchor moving then we push its children to the queue for check
-            entity->get<PositionComponent>()->updatefromAnchor(*entity->get<UiAnchor>());
-        }
-        // Todo check else case should never happen, as if the entity id is in the parentalMap, then the entity should have UiAnchor component.
-
         for (const auto& child : parentalMap[parentId])
         {
-            auto childEntity = ecsRef->getEntity(child);
+            auto inserted = changedIds.insert(child);
 
-            // Todo, should be impossible to have a child without Position component or non existant.
-            if (childEntity and childEntity->has<PositionComponent>())
-            {
-                changedIds.insert(child);
-
-                pushChildrenInChange(child, childEntity);
-            }
+            if (inserted.second)
+                pushChildrenInChange(child);
         }
     }
     
@@ -431,18 +419,10 @@ namespace pg
         {
             const auto& event = eventQueue.front();
         
-            auto entity = ecsRef->getEntity(event.id);
-
-            if (not entity or not entity->has<PositionComponent>())
-            {
-                eventQueue.pop();
-                continue;
-            }
-
             if (not changedIds.count(event.id))
             {
                 changedIds.insert(event.id);
-                pushChildrenInChange(event.id, entity);
+                pushChildrenInChange(event.id);
             }
         
             eventQueue.pop();
@@ -452,6 +432,22 @@ namespace pg
         {
             for (const auto& id : changedIds)
             {
+                auto entity = ecsRef->getEntity(id);
+
+                if (not entity or not entity->has<PositionComponent>())
+                    continue;
+
+                if (entity->has<UiAnchor>())
+                {
+                    auto anchor = entity->get<UiAnchor>();
+                    
+                    anchor->update();
+
+                    // Todo check
+                    // If the position component get changed by the anchor moving then we push its children to the queue for check
+                    entity->get<PositionComponent>()->updatefromAnchor(*anchor);
+                }
+
                 ecsRef->sendEvent(EntityChangedEvent{id});
             }
 

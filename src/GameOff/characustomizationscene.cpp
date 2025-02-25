@@ -438,21 +438,24 @@ namespace pg
         backTexAnchor->setTopAnchor(prefabAnchor->top);
         backTexAnchor->setLeftAnchor(prefabAnchor->left);
 
-        prefabAnchor->setWidthConstrain(PosConstrain{backTexUi.entityId, AnchorType::Width});
-        prefabAnchor->setHeightConstrain(PosConstrain{backTexUi.entityId, AnchorType::Height});
+        prefabAnchor->setWidthConstrain(PosConstrain{backTex.entity.id, AnchorType::Width});
+        prefabAnchor->setHeightConstrain(PosConstrain{backTex.entity.id, AnchorType::Height});
 
         prefab.get<Prefab>()->addToPrefab(backTex.entity);
 
         // Careful here we don't pass this but ecsRef because when using a Prefab we don't want the underlaying element to be deleted by the scene
         // before deleting it ourselves in the prefab
         auto iconTex = makeUiTexture(ecsRef, 19 * 3, 19 * 3, player->character.icon);
+        auto iconTexAnchor = iconTex.get<UiAnchor>();
         // auto iconTexUi = iconTex.get<UiComponent>();
 
-        // iconTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
-        // iconTexUi->setRightAnchor(prefab.get<UiComponent>()->right);
-        // iconTexUi->setRightMargin(30);
-        // iconTexUi->setZ(backTexUi->pos.z + 1);
+        iconTexAnchor->setTopAnchor(prefabAnchor->top);
+        iconTexAnchor->setRightAnchor(prefabAnchor->right);
+        iconTexAnchor->setRightMargin(30);
+        iconTexAnchor->setZConstrain(PosConstrain{backTex.entity.id, AnchorType::Z, PosOpType::Add, 1});
         // iconTexUi->setZ(5);
+
+        prefab.get<Prefab>()->addToPrefab(iconTex.entity);
 
         auto ttf = makeTTFText(ecsRef, 0, 0, backTexUi->z + 2, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
         // auto ttfUi = ttf.get<UiComponent>();
@@ -463,12 +466,11 @@ namespace pg
         // // ttfUi->setLeftAnchor(10);
         // ttfUi->setX(&backTex.get<UiComponent>()->left);
 
-        // prefab.get<Prefab>()->addToPrefab(iconTexUi);
         // prefab.get<Prefab>()->addToPrefab(ttfUi);
 
         attach<MouseLeftClickComponent>(prefab.entity, makeCallable<SelectedCharacter>(player));
 
-        // characterList->addEntity(prefab.get<UiComponent>());
+        characterList->addEntity(prefab.entity);
 
         ttfTextIdToCharacter.emplace(ttf.entity.id, &player->character);
     }

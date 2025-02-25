@@ -206,7 +206,7 @@ namespace pg
             eventQueue.push(event);
         }
 
-        void pushChildrenInChange(_unique_id parentId, Entity *entity);
+        void pushChildrenInChange(_unique_id parentId);
         
         virtual void execute() override;
 
