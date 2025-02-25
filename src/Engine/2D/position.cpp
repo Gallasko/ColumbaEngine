@@ -234,6 +234,15 @@ namespace pg
         }
     }
 
+    void PositionComponent::setRotation(float rotation)
+    {
+        if (this->rotation != rotation)
+        {
+            this->rotation = rotation;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+    }
+
     void PositionComponent::setVisibility(bool visible)
     {
         if (this->visible != visible)
@@ -321,6 +330,7 @@ namespace pg
 
             if (not changedIds.count(event.id))
             {
+                changedIds.insert(event.id);
                 pushChildrenInChange(event.id, entity);
             }
         

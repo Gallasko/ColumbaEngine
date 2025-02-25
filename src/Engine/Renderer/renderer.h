@@ -31,6 +31,7 @@ namespace pg
     // TODO make a specialized renderer for std::nullptr_t to catch nullptr error;
 
     class UiComponent;
+    struct PositionComponent;
 
     struct RenderableTexture
     {
@@ -184,7 +185,10 @@ namespace pg
 
         void log() const;
 
+        // deprecated
         void processUiComponent(UiComponent *component);
+
+        void processPositionComponent(CompRef<PositionComponent> component);
 
         void setVisibility(bool visible)
         {

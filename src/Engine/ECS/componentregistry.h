@@ -667,6 +667,8 @@ namespace pg
 
         inline bool empty() const { return component == nullptr; }
 
+        Entity* getEntity() const;
+
         bool initialized;
         Comp* component;
         _unique_id entityId;

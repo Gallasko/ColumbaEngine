@@ -16,6 +16,8 @@ namespace fs = std::filesystem;
 
 #include "UI/uisystem.h"
 
+#include "2D/position.h"
+
 namespace pg
 {
     namespace
@@ -56,6 +58,38 @@ namespace pg
         }
 
         setDepth(component->pos.z);
+    }
+
+    void RenderCall::processPositionComponent(CompRef<PositionComponent> component)
+    {
+        setVisibility(component->visible);
+
+        auto entity = component.getEntity();
+
+        if (entity and entity->has<ClippedTo>())
+        {
+            auto clippedTo = entity->get<ClippedTo>();
+
+            auto clippedToEntity = component.ecsRef->getEntity(clippedTo->clipperId);
+
+            if (clippedToEntity and clippedToEntity->has<PositionComponent>())
+            {
+                state.scissorEnabled = true;
+
+                auto position = clippedToEntity->get<PositionComponent>();
+
+                float tx = position->x;
+                float ty = position->y;
+
+                float w = position->width;
+                float h = position->height;
+
+                // To get width and height you need to subtract bottom corner to the top corner
+                state.scissorBound = constant::Vector4D{tx, ty, w, h};
+            }
+        }
+
+        setDepth(component->z);
     }
 
     BaseAbstractRenderer::BaseAbstractRenderer(MasterRenderer *masterRenderer, const RenderStage& stage) : masterRenderer(masterRenderer), renderStage(stage)

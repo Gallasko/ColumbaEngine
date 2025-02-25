@@ -130,8 +130,26 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto titleTTF3 = makeTTFText(ecsRef, 330, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));
 
-        // auto progressBar = makeProgressBar(ecsRef, 400, 100, "emptyBar", "fullBar", 0.65);
-        // progressBar.get<UiComponent>()->setY(250);
+        auto spacer = ecsRef->createEntity();
+        auto spacerPos = ecsRef->attach<PositionComponent>(spacer);
+        spacerPos->setX(100);
+        spacerPos->setWidth(150);
+        auto spacerAnchor = ecsRef->attach<UiAnchor>(spacer);
+
+        auto clipper = ecsRef->createEntity();
+        auto clipperPos = ecsRef->attach<PositionComponent>(clipper);
+        clipperPos->setX(350);
+        clipperPos->setY(200);
+        clipperPos->setWidth(100);
+        clipperPos->setHeight(100);
+
+
+        auto progressBar = makeProgressBar(ecsRef, 400, 100, "emptyBar", "fullBar", 0.65);
+        progressBar.get<PositionComponent>()->setY(250);
+
+        progressBar.get<UiAnchor>()->setLeftAnchor(spacerAnchor->right);
+
+        ecsRef->attach<ClippedTo>(progressBar.entity, clipper->id);
 
         // barComp = progressBar.get<ProgressBarComponent>();
 

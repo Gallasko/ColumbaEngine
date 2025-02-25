@@ -145,12 +145,15 @@ namespace pg
 
     struct PositionComponent : public Ctor
     {
+        // Todo make a basic constructor
         float x = 0.0f;
         float y = 0.0f;
         float z = 0.0f;
 
         float width = 0.0f;
         float height = 0.0f;
+
+        float rotation = 0.0f;
 
         bool visible = true;
 
@@ -162,6 +165,8 @@ namespace pg
 
         void setWidth(float width);
         void setHeight(float height);
+
+        void setRotation(float rotation);
 
         void setVisibility(bool visible);
 

@@ -75,12 +75,12 @@ namespace pg
         baseMaterialPreset.uniformMap.emplace("sWidth", "ScreenWidth");
         baseMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        auto group = registerGroup<UiComponent, ProgressBarComponent>();
+        auto group = registerGroup<PositionComponent, ProgressBarComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE("Progress Bar System", "Add entity " << entity->id << " to ui - 2d shape group !");
 
-            auto ui = entity->get<UiComponent>();
+            auto ui = entity->get<PositionComponent>();
             auto shape = entity->get<ProgressBarComponent>();
 
             ecsRef->attach<ProgressBarRenderCall>(entity, createRenderCall(ui, shape));
@@ -118,13 +118,13 @@ namespace pg
         changed = false;
     }
 
-    RenderCall ProgressBarComponentSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<ProgressBarComponent> obj)
+    RenderCall ProgressBarComponentSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<ProgressBarComponent> obj)
     {
         LOG_THIS_MEMBER(DOM);
 
         RenderCall call;
 
-        call.processUiComponent(ui);
+        call.processPositionComponent(ui);
 
         call.setRenderStage(renderStage);
 
@@ -148,9 +148,9 @@ namespace pg
 
         call.data.resize(8);
 
-        call.data[0] = ui->pos.x;
-        call.data[1] = ui->pos.y;
-        call.data[2] = ui->pos.z;
+        call.data[0] = ui->x;
+        call.data[1] = ui->y;
+        call.data[2] = ui->z;
         call.data[3] = ui->width;
         call.data[4] = ui->height;
         call.data[5] = ui->rotation;
@@ -176,7 +176,7 @@ namespace pg
         if (not entity or not entity->has<ProgressBarRenderCall>())
             return; 
 
-        auto ui = entity->get<UiComponent>();
+        auto ui = entity->get<PositionComponent>();
         auto shape = entity->get<ProgressBarComponent>();
 
         entity->get<ProgressBarRenderCall>()->call = createRenderCall(ui, shape);

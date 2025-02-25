@@ -2,7 +2,8 @@
 
 #include "Renderer/renderer.h"
 
-#include "UI/uisystem.h"
+// #include "UI/uisystem.h"
+#include "2D/position.h"
 
 namespace pg
 {
@@ -108,7 +109,7 @@ namespace pg
 
         virtual void execute() override;
 
-        RenderCall createRenderCall(CompRef<UiComponent> ui, CompRef<ProgressBarComponent> obj);
+        RenderCall createRenderCall(CompRef<PositionComponent> ui, CompRef<ProgressBarComponent> obj);
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 
@@ -123,17 +124,19 @@ namespace pg
 
     /** Helper that create an entity with an Ui component and a Progress Bar component */
     template <typename Type>
-    CompList<UiComponent, ProgressBarComponent> makeProgressBar(Type *ecs, float width, float height, const std::string& emptyTexture, const std::string& fullTexture, float fillRatio = 1.0f)
+    CompList<PositionComponent, UiAnchor, ProgressBarComponent> makeProgressBar(Type *ecs, float width, float height, const std::string& emptyTexture, const std::string& fullTexture, float fillRatio = 1.0f)
     {
         auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<UiComponent>(entity);
+        auto ui = ecs->template attach<PositionComponent>(entity);
 
         ui->setWidth(width);
         ui->setHeight(height);
 
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
         auto tex = ecs->template attach<ProgressBarComponent>(entity, emptyTexture, fullTexture, fillRatio);
 
-        return CompList<UiComponent, ProgressBarComponent>(entity, ui, tex);
+        return CompList<PositionComponent, UiAnchor, ProgressBarComponent>(entity, ui, anchor, tex);
     }
 }

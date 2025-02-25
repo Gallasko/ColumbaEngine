@@ -24,6 +24,7 @@
 #include "UI/listview.h"
 #include "UI/prefab.h"
 
+#include "2D/position.h"
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 
@@ -369,6 +370,8 @@ namespace pg
 
         ecs.createSystem<UiComponentSystem>();
 
+        ecs.createSystem<PositionComponentSystem>();
+
         ecs.createSystem<Simple2DObjectSystem>(masterRenderer);
 
         ecs.createSystem<Texture2DComponentSystem>(masterRenderer);
@@ -405,8 +408,9 @@ namespace pg
         ecs.succeed<MouseClickSystem, TickingSystem>();
 
         ecs.succeed<UiComponentSystem, PrefabSystem>();
-
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
+
+        ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
@@ -416,6 +420,7 @@ namespace pg
         ecs.succeed<MasterRenderer, PrefabSystem>();
 
         ecs.succeed<MasterRenderer, UiComponentSystem>();
+        ecs.succeed<MasterRenderer, PositionComponentSystem>();
 
         ecs.succeed<SceneElementSystem, MasterRenderer>();
 

@@ -959,6 +959,17 @@ namespace pg
 
     }
 
+    template <typename Comp>
+    Entity* CompRef<Comp>::getEntity() const
+    {
+        if (entityId != 0)
+        {
+            return ecsRef->getEntity(entityId);
+        }
+
+        return nullptr;
+    }
+
     template <typename Type, typename... Types>
     template <typename Set>
     void Group<Type, Types...>::addEventToSet(Set setN)
