@@ -22,7 +22,9 @@
 
 #include "achievement.h"
 
-#include "Helpers/tinyfiledialogs.h" 
+#include "Helpers/tinyfiledialogs.h"
+
+#include "2D/position.h"
 
 using namespace pg;
 

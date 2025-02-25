@@ -102,6 +102,7 @@ set(ENGINESOURCE
     src/Engine/logger.cpp
     src/Engine/serialization.cpp
     src/Engine/2D/collisionsystem.cpp
+    src/Engine/2D/position.cpp
     src/Engine/2D/simple2dobject.cpp
     src/Engine/2D/texture.cpp
     src/Engine/Audio/audiosystem.cpp
