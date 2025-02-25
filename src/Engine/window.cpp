@@ -431,10 +431,18 @@ namespace pg
         ecs.dumbTaskflow();
 
         screenEntity = ecs.createEntity();
+        // Todo remove this 
         screenUi = ecs.attach<UiComponent>(screenEntity);
         screenUi->width = width;
         screenUi->height = height;
         screenUi->setZ(-1);
+
+        auto screenPos = ecs.attach<PositionComponent>(screenEntity);
+        screenPos->setWidth(width);
+        screenPos->setHeight(height);
+        screenPos->setZ(-1);
+
+        ecs.attach<UiAnchor>(screenEntity);
 
         ecs.attach<FocusableComponent>(screenEntity);
 

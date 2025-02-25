@@ -373,15 +373,15 @@ namespace pg
 
         auto windowEnt = ecsRef->getEntity("__MainWindow");
 
-        auto windowUi = windowEnt->get<UiComponent>();
+        auto windowAnchor = windowEnt->get<UiAnchor>();
 
         /// Character list UI setup
 
         auto listView = makeListView(this, 0, 150, 240, 120);
 
-        listView.get<UiComponent>()->setTopAnchor(windowUi->top);
-        listView.get<UiComponent>()->setRightAnchor(windowUi->right);
-        listView.get<UiComponent>()->setBottomAnchor(windowUi->bottom);
+        listView.get<UiAnchor>()->setTopAnchor(windowAnchor->top);
+        listView.get<UiAnchor>()->setRightAnchor(windowAnchor->right);
+        listView.get<UiAnchor>()->setBottomAnchor(windowAnchor->bottom);
 
         characterList = listView.get<ListView>();
 
@@ -429,17 +429,19 @@ namespace pg
     {
         auto prefab = makeAnchoredPrefab(this, 0, 0);
         prefab.get<Prefab>()->setVisibility(false);
+        auto prefabAnchor = prefab.get<UiAnchor>();
 
         auto backTex = makeUiTexture(ecsRef, 220 , 60, "SelectedCharaBack");
         auto backTexUi = backTex.get<PositionComponent>();
+        auto backTexAnchor = backTex.get<UiAnchor>();
 
-        // backTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
-        // backTexUi->setLeftAnchor(prefab.get<UiComponent>()->left);
+        backTexAnchor->setTopAnchor(prefabAnchor->top);
+        backTexAnchor->setLeftAnchor(prefabAnchor->left);
 
-        // prefab.get<UiComponent>()->setWidth(backTexUi->width);
-        // prefab.get<UiComponent>()->setHeight(backTexUi->height);
+        prefabAnchor->setWidthConstrain(PosConstrain{backTexUi.entityId, AnchorType::Width});
+        prefabAnchor->setHeightConstrain(PosConstrain{backTexUi.entityId, AnchorType::Height});
 
-        // prefab.get<Prefab>()->addToPrefab(backTexUi);
+        prefab.get<Prefab>()->addToPrefab(backTex.entity);
 
         // Careful here we don't pass this but ecsRef because when using a Prefab we don't want the underlaying element to be deleted by the scene
         // before deleting it ourselves in the prefab
@@ -477,12 +479,10 @@ namespace pg
 
         for (auto& character : characterList->entities)
         {
-            auto entity = ecsRef->getEntity(character.entityId);
-
-            if (entity != nullptr and entity->has<TTFText>())
+            if (character != nullptr and character->has<TTFText>())
             {
-                auto chara = ttfTextIdToCharacter.at(character.entityId);
-                entity->get<TTFText>()->setText(chara->name);
+                auto chara = ttfTextIdToCharacter.at(character.id);
+                character->get<TTFText>()->setText(chara->name);
             }
         }
     }
@@ -627,7 +627,7 @@ namespace pg
         auto pushInListView = [this, skillTreeSelected](const std::string& name, SkillTree* sTree, ListView* listView)
         {
             auto ttf = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", name , 0.4);
-            listView->addEntity(ttf.get<UiComponent>());
+            listView->addEntity(ttf.entity);
 
             attach<MouseLeftClickComponent>(ttf.entity, makeCallable<ChangeSkillTreeInUse>(sTree, skillTreeSelected));
         };
@@ -680,7 +680,7 @@ namespace pg
         auto pushInListView = [this](const std::string& name, SkillTree* sTree, ListView* listView)
         {
             auto ttf = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", name , 0.4);
-            listView->addEntity(ttf.get<UiComponent>());
+            listView->addEntity(ttf.entity);
 
             attach<MouseLeftClickComponent>(ttf.entity, makeCallable<ShowSkillBookUpgradeNeed>(sTree));
         };
@@ -734,7 +734,7 @@ namespace pg
             }
 
             auto ttf = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", str, 0.4, color);
-            listView->addEntity(ttf.get<UiComponent>());
+            listView->addEntity(ttf.entity);
         }
 
         if (sTree->currentLevel >= sTree->maxLevel)

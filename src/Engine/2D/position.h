@@ -84,8 +84,13 @@ namespace pg
         float rightMargin = 0.0f;
         float bottomMargin = 0.0f;
 
+        bool hasWidthConstrain = false;
+        bool hasHeightConstrain = false;
+        bool hasZConstrain = false;
+
         PosConstrain widthConstrain;
         PosConstrain heightConstrain;
+        PosConstrain zConstrain;
 
         void setTopAnchor(const PosAnchor& anchor);
         void clearTopAnchor();
@@ -106,8 +111,7 @@ namespace pg
 
         void setWidthConstrain(const PosConstrain& constrain);
         void setHeightConstrain(const PosConstrain& constrain);
-
-        // Todo add z constrain
+        void setZConstrain(const PosConstrain& constrain);
 
         // Todo add function to handle center, vertical and horizontal center alignment
 

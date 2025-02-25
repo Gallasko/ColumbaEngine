@@ -38,7 +38,7 @@ namespace pg
 
     struct AddListViewElementEvent
     {
-        _unique_id id; CompRef<UiComponent> ui;
+        _unique_id id; _unique_id ui;
     };
 
     struct RemoveListViewElementEvent
@@ -71,29 +71,25 @@ namespace pg
             ecsRef = entity.ecsRef;
         }
 
-        void addEntity(CompRef<UiComponent> ui) { ecsRef->sendEvent(AddListViewElementEvent{id, ui}); }
+        void addEntity(EntityRef entity) { ecsRef->sendEvent(AddListViewElementEvent{id, entity.id}); }
 
         void removeEntity(EntityRef entity);
 
         void updateVisibility();
 
+        // Todo send an event for visibility update
         void setVisibility(bool visible);
 
         void clear() { ecsRef->sendEvent(ClearListViewEvent{id}); }
 
-        CompRef<UiComponent> viewUi;
-
         // Todo currently only supports vertical list view
         // Todo make it work for horizontal or both hori/verti slider (2 sliders at the same time)
         EntityRef cursor;
-        CompRef<UiComponent> cursorUi;
 
-        UiSize cursorHeight;
-
-        UiSize listReelHeight;
+        float cursorHeight;
+        float listReelHeight;
 
         EntityRef slider;
-        CompRef<UiComponent> sliderUi;
 
         /** Spacing between each entity of the list */
         float spacing = 5;
@@ -101,7 +97,7 @@ namespace pg
         /** Flag indicating whether the list must show the last item in the list when adding a new entity */
         bool stickToBottom = false;
 
-        std::vector<CompRef<UiComponent>> entities;
+        std::vector<EntityRef> entities;
 
         _unique_id id;
 
@@ -155,13 +151,13 @@ namespace pg
                     return;
                 }
 
-                addEntity(ent->get<ListView>(), event.ui);
+                addEntity(ent, event.ui);
 
                 eventQueue.pop();
             }
         }
 
-        void addEntity(CompRef<ListView> view, CompRef<UiComponent> ui);
+        void addEntity(EntityRef viewEnt, _unique_id ui);
 
         void removeEntity(EntityRef /* entity */) {}
 
@@ -178,15 +174,13 @@ namespace pg
 
     /** Helper that create an entity with an Ui component and a Texture component */
     template <typename Type>
-    CompList<UiComponent, ListView> makeListView(Type *ecs, float x, float y, float width, float height)
+    CompList<PositionComponent, UiAnchor, ListView> makeListView(Type *ecs, float x, float y, float width, float height)
     {
         auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<UiComponent>(entity);
+        auto ui = ecs->template attach<PositionComponent>(entity);
 
         auto view = ecs->template attach<ListView>(entity);
-
-        // make2
 
         ui->setX(x);
         ui->setY(y);
@@ -194,14 +188,16 @@ namespace pg
         ui->setWidth(width);
         ui->setHeight(height);
 
-        view->viewUi = ui;
+        auto anchor = ecs->template attach<UiAnchor>(entity);
 
         // Z + 3 so the cursor is always on top of the slider
         auto cursor = makeUiTexture(ecs, 15, 40, "cursor");
-        // cursor.template get<PositionComponent>()->setZ(ui->pos.z + 3);
-        // cursor.template get<PositionComponent>()->setHeight(view->cursorHeight);
-        // cursor.template get<PositionComponent>()->setTopAnchor(ui->top);
-        // cursor.template get<PositionComponent>()->setRightAnchor(ui->right);
+        auto cursorAnchor = cursor.template get<UiAnchor>();
+
+        cursorAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 3});
+        cursorAnchor->setHeightConstrain(PosConstrain{entity->id, AnchorType::Height});
+        cursorAnchor->setTopAnchor(anchor->top);
+        cursorAnchor->setRightAnchor(anchor->right);
 
         ecs->template attach<FocusableComponent>(cursor.entity);
 
@@ -209,7 +205,8 @@ namespace pg
 
         auto cursorId = cursor.entity.id;
 
-        // Todo improve this
+        // Todo improve this (should be possible with the new constrain system for position)
+        // Todo add this back first
         std::function<void(const OnMouseMove&)> cursorCallback = [viewId, ecs](const OnMouseMove event) {
             if (not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
                 return;
@@ -220,17 +217,18 @@ namespace pg
                 return;
 
             auto viewComp = ent->template get<ListView>();
-            auto viewUi = ent->template get<UiComponent>();
+            auto viewUi = ent->template get<PositionComponent>();
 
             auto focus = viewComp->cursor->template get<FocusableComponent>();
-            auto cursorUi = viewComp->cursor->template get<UiComponent>();
+            auto cursorUi = viewComp->cursor->template get<PositionComponent>();
+            auto cursorAnchor = viewComp->cursor->template get<UiAnchor>();
 
             if (not focus->focused)
                 return;
 
             float cHeight = viewComp->cursorHeight;
 
-            float currentPos = event.pos.y - viewUi->pos.y - cHeight / 2.0f;
+            float currentPos = event.pos.y - viewUi->y - cHeight / 2.0f;
 
             if (currentPos < 0)
                 currentPos = 0;
@@ -240,12 +238,18 @@ namespace pg
             if (currentPos > maxHeight)
                 currentPos = maxHeight;
 
-            cursorUi->setTopMargin(currentPos);
+            cursorAnchor->setTopMargin(currentPos);
 
             if (viewComp->entities.size() > 0)
             {
-                // * static_cast<float>(viewComp->listReelHeight / viewComp->viewUi->height)
-                viewComp->entities[0]->setTopMargin(-currentPos * static_cast<float>(viewComp->listReelHeight / viewComp->viewUi->height));
+                if (viewComp->entities[0]->template has<UiAnchor>())
+                {
+                    viewComp->entities[0]->template get<UiAnchor>()->setTopMargin(-currentPos * viewComp->listReelHeight / viewUi->height);
+                }
+                else
+                {
+                    LOG_ERROR("ListViewSystem", "First entity in the list [" << viewId << "] must have a UiAnchor!");
+                }   
             }
 
             viewComp->updateVisibility();
@@ -257,18 +261,18 @@ namespace pg
 
         // Z + 2 so the slider is always on top of any entity in the list
         auto slider = makeUiTexture(ecs, 15, 1, "slider");
-        // slider.template get<UiComponent>()->setZ(ui->pos.z + 2);
-        // slider.template get<UiComponent>()->setTopAnchor(ui->top);
-        // slider.template get<UiComponent>()->setBottomAnchor(ui->bottom);
-        // slider.template get<UiComponent>()->setRightAnchor(ui->right);
+        auto sliderAnchor = slider.template get<UiAnchor>();
+
+        sliderAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 2});
+        sliderAnchor->setTopAnchor(anchor->top);
+        sliderAnchor->setBottomAnchor(anchor->bottom);
+        sliderAnchor->setRightAnchor(anchor->right);
 
         view->cursor = cursor.entity;
-        // view->cursorUi = cursor.template get<UiComponent>();
 
         view->slider = slider.entity;
-        // view->sliderUi = slider.template get<UiComponent>();
 
-        return CompList<UiComponent, ListView>(entity, ui, view);
+        return CompList<PositionComponent, UiAnchor, ListView>(entity, ui, anchor, view);
     }
 
 }

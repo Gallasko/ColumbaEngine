@@ -29,6 +29,79 @@ namespace pg
                     break;
             }
         }
+
+        float constrainCalculation(EntitySystem* ecsRef, const PosConstrain& constrain)
+        {
+            auto entity = ecsRef->getEntity(constrain.id);
+
+            if (not entity or not entity->has<PositionComponent>())
+            {
+                LOG_ERROR("PosConstrain", "Entity " << constrain.id << " does not have a PositionComponent!");
+                return 0.0f;
+            }
+
+            auto pos = entity->get<PositionComponent>();
+
+            float value = 0.0f;
+
+            switch (constrain.type)
+            {
+            case AnchorType::Width:
+                value = pos->width;
+                break;
+
+            case AnchorType::Height:
+                value = pos->height;
+                break;
+            
+            case AnchorType::X:
+                value = pos->x;
+                break;
+
+            case AnchorType::Y:
+                value = pos->y;
+                break;
+
+            case AnchorType::Z:
+                value = pos->z;
+                break;
+
+            default:
+                LOG_ERROR("UiAnchor", "Invalid anchor type, type is not yet managed");
+                break;
+            }
+
+            switch (constrain.opType)
+            {
+            case PosOpType::Add:
+                value += constrain.opValue;
+                break;
+
+            case PosOpType::Sub:
+                value -= constrain.opValue;
+                break;
+
+            case PosOpType::Mul:
+                value *= constrain.opValue;
+                break;
+
+            case PosOpType::Div:
+                if (constrain.opValue != 0.0f)
+                    value /= constrain.opValue;
+                else
+                {
+                    LOG_ERROR("UiAnchor", "Division by zero"); 
+                }
+                break;
+
+            case PosOpType::None:
+            default:
+                // We do nothing
+                break;
+            }
+
+            return value;
+        }
     }
 
     void UiAnchor::setTopAnchor(const PosAnchor& anchor)
@@ -118,6 +191,7 @@ namespace pg
     void UiAnchor::setWidthConstrain(const PosConstrain& constrain)
     {
         widthConstrain = constrain;
+        hasWidthConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
@@ -125,6 +199,15 @@ namespace pg
     void UiAnchor::setHeightConstrain(const PosConstrain& constrain)
     {
         heightConstrain = constrain;
+        hasHeightConstrain = true;
+        ecsRef->sendEvent(ParentingEvent{constrain.id, id});
+        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void UiAnchor::setZConstrain(const PosConstrain& constrain)
+    {
+        zConstrain = constrain;
+        hasZConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
@@ -268,6 +351,9 @@ namespace pg
     {
         float oldX = x;
         float oldY = y;
+        float oldZ = z;
+        float oldWidth = width;
+        float oldHeight = height;
 
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
@@ -297,7 +383,20 @@ namespace pg
             this->x = anchor.leftAnchor.value + anchor.leftMargin;
         }
 
-        return oldX != x or oldY != y;
+        // Cannot do constrain calculation if we don't have access to ecsRef
+        if (ecsRef)
+        {
+            if (anchor.hasZConstrain)
+                z = constrainCalculation(ecsRef, anchor.zConstrain);
+
+            if (anchor.hasWidthConstrain)
+                width = constrainCalculation(ecsRef, anchor.widthConstrain);
+
+            if (anchor.hasHeightConstrain)
+                height = constrainCalculation(ecsRef, anchor.heightConstrain);
+        }
+
+        return oldX != x or oldY != y or oldZ != z or oldWidth != width or oldHeight != height;
     }
 
     void PositionComponentSystem::pushChildrenInChange(_unique_id parentId, Entity *entity)

@@ -300,7 +300,7 @@ namespace pg
 
         attach<MouseLeftClickComponent>(ttf.entity, makeCallable<SelectedCharacter>(player));
 
-        characterList->addEntity(ttfUi);
+        characterList->addEntity(ttf.entity);
     }
 
     void InventoryScene::populateView(const ItemType& type)
@@ -320,23 +320,23 @@ namespace pg
             // before deleting it ourselves in the prefab
             auto itemTex = makeUiTexture(ecsRef, 125 * 3, 21 * 3, "Header2");
 
-            // itemTex.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
-            // itemTex.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
+            itemTex.get<UiAnchor>()->setTopAnchor(prefab.get<UiAnchor>()->top);
+            itemTex.get<UiAnchor>()->setLeftAnchor(prefab.get<UiAnchor>()->left);
 
-            // prefab.get<UiComponent>()->setWidth(itemTex.get<UiComponent>()->width);
-            // prefab.get<UiComponent>()->setHeight(itemTex.get<UiComponent>()->height);
+            prefab.get<UiAnchor>()->setWidthConstrain(PosConstrain{itemTex.entity.id, AnchorType::Width});
+            prefab.get<UiAnchor>()->setHeightConstrain(PosConstrain{itemTex.entity.id, AnchorType::Height});
 
-            // prefab.get<Prefab>()->addToPrefab(itemTex.get<UiComponent>());
+            prefab.get<Prefab>()->addToPrefab(itemTex.entity);
 
             auto iconTex = makeUiTexture(ecsRef, 15 * 3, 15 * 3, item.icon);
 
-            // iconTex.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
-            // iconTex.get<UiComponent>()->setTopMargin(8);
-            // iconTex.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
-            // iconTex.get<UiComponent>()->setLeftMargin(12);
-            // iconTex.get<UiComponent>()->setZ(itemTex.get<UiComponent>()->pos.z + 1);
+            iconTex.get<UiAnchor>()->setTopAnchor(prefab.get<UiAnchor>()->top);
+            iconTex.get<UiAnchor>()->setTopMargin(8);
+            iconTex.get<UiAnchor>()->setLeftAnchor(prefab.get<UiAnchor>()->left);
+            iconTex.get<UiAnchor>()->setLeftMargin(12);
+            iconTex.get<UiAnchor>()->setZConstrain(PosConstrain{itemTex.entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
 
-            // prefab.get<Prefab>()->addToPrefab(iconTex.get<UiComponent>());
+            prefab.get<Prefab>()->addToPrefab(iconTex.entity);
 
             auto itemUi = makeTTFText(ecsRef, 0, 0, 2, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name, 0.4);
 
@@ -363,7 +363,7 @@ namespace pg
                 attach<MouseLeftClickComponent>(itemTex.entity, makeCallable<ShowCharaList>(&item));
             }
 
-            // view->addEntity(prefab.get<UiComponent>());
+            view->addEntity(prefab.entity);
         }
     }
 }

@@ -188,7 +188,7 @@ namespace pg
 
         attach<MouseLeftClickComponent>(ttf.entity, makeCallable<SelectedCharacter>(player));
 
-        characterList->addEntity(ttfUi);
+        characterList->addEntity(ttf.entity);
     }
 
     void LocationScene::addLocation(const Location& location)
@@ -199,6 +199,6 @@ namespace pg
 
         attach<MouseLeftClickComponent>(ttf.entity, makeCallable<SelectedLocation>(location));
 
-        locationList->addEntity(ttfUi);
+        locationList->addEntity(ttf.entity);
     }
 }

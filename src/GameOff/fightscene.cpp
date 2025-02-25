@@ -663,7 +663,7 @@ namespace pg
 
                 ui->setVisibility(false);
 
-                spellView->addEntity(ui);
+                spellView->addEntity(sp.entity);
             }
         });
 
@@ -771,6 +771,6 @@ namespace pg
 
         ui->setVisibility(false);
 
-        logView->addEntity(ui);
+        logView->addEntity(playerTurnText.entity);
     }
 }
