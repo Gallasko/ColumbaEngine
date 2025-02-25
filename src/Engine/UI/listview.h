@@ -214,7 +214,6 @@ namespace pg
         auto cursorAnchor = cursor.template get<UiAnchor>();
 
         cursorAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 3});
-        cursorAnchor->setHeightConstrain(PosConstrain{entity->id, AnchorType::Height});
         cursorAnchor->setTopAnchor(anchor->top);
         cursorAnchor->setRightAnchor(anchor->right);
 
