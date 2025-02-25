@@ -183,6 +183,18 @@ namespace pg
         ecsRef->sendEvent(EntityChangedEvent{id});
     }
 
+    void ClippedTo::setNewClipper(_unique_id clipperId)
+    {
+        if (this->clipperId != clipperId)
+        {
+            // Todo add a remove parenting event here (from the last clipper id)
+
+            this->clipperId = clipperId;
+            ecsRef->sendEvent(ParentingEvent{clipperId, id});
+            ecsRef->sendEvent(EntityChangedEvent{id});
+        }
+    }
+
     void PositionComponent::onCreation(EntityRef entity)
     {
         ecsRef = entity->world();

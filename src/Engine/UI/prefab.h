@@ -2,7 +2,9 @@
 
 #include "ECS/system.h"
 
-#include "uisystem.h"
+// #include "uisystem.h"
+
+#include "2D/position.h"
 
 namespace pg
 {
@@ -27,41 +29,55 @@ namespace pg
             }
         }
 
-        void setCompForPrefab(CompRef<UiComponent> comp)
+        void setCompForPrefab(EntityRef entity)
         {
-            if (comp->isVisible() != visible)
+            // Without a position component, we cannot work on adding the entity to the prefab ui, so we skip the rest
+            if (not entity->has<PositionComponent>())
             {
-                comp->setVisibility(visible);
+                LOG_ERROR("Prefab", "Entity " << entity.id << " can't be added to prefab as it doesn't have a PositionComponent!");
+                return;
             }
 
-            if (comp->isWindowClipped() == isClippedToWindow)
+            auto pos = entity->get<PositionComponent>();
+
+            if (pos->visible != visible)
             {
-                if (not isClippedToWindow and (comp->clipTopLeft != clipTopLeft or comp->clipBottomRight != clipBottomRight))
+                pos->setVisibility(visible);
+            }
+
+            if (isClippedToWindow)
+            {
+                if (entity->has<ClippedTo>())
                 {
-                    comp->setClipRect(clipTopLeft, clipBottomRight);
-                }
+                    entity->world()->detach<ClippedTo>(entity);
+                }                
             }
             else
             {
-                if (isClippedToWindow)
+                auto thisEnt = ecsRef->getEntity(id);
+                if (not thisEnt or not thisEnt->has<ClippedTo>())
                 {
-                    comp->clipBackToWindow();
+                    LOG_ERROR("Prefab", "Prefab " << id << " has no ClippedTo component, but wants to clip its children!");
+                }
+
+                auto clip = thisEnt->get<ClippedTo>();
+
+                if (entity->has<ClippedTo>())
+                {
+                    entity->get<ClippedTo>()->setNewClipper(clip->clipperId);
                 }
                 else
                 {
-                    if (comp->clipTopLeft != clipTopLeft or comp->clipBottomRight != clipBottomRight or comp->isWindowClipped() == true)
-                    {
-                        comp->setClipRect(clipTopLeft, clipBottomRight);
-                    }
+                    ecsRef->attach<ClippedTo>(entity, clip->clipperId);    
                 }
             }
         }
 
-        void addToPrefab(CompRef<UiComponent> comp)
+        void addToPrefab(EntityRef entity)
         {
-            setCompForPrefab(comp);
+            setCompForPrefab(entity);
 
-            childrenIds.insert(comp.entityId);
+            childrenIds.insert(entity.id);
         }
 
         void update()
@@ -70,11 +86,9 @@ namespace pg
             {
                 auto ent = ecsRef->getEntity(id);
 
-                if (ent and ent->has<UiComponent>())
+                if (ent)
                 {
-                    auto comp = ent->get<UiComponent>();
-
-                    setCompForPrefab(comp);
+                    setCompForPrefab(ent);
                 }
             }
         }
@@ -97,39 +111,57 @@ namespace pg
         // Data to keep track
 
         bool isClippedToWindow = true;
-
-        // The top left point of the clip rectangle of this component
-        UiComponent::Corner clipTopLeft;
-
-        // The bottom right point of the clip rectangle of this component
-        UiComponent::Corner clipBottomRight;
-
+    
         bool visible = true;
 
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<UiComponent>, Listener<EntityChangedEvent>, Listener<ClearPrefabEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, Listener<ClearPrefabEvent>, InitSys>
     {
         virtual void init() override
         {
-            auto group = registerGroup<UiComponent, Prefab>();
+            auto group = registerGroup<PositionComponent, Prefab>();
 
-            group->addOnGroup([this](EntityRef entity) {
+            group->addOnGroup([](EntityRef entity) {
                 LOG_MILE("Prefab", "Add entity " << entity->id << " to ui - prefab group !");
 
-                auto ui = entity->get<UiComponent>();
+                auto ui = entity->get<PositionComponent>();
                 auto prefab = entity->get<Prefab>();
 
-                prefab->isClippedToWindow = ui->isWindowClipped();
-
-                prefab->clipTopLeft = ui->clipTopLeft;
-
-                prefab->clipBottomRight = ui->clipBottomRight;
-
-                prefab->visible = ui->isVisible();
+                prefab->visible = ui->visible;
 
                 prefab->update();
+            });
+
+            auto clippedGroup = registerGroup<PositionComponent, Prefab, ClippedTo>();
+
+            clippedGroup->addOnGroup([](EntityRef entity) {
+                LOG_MILE("Prefab", "Add entity " << entity->id << " to pos - prefab - clip group !");
+
+                auto ui = entity->get<PositionComponent>();
+                auto prefab = entity->get<Prefab>();
+
+                prefab->isClippedToWindow = false;
+
+                prefab->visible = ui->visible;
+
+                prefab->update();
+            });
+
+            clippedGroup->removeOfGroup([](EntitySystem* ecsRef, _unique_id id) {
+                auto entity = ecsRef->getEntity(id);
+
+                if (entity and entity->has<Prefab>())
+                {
+                    if (not entity->has<ClippedTo>())
+                    {
+                        auto prefab = entity->get<Prefab>();
+                        
+                        prefab->isClippedToWindow = true;
+                        prefab->update();
+                    }
+                }
             });
         }
 
@@ -142,34 +174,18 @@ namespace pg
 
             bool modified = false;
 
-            auto ui = entity->get<UiComponent>();
+            auto ui = entity->get<PositionComponent>();
             auto prefab = entity->get<Prefab>();
 
-            if (ui->isVisible() != prefab->visible)
+            if (ui->visible != prefab->visible)
             {
-                prefab->visible = ui->isVisible();
+                prefab->visible = ui->visible;
                 modified = true;
             }
 
-            if (ui->isWindowClipped() == prefab->isClippedToWindow)
+            if (not prefab->isClippedToWindow)
             {
-                if (not ui->isWindowClipped() and (ui->clipTopLeft != prefab->clipTopLeft or ui->clipBottomRight != prefab->clipBottomRight))
-                {
-                    prefab->clipTopLeft = ui->clipTopLeft;
-                    prefab->clipBottomRight = ui->clipBottomRight;
-                    modified = true;
-                }
-            }
-            else
-            {
-                if (ui->clipTopLeft != prefab->clipTopLeft or ui->clipBottomRight != prefab->clipBottomRight or prefab->isClippedToWindow == true)
-                {
-                    prefab->clipTopLeft = ui->clipTopLeft;
-                    prefab->clipBottomRight = ui->clipBottomRight;
-                }
-
-                prefab->isClippedToWindow = ui->isWindowClipped();
-
+                // Todo find a way to find if the clip parent was updated and set modified flag only if it was updated
                 modified = true;
             }
 
@@ -203,20 +219,39 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<UiComponent, Prefab> makePrefab(Type *ecs, float x, float y)
+    CompList<PositionComponent, Prefab> makePrefab(Type *ecs, float x, float y)
     {
         LOG_THIS("Prefab System");
 
         auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<UiComponent>(entity);
+        auto ui = ecs->template attach<PositionComponent>(entity);
 
         ui->setX(x);
         ui->setY(y);
 
         auto prefab = ecs->template attach<Prefab>(entity);
 
-        return CompList<UiComponent, Prefab>(entity, ui, prefab);
+        return CompList<PositionComponent, Prefab>(entity, ui, prefab);
+    }
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor, Prefab> makeAnchoredPrefab(Type *ecs, float x, float y)
+    {
+        LOG_THIS("Prefab System");
+
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        ui->setX(x);
+        ui->setY(y);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        auto prefab = ecs->template attach<Prefab>(entity);
+
+        return CompList<PositionComponent, UiAnchor, Prefab>(entity, ui, anchor, prefab);
     }
 
 } // namespace pg

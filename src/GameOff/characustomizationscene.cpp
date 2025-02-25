@@ -427,46 +427,46 @@ namespace pg
 
     void PlayerCustomizationScene::addPlayerToListView(PlayerCharacter* player)
     {
-        auto prefab = makePrefab(this, 0, 0);
+        auto prefab = makeAnchoredPrefab(this, 0, 0);
         prefab.get<Prefab>()->setVisibility(false);
 
         auto backTex = makeUiTexture(ecsRef, 220 , 60, "SelectedCharaBack");
         auto backTexUi = backTex.get<UiComponent>();
 
-        backTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
-        backTexUi->setLeftAnchor(prefab.get<UiComponent>()->left);
+        // backTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
+        // backTexUi->setLeftAnchor(prefab.get<UiComponent>()->left);
 
-        prefab.get<UiComponent>()->setWidth(backTexUi->width);
-        prefab.get<UiComponent>()->setHeight(backTexUi->height);
+        // prefab.get<UiComponent>()->setWidth(backTexUi->width);
+        // prefab.get<UiComponent>()->setHeight(backTexUi->height);
 
-        prefab.get<Prefab>()->addToPrefab(backTexUi);
+        // prefab.get<Prefab>()->addToPrefab(backTexUi);
 
         // Careful here we don't pass this but ecsRef because when using a Prefab we don't want the underlaying element to be deleted by the scene
         // before deleting it ourselves in the prefab
         auto iconTex = makeUiTexture(ecsRef, 19 * 3, 19 * 3, player->character.icon);
-        auto iconTexUi = iconTex.get<UiComponent>();
+        // auto iconTexUi = iconTex.get<UiComponent>();
 
-        iconTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
-        iconTexUi->setRightAnchor(prefab.get<UiComponent>()->right);
-        iconTexUi->setRightMargin(30);
-        iconTexUi->setZ(backTexUi->pos.z + 1);
+        // iconTexUi->setTopAnchor(prefab.get<UiComponent>()->top);
+        // iconTexUi->setRightAnchor(prefab.get<UiComponent>()->right);
+        // iconTexUi->setRightMargin(30);
+        // iconTexUi->setZ(backTexUi->pos.z + 1);
         // iconTexUi->setZ(5);
 
         auto ttf = makeTTFText(ecsRef, 0, 0, backTexUi->pos.z + 2, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
-        auto ttfUi = ttf.get<UiComponent>();
+        // auto ttfUi = ttf.get<UiComponent>();
 
-        ttfUi->setBottomAnchor(prefab.get<UiComponent>()->bottom);
-        ttfUi->setBottomMargin(10);
-        // ttfUi->setLeftAnchor(backTex.get<UiComponent>()->left);
-        // ttfUi->setLeftAnchor(10);
-        ttfUi->setX(&backTex.get<UiComponent>()->left);
+        // ttfUi->setBottomAnchor(prefab.get<UiComponent>()->bottom);
+        // ttfUi->setBottomMargin(10);
+        // // ttfUi->setLeftAnchor(backTex.get<UiComponent>()->left);
+        // // ttfUi->setLeftAnchor(10);
+        // ttfUi->setX(&backTex.get<UiComponent>()->left);
 
-        prefab.get<Prefab>()->addToPrefab(iconTexUi);
-        prefab.get<Prefab>()->addToPrefab(ttfUi);
+        // prefab.get<Prefab>()->addToPrefab(iconTexUi);
+        // prefab.get<Prefab>()->addToPrefab(ttfUi);
 
         attach<MouseLeftClickComponent>(prefab.entity, makeCallable<SelectedCharacter>(player));
 
-        characterList->addEntity(prefab.get<UiComponent>());
+        // characterList->addEntity(prefab.get<UiComponent>());
 
         ttfTextIdToCharacter.emplace(ttf.entity.id, &player->character);
     }

@@ -197,7 +197,7 @@ namespace pg
 
             return;
         }
-        
+
         // If the skip flag is set we unset it and we pass the current render update
         if (skipRenderPass)
         {
@@ -302,12 +302,12 @@ namespace pg
         {
             processRenderCall(call);
         }
-
+        
         nbRenderedFrames++;
 
         if (inSwap)
         {
-            currentRenderList = currentRenderList == 0 ? 1 : 0;
+            currentRenderList ^= 1;
 
             inSwap = false;
         }
@@ -478,6 +478,19 @@ namespace pg
 
         const auto& material = getMaterial(materialId);
 
+        if (material.nbAttributes == 0)
+        {
+            LOG_ERROR(DOM, "No attributes for this render call");
+            return;
+        }
+
+        // Todo this should never happens if the material has some attributes
+        // if (material.mesh == nullptr)
+        // {
+        //     LOG_ERROR(DOM, "Mesh not found");
+        //     return;
+        // }
+
         // Todo initialize material in another call !
         if (not material.mesh->initialized)
         {
@@ -578,12 +591,6 @@ namespace pg
         shaderProgram->setUniformValue("view", view);
 
         material.mesh->bind();
-
-        if (material.nbAttributes == 0)
-        {
-            LOG_ERROR(DOM, "No attributes for this render call");
-            return;
-        }
 
         unsigned int nbElements = call.data.size() / material.nbAttributes;
 

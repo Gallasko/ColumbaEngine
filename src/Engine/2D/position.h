@@ -58,6 +58,9 @@ namespace pg
         _unique_id child = 0;
     };
 
+    // Todo add a Dtor that remove any parenting
+    // Be careful on edge case such as being anchored and clipped at the same time to the same entity
+    // Need to count the number of time a child is parented to another entity
     struct UiAnchor : public Ctor
     {
         // Current Anchor of this component
@@ -119,6 +122,7 @@ namespace pg
         EntitySystem *ecsRef = nullptr;
     };
 
+    // Todo add a Dtor that remove any parenting
     struct ClippedTo : public Ctor
     {
         ClippedTo(_unique_id clipperId) : clipperId(clipperId) {}
@@ -135,6 +139,8 @@ namespace pg
         }
 
         virtual void onCreation(EntityRef entity) override;
+
+        void setNewClipper(_unique_id clipperId);
 
         _unique_id clipperId;
 

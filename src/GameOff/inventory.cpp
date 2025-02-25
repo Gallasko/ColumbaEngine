@@ -313,48 +313,48 @@ namespace pg
 
         for (auto& item : sys->items[type])
         {
-            auto prefab = makePrefab(this, 0, 0);
+            auto prefab = makeAnchoredPrefab(this, 0, 0);
             prefab.get<Prefab>()->setVisibility(false);
 
             // Careful here we don't pass this but ecsRef because when using a Prefab we don't want the underlaying element to be deleted by the scene
             // before deleting it ourselves in the prefab
             auto itemTex = makeUiTexture(ecsRef, 125 * 3, 21 * 3, "Header2");
 
-            itemTex.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
-            itemTex.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
+            // itemTex.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
+            // itemTex.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
 
-            prefab.get<UiComponent>()->setWidth(itemTex.get<UiComponent>()->width);
-            prefab.get<UiComponent>()->setHeight(itemTex.get<UiComponent>()->height);
+            // prefab.get<UiComponent>()->setWidth(itemTex.get<UiComponent>()->width);
+            // prefab.get<UiComponent>()->setHeight(itemTex.get<UiComponent>()->height);
 
-            prefab.get<Prefab>()->addToPrefab(itemTex.get<UiComponent>());
+            // prefab.get<Prefab>()->addToPrefab(itemTex.get<UiComponent>());
 
             auto iconTex = makeUiTexture(ecsRef, 15 * 3, 15 * 3, item.icon);
 
-            iconTex.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
-            iconTex.get<UiComponent>()->setTopMargin(8);
-            iconTex.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
-            iconTex.get<UiComponent>()->setLeftMargin(12);
-            iconTex.get<UiComponent>()->setZ(itemTex.get<UiComponent>()->pos.z + 1);
+            // iconTex.get<UiComponent>()->setTopAnchor(prefab.get<UiComponent>()->top);
+            // iconTex.get<UiComponent>()->setTopMargin(8);
+            // iconTex.get<UiComponent>()->setLeftAnchor(prefab.get<UiComponent>()->left);
+            // iconTex.get<UiComponent>()->setLeftMargin(12);
+            // iconTex.get<UiComponent>()->setZ(itemTex.get<UiComponent>()->pos.z + 1);
 
-            prefab.get<Prefab>()->addToPrefab(iconTex.get<UiComponent>());
+            // prefab.get<Prefab>()->addToPrefab(iconTex.get<UiComponent>());
 
             auto itemUi = makeTTFText(ecsRef, 0, 0, 2, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name, 0.4);
 
-            itemUi.get<UiComponent>()->setTopAnchor(iconTex.get<UiComponent>()->top);
-            itemUi.get<UiComponent>()->setTopMargin(17);
-            itemUi.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->right);
-            itemUi.get<UiComponent>()->setLeftMargin(8);
+            // itemUi.get<UiComponent>()->setTopAnchor(iconTex.get<UiComponent>()->top);
+            // itemUi.get<UiComponent>()->setTopMargin(17);
+            // itemUi.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->right);
+            // itemUi.get<UiComponent>()->setLeftMargin(8);
 
-            prefab.get<Prefab>()->addToPrefab(itemUi.get<UiComponent>());
+            // prefab.get<Prefab>()->addToPrefab(itemUi.get<UiComponent>());
 
             auto itemNb = makeTTFText(ecsRef, 0, 0, iconTex.get<UiComponent>()->pos.z + 1, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(item.nbItems), 0.4);
 
-            itemNb.get<UiComponent>()->setBottomAnchor(prefab.get<UiComponent>()->bottom);
-            itemNb.get<UiComponent>()->setBottomMargin(5);
-            itemNb.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->left);
-            itemNb.get<UiComponent>()->setLeftMargin(iconTex.get<UiComponent>()->width / 2.0f - itemNb.get<UiComponent>()->width / 2.0f);
+            // itemNb.get<UiComponent>()->setBottomAnchor(prefab.get<UiComponent>()->bottom);
+            // itemNb.get<UiComponent>()->setBottomMargin(5);
+            // itemNb.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->left);
+            // itemNb.get<UiComponent>()->setLeftMargin(iconTex.get<UiComponent>()->width / 2.0f - itemNb.get<UiComponent>()->width / 2.0f);
 
-            prefab.get<Prefab>()->addToPrefab(itemNb.get<UiComponent>());
+            // prefab.get<Prefab>()->addToPrefab(itemNb.entity);
 
             if (item.attributes.count("UsableOnCharacter") > 0 and item.attributes.at("UsableOnCharacter") == true)
             {
@@ -362,7 +362,7 @@ namespace pg
                 attach<MouseLeftClickComponent>(itemTex.entity, makeCallable<ShowCharaList>(&item));
             }
 
-            view->addEntity(prefab.get<UiComponent>());
+            // view->addEntity(prefab.get<UiComponent>());
         }
     }
 }

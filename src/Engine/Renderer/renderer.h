@@ -258,7 +258,11 @@ namespace pg
 
         bool operator<(const RenderCall& other) const
         {
-            return getOpacity() != OpacityType::Opaque ? key < other.key : key > other.key;
+            // Todo find a way (in depth maybe ?) to better order opaque calls as the following does not work correctly
+            // This cause a strict weak ordering fault that can cause the engine to crash.
+            // return getOpacity() != OpacityType::Opaque ? key < other.key : key > other.key;
+
+            return key < other.key;
         }
     };
 
@@ -407,7 +411,7 @@ namespace pg
 
         std::unordered_map<std::string, UniformValue> uniformMap;
 
-        std::shared_ptr<Mesh> mesh;
+        std::shared_ptr<Mesh> mesh = nullptr;
     };
 
     struct SkipRenderPass {};
@@ -556,8 +560,37 @@ namespace pg
         {
             return atlasMap.at(textureName).getTexture(atlasTextureName);
         }
-        const Material& getMaterial(const std::string& name) const { return materialList.at(materialDict.at(name)); }
-        const Material& getMaterial(size_t id) const { return materialList.at(id); }
+        const Material& getMaterial(const std::string& name) const
+        {
+            try
+            {
+                return materialList.at(materialDict.at(name));
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
+                
+                static Material dummyMaterial;
+
+                return dummyMaterial;
+            }
+        }
+
+        const Material& getMaterial(size_t id) const
+        {
+            try
+            {
+                return materialList.at(id);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("Renderer", "Material id " << id << " don't exist !");
+                
+                static Material dummyMaterial;
+
+                return dummyMaterial;
+            }
+        }
 
         size_t getMaterialID(const std::string& name) const
         {
@@ -568,7 +601,18 @@ namespace pg
             if (it != materialRegisterQueue.end())
                 return it->index;
             else
-                return materialDict.at(name);
+            {
+                try
+                {
+                    return materialDict.at(name);
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
+                    
+                    return 0;
+                }
+            }
         }
 
         template <typename... Args>
@@ -640,7 +684,7 @@ namespace pg
 
         std::vector<RenderCall> renderCallList[2];
 
-        std::atomic<uint8_t> currentRenderList {0};
+        std::atomic<unsigned char> currentRenderList {0};
 
         std::unordered_map<std::string, LoadedAtlas> atlasMap;
 
