@@ -46,21 +46,18 @@ namespace pg
         _unique_id id; size_t index;
     };
 
-    struct ListViewElement : public Dtor 
+    struct ListViewBodySizer
     {
-        ListViewElement(_unique_id viewId, size_t index) : viewId(viewId), index(index) {}
-        ListViewElement(const ListViewElement& other) : viewId(other.viewId), index(other.index) {}
+        ListViewBodySizer(_unique_id id) : id(id) {}
+        ListViewBodySizer(const ListViewBodySizer& rhs) : id(rhs.id) {}
 
-        virtual void onDeletion(EntityRef entity) override
+        ListViewBodySizer& operator=(const ListViewBodySizer& rhs)
         {
-            entity.ecsRef->sendEvent(RemoveListViewElementEvent{entity.id, index});
-        };
+            id = rhs.id;
+            return *this;
+        }
 
-        /** Id of the list view entity */
-        _unique_id viewId = 0;
-
-        /** Position of this entity inside the list view */
-        size_t index = 0;
+        _unique_id id = 0;
     };
 
     struct ListView : public Ctor
@@ -91,6 +88,8 @@ namespace pg
 
         EntityRef slider;
 
+        EntityRef bodySizer;
+
         /** Spacing between each entity of the list */
         float spacing = 5;
 
@@ -104,7 +103,7 @@ namespace pg
         EntitySystem *ecsRef;
     };
 
-    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Own<ListView>, InitSys>
+    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Listener<EntityChangedEvent>, Own<ListView>, Own<ListViewBodySizer>, InitSys>
     {
         virtual std::string getSystemName() const override { return "ListView System"; }
 
@@ -118,6 +117,26 @@ namespace pg
         virtual void onEvent(const ClearListViewEvent& event) override
         {
             clearQueue.push(event);
+        }
+
+        virtual void onEvent(const EntityChangedEvent& event) override
+        {
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent or not (ent->has<ListViewBodySizer>()))
+            {
+                return;
+            }
+
+            auto list = ecsRef->getEntity(ent->get<ListViewBodySizer>()->id);
+
+            if (not list or not list->has<ListView>())
+            {
+                LOG_ERROR("ListView", "List view body sizer entity [" << ent->get<ListViewBodySizer>()->id << "] requested doesn't have a list view component!");
+                return;
+            }
+
+            calculateListSize(list->get<ListView>());
         }
 
         virtual void execute() override
@@ -163,7 +182,7 @@ namespace pg
 
         void calculateListSize(CompRef<ListView> view);
 
-        void updateCursorSize(CompRef<ListView> view, const UiSize& maxPos);
+        void updateCursorSize(CompRef<ListView> view, float maxPos);
 
         void clear(CompRef<ListView> view);
 
@@ -268,9 +287,14 @@ namespace pg
         sliderAnchor->setBottomAnchor(anchor->bottom);
         sliderAnchor->setRightAnchor(anchor->right);
 
+        auto bodySizer = makeAnchoredPosition(ecs);
+        ecs->template attach<ListViewBodySizer>(bodySizer.entity, entity->id);
+
         view->cursor = cursor.entity;
 
         view->slider = slider.entity;
+
+        view->bodySizer = bodySizer.entity;
 
         return CompList<PositionComponent, UiAnchor, ListView>(entity, ui, anchor, view);
     }

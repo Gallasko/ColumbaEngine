@@ -218,4 +218,16 @@ namespace pg
 
         bool updated = false;
     };
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor> makeAnchoredPosition(Type *ecs)
+    {
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        return CompList<PositionComponent, UiAnchor>(entity, ui, anchor);
+    }
 }

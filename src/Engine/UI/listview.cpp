@@ -76,6 +76,8 @@ namespace pg
         auto uiPos = ent->get<PositionComponent>();
         auto uiAnchor = ent->get<UiAnchor>();
 
+        auto bodySizerAnchor = view->bodySizer->get<UiAnchor>();
+
         if (view->entities.size() > 0)
         {
             auto lastUi = view->entities.back();
@@ -91,10 +93,15 @@ namespace pg
             }
 
             uiAnchor->setTopMargin(view->spacing);
+
+            bodySizerAnchor->setBottomAnchor(uiAnchor->bottom);
         }
         else
         {
             uiAnchor->setTopAnchor(viewAnchor->top);
+
+            bodySizerAnchor->setTopAnchor(uiAnchor->top);
+            bodySizerAnchor->setBottomAnchor(uiAnchor->bottom);
         }
 
         uiAnchor->setLeftAnchor(viewAnchor->left);
@@ -136,18 +143,14 @@ namespace pg
 
     void ListViewSystem::calculateListSize(CompRef<ListView> view)
     {
-        view->listReelHeight = 0;
+        view->listReelHeight = view->bodySizer->get<PositionComponent>()->height;
 
-        for (auto ui : view->entities)
-        {
-            if (ui->has<PositionComponent>())
-                view->listReelHeight += ui->get<PositionComponent>()->height + view->spacing;
-        }
+        LOG_INFO("ListViewSystem", "List reel height: " << view->listReelHeight);
 
         updateCursorSize(view, view->listReelHeight);
     }
 
-    void ListViewSystem::updateCursorSize(CompRef<ListView> view, const UiSize& maxPos)
+    void ListViewSystem::updateCursorSize(CompRef<ListView> view, float maxPos)
     {
         auto viewEnt = view.getEntity();
 
@@ -159,7 +162,9 @@ namespace pg
 
         auto height = viewEnt->get<PositionComponent>()->height;
 
-        if (maxPos > 0 && height > 0)
+        LOG_INFO("ListViewSystem", "Height: " << height << ", MaxPos: " << maxPos);
+
+        if (maxPos > 0 and height > 0)
         {
             view->cursorHeight = (height / maxPos) * height;
             
@@ -170,6 +175,8 @@ namespace pg
         {
             view->cursorHeight = height;
         }
+
+        LOG_INFO("ListViewSystem", "Cursor height: " << view->cursorHeight);
 
         view->cursor.get<PositionComponent>()->setHeight(view->cursorHeight);
     }

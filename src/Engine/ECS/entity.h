@@ -177,4 +177,25 @@ namespace pg
         _unique_id id;
         EntitySystem* ecsRef;
     };
+
+    template <typename Comp>
+    struct CompListGetter
+    {
+        CompListGetter(CompRef<Comp> comp) : comp(comp) {}
+
+        inline CompRef<Comp> get() const { return comp; } 
+
+        CompRef<Comp> comp;
+    };
+
+    template <typename... Comps>
+    struct CompList : public CompListGetter<Comps>...
+    {
+        CompList(EntityRef entity, CompRef<Comps>... comps) : CompListGetter<Comps>(comps)..., entity(entity) { }
+
+        template <typename Comp>
+        inline CompRef<Comp> get() const { return static_cast<const CompListGetter<Comp>*>(this)->get(); }
+
+        EntityRef entity;
+    };
 }

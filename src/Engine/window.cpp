@@ -411,6 +411,7 @@ namespace pg
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
 
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
+        ecs.succeed<PositionComponentSystem, ListViewSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
