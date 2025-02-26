@@ -106,6 +106,9 @@ namespace pg
             return ecsRef->attach<Type>(entity, args...);
         }
 
+        template <typename Type>
+        Type* getSystem() const { return ecsRef->getSystem<Type>(); }
+
         EntitySystem *ecsRef;
     };
 

@@ -146,7 +146,6 @@ namespace pg
         // Todo maybe create a constructor without the bool initialized that check in the ecsRef if the entity was actually initialized !
         EntityRef(Entity* ent, bool initialized = true) : initialized(initialized), entity(ent), id(ent->id), ecsRef(ent->world())
         {
-            LOG_ERROR("EntityRef", "Check if the init true here can be trust as a default arg");
         }
 
         EntityRef(const EntityRef& rhs)

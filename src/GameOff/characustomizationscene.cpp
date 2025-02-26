@@ -378,10 +378,13 @@ namespace pg
         /// Character list UI setup
 
         auto listView = makeListView(this, 0, 150, 240, 120);
+        auto listViewAnchor = listView.get<UiAnchor>();
 
-        listView.get<UiAnchor>()->setTopAnchor(windowAnchor->top);
-        listView.get<UiAnchor>()->setRightAnchor(windowAnchor->right);
-        listView.get<UiAnchor>()->setBottomAnchor(windowAnchor->bottom);
+        listViewAnchor->setTopAnchor(windowAnchor->top);
+        listViewAnchor->setTopMargin(35);
+        listViewAnchor->setRightAnchor(windowAnchor->right);
+        listViewAnchor->setBottomAnchor(windowAnchor->bottom);
+        listViewAnchor->setBottomMargin(35);
 
         characterList = listView.get<ListView>();
 

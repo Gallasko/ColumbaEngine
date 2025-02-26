@@ -14,40 +14,6 @@ namespace pg
 
     }
 
-    void ListView::updateVisibility()
-    {
-        // auto visible = viewUi->isVisible();
-
-        // for (auto& ui : entities)
-        // {
-        //     ui->visible = false;
-
-        //     if (visible)
-        //     {
-        //         float childTop    = ui->top;
-        //         float childBottom = ui->bottom;
-        //         float childLeft   = ui->left;
-        //         float childRight  = ui->right;
-
-        //         if (viewUi->inBound(childLeft, childTop) or viewUi->inBound(childLeft, childBottom) or viewUi->inBound(childRight, childTop) or viewUi->inBound(childRight, childBottom))
-        //         {
-        //             ui->visible = true;
-        //         }
-        //     }
-
-        //     ui->update();
-        // }
-    }
-
-    void ListView::setVisibility(bool visible)
-    {
-        // viewUi->setVisibility(visible);
-        // cursorUi->setVisibility(visible);
-        // sliderUi->setVisibility(visible);
-
-        // updateVisibility();
-    }
-
     void ListViewSystem::init()
     {
         
@@ -73,7 +39,6 @@ namespace pg
         auto viewUi = viewEnt->get<PositionComponent>();
         auto viewAnchor = viewEnt->get<UiAnchor>();
 
-        auto uiPos = ent->get<PositionComponent>();
         auto uiAnchor = ent->get<UiAnchor>();
 
         auto bodySizerAnchor = view->bodySizer->get<UiAnchor>();
@@ -138,16 +103,18 @@ namespace pg
             }
         }
 
-        view->updateVisibility();
+        updateVisibility(viewEnt, viewUi->visible);
     }
 
     void ListViewSystem::calculateListSize(CompRef<ListView> view)
     {
         view->listReelHeight = view->bodySizer->get<PositionComponent>()->height;
 
-        LOG_INFO("ListViewSystem", "List reel height: " << view->listReelHeight);
-
         updateCursorSize(view, view->listReelHeight);
+
+        auto ent = view.getEntity();
+
+        updateVisibility(ent, ent->get<PositionComponent>()->visible);
     }
 
     void ListViewSystem::updateCursorSize(CompRef<ListView> view, float maxPos)
@@ -161,24 +128,51 @@ namespace pg
         }
 
         auto height = viewEnt->get<PositionComponent>()->height;
-
-        LOG_INFO("ListViewSystem", "Height: " << height << ", MaxPos: " << maxPos);
-
+        
         if (maxPos > 0 and height > 0)
         {
             view->cursorHeight = (height / maxPos) * height;
             
             if (view->cursorHeight > height)
-                view->cursorHeight = height;
+            view->cursorHeight = height;
         }
         else
         {
             view->cursorHeight = height;
         }
 
-        LOG_INFO("ListViewSystem", "Cursor height: " << view->cursorHeight);
+        LOG_MILE("ListViewSystem", "Height: " << height << ", MaxPos: " << maxPos << " Cursor height: " << view->cursorHeight);
 
         view->cursor.get<PositionComponent>()->setHeight(view->cursorHeight);
+    }
+
+    void ListViewSystem::updateVisibility(EntityRef viewEnt, bool visible)
+    {
+        auto& entities = viewEnt->get<ListView>()->entities;
+
+        for (auto& ui : entities)
+        {
+            if (ui->has<PositionComponent>())
+            {
+                auto pos = ui->get<PositionComponent>();
+                bool isCompVisible = false;
+
+                if (visible)
+                {
+                    float childTop    = pos->y;
+                    float childBottom = pos->y + pos->height;
+                    float childLeft   = pos->x;
+                    float childRight  = pos->x + pos->width;
+
+                    if (inBound(viewEnt, childLeft, childTop) or inBound(viewEnt, childLeft, childBottom) or inBound(viewEnt, childRight, childTop) or inBound(viewEnt, childRight, childBottom))
+                    {
+                        isCompVisible = true;
+                    }
+                }
+
+                pos->setVisibility(isCompVisible);
+            }            
+        }
     }
 
     void ListViewSystem::clear(CompRef<ListView> view)

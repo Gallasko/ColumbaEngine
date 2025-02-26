@@ -360,7 +360,7 @@ namespace pg
 
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
-            this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value - anchor.topMargin);
+            this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value + anchor.topMargin);
             this->y = anchor.topAnchor.value + anchor.topMargin;
         }
         else if (anchor.hasTopAnchor and not anchor.hasBottomAnchor)
@@ -374,7 +374,7 @@ namespace pg
 
         if (anchor.hasRightAnchor and anchor.hasLeftAnchor)
         {
-            this->width = (anchor.rightAnchor.value - anchor.rightMargin) - (anchor.leftAnchor.value - anchor.leftMargin);
+            this->width = (anchor.rightAnchor.value - anchor.rightMargin) - (anchor.leftAnchor.value + anchor.leftMargin);
             this->x = anchor.leftAnchor.value + anchor.leftMargin;
         }
         else if (anchor.hasRightAnchor and not anchor.hasLeftAnchor)

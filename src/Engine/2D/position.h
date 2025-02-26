@@ -112,6 +112,7 @@ namespace pg
         void setWidthConstrain(const PosConstrain& constrain);
         void setHeightConstrain(const PosConstrain& constrain);
         void setZConstrain(const PosConstrain& constrain);
+        // Todo add visibility constrain
 
         // Todo add function to handle center, vertical and horizontal center alignment
 

@@ -46,6 +46,11 @@ namespace pg
         _unique_id id; size_t index;
     };
 
+    struct UpdateListViewVisibility
+    {
+        _unique_id id; bool visible;
+    };
+
     struct ListViewBodySizer
     {
         ListViewBodySizer(_unique_id id) : id(id) {}
@@ -72,10 +77,8 @@ namespace pg
 
         void removeEntity(EntityRef entity);
 
-        void updateVisibility();
-
         // Todo send an event for visibility update
-        void setVisibility(bool visible);
+        void setVisibility(bool visible) { ecsRef->sendEvent(UpdateListViewVisibility{id, visible}); }
 
         void clear() { ecsRef->sendEvent(ClearListViewEvent{id}); }
 
@@ -96,6 +99,8 @@ namespace pg
         /** Flag indicating whether the list must show the last item in the list when adding a new entity */
         bool stickToBottom = false;
 
+        bool visible = true;
+
         std::vector<EntityRef> entities;
 
         _unique_id id;
@@ -103,7 +108,7 @@ namespace pg
         EntitySystem *ecsRef;
     };
 
-    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Listener<EntityChangedEvent>, Own<ListView>, Own<ListViewBodySizer>, InitSys>
+    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Listener<EntityChangedEvent>, Listener<UpdateListViewVisibility>, Own<ListView>, Own<ListViewBodySizer>, InitSys>
     {
         virtual std::string getSystemName() const override { return "ListView System"; }
 
@@ -123,7 +128,28 @@ namespace pg
         {
             auto ent = ecsRef->getEntity(event.id);
 
-            if (not ent or not (ent->has<ListViewBodySizer>()))
+            if (not ent)
+            {
+                return;
+            }
+
+            if (ent->has<ListView>())
+            {
+                auto view = ent->get<ListView>();
+                auto pos = ent->get<PositionComponent>();
+
+                if (view->visible != pos->visible)
+                {
+                    view->visible = pos->visible;
+
+                    view->cursor->get<PositionComponent>()->setVisibility(view->visible);
+                    view->slider->get<PositionComponent>()->setVisibility(view->visible);
+
+                    updateVisibility(ent, pos->visible);
+                }
+            }
+            
+            if (not (ent->has<ListViewBodySizer>()))
             {
                 return;
             }
@@ -137,6 +163,11 @@ namespace pg
             }
 
             calculateListSize(list->get<ListView>());
+        }
+
+        virtual void onEvent(const UpdateListViewVisibility& event) override
+        {
+            visibilityQueue.push(event);
         }
 
         virtual void execute() override
@@ -156,6 +187,23 @@ namespace pg
                 clear(ent->get<ListView>());
 
                 clearQueue.pop();
+            }
+
+            while (not visibilityQueue.empty())
+            {
+                const auto& event = visibilityQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not (ent->has<ListView>()))
+                {
+                    LOG_ERROR("ListView", "Entity requested doesn't have a list view component!");
+                    return;
+                }
+
+                updateVisibility(ent, event.visible);
+
+                visibilityQueue.pop();
             }
 
             while (not eventQueue.empty())
@@ -184,11 +232,15 @@ namespace pg
 
         void updateCursorSize(CompRef<ListView> view, float maxPos);
 
+        void updateVisibility(EntityRef viewEnt, bool visible);
+
         void clear(CompRef<ListView> view);
 
         std::queue<AddListViewElementEvent> eventQueue;
 
         std::queue<ClearListViewEvent> clearQueue;
+
+        std::queue<UpdateListViewVisibility> visibilityQueue;
     };
 
     /** Helper that create an entity with an Ui component and a Texture component */
@@ -210,7 +262,7 @@ namespace pg
         auto anchor = ecs->template attach<UiAnchor>(entity);
 
         // Z + 3 so the cursor is always on top of the slider
-        auto cursor = makeUiTexture(ecs, 15, 40, "cursor");
+        auto cursor = makeUiTexture(ecs, 15, height, "cursor");
         auto cursorAnchor = cursor.template get<UiAnchor>();
 
         cursorAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 3});
@@ -270,7 +322,9 @@ namespace pg
                 }   
             }
 
-            viewComp->updateVisibility();
+            auto sys = ecs->template getSystem<ListViewSystem>();
+
+            sys->updateVisibility(ent, viewUi->visible);
         };
 
         ecs->template attach<OnEventComponent>(cursor.entity, cursorCallback);
