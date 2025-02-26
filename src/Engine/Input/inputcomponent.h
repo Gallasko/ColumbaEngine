@@ -4,9 +4,9 @@
 
 #include "constant.h"
 
-#include "ECS/entitysystem.h"
+#include "ECS/system.h"
 #include "ECS/callable.h"
-#include "UI/uisystem.h"
+#include "2D/position.h"
 
 #include <functional>
 #include <memory>
@@ -115,13 +115,14 @@ namespace pg
 
     struct MouseAreaZ
     {
-        MouseAreaZ(_unique_id id, CompRef<UiComponent> ui) : id(id), ui(ui) { LOG_THIS_MEMBER("MouseArea"); }
+        MouseAreaZ(_unique_id id, EntityRef ui, CompRef<PositionComponent> pos) : id(id), ui(ui), pos(pos) { LOG_THIS_MEMBER("MouseArea"); }
 
         _unique_id id;
-        CompRef<UiComponent> ui;
+        EntityRef ui;
+        CompRef<PositionComponent> pos;
     };
 
-    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, Ref<UiComponent>, InitSys>
+    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, InitSys>
     {
         MouseClickSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseClickSystem"); }
 
@@ -145,7 +146,7 @@ namespace pg
     };
 
     // Todo combine this in the MouseClickSystem
-    struct MouseLeaveClickSystem : public System<Listener<OnMouseClick>, Own<MouseLeaveClickComponent>, Ref<UiComponent>, InitSys, StoragePolicy>
+    struct MouseLeaveClickSystem : public System<Listener<OnMouseClick>, Own<MouseLeaveClickComponent>, InitSys, StoragePolicy>
     {
         MouseLeaveClickSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseLeaveClickSystem"); }
 
@@ -155,14 +156,12 @@ namespace pg
         {
             LOG_THIS_MEMBER("MouseLeaveClickSystem");
 
-            auto group = registerGroup<UiComponent, MouseLeaveClickComponent>();
+            auto group = registerGroup<PositionComponent, MouseLeaveClickComponent>();
 
             group->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("MouseLeaveClickSystem", "Add entity " << entity->id << " to ui - mouse leave click group !");
-
-                auto ui = entity->get<UiComponent>();
                 
-                mouseAreaHolder.emplace(entity->id, ui);
+                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
             });
 
             group->removeOfGroup([this](EntitySystem*, _unique_id id) {
@@ -185,9 +184,7 @@ namespace pg
 
             for (auto mouseArea : mouseAreaHolder)
             {
-                UiComponent *ui = mouseArea.ui;
-
-                if (not ui->inClipBound(mousePos.x, mousePos.y))
+                if (not inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
                 {
                     auto comp = getComponent(mouseArea.id);
 

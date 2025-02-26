@@ -230,4 +230,8 @@ namespace pg
 
         return CompList<PositionComponent, UiAnchor>(entity, ui, anchor);
     }
+
+    bool inBound(EntityRef entity, float x, float y);
+
+    bool inClipBound(EntityRef entity, float x, float y);
 }

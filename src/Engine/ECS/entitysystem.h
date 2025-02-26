@@ -773,6 +773,7 @@ namespace pg
             auto ent = ecsRef->getEntity(id);
             auto initialized = id != 0 and ent;
 
+            // Todo add memoisation if we run into performance issues here
             return CompRef<Comp>(ecsRef->registry.retrieve<Comp>()->getComponent(id), id, ecsRef, initialized);
         }
 

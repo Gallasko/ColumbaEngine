@@ -46,28 +46,28 @@ namespace pg
         pressedList.emplace(SDL_BUTTON_LEFT, false);
         pressedList.emplace(SDL_BUTTON_RIGHT, false);
 
-        auto leftGroup = registerGroup<UiComponent, MouseLeftClickComponent>();
+        auto leftGroup = registerGroup<PositionComponent, MouseLeftClickComponent>();
 
         // Todo change this (useless and error prone, just loop over the group view)
         // To do this change we need to make the view orderable (maybe more complicated than expected)
         leftGroup->addOnGroup([this](EntityRef entity) {
             LOG_MILE("MouseLeftClickSystem", "Add entity " << entity->id << " to ui - mouse left click group !");
 
-            const auto& ui = entity->get<UiComponent>();
+            auto pos = entity->get<PositionComponent>();
             auto mouse = entity->get<MouseLeftClickComponent>();
             
             if (mouse->trigger == MouseStateTrigger::OnPress)
             {
-                mouseLeftAreaPressHolder.emplace(entity->id, ui);
+                mouseLeftAreaPressHolder.emplace(entity->id, entity, pos);
             }
             else if (mouse->trigger == MouseStateTrigger::OnRelease)
             {
-                mouseLeftAreaReleaseHolder.emplace(entity->id, ui);
+                mouseLeftAreaReleaseHolder.emplace(entity->id, entity, pos);
             }
             else
             {
-                mouseLeftAreaPressHolder.emplace(entity->id, ui);
-                mouseLeftAreaReleaseHolder.emplace(entity->id, ui);
+                mouseLeftAreaPressHolder.emplace(entity->id, entity, pos);
+                mouseLeftAreaReleaseHolder.emplace(entity->id, entity, pos);
             }
         });
 
@@ -89,26 +89,26 @@ namespace pg
             }
         });
 
-        auto rightGroup = registerGroup<UiComponent, MouseRightClickComponent>();
+        auto rightGroup = registerGroup<PositionComponent, MouseRightClickComponent>();
 
         rightGroup->addOnGroup([this](EntityRef entity) {
             LOG_MILE("MouseRightClickSystem", "Add entity " << entity->id << " to ui - mouse right click group !");
 
-            auto ui = entity->get<UiComponent>();
+            auto pos = entity->get<PositionComponent>();
             auto mouse = entity->get<MouseRightClickComponent>();
             
             if (mouse->trigger == MouseStateTrigger::OnPress)
             {
-                mouseRightAreaPressHolder.emplace(entity->id, ui);
+                mouseRightAreaPressHolder.emplace(entity->id, entity, pos);
             }
             else if (mouse->trigger == MouseStateTrigger::OnRelease)
             {
-                mouseRightAreaReleaseHolder.emplace(entity->id, ui);
+                mouseRightAreaReleaseHolder.emplace(entity->id, entity, pos);
             }
             else
             {
-                mouseRightAreaPressHolder.emplace(entity->id, ui);
-                mouseRightAreaReleaseHolder.emplace(entity->id, ui);
+                mouseRightAreaPressHolder.emplace(entity->id, entity, pos);
+                mouseRightAreaReleaseHolder.emplace(entity->id, entity, pos);
             }
         });
 
@@ -158,14 +158,14 @@ namespace pg
 
             for (const auto& mouseArea : pressAreas)
             {
-                auto ui = mouseArea.ui.component;
+                auto pos = mouseArea.pos;
 
-                if (ui->pos.z < highestZ)
+                if (pos->z < highestZ)
                     break;
 
-                if (ui->inClipBound(mousePos.x, mousePos.y))
+                if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
                 {
-                    highestZ = ui->pos.z;
+                    highestZ = pos->z;
 
                     callCallback(button, mouseArea.id);
                 }
@@ -182,14 +182,14 @@ namespace pg
             {
                 for (const auto& mouseArea : releaseAreas)
                 {
-                    auto ui = mouseArea.ui.component;
+                    auto pos = mouseArea.pos;
 
-                    if (ui->pos.z < highestZ)
+                    if (pos->z < highestZ)
                         break;
 
-                    if (ui->inClipBound(mousePos.x, mousePos.y))
+                    if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
                     {
-                        highestZ = ui->pos.z;
+                        highestZ = pos->z;
 
                         callCallback(button, mouseArea.id);
                     }
@@ -222,8 +222,8 @@ namespace pg
 
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs)
     {
-        const auto& z = lhs.ui->pos.z;
-        const auto& rhsZ = rhs.ui->pos.z;
+        const auto& z = lhs.pos->z;
+        const auto& rhsZ = rhs.pos->z;
 
         if (z == rhsZ)
             return lhs.id < rhs.id;
@@ -233,8 +233,8 @@ namespace pg
 
     bool operator>(MouseAreaZ lhs, MouseAreaZ rhs)
     {
-        const auto& z = lhs.ui->pos.z;
-        const auto& rhsZ = rhs.ui->pos.z;
+        const auto& z = lhs.pos->z;
+        const auto& rhsZ = rhs.pos->z;
 
         if (z == rhsZ)
             return lhs.id > rhs.id;

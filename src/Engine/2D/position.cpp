@@ -454,4 +454,43 @@ namespace pg
             changedIds.clear();
         }
     }
+
+    bool inBound(EntityRef entity, float x, float y)
+    {
+        if (entity.empty() or not entity->has<PositionComponent>())
+        {
+            LOG_ERROR("Position Component", "Entity[" << entity.id << "] has no Position Component");
+            return false;
+        }
+
+        auto pos = entity->get<PositionComponent>();
+
+        if (not pos->visible)
+        {
+            return false;
+        }
+
+        return x >= pos->x and x <= pos->x + pos->width and y >= pos->y and y <= pos->y + pos->height;
+    }
+
+    bool inClipBound(EntityRef entity, float x, float y)
+    {
+        // We first check if the pos is in the entity 
+        auto inEntityBound = inBound(entity, x, y);
+
+        // Early exit if the pos is not in the entity
+        if (not inEntityBound)
+            return false;
+
+        // If the entity is not clipped to anything we just devolve to standard bound test
+        if (not entity->has<ClippedTo>())
+        {
+            return inEntityBound;
+        }
+        
+        // If the entity is clipped to something, then we just check if the pos is also in the clipper's bound
+        auto clipper = entity->world()->getEntity(entity->get<ClippedTo>()->clipperId);
+
+        return inBound(clipper, x, y);
+    }
 }

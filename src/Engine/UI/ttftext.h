@@ -119,7 +119,7 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, TTFText> makeTTFText(Type *ecs, UiSize x, UiSize y, UiSize z, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
+    CompList<PositionComponent, UiAnchor, TTFText> makeTTFText(Type *ecs, float x, float y, float z, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
         LOG_THIS("TTFText System");
 

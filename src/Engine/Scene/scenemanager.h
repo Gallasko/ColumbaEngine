@@ -9,6 +9,9 @@
 
 #include "serialization.h"
 
+// Todo to remove
+#include "UI/uisystem.h"
+
 namespace pg
 {
     struct SceneElementClicked { SceneElementClicked(EntityRef entity) : entity(entity) {} EntityRef entity; };
