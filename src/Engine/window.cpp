@@ -563,6 +563,18 @@ namespace pg
 
         glViewport(0, 0, width, height);
 
+        auto ent = ecs.getEntity("__MainWindow");
+        if (ent and ent->has<PositionComponent>())
+        {
+            auto pos = ent->get<PositionComponent>();
+
+            if (pos->width != width)
+                pos->setWidth(width);
+            
+            if (pos->height!= height)
+                pos->setHeight(height);
+        }
+
         if (screenUi->width != width)
         {
             screenUi->setWidth(width);
