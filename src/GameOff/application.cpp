@@ -130,6 +130,7 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto t2Anchor = titleTTF2.get<UiAnchor>();
 
         t2Anchor->setLeftAnchor(t1Anchor->right);
+        t2Anchor->setBottomAnchor(t1Anchor->bottom);
 
 
         auto titleTTF3 = makeTTFText(ecsRef, 330, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);

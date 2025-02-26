@@ -712,7 +712,7 @@ namespace pg
                 }
                 else
                 {
-                    doneUi.get<UiComponent>()->setVisibility(true);
+                    doneUi.get<PositionComponent>()->setVisibility(true);
                 }
             }
         });
@@ -757,7 +757,7 @@ namespace pg
     {
         currentCastedSpell->numberOfTurnsSinceLastUsed = 0;
 
-        doneUi.get<UiComponent>()->setVisibility(false);
+        doneUi.get<PositionComponent>()->setVisibility(false);
 
         inPlayableTurn = false;
         ecsRef->sendEvent(SpellCasted{currentPlayerTurn, selectedTarget, currentCastedSpell});

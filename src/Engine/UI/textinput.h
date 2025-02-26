@@ -74,7 +74,7 @@ namespace pg
 
         auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<UiComponent>(entity);
+        auto ui = ecs->template attach<PositionComponent>(entity);
 
         ui->setX(x);
         ui->setY(y);

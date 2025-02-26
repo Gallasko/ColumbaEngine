@@ -33,13 +33,6 @@ namespace pg
     class UiComponent;
     struct PositionComponent;
 
-    struct RenderableTexture
-    {
-        _unique_id entityId;
-        CompRef<UiComponent> uiRef;
-        Mesh* meshRef;
-    };
-
     enum class RenderStage : uint8_t
     {
         Render      = 0b000,

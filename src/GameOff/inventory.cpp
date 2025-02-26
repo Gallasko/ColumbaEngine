@@ -314,48 +314,53 @@ namespace pg
         for (auto& item : sys->items[type])
         {
             auto prefab = makeAnchoredPrefab(this, 0, 0);
+            auto prefabAnchor = prefab.get<UiAnchor>();
             prefab.get<Prefab>()->setVisibility(false);
 
             // Careful here we don't pass this but ecsRef because when using a Prefab we don't want the underlaying element to be deleted by the scene
             // before deleting it ourselves in the prefab
             auto itemTex = makeUiTexture(ecsRef, 125 * 3, 21 * 3, "Header2");
 
-            itemTex.get<UiAnchor>()->setTopAnchor(prefab.get<UiAnchor>()->top);
-            itemTex.get<UiAnchor>()->setLeftAnchor(prefab.get<UiAnchor>()->left);
+            itemTex.get<UiAnchor>()->setTopAnchor(prefabAnchor->top);
+            itemTex.get<UiAnchor>()->setLeftAnchor(prefabAnchor->left);
 
-            prefab.get<UiAnchor>()->setWidthConstrain(PosConstrain{itemTex.entity.id, AnchorType::Width});
-            prefab.get<UiAnchor>()->setHeightConstrain(PosConstrain{itemTex.entity.id, AnchorType::Height});
+            prefabAnchor->setWidthConstrain(PosConstrain{itemTex.entity.id, AnchorType::Width});
+            prefabAnchor->setHeightConstrain(PosConstrain{itemTex.entity.id, AnchorType::Height});
 
             prefab.get<Prefab>()->addToPrefab(itemTex.entity);
 
             auto iconTex = makeUiTexture(ecsRef, 15 * 3, 15 * 3, item.icon);
+            auto iconTexAnchor = iconTex.get<UiAnchor>();
 
-            iconTex.get<UiAnchor>()->setTopAnchor(prefab.get<UiAnchor>()->top);
-            iconTex.get<UiAnchor>()->setTopMargin(8);
-            iconTex.get<UiAnchor>()->setLeftAnchor(prefab.get<UiAnchor>()->left);
-            iconTex.get<UiAnchor>()->setLeftMargin(12);
-            iconTex.get<UiAnchor>()->setZConstrain(PosConstrain{itemTex.entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
+            iconTexAnchor->setTopAnchor(prefabAnchor->top);
+            iconTexAnchor->setTopMargin(8);
+            iconTexAnchor->setLeftAnchor(prefabAnchor->left);
+            iconTexAnchor->setLeftMargin(12);
+            iconTexAnchor->setZConstrain(PosConstrain{itemTex.entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
 
             prefab.get<Prefab>()->addToPrefab(iconTex.entity);
 
             auto itemUi = makeTTFText(ecsRef, 0, 0, 2, "res/font/Inter/static/Inter_28pt-Light.ttf", item.name, 0.4);
+            auto itemUiAnchor = itemUi.get<UiAnchor>();
 
-            // itemUi.get<UiComponent>()->setTopAnchor(iconTex.get<UiComponent>()->top);
-            // itemUi.get<UiComponent>()->setTopMargin(17);
-            // itemUi.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->right);
-            // itemUi.get<UiComponent>()->setLeftMargin(8);
+            itemUiAnchor->setTopAnchor(iconTexAnchor->top);
+            itemUiAnchor->setTopMargin(17);
+            itemUiAnchor->setLeftAnchor(iconTexAnchor->right);
+            itemUiAnchor->setLeftMargin(8);
 
-            // prefab.get<Prefab>()->addToPrefab(itemUi.get<UiComponent>());
+            prefab.get<Prefab>()->addToPrefab(itemUi.entity);
 
             auto itemNb = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", std::to_string(item.nbItems), 0.4);
+            auto itemNbAnchor = itemNb.get<UiAnchor>();
 
-            // itemNb.get<UiComponent>()->setZ(iconTex.get<UiComponent>()->pos.z + 1);
-            // itemNb.get<UiComponent>()->setBottomAnchor(prefab.get<UiComponent>()->bottom);
-            // itemNb.get<UiComponent>()->setBottomMargin(5);
-            // itemNb.get<UiComponent>()->setLeftAnchor(iconTex.get<UiComponent>()->left);
-            // itemNb.get<UiComponent>()->setLeftMargin(iconTex.get<UiComponent>()->width / 2.0f - itemNb.get<UiComponent>()->width / 2.0f);
+            itemNbAnchor->setZConstrain(PosConstrain{iconTex.entity.id, AnchorType::Z, PosOpType::Add, 1});
+            itemNbAnchor->setBottomAnchor(prefabAnchor->bottom);
+            itemNbAnchor->setBottomMargin(5);
+            itemNbAnchor->setLeftAnchor(prefabAnchor->left);
+            // Todo make it vertical centered
+            itemNbAnchor->setLeftMargin(iconTex.get<PositionComponent>()->width / 2.0f - itemNb.get<PositionComponent>()->width / 2.0f);
 
-            // prefab.get<Prefab>()->addToPrefab(itemNb.entity);
+            prefab.get<Prefab>()->addToPrefab(itemNb.entity);
 
             if (item.attributes.count("UsableOnCharacter") > 0 and item.attributes.at("UsableOnCharacter") == true)
             {

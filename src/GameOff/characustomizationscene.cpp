@@ -305,7 +305,7 @@ namespace pg
             characterName.get<TTFText>()->setText(currentPlayer->character.name);
             characterName.get<TextInputComponent>()->text = currentPlayer->character.name;
 
-            characterName.get<UiComponent>()->setVisibility(true);
+            characterName.get<PositionComponent>()->setVisibility(true);
 
             showPlayerIcon();
             showStat();
@@ -447,26 +447,23 @@ namespace pg
         // before deleting it ourselves in the prefab
         auto iconTex = makeUiTexture(ecsRef, 19 * 3, 19 * 3, player->character.icon);
         auto iconTexAnchor = iconTex.get<UiAnchor>();
-        // auto iconTexUi = iconTex.get<UiComponent>();
 
         iconTexAnchor->setTopAnchor(prefabAnchor->top);
         iconTexAnchor->setRightAnchor(prefabAnchor->right);
         iconTexAnchor->setRightMargin(30);
         iconTexAnchor->setZConstrain(PosConstrain{backTex.entity.id, AnchorType::Z, PosOpType::Add, 1});
-        // iconTexUi->setZ(5);
 
         prefab.get<Prefab>()->addToPrefab(iconTex.entity);
 
         auto ttf = makeTTFText(ecsRef, 0, 0, backTexUi->z + 2, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
-        // auto ttfUi = ttf.get<UiComponent>();
+        auto ttfAnchor = ttf.get<UiAnchor>();
 
-        // ttfUi->setBottomAnchor(prefab.get<UiComponent>()->bottom);
-        // ttfUi->setBottomMargin(10);
-        // // ttfUi->setLeftAnchor(backTex.get<UiComponent>()->left);
-        // // ttfUi->setLeftAnchor(10);
-        // ttfUi->setX(&backTex.get<UiComponent>()->left);
+        ttfAnchor->setBottomAnchor(prefabAnchor->bottom);
+        ttfAnchor->setBottomMargin(10);
+        ttfAnchor->setLeftAnchor(backTexAnchor->left);
+        ttfAnchor->setLeftMargin(10);
 
-        // prefab.get<Prefab>()->addToPrefab(ttfUi);
+        prefab.get<Prefab>()->addToPrefab(ttf.entity);
 
         attach<MouseLeftClickComponent>(prefab.entity, makeCallable<SelectedCharacter>(player));
 
@@ -517,11 +514,11 @@ namespace pg
     {
         playerIconUi["icon"].get<Texture2DComponent>()->setTexture(currentPlayer->character.icon);
 
-        playerIconUi["icon"].get<UiComponent>()->setVisibility(true);
+        playerIconUi["icon"].get<PositionComponent>()->setVisibility(true);
 
         playerIconUi["name"].get<TTFText>()->setText(currentPlayer->character.name);
 
-        playerIconUi["name"].get<UiComponent>()->setVisibility(true);
+        playerIconUi["name"].get<PositionComponent>()->setVisibility(true);
     }
 
     void PlayerCustomizationScene::makeStatUi()
@@ -562,7 +559,7 @@ namespace pg
 
         for (auto entity : characterStatUi)
         {
-            entity.second.get<UiComponent>()->setVisibility(true);
+            entity.second.get<PositionComponent>()->setVisibility(true);
         }
     }
 
@@ -611,7 +608,7 @@ namespace pg
 
             ui.get<TTFText>()->setText(skillTreeName);
 
-            ui.get<UiComponent>()->setVisibility(true);
+            ui.get<PositionComponent>()->setVisibility(true);
         }
     }
 
@@ -744,11 +741,11 @@ namespace pg
 
         if (sTree->currentLevel >= sTree->maxLevel)
         {
-            upgradeTabUi["UpgradeButton"].get<UiComponent>()->setVisibility(false);
+            upgradeTabUi["UpgradeButton"].get<PositionComponent>()->setVisibility(false);
         }
         else
         {
-            upgradeTabUi["UpgradeButton"].get<UiComponent>()->setVisibility(true);
+            upgradeTabUi["UpgradeButton"].get<PositionComponent>()->setVisibility(true);
 
             if (enoughItemsToLevelUp)
             {

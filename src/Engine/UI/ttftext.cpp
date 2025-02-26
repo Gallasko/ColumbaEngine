@@ -227,8 +227,6 @@ namespace pg
 
         renderCallList.clear();
 
-        // const auto& renderCallView = viewGroup<UiComponent, TTFText, TTFTextCall>();
-
         const auto& renderCallView = view<TTFTextCall>();
 
         renderCallList.reserve(renderCallView.nbComponents());

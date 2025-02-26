@@ -78,10 +78,10 @@ namespace pg
 
             selectedLocation = location;
 
-            selectedCharaUi["p1"].get<UiComponent>()->setVisibility(true);
-            selectedCharaUi["p2"].get<UiComponent>()->setVisibility(true);
-            selectedCharaUi["p3"].get<UiComponent>()->setVisibility(true);
-            selectedCharaUi["StartBattle"].get<UiComponent>()->setVisibility(true);
+            selectedCharaUi["p1"].get<PositionComponent>()->setVisibility(true);
+            selectedCharaUi["p2"].get<PositionComponent>()->setVisibility(true);
+            selectedCharaUi["p3"].get<PositionComponent>()->setVisibility(true);
+            selectedCharaUi["StartBattle"].get<PositionComponent>()->setVisibility(true);
         });
 
         listenToEvent<SelectedCharacter>([this](const SelectedCharacter& event) {
