@@ -122,11 +122,6 @@ namespace pg
         onEventUpdate(event.id);
     }
 
-    void TTFTextSystem::onEvent(const TTFTextResizeEvent& event)
-    {
-        resizeQueue.push(event);
-    }
-
     void TTFTextSystem::registerFont(const std::string& fontPath, int size)
     {
         FT_Face face;
@@ -227,26 +222,6 @@ namespace pg
 
     void TTFTextSystem::execute()
     {
-        while (not resizeQueue.empty())
-        {
-            const auto& event = resizeQueue.front();
-
-            auto entity = ecsRef->getEntity(event.id);
-
-            if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFText>())
-            {
-                LOG_ERROR(DOM, "Cannot ttf resize an entity without position nor ttf component, id: " << event.id);
-            }
-
-            auto pos = entity->get<PositionComponent>();
-            auto ttf = entity->get<TTFText>();
-
-            pos->setWidth(ttf->textWidth);
-            pos->setHeight(ttf->textHeight);
-
-            resizeQueue.pop();
-        }
-
         if (not changed)
             return;
 
@@ -369,8 +344,6 @@ namespace pg
             obj->textHeight = textHeight;
             ui->setHeight(textHeight);
         }
-
-        ecsRef->sendEvent(TTFTextResizeEvent{ui.entityId});
         
         return calls;
     }

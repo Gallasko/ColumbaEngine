@@ -11,11 +11,6 @@
 
 namespace pg
 {
-    struct TTFSize
-    {
-        int width, height;
-    };
-
     struct TTFText : public Ctor
     {
         TTFText() {}
@@ -87,7 +82,7 @@ namespace pg
         _unique_id id;
     };
 
-    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<PositionComponent>, Listener<EntityChangedEvent>, Listener<TTFTextResizeEvent>, InitSys>
+    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         struct Character 
         {
@@ -104,7 +99,6 @@ namespace pg
         virtual void init() override;
 
         virtual void onEvent(const EntityChangedEvent& event) override;
-        virtual void onEvent(const TTFTextResizeEvent& event) override;
 
         void registerFont(const std::string& fontPath, int size = 48);
 
@@ -117,16 +111,11 @@ namespace pg
         // Use this material preset if a material is not specified when creating a ttf component !
         Material baseMaterialPreset;
 
-        /** Keep track of the size of a TTF texture */
-        std::unordered_map<std::string, TTFSize> sizeMap;
-
         FT_Library ft;
 
         std::vector<std::string> loadedFont;
 
         std::unordered_map<std::string, std::unordered_map<char, Character>> charactersMap;
-
-        std::queue<TTFTextResizeEvent> resizeQueue;
     };
 
     template <typename Type>
