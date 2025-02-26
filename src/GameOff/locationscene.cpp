@@ -48,19 +48,19 @@ namespace pg
 
         auto p1 = makeTTFText(this, 0, 100, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Empty", 0.4);
         attach<MouseLeftClickComponent>(p1.entity, makeCallable<ChooseCharacter>(0));
-        p1.get<UiComponent>()->setVisibility(false);
+        p1.get<PositionComponent>()->setVisibility(false);
 
         auto p2 = makeTTFText(this, 150, 150, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Empty", 0.4);
         attach<MouseLeftClickComponent>(p2.entity, makeCallable<ChooseCharacter>(1));
-        p2.get<UiComponent>()->setVisibility(false);
+        p2.get<PositionComponent>()->setVisibility(false);
         
         auto p3 = makeTTFText(this, 300, 100, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Empty", 0.4);
         attach<MouseLeftClickComponent>(p3.entity, makeCallable<ChooseCharacter>(2));
-        p3.get<UiComponent>()->setVisibility(false);
+        p3.get<PositionComponent>()->setVisibility(false);
 
         auto startBattle = makeTTFText(this, 155, 215, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Start", 0.4, {255.0f, 0.0f, 0.0f, 255.0f});
         attach<MouseLeftClickComponent>(startBattle.entity, makeCallable<StartBattleClicked>());
-        startBattle.get<UiComponent>()->setVisibility(false);
+        startBattle.get<PositionComponent>()->setVisibility(false);
 
         selectedCharaUi["p1"] = p1.entity;
         selectedCharaUi["p2"] = p2.entity;
@@ -183,7 +183,7 @@ namespace pg
     void LocationScene::addPlayerToListView(PlayerCharacter* player)
     {
         auto ttf = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
-        auto ttfUi = ttf.get<UiComponent>();
+        auto ttfUi = ttf.get<PositionComponent>();
         ttfUi->setVisibility(false);
 
         attach<MouseLeftClickComponent>(ttf.entity, makeCallable<SelectedCharacter>(player));
@@ -194,7 +194,7 @@ namespace pg
     void LocationScene::addLocation(const Location& location)
     {
         auto ttf = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", location.name, 0.4);
-        auto ttfUi = ttf.get<UiComponent>();
+        auto ttfUi = ttf.get<PositionComponent>();
         ttfUi->setVisibility(false);
 
         attach<MouseLeftClickComponent>(ttf.entity, makeCallable<SelectedLocation>(location));

@@ -91,12 +91,12 @@ namespace pg
 
         baseMaterialPreset.setSimpleMesh({3, 2, 1, 1, 3, 1});
 
-        auto group = registerGroup<UiComponent, TTFText>();
+        auto group = registerGroup<PositionComponent, TTFText>();
 
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - ttf group !");
 
-            auto ui = entity->get<UiComponent>();
+            auto ui = entity->get<PositionComponent>();
             auto sentence = entity->get<TTFText>();
 
             ecsRef->attach<TTFTextCall>(entity, createRenderCall(ui, sentence));
@@ -120,6 +120,11 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         onEventUpdate(event.id);
+    }
+
+    void TTFTextSystem::onEvent(const TTFTextResizeEvent& event)
+    {
+        resizeQueue.push(event);
     }
 
     void TTFTextSystem::registerFont(const std::string& fontPath, int size)
@@ -209,10 +214,10 @@ namespace pg
 
         auto entity = ecsRef->getEntity(entityId);
         
-        if (not entity or not entity->has<UiComponent>() or not entity->has<TTFTextCall>())
+        if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFTextCall>())
             return; 
 
-        auto ui = entity->get<UiComponent>();
+        auto ui = entity->get<PositionComponent>();
         auto shape = entity->get<TTFText>();
 
         entity->get<TTFTextCall>()->calls = createRenderCall(ui, shape);
@@ -222,6 +227,26 @@ namespace pg
 
     void TTFTextSystem::execute()
     {
+        while (not resizeQueue.empty())
+        {
+            const auto& event = resizeQueue.front();
+
+            auto entity = ecsRef->getEntity(event.id);
+
+            if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFText>())
+            {
+                LOG_ERROR(DOM, "Cannot ttf resize an entity without position nor ttf component, id: " << event.id);
+            }
+
+            auto pos = entity->get<PositionComponent>();
+            auto ttf = entity->get<TTFText>();
+
+            pos->setWidth(ttf->textWidth);
+            pos->setHeight(ttf->textHeight);
+
+            resizeQueue.pop();
+        }
+
         if (not changed)
             return;
 
@@ -241,7 +266,7 @@ namespace pg
         changed = false;
     }
 
-    std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<TTFText> obj)
+    std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
     {
         // Todo fix position issue right here !
         LOG_THIS_MEMBER(DOM);
@@ -250,9 +275,9 @@ namespace pg
 
         auto textureName = "TTFText_" + obj->text + "_" + std::to_string(obj->scale);
 
-        float x = ui->pos.x;
-        float y = ui->pos.y;
-        float z = ui->pos.z;
+        float x = ui->x;
+        float y = ui->y;
+        float z = ui->z;
 
         float scale = obj->scale;
 
@@ -291,7 +316,7 @@ namespace pg
 
             RenderCall call;
 
-            call.processUiComponent(ui);
+            call.processPositionComponent(ui);
 
             if (masterRenderer->hasMaterial(textureName))
             {
@@ -336,12 +361,16 @@ namespace pg
         if (obj->textWidth != textWidth)
         {
             obj->textWidth = textWidth;
+            ui->setWidth(textWidth);
         }
 
         if (obj->textHeight != textHeight)
         {
             obj->textHeight = textHeight;
+            ui->setHeight(textHeight);
         }
+
+        ecsRef->sendEvent(TTFTextResizeEvent{ui.entityId});
         
         return calls;
     }

@@ -410,6 +410,7 @@ namespace pg
         ecs.succeed<UiComponentSystem, PrefabSystem>();
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
 
+        ecs.succeed<PositionComponentSystem, TTFTextSystem>();
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs.succeed<PositionComponentSystem, ListViewSystem>();
 

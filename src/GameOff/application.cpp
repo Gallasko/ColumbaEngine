@@ -121,11 +121,16 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     {
         // Navigation tabs
         auto titleTTF = makeTTFText(ecsRef, 50, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Customization", 0.4);
-        titleTTF.get<UiComponent>()->setZ(1);
+        titleTTF.get<PositionComponent>()->setZ(1);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<SceneToLoad>(SceneName::Customization));
+        auto t1Anchor = titleTTF.get<UiAnchor>();
 
         auto titleTTF2 = makeTTFText(ecsRef, 225, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF2.entity, makeCallable<SceneToLoad>(SceneName::Inventory));
+        auto t2Anchor = titleTTF2.get<UiAnchor>();
+
+        t2Anchor->setLeftAnchor(t1Anchor->right);
+
 
         auto titleTTF3 = makeTTFText(ecsRef, 330, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));

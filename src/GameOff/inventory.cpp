@@ -280,7 +280,7 @@ namespace pg
         characterList = listView2.get<ListView>();
 
         auto ttf = makeTTFText(this, 0, 350, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Learn", 0.4);
-        auto ttfUi = ttf.get<UiComponent>();
+        auto ttfUi = ttf.get<PositionComponent>();
         ttfUi->setVisibility(false);
 
         attach<MouseLeftClickComponent>(ttf.entity, makeCallable<LearnNewSkillTree>());
@@ -295,7 +295,7 @@ namespace pg
     void InventoryScene::addPlayerToListView(PlayerCharacter* player)
     {
         auto ttf = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", player->character.name, 0.4);
-        auto ttfUi = ttf.get<UiComponent>();
+        auto ttfUi = ttf.get<PositionComponent>();
         ttfUi->setVisibility(false);
 
         attach<MouseLeftClickComponent>(ttf.entity, makeCallable<SelectedCharacter>(player));

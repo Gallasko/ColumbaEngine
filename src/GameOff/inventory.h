@@ -78,6 +78,6 @@ namespace pg
 
         CompRef<ListView> characterList;
 
-        CompRef<UiComponent> learnSkillTreeUi;
+        CompRef<PositionComponent> learnSkillTreeUi;
     };
 }
