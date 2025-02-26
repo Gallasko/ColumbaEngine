@@ -29,6 +29,79 @@ namespace pg
                     break;
             }
         }
+
+        float constrainCalculation(EntitySystem* ecsRef, const PosConstrain& constrain)
+        {
+            auto entity = ecsRef->getEntity(constrain.id);
+
+            if (not entity or not entity->has<PositionComponent>())
+            {
+                LOG_ERROR("PosConstrain", "Entity " << constrain.id << " does not have a PositionComponent!");
+                return 0.0f;
+            }
+
+            auto pos = entity->get<PositionComponent>();
+
+            float value = 0.0f;
+
+            switch (constrain.type)
+            {
+            case AnchorType::Width:
+                value = pos->width;
+                break;
+
+            case AnchorType::Height:
+                value = pos->height;
+                break;
+            
+            case AnchorType::X:
+                value = pos->x;
+                break;
+
+            case AnchorType::Y:
+                value = pos->y;
+                break;
+
+            case AnchorType::Z:
+                value = pos->z;
+                break;
+
+            default:
+                LOG_ERROR("UiAnchor", "Invalid anchor type, type is not yet managed");
+                break;
+            }
+
+            switch (constrain.opType)
+            {
+            case PosOpType::Add:
+                value += constrain.opValue;
+                break;
+
+            case PosOpType::Sub:
+                value -= constrain.opValue;
+                break;
+
+            case PosOpType::Mul:
+                value *= constrain.opValue;
+                break;
+
+            case PosOpType::Div:
+                if (constrain.opValue != 0.0f)
+                    value /= constrain.opValue;
+                else
+                {
+                    LOG_ERROR("UiAnchor", "Division by zero"); 
+                }
+                break;
+
+            case PosOpType::None:
+            default:
+                // We do nothing
+                break;
+            }
+
+            return value;
+        }
     }
 
     void UiAnchor::setTopAnchor(const PosAnchor& anchor)
@@ -118,6 +191,7 @@ namespace pg
     void UiAnchor::setWidthConstrain(const PosConstrain& constrain)
     {
         widthConstrain = constrain;
+        hasWidthConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
@@ -125,6 +199,15 @@ namespace pg
     void UiAnchor::setHeightConstrain(const PosConstrain& constrain)
     {
         heightConstrain = constrain;
+        hasHeightConstrain = true;
+        ecsRef->sendEvent(ParentingEvent{constrain.id, id});
+        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void UiAnchor::setZConstrain(const PosConstrain& constrain)
+    {
+        zConstrain = constrain;
+        hasZConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
@@ -156,6 +239,9 @@ namespace pg
 
     void UiAnchor::update()
     {
+        if (not ecsRef)
+            return;
+
         auto entity = ecsRef->getEntity(id);
 
         if (entity and entity->has<PositionComponent>())
@@ -268,10 +354,13 @@ namespace pg
     {
         float oldX = x;
         float oldY = y;
+        float oldZ = z;
+        float oldWidth = width;
+        float oldHeight = height;
 
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
-            this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value - anchor.topMargin);
+            this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value + anchor.topMargin);
             this->y = anchor.topAnchor.value + anchor.topMargin;
         }
         else if (anchor.hasTopAnchor and not anchor.hasBottomAnchor)
@@ -285,7 +374,7 @@ namespace pg
 
         if (anchor.hasRightAnchor and anchor.hasLeftAnchor)
         {
-            this->width = (anchor.rightAnchor.value - anchor.rightMargin) - (anchor.leftAnchor.value - anchor.leftMargin);
+            this->width = (anchor.rightAnchor.value - anchor.rightMargin) - (anchor.leftAnchor.value + anchor.leftMargin);
             this->x = anchor.leftAnchor.value + anchor.leftMargin;
         }
         else if (anchor.hasRightAnchor and not anchor.hasLeftAnchor)
@@ -297,32 +386,30 @@ namespace pg
             this->x = anchor.leftAnchor.value + anchor.leftMargin;
         }
 
-        return oldX != x or oldY != y;
+        // Cannot do constrain calculation if we don't have access to ecsRef
+        if (ecsRef)
+        {
+            if (anchor.hasZConstrain)
+                z = constrainCalculation(ecsRef, anchor.zConstrain);
+
+            if (anchor.hasWidthConstrain)
+                width = constrainCalculation(ecsRef, anchor.widthConstrain);
+
+            if (anchor.hasHeightConstrain)
+                height = constrainCalculation(ecsRef, anchor.heightConstrain);
+        }
+
+        return oldX != x or oldY != y or oldZ != z or oldWidth != width or oldHeight != height;
     }
 
-    void PositionComponentSystem::pushChildrenInChange(_unique_id parentId, Entity *entity)
+    void PositionComponentSystem::pushChildrenInChange(_unique_id parentId)
     {
-        if (entity->has<UiAnchor>())
-        {
-            entity->get<UiAnchor>()->update();
-
-            // Todo check
-            // If the position component get changed by the anchor moving then we push its children to the queue for check
-            entity->get<PositionComponent>()->updatefromAnchor(*entity->get<UiAnchor>());
-        }
-        // Todo check else case should never happen, as if the entity id is in the parentalMap, then the entity should have UiAnchor component.
-
         for (const auto& child : parentalMap[parentId])
         {
-            auto childEntity = ecsRef->getEntity(child);
+            auto inserted = changedIds.insert(child);
 
-            // Todo, should be impossible to have a child without Position component or non existant.
-            if (childEntity and childEntity->has<PositionComponent>())
-            {
-                changedIds.insert(child);
-
-                pushChildrenInChange(child, childEntity);
-            }
+            if (inserted.second)
+                pushChildrenInChange(child);
         }
     }
     
@@ -332,18 +419,10 @@ namespace pg
         {
             const auto& event = eventQueue.front();
         
-            auto entity = ecsRef->getEntity(event.id);
-
-            if (not entity or not entity->has<PositionComponent>())
-            {
-                eventQueue.pop();
-                continue;
-            }
-
             if (not changedIds.count(event.id))
             {
                 changedIds.insert(event.id);
-                pushChildrenInChange(event.id, entity);
+                pushChildrenInChange(event.id);
             }
         
             eventQueue.pop();
@@ -353,10 +432,65 @@ namespace pg
         {
             for (const auto& id : changedIds)
             {
+                auto entity = ecsRef->getEntity(id);
+
+                if (not entity or not entity->has<PositionComponent>())
+                    continue;
+
+                if (entity->has<UiAnchor>())
+                {
+                    auto anchor = entity->get<UiAnchor>();
+                    
+                    anchor->update();
+
+                    // Todo check
+                    // If the position component get changed by the anchor moving then we push its children to the queue for check
+                    entity->get<PositionComponent>()->updatefromAnchor(*anchor);
+                }
+
                 ecsRef->sendEvent(EntityChangedEvent{id});
             }
 
             changedIds.clear();
         }
+    }
+
+    bool inBound(EntityRef entity, float x, float y)
+    {
+        if (entity.empty() or not entity->has<PositionComponent>())
+        {
+            LOG_ERROR("Position Component", "Entity[" << entity.id << "] has no Position Component");
+            return false;
+        }
+
+        auto pos = entity->get<PositionComponent>();
+
+        if (not pos->visible)
+        {
+            return false;
+        }
+
+        return x >= pos->x and x <= pos->x + pos->width and y >= pos->y and y <= pos->y + pos->height;
+    }
+
+    bool inClipBound(EntityRef entity, float x, float y)
+    {
+        // We first check if the pos is in the entity 
+        auto inEntityBound = inBound(entity, x, y);
+
+        // Early exit if the pos is not in the entity
+        if (not inEntityBound)
+            return false;
+
+        // If the entity is not clipped to anything we just devolve to standard bound test
+        if (not entity->has<ClippedTo>())
+        {
+            return inEntityBound;
+        }
+        
+        // If the entity is clipped to something, then we just check if the pos is also in the clipper's bound
+        auto clipper = entity->world()->getEntity(entity->get<ClippedTo>()->clipperId);
+
+        return inBound(clipper, x, y);
     }
 }

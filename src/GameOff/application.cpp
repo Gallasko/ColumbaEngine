@@ -121,11 +121,17 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     {
         // Navigation tabs
         auto titleTTF = makeTTFText(ecsRef, 50, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Customization", 0.4);
-        titleTTF.get<UiComponent>()->setZ(1);
+        titleTTF.get<PositionComponent>()->setZ(1);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<SceneToLoad>(SceneName::Customization));
+        auto t1Anchor = titleTTF.get<UiAnchor>();
 
         auto titleTTF2 = makeTTFText(ecsRef, 225, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF2.entity, makeCallable<SceneToLoad>(SceneName::Inventory));
+        auto t2Anchor = titleTTF2.get<UiAnchor>();
+
+        t2Anchor->setLeftAnchor(t1Anchor->right);
+        t2Anchor->setBottomAnchor(t1Anchor->bottom);
+
 
         auto titleTTF3 = makeTTFText(ecsRef, 330, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));
@@ -187,16 +193,15 @@ struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePoli
 
         auto portrait = makeUiTexture(ecsRef, 100, 100, "NoneIcon");
 
-        portrait.get<UiComponent>()->setX(250);
-        portrait.get<UiComponent>()->setY(300);
+        portrait.get<PositionComponent>()->setX(250);
+        portrait.get<PositionComponent>()->setY(300);
         
         tex = portrait.get<Texture2DComponent>();
 
         auto fee = makeUiTexture(ecsRef, 100, 100, "Hahahah");
 
-        fee.get<UiComponent>()->setX(250);
-        fee.get<UiComponent>()->setY(420);
-        
+        fee.get<PositionComponent>()->setX(250);
+        fee.get<PositionComponent>()->setY(420);
     }
 
     virtual void onEvent(const ChangePortraitEvent&) override

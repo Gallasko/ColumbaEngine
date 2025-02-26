@@ -99,7 +99,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct ProgressBarComponentSystem : public AbstractRenderer, System<Own<ProgressBarComponent>, Own<ProgressBarRenderCall>, Listener<EntityChangedEvent>, Ref<UiComponent>, InitSys>
+    struct ProgressBarComponentSystem : public AbstractRenderer, System<Own<ProgressBarComponent>, Own<ProgressBarRenderCall>, Listener<EntityChangedEvent>, InitSys>
     {
         ProgressBarComponentSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
 

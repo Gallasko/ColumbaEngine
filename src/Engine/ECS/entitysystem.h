@@ -47,27 +47,6 @@ namespace pg
         static constexpr bool value = decltype(check<T>(0))::value;
     };
 
-    template <typename Comp>
-    struct CompListGetter
-    {
-        CompListGetter(CompRef<Comp> comp) : comp(comp) {}
-
-        inline CompRef<Comp> get() const { return comp; } 
-
-        CompRef<Comp> comp;
-    };
-
-    template <typename... Comps>
-    struct CompList : public CompListGetter<Comps>...
-    {
-        CompList(EntityRef entity, CompRef<Comps>... comps) : CompListGetter<Comps>(comps)..., entity(entity) { }
-
-        template <typename Comp>
-        inline CompRef<Comp> get() const { return static_cast<const CompListGetter<Comp>*>(this)->get(); }
-
-        EntityRef entity;
-    };
-
     class EntitySystem
     {
     friend class Entity;
@@ -794,6 +773,7 @@ namespace pg
             auto ent = ecsRef->getEntity(id);
             auto initialized = id != 0 and ent;
 
+            // Todo add memoisation if we run into performance issues here
             return CompRef<Comp>(ecsRef->registry.retrieve<Comp>()->getComponent(id), id, ecsRef, initialized);
         }
 

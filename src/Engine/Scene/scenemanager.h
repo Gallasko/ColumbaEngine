@@ -9,6 +9,9 @@
 
 #include "serialization.h"
 
+// Todo to remove
+#include "UI/uisystem.h"
+
 namespace pg
 {
     struct SceneElementClicked { SceneElementClicked(EntityRef entity) : entity(entity) {} EntityRef entity; };
@@ -102,6 +105,9 @@ namespace pg
         {
             return ecsRef->attach<Type>(entity, args...);
         }
+
+        template <typename Type>
+        Type* getSystem() const { return ecsRef->getSystem<Type>(); }
 
         EntitySystem *ecsRef;
     };

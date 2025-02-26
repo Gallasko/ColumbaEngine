@@ -116,7 +116,6 @@ namespace pg
             return allPrerequisiteDone;
         }
 
-        // Todo
         void setUnlocked(EntitySystem *ecsRef)
         {
             unlocked = true;

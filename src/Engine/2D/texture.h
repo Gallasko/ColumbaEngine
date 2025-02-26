@@ -2,7 +2,7 @@
 
 #include "Renderer/renderer.h"
 
-#include "UI/uisystem.h"
+#include "2D/position.h"
 #include "constant.h"
 
 #include "logger.h"
@@ -107,7 +107,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Own<TextureRenderCall>, Listener<EntityChangedEvent>, Ref<UiComponent>, InitSys>
+    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Own<TextureRenderCall>, Listener<EntityChangedEvent>, Ref<PositionComponent>, InitSys>
     {
         Texture2DComponentSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
 
@@ -117,7 +117,7 @@ namespace pg
 
         virtual void execute() override;
 
-        RenderCall createRenderCall(CompRef<UiComponent> ui, CompRef<Texture2DComponent> obj);
+        RenderCall createRenderCall(CompRef<PositionComponent> ui, CompRef<Texture2DComponent> obj);
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 
@@ -132,18 +132,20 @@ namespace pg
 
     /** Helper that create an entity with an Ui component and a Texture component */
     template <typename Type>
-    CompList<UiComponent, Texture2DComponent> makeUiTexture(Type *ecs, float width, float height, const std::string& name)
+    CompList<PositionComponent, UiAnchor, Texture2DComponent> makeUiTexture(Type *ecs, float width, float height, const std::string& name)
     {
         auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<UiComponent>(entity);
+        auto ui = ecs->template attach<PositionComponent>(entity);
 
         ui->setWidth(width);
         ui->setHeight(height);
 
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
         auto tex = ecs->template attach<Texture2DComponent>(entity, name);
 
-        return CompList<UiComponent, Texture2DComponent>(entity, ui, tex);
+        return CompList<PositionComponent, UiAnchor, Texture2DComponent>(entity, ui, anchor, tex);
     }
 
 }

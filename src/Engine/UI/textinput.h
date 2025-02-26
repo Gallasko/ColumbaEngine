@@ -68,21 +68,23 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<UiComponent, SentenceText, FocusableComponent, TextInputComponent> makeTextInput(Type *ecs, float x, float y, StandardEvent event, const SentenceText& defaultText = {"Input"})
+    CompList<PositionComponent, UiAnchor, SentenceText, FocusableComponent, TextInputComponent> makeTextInput(Type *ecs, float x, float y, StandardEvent event, const SentenceText& defaultText = {"Input"})
     {
         LOG_THIS("Text Input System");
 
         auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<UiComponent>(entity);
+        auto ui = ecs->template attach<PositionComponent>(entity);
 
         ui->setX(x);
         ui->setY(y);
 
         auto sentence = ecs->template attach<SentenceText>(entity, defaultText);
 
-        ui->setWidth(&sentence->textWidth);
-        ui->setHeight(&sentence->textHeight);
+        ui->setWidth(sentence->textWidth);
+        ui->setHeight(sentence->textHeight);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
 
         auto focused = ecs->template attach<FocusableComponent>(entity);
 
@@ -90,25 +92,27 @@ namespace pg
 
         auto textInputComp = ecs->template attach<TextInputComponent>(entity, event, defaultText.getText());
 
-        return {entity, ui, sentence, focused, textInputComp};
+        return {entity, ui, anchor, sentence, focused, textInputComp};
     }
 
     template <typename Type>
-    CompList<UiComponent, TTFText, FocusableComponent, TextInputComponent> makeTTFTextInput(Type *ecs, float x, float y, StandardEvent event, const std::string& font, const std::string& defaultText = "Input", float size = 1)
+    CompList<PositionComponent, UiAnchor, TTFText, FocusableComponent, TextInputComponent> makeTTFTextInput(Type *ecs, float x, float y, StandardEvent event, const std::string& font, const std::string& defaultText = "Input", float size = 1)
     {
         LOG_THIS("Text Input System");
 
         auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<UiComponent>(entity);
+        auto ui = ecs->template attach<PositionComponent>(entity);
 
         ui->setX(x);
         ui->setY(y);
 
         auto sentence = ecs->template attach<TTFText>(entity, defaultText, font, size);
 
-        ui->setWidth(&sentence->textWidth);
-        ui->setHeight(&sentence->textHeight);
+        ui->setWidth(sentence->textWidth);
+        ui->setHeight(sentence->textHeight);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
 
         auto focused = ecs->template attach<FocusableComponent>(entity);
 
@@ -116,6 +120,6 @@ namespace pg
 
         auto textInputComp = ecs->template attach<TextInputComponent>(entity, event, defaultText);
 
-        return {entity, ui, sentence, focused, textInputComp};
+        return {entity, ui, anchor, sentence, focused, textInputComp};
     }
 }

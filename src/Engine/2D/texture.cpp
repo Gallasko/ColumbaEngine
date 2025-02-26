@@ -100,12 +100,12 @@ namespace pg
 
         atlasMaterialPreset.setSimpleMesh({3, 2, 1, 4, 1, 3, 1});
 
-        auto group = registerGroup<UiComponent, Texture2DComponent>();
+        auto group = registerGroup<PositionComponent, Texture2DComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE("Texture 2D System", "Add entity " << entity->id << " to ui - texture 2D group !");
 
-            auto ui = entity->get<UiComponent>();
+            auto ui = entity->get<PositionComponent>();
             auto shape = entity->get<Texture2DComponent>();
 
             ecsRef->attach<TextureRenderCall>(entity, createRenderCall(ui, shape));
@@ -143,13 +143,13 @@ namespace pg
         changed = false;
     }
 
-    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<Texture2DComponent> obj)
+    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Texture2DComponent> obj)
     {
         LOG_THIS_MEMBER(DOM);
 
         RenderCall call;
 
-        call.processUiComponent(ui);
+        call.processPositionComponent(ui);
 
         call.setRenderStage(renderStage);
 
@@ -182,9 +182,9 @@ namespace pg
 
             call.data.resize(11);
 
-            call.data[0] = ui->pos.x;
-            call.data[1] = ui->pos.y;
-            call.data[2] = ui->pos.z;
+            call.data[0] = ui->x;
+            call.data[1] = ui->y;
+            call.data[2] = ui->z;
             call.data[3] = ui->width;
             call.data[4] = ui->height;
             call.data[5] = ui->rotation;
@@ -228,9 +228,9 @@ namespace pg
 
             call.data.resize(15);
 
-            call.data[0] = ui->pos.x;
-            call.data[1] = ui->pos.y;
-            call.data[2] = ui->pos.z;
+            call.data[0] = ui->x;
+            call.data[1] = ui->y;
+            call.data[2] = ui->z;
             call.data[3] = ui->width;
             call.data[4] = ui->height;
             call.data[5] = ui->rotation;
@@ -271,7 +271,7 @@ namespace pg
         if (not entity or not entity->has<TextureRenderCall>())
             return; 
 
-        auto ui = entity->get<UiComponent>();
+        auto ui = entity->get<PositionComponent>();
         auto shape = entity->get<Texture2DComponent>();
 
         entity->get<TextureRenderCall>()->call = createRenderCall(ui, shape);

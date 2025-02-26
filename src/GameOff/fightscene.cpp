@@ -512,7 +512,7 @@ namespace pg
 
         auto doneUit = makeTTFText(this, 600, 150, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Done", 0.6, {255.0f, 0.0f, 0.0f, 255.0f});
 
-        doneUit.get<UiComponent>()->setVisibility(false);
+        doneUit.get<PositionComponent>()->setVisibility(false);
 
         attach<MouseLeftClickComponent>(doneUit.entity, makeCallable<SpellDoneClicked>());
 
@@ -659,11 +659,11 @@ namespace pg
                     sp.get<TTFText>()->colors = {255.0f, 0.0f, 0.0f, 255.0f};
                 }
 
-                auto ui = sp.get<UiComponent>();
+                auto ui = sp.get<PositionComponent>();
 
                 ui->setVisibility(false);
 
-                spellView->addEntity(ui);
+                spellView->addEntity(sp.entity);
             }
         });
 
@@ -712,7 +712,7 @@ namespace pg
                 }
                 else
                 {
-                    doneUi.get<UiComponent>()->setVisibility(true);
+                    doneUi.get<PositionComponent>()->setVisibility(true);
                 }
             }
         });
@@ -757,7 +757,7 @@ namespace pg
     {
         currentCastedSpell->numberOfTurnsSinceLastUsed = 0;
 
-        doneUi.get<UiComponent>()->setVisibility(false);
+        doneUi.get<PositionComponent>()->setVisibility(false);
 
         inPlayableTurn = false;
         ecsRef->sendEvent(SpellCasted{currentPlayerTurn, selectedTarget, currentCastedSpell});
@@ -767,10 +767,10 @@ namespace pg
     {
         auto playerTurnText = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", message, 0.4);
 
-        auto ui = playerTurnText.get<UiComponent>();
+        auto ui = playerTurnText.get<PositionComponent>();
 
         ui->setVisibility(false);
 
-        logView->addEntity(ui);
+        logView->addEntity(playerTurnText.entity);
     }
 }

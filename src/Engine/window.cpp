@@ -410,7 +410,9 @@ namespace pg
         ecs.succeed<UiComponentSystem, PrefabSystem>();
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
 
+        ecs.succeed<PositionComponentSystem, TTFTextSystem>();
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
+        ecs.succeed<PositionComponentSystem, ListViewSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
@@ -431,10 +433,18 @@ namespace pg
         ecs.dumbTaskflow();
 
         screenEntity = ecs.createEntity();
+        // Todo remove this 
         screenUi = ecs.attach<UiComponent>(screenEntity);
         screenUi->width = width;
         screenUi->height = height;
         screenUi->setZ(-1);
+
+        auto screenPos = ecs.attach<PositionComponent>(screenEntity);
+        screenPos->setWidth(width);
+        screenPos->setHeight(height);
+        screenPos->setZ(-1);
+
+        ecs.attach<UiAnchor>(screenEntity);
 
         ecs.attach<FocusableComponent>(screenEntity);
 
@@ -552,6 +562,18 @@ namespace pg
         std::lock_guard<std::mutex> lock(renderMutex);
 
         glViewport(0, 0, width, height);
+
+        auto ent = ecs.getEntity("__MainWindow");
+        if (ent and ent->has<PositionComponent>())
+        {
+            auto pos = ent->get<PositionComponent>();
+
+            if (pos->width != width)
+                pos->setWidth(width);
+            
+            if (pos->height!= height)
+                pos->setHeight(height);
+        }
 
         if (screenUi->width != width)
         {

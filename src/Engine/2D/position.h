@@ -84,8 +84,13 @@ namespace pg
         float rightMargin = 0.0f;
         float bottomMargin = 0.0f;
 
+        bool hasWidthConstrain = false;
+        bool hasHeightConstrain = false;
+        bool hasZConstrain = false;
+
         PosConstrain widthConstrain;
         PosConstrain heightConstrain;
+        PosConstrain zConstrain;
 
         void setTopAnchor(const PosAnchor& anchor);
         void clearTopAnchor();
@@ -106,6 +111,8 @@ namespace pg
 
         void setWidthConstrain(const PosConstrain& constrain);
         void setHeightConstrain(const PosConstrain& constrain);
+        void setZConstrain(const PosConstrain& constrain);
+        // Todo add visibility constrain
 
         // Todo add function to handle center, vertical and horizontal center alignment
 
@@ -200,7 +207,7 @@ namespace pg
             eventQueue.push(event);
         }
 
-        void pushChildrenInChange(_unique_id parentId, Entity *entity);
+        void pushChildrenInChange(_unique_id parentId);
         
         virtual void execute() override;
 
@@ -212,4 +219,20 @@ namespace pg
 
         bool updated = false;
     };
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor> makeAnchoredPosition(Type *ecs)
+    {
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        return CompList<PositionComponent, UiAnchor>(entity, ui, anchor);
+    }
+
+    bool inBound(EntityRef entity, float x, float y);
+
+    bool inClipBound(EntityRef entity, float x, float y);
 }
