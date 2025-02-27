@@ -10,6 +10,9 @@
 
 #include "location.h"
 
+#include "Systems/coresystems.h"
+
+
 namespace pg
 {
     struct SpellCasted
@@ -77,9 +80,20 @@ namespace pg
 
         std::vector<Character> characters;
     };
-    
 
-    struct FightSystem : public System<Listener<StartFightAtLocation>, Listener<StartFight>, Listener<SpellCasted>, Listener<PlayFightAnimationDone>, Listener<EnemyNextTurn>, Listener<DeadPlayerEvent>>
+    enum class FightState : uint8_t
+    {
+        Unknown = 0,
+        Start,
+        StartTurn,
+        CastSpell,
+        Animation,
+        NextTurn,
+        Wait,
+        End,
+    };
+
+    struct FightSystem : public System<Listener<StartFightAtLocation>, Listener<StartFight>, Listener<SpellCasted>, Listener<PlayFightAnimationDone>, Listener<EnemyNextTurn>, Listener<DeadPlayerEvent>, InitSys>
     {
         virtual void onEvent(const StartFight& event) override;
         virtual void onEvent(const EnemyNextTurn& event) override;
@@ -88,13 +102,15 @@ namespace pg
         virtual void onEvent(const StartFightAtLocation& event) override;
         virtual void onEvent(const DeadPlayerEvent& event) override;
 
+        virtual void init() override;
+
         void clear();
 
         virtual void execute() override;
 
         void resolveSpell(size_t casterId, size_t receiverId, Spell* spell);
 
-        void processEnemyNextTurn(Character *chara);
+        void processNextTurn();
 
         void skipTurn(size_t id = 0, const FightAnimationEffects& effect = FightAnimationEffects::Nothing);
 
@@ -102,7 +118,7 @@ namespace pg
 
         void calculateNextPlayingCharacter();
 
-        void sendNextTurn(Character* character);
+        void startTurn();
 
         void tickDownPassives(Character* character);
 
@@ -125,6 +141,9 @@ namespace pg
         bool inEncounter = false;
         Location currentLocation;
         Encounter currentEncounter;
+
+        FightState currentState = FightState::Unknown;
+        CompRef<Timer> timer;
     };
 
     struct FightMessageEvent
@@ -146,6 +165,8 @@ namespace pg
 
         void writeInLog(const std::string& message);
 
+        void updateHealthBars();
+
         FightSystem *fightSys;
 
         std::unordered_map<std::string, std::vector<EntityRef>> uiElements;
@@ -165,6 +186,8 @@ namespace pg
         bool inPlayableTurn = false;
 
         bool inTargetSelection = false;
+
+        bool needHealthBarUpdate = false;
 
         std::vector<Character*> selectedTarget;
 

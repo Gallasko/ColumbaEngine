@@ -161,7 +161,7 @@ namespace pg
     struct Timer
     {
         Timer() {}
-        Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), callback(other.callback) {}
+        Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), oneShot(other.oneShot), callback(other.callback) {}
 
         void start()
         {
@@ -179,6 +179,8 @@ namespace pg
         size_t currentTime = 0;
 
         bool running = false;
+
+        bool oneShot = false;
 
         CallablePtr callback = nullptr;
     };
@@ -215,6 +217,12 @@ namespace pg
 
                         if (timer->callback)
                             timer->callback->call(ecsRef);
+
+                        if (timer->oneShot)
+                        {
+                            timer->running = false;
+                            break;
+                        }
                     }
                 }
             }

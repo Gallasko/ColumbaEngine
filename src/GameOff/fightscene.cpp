@@ -48,6 +48,9 @@ namespace pg
     void FightSystem::onEvent(const StartFight&)
     {
         LOG_INFO("Fight System", "Load aggro map");
+        
+        currentState = FightState::Start;
+
         for (auto& character : characters)
         {
             for (const auto& chara : characters)
@@ -59,7 +62,11 @@ namespace pg
             }
         }
 
-        calculateNextPlayingCharacter();
+        currentState = FightState::NextTurn;
+
+        timer->start();
+
+        // calculateNextPlayingCharacter();
     }
 
     void FightSystem::onEvent(const EnemyNextTurn& event)
@@ -71,7 +78,7 @@ namespace pg
 
     void FightSystem::onEvent(const PlayFightAnimationDone&)
     {
-        calculateNextPlayingCharacter();
+        // calculateNextPlayingCharacter();
     }
 
     void FightSystem::onEvent(const SpellCasted& event)
@@ -119,6 +126,8 @@ namespace pg
             addCharacter(chara);
         }
 
+        // onEvent(StartFight{});
+
         ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<FightScene>();
     }
 
@@ -130,6 +139,17 @@ namespace pg
         }
 
         checkEndFight();
+    }
+
+    void FightSystem::init()
+    {
+        auto timerEnt = ecsRef->createEntity();
+
+        timer = ecsRef->attach<Timer>(timerEnt);
+
+        timer->interval = 500;
+
+        timer->oneShot = true;
     }
 
     void FightSystem::clear()
@@ -147,31 +167,30 @@ namespace pg
 
     void FightSystem::execute()
     {
-        if (needToProcessEnemyNextTurn)
-        {
-            LOG_INFO("Fight System", "Playing an enemy turn...");
-
-            processEnemyNextTurn(currentPlayingCharacter);
-
-            ecsRef->sendEvent(FightSystemUpdate{});
-
-            return;
-        }
-
-        if (not spellToBeResolved)
+        if (timer->running)
             return;
 
-        LOG_INFO("Fight System", "Spell " << spellToResolve.spell->name << " casted on: ");
-
-        for (auto id : spellToResolve.ids)
+        switch (currentState)
         {
-            LOG_INFO("Fight System", "-> " << id->name);
-            resolveSpell(spellToResolve.caster, id->id, spellToResolve.spell);
+            case FightState::NextTurn:
+                calculateNextPlayingCharacter();
+                break;
+
+            case FightState::StartTurn:
+                startTurn();
+                break;
+
+            case FightState::CastSpell:
+                processNextTurn();
+                break;
+
+            case FightState::Start:
+                LOG_INFO("Fight System", "Nothing to do");
+                break;
+            default:
+                LOG_ERROR("Fight System", "Unhandled FightState: " << static_cast<int>(currentState));
+                break;
         }
-
-        spellToBeResolved = false;
-
-        ecsRef->sendEvent(FightSystemUpdate{});
     }
 
     void FightSystem::resolveSpell(size_t casterId, size_t receiverId, Spell* spell)
@@ -243,11 +262,15 @@ namespace pg
             }
         }
 
+        ecsRef->sendEvent(FightSystemUpdate{});
+
         ecsRef->sendEvent(PlayFightAnimation{receiverId, FightAnimationEffects::Hit});
     }
 
-    void FightSystem::processEnemyNextTurn(Character *chara)
+    void FightSystem::processNextTurn()
     {
+        Character *chara = currentPlayingCharacter;
+
         // Todo here need to resolve spell and enemy AI
 
         if (chara->playingStatus == PlayingStatus::Dead)
@@ -270,6 +293,8 @@ namespace pg
 
         LOG_INFO("Fight Scene", "Character: " << chara->name << ", has " << chara->spells.size() << ", spells");
 
+        // Todo add target and spell selection logic/ai here
+
         auto& spell = chara->spells[0];
 
         float currentTarget = 0;
@@ -280,7 +305,7 @@ namespace pg
 
             auto& other = characters[aggro.first];
 
-            if (other.type == CharacterType::Player)
+            if (other.type != chara->type)
             {
                 resolveSpell(chara->id, aggro.first, &spell);
 
@@ -295,16 +320,25 @@ namespace pg
 
         // If the mob couldn't hit anyone we need to at least send one PlayFightAnimation to update the state machine
         if (currentTarget == 0)
-            ecsRef->sendEvent(PlayFightAnimation{0, FightAnimationEffects::Nothing});
+            skipTurn(chara->id, FightAnimationEffects::Nothing);
+        else
+        {
+            // Todo next state here should be a wait for animation to finish + or timeout in case the scene becomes unavailable mid anim
+            // Or state is next turn if the fight happens in background (FightScene in not the current scene)
+            currentState = FightState::NextTurn;
 
-        needToProcessEnemyNextTurn = false;
+            timer->start();
+        }
     }
 
     void FightSystem::skipTurn(size_t id, const FightAnimationEffects& effect)
     {
+        // Play a miss like animation
         ecsRef->sendEvent(PlayFightAnimation{id, effect});
 
-        needToProcessEnemyNextTurn = false;
+        currentState = FightState::NextTurn;
+
+        timer->start();
     }
 
     void FightSystem::addCharacter(Character character)
@@ -328,45 +362,31 @@ namespace pg
 
         if (nextPlayingCharacter)
         {
-            sendNextTurn(nextPlayingCharacter);
+            currentPlayingCharacter = nextPlayingCharacter;
+            currentState = FightState::StartTurn;
+            timer->start();
             return;
         }
 
-        while (true)
+        for (auto& chara : characters)
         {
-            for (auto& chara : characters)
-            {
-                if (chara.playingStatus != PlayingStatus::Dead)
-                    chara.speedUnits += chara.stat.speed;
-            }
-
-            nextPlayingCharacter = findNextPlayingCharacter();
-
-            if (nextPlayingCharacter)
-            {
-                sendNextTurn(nextPlayingCharacter);
-                return;
-            }
+            if (chara.playingStatus != PlayingStatus::Dead)
+                chara.speedUnits += chara.stat.speed;
         }
     }
 
-    void FightSystem::sendNextTurn(Character* character)
+    void FightSystem::startTurn()
     {
-        character->speedUnits -= SPEEDUNITTHRESHOLD + 1;
-        LOG_INFO("Fight System", "Next playing character: " << character->name);
+        currentPlayingCharacter->speedUnits -= SPEEDUNITTHRESHOLD + 1;
 
-        ecsRef->sendEvent(FightMessageEvent{"Starting turn of " + character->name});
+        LOG_INFO("Fight System", "Next playing character: " << currentPlayingCharacter->name);
 
-        tickDownPassives(character);
+        ecsRef->sendEvent(FightMessageEvent{"Starting turn of " + currentPlayingCharacter->name});
 
-        if (character->type == CharacterType::Player)
-        {
-            ecsRef->sendEvent(PlayerNextTurn{character});
-        }
-        else if (character->type == CharacterType::Enemy)
-        {
-            ecsRef->sendEvent(EnemyNextTurn{character});
-        }
+        tickDownPassives(currentPlayingCharacter);
+
+        currentState = FightState::CastSpell;
+        timer->start();
     }
 
     void FightSystem::tickDownPassives(Character* character)
@@ -463,10 +483,12 @@ namespace pg
 
         if (allAlliesDead)
         {
+            currentState = FightState::End;
             processLose();
         }
         else if (allEnemiesDead)
         {
+            currentState = FightState::End;
             processWin();
         }
     }
@@ -506,17 +528,17 @@ namespace pg
     {
         fightSys = ecsRef->getSystem<FightSystem>();
 
-        auto currentSelectedSpellTextUit = makeTTFText(this, 450, 550, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "No selection", 0.4);
+        // auto currentSelectedSpellTextUit = makeTTFText(this, 450, 550, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "No selection", 0.4);
 
-        currentSelectedSpellTextUi = currentSelectedSpellTextUit.entity;
+        // currentSelectedSpellTextUi = currentSelectedSpellTextUit.entity;
 
-        auto doneUit = makeTTFText(this, 600, 150, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Done", 0.6, {255.0f, 0.0f, 0.0f, 255.0f});
+        // auto doneUit = makeTTFText(this, 600, 150, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Done", 0.6, {255.0f, 0.0f, 0.0f, 255.0f});
 
-        doneUit.get<PositionComponent>()->setVisibility(false);
+        // doneUit.get<PositionComponent>()->setVisibility(false);
 
-        attach<MouseLeftClickComponent>(doneUit.entity, makeCallable<SpellDoneClicked>());
+        // attach<MouseLeftClickComponent>(doneUit.entity, makeCallable<SpellDoneClicked>());
 
-        doneUi = doneUit.entity;
+        // doneUi = doneUit.entity;
 
         float xEnemyName = 80;
 
@@ -581,156 +603,131 @@ namespace pg
 
         logView->spacing = 5;
 
-        listenToEvent<OnMouseClick>([this](const OnMouseClick& event) {
-            if (event.button == SDL_BUTTON_RIGHT)
-            {
-                ecsRef->sendEvent(PlayFightAnimationDone{});
-            }
-        });
+        // listenToEvent<OnMouseClick>([this](const OnMouseClick& event) {
+        //     if (event.button == SDL_BUTTON_RIGHT)
+        //     {
+        //         ecsRef->sendEvent(PlayFightAnimationDone{});
+        //     }
+        // });
 
         listenToEvent<FightSystemUpdate>([this](const FightSystemUpdate&) {
-            auto& enemyHealths = uiElements["Enemy Health"];
-            auto& playerHealths = uiElements["Player Health"];
-
-            size_t j = 0, k = 0;
-
-            for (size_t i = 0; i < fightSys->characters.size(); ++i)
-            {
-                auto& chara = fightSys->characters[i];
-
-                if (chara.type == CharacterType::Enemy)
-                {
-                    enemyHealths[j].get<TTFText>()->setText(std::to_string(chara.stat.health));
-
-                    LOG_INFO("Fight Scene", "Health: " << enemyHealths[j].get<TTFText>()->text);
-
-                    ++j;
-                }
-                else if (chara.type == CharacterType::Player)
-                {
-                    playerHealths[k].get<TTFText>()->setText(std::to_string(chara.stat.health));
-
-                    LOG_INFO("Fight Scene", "Health: " << playerHealths[k].get<TTFText>()->text);
-
-                    ++k;
-                }
-            }
+            needHealthBarUpdate = true;
         });
 
-        listenToEvent<EnemyNextTurn>([this](const EnemyNextTurn& event) {
-            LOG_INFO("Fight Scene", "Current enemy turn: " << event.chara->name);
-        });
+        // listenToEvent<EnemyNextTurn>([this](const EnemyNextTurn& event) {
+        //     LOG_INFO("Fight Scene", "Current enemy turn: " << event.chara->name);
+        // });
 
-        listenToEvent<PlayerNextTurn>([this](const PlayerNextTurn& event) {
-            LOG_INFO("Fight Scene", "Current player turn: " << event.chara->name);
+        // listenToEvent<PlayerNextTurn>([this](const PlayerNextTurn& event) {
+        //     LOG_INFO("Fight Scene", "Current player turn: " << event.chara->name);
 
-            if (event.chara->type == CharacterType::Player)
-            {
-                inPlayableTurn = true;
-            }
-            else if (event.chara->type != CharacterType::Player)
-            {
-                return;
-            }
+        //     if (event.chara->type == CharacterType::Player)
+        //     {
+        //         inPlayableTurn = true;
+        //     }
+        //     else if (event.chara->type != CharacterType::Player)
+        //     {
+        //         return;
+        //     }
 
-            inTargetSelection = false;
+        //     inTargetSelection = false;
    
-            currentPlayerTurn = event.chara->id;
+        //     currentPlayerTurn = event.chara->id;
 
-            spellView->clear();
+        //     spellView->clear();
 
-            for (auto& spell : event.chara->spells)
-            {
-                if (spell.numberOfTurnsSinceLastUsed < spell.baseCooldown)
-                {
-                    ++spell.numberOfTurnsSinceLastUsed;
-                }
+        //     for (auto& spell : event.chara->spells)
+        //     {
+        //         if (spell.numberOfTurnsSinceLastUsed < spell.baseCooldown)
+        //         {
+        //             ++spell.numberOfTurnsSinceLastUsed;
+        //         }
 
-                LOG_INFO("Fight Scene", "Spell: " << spell.name);
-                auto sp = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", spell.name, 0.4);
+        //         LOG_INFO("Fight Scene", "Spell: " << spell.name);
+        //         auto sp = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", spell.name, 0.4);
 
-                // The spell can be cast
-                if (spell.numberOfTurnsSinceLastUsed >= spell.baseCooldown)
-                {
-                    attach<MouseLeftClickComponent>(sp.entity, makeCallable<SelectedSpell>(&spell));
-                }
-                else
-                {
-                    sp.get<TTFText>()->colors = {255.0f, 0.0f, 0.0f, 255.0f};
-                }
+        //         // The spell can be cast
+        //         if (spell.numberOfTurnsSinceLastUsed >= spell.baseCooldown)
+        //         {
+        //             attach<MouseLeftClickComponent>(sp.entity, makeCallable<SelectedSpell>(&spell));
+        //         }
+        //         else
+        //         {
+        //             sp.get<TTFText>()->colors = {255.0f, 0.0f, 0.0f, 255.0f};
+        //         }
 
-                auto ui = sp.get<PositionComponent>();
+        //         auto ui = sp.get<PositionComponent>();
 
-                ui->setVisibility(false);
+        //         ui->setVisibility(false);
 
-                spellView->addEntity(sp.entity);
-            }
-        });
+        //         spellView->addEntity(sp.entity);
+        //     }
+        // });
 
-        listenToEvent<SelectedSpell>([this](const SelectedSpell& event) {
-            currentCastedSpell = event.spell;
+        // listenToEvent<SelectedSpell>([this](const SelectedSpell& event) {
+        //     currentCastedSpell = event.spell;
 
-            currentSelectedSpellTextUi.get<TTFText>()->setText(event.spell->name);
+        //     currentSelectedSpellTextUi.get<TTFText>()->setText(event.spell->name);
 
-            selectedTarget.clear();
+        //     selectedTarget.clear();
 
-            inTargetSelection = true;
-        });
+        //     inTargetSelection = true;
+        // });
 
-        listenToEvent<CharacterLeftClicked>([this](const CharacterLeftClicked& event) {
-            if (not inPlayableTurn)
-                return;
+        // listenToEvent<CharacterLeftClicked>([this](const CharacterLeftClicked& event) {
+        //     if (not inPlayableTurn)
+        //         return;
 
-            if (inTargetSelection)
-            {
-                auto character = event.chara;
+        //     if (inTargetSelection)
+        //     {
+        //         auto character = event.chara;
 
-                const auto& id = character->id;
+        //         const auto& id = character->id;
 
-                if (currentCastedSpell->selfOnly and id != currentPlayerTurn)
-                {
-                    LOG_INFO("Fight Scene", "Cannot target someone else with a self only spell");
-                    return;
-                }
+        //         if (currentCastedSpell->selfOnly and id != currentPlayerTurn)
+        //         {
+        //             LOG_INFO("Fight Scene", "Cannot target someone else with a self only spell");
+        //             return;
+        //         }
 
-                if (not currentCastedSpell->canTargetSameCharacterMultipleTimes)
-                {
-                    const auto& it = std::find_if(selectedTarget.begin(), selectedTarget.end(), [id](Character* chara) { return chara->id == id; });
+        //         if (not currentCastedSpell->canTargetSameCharacterMultipleTimes)
+        //         {
+        //             const auto& it = std::find_if(selectedTarget.begin(), selectedTarget.end(), [id](Character* chara) { return chara->id == id; });
 
-                    if (it != selectedTarget.end())
-                    {
-                        LOG_INFO("Fight Scene", "Cannot target someone multiple times with this spell");
-                        return;
-                    }
-                }
+        //             if (it != selectedTarget.end())
+        //             {
+        //                 LOG_INFO("Fight Scene", "Cannot target someone multiple times with this spell");
+        //                 return;
+        //             }
+        //         }
 
-                selectedTarget.push_back(character);
+        //         selectedTarget.push_back(character);
 
-                if (selectedTarget.size() >= currentCastedSpell->nbTargets)
-                {
-                    castSpell();
-                }
-                else
-                {
-                    doneUi.get<PositionComponent>()->setVisibility(true);
-                }
-            }
-        });
+        //         if (selectedTarget.size() >= currentCastedSpell->nbTargets)
+        //         {
+        //             castSpell();
+        //         }
+        //         else
+        //         {
+        //             doneUi.get<PositionComponent>()->setVisibility(true);
+        //         }
+        //     }
+        // });
 
-        listenToEvent<PlayFightAnimation>([this](const PlayFightAnimation& event) {
-            animationToDo.push_back(event);
-        });
+        // listenToEvent<PlayFightAnimation>([this](const PlayFightAnimation& event) {
+        //     animationToDo.push_back(event);
+        // });
 
         listenToEvent<FightMessageEvent>([this](const FightMessageEvent& event) {
             writeInLog(event.message);
         });
 
-        listenToEvent<SpellDoneClicked>([this](const SpellDoneClicked&) {
-            if (not inPlayableTurn)
-                return;
+        // listenToEvent<SpellDoneClicked>([this](const SpellDoneClicked&) {
+        //     if (not inPlayableTurn)
+        //         return;
 
-            castSpell();
-        });
+        //     castSpell();
+        // });
     }
 
     void FightScene::startUp()
@@ -740,6 +737,12 @@ namespace pg
 
     void FightScene::execute()
     {
+        if (needHealthBarUpdate)
+        {
+            updateHealthBars();
+            needHealthBarUpdate = false;
+        }
+
         if (animationToDo.size() == 0)
             return;
 
@@ -772,5 +775,35 @@ namespace pg
         ui->setVisibility(false);
 
         logView->addEntity(playerTurnText.entity);
+    }
+
+    void FightScene::updateHealthBars()
+    {
+        auto& enemyHealths = uiElements["Enemy Health"];
+        auto& playerHealths = uiElements["Player Health"];
+
+        size_t j = 0, k = 0;
+
+        for (size_t i = 0; i < fightSys->characters.size(); ++i)
+        {
+            auto& chara = fightSys->characters[i];
+
+            if (chara.type == CharacterType::Enemy)
+            {
+                enemyHealths[j].get<TTFText>()->setText(std::to_string(chara.stat.health));
+
+                LOG_INFO("Fight Scene", "Health: " << enemyHealths[j].get<TTFText>()->text);
+
+                ++j;
+            }
+            else if (chara.type == CharacterType::Player)
+            {
+                playerHealths[k].get<TTFText>()->setText(std::to_string(chara.stat.health));
+
+                LOG_INFO("Fight Scene", "Health: " << playerHealths[k].get<TTFText>()->text);
+
+                ++k;
+            }
+        }
     }
 }
