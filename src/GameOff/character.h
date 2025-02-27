@@ -31,11 +31,39 @@ namespace pg
         Dead
     };
 
+    enum class CharaBehaviourType : uint8_t
+    {
+        None = 0,
+        Random,
+        OnlyAutoAttack,
+        Pattern,
+    };
+
+    enum class TargetingType : uint8_t
+    {
+        None,
+        Random,
+        RoundRobin,
+        WeakestFirst,
+        StrongestFirst,
+    };
+
+    // Todo add some passives that can change the behaviour of a character
+    struct CharaBehaviour
+    {
+        CharaBehaviourType type = CharaBehaviourType::None;
+
+        TargetingType onAllyTarget = TargetingType::None;
+        TargetingType onEnemyTarget = TargetingType::None;
+
+        std::vector<size_t> pattern = { };
+    };
+
     struct Character
     {
         Character() {}
         Character(const std::string& name) : name(name) {}
-        Character(const Character& other) : name(other.name), icon(other.icon), type(other.type), stat(other.stat), spells(other.spells), passives(other.passives), aggroMap(other.aggroMap), playingStatus(other.playingStatus), id(other.id) {}
+        Character(const Character& other) : name(other.name), icon(other.icon), type(other.type), stat(other.stat), spells(other.spells), passives(other.passives), behaviour(other.behaviour), basicSpell(other.basicSpell), aggroMap(other.aggroMap), playingStatus(other.playingStatus), id(other.id) {}
 
         Character& operator=(const Character& other)
         {
@@ -45,6 +73,8 @@ namespace pg
             stat = other.stat;
             spells = other.spells;
             passives = other.passives;
+            behaviour = other.behaviour;
+            basicSpell = other.basicSpell;
             aggroMap = other.aggroMap;
             playingStatus = other.playingStatus;
             id = other.id;
@@ -67,6 +97,10 @@ namespace pg
         // Todo create addSpell also
 
         std::vector<PassiveEffect> passives = {};
+
+        CharaBehaviour behaviour = { CharaBehaviourType::Random, TargetingType::Random, TargetingType::Random };
+
+        Spell basicSpell;
 
         void addPassive(const PassiveEffect& passive, EntitySystem *ecsRef);
 

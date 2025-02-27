@@ -144,6 +144,8 @@ namespace pg
 
         FightState currentState = FightState::Unknown;
         CompRef<Timer> timer;
+
+        size_t fightSpeed = 100.0f;
     };
 
     struct FightMessageEvent
@@ -171,21 +173,7 @@ namespace pg
 
         std::unordered_map<std::string, std::vector<EntityRef>> uiElements;
 
-        Spell *currentCastedSpell = nullptr;
-
-        CompRef<ListView> spellView;
-
         CompRef<ListView> logView;
-
-        EntityRef currentSelectedSpellTextUi;
-
-        EntityRef doneUi;
-
-        size_t currentPlayerTurn = 0;
-
-        bool inPlayableTurn = false;
-
-        bool inTargetSelection = false;
 
         bool needHealthBarUpdate = false;
 

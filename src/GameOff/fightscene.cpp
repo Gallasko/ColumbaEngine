@@ -43,6 +43,65 @@ namespace pg
             std::uniform_real_distribution<double> dist(0.0, 1.0); 
             return dist(rng); 
         }
+
+        void applyPassiveToChara(EntitySystem *ecsRef, PassiveDatabase *database, Character& character, const std::vector<PassiveCall>& calls)
+        {
+            for (const auto& p : calls)
+            {
+                auto passive = database->resolvePassive(p);
+
+                LOG_INFO("Fight Sys", "Applying passive [" << p.passiveName << "] to " << character.name << " !");
+
+                if (passive.name != NOOPPASSIVE)
+                {
+                    PassiveEffect effect;
+
+                    effect.call = p;
+                    effect.effect = passive;
+                    effect.info = p.info;
+
+                    character.addPassive(effect, ecsRef);
+                }
+                else
+                {
+                    LOG_ERROR("PlayerCharacter", "Passive named: " << p.passiveName << " is not registered in the database !");
+                }
+            }
+        }
+
+        Spell getCastedSpell(Character* character)
+        {
+            const auto& behaviour = character->behaviour;
+
+            switch (behaviour.type)
+            {
+            case CharaBehaviourType::Random:
+            {
+                // Todo create a vector with all the spells not in cd instead of using the character's spells list directly
+                size_t rng = randomNumber() * (character->spells.size() + 1);
+
+                // Todo check if the spell is not in cd before trying to cast it
+                if (rng == character->spells.size())
+                    return character->basicSpell;
+                else
+                    return character->spells[rng];
+
+                break;
+            }
+            case CharaBehaviourType::OnlyAutoAttack:
+            {
+                return character->basicSpell;
+                break;
+            }
+                
+            case CharaBehaviourType::Pattern:
+            default:
+                LOG_ERROR("Fight System", "Fight behaviour type is not supported yet");
+                break;
+            }
+
+            return Spell{"Error Spell", 0, 0};
+        }
     }
 
     void FightSystem::onEvent(const StartFight&)
@@ -147,7 +206,7 @@ namespace pg
 
         timer = ecsRef->attach<Timer>(timerEnt);
 
-        timer->interval = 500;
+        timer->interval = fightSpeed;
 
         timer->oneShot = true;
     }
@@ -188,7 +247,7 @@ namespace pg
                 LOG_INFO("Fight System", "Nothing to do");
                 break;
             default:
-                LOG_ERROR("Fight System", "Unhandled FightState: " << static_cast<int>(currentState));
+                // LOG_ERROR("Fight System", "Unhandled FightState: " << static_cast<int>(currentState));
                 break;
         }
     }
@@ -218,49 +277,9 @@ namespace pg
 
         auto passiveDatabase = ecsRef->getSystem<PassiveDatabase>();
 
-        for (auto p : spell->applyToSelf)
-        {
-            LOG_INFO("Fight Sys", "Apply passive ["  << p.passiveName << "] to self !");
+        applyPassiveToChara(ecsRef, passiveDatabase, caster, spell->applyToSelf);
 
-            auto passive = passiveDatabase->resolvePassive(p);
-
-            if (passive.name != NOOPPASSIVE)
-            {
-                PassiveEffect effect;
-
-                effect.call = p;
-                effect.effect = passive;
-                effect.info = p.info;
-
-                caster.addPassive(effect, ecsRef);
-            }
-            else
-            {
-                LOG_ERROR("PlayerCharacter", "Passive named: " << p.passiveName << " is not registered in the database !");
-            }
-        }
-
-        for (auto p : spell->applyToTarget)
-        {
-            LOG_INFO("Fight Sys", "Apply passive ["  << p.passiveName << "] to target !");
-
-            auto passive = passiveDatabase->resolvePassive(p);
-
-            if (passive.name != NOOPPASSIVE)
-            {
-                PassiveEffect effect;
-
-                effect.call = p;
-                effect.effect = passive;
-                effect.info = p.info;
-
-                receiver.addPassive(effect, ecsRef);
-            }
-            else
-            {
-                LOG_ERROR("PlayerCharacter", "Passive named: " << p.passiveName << " is not registered in the database !");
-            }
-        }
+        applyPassiveToChara(ecsRef, passiveDatabase, receiver, spell->applyToTarget);
 
         ecsRef->sendEvent(FightSystemUpdate{});
 
@@ -281,6 +300,7 @@ namespace pg
             return;
         }
 
+        // Todo if the chara has no spells left, we automatically cast the auto attack instead !
         if (chara->spells.size() == 0)
         {
             // If the mob couldn't hit anyone we need to at least send one PlayFightAnimation to update the state machine
@@ -295,7 +315,7 @@ namespace pg
 
         // Todo add target and spell selection logic/ai here
 
-        auto& spell = chara->spells[0];
+        auto spell = getCastedSpell(chara);
 
         float currentTarget = 0;
 
@@ -398,6 +418,7 @@ namespace pg
         {
             auto& passive = character->passives[i];
 
+            // Todo, stop applying the passive to the chara and instead recalculate at each turn the current stat of the player depending on his current boost
             // We try to apply the passive if it is a start of turn one
             if (passive.info.type == PassiveType::CharacterEffect and passive.info.trigger == TriggerType::TurnStart)
             {
@@ -528,18 +549,6 @@ namespace pg
     {
         fightSys = ecsRef->getSystem<FightSystem>();
 
-        // auto currentSelectedSpellTextUit = makeTTFText(this, 450, 550, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "No selection", 0.4);
-
-        // currentSelectedSpellTextUi = currentSelectedSpellTextUit.entity;
-
-        // auto doneUit = makeTTFText(this, 600, 150, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Done", 0.6, {255.0f, 0.0f, 0.0f, 255.0f});
-
-        // doneUit.get<PositionComponent>()->setVisibility(false);
-
-        // attach<MouseLeftClickComponent>(doneUit.entity, makeCallable<SpellDoneClicked>());
-
-        // doneUi = doneUit.entity;
-
         float xEnemyName = 80;
 
         auto& enemyNames = uiElements["Enemy Names"];
@@ -591,10 +600,6 @@ namespace pg
             
         }
 
-        auto listView = makeListView(this, 100, 250, 300, 120);
-
-        spellView = listView.get<ListView>();
-
         auto listView2 = makeListView(this, 620, 120, 300, 400);
 
         logView = listView2.get<ListView>();
@@ -603,131 +608,13 @@ namespace pg
 
         logView->spacing = 5;
 
-        // listenToEvent<OnMouseClick>([this](const OnMouseClick& event) {
-        //     if (event.button == SDL_BUTTON_RIGHT)
-        //     {
-        //         ecsRef->sendEvent(PlayFightAnimationDone{});
-        //     }
-        // });
-
         listenToEvent<FightSystemUpdate>([this](const FightSystemUpdate&) {
             needHealthBarUpdate = true;
         });
 
-        // listenToEvent<EnemyNextTurn>([this](const EnemyNextTurn& event) {
-        //     LOG_INFO("Fight Scene", "Current enemy turn: " << event.chara->name);
-        // });
-
-        // listenToEvent<PlayerNextTurn>([this](const PlayerNextTurn& event) {
-        //     LOG_INFO("Fight Scene", "Current player turn: " << event.chara->name);
-
-        //     if (event.chara->type == CharacterType::Player)
-        //     {
-        //         inPlayableTurn = true;
-        //     }
-        //     else if (event.chara->type != CharacterType::Player)
-        //     {
-        //         return;
-        //     }
-
-        //     inTargetSelection = false;
-   
-        //     currentPlayerTurn = event.chara->id;
-
-        //     spellView->clear();
-
-        //     for (auto& spell : event.chara->spells)
-        //     {
-        //         if (spell.numberOfTurnsSinceLastUsed < spell.baseCooldown)
-        //         {
-        //             ++spell.numberOfTurnsSinceLastUsed;
-        //         }
-
-        //         LOG_INFO("Fight Scene", "Spell: " << spell.name);
-        //         auto sp = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", spell.name, 0.4);
-
-        //         // The spell can be cast
-        //         if (spell.numberOfTurnsSinceLastUsed >= spell.baseCooldown)
-        //         {
-        //             attach<MouseLeftClickComponent>(sp.entity, makeCallable<SelectedSpell>(&spell));
-        //         }
-        //         else
-        //         {
-        //             sp.get<TTFText>()->colors = {255.0f, 0.0f, 0.0f, 255.0f};
-        //         }
-
-        //         auto ui = sp.get<PositionComponent>();
-
-        //         ui->setVisibility(false);
-
-        //         spellView->addEntity(sp.entity);
-        //     }
-        // });
-
-        // listenToEvent<SelectedSpell>([this](const SelectedSpell& event) {
-        //     currentCastedSpell = event.spell;
-
-        //     currentSelectedSpellTextUi.get<TTFText>()->setText(event.spell->name);
-
-        //     selectedTarget.clear();
-
-        //     inTargetSelection = true;
-        // });
-
-        // listenToEvent<CharacterLeftClicked>([this](const CharacterLeftClicked& event) {
-        //     if (not inPlayableTurn)
-        //         return;
-
-        //     if (inTargetSelection)
-        //     {
-        //         auto character = event.chara;
-
-        //         const auto& id = character->id;
-
-        //         if (currentCastedSpell->selfOnly and id != currentPlayerTurn)
-        //         {
-        //             LOG_INFO("Fight Scene", "Cannot target someone else with a self only spell");
-        //             return;
-        //         }
-
-        //         if (not currentCastedSpell->canTargetSameCharacterMultipleTimes)
-        //         {
-        //             const auto& it = std::find_if(selectedTarget.begin(), selectedTarget.end(), [id](Character* chara) { return chara->id == id; });
-
-        //             if (it != selectedTarget.end())
-        //             {
-        //                 LOG_INFO("Fight Scene", "Cannot target someone multiple times with this spell");
-        //                 return;
-        //             }
-        //         }
-
-        //         selectedTarget.push_back(character);
-
-        //         if (selectedTarget.size() >= currentCastedSpell->nbTargets)
-        //         {
-        //             castSpell();
-        //         }
-        //         else
-        //         {
-        //             doneUi.get<PositionComponent>()->setVisibility(true);
-        //         }
-        //     }
-        // });
-
-        // listenToEvent<PlayFightAnimation>([this](const PlayFightAnimation& event) {
-        //     animationToDo.push_back(event);
-        // });
-
         listenToEvent<FightMessageEvent>([this](const FightMessageEvent& event) {
             writeInLog(event.message);
         });
-
-        // listenToEvent<SpellDoneClicked>([this](const SpellDoneClicked&) {
-        //     if (not inPlayableTurn)
-        //         return;
-
-        //     castSpell();
-        // });
     }
 
     void FightScene::startUp()
@@ -754,16 +641,6 @@ namespace pg
         animationToDo.clear();
 
         ecsRef->sendEvent(PlayFightAnimationDone{});
-    }
-
-    void FightScene::castSpell()
-    {
-        currentCastedSpell->numberOfTurnsSinceLastUsed = 0;
-
-        doneUi.get<PositionComponent>()->setVisibility(false);
-
-        inPlayableTurn = false;
-        ecsRef->sendEvent(SpellCasted{currentPlayerTurn, selectedTarget, currentCastedSpell});
     }
 
     void FightScene::writeInLog(const std::string& message)
