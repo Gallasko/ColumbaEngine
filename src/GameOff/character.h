@@ -39,6 +39,15 @@ namespace pg
         Pattern,
     };
 
+    const static std::unordered_map<CharaBehaviourType, std::string> charaBehaviourToString = {
+        {CharaBehaviourType::None, "None"},
+        {CharaBehaviourType::Random, "Random"},
+        {CharaBehaviourType::OnlyAutoAttack, "OnlyAutoAttack"},
+        {CharaBehaviourType::Pattern, "Pattern"},
+    };
+
+    const static auto stringToCharaBehaviour = invertMap(charaBehaviourToString);
+
     enum class TargetingType : uint8_t
     {
         None,
@@ -47,6 +56,16 @@ namespace pg
         WeakestFirst,
         StrongestFirst,
     };
+
+    const static std::unordered_map<TargetingType, std::string> targetingTypeToString = {
+        {TargetingType::None, "None"},
+        {TargetingType::Random, "Random"},
+        {TargetingType::RoundRobin, "RoundRobin"},
+        {TargetingType::WeakestFirst, "WeakestFirst"},
+        {TargetingType::StrongestFirst, "StrongestFirst"},
+    };
+
+    const static auto stringToTargetingType = invertMap(targetingTypeToString);
 
     // Todo add some passives that can change the behaviour of a character
     struct CharaBehaviour
@@ -58,6 +77,9 @@ namespace pg
 
         std::vector<size_t> pattern = { };
     };
+
+    template <>
+    void serialize(Archive& archive, const CharaBehaviour& value);
 
     struct Character
     {
@@ -98,7 +120,6 @@ namespace pg
 
         std::vector<PassiveEffect> passives = {};
 
-        // Todo add behaviour and basic spell to serialize/deserialize
         CharaBehaviour behaviour = { CharaBehaviourType::Random, TargetingType::Random, TargetingType::Random };
 
         Spell basicSpell;
@@ -130,9 +151,6 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const Character& value);
-
-    template <>
-    Character deserialize(const UnserializedObject& serializedString);
 
     struct CharacterLeftClicked
     {

@@ -117,6 +117,55 @@ namespace pg
     }
 
     template <>
+    void serialize(Archive& archive, const CharaBehaviour& value)
+    {
+        archive.startSerialization("CharaBehaviour");
+
+        serialize(archive, "type", charaBehaviourToString.at(value.type));
+        serialize(archive, "onAlly", targetingTypeToString.at(value.onAllyTarget));
+        serialize(archive, "onEnemy", targetingTypeToString.at(value.onEnemyTarget));
+        serialize(archive, "pattern", value.pattern);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    CharaBehaviour deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS(DOM);
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR(DOM, "Element is null");
+        }
+        else
+        {
+            LOG_INFO(DOM, "Deserializing CharaBehaviour");
+
+            CharaBehaviour data;
+
+            std::string type = charaBehaviourToString.at(data.type);
+            std::string onAllyTarget = targetingTypeToString.at(data.onAllyTarget);
+            std::string onEnemyTarget = targetingTypeToString.at(data.onEnemyTarget);
+
+            defaultDeserialize(serializedString, "type", type);
+            defaultDeserialize(serializedString, "onAlly", onAllyTarget);
+            defaultDeserialize(serializedString, "onEnemy", onEnemyTarget);
+            defaultDeserialize(serializedString, "pattern", data.pattern);
+
+            data.type = stringToCharaBehaviour.at(type);
+            data.onAllyTarget = stringToTargetingType.at(onAllyTarget);
+            data.onEnemyTarget = stringToTargetingType.at(onEnemyTarget);
+
+            return data;
+        }
+
+        return CharaBehaviour{};
+    }
+
+    template <>
     void serialize(Archive& archive, const Character& value)
     {
         archive.startSerialization(Character::getType());
@@ -126,6 +175,8 @@ namespace pg
         serialize(archive, "type", charaTypeToString.at(value.type));
         serialize(archive, "stat", value.stat);
         serialize(archive, "spells", value.spells);
+        serialize(archive, "behaviour", value.behaviour);
+        serialize(archive, "basicSpell", value.basicSpell);
 
         // Todo
         // serialize(archive, "passives", value.passives);
@@ -163,6 +214,10 @@ namespace pg
 
             defaultDeserialize(serializedString, "spells", data.spells);
 
+            defaultDeserialize(serializedString, "behaviour", data.behaviour);
+
+            defaultDeserialize(serializedString, "basicSpell", data.basicSpell);
+
             // Todo
             // defaultDeserialize(serializedString, "passives", data.passives);
 
@@ -174,6 +229,8 @@ namespace pg
 
     void Character::addPassive(const PassiveEffect& passive, EntitySystem *ecsRef)
     {
+        // Todo, stop applying the passive to the chara and instead recalculate at each turn the current stat of the player depending on his current boost
+        // We try to apply the passive if it is a start of turn one
         if (passive.info.type == PassiveType::CharacterEffect and passive.info.trigger == TriggerType::StatBoost)
         {
             passive.effect.applyOnCharacter.apply(*this, ecsRef);

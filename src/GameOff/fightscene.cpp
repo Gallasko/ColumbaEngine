@@ -418,8 +418,6 @@ namespace pg
         {
             auto& passive = character->passives[i];
 
-            // Todo, stop applying the passive to the chara and instead recalculate at each turn the current stat of the player depending on his current boost
-            // We try to apply the passive if it is a start of turn one
             if (passive.info.type == PassiveType::CharacterEffect and passive.info.trigger == TriggerType::TurnStart)
             {
                 passive.effect.applyOnCharacter.apply(*character, ecsRef);
