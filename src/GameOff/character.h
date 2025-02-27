@@ -98,6 +98,7 @@ namespace pg
 
         std::vector<PassiveEffect> passives = {};
 
+        // Todo add behaviour and basic spell to serialize/deserialize
         CharaBehaviour behaviour = { CharaBehaviourType::Random, TargetingType::Random, TargetingType::Random };
 
         Spell basicSpell;
