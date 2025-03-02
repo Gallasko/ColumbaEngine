@@ -55,6 +55,8 @@ namespace pg
         RoundRobin,
         WeakestFirst,
         StrongestFirst,
+        LowestFirst,
+        HighestFirst
     };
 
     const static std::unordered_map<TargetingType, std::string> targetingTypeToString = {
@@ -63,6 +65,8 @@ namespace pg
         {TargetingType::RoundRobin, "RoundRobin"},
         {TargetingType::WeakestFirst, "WeakestFirst"},
         {TargetingType::StrongestFirst, "StrongestFirst"},
+        {TargetingType::LowestFirst, "LowestFirst"},
+        {TargetingType::HighestFirst, "HighestFirst"},
     };
 
     const static auto stringToTargetingType = invertMap(targetingTypeToString);

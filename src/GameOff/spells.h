@@ -25,6 +25,9 @@ namespace pg
         std::set<Element> elementType = {};
         DamageType damageType = DamageType::Physical;
 
+        // Todo add every other non vector attributes in properties
+        std::unordered_map<std::string, ElementType> properties = { {"SpellType", ElementType{"Damage"} }};
+
         std::vector<PassiveCall> applyToTarget = {};
         std::vector<PassiveCall> applyToSelf = {};
         

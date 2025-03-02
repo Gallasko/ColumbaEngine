@@ -24,6 +24,8 @@ namespace pg
         // Todo
         // serialize(archive, "elements", value.elementType);
 
+        serialize(archive, "properties", value.properties);
+
         serialize(archive, "targetPassives", value.applyToTarget);
         serialize(archive, "selfPassives", value.applyToSelf);
 
@@ -60,6 +62,8 @@ namespace pg
 
             // Todo
             // defaultDeserialize(serializedString, "elements", data.elementType);
+
+            defaultDeserialize(serializedString, "properties", data.properties);
 
             defaultDeserialize(serializedString, "targetPassives", data.applyToTarget);
             defaultDeserialize(serializedString, "selfPassives", data.applyToSelf);
