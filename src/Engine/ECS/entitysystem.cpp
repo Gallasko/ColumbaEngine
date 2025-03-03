@@ -68,6 +68,7 @@ namespace pg
             saveManager.execute();
 
             nbExecution++;
+            totalNbOfExecution++;
 
             if (std::chrono::duration_cast<std::chrono::seconds>(end - start).count() >= 1)
             {

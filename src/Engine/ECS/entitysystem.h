@@ -598,6 +598,7 @@ namespace pg
         inline size_t getNbTasks() const { return tasks.size(); }
 
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
+        inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
 
     private:
         friend void serialize<>(Archive& archive, const EntitySystem& ecs);
@@ -693,6 +694,8 @@ namespace pg
 
         /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;
+        size_t totalNbOfExecution = 0;
+
         ComponentRegistry registry;
 
         CommandDispatcher cmdDispatcher;

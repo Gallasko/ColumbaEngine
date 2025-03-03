@@ -299,6 +299,51 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        TEST(system_test, fake_start)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.fakeStart();
+
+            EXPECT_TRUE(ecs.isRunning());
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(system_test, execute_once_helper)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            EXPECT_EQ(ecs.getTotalNbOfExecution(), 0);
+
+            ecs.executeOnce();
+
+            EXPECT_EQ(ecs.getTotalNbOfExecution(), 1);
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.fakeStart();
+
+            EXPECT_TRUE(ecs.isRunning());
+            ecs.executeOnce();
+            EXPECT_TRUE(ecs.isRunning());
+            EXPECT_EQ(ecs.getTotalNbOfExecution(), 2);
+
+            ecs.stop();
+
+            EXPECT_FALSE(ecs.isRunning());
+            ecs.executeOnce();
+            EXPECT_FALSE(ecs.isRunning());
+            EXPECT_EQ(ecs.getTotalNbOfExecution(), 3);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(system_test, single_entity_creation)
         {
             EntitySystem ecs;
