@@ -102,6 +102,22 @@ namespace pg
         }
 
         /**
+         * @brief Start the ecs without starting the execute thread loop, Used mainly for testing purposes
+         * 
+         * @warning This function is mainly used for testing purposes, and it does not guarantee that the ECS will run properly. @see start() if you don't know what you're doing. 
+         */
+        inline void fakeStart()
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            if (running)
+                return;
+
+            stopRequested = false;
+            running = true;
+        }
+
+        /**
          * @brief Stop the running thread of the ECS
          */
         inline void stop()
@@ -582,6 +598,7 @@ namespace pg
         inline size_t getNbTasks() const { return tasks.size(); }
 
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
+        inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
 
     private:
         friend void serialize<>(Archive& archive, const EntitySystem& ecs);
@@ -677,6 +694,8 @@ namespace pg
 
         /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;
+        size_t totalNbOfExecution = 0;
+
         ComponentRegistry registry;
 
         CommandDispatcher cmdDispatcher;

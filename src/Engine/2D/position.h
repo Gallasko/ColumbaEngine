@@ -58,6 +58,9 @@ namespace pg
         _unique_id child = 0;
     };
 
+    // Forward declaration
+    struct PositionComponent;
+
     // Todo add a Dtor that remove any parenting
     // Be careful on edge case such as being anchored and clipped at the same time to the same entity
     // Need to count the number of time a child is parented to another entity
@@ -120,7 +123,7 @@ namespace pg
  
         void updateAnchor(bool hasAnchor, PosAnchor& anchor);
 
-        void update();
+        bool update(CompRef<PositionComponent> positionComp);
 
         // Private:
 

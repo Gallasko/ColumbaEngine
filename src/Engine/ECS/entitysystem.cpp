@@ -68,6 +68,7 @@ namespace pg
             saveManager.execute();
 
             nbExecution++;
+            totalNbOfExecution++;
 
             if (std::chrono::duration_cast<std::chrono::seconds>(end - start).count() >= 1)
             {
@@ -182,14 +183,13 @@ namespace pg
     {
         LOG_THIS_MEMBER("ECS");
 
-        if (running)
-            return;
+        bool keepRunning = running;
 
         running = true;
 
         executor.run(taskflow).wait();
 
-        running = false;
+        running = keepRunning;
     }
 
     void EntitySystem::executeAll()
