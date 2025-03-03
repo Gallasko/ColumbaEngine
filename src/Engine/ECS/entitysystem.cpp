@@ -182,14 +182,13 @@ namespace pg
     {
         LOG_THIS_MEMBER("ECS");
 
-        if (running)
-            return;
+        bool keepRunning = running;
 
         running = true;
 
         executor.run(taskflow).wait();
 
-        running = false;
+        running = keepRunning;
     }
 
     void EntitySystem::executeAll()

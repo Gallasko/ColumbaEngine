@@ -47,10 +47,16 @@
                 ]
             },
             "linux": {
-                "command": "bash",
+                "command": "cmake",
                 "args": [
-                    "-c",
-                    "make DEBUG=True PROD=True"
+                    "--build",
+                    "${workspaceFolder}/release",
+                    "--config",
+                    "Release",
+                    "--target",
+                    "t1",
+                    "-j",
+                    "8"
                 ]
             },
             "osx": {

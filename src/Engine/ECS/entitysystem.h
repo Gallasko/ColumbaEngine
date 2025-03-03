@@ -102,6 +102,22 @@ namespace pg
         }
 
         /**
+         * @brief Start the ecs without starting the execute thread loop, Used mainly for testing purposes
+         * 
+         * @warning This function is mainly used for testing purposes, and it does not guarantee that the ECS will run properly. @see start() if you don't know what you're doing. 
+         */
+        inline void fakeStart()
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            if (running)
+                return;
+
+            stopRequested = false;
+            running = true;
+        }
+
+        /**
          * @brief Stop the running thread of the ECS
          */
         inline void stop()

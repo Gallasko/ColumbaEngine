@@ -292,7 +292,9 @@ namespace pg
         if (this->x != x)
         {
             this->x = x;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 
@@ -301,7 +303,9 @@ namespace pg
         if (this->y != y)
         {
             this->y = y;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 
@@ -310,7 +314,9 @@ namespace pg
         if (this->z != z)
         {
             this->z = z;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 
@@ -319,7 +325,9 @@ namespace pg
         if (this->width != width)
         {
             this->width = width;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 
@@ -328,7 +336,9 @@ namespace pg
         if (this->height != height)
         {
             this->height = height;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 
@@ -337,7 +347,9 @@ namespace pg
         if (this->rotation != rotation)
         {
             this->rotation = rotation;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 
@@ -346,7 +358,9 @@ namespace pg
         if (this->visible != visible)
         {
             this->visible = visible;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
     }
 
