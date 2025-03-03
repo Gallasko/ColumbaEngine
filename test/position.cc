@@ -7,7 +7,7 @@ namespace pg
 {
     struct PositionTestSystem : public System<Listener<PositionComponentChangedEvent>, StoragePolicy>
     {
-        virtual void onEvent(const PositionComponentChangedEvent& event) override
+        virtual void onEvent(const PositionComponentChangedEvent&) override
         {
             nbEventReceived++;
         }
@@ -292,7 +292,180 @@ namespace pg
 
             EXPECT_EQ(sys->nbEventReceived, 1);
             sys->reset();
+        }
 
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, anchor_init_in_stopped_ecs)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            auto posSys = ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto entity = ecs.createEntity();
+
+            auto pos = ecs.attach<PositionComponent>(entity);
+            auto anchor = ecs.attach<UiAnchor>(entity);
+
+            EXPECT_EQ(anchor->top.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->top.value, 0.0f);
+            EXPECT_EQ(anchor->right.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+            EXPECT_EQ(anchor->left.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+            EXPECT_EQ(anchor->bottom.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->bottom.value, 0.0f);
+            
+            pos->setX(1.5f);
+            pos->setWidth(2.0f);
+
+            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+
+            // Position system need to execute to update the anchor values
+            posSys->execute();
+            
+            EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
+
+            // Should have received 3 events here as the value was changed 2 times and the anchor values were updated (2 + 1 events)
+            EXPECT_EQ(sys->nbEventReceived, 3);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, anchor_init_in_running_ecs)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+            
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            ecs.fakeStart();
+
+            EXPECT_TRUE(ecs.isRunning());
+
+            auto entity = ecs.createEntity();
+
+            auto pos = ecs.attach<PositionComponent>(entity);
+            auto anchor = ecs.attach<UiAnchor>(entity);
+
+            EXPECT_EQ(anchor->top.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->top.value, 0.0f);
+            EXPECT_EQ(anchor->right.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+            EXPECT_EQ(anchor->left.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+            EXPECT_EQ(anchor->bottom.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->bottom.value, 0.0f);
+            
+            pos->setX(1.5f);
+            pos->setWidth(2.0f);
+
+            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+
+            // Position system need to execute to update the anchor values
+            ecs.executeOnce();
+            
+            EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
+
+            EXPECT_EQ(sys->nbEventReceived, 2);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, anchoring_in_stopped_ecs)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            auto posSys = ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto entity = ecs.createEntity();
+
+            auto pos = ecs.attach<PositionComponent>(entity);
+            auto anchor = ecs.attach<UiAnchor>(entity);
+
+            EXPECT_EQ(anchor->top.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->top.value, 0.0f);
+            EXPECT_EQ(anchor->right.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+            EXPECT_EQ(anchor->left.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+            EXPECT_EQ(anchor->bottom.id, entity.id);
+            EXPECT_FLOAT_EQ(anchor->bottom.value, 0.0f);
+
+            auto entity2 = ecs.createEntity();
+            auto pos2 = ecs.attach<PositionComponent>(entity2);
+            auto anchor2 = ecs.attach<UiAnchor>(entity2);
+
+            pos2->setWidth(3.0f);
+
+            anchor2->setLeftAnchor(anchor->right);
+
+            EXPECT_EQ(anchor2->top.id, entity2.id);
+            EXPECT_FLOAT_EQ(anchor2->top.value, 0.0f);
+            EXPECT_EQ(anchor2->right.id, entity2.id);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 0.0f);
+            EXPECT_EQ(anchor2->left.id, entity2.id);
+            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
+            EXPECT_EQ(anchor2->bottom.id, entity2.id);
+            EXPECT_FLOAT_EQ(anchor2->bottom.value, 0.0f);
+            
+            pos->setX(1.5f);
+            pos->setWidth(2.0f);
+
+            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+
+            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 0.0f);
+
+            EXPECT_EQ(sys->nbEventReceived, 4);
+            sys->reset();
+
+            // Position system need to execute to update the anchor values
+            posSys->execute();
+            
+            EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
+
+            // Anchor from entity1 just changed in this execution so anchor from entity2 didn't have the chance to update
+            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 3.0f);
+
+            // Here both anchor and anchor2 are changed so we send 2 events for the next cycle
+            EXPECT_EQ(sys->nbEventReceived, 2);
+            sys->reset();
+
+            posSys->execute();
+
+            EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
+
+            // After a second system execution, anchor from entity2 should have been updated !s
+            EXPECT_FLOAT_EQ(anchor2->left.value, 3.5f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 6.5f);
+
+            EXPECT_EQ(sys->nbEventReceived, 1);
         }
 
     } // namespace test
