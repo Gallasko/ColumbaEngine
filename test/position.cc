@@ -17,6 +17,18 @@ namespace pg
         size_t nbEventReceived = 0;
     };
 
+    void checkDefaultAnchor(CompRef<UiAnchor>& anchor, _unique_id id)
+    {
+        EXPECT_EQ(anchor->top.id, id);
+        EXPECT_FLOAT_EQ(anchor->top.value, 0.0f);
+        EXPECT_EQ(anchor->right.id, id);
+        EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+        EXPECT_EQ(anchor->left.id, id);
+        EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+        EXPECT_EQ(anchor->bottom.id, id);
+        EXPECT_FLOAT_EQ(anchor->bottom.value, 0.0f);
+    }
+
     namespace test
     {
         // ----------------------------------------------------------------------------------------
@@ -313,14 +325,7 @@ namespace pg
             auto pos = ecs.attach<PositionComponent>(entity);
             auto anchor = ecs.attach<UiAnchor>(entity);
 
-            EXPECT_EQ(anchor->top.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->top.value, 0.0f);
-            EXPECT_EQ(anchor->right.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
-            EXPECT_EQ(anchor->left.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
-            EXPECT_EQ(anchor->bottom.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->bottom.value, 0.0f);
+            checkDefaultAnchor(anchor, entity.id);
             
             pos->setX(1.5f);
             pos->setWidth(2.0f);
@@ -361,15 +366,8 @@ namespace pg
             auto pos = ecs.attach<PositionComponent>(entity);
             auto anchor = ecs.attach<UiAnchor>(entity);
 
-            EXPECT_EQ(anchor->top.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->top.value, 0.0f);
-            EXPECT_EQ(anchor->right.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
-            EXPECT_EQ(anchor->left.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
-            EXPECT_EQ(anchor->bottom.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->bottom.value, 0.0f);
-            
+            checkDefaultAnchor(anchor, entity.id);
+
             pos->setX(1.5f);
             pos->setWidth(2.0f);
 
@@ -404,14 +402,7 @@ namespace pg
             auto pos = ecs.attach<PositionComponent>(entity);
             auto anchor = ecs.attach<UiAnchor>(entity);
 
-            EXPECT_EQ(anchor->top.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->top.value, 0.0f);
-            EXPECT_EQ(anchor->right.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
-            EXPECT_EQ(anchor->left.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
-            EXPECT_EQ(anchor->bottom.id, entity.id);
-            EXPECT_FLOAT_EQ(anchor->bottom.value, 0.0f);
+            checkDefaultAnchor(anchor, entity.id);
 
             auto entity2 = ecs.createEntity();
             auto pos2 = ecs.attach<PositionComponent>(entity2);
@@ -421,14 +412,7 @@ namespace pg
 
             anchor2->setLeftAnchor(anchor->right);
 
-            EXPECT_EQ(anchor2->top.id, entity2.id);
-            EXPECT_FLOAT_EQ(anchor2->top.value, 0.0f);
-            EXPECT_EQ(anchor2->right.id, entity2.id);
-            EXPECT_FLOAT_EQ(anchor2->right.value, 0.0f);
-            EXPECT_EQ(anchor2->left.id, entity2.id);
-            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
-            EXPECT_EQ(anchor2->bottom.id, entity2.id);
-            EXPECT_FLOAT_EQ(anchor2->bottom.value, 0.0f);
+            checkDefaultAnchor(anchor2, entity2.id);
             
             pos->setX(1.5f);
             pos->setWidth(2.0f);
@@ -467,6 +451,79 @@ namespace pg
 
             EXPECT_EQ(sys->nbEventReceived, 1);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, anchoring_in_running_ecs)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            ecs.fakeStart();
+
+            EXPECT_TRUE(ecs.isRunning());
+
+            auto entity = ecs.createEntity();
+
+            auto pos = ecs.attach<PositionComponent>(entity);
+            auto anchor = ecs.attach<UiAnchor>(entity);
+
+            checkDefaultAnchor(anchor, entity.id);
+
+            auto entity2 = ecs.createEntity();
+            auto pos2 = ecs.attach<PositionComponent>(entity2);
+            auto anchor2 = ecs.attach<UiAnchor>(entity2);
+
+            pos2->setWidth(3.0f);
+
+            anchor2->setLeftAnchor(anchor->right);
+
+            checkDefaultAnchor(anchor2, entity2.id);
+            
+            pos->setX(1.5f);
+            pos->setWidth(2.0f);
+
+            EXPECT_FLOAT_EQ(anchor->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
+
+            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 0.0f);
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            // Position system need to execute to update the anchor values
+            ecs.executeOnce();
+
+            EXPECT_EQ(sys->nbEventReceived, 4);
+            sys->reset();
+            
+            EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
+
+            // Anchor from entity1 just changed in this execution so anchor from entity2 didn't have the chance to update
+            EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 3.0f);
+            
+            ecs.executeOnce();
+
+            EXPECT_EQ(sys->nbEventReceived, 2);
+
+            EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
+            EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
+
+            // After a second system execution, anchor from entity2 should have been updated !s
+            EXPECT_FLOAT_EQ(anchor2->left.value, 3.5f);
+            EXPECT_FLOAT_EQ(anchor2->right.value, 6.5f);
+        }
+
+        // Todo need to create constrain test and clipped to test
 
     } // namespace test
     
