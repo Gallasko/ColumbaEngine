@@ -568,11 +568,9 @@ namespace pg
         {
             auto pos = ent->get<PositionComponent>();
 
-            if (pos->width != width)
-                pos->setWidth(width);
+            pos->setWidth(width);
             
-            if (pos->height!= height)
-                pos->setHeight(height);
+            pos->setHeight(height);
         }
 
         if (screenUi->width != width)

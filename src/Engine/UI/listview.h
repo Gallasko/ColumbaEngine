@@ -133,7 +133,9 @@ namespace pg
                 return;
             }
 
-            if (ent->has<ListView>())
+            bool hasListView = ent->has<ListView>();
+
+            if (hasListView)
             {
                 auto view = ent->get<ListView>();
                 auto pos = ent->get<PositionComponent>();
@@ -151,12 +153,21 @@ namespace pg
             
             if (not (ent->has<ListViewBodySizer>()))
             {
+                // If we don't have a body sizer, then that means that the listview has no children, or that the children don't have a position component.
+                if (hasListView)
+                {
+                    auto view = ent->get<ListView>();
+
+                    view->listReelHeight = 0;
+
+                    updateCursorSize(view, view->listReelHeight);
+                }
                 return;
             }
 
             auto list = ecsRef->getEntity(ent->get<ListViewBodySizer>()->id);
 
-            if (not list or not list->has<ListView>())
+            if (not list or not hasListView)
             {
                 LOG_ERROR("ListView", "List view body sizer entity [" << ent->get<ListViewBodySizer>()->id << "] requested doesn't have a list view component!");
                 return;
