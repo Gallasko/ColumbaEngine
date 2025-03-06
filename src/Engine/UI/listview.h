@@ -158,16 +158,18 @@ namespace pg
                 {
                     auto view = ent->get<ListView>();
 
-                    view->listReelHeight = 0;
+                    // view->listReelHeight = 0;
 
-                    updateCursorSize(view, view->listReelHeight);
+                    // updateCursorSize(view, view->listReelHeight);
+
+                    calculateListSize(view);
                 }
                 return;
             }
 
             auto list = ecsRef->getEntity(ent->get<ListViewBodySizer>()->id);
 
-            if (not list or not hasListView)
+            if (not list or not list->has<ListView>())
             {
                 LOG_ERROR("ListView", "List view body sizer entity [" << ent->get<ListViewBodySizer>()->id << "] requested doesn't have a list view component!");
                 return;

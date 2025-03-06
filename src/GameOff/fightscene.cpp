@@ -102,6 +102,50 @@ namespace pg
 
             return Spell{"Error Spell", 0, 0};
         }
+
+        bool getNextTarget(Character* caster, size_t& receiver, const std::vector<Character>& characters, const Spell& spell)
+        {
+            auto it = spell.properties.find("SpellType");
+
+            if (it == spell.properties.end())
+            {
+                LOG_ERROR("Fight System", "Spell does not have SpellType property, cannot determine target");
+                return false;
+            }
+
+            if (it->second.get<std::string>() == "Damage")
+            {
+                const Character* target = nullptr;
+
+                for (const auto& chara : characters)
+                {
+                    if (caster->type != chara.type and not (chara.playingStatus == PlayingStatus::Dead))
+                    {
+                        if (target == nullptr)
+                        {
+                            target = &chara;
+                        }
+                        else
+                        {
+                            // Todo implement logic based on targetting logic of the chara
+                        }
+                    }
+                }
+
+                if (target != nullptr)
+                {
+                    receiver = target->id;
+                    return true;
+                }
+            }
+            else
+            {
+                LOG_ERROR("Fight System", "Spell [" << spell.name << "] SpellType property (" << it->second.get<std::string>() << ") is not supported yet");
+                return false;
+            }
+
+            return false;
+        }
     }
 
     void FightSystem::onEvent(const StartFight&)
@@ -300,46 +344,42 @@ namespace pg
             return;
         }
 
-        // Todo if the chara has no spells left, we automatically cast the auto attack instead !
+
+        Spell spell;
+
         if (chara->spells.size() == 0)
         {
-            // If the mob couldn't hit anyone we need to at least send one PlayFightAnimation to update the state machine
-            LOG_ERROR("Fight Scene", "Character: " << chara->name << ", cannot cast any spell !");
-
-            skipTurn();
-            
-            return;
+            spell = chara->basicSpell;
+        }
+        else
+        {
+            spell = getCastedSpell(chara);
         }
 
         LOG_INFO("Fight Scene", "Character: " << chara->name << ", has " << chara->spells.size() << ", spells");
 
-        // Todo add target and spell selection logic/ai here
+        size_t nbTargetHit = 0;
 
-        auto spell = getCastedSpell(chara);
-
-        float currentTarget = 0;
-
-        for (auto& aggro : chara->aggroMap)
+        while (nbTargetHit < spell.nbTargets)
         {
-            LOG_INFO("Fight Scene", "Trying to hit: " << aggro.first);
-
-            auto& other = characters[aggro.first];
-
-            if (other.type != chara->type)
+            size_t currentTarget = 0;
+            auto targetHit = getNextTarget(chara, currentTarget, characters, spell);
+            
+            if (not targetHit)
             {
-                resolveSpell(chara->id, aggro.first, &spell);
-
-                ++currentTarget;
-            }
-
-            if (currentTarget >= spell.nbTargets)
-            {
+                LOG_INFO("Fight Scene", "Character: " << chara->name << ", cannot find a target to cast spell: " << spell.name);
                 break;
             }
+
+            LOG_INFO("Fight Scene", "Character: " << chara->name << ", cast spell: " << spell.name << " on target: " << characters[currentTarget].name);
+            
+            resolveSpell(chara->id, currentTarget, &spell);
+
+            nbTargetHit++;
         }
 
         // If the mob couldn't hit anyone we need to at least send one PlayFightAnimation to update the state machine
-        if (currentTarget == 0)
+        if (nbTargetHit == 0)
             skipTurn(chara->id, FightAnimationEffects::Nothing);
         else
         {
@@ -353,8 +393,10 @@ namespace pg
 
     void FightSystem::skipTurn(size_t id, const FightAnimationEffects& effect)
     {
+        LOG_INFO("Fight System", "Character: " << characters[id].name << ", skip turn");
+
         // Play a miss like animation
-        ecsRef->sendEvent(PlayFightAnimation{id, effect});
+        // ecsRef->sendEvent(PlayFightAnimation{id, effect});
 
         currentState = FightState::NextTurn;
 

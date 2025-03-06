@@ -145,7 +145,7 @@ namespace pg
         FightState currentState = FightState::Unknown;
         CompRef<Timer> timer;
 
-        size_t fightSpeed = 100.0f;
+        size_t fightSpeed = 300.0f;
     };
 
     struct FightMessageEvent

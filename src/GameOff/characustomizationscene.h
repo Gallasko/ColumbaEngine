@@ -21,13 +21,6 @@ namespace pg
             for (size_t i = 0; i < MAXSKILLTREEINUSE; i ++)
             { 
                 skillTreeInUse[i] = "None";
-            } 
-        
-            const auto& it = std::find(character.spells.begin(), character.spells.end(), BasicStrike{});
-
-            if (it == character.spells.end())
-            {
-                character.spells.push_back(BasicStrike{});
             }
         }
 

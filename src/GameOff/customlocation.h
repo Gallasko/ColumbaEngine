@@ -28,7 +28,7 @@ namespace pg
 
             stat.speed = 75;
 
-            spells = { Bite{} };
+            basicSpell = Bite{};
         }
     };
 
@@ -44,7 +44,7 @@ namespace pg
 
             stat.speed = 75;
 
-            spells = { Bite{} };
+            basicSpell = Bite{};
         }
     };
 
@@ -58,18 +58,18 @@ namespace pg
         }
     };
 
+    struct DuoSlimeEncounter : public Encounter
+    {
+        DuoSlimeEncounter() 
+        {
+            characters = { Slime{}, Slime{} };
+
+            dropTable = { { XpStone {}, 1.0f, 4}, { SlimeBall {}, 0.5f }, { SlimeBall {}, 0.5f } };
+        }
+    };
+
     struct SlimeForest : public Location
     {
-        struct DuoSlimeEncounter : public Encounter
-        {
-            DuoSlimeEncounter() 
-            {
-                characters = { Slime{}, Slime{} };
-
-                dropTable = { { XpStone {}, 1.0f, 4}, { SlimeBall {}, 0.5f }, { SlimeBall {}, 0.5f } };
-            }
-        };
-
         SlimeForest()
         {
             name = "SlimeForest";
@@ -78,13 +78,16 @@ namespace pg
         }
     };
 
+    // Todo create an add encounter that combine characters and drop table from multiple location
+    // So it is easier to create location with multiple enemies
+
     struct SlimeDen : public Location
     {
         struct MetalSlimeEncounter : public Encounter
         {
             MetalSlimeEncounter() 
             {
-                characters = { MetalSlime{} };
+                characters = { MetalSlime{}, Slime{} };
 
                 dropTable = { { XpStone {}, 1.0f, 1000 }, { SlimeBall {}, 0.5f }, { WarriorGrimoire{} } };
             }
@@ -94,7 +97,7 @@ namespace pg
         {
             name = "SlimeDen";
 
-            possibleEnounters = { SoloSlimeEncounter{}, MetalSlimeEncounter{} };
+            possibleEnounters = { DuoSlimeEncounter{}, MetalSlimeEncounter{} };
 
             prerequisiteFacts = { FactChecker{ "Slime_defeated", 5, FactCheckEquality::GreaterEqual } };
         }

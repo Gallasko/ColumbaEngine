@@ -147,8 +147,6 @@ namespace pg
         character.spells.clear();
         character.passives.clear();
 
-        character.spells.push_back(BasicStrike{});
-
         for (size_t i = 0; i < MAXSKILLTREEINUSE; i++)
         {
             auto sTreeName = skillTreeInUse[i];

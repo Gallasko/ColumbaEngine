@@ -126,7 +126,7 @@ namespace pg
 
         CharaBehaviour behaviour = { CharaBehaviourType::Random, TargetingType::Random, TargetingType::Random };
 
-        Spell basicSpell;
+        Spell basicSpell = BasicStrike{};
 
         void addPassive(const PassiveEffect& passive, EntitySystem *ecsRef);
 
