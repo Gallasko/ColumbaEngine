@@ -128,6 +128,8 @@ namespace pg
 
         // Use this material preset if a material is not specified when creating an atlas texture component !
         Material atlasMaterialPreset;
+
+        std::queue<_unique_id> textureUpdateQueue;
     };
 
     /** Helper that create an entity with an Ui component and a Texture component */

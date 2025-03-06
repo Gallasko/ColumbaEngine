@@ -105,10 +105,7 @@ namespace pg
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE("Texture 2D System", "Add entity " << entity->id << " to ui - texture 2D group !");
 
-            auto ui = entity->get<PositionComponent>();
-            auto shape = entity->get<Texture2DComponent>();
-
-            ecsRef->attach<TextureRenderCall>(entity, createRenderCall(ui, shape));
+            textureUpdateQueue.push(entity.id);
 
             changed = true;
         });
@@ -118,7 +115,8 @@ namespace pg
 
             auto entity = ecsRef->getEntity(id);
 
-            ecsRef->detach<TextureRenderCall>(entity);
+            if (entity->has<TextureRenderCall>())
+                ecsRef->detach<TextureRenderCall>(entity);
 
             changed = true;
         });
@@ -128,6 +126,33 @@ namespace pg
     {
         if (not changed)
             return;
+
+        while (not textureUpdateQueue.empty())
+        {
+            auto entityId = textureUpdateQueue.front();
+
+            auto entity = ecsRef->getEntity(entityId);
+
+            if (not entity)
+            {
+                textureUpdateQueue.pop();
+                continue;
+            }
+
+            auto ui = entity->get<PositionComponent>();
+            auto obj = entity->get<Texture2DComponent>();
+
+            if (entity->has<TextureRenderCall>())
+            {
+                entity->get<TextureRenderCall>()->call = createRenderCall(ui, obj);
+            }
+            else
+            {
+                ecsRef->attach<TextureRenderCall>(entity, createRenderCall(ui, obj));
+            }
+
+            textureUpdateQueue.pop();
+        }
 
         renderCallList.clear();
 
@@ -271,10 +296,7 @@ namespace pg
         if (not entity or not entity->has<TextureRenderCall>())
             return; 
 
-        auto ui = entity->get<PositionComponent>();
-        auto shape = entity->get<Texture2DComponent>();
-
-        entity->get<TextureRenderCall>()->call = createRenderCall(ui, shape);
+        textureUpdateQueue.push(entityId);
 
         changed = true;
     }

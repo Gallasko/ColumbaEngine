@@ -367,11 +367,11 @@ namespace pg
             
             if (not targetHit)
             {
-                LOG_INFO("Fight Scene", "Character: " << chara->name << ", cannot find a target to cast spell: " << spell.name);
+                LOG_WARNING("Fight Scene", "Character: " << chara->name << ", cannot find a target to cast spell: " << spell.name);
                 break;
             }
 
-            LOG_INFO("Fight Scene", "Character: " << chara->name << ", cast spell: " << spell.name << " on target: " << characters[currentTarget].name);
+            ecsRef->sendEvent(FightMessageEvent{chara->name + " cast " + spell.name});
             
             resolveSpell(chara->id, currentTarget, &spell);
 

@@ -116,6 +116,8 @@ namespace pg
         std::vector<std::string> loadedFont;
 
         std::unordered_map<std::string, std::unordered_map<char, Character>> charactersMap;
+
+        std::queue<_unique_id> textUpdateQueue;
     };
 
     template <typename Type>

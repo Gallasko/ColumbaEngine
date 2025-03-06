@@ -96,10 +96,12 @@ namespace pg
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - ttf group !");
 
-            auto ui = entity->get<PositionComponent>();
-            auto sentence = entity->get<TTFText>();
+            // auto ui = entity->get<PositionComponent>();
+            // auto sentence = entity->get<TTFText>();
 
-            ecsRef->attach<TTFTextCall>(entity, createRenderCall(ui, sentence));
+            // ecsRef->attach<TTFTextCall>(entity, createRenderCall(ui, sentence));
+
+            textUpdateQueue.push(entity->id);
 
             changed = true;
         });
@@ -212,10 +214,12 @@ namespace pg
         if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFTextCall>())
             return; 
 
-        auto ui = entity->get<PositionComponent>();
-        auto shape = entity->get<TTFText>();
+        // auto ui = entity->get<PositionComponent>();
+        // auto shape = entity->get<TTFText>();
 
-        entity->get<TTFTextCall>()->calls = createRenderCall(ui, shape);
+        // entity->get<TTFTextCall>()->calls = createRenderCall(ui, shape);
+
+        textUpdateQueue.push(entityId);
 
         changed = true;
     }
@@ -224,6 +228,33 @@ namespace pg
     {
         if (not changed)
             return;
+
+        while (not textUpdateQueue.empty())
+        {
+            auto entityId = textUpdateQueue.front();
+
+            auto entity = ecsRef->getEntity(entityId);
+
+            if (not entity)
+            {
+                textUpdateQueue.pop();
+                continue;
+            }
+
+            auto ui = entity->get<PositionComponent>();
+            auto obj = entity->get<TTFText>();
+
+            if (entity->has<TTFTextCall>())
+            {
+                entity->get<TTFTextCall>()->calls = createRenderCall(ui, obj);
+            }
+            else
+            {
+                ecsRef->attach<TTFTextCall>(entity, createRenderCall(ui, obj));
+            }
+
+            textUpdateQueue.pop();
+        }
 
         renderCallList.clear();
 
