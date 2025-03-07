@@ -54,7 +54,7 @@ namespace pg
         {
             characters = { Slime{} };
 
-            dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f }, { WarriorGrimoire{} } };
+            dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f }, { WarriorGrimoire{}, 0.05f } };
         }
     };
 
@@ -62,9 +62,8 @@ namespace pg
     {
         DuoSlimeEncounter() 
         {
-            characters = { Slime{}, Slime{} };
-
-            dropTable = { { XpStone {}, 1.0f, 4}, { SlimeBall {}, 0.5f }, { SlimeBall {}, 0.5f } };
+            addEncounter(SoloSlimeEncounter());
+            addEncounter(SoloSlimeEncounter());
         }
     };
 
@@ -77,9 +76,6 @@ namespace pg
             possibleEnounters = { SoloSlimeEncounter{}, DuoSlimeEncounter{} };
         }
     };
-
-    // Todo create an add encounter that combine characters and drop table from multiple location
-    // So it is easier to create location with multiple enemies
 
     struct SlimeDen : public Location
     {

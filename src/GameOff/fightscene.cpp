@@ -212,13 +212,41 @@ namespace pg
                 return;
             }
 
-            int rng = randomNumber() * nbEncounters;
+            size_t weightSum = 0;
+            std::vector<size_t> incrementalSum;
+            incrementalSum.reserve(nbEncounters);
 
-            auto encounter = location.possibleEnounters[rng];
+            for (size_t i = 0; i < nbEncounters; ++i)
+            {
+                weightSum += location.possibleEnounters[i].weight;;
+                incrementalSum.push_back(weightSum);
+            }
 
-            currentEncounter = encounter;
+            if (weightSum == 0)
+            {
+                LOG_ERROR("Fight System", "Weight sum = 0 for location: " << location.name << "! Cannont generate combat as no encounter as a weight!");
+                return;
+            }
 
-            for (const auto& chara : encounter.characters)
+            size_t rng = randomNumber() * weightSum;
+
+            size_t i = 0;
+            for (; i < incrementalSum.size(); ++i)
+            {
+                if (rng < incrementalSum[i])
+                {
+                    currentEncounter = location.possibleEnounters[i];
+                    break;
+                }
+            }
+
+            if (i == incrementalSum.size())
+            {
+                LOG_ERROR("Fight System", "Error while generating encounter for location: " << location.name << "! Rng: " << rng << " WeightSum: " << weightSum);
+                return;
+            }
+
+            for (const auto& chara : currentEncounter.characters)
             {
                 addCharacter(chara);
             }

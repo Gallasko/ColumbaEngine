@@ -57,6 +57,7 @@ namespace pg
 
         serialize(archive, "enemies", value.characters);
         serialize(archive, "drops", value.dropTable);
+        serialize(archive, "weight", value.weight);
 
         archive.endSerialization();
     }
@@ -80,6 +81,8 @@ namespace pg
 
             data.characters = deserializeVector<Character>(serializedString["enemies"]);
             data.dropTable = deserializeVector<DropChance>(serializedString["drops"]);
+
+            defaultDeserialize(serializedString, "weight", data.weight);
 
             return data;
         }
@@ -136,5 +139,11 @@ namespace pg
         }
 
         return Location{};
+    }
+
+    void Encounter::addEncounter(const Encounter& encounter)
+    {
+        characters.insert(characters.end(), encounter.characters.begin(), encounter.characters.end());
+        dropTable.insert(dropTable.end(), encounter.dropTable.begin(), encounter.dropTable.end());
     }
 }

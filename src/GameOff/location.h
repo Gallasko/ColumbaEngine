@@ -21,9 +21,13 @@ namespace pg
 
     struct Encounter
     {
+        void addEncounter(const Encounter& encounter);
+
         std::vector<Character> characters;
 
         std::vector<DropChance> dropTable;
+
+        size_t weight = 1;
     };
 
     struct Location
