@@ -55,15 +55,19 @@ namespace pg
             characters = { Slime{} };
 
             dropTable = { { XpStone {}, 1.0f, 2}, { SlimeBall {}, 0.5f }, { WarriorGrimoire{}, 0.05f } };
+
+            weight = 2;
         }
     };
 
     struct DuoSlimeEncounter : public Encounter
     {
-        DuoSlimeEncounter() 
+        DuoSlimeEncounter(size_t w = 1) 
         {
             addEncounter(SoloSlimeEncounter());
             addEncounter(SoloSlimeEncounter());
+
+            weight = w;
         }
     };
 
@@ -93,7 +97,7 @@ namespace pg
         {
             name = "SlimeDen";
 
-            possibleEnounters = { DuoSlimeEncounter{}, MetalSlimeEncounter{} };
+            possibleEnounters = { DuoSlimeEncounter{98}, MetalSlimeEncounter{} };
 
             prerequisiteFacts = { FactChecker{ "Slime_defeated", 5, FactCheckEquality::GreaterEqual } };
         }
