@@ -256,20 +256,4 @@ namespace pg
 
         changed = true;
     }
-
-    CompList<PositionComponent, Simple2DObject> makeSimple2DShape(EntitySystem *ecs, const Shape2D& shape, float width, float height, const constant::Vector4D& colors)
-    {
-        LOG_THIS(DOM);
-
-        auto entity = ecs->createEntity();
-
-        auto ui = ecs->attach<PositionComponent>(entity);
-
-        ui->setWidth(width);
-        ui->setHeight(height);
-
-        auto tex = ecs->attach<Simple2DObject>(entity, shape, colors);
-
-        return {entity, ui, tex};
-    }
 }

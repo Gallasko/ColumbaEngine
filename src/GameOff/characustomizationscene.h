@@ -10,6 +10,8 @@
 #include "skilltree.h"
 #include "customskilltree.h"
 
+// Todo May possibly be a memory leak here, when reloading scene
+
 namespace pg
 {
     constexpr size_t MAXSKILLTREEINUSE = 3;

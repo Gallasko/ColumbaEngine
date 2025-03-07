@@ -6,6 +6,8 @@
 
 #include "inventory.h"
 
+#include "2D/simple2dobject.h"
+
 #include "Systems/coresystems.h"
 
 namespace pg
@@ -377,24 +379,6 @@ namespace pg
             playerIconUi["timer"].get<Timer>()->start();
         });
 
-        listenToEvent<NameFocusTimerCallback>([this](const NameFocusTimerCallback&) {
-            static bool high = false;
-
-            auto ttfText = playerIconUi["name"].get<TTFText>();
-            auto input = playerIconUi["name"].get<TextInputComponent>();
-
-            if (high)
-            {
-                ttfText->setText(ttfText->text + "I");
-            }
-            else
-            {
-                ttfText->setText(input->text);
-            }
-
-            high = not high;
-        });
-
         auto windowEnt = ecsRef->getEntity("__MainWindow");
 
         auto windowAnchor = windowEnt->get<UiAnchor>();
@@ -513,14 +497,28 @@ namespace pg
         }
     }
 
+    struct OpenPortraitPickerWindow
+    {
+        OpenPortraitPickerWindow(bool open) : open(open) {}
+        OpenPortraitPickerWindow(const OpenPortraitPickerWindow& other) : open(other.open) {}
+
+        bool open;
+    };
+
     void PlayerCustomizationScene::makePlayerIconUi()
     {
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+
+        auto windowAnchor = windowEnt->get<UiAnchor>();
+
         auto icon = makeUiTexture(this, 120, 120, "NoneIcon");
         auto iconUi = icon.get<PositionComponent>();
         auto iconAnchor = icon.get<UiAnchor>();
         iconUi->setX(45);
         iconUi->setY(35);
         iconUi->setVisibility(false);
+
+        ecsRef->attach<MouseLeftClickComponent>(icon.entity, makeCallable<OpenPortraitPickerWindow>(true) );
 
         auto name = makeTTFTextInput(this, 0, 0, StandardEvent("CharaNameChange"), "res/font/Inter/static/Inter_28pt-Light.ttf", "Character 1", 0.7);
         name.get<TextInputComponent>()->clearTextAfterEnter = false;
@@ -554,6 +552,24 @@ namespace pg
         timer->interval = 250;
         timer->callback = makeCallable<NameFocusTimerCallback>();
 
+        listenToEvent<NameFocusTimerCallback>([this](const NameFocusTimerCallback&) {
+            static bool high = false;
+
+            auto ttfText = playerIconUi["name"].get<TTFText>();
+            auto input = playerIconUi["name"].get<TextInputComponent>();
+
+            if (high)
+            {
+                ttfText->setText(ttfText->text + "I");
+            }
+            else
+            {
+                ttfText->setText(input->text);
+            }
+
+            high = not high;
+        });
+
         playerIconUi["icon"] = icon.entity;
         playerIconUi["name"] = name.entity;
         playerIconUi["nameChangeButton"] = nameChangeButton.entity;
@@ -561,6 +577,32 @@ namespace pg
 
         // Player icon change UI
 
+        auto obsc = makeSimple2DShape(this, Shape2D::Square, 0, 0, {15.0f, 15.0f, 15.0f, 165.00f});
+        auto obscAnchor = ecsRef->attach<UiAnchor>(obsc.entity);
+        auto obscUi = obsc.get<PositionComponent>();
+
+        obscUi->setZ(20);
+        obscUi->setVisibility(false);
+
+        obscAnchor->setTopAnchor(windowAnchor->top);
+        obscAnchor->setLeftAnchor(windowAnchor->left);
+        obscAnchor->setRightAnchor(windowAnchor->right);
+        obscAnchor->setBottomAnchor(windowAnchor->bottom);
+
+        playerIconUi["obsc"] = obsc.entity;
+
+        ecsRef->attach<MouseLeftClickComponent>(obsc.entity, makeCallable<OpenPortraitPickerWindow>(false) );
+
+        listenToEvent<OpenPortraitPickerWindow>([this](const OpenPortraitPickerWindow& event) {
+            if (event.open)
+            {
+                playerIconUi["obsc"].get<PositionComponent>()->setVisibility(true);
+            }
+            else
+            {
+                playerIconUi["obsc"].get<PositionComponent>()->setVisibility(false);
+            }
+        });
     }
 
     void PlayerCustomizationScene::showPlayerIcon()
