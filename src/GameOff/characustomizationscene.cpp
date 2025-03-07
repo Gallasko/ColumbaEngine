@@ -38,13 +38,6 @@ namespace pg
             size_t skillTreeSelected;
         };
 
-        struct AddPlayerToListViewEvent
-        {
-            AddPlayerToListViewEvent(PlayerCharacter *chara) : chara(chara) {}
-
-            PlayerCharacter *chara;
-        };
-
         struct LevelUpSkillTree {};
 
         struct NameFocusTimerCallback {};
@@ -295,10 +288,6 @@ namespace pg
             addPlayerToListView(player.component);
         });
 
-        listenToEvent<AddPlayerToListViewEvent>([this](const AddPlayerToListViewEvent& event) {
-            addPlayerToListView(event.chara);
-        });
-
         listenToEvent<SelectedCharacter>([this](const SelectedCharacter& event) {
             currentPlayer = event.chara;
 
@@ -320,6 +309,11 @@ namespace pg
             auto returnText = event.values.at("return").toString();
 
             playerIconUi["timer"].get<Timer>()->stop();
+
+            auto ttfText = playerIconUi["name"].get<TTFText>();
+            auto input = playerIconUi["name"].get<TextInputComponent>();
+
+            ttfText->setText(input->text);
 
             LOG_INFO("CharaNameChange", "Name changed to: " << returnText);
 
@@ -441,7 +435,7 @@ namespace pg
             {
                 LOG_INFO("Player", "Got player: " << player->character.name);
 
-                ecsRef->sendEvent(AddPlayerToListViewEvent{player});
+                addPlayerToListView(player);
             }
         }
     }
@@ -564,6 +558,9 @@ namespace pg
         playerIconUi["name"] = name.entity;
         playerIconUi["nameChangeButton"] = nameChangeButton.entity;
         playerIconUi["timer"] = timerEnt;
+
+        // Player icon change UI
+
     }
 
     void PlayerCustomizationScene::showPlayerIcon()
@@ -631,7 +628,7 @@ namespace pg
 
     void PlayerCustomizationScene::makeSkillTreeUi()
     {
-        float baseX = 400;
+        float baseX = 280;
         float baseY = 450;
 
         for (size_t i = 0; i < 3; i++)

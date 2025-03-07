@@ -147,6 +147,19 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         t3Anchor->setLeftMargin(8);
         t3Anchor->setBottomAnchor(t1Anchor->bottom);
 
+        makeSimple2DShape(ecsRef, Shape2D::Square, 120.0f, 120.0f, {125.0f, 125.0f, 125.0f, 125.0f});
+
+        auto rec = makeSimple2DShape(ecsRef, Shape2D::Square, 120.0f, 120.0f, {0.0f, 125.0f, 0.0f, 255.0f});
+        rec.get<PositionComponent>()->setX(70);
+
+        auto rec2 = makeSimple2DShape(ecsRef, Shape2D::Square, 120.0f, 120.0f, {0.0f, 0.0f, 255.0f, 125.0f});
+        rec2.get<PositionComponent>()->setX(45);
+        rec2.get<PositionComponent>()->setY(70);
+
+        auto last = makeSimple2DShape(ecsRef, Shape2D::Square, 120.0f, 120.0f, {125.0f, 125.0f, 125.0f, 125.0f});
+        last.get<PositionComponent>()->setX(300);
+        last.get<PositionComponent>()->setY(70);
+
         /* Clipped progress bar exemple:
         auto spacer = ecsRef->createEntity();
         auto spacerPos = ecsRef->attach<PositionComponent>(spacer);
