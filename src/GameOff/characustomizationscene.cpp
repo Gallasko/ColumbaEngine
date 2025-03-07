@@ -6,6 +6,8 @@
 
 #include "inventory.h"
 
+#include "Systems/coresystems.h"
+
 namespace pg
 {
     namespace
@@ -44,6 +46,8 @@ namespace pg
         };
 
         struct LevelUpSkillTree {};
+
+        struct NameFocusTimerCallback {};
     }
 
     void PlayerCharacter::removeSkillTreeAt(size_t index)
@@ -315,6 +319,8 @@ namespace pg
         listenToStandardEvent("CharaNameChange", [this](const StandardEvent& event) {
             auto returnText = event.values.at("return").toString();
 
+            playerIconUi["timer"].get<Timer>()->stop();
+
             LOG_INFO("CharaNameChange", "Name changed to: " << returnText);
 
             LOG_INFO("CharacterLeftClicked", "Current player id: " << currentPlayer->character.id);
@@ -362,6 +368,37 @@ namespace pg
             showUpgradableTab();
 
             showNeededItemsToLevelUp(sTreeToUpgrade);
+        });
+
+        listenToEvent<OnFocus>([this](const OnFocus& event) {
+            auto ent = ecsRef->getEntity(event.id);
+        
+            if (not ent or event.id != playerIconUi["name"].id)
+                return;
+
+            auto ttfText = playerIconUi["name"].get<TTFText>();
+
+            ttfText->setText(ttfText->text + "I");
+
+            playerIconUi["timer"].get<Timer>()->start();
+        });
+
+        listenToEvent<NameFocusTimerCallback>([this](const NameFocusTimerCallback&) {
+            static bool high = false;
+
+            auto ttfText = playerIconUi["name"].get<TTFText>();
+            auto input = playerIconUi["name"].get<TextInputComponent>();
+
+            if (high)
+            {
+                ttfText->setText(ttfText->text + "I");
+            }
+            else
+            {
+                ttfText->setText(input->text);
+            }
+
+            high = not high;
         });
 
         auto windowEnt = ecsRef->getEntity("__MainWindow");
@@ -505,8 +542,28 @@ namespace pg
         nameAnchor->setLeftMargin(15);
         nameUi->setVisibility(false);
 
+        auto nameChangeButton = makeUiTexture(this, 30, 30, "ChangeName");
+        auto nameChangeButtonUi = nameChangeButton.get<PositionComponent>();
+        auto nameChangeButtonAnchor = nameChangeButton.get<UiAnchor>();
+
+        ecsRef->attach<MouseLeftClickComponent>(nameChangeButton.entity, makeCallable<OnFocus>(OnFocus{name.entity.id}) );
+
+        nameChangeButtonAnchor->setTopAnchor(iconAnchor->bottom);
+        nameChangeButtonAnchor->setTopMargin(45);
+        nameChangeButtonAnchor->setLeftAnchor(nameAnchor->left);
+        nameChangeButtonAnchor->setLeftMargin(15);
+        nameChangeButtonUi->setVisibility(false);
+
+        auto timerEnt = createEntity();
+        auto timer = ecsRef->attach<Timer>(timerEnt);
+
+        timer->interval = 250;
+        timer->callback = makeCallable<NameFocusTimerCallback>();
+
         playerIconUi["icon"] = icon.entity;
         playerIconUi["name"] = name.entity;
+        playerIconUi["nameChangeButton"] = nameChangeButton.entity;
+        playerIconUi["timer"] = timerEnt;
     }
 
     void PlayerCustomizationScene::showPlayerIcon()
@@ -519,6 +576,8 @@ namespace pg
         playerIconUi["name"].get<TextInputComponent>()->text = currentPlayer->character.name;
 
         playerIconUi["name"].get<PositionComponent>()->setVisibility(true);
+
+        playerIconUi["nameChangeButton"].get<PositionComponent>()->setVisibility(true);
     }
 
     void PlayerCustomizationScene::makeStatUi()
