@@ -158,10 +158,6 @@ namespace pg
                 {
                     auto view = ent->get<ListView>();
 
-                    // view->listReelHeight = 0;
-
-                    // updateCursorSize(view, view->listReelHeight);
-
                     calculateListSize(view);
                 }
                 return;

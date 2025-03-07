@@ -96,11 +96,6 @@ namespace pg
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - ttf group !");
 
-            // auto ui = entity->get<PositionComponent>();
-            // auto sentence = entity->get<TTFText>();
-
-            // ecsRef->attach<TTFTextCall>(entity, createRenderCall(ui, sentence));
-
             textUpdateQueue.push(entity->id);
 
             changed = true;
@@ -111,7 +106,8 @@ namespace pg
 
             auto entity = ecsRef->getEntity(id);
 
-            ecsRef->detach<TTFTextCall>(entity);
+            if (entity->has<TTFTextCall>())
+                ecsRef->detach<TTFTextCall>(entity);
 
             changed = true;
         });
@@ -213,11 +209,6 @@ namespace pg
         
         if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFTextCall>())
             return; 
-
-        // auto ui = entity->get<PositionComponent>();
-        // auto shape = entity->get<TTFText>();
-
-        // entity->get<TTFTextCall>()->calls = createRenderCall(ui, shape);
 
         textUpdateQueue.push(entityId);
 

@@ -174,8 +174,6 @@ namespace pg
 
         std::unordered_map<_unique_id, Character*> ttfTextIdToCharacter;
 
-        EntityRef characterName;
-
         std::unordered_map<std::string, EntityRef> playerIconUi;
         std::unordered_map<std::string, EntityRef> characterStatUi;
         std::unordered_map<std::string, EntityRef> skillTreeUi;

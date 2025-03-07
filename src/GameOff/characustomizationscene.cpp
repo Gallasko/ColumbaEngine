@@ -272,9 +272,9 @@ namespace pg
 
     void PlayerCustomizationScene::init()
     {
-        auto createNewPlayer = makeTTFText(this, 10, 10, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Create new player", 0.6);
+        // auto createNewPlayer = makeTTFText(this, 10, 10, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Create new player", 0.6);
 
-        attach<MouseLeftClickComponent>(createNewPlayer.entity, makeCallable<CreateNewPlayerButtonPressed>());
+        // attach<MouseLeftClickComponent>(createNewPlayer.entity, makeCallable<CreateNewPlayerButtonPressed>());
 
         listenToEvent<CreateNewPlayerButtonPressed>([this](const CreateNewPlayerButtonPressed&) {
             // Can't use the scene function here to create and attach as the entity needs to outlive the scene
@@ -299,11 +299,6 @@ namespace pg
             currentPlayer = event.chara;
 
             LOG_INFO("CharacterLeftClicked", "Current player id: " << currentPlayer->character.id);
-
-            characterName.get<TTFText>()->setText(currentPlayer->character.name);
-            characterName.get<TextInputComponent>()->text = currentPlayer->character.name;
-
-            characterName.get<PositionComponent>()->setVisibility(true);
 
             showPlayerIcon();
             showStat();
@@ -388,14 +383,6 @@ namespace pg
 
         /// Character list UI setup [END]
 
-        auto charaName = makeTTFTextInput(this, 300.0f, 0.0f, StandardEvent("CharaNameChange"), "res/font/Inter/static/Inter_28pt-Light.ttf", "Character 1", 0.7);
-
-        characterName = charaName.entity;
-
-        charaName.get<PositionComponent>()->setVisibility(false);
-        
-        charaName.get<TextInputComponent>()->clearTextAfterEnter = false;
-
         makePlayerIconUi();
         makeStatUi();
         makeSkillTreeUi();
@@ -477,12 +464,20 @@ namespace pg
     {
         LOG_INFO("CharaNameChange", "Updating character list...");
 
-        for (auto& character : characterList->entities)
+        for (auto& prefab : characterList->entities)
         {
-            if (character != nullptr and character->has<TTFText>())
+            if ((not prefab.empty()) and prefab->has<Prefab>())
             {
-                auto chara = ttfTextIdToCharacter.at(character.id);
-                character->get<TTFText>()->setText(chara->name);
+                for (auto charaId : prefab->get<Prefab>()->childrenIds)
+                {
+                    auto character = ecsRef->getEntity(charaId);
+
+                    if (character != nullptr and character->has<TTFText>())
+                    {
+                        auto chara = ttfTextIdToCharacter.at(charaId);
+                        character->get<TTFText>()->setText(chara->name);
+                    }
+                }
             }
         }
     }
@@ -492,11 +487,14 @@ namespace pg
         auto icon = makeUiTexture(this, 120, 120, "NoneIcon");
         auto iconUi = icon.get<PositionComponent>();
         auto iconAnchor = icon.get<UiAnchor>();
-        iconUi->setX(25);
-        iconUi->setY(25);
+        iconUi->setX(45);
+        iconUi->setY(35);
         iconUi->setVisibility(false);
 
-        auto name = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "None", 0.4);
+        auto name = makeTTFTextInput(this, 0, 0, StandardEvent("CharaNameChange"), "res/font/Inter/static/Inter_28pt-Light.ttf", "Character 1", 0.7);
+        name.get<TextInputComponent>()->clearTextAfterEnter = false;
+
+        // auto name = makeTTFText(this, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "None", 0.7);
         auto nameUi = name.get<PositionComponent>();
         auto nameAnchor = name.get<UiAnchor>();
 
@@ -504,7 +502,7 @@ namespace pg
         nameAnchor->setTopMargin(5);
         nameAnchor->setLeftAnchor(iconAnchor->left);
         // Todo remplace this by vertical centering
-        nameAnchor->setLeftMargin(iconUi->width / 2.0f - nameUi->width / 2.0f);
+        nameAnchor->setLeftMargin(15);
         nameUi->setVisibility(false);
 
         playerIconUi["icon"] = icon.entity;
@@ -518,6 +516,7 @@ namespace pg
         playerIconUi["icon"].get<PositionComponent>()->setVisibility(true);
 
         playerIconUi["name"].get<TTFText>()->setText(currentPlayer->character.name);
+        playerIconUi["name"].get<TextInputComponent>()->text = currentPlayer->character.name;
 
         playerIconUi["name"].get<PositionComponent>()->setVisibility(true);
     }
@@ -526,8 +525,8 @@ namespace pg
     {
         std::vector<std::string> statToDisplay = {"HP", "ATK", "MATK", "DEF", "MDEF", "SPEED", "CC", "CD", "EVA"};
 
-        float baseX = 400;
-        float baseY = 75;
+        float baseX = 25;
+        float baseY = 245;
 
         for (const std::string& stat : statToDisplay)
         {

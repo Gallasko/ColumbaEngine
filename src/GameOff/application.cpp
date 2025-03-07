@@ -120,22 +120,34 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     virtual void init() override
     {
         // Navigation tabs
-        auto titleTTF = makeTTFText(ecsRef, 50, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Customization", 0.4);
-        titleTTF.get<PositionComponent>()->setZ(1);
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+
+        auto windowAnchor = windowEnt->get<UiAnchor>();
+
+        auto titleTTF = makeTTFText(ecsRef, 25, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Customization", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<SceneToLoad>(SceneName::Customization));
         auto t1Anchor = titleTTF.get<UiAnchor>();
 
-        auto titleTTF2 = makeTTFText(ecsRef, 225, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
+        t1Anchor->setTopAnchor(windowAnchor->top);
+        t1Anchor->setTopMargin(12);
+
+        auto titleTTF2 = makeTTFText(ecsRef, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF2.entity, makeCallable<SceneToLoad>(SceneName::Inventory));
         auto t2Anchor = titleTTF2.get<UiAnchor>();
 
         t2Anchor->setLeftAnchor(t1Anchor->right);
+        t2Anchor->setLeftMargin(8);
         t2Anchor->setBottomAnchor(t1Anchor->bottom);
 
-
-        auto titleTTF3 = makeTTFText(ecsRef, 330, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
+        auto titleTTF3 = makeTTFText(ecsRef, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Location", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF3.entity, makeCallable<SceneToLoad>(SceneName::Location));
+        auto t3Anchor = titleTTF3.get<UiAnchor>();
 
+        t3Anchor->setLeftAnchor(t2Anchor->right);
+        t3Anchor->setLeftMargin(8);
+        t3Anchor->setBottomAnchor(t1Anchor->bottom);
+
+        /* Clipped progress bar exemple:
         auto spacer = ecsRef->createEntity();
         auto spacerPos = ecsRef->attach<PositionComponent>(spacer);
         spacerPos->setX(100);
@@ -157,6 +169,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
         ecsRef->attach<ClippedTo>(progressBar.entity, clipper->id);
 
+        */
+
         // barComp = progressBar.get<ProgressBarComponent>();
 
         // barComp->percent = fill;
@@ -176,6 +190,7 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     std::vector<int> test = {};
 };
 
+/* Portrait loading exemple:
 struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePolicy, InitSys>
 {
     MasterRenderer *renderer;
@@ -231,6 +246,7 @@ struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePoli
         tex->setTexture("Portrait");
     }
 };
+*/
 
 std::thread *initThread;
 pg::Window *mainWindow = nullptr;
@@ -295,7 +311,7 @@ void initGame()
 
     mainWindow->ecs.createSystem<SceneLoader>();
 
-    mainWindow->ecs.createSystem<PortraitLoader>(mainWindow->masterRenderer);
+    // mainWindow->ecs.createSystem<PortraitLoader>(mainWindow->masterRenderer);
 
     mainWindow->ecs.createSystem<WorldFacts>();
 
