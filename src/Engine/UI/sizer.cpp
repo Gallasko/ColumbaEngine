@@ -167,7 +167,10 @@ namespace pg
 
     void HorizontalLayoutSystem::updateVisibility(EntityRef viewEnt, bool visible)
     {
-        auto& entities = viewEnt->get<HorizontalLayout>()->entities;
+        auto view = viewEnt->get<HorizontalLayout>();
+        view->visible = visible;
+
+        auto& entities = view->entities;
 
         for (auto& ui : entities)
         {

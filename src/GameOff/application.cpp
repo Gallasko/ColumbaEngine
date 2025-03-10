@@ -361,7 +361,7 @@ void initGame()
 
     hLayout.get<HorizontalLayout>()->spacing = 7;
 
-    // hLayout.get<HorizontalLayout>()->spacedInWidth = true;
+    hLayout.get<HorizontalLayout>()->spacedInWidth = true;
     hLayout.get<HorizontalLayout>()->fitToWidth = true;
 
     hLayout.get<HorizontalLayout>()->addEntity(s0.entity);
@@ -372,6 +372,10 @@ void initGame()
     hLayout.get<HorizontalLayout>()->addEntity(s6.entity);
     hLayout.get<HorizontalLayout>()->addEntity(s7.entity);
     hLayout.get<HorizontalLayout>()->addEntity(s8.entity);
+
+    hLayout.get<PositionComponent>()->setWidth(380);
+
+    s3.get<PositionComponent>()->setWidth(150);
 
     // hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
     // hLayout.get<HorizontalLayout>()->addEntity(s5.entity);

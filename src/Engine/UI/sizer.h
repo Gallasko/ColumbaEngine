@@ -99,16 +99,22 @@ namespace pg
 
             if (ent->has<HorizontalLayout>())
             {
-                auto layout = ent->get<HorizontalLayout>();
-                auto pos = ent->get<PositionComponent>();
+                hLayoutUpdated.insert(ent);
+                return;
+            }
 
-                if (layout->visible != pos->visible)
+            for (auto v : view<HorizontalLayout>())
+            {
+                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+
+                if (it != v->entities.end())
                 {
-                    layout->visible = pos->visible;
-
-                    updateVisibility(ent, pos->visible);
+                    hLayoutUpdated.insert(ecsRef->getEntity(v->id));
+                    // An entity should not be in multple layouts at the same time
+                    return;
                 }
             }
+
         }
 
         virtual void execute() override
@@ -163,6 +169,17 @@ namespace pg
 
                 eventQueue.pop();
             }
+
+            for (auto ent : hLayoutUpdated)
+            {
+                recalculateChildrenPos(ent);
+
+                auto view = ent->get<HorizontalLayout>();
+
+                updateVisibility(ent, view->visible);
+            }
+
+            hLayoutUpdated.clear();
         }
 
         void addEntity(EntityRef viewEnt, _unique_id ui);
@@ -178,6 +195,8 @@ namespace pg
         std::queue<ClearHorizontalLayoutEvent> clearQueue;
 
         std::queue<UpdateHorizontalLayoutVisibility> visibilityQueue;
+
+        std::set<EntityRef> hLayoutUpdated;
     };
 
     template <typename Type>

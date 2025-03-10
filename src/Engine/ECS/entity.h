@@ -159,6 +159,8 @@ namespace pg
 
         void operator=(Entity* ent);
 
+        bool operator<(const EntityRef& rhs) const { return id < rhs.id; }
+
         template <typename Comp>
         bool has() const;
 
