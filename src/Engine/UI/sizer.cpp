@@ -2,11 +2,31 @@
 
 namespace pg
 {
+    namespace
+    {
+        static constexpr char const * DOM = "Horizontal Layout";
+    }
+
+
+    void HorizontalLayoutSystem::init()
+    {
+        auto group = registerGroup<PositionComponent, HorizontalLayout>();
+
+        group->addOnGroup([this](EntityRef entity) {
+            LOG_MILE(DOM, "Add entity " << entity->id << " to ui - hLayout group !");
+
+            auto hLayout = entity->get<HorizontalLayout>();
+            auto position = entity->get<PositionComponent>();
+
+            hLayout->visible = position->visible;
+        });
+    }
+
     void HorizontalLayoutSystem::addEntity(EntityRef viewEnt, _unique_id ui)
     {
         if (not viewEnt->has<PositionComponent>() or not viewEnt->has<UiAnchor>())
         {
-            LOG_ERROR("ListViewSystem", "Entity " << viewEnt.id << " must have a PositionComponent and UiAnchor!");
+            LOG_ERROR(DOM, "Entity " << viewEnt.id << " must have a PositionComponent and UiAnchor!");
             return;
         }
 
@@ -14,7 +34,7 @@ namespace pg
 
         if (not ent or not ent->has<PositionComponent>() or not ent->has<UiAnchor>())
         {
-            LOG_ERROR("ListViewSystem", "Entity " << ui << " must have a PositionComponent and UiAnchor!");
+            LOG_ERROR(DOM, "Entity " << ui << " must have a PositionComponent and UiAnchor!");
             return;
         }
 
@@ -53,7 +73,7 @@ namespace pg
 
             if (not ent->has<PositionComponent>())
             {
-                LOG_ERROR("HorizontalLayoutSystem", "Entity " << ent.id << " must have a PositionComponent!");
+                LOG_ERROR(DOM, "Entity " << ent.id << " must have a PositionComponent!");
                 continue;
             }
 

@@ -61,9 +61,12 @@ namespace pg
         Listener<RemoveHorizontalLayoutElementEvent>,
         Listener<UpdateHorizontalLayoutVisibility>,
         Listener<ClearHorizontalLayoutEvent>,
-        Own<HorizontalLayout>>
+        Own<HorizontalLayout>,
+        InitSys>
     {
         virtual std::string getSystemName() const override { return "Horizontal Layout System"; }
+
+        virtual void init() override;
 
         virtual void onEvent(const AddHorizontalLayoutElementEvent& event) override
         {
@@ -85,9 +88,27 @@ namespace pg
             visibilityQueue.push(event);
         }
 
-        virtual void onEvent(const EntityChangedEvent& /*event*/) override
+        virtual void onEvent(const EntityChangedEvent& event) override
         {
-            // Todo
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent)
+            {
+                return;
+            }
+
+            if (ent->has<HorizontalLayout>())
+            {
+                auto layout = ent->get<HorizontalLayout>();
+                auto pos = ent->get<PositionComponent>();
+
+                if (layout->visible != pos->visible)
+                {
+                    layout->visible = pos->visible;
+
+                    updateVisibility(ent, pos->visible);
+                }
+            }
         }
 
         virtual void execute() override

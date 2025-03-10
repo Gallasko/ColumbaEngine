@@ -9,6 +9,20 @@ namespace pg
         static constexpr char const * DOM = "List view";
     }
 
+    void ListViewSystem::init()
+    {
+        auto group = registerGroup<PositionComponent, ListView>();
+
+        group->addOnGroup([this](EntityRef entity) {
+            LOG_MILE(DOM, "Add entity " << entity->id << " to ui - listview group !");
+
+            auto listview = entity->get<ListView>();
+            auto position = entity->get<PositionComponent>();
+
+            listview->visible = position->visible;
+        });
+    }
+
     void ListView::removeEntity(EntityRef /* entity */)
     {
 
