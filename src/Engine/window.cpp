@@ -389,6 +389,8 @@ namespace pg
         ecs.createSystem<MouseClickSystem>(inputHandler);
 
         ecs.createSystem<MouseLeaveClickSystem>(inputHandler);
+
+        ecs.createSystem<MouseWheelSystem>(inputHandler);
         
         ecs.createSystem<TextInputSystem>(inputHandler);
 
@@ -516,15 +518,15 @@ namespace pg
                 break;
 
             case SDL_MOUSEMOTION:
-                {
-                    MousePos currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
-                    MousePos mouseDelta {(mousePos.x - currentPos.x) * xSensitivity, (currentPos.y - mousePos.y) * ySensitivity};
+            {
+                MousePos currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
+                MousePos mouseDelta {(mousePos.x - currentPos.x) * xSensitivity, (currentPos.y - mousePos.y) * ySensitivity};
 
-                    inputHandler->registerMouseMove(currentPos, mouseDelta);
+                inputHandler->registerMouseMove(currentPos, mouseDelta);
 
-                    mousePos = currentPos;
-                }
+                mousePos = currentPos;
                 break;
+            }
             
             case SDL_CONTROLLERDEVICEADDED:
                 // Todo
@@ -552,6 +554,11 @@ namespace pg
             case SDL_TEXTINPUT:
                 LOG_MILE(DOM, "MESSAGE: Text input: " << std::string(event.text.text));
                 ecs.sendEvent(OnSDLTextInput{std::string(event.text.text)});
+                break;
+
+            case SDL_MOUSEWHEEL:
+                LOG_MILE(DOM, "MESSAGE: Mouse wheel scrolled: " << event.wheel.y);
+                ecs.sendEvent(OnSDLMouseWheel{event.wheel.x, event.wheel.y});
                 break;
         }
     }

@@ -220,6 +220,29 @@ namespace pg
         }
     }
 
+    void MouseWheelSystem::onEvent(const OnSDLMouseWheel& event)
+    {
+        int highestZ = INT_MIN;
+        const auto& mousePos = inputHandler->getMousePos();
+
+        for (const auto& mouseArea : mouseAreaHolder)
+        {
+            auto pos = mouseArea.pos;
+
+            if (pos->z < highestZ)
+                break;
+
+            if (inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
+            {
+                highestZ = pos->z;
+
+                auto comp = static_cast<Own<MouseWheelComponent>*>(this)->getComponent(mouseArea.id);
+
+                comp->callback->call(world());
+            }
+        }
+    }
+
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs)
     {
         const auto& z = lhs.pos->z;

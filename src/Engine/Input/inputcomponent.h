@@ -52,6 +52,15 @@ namespace pg
         CallablePtr callback;
     };
 
+    struct MouseWheelComponent
+    {
+        MouseWheelComponent(CallablePtr callback) : callback(callback) { LOG_THIS_MEMBER("MouseWheelComponent"); }
+        MouseWheelComponent(const MouseWheelComponent& rhs) : callback(rhs.callback) { LOG_THIS_MEMBER("MouseWheelComponent"); }
+        virtual ~MouseWheelComponent() { LOG_THIS_MEMBER("MouseWheelComponent"); }
+
+        CallablePtr callback;
+    };
+
     struct OnMouseClick
     {
         OnMouseClick(const MousePos& pos, const MouseButton& button) : pos(pos), button(button) { }
@@ -88,6 +97,12 @@ namespace pg
     struct OnSDLScanCodeReleased
     {
         SDL_Scancode key;
+    };
+
+    struct OnSDLMouseWheel
+    {
+        Sint32 x;
+        Sint32 y;
     };
 
     struct OnSDLGamepadPressed
@@ -165,7 +180,7 @@ namespace pg
             });
 
             group->removeOfGroup([this](EntitySystem*, _unique_id id) {
-                LOG_MILE("MouseLeaveClickSystem", "Add entity " << id << " to ui - mouse leave click group !");
+                LOG_MILE("MouseLeaveClickSystem", "Remove entity " << id << " of ui - mouse leave click group !");
 
                 const auto& it = std::find_if(mouseAreaHolder.begin(), mouseAreaHolder.end(), [id](const MouseAreaZ& area) { return area.id == id; });
 
@@ -195,6 +210,42 @@ namespace pg
 
         Input *inputHandler;
         std::set<MouseAreaZ, std::less<>> mouseAreaHolder;
+    };
+
+    struct MouseWheelSystem : public System<Listener<OnSDLMouseWheel>, Own<MouseWheelComponent>, InitSys>
+    {
+        MouseWheelSystem(Input *inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseWheelSystem"); }
+
+        virtual std::string getSystemName() const override { return "Mouse Wheel System"; }
+
+        virtual void init() override
+        {
+            LOG_THIS_MEMBER("MouseWheelSystem");
+
+            auto group = registerGroup<PositionComponent, MouseWheelComponent>();
+
+            group->addOnGroup([this](EntityRef entity) {
+                LOG_MILE("MouseWheelSystem", "Add entity " << entity->id << " to ui - mouse wheel group !");
+                
+                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
+            });
+
+            group->removeOfGroup([this](EntitySystem*, _unique_id id) {
+                LOG_MILE("MouseWheelSystem", "Remove entity " << id << " of ui - mouse wheel group !");
+
+                const auto& it = std::find_if(mouseAreaHolder.begin(), mouseAreaHolder.end(), [id](const MouseAreaZ& area) { return area.id == id; });
+
+                if (it != mouseAreaHolder.end())
+                {
+                    mouseAreaHolder.erase(it);
+                }
+            });
+        }
+
+        virtual void onEvent(const OnSDLMouseWheel& event) override;
+
+        Input *inputHandler;
+        std::set<MouseAreaZ, std::greater<>> mouseAreaHolder;
     };
 
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs);
