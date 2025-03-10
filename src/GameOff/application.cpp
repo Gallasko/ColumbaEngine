@@ -26,6 +26,8 @@
 
 #include "2D/position.h"
 
+#include "UI/sizer.h"
+
 using namespace pg;
 
 namespace
@@ -331,6 +333,33 @@ void initGame()
     mainWindow->interpreter->interpretFromFile("main.pg");
 
     LOG_INFO(DOM, "Size of UiComponent: " << sizeof(UiComponent) << " vs size of Position: " << sizeof(PositionComponent) << " and size of Anchor: " << sizeof(UiAnchor));
+
+
+
+
+    auto ecsRef = &mainWindow->ecs;
+
+    auto s0 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+    auto s1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+    auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+    auto s3 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+    auto s4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+    auto s5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+
+    auto hLayout = makeHorizontalLayout(ecsRef, 30, 150, 300, 100);
+
+    hLayout.get<HorizontalLayout>()->spacing = 7;
+
+    hLayout.get<HorizontalLayout>()->addEntity(s0.entity);
+    hLayout.get<HorizontalLayout>()->addEntity(s1.entity);
+    hLayout.get<HorizontalLayout>()->addEntity(s2.entity);
+    hLayout.get<HorizontalLayout>()->addEntity(s3.entity);
+    hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
+    hLayout.get<HorizontalLayout>()->addEntity(s5.entity);
+
+
+
+
 
     mainWindow->ecs.start();
 

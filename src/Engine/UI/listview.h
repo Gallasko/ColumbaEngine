@@ -2,8 +2,6 @@
 
 #include "ECS/system.h"
 
-#include "uisystem.h"
-
 #include "2D/texture.h"
 
 #include "focusable.h"
@@ -77,7 +75,6 @@ namespace pg
 
         void removeEntity(EntityRef entity);
 
-        // Todo send an event for visibility update
         void setVisibility(bool visible) { ecsRef->sendEvent(UpdateListViewVisibility{id, visible}); }
 
         void clear() { ecsRef->sendEvent(ClearListViewEvent{id}); }
@@ -108,11 +105,9 @@ namespace pg
         EntitySystem *ecsRef;
     };
 
-    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Listener<EntityChangedEvent>, Listener<UpdateListViewVisibility>, Own<ListView>, Own<ListViewBodySizer>, InitSys>
+    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Listener<EntityChangedEvent>, Listener<UpdateListViewVisibility>, Own<ListView>, Own<ListViewBodySizer>>
     {
         virtual std::string getSystemName() const override { return "ListView System"; }
-
-        virtual void init() override;
 
         virtual void onEvent(const AddListViewElementEvent& event) override
         {

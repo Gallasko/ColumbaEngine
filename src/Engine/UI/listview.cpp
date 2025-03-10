@@ -14,11 +14,6 @@ namespace pg
 
     }
 
-    void ListViewSystem::init()
-    {
-        
-    }
-
     void ListViewSystem::addEntity(EntityRef viewEnt, _unique_id ui)
     {
         if (not viewEnt->has<PositionComponent>() or not viewEnt->has<UiAnchor>())

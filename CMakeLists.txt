@@ -155,6 +155,7 @@ set(ENGINESOURCE
     src/Engine/UI/progressbar.cpp
     src/Engine/UI/scrollable.cpp
     src/Engine/UI/sentencesystem.cpp
+    src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
     src/Engine/UI/ttftext.cpp
     src/Engine/UI/uianimation.cpp

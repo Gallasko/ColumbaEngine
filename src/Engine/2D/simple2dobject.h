@@ -83,7 +83,7 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<PositionComponent, Simple2DObject> makeSimple2DShape(Type *ecs, const Shape2D& shape, float width, float height, const constant::Vector4D& colors)
+    CompList<PositionComponent, Simple2DObject> makeSimple2DShape(Type *ecs, const Shape2D& shape, float width = 0.0f, float height = 0.0f, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
         LOG_THIS(DOM);
 
@@ -97,5 +97,24 @@ namespace pg
         auto tex = ecs->template attach<Simple2DObject>(entity, shape, colors);
 
         return {entity, ui, tex};
+    }
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor, Simple2DObject> makeUiSimple2DShape(Type *ecs, const Shape2D& shape, float width = 0.0f, float height = 0.0f, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f})
+    {
+        LOG_THIS(DOM);
+
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        auto tex = ecs->template attach<Simple2DObject>(entity, shape, colors);
+
+        return {entity, ui, anchor, tex};
     }
 }

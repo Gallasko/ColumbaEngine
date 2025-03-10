@@ -23,6 +23,7 @@
 #include "UI/sentencesystem.h"
 #include "UI/listview.h"
 #include "UI/prefab.h"
+#include "UI/sizer.h"
 
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
@@ -397,6 +398,8 @@ namespace pg
 
         ecs.createSystem<PrefabSystem>();
 
+        ecs.createSystem<HorizontalLayoutSystem>();
+
         ecs.createSystem<ListViewSystem>();
 
         // Ecs task scheduling
@@ -413,6 +416,7 @@ namespace pg
         ecs.succeed<PositionComponentSystem, TTFTextSystem>();
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs.succeed<PositionComponentSystem, ListViewSystem>();
+        ecs.succeed<PositionComponentSystem, HorizontalLayoutSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
