@@ -30,6 +30,8 @@ namespace pg
         view->entities.push_back(ent);
 
         recalculateChildrenPos(viewEnt);
+
+        updateVisibility(viewEnt, view->visible);
     }
 
     void HorizontalLayoutSystem::recalculateChildrenPos(EntityRef viewEnt)
@@ -39,6 +41,9 @@ namespace pg
 
         float currentX = viewUi->x, currentY = viewUi->y, maxHeight = 0.0f;
         size_t nbElementOnCurrentRow = 0;
+
+        float currentRowWidth = 0.0f;
+        size_t firstRowElementIndex = 0;
 
         const float maxWidthPos = viewUi->x + viewUi->width;
 
@@ -61,13 +66,36 @@ namespace pg
 
                 currentY += pos->height + view->spacing;
 
+                firstRowElementIndex = i + 1;
+
                 continue;
             }
 
-            if (currentX + pos->width > maxWidthPos)
+            if (view->fitToWidth and (currentX + pos->width > maxWidthPos))
             {
                 currentX = viewUi->x;
                 currentY += maxHeight + view->spacing;
+
+                if (view->spacedInWidth)
+                {
+                    auto rowSpacing = nbElementOnCurrentRow > 1 ? (viewUi->width - currentRowWidth) / (nbElementOnCurrentRow - 1) : (viewUi->width - currentRowWidth);
+                    auto currentRowX = viewUi->x;
+
+                    for (size_t j = 0; j < nbElementOnCurrentRow; j++)
+                    {
+                        auto rowEnt = view->entities[firstRowElementIndex + j];
+
+                        auto rowPos = rowEnt->get<PositionComponent>();
+
+                        rowPos->setX(currentRowX);
+
+                        currentRowX += rowPos->width + rowSpacing;
+                    }
+
+                    currentRowWidth = 0;
+
+                    firstRowElementIndex = i;
+                }
 
                 // We decrement the counter to stay on the current entity
                 i--;
@@ -75,12 +103,45 @@ namespace pg
                 continue;
             }
 
-            pos->setX(currentX);
+            if (view->spacedInWidth)
+            {
+                // If we space the entities horizontally, we can't update the x until the whole row has been processed
+                currentRowWidth += pos->width;
+            }
+            else
+            {
+                pos->setX(currentX);
+            }
+
             pos->setY(currentY);
 
             currentX += pos->width + view->spacing;
             maxHeight = std::max(maxHeight, pos->height);
             nbElementOnCurrentRow++;
+        }
+
+        if (view->spacedInWidth and (firstRowElementIndex < view->entities.size()))
+        {
+            auto rowSpacing = (viewUi->width - currentRowWidth) / (nbElementOnCurrentRow + 1);
+            auto currentRowX = viewUi->x;
+
+            if (currentRowWidth > viewUi->width)
+                rowSpacing = view->spacing;
+            else
+                currentRowX += rowSpacing;
+
+            for (size_t j = 0; j < nbElementOnCurrentRow; j++)
+            {
+                auto rowEnt = view->entities[firstRowElementIndex + j];
+
+                auto rowPos = rowEnt->get<PositionComponent>();
+
+                rowPos->setX(currentRowX);
+
+                currentRowX += rowPos->width + rowSpacing;
+            }
+
+            currentRowWidth = 0;
         }
     }
 

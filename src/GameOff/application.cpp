@@ -343,23 +343,38 @@ void initGame()
     auto s1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
     auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
     auto s3 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-    auto s4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-    auto s5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+
+
+    auto s4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+    s4.get<PositionComponent>()->setX(30);
+    s4.get<PositionComponent>()->setY(80);
+
+    auto s5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {196.0f, 0.0f, 0.0f, 255.0f});
+    s5.get<PositionComponent>()->setX(270);
+    s5.get<PositionComponent>()->setY(80);
+
+    auto s6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+    auto s7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+    auto s8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
 
     auto hLayout = makeHorizontalLayout(ecsRef, 30, 150, 300, 100);
 
     hLayout.get<HorizontalLayout>()->spacing = 7;
 
+    // hLayout.get<HorizontalLayout>()->spacedInWidth = true;
+    hLayout.get<HorizontalLayout>()->fitToWidth = true;
+
     hLayout.get<HorizontalLayout>()->addEntity(s0.entity);
     hLayout.get<HorizontalLayout>()->addEntity(s1.entity);
     hLayout.get<HorizontalLayout>()->addEntity(s2.entity);
     hLayout.get<HorizontalLayout>()->addEntity(s3.entity);
-    hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
-    hLayout.get<HorizontalLayout>()->addEntity(s5.entity);
 
+    hLayout.get<HorizontalLayout>()->addEntity(s6.entity);
+    hLayout.get<HorizontalLayout>()->addEntity(s7.entity);
+    hLayout.get<HorizontalLayout>()->addEntity(s8.entity);
 
-
-
+    // hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
+    // hLayout.get<HorizontalLayout>()->addEntity(s5.entity);
 
     mainWindow->ecs.start();
 
