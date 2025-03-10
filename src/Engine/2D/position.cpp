@@ -22,6 +22,12 @@ namespace pg
                 case AnchorType::Bottom:
                     return posComp->y + posComp->height;
                     break;
+                case AnchorType::VerticalCenter:
+                    return posComp->y + posComp->height / 2.0f;
+                    break;
+                case AnchorType::HorizontalCenter:
+                    return posComp->x + posComp->width / 2.0f;
+                    break;
                 default:
                     // Todo add support for width, height, center alignment ... to this getter
                     LOG_ERROR("UiAnchor", "Invalid anchor type, type is not yet managed");
@@ -114,8 +120,10 @@ namespace pg
 
     void UiAnchor::clearTopAnchor()
     {
+        if (hasTopAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
+
         hasTopAnchor = false;
-        // Todo send remove parenting event
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
 
@@ -129,8 +137,10 @@ namespace pg
 
     void UiAnchor::clearLeftAnchor()
     {
+        if (hasLeftAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
+
         hasLeftAnchor = false;
-        // Todo send remove parenting event
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
 
@@ -144,8 +154,10 @@ namespace pg
 
     void UiAnchor::clearRightAnchor()
     {
+        if (hasRightAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
+
         hasRightAnchor = false;
-        // Todo send remove parenting event
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
 
@@ -159,9 +171,83 @@ namespace pg
 
     void UiAnchor::clearBottomAnchor()
     {
+        if (hasBottomAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
+
         hasBottomAnchor = false;
-        // Todo send remove parenting event
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void UiAnchor::setVerticalCenter(const PosAnchor& anchor)
+    {
+        verticalCenterAnchor = anchor;
+        hasVerticalCenter = true;
+        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
+        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void UiAnchor::clearVerticalCenter()
+    {
+        if (hasVerticalCenter)
+            ecsRef->sendEvent(ClearParentingEvent{verticalCenterAnchor.id, id});
+
+        hasVerticalCenter = false;
+        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void UiAnchor::setHorizontalCenter(const PosAnchor& anchor)
+    {
+        horizontalCenterAnchor = anchor;
+        hasHorizontalCenter = true;
+        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
+        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void UiAnchor::clearHorizontalCenter()
+    {
+        if (hasHorizontalCenter)
+            ecsRef->sendEvent(ClearParentingEvent{horizontalCenterAnchor.id, id});
+
+        hasHorizontalCenter = false;
+        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+    }
+
+    void UiAnchor::fillIn(const UiAnchor& anchor)
+    {
+        setTopAnchor(PosAnchor{anchor.id, AnchorType::Top});
+        setLeftAnchor(PosAnchor{anchor.id, AnchorType::Left});
+        setRightAnchor(PosAnchor{anchor.id, AnchorType::Right});
+        setBottomAnchor(PosAnchor{anchor.id, AnchorType::Bottom});
+    }
+
+    void UiAnchor::fillIn(const UiAnchor* anchor)
+    {
+        setTopAnchor(PosAnchor{anchor->id, AnchorType::Top});
+        setLeftAnchor(PosAnchor{anchor->id, AnchorType::Left});
+        setRightAnchor(PosAnchor{anchor->id, AnchorType::Right});
+        setBottomAnchor(PosAnchor{anchor->id, AnchorType::Bottom});
+    }
+
+    void UiAnchor::centeredIn(const UiAnchor& anchor)
+    {
+        setVerticalCenter(PosAnchor{anchor.id, AnchorType::VerticalCenter});
+        setHorizontalCenter(PosAnchor{anchor.id, AnchorType::HorizontalCenter});
+    }
+
+    void UiAnchor::centeredIn(const UiAnchor* anchor)
+    {
+        setVerticalCenter(PosAnchor{anchor->id, AnchorType::VerticalCenter});
+        setHorizontalCenter(PosAnchor{anchor->id, AnchorType::HorizontalCenter});
+    }
+
+    void UiAnchor::clearAnchors()
+    {
+        clearTopAnchor();
+        clearBottomAnchor();
+        clearLeftAnchor();
+        clearRightAnchor();
+        clearVerticalCenter();
+        clearHorizontalCenter();
     }
 
     void UiAnchor::setTopMargin(float value)
@@ -188,6 +274,7 @@ namespace pg
         ecsRef->sendEvent(PositionComponentChangedEvent{id});
     }
 
+    // Todo need to create a clear constrain method for the constrains
     void UiAnchor::setWidthConstrain(const PosConstrain& constrain)
     {
         widthConstrain = constrain;
@@ -222,6 +309,9 @@ namespace pg
         left = PosAnchor{id, AnchorType::Left, 0.0f};
         right = PosAnchor{id, AnchorType::Right, 0.0f};
         bottom = PosAnchor{id, AnchorType::Bottom, 0.0f};
+
+        verticalCenter = PosAnchor{id, AnchorType::VerticalCenter, 0.0f};
+        horizontalCenter = PosAnchor{id, AnchorType::HorizontalCenter, 0.0f};
     }
 
     void UiAnchor::updateAnchor(bool hasAnchor, PosAnchor& anchor)
@@ -248,6 +338,8 @@ namespace pg
         left.value = pos->x;
         right.value = pos->x + pos->width;
         bottom.value = pos->y + pos->height;
+        verticalCenter.value = pos->y + pos->height / 2.0f;
+        horizontalCenter.value = pos->x + pos->width / 2.0f;
 
         if (not ecsRef)
             return anchorChanged;
@@ -256,6 +348,8 @@ namespace pg
         updateAnchor(hasLeftAnchor, leftAnchor);
         updateAnchor(hasRightAnchor, rightAnchor);
         updateAnchor(hasBottomAnchor, bottomAnchor);
+        updateAnchor(hasVerticalCenter, verticalCenterAnchor);
+        updateAnchor(hasHorizontalCenter, horizontalCenterAnchor);
 
         return anchorChanged;
     }
@@ -398,6 +492,18 @@ namespace pg
         else if (not anchor.hasRightAnchor and anchor.hasLeftAnchor)
         {
             this->x = anchor.leftAnchor.value + anchor.leftMargin;
+        }
+
+        // Todo we shouldn't be able to center vertically or horizontally if a basic cardinal anchor is set and vice versa
+        // When setting a new anchor we should automatically remove all previously set anchors in conflict with the new one !
+        if (anchor.hasVerticalCenter)
+        {
+            this->y = anchor.verticalCenterAnchor.value - this->height / 2.0f;
+        }
+
+        if (anchor.hasHorizontalCenter)
+        {
+            this->x = anchor.horizontalCenterAnchor.value - this->width / 2.0f;
         }
 
         // Cannot do constrain calculation if we don't have access to ecsRef

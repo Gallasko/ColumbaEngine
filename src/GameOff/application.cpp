@@ -27,6 +27,7 @@
 #include "2D/position.h"
 
 #include "UI/sizer.h"
+#include "UI/prefab.h"
 
 using namespace pg;
 
@@ -172,6 +173,63 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         ecsRef->attach<ClippedTo>(progressBar.entity, clipper->id);
 
         */
+
+        auto s0 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto s1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto s3 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+
+
+        auto s4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        s4.get<PositionComponent>()->setX(30);
+        s4.get<PositionComponent>()->setY(80);
+
+        auto s5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {196.0f, 0.0f, 0.0f, 255.0f});
+        s5.get<PositionComponent>()->setX(270);
+        s5.get<PositionComponent>()->setY(80);
+
+        auto s6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto s7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto s8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+
+        auto hLayout = makeHorizontalLayout(ecsRef, 30, 150, 300, 100);
+
+        hLayout.get<HorizontalLayout>()->spacing = 7;
+
+        hLayout.get<HorizontalLayout>()->spacedInWidth = true;
+        hLayout.get<HorizontalLayout>()->fitToWidth = true;
+
+        hLayout.get<HorizontalLayout>()->addEntity(s0.entity);
+        hLayout.get<HorizontalLayout>()->addEntity(s1.entity);
+        hLayout.get<HorizontalLayout>()->addEntity(s2.entity);
+        hLayout.get<HorizontalLayout>()->addEntity(s3.entity);
+
+        hLayout.get<HorizontalLayout>()->addEntity(s6.entity);
+        hLayout.get<HorizontalLayout>()->addEntity(s7.entity);
+        hLayout.get<HorizontalLayout>()->addEntity(s8.entity);
+
+        hLayout.get<PositionComponent>()->setWidth(380);
+
+        s3.get<PositionComponent>()->setWidth(150);
+
+        auto buttonPrefab = makeAnchoredPrefab(ecsRef);
+
+        auto buttonTex = makeUiSimple2DShape(ecsRef, Shape2D::Square, 100, 60, {255.0f, 255.0f, 255.0f, 255.0f});
+        buttonTex.get<UiAnchor>()->fillIn(buttonPrefab.get<UiAnchor>());
+        buttonPrefab.get<UiAnchor>()->setWidthConstrain(PosConstrain{buttonTex.entity.id, AnchorType::Width});
+        buttonPrefab.get<UiAnchor>()->setHeightConstrain(PosConstrain{buttonTex.entity.id, AnchorType::Height});
+
+        auto buttonText = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Click Me", 0.4f, {0.0f, 0.0f, 0.0f, 255.f});
+        buttonText.get<UiAnchor>()->centeredIn(buttonTex.get<UiAnchor>());
+        // buttonText.get<UiAnchor>()->setTopAnchor(buttonTex.get<UiAnchor>()->top);
+        // buttonText.get<UiAnchor>()->setHorizontalCenter(buttonTex.get<UiAnchor>()->horizontalCenter);
+        // buttonText.get<UiAnchor>()->setLeftAnchor(buttonTex.get<UiAnchor>()->left);
+        buttonText.get<UiAnchor>()->setZConstrain(PosConstrain{buttonTex.entity.id, AnchorType::Z, PosOpType::Add, 1});
+
+        buttonPrefab.get<Prefab>()->addToPrefab(buttonTex.entity);
+        buttonPrefab.get<Prefab>()->addToPrefab(buttonText.entity);
+
+        hLayout.get<HorizontalLayout>()->addEntity(buttonPrefab.entity);
 
         // barComp = progressBar.get<ProgressBarComponent>();
 
@@ -333,49 +391,6 @@ void initGame()
     mainWindow->interpreter->interpretFromFile("main.pg");
 
     LOG_INFO(DOM, "Size of UiComponent: " << sizeof(UiComponent) << " vs size of Position: " << sizeof(PositionComponent) << " and size of Anchor: " << sizeof(UiAnchor));
-
-
-
-
-    auto ecsRef = &mainWindow->ecs;
-
-    auto s0 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-    auto s1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-    auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-    auto s3 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-
-
-    auto s4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
-    s4.get<PositionComponent>()->setX(30);
-    s4.get<PositionComponent>()->setY(80);
-
-    auto s5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {196.0f, 0.0f, 0.0f, 255.0f});
-    s5.get<PositionComponent>()->setX(270);
-    s5.get<PositionComponent>()->setY(80);
-
-    auto s6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-    auto s7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-    auto s8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-
-    auto hLayout = makeHorizontalLayout(ecsRef, 30, 150, 300, 100);
-
-    hLayout.get<HorizontalLayout>()->spacing = 7;
-
-    hLayout.get<HorizontalLayout>()->spacedInWidth = true;
-    hLayout.get<HorizontalLayout>()->fitToWidth = true;
-
-    hLayout.get<HorizontalLayout>()->addEntity(s0.entity);
-    hLayout.get<HorizontalLayout>()->addEntity(s1.entity);
-    hLayout.get<HorizontalLayout>()->addEntity(s2.entity);
-    hLayout.get<HorizontalLayout>()->addEntity(s3.entity);
-
-    hLayout.get<HorizontalLayout>()->addEntity(s6.entity);
-    hLayout.get<HorizontalLayout>()->addEntity(s7.entity);
-    hLayout.get<HorizontalLayout>()->addEntity(s8.entity);
-
-    hLayout.get<PositionComponent>()->setWidth(380);
-
-    s3.get<PositionComponent>()->setWidth(150);
 
     // hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
     // hLayout.get<HorizontalLayout>()->addEntity(s5.entity);

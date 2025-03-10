@@ -2,8 +2,6 @@
 
 #include "ECS/system.h"
 
-// #include "uisystem.h"
-
 #include "2D/position.h"
 
 namespace pg
@@ -236,7 +234,7 @@ namespace pg
     }
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, Prefab> makeAnchoredPrefab(Type *ecs, float x, float y)
+    CompList<PositionComponent, UiAnchor, Prefab> makeAnchoredPrefab(Type *ecs, float x = 0.0f, float y = 0.0f)
     {
         LOG_THIS("Prefab System");
 

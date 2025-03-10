@@ -19,7 +19,9 @@ namespace pg
         TMargin,
         RMargin,
         BMargin,
-        LMargin
+        LMargin,
+        VerticalCenter,
+        HorizontalCenter
     };
 
     struct PositionComponentChangedEvent
@@ -58,6 +60,12 @@ namespace pg
         _unique_id child = 0;
     };
 
+    struct ClearParentingEvent
+    {
+        _unique_id parent = 0;
+        _unique_id id = 0;
+    };
+
     // Forward declaration
     struct PositionComponent;
 
@@ -72,6 +80,7 @@ namespace pg
         PosAnchor right;
         PosAnchor bottom;
 
+        // Basic cardinal anchors
         bool hasTopAnchor = false;
         bool hasLeftAnchor = false;
         bool hasRightAnchor = false;
@@ -82,11 +91,23 @@ namespace pg
         PosAnchor rightAnchor;
         PosAnchor bottomAnchor;
 
+        // Advanced cardinal anchors
+        PosAnchor verticalCenter;
+        PosAnchor horizontalCenter;
+
+        bool hasVerticalCenter = false;
+        bool hasHorizontalCenter = false;
+
+        PosAnchor verticalCenterAnchor;
+        PosAnchor horizontalCenterAnchor;
+
+        // Cardinal margins
         float topMargin = 0.0f;
         float leftMargin = 0.0f;
         float rightMargin = 0.0f;
         float bottomMargin = 0.0f;
 
+        // Constrains
         bool hasWidthConstrain = false;
         bool hasHeightConstrain = false;
         bool hasZConstrain = false;
@@ -106,6 +127,19 @@ namespace pg
 
         void setBottomAnchor(const PosAnchor& anchor);
         void clearBottomAnchor();
+
+        void setVerticalCenter(const PosAnchor& anchor);
+        void clearVerticalCenter();
+
+        void setHorizontalCenter(const PosAnchor& anchor);
+        void clearHorizontalCenter();
+
+        void fillIn(const UiAnchor& anchor);
+        void fillIn(const UiAnchor* anchor);
+        void centeredIn(const UiAnchor& anchor);
+        void centeredIn(const UiAnchor* anchor);
+
+        void clearAnchors();
 
         void setTopMargin(float value);
         void setLeftMargin(float value);
