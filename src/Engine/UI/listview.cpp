@@ -11,6 +11,8 @@ namespace pg
 
     void ListViewSystem::init()
     {
+        addListenerToStandardEvent("listviewscroll");
+
         auto group = registerGroup<PositionComponent, ListView>();
 
         group->addOnGroup([this](EntityRef entity) {
@@ -22,6 +24,50 @@ namespace pg
             listview->visible = position->visible;
         });
     }
+
+    void ListViewSystem::onEvent(const StandardEvent& event)
+    {
+        auto id = event.values.at("id").get<size_t>();
+
+        auto ent = ecsRef->getEntity(id);
+
+        if (not ent or (not ent->has<ListView>()))
+        {
+            LOG_ERROR(DOM, "Error while looking for entity: " << id);
+            return;
+        }
+
+        auto viewComp = ent->get<ListView>();
+        auto cursorAnchor = viewComp->cursor->get<UiAnchor>();
+
+        auto viewUi = ent->get<PositionComponent>();
+        auto cursorUi = viewComp->cursor->get<PositionComponent>();
+
+        auto currentPos = cursorAnchor->topMargin - event.values.at("y").get<int>() * viewComp->scrollSpeed;
+
+        if (currentPos < 0)
+            currentPos = 0;
+
+        float maxHeight = viewUi->height - cursorUi->height;
+
+        if (currentPos > maxHeight)
+            currentPos = maxHeight;
+
+        cursorAnchor->setTopMargin(currentPos);
+
+        if (viewComp->entities.size() > 0)
+        {
+            if (viewComp->entities[0]->has<UiAnchor>())
+            {
+                viewComp->entities[0]->get<UiAnchor>()->setTopMargin(-currentPos * viewComp->listReelHeight / viewUi->height);
+            }
+            else
+            {
+                LOG_ERROR("ListViewSystem", "First entity in the list [" << id << "] must have a UiAnchor!");
+            }   
+        }
+        
+    };
 
     void ListView::removeEntity(EntityRef /* entity */)
     {

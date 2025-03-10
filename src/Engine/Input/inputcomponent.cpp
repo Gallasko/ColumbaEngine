@@ -238,7 +238,12 @@ namespace pg
 
                 auto comp = static_cast<Own<MouseWheelComponent>*>(this)->getComponent(mouseArea.id);
 
-                comp->callback->call(world());
+                auto retEvent = comp->event;
+
+                retEvent.values["x"] = event.x;
+                retEvent.values["y"] = event.y;
+
+                ecsRef->sendEvent(retEvent);
             }
         }
     }

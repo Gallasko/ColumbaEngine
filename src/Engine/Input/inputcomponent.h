@@ -54,11 +54,11 @@ namespace pg
 
     struct MouseWheelComponent
     {
-        MouseWheelComponent(CallablePtr callback) : callback(callback) { LOG_THIS_MEMBER("MouseWheelComponent"); }
-        MouseWheelComponent(const MouseWheelComponent& rhs) : callback(rhs.callback) { LOG_THIS_MEMBER("MouseWheelComponent"); }
+        MouseWheelComponent(const StandardEvent& event) : event(event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
+        MouseWheelComponent(const MouseWheelComponent& rhs) : event(rhs.event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
         virtual ~MouseWheelComponent() { LOG_THIS_MEMBER("MouseWheelComponent"); }
 
-        CallablePtr callback;
+        StandardEvent event;
     };
 
     struct OnMouseClick

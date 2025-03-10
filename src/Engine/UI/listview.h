@@ -93,6 +93,8 @@ namespace pg
         /** Spacing between each entity of the list */
         float spacing = 5;
 
+        float scrollSpeed = 25;
+
         /** Flag indicating whether the list must show the last item in the list when adding a new entity */
         bool stickToBottom = false;
 
@@ -105,11 +107,13 @@ namespace pg
         EntitySystem *ecsRef;
     };
 
-    struct ListViewSystem : public System<Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Listener<EntityChangedEvent>, Listener<UpdateListViewVisibility>, Own<ListView>, Own<ListViewBodySizer>, InitSys>
+    struct ListViewSystem : public System<Listener<StandardEvent>, Listener<AddListViewElementEvent>, Listener<ClearListViewEvent>, Listener<EntityChangedEvent>, Listener<UpdateListViewVisibility>, Own<ListView>, Own<ListViewBodySizer>, InitSys>
     {
         virtual std::string getSystemName() const override { return "ListView System"; }
 
         virtual void init() override;
+
+        virtual void onEvent(const StandardEvent& event) override;
 
         virtual void onEvent(const AddListViewElementEvent& event) override
         {
@@ -267,6 +271,8 @@ namespace pg
 
         auto anchor = ecs->template attach<UiAnchor>(entity);
 
+        ecs->template attach<MouseWheelComponent>(entity, StandardEvent{"listviewscroll", "id", entity->id});
+
         // Z + 3 so the cursor is always on top of the slider
         auto cursor = makeUiTexture(ecs, 15, height, "cursor");
         auto cursorAnchor = cursor.template get<UiAnchor>();
@@ -275,14 +281,10 @@ namespace pg
         cursorAnchor->setTopAnchor(anchor->top);
         cursorAnchor->setRightAnchor(anchor->right);
 
-        ecs->template attach<FocusableComponent>(cursor.entity);
-
         auto viewId = view.entityId;
 
-        auto cursorId = cursor.entity.id;
-
         // Todo improve this (should be possible with the new constrain system for position)
-        // Todo add this back first
+        // Todo also do this function on mouse click !
         std::function<void(const OnMouseMove&)> cursorCallback = [viewId, ecs](const OnMouseMove event) {
             if (not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
                 return;
@@ -295,7 +297,7 @@ namespace pg
             auto viewComp = ent->template get<ListView>();
             auto viewUi = ent->template get<PositionComponent>();
 
-            auto focus = viewComp->cursor->template get<FocusableComponent>();
+            auto focus = viewComp->slider->template get<FocusableComponent>();
             auto cursorUi = viewComp->cursor->template get<PositionComponent>();
             auto cursorAnchor = viewComp->cursor->template get<UiAnchor>();
 
@@ -333,10 +335,6 @@ namespace pg
             sys->updateVisibility(ent, viewUi->visible);
         };
 
-        ecs->template attach<OnEventComponent>(cursor.entity, cursorCallback);
-
-        ecs->template attach<MouseLeftClickComponent>(cursor.entity, makeCallable<OnFocus>(cursorId), MouseStateTrigger::OnPress);
-
         // Z + 2 so the slider is always on top of any entity in the list
         auto slider = makeUiTexture(ecs, 15, 1, "slider");
         auto sliderAnchor = slider.template get<UiAnchor>();
@@ -345,6 +343,12 @@ namespace pg
         sliderAnchor->setTopAnchor(anchor->top);
         sliderAnchor->setBottomAnchor(anchor->bottom);
         sliderAnchor->setRightAnchor(anchor->right);
+
+        ecs->template attach<FocusableComponent>(slider.entity);
+
+        ecs->template attach<OnEventComponent>(slider.entity, cursorCallback);
+
+        ecs->template attach<MouseLeftClickComponent>(slider.entity, makeCallable<OnFocus>(slider.entity.id), MouseStateTrigger::OnPress);
 
         auto bodySizer = makeAnchoredPosition(ecs);
         ecs->template attach<ListViewBodySizer>(bodySizer.entity, entity->id);
