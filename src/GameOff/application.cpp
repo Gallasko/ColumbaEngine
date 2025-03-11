@@ -127,12 +127,20 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
+        auto titleTTF0 = makeTTFText(ecsRef, 25, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Nexus", 0.4);
+        ecsRef->attach<MouseLeftClickComponent>(titleTTF0.entity, makeCallable<SceneToLoad>(SceneName::Customization));
+        auto t0Anchor = titleTTF0.get<UiAnchor>();
+
+        t0Anchor->setTopAnchor(windowAnchor->top);
+        t0Anchor->setTopMargin(12);
+
         auto titleTTF = makeTTFText(ecsRef, 25, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Customization", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF.entity, makeCallable<SceneToLoad>(SceneName::Customization));
         auto t1Anchor = titleTTF.get<UiAnchor>();
 
-        t1Anchor->setTopAnchor(windowAnchor->top);
-        t1Anchor->setTopMargin(12);
+        t1Anchor->setLeftAnchor(t0Anchor->right);
+        t1Anchor->setLeftMargin(8);
+        t1Anchor->setBottomAnchor(t0Anchor->bottom);
 
         auto titleTTF2 = makeTTFText(ecsRef, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Inventory", 0.4);
         ecsRef->attach<MouseLeftClickComponent>(titleTTF2.entity, makeCallable<SceneToLoad>(SceneName::Inventory));
