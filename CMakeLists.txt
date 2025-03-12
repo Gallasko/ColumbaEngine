@@ -30,6 +30,7 @@ set(TASKFLOW_DIR "import/taskflow-3.6.0")
 set(GTEST_DIR "import/googletest-1.14.0")
 set(GLEW_DIR "import/glew-cmake")
 set(TTF_DIR "import/freetype-2.13.3")
+set(GLTF_DIR "import/tinygltf")
 
 find_package(OpenGL REQUIRED)
 
@@ -49,6 +50,7 @@ else()
     add_subdirectory(${SDL2MIXER_DIR})
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
+    add_subdirectory(${GLTF_DIR})
 
     if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
@@ -64,6 +66,7 @@ add_subdirectory(${GLM_DIR})
 
 include_directories(${GLM_DIR}/glm)
 include_directories(${TASKFLOW_DIR}/taskflow)
+include_directories(${GLTF_DIR}/include)
 
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(${SDL2_DIR}/include)

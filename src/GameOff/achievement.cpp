@@ -88,6 +88,7 @@ namespace pg
 
         serialize(archive, "name", value.name);
         serialize(archive, "unlocked", value.unlocked);
+        serialize(archive, "visible", value.visible);
         serialize(archive, "prerequisiteFacts", value.prerequisiteFacts);
         serialize(archive, "rewards", value.rewardFacts);
 
@@ -112,6 +113,7 @@ namespace pg
             data.name = deserialize<std::string>(serializedString["name"]);
 
             defaultDeserialize(serializedString, "unlocked", data.unlocked);
+            defaultDeserialize(serializedString, "visible", data.visible);
             defaultDeserialize(serializedString, "prerequisiteFacts", data.prerequisiteFacts);
             defaultDeserialize(serializedString, "rewards", data.rewardFacts);
 

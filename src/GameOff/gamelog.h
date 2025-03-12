@@ -13,12 +13,26 @@ namespace pg
         std::string message;
     };
 
-    struct GameLog : System<Listener<PrintGameLog>, InitSys>
+    struct GameLog : System<Listener<PrintGameLog>, Listener<StandardEvent>, InitSys>
     {
         virtual void init() override
         {
-            auto listView = makeListView(ecsRef, 10, 10, 100, 400);
+            addListenerToStandardEvent("gamelog");
+
+            auto windowEnt = ecsRef->getEntity("__MainWindow");
+
+            auto windowAnchor = windowEnt->get<UiAnchor>();
+
+            auto listView = makeListView(ecsRef, 10, 10, 225, 0);
             logView = listView.get<ListView>();
+
+            auto listViewAnchor = listView.get<UiAnchor>();
+
+            listViewAnchor->setTopAnchor(windowAnchor->top);
+            listViewAnchor->setTopMargin(35);
+            listViewAnchor->setRightAnchor(windowAnchor->right);
+            listViewAnchor->setBottomAnchor(windowAnchor->bottom);
+            listViewAnchor->setBottomMargin(35);
 
             logView->stickToBottom = true;
 
@@ -27,20 +41,35 @@ namespace pg
 
         virtual void onEvent(const PrintGameLog& event) override
         {
-            eventQueue.push(event);
+            eventQueue.push(event.message);
+        }
+
+        virtual void onEvent(const StandardEvent& event) override
+        {
+            auto message = event.values.at("message").get<std::string>();
+            LOG_INFO("Gamelog", "Message received! " << message);
+            eventQueue.push(message);
         }
 
         virtual void execute() override
         {
             while (not eventQueue.empty())
             {
-                const auto& event = eventQueue.front();
+                const auto& message = eventQueue.front();
+
+                auto playerTurnText = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", message, 0.4);
+
+                auto ui = playerTurnText.get<PositionComponent>();
+        
+                ui->setVisibility(false);
+        
+                logView->addEntity(playerTurnText.entity);
 
                 eventQueue.pop();
             }
         }
 
         CompRef<ListView> logView;
-        std::queue<PrintGameLog> eventQueue;
+        std::queue<std::string> eventQueue;
     };
 }

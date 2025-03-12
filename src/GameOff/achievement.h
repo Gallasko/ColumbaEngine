@@ -96,6 +96,8 @@ namespace pg
 
         bool unlocked = false;
 
+        bool visible = true;
+
         std::vector<FactChecker> prerequisiteFacts;
 
         std::vector<AchievementReward> rewardFacts;

@@ -217,6 +217,22 @@ namespace pg
             changed = true;
         }
 
+        void setDefaultFact(const std::string& name, const ElementType& value)
+        {
+            auto it = factMap.find(name);
+
+            if (it == factMap.end())
+            {
+                factMap[name] = value;   
+            }
+        }
+
+        template <typename Type>
+        void setDefaultFact(const std::string& name, Type value)
+        {
+            setDefaultFact(name, ElementType{value});
+        }
+
         virtual void execute() override
         {
             if (changed)

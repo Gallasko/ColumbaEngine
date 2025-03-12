@@ -20,6 +20,8 @@
 #include "gamemodule.h"
 #include "gamefacts.h"
 
+#include "gamelog.h"
+
 #include "achievement.h"
 
 #include "Helpers/tinyfiledialogs.h"
@@ -201,6 +203,7 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto s8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
 
         auto hLayout = makeHorizontalLayout(ecsRef, 30, 150, 300, 100);
+        hLayout.get<PositionComponent>()->setVisibility(false);
 
         hLayout.get<HorizontalLayout>()->spacing = 7;
 
@@ -381,7 +384,9 @@ void initGame()
 
     // mainWindow->ecs.createSystem<PortraitLoader>(mainWindow->masterRenderer);
 
-    mainWindow->ecs.createSystem<WorldFacts>();
+    auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
+
+    worldFacts->setDefaultFact("startTuto", true);
 
     auto achievementSys = mainWindow->ecs.createSystem<AchievementSys>();
 
@@ -391,6 +396,16 @@ void initGame()
     slimeSlayed.prerequisiteFacts = { FactChecker{"Slime_defeated", 10, FactCheckEquality::GreaterEqual} };
 
     achievementSys->setDefaultAchievement(slimeSlayed);
+
+    Achievement tutoStarted;
+
+    tutoStarted.name = "TutoStarted";
+    tutoStarted.prerequisiteFacts = { FactChecker{"startTuto", true, FactCheckEquality::Equal} };
+    tutoStarted.rewardFacts = { StandardEvent{"gamelog", "message", "You just woke up in a strange place... \nYou only see a runic altar nearby."} };
+
+    achievementSys->setDefaultAchievement(tutoStarted);
+
+    mainWindow->ecs.createSystem<GameLog>();
 
     mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
 
