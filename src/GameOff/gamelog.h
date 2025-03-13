@@ -57,13 +57,16 @@ namespace pg
             {
                 const auto& message = eventQueue.front();
 
-                auto playerTurnText = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", message, 0.4);
+                auto log = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", message, 0.4);
 
-                auto ui = playerTurnText.get<PositionComponent>();
+                auto ui = log.get<PositionComponent>();
+                auto text = log.get<TTFText>();
+
+                text->wrap = true;
         
                 ui->setVisibility(false);
         
-                logView->addEntity(playerTurnText.entity);
+                logView->addEntity(log.entity);
 
                 eventQueue.pop();
             }

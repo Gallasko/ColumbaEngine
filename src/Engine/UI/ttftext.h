@@ -47,6 +47,20 @@ namespace pg
             }
         }
 
+        void setWrap(bool wrap)
+        {
+            if (this->wrap != wrap)
+            {
+                this->wrap = wrap;
+
+                if (ecsRef)
+                {
+                    changed = true;
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
+            }
+        }
+
         std::string text;
 
         float textWidth, textHeight;
@@ -56,6 +70,8 @@ namespace pg
         float scale = 1.0f;
 
         constant::Vector4D colors;
+
+        bool wrap = false;
 
         EntitySystem * ecsRef = nullptr;
 
@@ -118,6 +134,17 @@ namespace pg
         std::unordered_map<std::string, std::unordered_map<char, Character>> charactersMap;
 
         std::queue<_unique_id> textUpdateQueue;
+
+    private:
+        // Render call helpers
+        float computeLineHeight(const std::string& text, const std::string& fontPath, float scale);
+        float getGlyphAdvance(char c, const std::string& fontPath, float scale);
+        float computeWordWidth(const std::string& word, const std::string& fontPath, float scale);
+        RenderCall createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors);
+        void addSpaceRenderCall(std::vector<RenderCall>& calls, CompRef<PositionComponent> ui, const std::string& fontPath, float& currentX, float& currentLineWidth, float currentY, float z, float scale, float lineHeight, const constant::Vector4D& colors);
+        
+        std::vector<RenderCall> createWrappedRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
+        std::vector<RenderCall> createNormalRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
     };
 
     template <typename Type>
