@@ -401,6 +401,7 @@ namespace pg
         ecs.createSystem<PrefabSystem>();
 
         ecs.createSystem<HorizontalLayoutSystem>();
+        ecs.createSystem<VerticalLayoutSystem>();
 
         ecs.createSystem<ListViewSystem>();
 
@@ -419,6 +420,7 @@ namespace pg
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs.succeed<PositionComponentSystem, ListViewSystem>();
         ecs.succeed<PositionComponentSystem, HorizontalLayoutSystem>();
+        ecs.succeed<PositionComponentSystem, VerticalLayoutSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();

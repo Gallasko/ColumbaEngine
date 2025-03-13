@@ -206,22 +206,24 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto s7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
         auto s8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
 
-        auto hLayout = makeHorizontalLayout(ecsRef, 30, 150, 300, 100);
-        hLayout.get<PositionComponent>()->setVisibility(false);
+        auto hLayout = makeVerticalLayout(ecsRef, 30, 150, 100, 300);
+        // hLayout.get<PositionComponent>()->setVisibility(false);
 
-        hLayout.get<HorizontalLayout>()->spacing = 7;
+        hLayout.get<VerticalLayout>()->spacing = 7;
 
-        hLayout.get<HorizontalLayout>()->spacedInWidth = true;
-        hLayout.get<HorizontalLayout>()->fitToWidth = true;
+        // hLayout.get<VerticalLayout>()->spacedInWidth = true;
+        // hLayout.get<VerticalLayout>()->fitToWidth = true;
+        hLayout.get<VerticalLayout>()->spacedInHeight = true;
+        hLayout.get<VerticalLayout>()->fitToHeight = true;
 
-        hLayout.get<HorizontalLayout>()->addEntity(s0.entity);
-        hLayout.get<HorizontalLayout>()->addEntity(s1.entity);
-        hLayout.get<HorizontalLayout>()->addEntity(s2.entity);
-        hLayout.get<HorizontalLayout>()->addEntity(s3.entity);
+        hLayout.get<VerticalLayout>()->addEntity(s0.entity);
+        hLayout.get<VerticalLayout>()->addEntity(s1.entity);
+        hLayout.get<VerticalLayout>()->addEntity(s2.entity);
+        hLayout.get<VerticalLayout>()->addEntity(s3.entity);
 
-        hLayout.get<HorizontalLayout>()->addEntity(s6.entity);
-        hLayout.get<HorizontalLayout>()->addEntity(s7.entity);
-        hLayout.get<HorizontalLayout>()->addEntity(s8.entity);
+        hLayout.get<VerticalLayout>()->addEntity(s6.entity);
+        hLayout.get<VerticalLayout>()->addEntity(s7.entity);
+        hLayout.get<VerticalLayout>()->addEntity(s8.entity);
 
         hLayout.get<PositionComponent>()->setWidth(380);
 
@@ -244,7 +246,7 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         buttonPrefab.get<Prefab>()->addToPrefab(buttonTex.entity);
         buttonPrefab.get<Prefab>()->addToPrefab(buttonText.entity);
 
-        hLayout.get<HorizontalLayout>()->addEntity(buttonPrefab.entity);
+        hLayout.get<VerticalLayout>()->addEntity(buttonPrefab.entity);
 
         // barComp = progressBar.get<ProgressBarComponent>();
 

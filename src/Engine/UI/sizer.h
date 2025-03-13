@@ -217,4 +217,215 @@ namespace pg
 
         return {entity, ui, anchor, view};
     }
+
+    struct ClearVerticalLayoutEvent
+    {
+        _unique_id id;
+    };
+
+    struct AddVerticalLayoutElementEvent
+    {
+        _unique_id id; _unique_id ui;
+    };
+
+    struct RemoveVerticalLayoutElementEvent
+    {
+        _unique_id id; size_t index;
+    };
+
+    struct UpdateVerticalLayoutVisibility
+    {
+        _unique_id id; bool visible;
+    };
+
+    struct VerticalLayout: public Ctor
+    {
+        void onCreation(EntityRef entity) override
+        {
+            id = entity.id;
+            ecsRef = entity.ecsRef;
+        }
+
+        void addEntity(EntityRef entity) { ecsRef->sendEvent(AddVerticalLayoutElementEvent{id, entity.id}); }
+
+        void setVisibility(bool visible) { ecsRef->sendEvent(UpdateVerticalLayoutVisibility{id, visible}); }
+
+        void clear() { ecsRef->sendEvent(ClearVerticalLayoutEvent{id}); }
+
+        bool fitToHeight = false;
+
+        bool spacedInHeight = false;
+
+        size_t spacing = 0;
+
+        bool visible = true;
+
+        std::vector<EntityRef> entities;
+
+        _unique_id id;
+
+        EntitySystem *ecsRef;
+    };
+
+    struct VerticalLayoutSystem : public System<
+        Listener<EntityChangedEvent>,
+        Listener<AddVerticalLayoutElementEvent>,
+        Listener<RemoveVerticalLayoutElementEvent>,
+        Listener<UpdateVerticalLayoutVisibility>,
+        Listener<ClearVerticalLayoutEvent>,
+        Own<VerticalLayout>,
+        InitSys>
+    {
+        virtual std::string getSystemName() const override { return "Vertical Layout System"; }
+
+        virtual void init() override;
+
+        virtual void onEvent(const AddVerticalLayoutElementEvent& event) override
+        {
+            eventQueue.push(event);
+        }
+
+        virtual void onEvent(const RemoveVerticalLayoutElementEvent& /*event*/) override
+        {
+            // Todo
+        }
+
+        virtual void onEvent(const ClearVerticalLayoutEvent& event) override
+        {
+            clearQueue.push(event);
+        }
+
+        virtual void onEvent(const UpdateVerticalLayoutVisibility& event) override
+        {
+            visibilityQueue.push(event);
+        }
+
+        virtual void onEvent(const EntityChangedEvent& event) override
+        {
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent)
+            {
+                return;
+            }
+
+            if (ent->has<VerticalLayout>())
+            {
+                vLayoutUpdated.insert(ent);
+                return;
+            }
+
+            for (auto v : view<VerticalLayout>())
+            {
+                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+
+                if (it != v->entities.end())
+                {
+                    vLayoutUpdated.insert(ecsRef->getEntity(v->id));
+                    // An entity should not be in multiple layouts at the same time
+                    return;
+                }
+            }
+        }
+
+        virtual void execute() override
+        {
+            while (not clearQueue.empty())
+            {
+                const auto& event = clearQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not (ent->has<VerticalLayout>()))
+                {
+                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
+                    return;
+                }
+
+                clear(ent->get<VerticalLayout>());
+
+                clearQueue.pop();
+            }
+
+            while (not visibilityQueue.empty())
+            {
+                const auto& event = visibilityQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not (ent->has<VerticalLayout>()))
+                {
+                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component!");
+                    return;
+                }
+
+                updateVisibility(ent, event.visible);
+
+                visibilityQueue.pop();
+            }
+
+            while (not eventQueue.empty())
+            {
+                const auto& event = eventQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not (ent->has<VerticalLayout>()))
+                {
+                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
+                    return;
+                }
+
+                addEntity(ent, event.ui);
+
+                eventQueue.pop();
+            }
+
+            for (auto ent : vLayoutUpdated)
+            {
+                recalculateChildrenPos(ent);
+
+                auto view = ent->get<VerticalLayout>();
+
+                updateVisibility(ent, view->visible);
+            }
+
+            vLayoutUpdated.clear();
+        }
+
+        void addEntity(EntityRef viewEnt, _unique_id ui);
+
+        void recalculateChildrenPos(EntityRef viewEnt);
+
+        void updateVisibility(EntityRef viewEnt, bool visible);
+
+        void clear(CompRef<VerticalLayout> view);
+
+        std::queue<AddVerticalLayoutElementEvent> eventQueue;
+
+        std::queue<ClearVerticalLayoutEvent> clearQueue;
+
+        std::queue<UpdateVerticalLayoutVisibility> visibilityQueue;
+
+        std::set<EntityRef> vLayoutUpdated;
+    };
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor, VerticalLayout> makeVerticalLayout(Type *ecs, float x, float y, float width, float height)
+    {
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        auto view = ecs->template attach<VerticalLayout>(entity);
+
+        ui->setX(x);
+        ui->setY(y);
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        return {entity, ui, anchor, view};
+    }
 }

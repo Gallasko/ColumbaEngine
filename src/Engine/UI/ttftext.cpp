@@ -405,7 +405,7 @@ namespace pg
         // Process each raw line separately.
         for (size_t i = 0; i < rawLines.size(); i++)
         {
-            const std::string &line = rawLines[i];
+            const std::string& line = rawLines[i];
             
             // If the raw line is empty, force a newline.
             if (line.empty())
