@@ -198,6 +198,10 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         s5.get<PositionComponent>()->setX(270);
         s5.get<PositionComponent>()->setY(80);
 
+        auto wrappedText = makeTTFText(ecsRef, 30, 145, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "You just woke up in a strange place... \nYou only see a runic altar nearby.", 0.4f);
+        wrappedText.get<TTFText>()->wrap = true;
+        wrappedText.get<PositionComponent>()->setWidth(255);
+
         auto s6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
         auto s7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
         auto s8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);

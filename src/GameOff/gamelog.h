@@ -23,8 +23,8 @@ namespace pg
 
             auto windowAnchor = windowEnt->get<UiAnchor>();
 
-            auto listView = makeListView(ecsRef, 10, 10, 225, 0);
-            logView = listView.get<ListView>();
+            auto listView = makeListView(ecsRef, 10, 10, 255, 0);
+            auto logView = listView.get<ListView>();
 
             auto listViewAnchor = listView.get<UiAnchor>();
 
@@ -37,6 +37,8 @@ namespace pg
             logView->stickToBottom = true;
 
             logView->spacing = 5;
+
+            listViewEnt = listView.entity;
         }
 
         virtual void onEvent(const PrintGameLog& event) override
@@ -61,10 +63,19 @@ namespace pg
 
                 auto ui = log.get<PositionComponent>();
                 auto text = log.get<TTFText>();
+                auto anchor = log.get<UiAnchor>();
 
                 text->wrap = true;
         
                 ui->setVisibility(false);
+
+                auto logView = listViewEnt.get<ListView>();
+                auto logAnchor = listViewEnt.get<UiAnchor>();
+
+                anchor->setLeftAnchor(logAnchor->left);
+                anchor->setLeftMargin(15);
+                anchor->setRightAnchor(logAnchor->right);
+                anchor->setRightMargin(15);
         
                 logView->addEntity(log.entity);
 
@@ -72,7 +83,7 @@ namespace pg
             }
         }
 
-        CompRef<ListView> logView;
+        EntityRef listViewEnt;
         std::queue<std::string> eventQueue;
     };
 }
