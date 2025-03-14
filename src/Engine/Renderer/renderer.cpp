@@ -16,11 +16,28 @@ namespace fs = std::filesystem;
 
 #include "UI/uisystem.h"
 
+#include "2D/position.h"
+
 namespace pg
 {
     namespace
     {
         constexpr static const char * const DOM = "Renderer";
+    }
+
+    void RenderCall::log() const
+    {
+        LOG_INFO("RenderCall", "Key: " << key);
+        LOG_INFO("RenderCall", "Visible : " << getVisibility() << ", depth: " << getDepth() << ", mat: " << getMaterialId());
+        LOG_INFO("RenderCall", "Data size: " << data.size());
+
+        std::string dataString;
+        for (const auto value : data)
+        {
+            dataString += std::to_string(value) + ", ";
+        }
+
+        LOG_INFO("RenderCall", "Data values: " << dataString);
     }
 
     void RenderCall::processUiComponent(UiComponent *component)
@@ -43,6 +60,38 @@ namespace pg
         setDepth(component->pos.z);
     }
 
+    void RenderCall::processPositionComponent(CompRef<PositionComponent> component)
+    {
+        setVisibility(component->visible);
+
+        auto entity = component.getEntity();
+
+        if (entity and entity->has<ClippedTo>())
+        {
+            auto clippedTo = entity->get<ClippedTo>();
+
+            auto clippedToEntity = component.ecsRef->getEntity(clippedTo->clipperId);
+
+            if (clippedToEntity and clippedToEntity->has<PositionComponent>())
+            {
+                state.scissorEnabled = true;
+
+                auto position = clippedToEntity->get<PositionComponent>();
+
+                float tx = position->x;
+                float ty = position->y;
+
+                float w = position->width;
+                float h = position->height;
+
+                // To get width and height you need to subtract bottom corner to the top corner
+                state.scissorBound = constant::Vector4D{tx, ty, w, h};
+            }
+        }
+
+        setDepth(component->z);
+    }
+
     BaseAbstractRenderer::BaseAbstractRenderer(MasterRenderer *masterRenderer, const RenderStage& stage) : masterRenderer(masterRenderer), renderStage(stage)
     {
         LOG_THIS_MEMBER("Base Abstract Renderer");
@@ -50,9 +99,14 @@ namespace pg
         masterRenderer->addRenderer(this);
     }
 
-    MasterRenderer::MasterRenderer()
+    MasterRenderer::MasterRenderer(const std::string& noneTexturePath)
     {
         LOG_THIS_MEMBER(DOM);
+
+        if (noneTexturePath != "")
+        {
+            registerTexture("NoneIcon", noneTexturePath.c_str());
+        }
 
         initializeParameters();
     }
@@ -128,7 +182,7 @@ namespace pg
 
             for (const auto& holder : materialRegisterQueue)
             {            
-                LOG_INFO(DOM, "Registering material");
+                LOG_MILE(DOM, "Registering material");
                 materialListTemp.push_back(holder.material);
 
                 if (holder.materialName != "")
@@ -143,7 +197,7 @@ namespace pg
 
             return;
         }
-        
+
         // If the skip flag is set we unset it and we pass the current render update
         if (skipRenderPass)
         {
@@ -197,33 +251,7 @@ namespace pg
 
         nbGeneratedFrames++;
 
-        // for ()
-
-        // LOG_INFO(DOM, "Render call list size: " << renderCallList[tempRenderList].size());
-
         inSwap = true;
-
-        // auto end = std::chrono::steady_clock::now();
-
-        // {
-        //     std::unique_lock lk(renderMutex);
-
-        //     currentRenderList = tempRenderList;
-        // }
-
-        // std::cout << "System Renderer execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-        // inSwap = true;
-
-        // {
-        //     std::unique_lock lk(renderMutex);
-            
-        //     renderCv.wait(lk, [this]{ return not inSwap.load();});
-        // }
-        
-        // inSwap = false;
-
-        // execCv.notify_all();
     }
 
     void MasterRenderer::processTextureRegister()
@@ -234,15 +262,31 @@ namespace pg
 
         while (found)
         {
-            if (textureList.find(item.name) == textureList.end())
+            const auto& it = textureList.find(item.name);
+
+            size_t oldId = 0;
+
+            if (it == textureList.end())
             {
-                LOG_INFO(DOM, "Registering texture: " << item.name);
-
-                auto texture = item.callback();
-
-                if (texture.id != 0)
-                    registerTexture(item.name, texture);
+                LOG_MILE(DOM, "Registering texture: " << item.name);
             }
+            else
+            {
+                LOG_WARNING(DOM, "Replacing registered texture: " << item.name);
+                oldId = it->second.id;
+            }
+
+            auto texture = item.callback(oldId);
+
+            if (texture.id != 0)
+            {
+                registerTexture(item.name, texture);
+            }
+            else
+            {
+                LOG_ERROR(DOM, "Trying to register a null texture: " << item.name);
+            }
+
 
             found = textureRegisteringQueue.try_dequeue(item);
         }
@@ -258,12 +302,12 @@ namespace pg
         {
             processRenderCall(call);
         }
-
+        
         nbRenderedFrames++;
 
         if (inSwap)
         {
-            currentRenderList = currentRenderList == 0 ? 1 : 0;
+            currentRenderList ^= 1;
 
             inSwap = false;
         }
@@ -294,9 +338,9 @@ namespace pg
     }
 
     // TODO mirror or not the texture
-    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...
-    void MasterRenderer::registerTexture(const std::string& name, const char* texturePath)
-    { 
+    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...        
+    OpenGLTexture MasterRenderer::registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId, bool instantRegister)
+    {
         LOG_THIS_MEMBER(DOM);
 
         int width, height, nrChannels;
@@ -315,15 +359,25 @@ namespace pg
                 LOG_ERROR(DOM, "Failed to load texture: Unknown");
             }
 
-            return;
+            return OpenGLTexture{};
         }
 
         LOG_INFO(DOM, "Loaded texture " << name << " from " << texturePath << " with width = " << width << " height = " << height << " nbchannels = " << nrChannels);
+        
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
         unsigned int texture;
 
-        glGenTextures(1, &texture);
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+        if (oldId)
+        {
+            texture = oldId;
+            glBindTexture(GL_TEXTURE_2D, texture);
+        }
+        else
+        {
+            glGenTextures(1, &texture);
+        }
+
         glBindTexture(GL_TEXTURE_2D, texture);
         // set the texture wrapping parameters
         //glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -362,9 +416,18 @@ namespace pg
 
         glGenerateMipmap(GL_TEXTURE_2D);
 
-        registerTexture(name, tex);
+        if (instantRegister)
+            registerTexture(name, tex);
 
         stbi_image_free(data);
+
+        return tex;
+    }
+
+    
+    void MasterRenderer::registerTexture(const std::string& name, const char* texturePath)
+    { 
+        registerTextureHelper(name, texturePath);
     }
 
     void MasterRenderer::registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath)
@@ -415,14 +478,34 @@ namespace pg
 
         const auto& material = getMaterial(materialId);
 
+        if (material.nbAttributes == 0)
+        {
+            LOG_ERROR(DOM, "No attributes for this render call");
+            return;
+        }
+
+        // Todo this should never happens if the material has some attributes
+        // if (material.mesh == nullptr)
+        // {
+        //     LOG_ERROR(DOM, "Mesh not found");
+        //     return;
+        // }
+
         // Todo initialize material in another call !
         if (not material.mesh->initialized)
         {
-            LOG_INFO(DOM, "Generating mesh");
+            LOG_MILE(DOM, "Generating mesh");
             material.mesh->generateMesh();
         }
 
         auto shaderProgram = material.shader;
+
+        if (not shaderProgram)
+        {
+            LOG_ERROR(DOM, "Shader not found");
+            
+            return;
+        }
 
         shaderProgram->bind();
 
@@ -456,47 +539,49 @@ namespace pg
         {
             switch (uniform.second.type)
             {
-            case UniformType::INT:
-                shaderProgram->setUniformValue(uniform.first, std::get<int>(uniform.second.value));
-                break;
-            case UniformType::FLOAT:
-                shaderProgram->setUniformValue(uniform.first, std::get<float>(uniform.second.value));
-                break;
-            case UniformType::VEC2D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
-                break;
-            case UniformType::VEC3D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
-                break;
-            case UniformType::VEC4D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::vec4>(uniform.second.value));
-                break;
-            case UniformType::MAT4D:
-                shaderProgram->setUniformValue(uniform.first, std::get<glm::mat4>(uniform.second.value));
-                break;
-            case UniformType::ID:
-            {
-                std::string id = std::get<std::string>(uniform.second.value);
-
-                const auto& value = rTable[id];
-
-                switch(value.type)
-                {
-                case ElementType::UnionType::FLOAT:
-                    shaderProgram->setUniformValue(uniform.first, value.get<float>());
+                case UniformType::INT:
+                    shaderProgram->setUniformValue(uniform.first, std::get<int>(uniform.second.value));
                     break;
-                case ElementType::UnionType::INT:
-                case ElementType::UnionType::SIZE_T:
-                    shaderProgram->setUniformValue(uniform.first, value.get<int>());
+                case UniformType::FLOAT:
+                    shaderProgram->setUniformValue(uniform.first, std::get<float>(uniform.second.value));
                     break;
-                case ElementType::UnionType::STRING:
-                case ElementType::UnionType::BOOL:
-                default:
+                case UniformType::VEC2D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec2>(uniform.second.value));
+                    break;
+                case UniformType::VEC3D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec3>(uniform.second.value));
+                    break;
+                case UniformType::VEC4D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::vec4>(uniform.second.value));
+                    break;
+                case UniformType::MAT4D:
+                    shaderProgram->setUniformValue(uniform.first, std::get<glm::mat4>(uniform.second.value));
+                    break;
+                case UniformType::ID:
                 {
-                    LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());    
+                    std::string id = std::get<std::string>(uniform.second.value);
+
+                    const auto& value = rTable[id];
+
+                    switch(value.type)
+                    {
+                        case ElementType::UnionType::FLOAT:
+                            shaderProgram->setUniformValue(uniform.first, value.get<float>());
+                            break;
+                        case ElementType::UnionType::INT:
+                        case ElementType::UnionType::SIZE_T:
+                            shaderProgram->setUniformValue(uniform.first, value.get<int>());
+                            break;
+                        case ElementType::UnionType::BOOL:
+                            shaderProgram->setUniformValue(uniform.first, value.get<bool>());
+                            break;
+                        case ElementType::UnionType::STRING:
+                        default:
+                        {
+                            LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());    
+                        }
+                    }
                 }
-                }
-            }
             }
         }
 
@@ -507,12 +592,6 @@ namespace pg
 
         material.mesh->bind();
 
-        if (material.nbAttributes == 0)
-        {
-            LOG_ERROR(DOM, "No attributes for this render call");
-            return;
-        }
-
         unsigned int nbElements = call.data.size() / material.nbAttributes;
 
         if (nbElements == 0)
@@ -521,12 +600,10 @@ namespace pg
             return;
         }
 
-        // LOG_INFO(DOM, call.nbElements * call.nbAttributes);
+        material.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
 
         if (call.batchable)
         {
-            // Todo remove nbElement as it can be derived from call.data.size() / call.nbAttributes !
-            material.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
             glDrawElementsInstanced(GL_TRIANGLES, material.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0, nbElements);
         }
         else

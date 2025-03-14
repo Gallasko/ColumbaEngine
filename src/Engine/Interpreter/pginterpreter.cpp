@@ -213,4 +213,155 @@ namespace pg
 
         return ast;
     }
+
+    void addNewAttribute(const Function *caller, const std::string& text, const std::string& type, std::string& value, std::shared_ptr<ClassInstance> currentList)
+    {
+        if (type == "int")
+        {
+            int v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        else if (type == "bool")
+        {
+            bool v = false;
+
+            if (value == "true")
+                v = true;
+            
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        // Todo this is casted to a size_t (Should not be !)
+        else if (type == "unsigned int")
+        {
+            unsigned int v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, static_cast<size_t>(v)});
+        }
+        else if (type == "float")
+        {
+            float v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        // Todo this is casted to a float (Should not be !)
+        else if (type == "double")
+        {
+            double v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, static_cast<float>(v)});
+        }
+        else if (type == "size_t")
+        {
+            size_t v = 0;
+            std::stringstream sstream(value);
+            sstream >> v;
+
+            addToList(currentList, caller->getToken(), {text, v});
+        }
+        else if (type == "string")
+        {
+            addToList(currentList, caller->getToken(), {text, value});
+        }
+        else
+        {
+            LOG_ERROR(DOM, "Unsupported type for interpreter serialization: " << type);
+        }
+    }
+
+    void archiveToListHelper(const Function *caller, SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList, const std::string& parentName)
+    {
+        if (parentName != "")
+        {
+            addToList(currentList, caller->getToken(), {"__className", parentName});
+        }
+
+        // If no class name then we got an attribute
+        if (parent.className == "" and indentLevel > 0)
+        {
+            addNewAttribute(caller, parent.name, parent.type, parent.value, currentList);
+        }
+
+        if (parent.children.size() > 0)
+        {
+            std::shared_ptr<ClassInstance> childList = indentLevel > 0 ? makeList(caller, {}) : currentList;
+
+            for (auto& child : parent.children)
+            {
+                archiveToListHelper(caller, child, indentLevel + 1, childList, parent.className);
+            }
+
+            auto className = parent.className == "" ? "__children" : parent.name == "" ? parent.className : parent.name;
+
+            if (indentLevel > 0)
+                addToList(currentList, caller->getToken(), {className, childList});
+        }
+    }
+
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className)
+    {
+        auto it = std::find(fields.begin(), fields.end(), "__className");
+
+        // Got a class name, so we can put this name in the unserialized object and parse it correctly as a class
+        if (it != fields.end())
+        {
+            UnserializedObject klass(className, it->value->getElement().toString(), std::string(""));
+            fields.erase(it);
+
+            deserializeToHelper(klass, fields);
+
+            holder.children.push_back(klass);
+        }
+        else
+        {
+            // Parse all the field of the interpreted struct
+            for (const auto& field : fields)
+            {
+                if (field.value->getType() == "Variable")
+                {
+                    // If it is a variable we can convert it from element type to basic type (it is an attribute)
+                    const auto& element = field.value->getElement();
+
+                    std::string str;
+                    
+                    if (strcmp(ARCHIVEVERSION, "1.0.0") == 0)
+                        str = ATTRIBUTECONST + " " + element.getTypeString() + " {" + element.toString() + "}";
+
+                    UnserializedObject attribute(str, field.key, false);
+
+                    holder.children.push_back(attribute);
+                }
+                else if (field.value->getType() == "ClassInstance")
+                {
+                    // If it is a class instance, it is a complexe type and we recursively parse it to get all the attributes
+                    auto nextClass = std::static_pointer_cast<ClassInstance>(field.value);
+                    auto nextFields = nextClass->getFields();
+
+                    auto it = std::find(nextFields.begin(), nextFields.end(), "__className");
+
+                    // If no class name is provided, we insert "InterpretedStruct" as the class name to avoid parsing and struct hierachy missmatch
+                    if (it == nextFields.end())
+                    {
+                        nextFields.emplace_back("__className", makeVar("InterpretedStruct"));
+                    }
+
+                    deserializeToHelper(holder, nextFields, field.key);
+                }
+                // Todo
+                // else if (field.value->getType() == "Function")
+                else
+                {
+                    LOG_ERROR(DOM, "Field [" << field.key << "] type is not available for deserialization (" << field.value->getType() << ")");
+                }
+            }
+        }
+    }
 }

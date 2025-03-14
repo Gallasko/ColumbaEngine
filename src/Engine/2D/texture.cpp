@@ -86,43 +86,37 @@ namespace pg
 
         baseMaterialPreset.nbTextures = 1;
 
-        baseMaterialPreset.nbAttributes = 11;
-
         baseMaterialPreset.uniformMap.emplace("sWidth", "ScreenWidth");
         baseMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        baseMaterialPreset.mesh = std::make_shared<SimpleTexturedSquareMesh>(std::vector<size_t>{3, 2, 1, 1, 3, 1});
+        baseMaterialPreset.setSimpleMesh({3, 2, 1, 1, 3, 1});
 
         atlasMaterialPreset.shader = masterRenderer->getShader("atlasTexture");
 
         atlasMaterialPreset.nbTextures = 1;
 
-        atlasMaterialPreset.nbAttributes = 15;
-
         atlasMaterialPreset.uniformMap.emplace("sWidth", "ScreenWidth");
         atlasMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        atlasMaterialPreset.mesh = std::make_shared<SimpleTexturedSquareMesh>(std::vector<size_t>{3, 2, 1, 4, 1, 3, 1});
+        atlasMaterialPreset.setSimpleMesh({3, 2, 1, 4, 1, 3, 1});
 
-        auto group = registerGroup<UiComponent, Texture2DComponent>();
+        auto group = registerGroup<PositionComponent, Texture2DComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
+            LOG_MILE("Texture 2D System", "Add entity " << entity->id << " to ui - texture 2D group !");
 
-            auto ui = entity->get<UiComponent>();
-            auto shape = entity->get<Texture2DComponent>();
-
-            ecsRef->attach<TextureRenderCall>(entity, createRenderCall(ui, shape));
+            textureUpdateQueue.push(entity.id);
 
             changed = true;
         });
 
         group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
+            LOG_MILE("Texture 2D System", "Remove entity " << id << " of ui - texture 2D group !");
 
             auto entity = ecsRef->getEntity(id);
 
-            ecsRef->detach<TextureRenderCall>(entity);
+            if (entity->has<TextureRenderCall>())
+                ecsRef->detach<TextureRenderCall>(entity);
 
             changed = true;
         });
@@ -132,6 +126,33 @@ namespace pg
     {
         if (not changed)
             return;
+
+        while (not textureUpdateQueue.empty())
+        {
+            auto entityId = textureUpdateQueue.front();
+
+            auto entity = ecsRef->getEntity(entityId);
+
+            if (not entity)
+            {
+                textureUpdateQueue.pop();
+                continue;
+            }
+
+            auto ui = entity->get<PositionComponent>();
+            auto obj = entity->get<Texture2DComponent>();
+
+            if (entity->has<TextureRenderCall>())
+            {
+                entity->get<TextureRenderCall>()->call = createRenderCall(ui, obj);
+            }
+            else
+            {
+                ecsRef->attach<TextureRenderCall>(entity, createRenderCall(ui, obj));
+            }
+
+            textureUpdateQueue.pop();
+        }
 
         renderCallList.clear();
 
@@ -147,13 +168,13 @@ namespace pg
         changed = false;
     }
 
-    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<Texture2DComponent> obj)
+    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Texture2DComponent> obj)
     {
         LOG_THIS_MEMBER(DOM);
 
         RenderCall call;
 
-        call.processUiComponent(ui);
+        call.processPositionComponent(ui);
 
         call.setRenderStage(renderStage);
 
@@ -186,9 +207,9 @@ namespace pg
 
             call.data.resize(11);
 
-            call.data[0] = ui->pos.x;
-            call.data[1] = ui->pos.y;
-            call.data[2] = ui->pos.z;
+            call.data[0] = ui->x;
+            call.data[1] = ui->y;
+            call.data[2] = ui->z;
             call.data[3] = ui->width;
             call.data[4] = ui->height;
             call.data[5] = ui->rotation;
@@ -232,9 +253,9 @@ namespace pg
 
             call.data.resize(15);
 
-            call.data[0] = ui->pos.x;
-            call.data[1] = ui->pos.y;
-            call.data[2] = ui->pos.z;
+            call.data[0] = ui->x;
+            call.data[1] = ui->y;
+            call.data[2] = ui->z;
             call.data[3] = ui->width;
             call.data[4] = ui->height;
             call.data[5] = ui->rotation;
@@ -252,7 +273,7 @@ namespace pg
         {
             LOG_ERROR(DOM, "Invalid texture name: " << obj->textureName << ", skipping this");
 
-            call.setVisibility(true);
+            call.setVisibility(false);
             call.data.resize(0);
         }
 
@@ -275,10 +296,7 @@ namespace pg
         if (not entity or not entity->has<TextureRenderCall>())
             return; 
 
-        auto ui = entity->get<UiComponent>();
-        auto shape = entity->get<Texture2DComponent>();
-
-        entity->get<TextureRenderCall>()->call = createRenderCall(ui, shape);
+        textureUpdateQueue.push(entityId);
 
         changed = true;
     }

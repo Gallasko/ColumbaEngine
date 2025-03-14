@@ -67,7 +67,7 @@ namespace pg
         std::function<void(const StandardEvent&)> callback;
     };
 
-    struct OnEventComponentSystem : public System<Own<OnEventComponent>, Own<OnStandardEventComponent>, NamedSystem, StoragePolicy>
+    struct OnEventComponentSystem : public System<Own<OnEventComponent>, Own<OnStandardEventComponent>, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "OnEventComponentSystem"; }
     };

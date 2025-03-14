@@ -30,6 +30,7 @@ set(TASKFLOW_DIR "import/taskflow-3.6.0")
 set(GTEST_DIR "import/googletest-1.14.0")
 set(GLEW_DIR "import/glew-cmake")
 set(TTF_DIR "import/freetype-2.13.3")
+set(GLTF_DIR "import/tinygltf")
 
 find_package(OpenGL REQUIRED)
 
@@ -49,8 +50,15 @@ else()
     add_subdirectory(${SDL2MIXER_DIR})
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
+    add_subdirectory(${GLTF_DIR})
 
-    set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj")
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
+    else()
+        set(CMAKE_CXX_FLAGS "-Wall -Wextra -pthread -s -O3 -DNDEBUG")
+    endif()
+
+    # set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
 endif()
 
 add_subdirectory(${GLM_DIR})
@@ -58,6 +66,7 @@ add_subdirectory(${GLM_DIR})
 
 include_directories(${GLM_DIR}/glm)
 include_directories(${TASKFLOW_DIR}/taskflow)
+include_directories(${GLTF_DIR}/include)
 
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(${SDL2_DIR}/include)
@@ -96,6 +105,7 @@ set(ENGINESOURCE
     src/Engine/logger.cpp
     src/Engine/serialization.cpp
     src/Engine/2D/collisionsystem.cpp
+    src/Engine/2D/position.cpp
     src/Engine/2D/simple2dobject.cpp
     src/Engine/2D/texture.cpp
     src/Engine/Audio/audiosystem.cpp
@@ -140,18 +150,29 @@ set(ENGINESOURCE
     src/Engine/Shader/shader.cpp
     src/Engine/Systems/coresystems.cpp
     src/Engine/Systems/oneventcomponent.cpp
+    src/Engine/Systems/positionmodule.cpp
     src/Engine/Systems/uimodule.cpp
     src/Engine/UI/button.cpp
     src/Engine/UI/focusable.cpp
     src/Engine/UI/listview.cpp
+    src/Engine/UI/progressbar.cpp
     src/Engine/UI/scrollable.cpp
     src/Engine/UI/sentencesystem.cpp
+    src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
     src/Engine/UI/ttftext.cpp
     src/Engine/UI/uianimation.cpp
     src/Engine/UI/uiconstant.cpp
     src/Engine/UI/uisystem.cpp
 )
+
+add_library(PgEngineSrc ${ENGINESOURCE})
+
+# target_precompile_headers(PgEngineSrc PUBLIC
+#     src/Engine/stdafx.h)
+
+# target_precompile_headers(PgEngineSrc PRIVATE 
+    # import/taskflow-3.6.0/taskflow/taskflow.hpp)
 
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # add_executable(TetrisClone src/Tetris/tetris.cpp)
@@ -163,8 +184,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     #     src/Tetris/titlescreen.cpp
     #     ${ENGINESOURCE}
     # )
-    add_library(PgEngineSrc ${ENGINESOURCE})
-
+    
     target_include_directories(PgEngineSrc PUBLIC src/Engine)
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
     target_include_directories(PgEngineSrc PUBLIC src/Editor)
@@ -187,8 +207,6 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_link_libraries(PgEngine PRIVATE glm)
 
 else()
-    add_library(PgEngineSrc ${ENGINESOURCE})
-
     target_include_directories(PgEngineSrc PUBLIC src/Engine)
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
 
@@ -203,11 +221,9 @@ else()
     target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static glm libglew_static freetype)
 
     add_executable(PgEngine src/main.cpp)
-
-    target_include_directories(PgEngineSrc PUBLIC src/Editor)
-
-    add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
-
+    
+    target_include_directories(PgEngine PUBLIC src/Editor)
+    
     target_sources(PgEngine PRIVATE
         src/application.cpp
         src/application.h
@@ -215,18 +231,43 @@ else()
         src/Editor/Gui/inspector.cpp
         src/Editor/Gui/projectmanager.cpp
     )
-
+    
     target_link_libraries(PgEngine PRIVATE PgEngineSrc)
+
+    add_executable(GameOff src/GameOff/main.cpp)
+    
+    target_include_directories(GameOff PUBLIC src/GameOff)
+    
+    target_sources(GameOff PRIVATE
+        src/GameOff/achievement.cpp
+        src/GameOff/application.cpp
+        src/GameOff/character.cpp
+        src/GameOff/characustomizationscene.cpp
+        src/GameOff/fightscene.cpp
+        src/GameOff/gamefacts.cpp
+        src/GameOff/inventory.cpp
+        src/GameOff/item.cpp
+        src/GameOff/mainscene.cpp
+        src/GameOff/location.cpp
+        src/GameOff/locationscene.cpp
+        src/GameOff/skilltree.cpp
+        src/GameOff/passives.cpp
+        src/GameOff/spells.cpp
+    )
+    
+    target_link_libraries(GameOff PRIVATE PgEngineSrc)
+    
+    add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
     target_sources(TetrisClone PRIVATE
         exemples/TetrisClone/app.cpp
         exemples/TetrisClone/tetromino.cpp
         exemples/TetrisClone/keyconfig.cpp
         exemples/TetrisClone/titlescreen.cpp
-        )
+    )
 
     target_include_directories(TetrisClone PRIVATE exemples/TetrisClone)
-
+    
     target_link_libraries(TetrisClone PRIVATE PgEngineSrc)
 
     # enable_testing()
@@ -250,6 +291,7 @@ else()
         test/interpreter.cc
         # test/mock2dsimpleshape.h
         # test/simple2dobject.cc
+        test/position.cc
         test/memorypool.cc
         test/mockinterpreter.h
         test/mocklogger.h

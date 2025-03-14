@@ -159,11 +159,12 @@ TEST(taskflow_test, personal_composition)
     tf::Executor executor;
 
     std::string resGraph = "";
+    std::mutex mtx;
 
     // f1 has two independent tasks
     tf::Taskflow f1("F1");
-    auto f1A = f1.emplace([&](){ resGraph += "F1 TaskA\n"; });
-    auto f1B = f1.emplace([&](){ resGraph += "F1 TaskB\n"; });
+    auto f1A = f1.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "F1 TaskA\n"; });
+    auto f1B = f1.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "F1 TaskB\n"; });
     f1A.name("f1A");
     f1B.name("f1B");
 
@@ -171,9 +172,9 @@ TEST(taskflow_test, personal_composition)
     // f1_module_task ---> f2A ---> f2B ---> f2C
     //
     tf::Taskflow f2("F2");
-    auto f2A = f2.emplace([&](){ resGraph += "- F2 TaskA\n"; });
-    auto f2B = f2.emplace([&](){ resGraph += "- F2 TaskB\n"; });
-    auto f2C = f2.emplace([&](){ resGraph += "- F2 TaskC\n"; });
+    auto f2A = f2.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "- F2 TaskA\n"; });
+    auto f2B = f2.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "- F2 TaskB\n"; });
+    auto f2C = f2.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "- F2 TaskC\n"; });
     f2A.name("f2A");
     f2B.name("f2B");
     f2C.name("f2C");
@@ -190,9 +191,9 @@ TEST(taskflow_test, personal_composition)
     //
     tf::Taskflow f3("F3");
     auto f2_module_task = f3.composed_of(f2).name("module_of_f2");
-    auto f3A = f3.emplace([&](){ resGraph += "- - F3 TaskA\n"; }).name("f3A");
-    auto f3B = f3.emplace([&](){ resGraph += "- - F3 TaskB\n"; }).name("f3B");
-    auto f3C = f3.emplace([&](){ resGraph += "- - F3 TaskC\n"; }).name("f3C");
+    auto f3A = f3.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "- - F3 TaskA\n"; }).name("f3A");
+    auto f3B = f3.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "- - F3 TaskB\n"; }).name("f3B");
+    auto f3C = f3.emplace([&](){ std::lock_guard<std::mutex> lock(mtx); resGraph += "- - F3 TaskC\n"; }).name("f3C");
 
     f2_module_task.precede(f3A);
     f3A.precede(f3B, f3C);

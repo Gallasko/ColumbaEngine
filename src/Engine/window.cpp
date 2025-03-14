@@ -1,5 +1,7 @@
 #include "gl_debug.hpp"
 
+#include "stdafx.h"
+
 #include "window.h"
 
 #include <string>
@@ -16,10 +18,14 @@
 
 #include "UI/uisystem.h"
 #include "UI/focusable.h"
+#include "UI/progressbar.h"
 #include "UI/textinput.h"
 #include "UI/sentencesystem.h"
 #include "UI/listview.h"
+#include "UI/prefab.h"
+#include "UI/sizer.h"
 
+#include "2D/position.h"
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 
@@ -89,7 +95,7 @@ namespace pg
 
                 auto list = makeList(this, {});
 
-                for(auto file : folder)
+                for (auto file : folder)
                 {
                     addToList(list, token, {file.filepath, file.data});
                 }
@@ -351,7 +357,7 @@ namespace pg
 
         // [Start] Master render definition
 
-        masterRenderer = ecs.createSystem<MasterRenderer>();
+        masterRenderer = ecs.createSystem<MasterRenderer>("res/None.png");
         interpreter->addSystemModule("renderer", RendererModule{masterRenderer});
 
         // Configure the master renderer system
@@ -365,9 +371,13 @@ namespace pg
 
         ecs.createSystem<UiComponentSystem>();
 
+        ecs.createSystem<PositionComponentSystem>();
+
         ecs.createSystem<Simple2DObjectSystem>(masterRenderer);
 
         ecs.createSystem<Texture2DComponentSystem>(masterRenderer);
+
+        ecs.createSystem<ProgressBarComponentSystem>(masterRenderer);
 
         ecs.createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
 
@@ -379,12 +389,19 @@ namespace pg
         ecs.createSystem<MouseClickSystem>(inputHandler);
 
         ecs.createSystem<MouseLeaveClickSystem>(inputHandler);
+
+        ecs.createSystem<MouseWheelSystem>(inputHandler);
         
         ecs.createSystem<TextInputSystem>(inputHandler);
 
         ecs.createSystem<RunScriptFromTextInputSystem>();
 
         ecs.createSystem<SceneElementSystem>();
+
+        ecs.createSystem<PrefabSystem>();
+
+        ecs.createSystem<HorizontalLayoutSystem>();
+        ecs.createSystem<VerticalLayoutSystem>();
 
         ecs.createSystem<ListViewSystem>();
 
@@ -396,14 +413,24 @@ namespace pg
 
         ecs.succeed<MouseClickSystem, TickingSystem>();
 
+        ecs.succeed<UiComponentSystem, PrefabSystem>();
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
+
+        ecs.succeed<PositionComponentSystem, TTFTextSystem>();
+        ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
+        ecs.succeed<PositionComponentSystem, ListViewSystem>();
+        ecs.succeed<PositionComponentSystem, HorizontalLayoutSystem>();
+        ecs.succeed<PositionComponentSystem, VerticalLayoutSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
         ecs.succeed<MasterRenderer, Texture2DComponentSystem>();
         ecs.succeed<MasterRenderer, SentenceSystem>();
+        ecs.succeed<MasterRenderer, ProgressBarComponentSystem>();
+        ecs.succeed<MasterRenderer, PrefabSystem>();
 
         ecs.succeed<MasterRenderer, UiComponentSystem>();
+        ecs.succeed<MasterRenderer, PositionComponentSystem>();
 
         ecs.succeed<SceneElementSystem, MasterRenderer>();
 
@@ -414,10 +441,18 @@ namespace pg
         ecs.dumbTaskflow();
 
         screenEntity = ecs.createEntity();
+        // Todo remove this 
         screenUi = ecs.attach<UiComponent>(screenEntity);
         screenUi->width = width;
         screenUi->height = height;
         screenUi->setZ(-1);
+
+        auto screenPos = ecs.attach<PositionComponent>(screenEntity);
+        screenPos->setWidth(width);
+        screenPos->setHeight(height);
+        screenPos->setZ(-1);
+
+        ecs.attach<UiAnchor>(screenEntity);
 
         ecs.attach<FocusableComponent>(screenEntity);
 
@@ -485,15 +520,15 @@ namespace pg
                 break;
 
             case SDL_MOUSEMOTION:
-                {
-                    MousePos currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
-                    MousePos mouseDelta {(mousePos.x - currentPos.x) * xSensitivity, (currentPos.y - mousePos.y) * ySensitivity};
+            {
+                MousePos currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
+                MousePos mouseDelta {(mousePos.x - currentPos.x) * xSensitivity, (currentPos.y - mousePos.y) * ySensitivity};
 
-                    inputHandler->registerMouseMove(currentPos, mouseDelta);
+                inputHandler->registerMouseMove(currentPos, mouseDelta);
 
-                    mousePos = currentPos;
-                }
+                mousePos = currentPos;
                 break;
+            }
             
             case SDL_CONTROLLERDEVICEADDED:
                 // Todo
@@ -522,6 +557,11 @@ namespace pg
                 LOG_MILE(DOM, "MESSAGE: Text input: " << std::string(event.text.text));
                 ecs.sendEvent(OnSDLTextInput{std::string(event.text.text)});
                 break;
+
+            case SDL_MOUSEWHEEL:
+                LOG_MILE(DOM, "MESSAGE: Mouse wheel scrolled: " << event.wheel.y);
+                ecs.sendEvent(OnSDLMouseWheel{event.wheel.x, event.wheel.y});
+                break;
         }
     }
 
@@ -535,6 +575,16 @@ namespace pg
         std::lock_guard<std::mutex> lock(renderMutex);
 
         glViewport(0, 0, width, height);
+
+        auto ent = ecs.getEntity("__MainWindow");
+        if (ent and ent->has<PositionComponent>())
+        {
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setWidth(width);
+            
+            pos->setHeight(height);
+        }
 
         if (screenUi->width != width)
         {

@@ -460,7 +460,7 @@ namespace pg
         const float xValue = this->pos.x;
         const float yValue = this->pos.y;
 
-        return x > xValue and x < (xValue + this->width) and y < (yValue + this->height) and y > yValue;
+        return x >= xValue and x <= (xValue + this->width) and y <= (yValue + this->height) and y >= yValue;
     }
 
     bool UiComponent::inBound(const constant::Vector2D& vec2) const
@@ -485,9 +485,9 @@ namespace pg
         const float yValue = this->pos.y;
 
         // Todo add clip resolution
-        return x > clipTopLeft.horizontalAnchor and x < clipBottomRight.horizontalAnchor and
-               y > clipTopLeft.verticalAnchor and y < clipBottomRight.verticalAnchor and
-               x > xValue and x < (xValue + this->width) and y < (yValue + this->height) and y > yValue;
+        return x >= clipTopLeft.horizontalAnchor and x <= clipBottomRight.horizontalAnchor and
+               y >= clipTopLeft.verticalAnchor and y <= clipBottomRight.verticalAnchor and
+               x >= xValue and x <= (xValue + this->width) and y <= (yValue + this->height) and y >= yValue;
     }
 
     bool UiComponent::inClipBound(const constant::Vector2D& vec2) const

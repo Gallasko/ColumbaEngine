@@ -83,7 +83,7 @@ namespace pg
         {    
             executeMethod->call(emptyQueue);
         }
-        catch(const std::exception& e)
+        catch (const std::exception& e)
         {
             LOG_ERROR("Interpreter System", e.what());
         }

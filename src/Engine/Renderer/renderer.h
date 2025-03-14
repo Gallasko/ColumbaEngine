@@ -31,13 +31,7 @@ namespace pg
     // TODO make a specialized renderer for std::nullptr_t to catch nullptr error;
 
     class UiComponent;
-
-    struct RenderableTexture
-    {
-        _unique_id entityId;
-        CompRef<UiComponent> uiRef;
-        Mesh* meshRef;
-    };
+    struct PositionComponent;
 
     enum class RenderStage : uint8_t
     {
@@ -182,7 +176,12 @@ namespace pg
             setMaterial(materialId);
         }
 
+        void log() const;
+
+        // deprecated
         void processUiComponent(UiComponent *component);
+
+        void processPositionComponent(CompRef<PositionComponent> component);
 
         void setVisibility(bool visible)
         {
@@ -221,10 +220,10 @@ namespace pg
 
         void setDepth(int depth)
         {
-            uint64_t normalizedDepth = 0b000000000000111111111111 + depth;
+            uint64_t normalizedDepth = (uint64_t)(0b000000000000111111111111) + (int64_t)(depth);
             if (normalizedDepth > 0b111111111111111111111111)
             {
-                LOG_ERROR("Render call", "Depth is too far from origin[" << depth <<"], should be lesser than: " << 0b111111111111 << " in either positiv or negativ");
+                LOG_ERROR("Render call", "Depth is too far from origin[" << depth << "], should be lesser than: " << 0b111111111111 << " in either positiv or negativ");
             }
 
             key = (key & ~((uint64_t)0b111111111111111111111111 << 30)) | normalizedDepth << 30;
@@ -252,7 +251,11 @@ namespace pg
 
         bool operator<(const RenderCall& other) const
         {
-            return getOpacity() != OpacityType::Opaque ? key < other.key : key > other.key;
+            // Todo find a way (in depth maybe ?) to better order opaque calls as the following does not work correctly
+            // This cause a strict weak ordering fault that can cause the engine to crash.
+            // return getOpacity() != OpacityType::Opaque ? key < other.key : key > other.key;
+
+            return key < other.key;
         }
     };
 
@@ -380,6 +383,16 @@ namespace pg
             return *this;
         }
 
+        void setSimpleMesh(const std::vector<size_t>& attributes)
+        {
+            mesh = std::make_shared<SimpleTexturedSquareMesh>(attributes);
+
+            for (const auto& value : attributes)
+            {
+                nbAttributes += value;
+            }
+        }
+
         OpenGLShaderProgram* shader;
 
         // Todo limit the number of texture to 16 max
@@ -391,12 +404,14 @@ namespace pg
 
         std::unordered_map<std::string, UniformValue> uniformMap;
 
-        std::shared_ptr<Mesh> mesh;
+        std::shared_ptr<Mesh> mesh = nullptr;
     };
 
     struct SkipRenderPass {};
 
-    class MasterRenderer : public System<NamedSystem, Listener<OnSDLScanCode>, Listener<SkipRenderPass>>
+    // Todo fix crash on renderer when failure to grab a missing texture or shader
+
+    class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>>
     {
     private:
         struct MaterialHolder
@@ -421,11 +436,11 @@ namespace pg
         struct TextureRegisteringQueueItem
         {
             std::string name;
-            std::function<OpenGLTexture(void)> callback;
+            std::function<OpenGLTexture(size_t)> callback;
         };
 
     public:
-        MasterRenderer();
+        MasterRenderer(const std::string& noneTexturePath = "");
         ~MasterRenderer();
 
         virtual std::string getSystemName() const override { return "Renderer System"; }
@@ -442,11 +457,19 @@ namespace pg
         void registerShader(const std::string& name, OpenGLShaderProgram *shaderProgram);
         void registerShader(const std::string& name, const std::string& vsPath, const std::string& fsPath);
 
+        OpenGLTexture registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId = 0, bool instantRegister = true);
         void registerTexture(const std::string& name, OpenGLTexture texture) { textureList[name] = texture; }
         void registerTexture(const std::string& name, const char* texturePath);
         void registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath);
 
-        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(void)>& callback) { textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback}); }
+        void queueRegisterTexture(const std::string& name, const char* texturePath)
+        {
+            std::string path = texturePath;
+            std::function<OpenGLTexture(size_t)> f = [name, path, this](size_t oldId) { return registerTextureHelper(name, path.c_str(), oldId, false); };
+
+            textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, f});
+        }
+        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback) { textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback}); }
 
         size_t registerMaterial(const Material& material)
         {
@@ -485,7 +508,20 @@ namespace pg
         }
 
         //TODO raise exception on none presence of attribute
-        OpenGLShaderProgram* getShader(const std::string& name) const { return shaderList.at(name); }
+        OpenGLShaderProgram* getShader(const std::string& name) const
+        {
+            try
+            {
+                return shaderList.at(name);
+            }
+            catch (const std::exception&)
+            {
+                LOG_ERROR("Renderer", "Shader named: " << name << " is not available !");
+
+                return nullptr;
+            }
+        }
+
         OpenGLTexture getTexture(const std::string& name) const
         { 
             try
@@ -495,7 +531,16 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Texture named " << name << " don't exist !");
-                return OpenGLTexture{};
+                
+                auto it = textureList.find("NoneIcon");
+
+                if (it != textureList.end())
+                {
+                    LOG_INFO("Renderer", "Loading None Icon instead");
+                    return it->second;
+                }
+                else
+                    return OpenGLTexture{};
             }
         }
 
@@ -508,8 +553,37 @@ namespace pg
         {
             return atlasMap.at(textureName).getTexture(atlasTextureName);
         }
-        const Material& getMaterial(const std::string& name) const { return materialList.at(materialDict.at(name)); }
-        const Material& getMaterial(size_t id) const { return materialList.at(id); }
+        const Material& getMaterial(const std::string& name) const
+        {
+            try
+            {
+                return materialList.at(materialDict.at(name));
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
+                
+                static Material dummyMaterial;
+
+                return dummyMaterial;
+            }
+        }
+
+        const Material& getMaterial(size_t id) const
+        {
+            try
+            {
+                return materialList.at(id);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("Renderer", "Material id " << id << " don't exist !");
+                
+                static Material dummyMaterial;
+
+                return dummyMaterial;
+            }
+        }
 
         size_t getMaterialID(const std::string& name) const
         {
@@ -520,7 +594,18 @@ namespace pg
             if (it != materialRegisterQueue.end())
                 return it->index;
             else
-                return materialDict.at(name);
+            {
+                try
+                {
+                    return materialDict.at(name);
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
+                    
+                    return 0;
+                }
+            }
         }
 
         template <typename... Args>
@@ -546,6 +631,8 @@ namespace pg
         inline size_t getNbGeneratedFrames() const { return nbGeneratedFrames; }
 
         inline size_t getNbRenderedFrames() const { return nbRenderedFrames; }
+
+        inline size_t getNbRenderCall() const { return renderCallList[currentRenderList.load()].size(); }
 
     private:
         std::atomic<bool> inSwap {false};
@@ -590,7 +677,7 @@ namespace pg
 
         std::vector<RenderCall> renderCallList[2];
 
-        std::atomic<uint8_t> currentRenderList {0};
+        std::atomic<unsigned char> currentRenderList {0};
 
         std::unordered_map<std::string, LoadedAtlas> atlasMap;
 

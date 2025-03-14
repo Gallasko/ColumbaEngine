@@ -143,7 +143,10 @@ namespace pg
     {
         EntityRef() : initialized(false), entity(nullptr), id(0), ecsRef(nullptr) {}
 
-        EntityRef(Entity* ent, bool initialized = true) : initialized(initialized), entity(ent), id(ent->id), ecsRef(ent->world()) {}
+        // Todo maybe create a constructor without the bool initialized that check in the ecsRef if the entity was actually initialized !
+        EntityRef(Entity* ent, bool initialized = true) : initialized(initialized), entity(ent), id(ent->id), ecsRef(ent->world())
+        {
+        }
 
         EntityRef(const EntityRef& rhs)
         {
@@ -155,6 +158,8 @@ namespace pg
         void operator=(const EntityRef& rhs);
 
         void operator=(Entity* ent);
+
+        bool operator<(const EntityRef& rhs) const { return id < rhs.id; }
 
         template <typename Comp>
         bool has() const;
@@ -172,5 +177,26 @@ namespace pg
         Entity* entity;
         _unique_id id;
         EntitySystem* ecsRef;
+    };
+
+    template <typename Comp>
+    struct CompListGetter
+    {
+        CompListGetter(CompRef<Comp> comp) : comp(comp) {}
+
+        inline CompRef<Comp> get() const { return comp; } 
+
+        CompRef<Comp> comp;
+    };
+
+    template <typename... Comps>
+    struct CompList : public CompListGetter<Comps>...
+    {
+        CompList(EntityRef entity, CompRef<Comps>... comps) : CompListGetter<Comps>(comps)..., entity(entity) { }
+
+        template <typename Comp>
+        inline CompRef<Comp> get() const { return static_cast<const CompListGetter<Comp>*>(this)->get(); }
+
+        EntityRef entity;
     };
 }

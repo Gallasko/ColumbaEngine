@@ -34,6 +34,7 @@ namespace pg
     {
     friend struct UiComponentSystem;
     friend struct ListView;
+    friend struct Prefab;
         // Type definition
     private:
         /**
@@ -43,6 +44,16 @@ namespace pg
         {
             UiSize verticalAnchor;       ///< The vertical anchor point of the corner
             UiSize horizontalAnchor;     ///< The horizontal anchor point of the corner
+
+            bool operator==(const Corner& other)
+            {
+                return verticalAnchor == other.verticalAnchor and horizontalAnchor == other.horizontalAnchor;
+            }
+
+            bool operator!=(const Corner& other)
+            {
+                return not (*this == other);
+            }
         };
 
         // Public interface
@@ -311,7 +322,7 @@ namespace pg
     template <>
     void serialize(Archive& archive, const UiComponent& value);
 
-    struct UiComponentSystem : public System<Own<UiComponent>, Listener<ResizeEvent>, Listener<UiComponentInternalChangeEvent>, Listener<UiSizeChangeEvent>, NamedSystem>
+    struct UiComponentSystem : public System<Own<UiComponent>, Listener<ResizeEvent>, Listener<UiComponentInternalChangeEvent>, Listener<UiSizeChangeEvent>>
     {
         struct UiOldValue
         {

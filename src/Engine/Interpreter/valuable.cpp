@@ -185,17 +185,17 @@ namespace pg
         std::unordered_map<std::string, std::shared_ptr<Function>> boundMethods;
 
         std::shared_ptr<Function> initializerMethod = nullptr;
-        for(const auto& method : methods)
+        for (const auto& method : methods)
         {
             boundMethods[method.first] = method.second->bind(instance);
 
-            if(method.first == "init")
+            if (method.first == "init")
                 initializerMethod = boundMethods[method.first];
         }
 
         instance->setMethods(boundMethods);
 
-        if(initializerMethod != nullptr)
+        if (initializerMethod != nullptr)
             initializerMethod->getValue(args);
 
         return instance;
@@ -205,7 +205,7 @@ namespace pg
     {
         const auto it = methods.find(name);
 
-        if(it != methods.end())
+        if (it != methods.end())
             return it->second;
         
         return nullptr;
@@ -214,7 +214,7 @@ namespace pg
     ClassInstance::ClassInstance(const Class *klass) : 
         klass(klass)
     {
-        if(klass != nullptr)
+        if (klass != nullptr)
             name = ElementType{"Instance of "} + klass->getElement();
         else
             name = ElementType{"Instance of System Class"};
@@ -248,12 +248,12 @@ namespace pg
     {
         const auto it = std::find(fields.begin(), fields.end(), token.text);
 
-        if(it != fields.end())
+        if (it != fields.end())
             return it->value;
 
         const auto method = findMethod(token.text);
 
-        if(method != nullptr)
+        if (method != nullptr)
             return method;
 
         throw RuntimeException(token, "Undefined property '" + token.text + "'.");
@@ -263,7 +263,7 @@ namespace pg
     {
         const auto it = std::find(fields.begin(), fields.end(), token.text);
 
-        if(it != fields.end())
+        if (it != fields.end())
         {
             it->value = value;
         }
@@ -278,7 +278,7 @@ namespace pg
         auto size = std::to_string(getSize());
         const auto it = std::find(fields.begin(), fields.end(), size);
 
-        if(it != fields.end())
+        if (it != fields.end())
         {
             it->value = value;
         }
@@ -292,7 +292,7 @@ namespace pg
     {
         const auto it = std::find(fields.begin(), fields.end(), key);
 
-        if(it != fields.end())
+        if (it != fields.end())
         {
             fields.erase(it);
         }
@@ -302,7 +302,7 @@ namespace pg
     {
         const auto it = boundMethods.find(name);
 
-        if(it != boundMethods.end())
+        if (it != boundMethods.end())
             return it->second;
         
         return nullptr;

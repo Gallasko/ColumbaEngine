@@ -81,7 +81,7 @@ namespace pg
     // Todo make this more generic and enable the fact to change the control during runtime
 
     template <typename Type>
-    class ConfiguredKeySystem : public System<Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>, Listener<ChangeKeyBind>, NamedSystem, InitSys>
+    class ConfiguredKeySystem : public System<Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>, Listener<ChangeKeyBind>, InitSys>
     {
     private:
         struct KeyState

@@ -157,6 +157,66 @@ namespace pg
         EndOfLine endOfLine;
     };
 
+    struct SerializedInfoHolder
+    {
+        SerializedInfoHolder() {}
+        SerializedInfoHolder(const std::string& className) : className(className) {}
+        SerializedInfoHolder(const std::string& name, const std::string& type, const std::string& value) : name(name), type(type), value(value) {}
+        SerializedInfoHolder(const SerializedInfoHolder& other) = delete;
+        SerializedInfoHolder(SerializedInfoHolder&& other) : className(std::move(other.className)), name(std::move(other.name)), type(std::move(other.type)), value(std::move(other.value)), parent(std::move(other.parent)), children(std::move(other.children)) {}
+
+        std::string className;
+        std::string name;
+        std::string type;
+        std::string value;
+
+        SerializedInfoHolder* parent;
+        std::vector<SerializedInfoHolder> children;
+    };
+
+    struct InspectorArchive : public Archive
+    {
+        /** Start the serialization process of a class */
+        virtual void startSerialization(const std::string& className) override
+        {
+            auto& node = currentNode->children.emplace_back(className);
+
+            node.name = lastAttributeName;
+            lastAttributeName = "";
+
+            node.parent = currentNode;
+
+            currentNode = &node;
+        }
+
+        /** Start the serialization process of a class */
+        virtual void endSerialization() override
+        {
+            currentNode = currentNode->parent;
+        }
+
+        /** Put an Attribute in the serialization process*/
+        virtual void setAttribute(const std::string& value, const std::string& type = "") override
+        {
+            auto& attributeNode = currentNode->children.emplace_back(lastAttributeName, type, value);
+
+            attributeNode.parent = currentNode;
+
+            lastAttributeName = "";
+        }
+
+        virtual void setValueName(const std::string& name) override
+        {
+            lastAttributeName = name;
+        }
+
+        std::string lastAttributeName = "";
+
+        SerializedInfoHolder mainNode;
+
+        SerializedInfoHolder* currentNode = &mainNode;
+    };
+
     // TODO make a specialized renderer for std::nullptr_t to catch nullptr error ?; 
 
     template <typename Type>
@@ -211,6 +271,41 @@ namespace pg
     template <>
     void serialize(Archive& archive, const constant::ModelInfo& modelInfo);
 
+    // Todo make this for map and unordered_map also
+    template <typename Type>
+    void serialize(Archive& archive, const std::vector<Type>& vec)
+    {
+        archive.startSerialization("Vector");
+
+        for (size_t i = 0; i < vec.size(); i++)
+        {
+            serialize(archive, vec.at(i));
+        }
+
+        archive.endSerialization();
+    }
+
+    template <typename Key, typename Value>
+    void serialize(Archive& archive, const std::unordered_map<Key, Value>& m)
+    {
+        archive.startSerialization("UnorderedMap");
+
+        serialize(archive, "nbElements", m.size());
+
+        size_t i = 0;
+
+        for (const auto& elem : m)
+        {
+            serialize(archive, "key" + std::to_string(i), elem.first);
+            serialize(archive, "value" + std::to_string(i), elem.second);
+
+            i++;
+        }
+
+        archive.endSerialization();
+    }
+
+
     class UnserializedObject
     {
         struct Attribute
@@ -240,11 +335,13 @@ namespace pg
 
         inline bool isClassObject() const { return isClass; }
 
-        const UnserializedObject& operator[](const std::string& key);
-        const UnserializedObject& operator[](const std::string& key) const;
+        const UnserializedObject& operator[](const std::string& key) noexcept;
+        const UnserializedObject& operator[](const std::string& key) const noexcept;
 
-        const UnserializedObject& operator[](size_t id);
-        const UnserializedObject& operator[](size_t id) const;
+        bool find(const std::string& key) const;
+
+        const UnserializedObject& operator[](size_t id) noexcept;
+        const UnserializedObject& operator[](size_t id) const noexcept;
 
         size_t getNbChildren() const { return children.size(); }
 
@@ -264,16 +361,115 @@ namespace pg
         bool isClass = true;
     };
 
+    static const UnserializedObject nullUnserializedObject;
+
     template <typename Type>
-    Type deserialize(const UnserializedObject& name);
+    Type deserialize(const UnserializedObject& serializedString);
+
+    template <typename Type>
+    std::vector<Type> deserializeVector(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("Serializer");
+
+        if (serializedString.isNull())
+        {
+            LOG_WARNING("Serializer", "Vector stored is empty");
+        }
+        else
+        {
+            LOG_MILE("Serializer", "Deserializing Vector of " << typeid(Type).name());
+
+            std::vector<Type> data;
+
+            for (const auto& child : serializedString.children)
+            {
+                if (child.isNull())
+                    continue;
+                
+                auto element = deserialize<Type>(child);
+
+                data.push_back(element);
+            }
+
+            return data;
+        }
+
+        return std::vector<Type>{};
+    }
+
+    template <typename Key, typename Value>
+    std::unordered_map<Key, Value> deserializeUnorderedMap(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("Serializer");
+
+        if (serializedString.isNull())
+        {
+            LOG_WARNING("Serializer", "Unordered Map stored is empty");
+        }
+        else
+        {
+            LOG_MILE("Serializer", "Deserializing Unordered Map of " << typeid(Key).name() << ", " << typeid(Value).name());
+
+            std::unordered_map<Key, Value> data;
+
+            size_t nbElements = 0;
+
+            if (serializedString.find("nbElements"))
+            {
+                nbElements = deserialize<size_t>(serializedString["nbElements"]);
+            }
+
+            for (size_t i = 0; i < nbElements; i++)
+            {
+                auto key = deserialize<Key>(serializedString["key" + std::to_string(i)]);
+                auto value = deserialize<Value>(serializedString["value" + std::to_string(i)]);
+
+                data[key] = value;
+            }
+
+            return data;
+        }
+
+        return std::unordered_map<Key, Value>{};
+    }
+
+    template <typename Type>
+    void defaultDeserialize(const UnserializedObject& serializedObject, const std::string& name, Type& output)
+    {
+        if (serializedObject.find(name))
+        {
+            output = deserialize<Type>(serializedObject[name]);
+        }
+    }
+
+    template <typename Type>
+    void defaultDeserialize(const UnserializedObject& serializedObject, const std::string& name, std::vector<Type>& output)
+    {
+        if (serializedObject.find(name))
+        {
+            output = deserializeVector<Type>(serializedObject[name]);
+        }
+    }
+
+    template <typename Key, typename Value>
+    void defaultDeserialize(const UnserializedObject& serializedObject, const std::string& name, std::unordered_map<Key, Value>& output)
+    {
+        if (serializedObject.find(name))
+        {
+            output = deserializeUnorderedMap<Key, Value>(serializedObject[name]);
+        }
+    }
 
     // Todo add a version header for serialization
 
     class Serializer
     {
+    friend class ComponentRegistry;
+
         class ClassSerializer
         {
         friend class Serializer;
+        friend class ComponentRegistry;
             ClassSerializer(Serializer *ser, const std::string& objectName) : serializer(ser), objectName(objectName) {}
             ~ClassSerializer() { archive.container << std::endl; serializer->registerSerialized(objectName, archive.container); }
         
@@ -298,7 +494,7 @@ namespace pg
         // Todo remove baseIndent when removing indent need from serializer
         static std::unordered_map<std::string, std::string> readData(const std::string& vers, const std::string& stringData, size_t baseIndent = 0);
 
-        static std::unique_ptr<Serializer>& getSerializer(const std::string& filename = "serialize.sz")
+        static std::unique_ptr<Serializer>& getSerializer(const std::string& filename = "global.sz")
             {static std::unique_ptr<Serializer> serializer = std::unique_ptr<Serializer>(new Serializer(filename)); return serializer; }
 
         // Todo make a static_assert to check if ": " is present in the objectName and reject it at compile time

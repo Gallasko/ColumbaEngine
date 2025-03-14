@@ -133,7 +133,7 @@ namespace pg
         CustomSysFunctions functions;
     };
 
-    class PgInterpreter : public System<Listener<ExecuteFileScriptEvent>, Listener<ExecuteCodeScriptEvent>, NamedSystem>
+    class PgInterpreter : public System<Listener<ExecuteFileScriptEvent>, Listener<ExecuteCodeScriptEvent>>
     {
     friend class Interpreter;
     friend class VisitorInterpreter;
@@ -237,4 +237,69 @@ namespace pg
 
         std::queue<ScriptCall> scriptQueue;
     };
+
+    void archiveToListHelper(const Function *caller, SerializedInfoHolder& parent, size_t indentLevel, std::shared_ptr<ClassInstance> currentList, const std::string& parentName = "");
+
+    template <typename Type>
+    std::shared_ptr<ClassInstance> serializeToInterpreter(const Function *caller, const Type& arg)
+    {
+        InspectorArchive archive;
+
+        serialize(archive, arg);
+                                
+        auto list = makeList(caller, {});
+
+        if (archive.mainNode.children.size() > 0)
+        {
+            archiveToListHelper(caller, archive.mainNode.children[0], 0, list, archive.mainNode.children[0].className);
+        }
+
+        return list;
+    }
+
+    void deserializeToHelper(UnserializedObject& holder, std::vector<ClassInstance::Field>& fields, const std::string& className = "");
+
+    template <typename Type>
+    Type deserializeTo(std::shared_ptr<ClassInstance> list)
+    {
+        UnserializedObject obj;
+
+        auto fields = list->getFields();
+
+        auto it = std::find(fields.begin(), fields.end(), "__className");
+
+        // If no class name is provided, we insert "InterpretedStruct" as the class name to avoid parsing and struct hierachy missmatch
+        if (it == fields.end())
+        {
+            fields.emplace_back("__className", makeVar("InterpretedStruct"));
+        }
+
+        deserializeToHelper(obj, fields);
+
+        if (obj.getNbChildren() > 0)
+            return deserialize<Type>(obj.children[0]);
+        else
+        {
+            LOG_ERROR("PG Interpreter", "Error happend when trying to deserialize the list no children found !");
+            return Type {};
+        }
+    }
+
+    template <typename Type>
+    Type deserializeTo(ValuablePtr arg)
+    {
+        if (arg->getType() == "ClassInstance")
+        {
+            // Todo create an helper funciton for this cast
+            auto instance = std::static_pointer_cast<ClassInstance>(arg);
+
+            return deserializeTo<Type>(instance);
+        }
+        else
+        {
+            LOG_ERROR("PG Interpreter", "Can only deserialize class instance, " << arg->getType() << " was given instead !");
+        }
+
+        return Type {};
+    }
 }

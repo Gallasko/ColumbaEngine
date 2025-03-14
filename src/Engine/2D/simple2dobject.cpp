@@ -66,7 +66,6 @@ namespace pg
         archive.startSerialization(Simple2DObject::getType());
 
         serialize(archive, "shape", value.shape);
-        serialize(archive, "size", value.size);
         serialize(archive, "colors", value.colors);
 
         archive.endSerialization();
@@ -120,10 +119,9 @@ namespace pg
             LOG_INFO(DOM, "Deserializing an Simple2DObject");
 
             auto shape = deserialize<Shape2D>(serializedString["shape"]);
-            auto size = deserialize<constant::Vector2D>(serializedString["size"]);
-            auto colors = deserialize<constant::Vector3D>(serializedString["colors"]);
+            auto colors = deserialize<constant::Vector4D>(serializedString["colors"]);
 
-            return Simple2DObject{shape, size.x, size.y, colors};
+            return Simple2DObject{shape, colors};
         }
 
         return Simple2DObject{Shape2D::None};
@@ -139,24 +137,19 @@ namespace pg
 
         simpleShapeMaterial.nbTextures = 0;
 
-        simpleShapeMaterial.nbAttributes = 8;
-
         simpleShapeMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
         simpleShapeMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        simpleShapeMaterial.mesh = std::make_shared<SimpleSquareMesh>(std::vector<size_t>{3, 2, 3});
+        simpleShapeMaterial.setSimpleMesh({3, 2, 4});
 
         materialId = masterRenderer->registerMaterial(simpleShapeMaterial);
 
-        auto group = registerGroup<UiComponent, Simple2DObject>();
+        auto group = registerGroup<PositionComponent, Simple2DObject>();
 
         group->addOnGroup([this](EntityRef entity) {
             LOG_INFO("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
 
-            auto ui = entity->get<UiComponent>();
-            auto shape = entity->get<Simple2DObject>();
-
-            ecsRef->attach<Simple2DRenderCall>(entity, createRenderCall(ui, shape));
+            shapeUpdateQueue.push(entity->id);
 
             changed = true;
         });
@@ -177,6 +170,33 @@ namespace pg
         if (not changed)
             return;
 
+        while (not shapeUpdateQueue.empty())
+        {
+            auto entityId = shapeUpdateQueue.front();
+
+            auto entity = ecsRef->getEntity(entityId);
+
+            if (not entity)
+            {
+                shapeUpdateQueue.pop();
+                continue;
+            }
+
+            auto ui = entity->get<PositionComponent>();
+            auto obj = entity->get<Simple2DObject>();
+
+            if (entity->has<Simple2DRenderCall>())
+            {
+                entity->get<Simple2DRenderCall>()->call = createRenderCall(ui, obj);
+            }
+            else
+            {
+                ecsRef->attach<Simple2DRenderCall>(entity, createRenderCall(ui, obj));
+            }
+
+            shapeUpdateQueue.pop();
+        }
+
         renderCallList.clear();
 
         const auto& renderCallView = view<Simple2DRenderCall>();
@@ -191,30 +211,34 @@ namespace pg
         changed = false;
     }
 
-    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<Simple2DObject> obj)
+    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Simple2DObject> obj)
     {
         LOG_THIS_MEMBER(DOM);
 
         RenderCall call;
 
-        call.processUiComponent(ui);
+        call.processPositionComponent(ui);
 
-        call.setOpacity(OpacityType::Opaque);
+        if (obj->colors.w == 255.0f)
+            call.setOpacity(OpacityType::Opaque);
+        else
+            call.setOpacity(OpacityType::Additive);
 
         call.setRenderStage(renderStage);
 
         call.setMaterial(materialId);
 
-        call.data.resize(8);
+        call.data.resize(9);
 
-        call.data[0] = ui->pos.x;
-        call.data[1] = ui->pos.y;
-        call.data[2] = ui->pos.z;
+        call.data[0] = ui->x;
+        call.data[1] = ui->y;
+        call.data[2] = ui->z;
         call.data[3] = ui->width;
         call.data[4] = ui->height;
         call.data[5] = obj->colors.x;
         call.data[6] = obj->colors.y;
         call.data[7] = obj->colors.z;
+        call.data[8] = obj->colors.w;
 
         return call;
     }
@@ -225,30 +249,11 @@ namespace pg
 
         auto entity = ecsRef->getEntity(event.id);
         
-        if (not entity or not entity->has<Simple2DRenderCall>())
+        if (not entity or not entity->has<Simple2DObject>())
             return; 
 
-        auto ui = entity->get<UiComponent>();
-        auto shape = entity->get<Simple2DObject>();
-
-        entity->get<Simple2DRenderCall>()->call = createRenderCall(ui, shape);
+        shapeUpdateQueue.push(event.id);
 
         changed = true;
-    }
-
-    CompList<UiComponent, Simple2DObject> makeSimple2DShape(EntitySystem *ecs, const Shape2D& shape, float width, float height, const constant::Vector3D& colors)
-    {
-        LOG_THIS(DOM);
-
-        auto entity = ecs->createEntity();
-
-        auto ui = ecs->attach<UiComponent>(entity);
-
-        ui->setWidth(width);
-        ui->setHeight(height);
-
-        auto tex = ecs->attach<Simple2DObject>(entity, shape, width, height, colors);
-
-        return CompList<UiComponent, Simple2DObject>(entity, ui, tex);
     }
 }

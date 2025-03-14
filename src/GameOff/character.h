@@ -1,0 +1,165 @@
+#pragma once
+
+#include <string>
+#include <map>
+
+#include "Helpers/helpers.h"
+#include "serialization.h"
+
+#include "characterstats.h"
+#include "spells.h"
+#include "passives.h"
+
+namespace pg
+{
+    enum class CharacterType : uint8_t
+    {
+        Player = 0,
+        Enemy
+    };
+
+    const static std::unordered_map<CharacterType, std::string> charaTypeToString = {
+        {CharacterType::Player, "Player"},
+        {CharacterType::Enemy, "Enemy"},
+    };
+
+    const static std::unordered_map<std::string, CharacterType> stringToCharaType = invertMap(charaTypeToString);
+
+    enum class PlayingStatus : uint8_t
+    {
+        Alive = 0,
+        Dead
+    };
+
+    enum class CharaBehaviourType : uint8_t
+    {
+        None = 0,
+        Random,
+        OnlyAutoAttack,
+        Pattern,
+    };
+
+    const static std::unordered_map<CharaBehaviourType, std::string> charaBehaviourToString = {
+        {CharaBehaviourType::None, "None"},
+        {CharaBehaviourType::Random, "Random"},
+        {CharaBehaviourType::OnlyAutoAttack, "OnlyAutoAttack"},
+        {CharaBehaviourType::Pattern, "Pattern"},
+    };
+
+    const static auto stringToCharaBehaviour = invertMap(charaBehaviourToString);
+
+    enum class TargetingType : uint8_t
+    {
+        None,
+        Random,
+        RoundRobin,
+        WeakestFirst,
+        StrongestFirst,
+        LowestFirst,
+        HighestFirst
+    };
+
+    const static std::unordered_map<TargetingType, std::string> targetingTypeToString = {
+        {TargetingType::None, "None"},
+        {TargetingType::Random, "Random"},
+        {TargetingType::RoundRobin, "RoundRobin"},
+        {TargetingType::WeakestFirst, "WeakestFirst"},
+        {TargetingType::StrongestFirst, "StrongestFirst"},
+        {TargetingType::LowestFirst, "LowestFirst"},
+        {TargetingType::HighestFirst, "HighestFirst"},
+    };
+
+    const static auto stringToTargetingType = invertMap(targetingTypeToString);
+
+    // Todo add some passives that can change the behaviour of a character
+    struct CharaBehaviour
+    {
+        CharaBehaviourType type = CharaBehaviourType::None;
+
+        TargetingType onAllyTarget = TargetingType::None;
+        TargetingType onEnemyTarget = TargetingType::None;
+
+        std::vector<size_t> pattern = { };
+    };
+
+    template <>
+    void serialize(Archive& archive, const CharaBehaviour& value);
+
+    struct Character
+    {
+        Character() {}
+        Character(const std::string& name) : name(name) {}
+        Character(const Character& other) : name(other.name), icon(other.icon), type(other.type), stat(other.stat), spells(other.spells), passives(other.passives), behaviour(other.behaviour), basicSpell(other.basicSpell), aggroMap(other.aggroMap), playingStatus(other.playingStatus), id(other.id) {}
+
+        Character& operator=(const Character& other)
+        {
+            name = other.name;
+            icon = other.icon;
+            type = other.type;
+            stat = other.stat;
+            spells = other.spells;
+            passives = other.passives;
+            behaviour = other.behaviour;
+            basicSpell = other.basicSpell;
+            aggroMap = other.aggroMap;
+            playingStatus = other.playingStatus;
+            id = other.id;
+
+            return *this;
+        }
+
+        std::string name = "Unknown";
+
+        std::string icon = "NoneIcon";
+
+        CharacterType type = CharacterType::Player;
+
+        CharacterStat stat = BaseCharacterStat{};
+
+        float speedUnits = 0;
+
+        std::vector<Spell> spells = { };
+
+        // Todo create addSpell also
+
+        std::vector<PassiveEffect> passives = {};
+
+        CharaBehaviour behaviour = { CharaBehaviourType::Random, TargetingType::Random, TargetingType::Random };
+
+        Spell basicSpell = BasicStrike{};
+
+        void addPassive(const PassiveEffect& passive, EntitySystem *ecsRef);
+
+        inline static std::string getType() { return "Character"; }
+
+        // In combat charac
+        // Todo make them private !
+
+        /** Map containing the aggro of all the character relative to this one.
+         * Key: id of the character
+         * Value: Value of the aggro of the said character
+         * 
+         * Aggro increase with all the damage dealt
+         * Base aggro = character.physicalAttack + character.magicalAttack
+         * 
+         * Todo make sure that this map is ordered with the higher aggro first and the worst aggro last
+        */
+        std::map<size_t, float> aggroMap = {};
+
+        void receiveDmg(long long int amount, EntitySystem* ecsRef = nullptr);
+
+        PlayingStatus playingStatus = PlayingStatus::Alive;
+
+        size_t id = 0;
+    };
+
+    template <>
+    void serialize(Archive& archive, const Character& value);
+
+    struct CharacterLeftClicked
+    {
+        CharacterLeftClicked(Character *chara) : chara(chara) {}
+
+        Character *chara;
+    };
+}

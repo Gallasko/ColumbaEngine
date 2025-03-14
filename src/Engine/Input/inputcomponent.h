@@ -4,9 +4,9 @@
 
 #include "constant.h"
 
-#include "ECS/entitysystem.h"
+#include "ECS/system.h"
 #include "ECS/callable.h"
-#include "UI/uisystem.h"
+#include "2D/position.h"
 
 #include <functional>
 #include <memory>
@@ -52,6 +52,15 @@ namespace pg
         CallablePtr callback;
     };
 
+    struct MouseWheelComponent
+    {
+        MouseWheelComponent(const StandardEvent& event) : event(event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
+        MouseWheelComponent(const MouseWheelComponent& rhs) : event(rhs.event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
+        virtual ~MouseWheelComponent() { LOG_THIS_MEMBER("MouseWheelComponent"); }
+
+        StandardEvent event;
+    };
+
     struct OnMouseClick
     {
         OnMouseClick(const MousePos& pos, const MouseButton& button) : pos(pos), button(button) { }
@@ -90,6 +99,12 @@ namespace pg
         SDL_Scancode key;
     };
 
+    struct OnSDLMouseWheel
+    {
+        Sint32 x;
+        Sint32 y;
+    };
+
     struct OnSDLGamepadPressed
     {
         int id;
@@ -115,13 +130,14 @@ namespace pg
 
     struct MouseAreaZ
     {
-        MouseAreaZ(_unique_id id, CompRef<UiComponent> ui) : id(id), ui(ui) { LOG_THIS_MEMBER("MouseArea"); }
+        MouseAreaZ(_unique_id id, EntityRef ui, CompRef<PositionComponent> pos) : id(id), ui(ui), pos(pos) { LOG_THIS_MEMBER("MouseArea"); }
 
         _unique_id id;
-        CompRef<UiComponent> ui;
+        EntityRef ui;
+        CompRef<PositionComponent> pos;
     };
 
-    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, Ref<UiComponent>, NamedSystem, InitSys>
+    struct MouseClickSystem : public System<Own<MouseLeftClickComponent>, Own<MouseRightClickComponent>, InitSys>
     {
         MouseClickSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseClickSystem"); }
 
@@ -145,7 +161,7 @@ namespace pg
     };
 
     // Todo combine this in the MouseClickSystem
-    struct MouseLeaveClickSystem : public System<Listener<OnMouseClick>, Own<MouseLeaveClickComponent>, Ref<UiComponent>, NamedSystem, InitSys, StoragePolicy>
+    struct MouseLeaveClickSystem : public System<Listener<OnMouseClick>, Own<MouseLeaveClickComponent>, InitSys, StoragePolicy>
     {
         MouseLeaveClickSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseLeaveClickSystem"); }
 
@@ -155,18 +171,16 @@ namespace pg
         {
             LOG_THIS_MEMBER("MouseLeaveClickSystem");
 
-            auto group = registerGroup<UiComponent, MouseLeaveClickComponent>();
+            auto group = registerGroup<PositionComponent, MouseLeaveClickComponent>();
 
             group->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("MouseLeaveClickSystem", "Add entity " << entity->id << " to ui - mouse leave click group !");
-
-                auto ui = entity->get<UiComponent>();
                 
-                mouseAreaHolder.emplace(entity->id, ui);
+                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
             });
 
             group->removeOfGroup([this](EntitySystem*, _unique_id id) {
-                LOG_MILE("MouseLeaveClickSystem", "Add entity " << id << " to ui - mouse leave click group !");
+                LOG_MILE("MouseLeaveClickSystem", "Remove entity " << id << " of ui - mouse leave click group !");
 
                 const auto& it = std::find_if(mouseAreaHolder.begin(), mouseAreaHolder.end(), [id](const MouseAreaZ& area) { return area.id == id; });
 
@@ -185,9 +199,7 @@ namespace pg
 
             for (auto mouseArea : mouseAreaHolder)
             {
-                UiComponent *ui = mouseArea.ui;
-
-                if (not ui->inClipBound(mousePos.x, mousePos.y))
+                if (not inClipBound(mouseArea.ui, mousePos.x, mousePos.y))
                 {
                     auto comp = getComponent(mouseArea.id);
 
@@ -198,6 +210,42 @@ namespace pg
 
         Input *inputHandler;
         std::set<MouseAreaZ, std::less<>> mouseAreaHolder;
+    };
+
+    struct MouseWheelSystem : public System<Listener<OnSDLMouseWheel>, Own<MouseWheelComponent>, InitSys, StoragePolicy>
+    {
+        MouseWheelSystem(Input *inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("MouseWheelSystem"); }
+
+        virtual std::string getSystemName() const override { return "Mouse Wheel System"; }
+
+        virtual void init() override
+        {
+            LOG_THIS_MEMBER("MouseWheelSystem");
+
+            auto group = registerGroup<PositionComponent, MouseWheelComponent>();
+
+            group->addOnGroup([this](EntityRef entity) {
+                LOG_MILE("MouseWheelSystem", "Add entity " << entity->id << " to ui - mouse wheel group !");
+                
+                mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
+            });
+
+            group->removeOfGroup([this](EntitySystem*, _unique_id id) {
+                LOG_MILE("MouseWheelSystem", "Remove entity " << id << " of ui - mouse wheel group !");
+
+                const auto& it = std::find_if(mouseAreaHolder.begin(), mouseAreaHolder.end(), [id](const MouseAreaZ& area) { return area.id == id; });
+
+                if (it != mouseAreaHolder.end())
+                {
+                    mouseAreaHolder.erase(it);
+                }
+            });
+        }
+
+        virtual void onEvent(const OnSDLMouseWheel& event) override;
+
+        Input *inputHandler;
+        std::set<MouseAreaZ, std::greater<>> mouseAreaHolder;
     };
 
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs);

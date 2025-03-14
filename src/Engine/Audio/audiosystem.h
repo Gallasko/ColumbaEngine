@@ -23,7 +23,7 @@ namespace pg
 
     struct PlaySoundEffect { std::string effect; int loops = 0; int channel = -1; };
 
-    struct AudioSystem : public System<Listener<StartAudio>, Listener<StopAudio>, Listener<PauseAudio>, Listener<ResumeAudio>, Listener<PlaySoundEffect>, Listener<SetMasterVolume>, Listener<SetMusicVolume>, Listener<SetSoundEffectsVolume>, InitSys, NamedSystem>
+    struct AudioSystem : public System<Listener<StartAudio>, Listener<StopAudio>, Listener<PauseAudio>, Listener<ResumeAudio>, Listener<PlaySoundEffect>, Listener<SetMasterVolume>, Listener<SetMusicVolume>, Listener<SetSoundEffectsVolume>, InitSys>
     {
         virtual void init() override;
 

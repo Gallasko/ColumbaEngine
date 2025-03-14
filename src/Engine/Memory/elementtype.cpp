@@ -99,7 +99,7 @@ namespace pg
         }
         else
         {
-            LOG_INFO(DOM, "Deserializing an Element Type");
+            LOG_MILE(DOM, "Deserializing an Element Type");
 
             type = deserialize<std::string>(serializedString["type"]);
 
@@ -115,7 +115,7 @@ namespace pg
                 value.setValue(deserialize<bool>(serializedString["data"]));
             else
             {
-                LOG_ERROR(DOM, "Error in casting an string to UnionType");
+                LOG_ERROR(DOM, "Error in casting a string to UnionType");
                 return value;
             }
         }

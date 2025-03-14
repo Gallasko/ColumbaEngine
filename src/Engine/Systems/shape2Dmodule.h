@@ -4,7 +4,7 @@
 
 #include "Interpreter/pginterpreter.h"
 
-#include "uimodule.h"
+#include "positionmodule.h"
 
 namespace pg
 {
@@ -47,8 +47,8 @@ namespace pg
                 height = h.get<float>();
             }
 
-            auto rec = makeSimple2DShape(ecsRef, Shape2D::Square, width, height, {255.0f, 0.0f, 0.0f});
-            auto recUi = rec.get<UiComponent>();
+            auto rec = makeSimple2DShape(ecsRef, Shape2D::Square, width, height, {255.0f, 0.0f, 0.0f, 0.0f});
+            auto recUi = rec.get<PositionComponent>();
 
             if(x.isNumber() and y.isNumber() and w.isNumber() and h.isNumber())
             {

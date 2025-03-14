@@ -452,7 +452,7 @@ namespace pg
     {
         auto object = expr->object->accept(this);
 
-        if(object->getType() == "ClassInstance")
+        if (object->getType() == "ClassInstance")
             return std::static_pointer_cast<ClassInstance>(object)->get(expr->name);
         else if(object->getType() == "IteratorInstance")
             return std::static_pointer_cast<IteratorInstance>(object)->get(expr->name);

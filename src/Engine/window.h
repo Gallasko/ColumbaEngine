@@ -55,6 +55,8 @@ namespace pg
     public:
         EntitySystem ecs;
 
+        PgInterpreter *interpreter = nullptr;
+
         MasterRenderer *masterRenderer = nullptr;
 
     protected:
@@ -73,7 +75,6 @@ namespace pg
 
         int width = 1, height = 1;
 
-        PgInterpreter *interpreter = nullptr;
         Input *inputHandler = nullptr;
         AudioSystem *audioSystem = nullptr;
 

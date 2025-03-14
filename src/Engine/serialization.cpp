@@ -8,6 +8,7 @@
 
 #include "logger.h"
 #include "constant.h"
+
 namespace pg
 {
     namespace
@@ -210,7 +211,7 @@ namespace pg
         auto attribute = serializedString.getAsAttribute();
         if (attribute.name != "bool")
         {
-            LOG_ERROR(DOM, "Serialized string is not a bool (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not a bool (" << attribute.name << ")");
             return false;
         }
 
@@ -219,7 +220,7 @@ namespace pg
         else if (attribute.value == "false")
             return false;
 
-        LOG_ERROR(DOM, "Serialized string of bool is neither true or false");
+        LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] of bool is neither true or false");
         return false;
     }
 
@@ -231,9 +232,11 @@ namespace pg
         int value = 0;
 
         auto attribute = serializedString.getAsAttribute();
-        if (attribute.name != "int")
+
+        // Todo check this
+        if (attribute.name != "size_t" and attribute.name != "unsigned int" and attribute.name != "int")
         {
-            LOG_ERROR(DOM, "Serialized string is not an int (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not an integer (" << attribute.name << ")");
             return value;
         }
 
@@ -251,9 +254,11 @@ namespace pg
         unsigned int value = 0;
 
         auto attribute = serializedString.getAsAttribute();
-        if (attribute.name != "unsigned int")
+
+        // Todo check this
+        if (attribute.name != "size_t" and attribute.name != "unsigned int" and attribute.name != "int")
         {
-            LOG_ERROR(DOM, "Serialized string is not an unsigned int (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not an integer (" << attribute.name << ")");
             return value;
         }
 
@@ -273,7 +278,7 @@ namespace pg
         auto attribute = serializedString.getAsAttribute();
         if (attribute.name != "float")
         {
-            LOG_ERROR(DOM, "Serialized string is not a float (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not a float (" << attribute.name << ")");
             return value;
         }
 
@@ -293,7 +298,7 @@ namespace pg
         auto attribute = serializedString.getAsAttribute();
         if (attribute.name != "double")
         {
-            LOG_ERROR(DOM, "Serialized string is not a double (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not a double (" << attribute.name << ")");
             return value;
         }
 
@@ -311,9 +316,11 @@ namespace pg
         size_t value = 0;
 
         auto attribute = serializedString.getAsAttribute();
-        if (attribute.name != "size_t")
+
+        // Todo check this
+        if (attribute.name != "size_t" and attribute.name != "unsigned int" and attribute.name != "int")
         {
-            LOG_ERROR(DOM, "Serialized string is not a size_t (" << attribute.name << ")");
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not an integer (" << attribute.name << ")");
             return value;
         }
 
@@ -340,15 +347,15 @@ namespace pg
 
             if (stringAttribute.name != "string")
             {
-                LOG_ERROR(DOM, "String attribute name is not 'string' (" << stringAttribute.name << ")");
+                LOG_ERROR(DOM, "String [" << serializedString.getObjectName() << "] attribute name is not 'string' (" << stringAttribute.name << ")");
                 
-                return std::string();
+                return value;
             }
 
             return stringAttribute.value;
         }
 
-        return std::string();
+        return value;
     }
     
     template <>
@@ -538,7 +545,7 @@ namespace pg
         return attribute;
     }
 
-    const UnserializedObject& UnserializedObject::operator[](const std::string& key)
+    const UnserializedObject& UnserializedObject::operator[](const std::string& key) noexcept
     {
         auto isObjectName = [=](UnserializedObject obj) { return obj.objectName == key; }; 
         auto it = std::find_if(children.begin(), children.end(), isObjectName);
@@ -548,11 +555,11 @@ namespace pg
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + key + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 
-    const UnserializedObject& UnserializedObject::operator[](const std::string& key) const
+    const UnserializedObject& UnserializedObject::operator[](const std::string& key) const noexcept
     {
         auto isObjectName = [=](const UnserializedObject& obj) { return obj.objectName == key; }; 
         const auto& it = std::find_if(children.begin(), children.end(), isObjectName);
@@ -562,35 +569,46 @@ namespace pg
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + key + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 
-    const UnserializedObject& UnserializedObject::operator[](size_t id)
+    bool UnserializedObject::find(const std::string& key) const
+    {
+        auto isObjectName = [=](const UnserializedObject& obj) { return obj.objectName == key; }; 
+        const auto& it = std::find_if(children.begin(), children.end(), isObjectName);
+
+        return it != children.end();
+    }
+
+    const UnserializedObject& UnserializedObject::operator[](size_t id) noexcept
     {
         if (id < children.size())
             return children.at(id);
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + std::to_string(id) + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 
-    const UnserializedObject& UnserializedObject::operator[](size_t id) const
+    const UnserializedObject& UnserializedObject::operator[](size_t id) const noexcept
     {
         if (id < children.size())
             return children.at(id);
         else
         {
             LOG_ERROR(DOM, "Requested the child: '" + std::to_string(id)  + "' not present inside the object");
-            return children[0];
+            return nullUnserializedObject;
         }
     }
 
+    // Todo need to fix when a serialized class is empty
     void UnserializedObject::parseString()
     {
         LOG_THIS_MEMBER(DOM);
+
+        size_t lineNumber = 0;
 
         std::string currentLine;
         size_t classChildIndent = 0;
@@ -606,6 +624,7 @@ namespace pg
         std::string delimiter = ": ";
         std::string tempSerializedString = "";
         size_t pos;
+        size_t attributePos;
         
         // First line should always be the beginning of a class declaration
         bool startOfClass = false;
@@ -709,8 +728,21 @@ namespace pg
         while (std::getline(iss, nextLine))
         {
             nextIndent = nbLeadingSpaces(nextLine);
-            if (nextIndent > classChildIndent and startOfClass == false and lockupClass == false)
+
+            bool notInClassCurrently = startOfClass == false and lockupClass == false;
+            
+            if (nextIndent > classChildIndent and notInClassCurrently)
                 startOfClass = true;
+
+            const auto nextLineTrimmed = trim(nextLine);
+
+            attributePos = currentLine.find(ATTRIBUTECONST);
+
+            // This can happen if the class is empty
+            if (notInClassCurrently and (nextLineTrimmed == "}" or nextLineTrimmed =="},") and attributePos == std::string::npos)
+            {
+                startOfClass = true;
+            }
 
             if (startOfClass)
             {
@@ -767,10 +799,10 @@ namespace pg
                 }
                 else
                 {
-                    pos = currentLine.find(ATTRIBUTECONST);
+                    // pos = currentLine.find(ATTRIBUTECONST);
 
                     // The current line is the beginning of a new attribute
-                    if (pos != std::string::npos)
+                    if (attributePos != std::string::npos)
                     {
                         // If lockupAttribute is true, then we finished processing the previous attribute
                         if (lockupAttribute)
@@ -780,7 +812,7 @@ namespace pg
                         }
 
                         // Cut the beginning of the current line to look for the attribute name
-                        tempAttributeName = currentLine.substr(0, pos);
+                        tempAttributeName = currentLine.substr(0, attributePos);
 
                         // Try to find ":" to see if the attribute is named or not 
                         pos = tempAttributeName.find(delimiter);
@@ -800,6 +832,7 @@ namespace pg
                     // Error the current line describe nothing
                     else if (pos == std::string::npos and lockupAttribute == false)
                     {
+                        LOG_ERROR(DOM, "Current [" << lineNumber << "] line: " << currentLine);
                         LOG_ERROR(DOM, "Line is neither a class definition, a class body nor a attribute, serialization string is ill formed. Exiting Serialization Parsing !");
 
                         errorHappened = true;
@@ -817,6 +850,7 @@ namespace pg
 
             currentLine = nextLine;
             currentIndent = nextIndent;
+            lineNumber++;
         }
 
         // If lockupAttribute is true, then we finished processing the previous attribute
@@ -1027,7 +1061,7 @@ namespace pg
         for (const auto& serializedString : serializedMap)
             stream << serializedString.first << ": " << serializedString.second;
 
-        LOG_INFO(DOM, "Writing to file: " << file.filepath << " " << stream.str());
+        // LOG_INFO(DOM, "Writing to file: " << file.filepath << " " << stream.str());
 
         UniversalFileAccessor::writeToFile(file, stream.str(), true);
     }

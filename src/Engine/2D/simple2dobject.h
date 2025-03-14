@@ -2,11 +2,13 @@
 
 #include "logger.h"
 
-#include "UI/uisystem.h"
+#include "position.h"
 
 #include "Renderer/renderer.h"
 
 #include "constant.h"
+
+// Todo this system can be faulty during scene changing !
 
 namespace pg
 {
@@ -21,15 +23,9 @@ namespace pg
     struct Simple2DObject : public Ctor
     {
         Simple2DObject(const Shape2D& shape) : shape(shape) { }
-        Simple2DObject(const Shape2D& shape, float width, float height, const constant::Vector3D& c) : shape(shape)
-        {
-            size.x = width;
-            size.y = height;
+        Simple2DObject(const Shape2D& shape, const constant::Vector4D& c) : shape(shape), colors(c) { }
 
-            colors = c;
-        }
-
-        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), size(rhs.size), colors(rhs.colors), entity(rhs.entity) { }
+        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), entity(rhs.entity) { }
         virtual ~Simple2DObject() {}
 
         inline static std::string getType() { return "Simple2DObject"; } 
@@ -39,10 +35,10 @@ namespace pg
         Shape2D shape;
 
         // Todo be specific for each shape (rect = [width, height], circle = [origin, radius], triangle = [base, height] + rotation arg)
-        constant::Vector2D size {10.0f, 10.0f};
+        // constant::Vector2D size {10.0f, 10.0f};
 
         // Todo make the colors normalized (0.0f <-> 1.0f) to not do the division in the shader
-        constant::Vector3D colors {255.0f, 255.0f, 255.0f};
+        constant::Vector4D colors {255.0f, 255.0f, 255.0f, 255.0f};
 
         Entity *entity = nullptr;
     };
@@ -66,7 +62,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct Simple2DObjectSystem : public AbstractRenderer, System<Own<Simple2DObject>, Own<Simple2DRenderCall>, Ref<UiComponent>, Listener<EntityChangedEvent>, NamedSystem, InitSys>
+    struct Simple2DObjectSystem : public AbstractRenderer, System<Own<Simple2DObject>, Own<Simple2DRenderCall>, Listener<EntityChangedEvent>, InitSys>
     {
         Simple2DObjectSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
         virtual ~Simple2DObjectSystem() { }
@@ -77,12 +73,48 @@ namespace pg
 
         virtual void execute() override;
 
-        RenderCall createRenderCall(CompRef<UiComponent> ui, CompRef<Simple2DObject> obj);
+        RenderCall createRenderCall(CompRef<PositionComponent> ui, CompRef<Simple2DObject> obj);
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 
         uint64_t materialId = 0;
+
+        std::queue<_unique_id> shapeUpdateQueue;
     };
 
-    CompList<UiComponent, Simple2DObject> makeSimple2DShape(EntitySystem *ecs, const Shape2D& shape, float width, float height, const constant::Vector3D& colors);
+    template <typename Type>
+    CompList<PositionComponent, Simple2DObject> makeSimple2DShape(Type *ecs, const Shape2D& shape, float width = 0.0f, float height = 0.0f, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f})
+    {
+        LOG_THIS(DOM);
+
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        auto tex = ecs->template attach<Simple2DObject>(entity, shape, colors);
+
+        return {entity, ui, tex};
+    }
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor, Simple2DObject> makeUiSimple2DShape(Type *ecs, const Shape2D& shape, float width = 0.0f, float height = 0.0f, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f})
+    {
+        LOG_THIS(DOM);
+
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        auto tex = ecs->template attach<Simple2DObject>(entity, shape, colors);
+
+        return {entity, ui, anchor, tex};
+    }
 }

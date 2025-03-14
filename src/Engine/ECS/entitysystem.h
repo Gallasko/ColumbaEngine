@@ -47,27 +47,6 @@ namespace pg
         static constexpr bool value = decltype(check<T>(0))::value;
     };
 
-    template <typename Comp>
-    struct CompListGetter
-    {
-        CompListGetter(CompRef<Comp> comp) : comp(comp) {}
-
-        inline CompRef<Comp> get() const { return comp; } 
-
-        CompRef<Comp> comp;
-    };
-
-    template <typename... Comps>
-    struct CompList : public CompListGetter<Comps>...
-    {
-        CompList(EntityRef entity, CompRef<Comps>... comps) : CompListGetter<Comps>(comps)..., entity(entity) { }
-
-        template <typename Comp>
-        inline CompRef<Comp> get() const { return static_cast<const CompListGetter<Comp>*>(this)->get(); }
-
-        EntityRef entity;
-    };
-
     class EntitySystem
     {
     friend class Entity;
@@ -120,6 +99,22 @@ namespace pg
             running = true;
 
             runningThread = std::thread(&EntitySystem::executeAll, this);
+        }
+
+        /**
+         * @brief Start the ecs without starting the execute thread loop, Used mainly for testing purposes
+         * 
+         * @warning This function is mainly used for testing purposes, and it does not guarantee that the ECS will run properly. @see start() if you don't know what you're doing. 
+         */
+        inline void fakeStart()
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            if (running)
+                return;
+
+            stopRequested = false;
+            running = true;
         }
 
         /**
@@ -203,9 +198,9 @@ namespace pg
 
             system->ecsRef = this;
 
-            system->addToRegistry(&registry);
-
             systems.emplace(system->_id, system);
+
+            system->addToRegistry(&registry);
 
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
@@ -227,7 +222,7 @@ namespace pg
                     auto end = std::chrono::steady_clock::now();
 
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->name << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
                 
                 }).name(std::to_string(system->_id));
 
@@ -310,9 +305,9 @@ namespace pg
 
             system->ecsRef = this;
 
-            system->addToRegistry(&registry);
-
             systems.emplace(system->_id, system);
+
+            system->addToRegistry(&registry);
 
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
@@ -327,7 +322,7 @@ namespace pg
                     auto end = std::chrono::steady_clock::now();
 
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->name << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
                 
                 }).name(std::to_string(system->_id));
 
@@ -365,9 +360,9 @@ namespace pg
 
             system->ecsRef = this;
 
-            system->addToRegistry(&registry);
-
             systems.emplace(system->_id, system);
+
+            system->addToRegistry(&registry);            
 
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
@@ -382,7 +377,7 @@ namespace pg
                     auto end = std::chrono::steady_clock::now();
 
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->name << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
 
                 }).name(std::to_string(system->_id));
 
@@ -459,7 +454,12 @@ namespace pg
 
             try
             {
-                return static_cast<Sys*>(systems.at(id));
+                const auto& it = systems.find(id);
+
+                if (it != systems.end())
+                    return static_cast<Sys*>(systems.at(id));
+                else
+                    return nullptr;
             }
             catch (const std::exception& e)
             {
@@ -597,8 +597,8 @@ namespace pg
 
         inline size_t getNbTasks() const { return tasks.size(); }
 
-        // Todo add this in the fps system
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
+        inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
 
     private:
         friend void serialize<>(Archive& archive, const EntitySystem& ecs);
@@ -691,7 +691,11 @@ namespace pg
 
         bool running = false;
         bool stopRequested = false;
+
+        /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;
+        size_t totalNbOfExecution = 0;
+
         ComponentRegistry registry;
 
         CommandDispatcher cmdDispatcher;
@@ -788,6 +792,7 @@ namespace pg
             auto ent = ecsRef->getEntity(id);
             auto initialized = id != 0 and ent;
 
+            // Todo add memoisation if we run into performance issues here
             return CompRef<Comp>(ecsRef->registry.retrieve<Comp>()->getComponent(id), id, ecsRef, initialized);
         }
 
@@ -951,6 +956,17 @@ namespace pg
            return component;
         }
 
+    }
+
+    template <typename Comp>
+    Entity* CompRef<Comp>::getEntity() const
+    {
+        if (entityId != 0)
+        {
+            return ecsRef->getEntity(entityId);
+        }
+
+        return nullptr;
     }
 
     template <typename Type, typename... Types>

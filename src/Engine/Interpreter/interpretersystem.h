@@ -22,6 +22,8 @@ namespace pg
 
         virtual void execute() override;
 
+        virtual std::string getSystemName() const override { return name; }
+
         // Todo ?
         void onEvent(_unique_id, std::shared_ptr<ClassInstance>)
         {
@@ -32,6 +34,8 @@ namespace pg
         std::shared_ptr<Environment> env;
         std::shared_ptr<ClassInstance> sysInstance;
         std::shared_ptr<CallableIntepretedFunction> executeMethod;
+
+        std::string name;
     };
 
 }

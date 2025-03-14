@@ -115,7 +115,8 @@
         "hash_map": "cpp",
         "alignedvector3": "cpp",
         "fft": "cpp",
-        "tensor": "cpp"
+        "tensor": "cpp",
+        "ciso646": "cpp"
     },
     "files.exclude": {
         "**/*.o": true,

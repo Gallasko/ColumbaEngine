@@ -25,6 +25,7 @@
 #include "Files/filemanager.h"
 #include "Files/fileparser.h"
 
+#include <iostream>
 namespace pg
 {
     namespace

@@ -117,7 +117,16 @@ namespace pg
 
     void TerminalSink::processLog(const Logger::Info& log)
     {
-        std::cout << logLevelString(log.level) << "'" << log.scope << "' " << logPositionString(log.filename, log.objectName, log.function, log.line) << " " << log.message << std::endl;
+        if (log.level == Logger::InfoLevel::error)
+            std::cout << "\033[31m";
+        else if (log.level == Logger::InfoLevel::warning)
+            std::cout << "\033[33m";
+
+        std::cout << logLevelString(log.level) << "'" << log.scope << "' " << logPositionString(log.filename, log.objectName, log.function, log.line) << " " << log.message;
+
+        // Reset any color put on the text
+        std::cout << "\033[0m" << std::endl;
+        
         //if(not ignoreNonErrors and log.level == Logger::InfoLevel::log)
         //    std::cout << log.line << ", " << log.filename << ", " << log.function << ", " << log.objectName << "," << log.scope << ", " << log.message << ", " << static_cast<int>(log.level) << std::endl;
     }

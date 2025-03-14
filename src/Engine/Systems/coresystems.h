@@ -38,7 +38,7 @@ namespace pg
     template <>
     EntityName deserialize(const UnserializedObject& serializedString);
 
-    struct EntityNameSystem : public System<Own<EntityName>, StoragePolicy, NamedSystem>
+    struct EntityNameSystem : public System<Own<EntityName>, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Entity Name System"; }
 
@@ -65,7 +65,7 @@ namespace pg
         int16_t tick;
     };
 
-    struct TickingSystem : public System<NamedSystem>
+    struct TickingSystem : public System<>
     {
         TickingSystem(int16_t duration = 20) : tickDuration(duration), reminder(0)
         { 
@@ -161,7 +161,7 @@ namespace pg
     struct Timer
     {
         Timer() {}
-        Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), callback(other.callback) {}
+        Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), oneShot(other.oneShot), callback(other.callback) {}
 
         void start()
         {
@@ -180,10 +180,12 @@ namespace pg
 
         bool running = false;
 
+        bool oneShot = false;
+
         CallablePtr callback = nullptr;
     };
 
-    struct TimerSystem : public System<Own<Timer>, Listener<TickEvent>, NamedSystem>
+    struct TimerSystem : public System<Own<Timer>, Listener<TickEvent>>
     {
         virtual std::string getSystemName() const override { return "Timer System"; }
 
@@ -215,6 +217,12 @@ namespace pg
 
                         if (timer->callback)
                             timer->callback->call(ecsRef);
+
+                        if (timer->oneShot)
+                        {
+                            timer->running = false;
+                            break;
+                        }
                     }
                 }
             }
@@ -233,7 +241,7 @@ namespace pg
         EntityRef entity;
     };
 
-    struct RunScriptFromTextInputSystem : public System<Listener<TextInputTriggeredEvent>, NamedSystem, StoragePolicy>
+    struct RunScriptFromTextInputSystem : public System<Listener<TextInputTriggeredEvent>, StoragePolicy>
     {
         virtual std::string getSystemName() const override { return "Run Script From Text Input System"; }
 
