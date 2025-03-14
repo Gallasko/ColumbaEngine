@@ -15,6 +15,23 @@ namespace pg
         float capacity = 100.0f;       // Maximum mana the generator can store
     };
 
+    // Event for upgrading the mana generator.
+    struct UpgradeManaGeneratorProductionEvent
+    {
+        UpgradeManaGeneratorProductionEvent(_unique_id id, float upgradeAmount) : id(id), upgradeAmount(upgradeAmount) {}
+        UpgradeManaGeneratorProductionEvent(const UpgradeManaGeneratorProductionEvent& other) : id(other.id), upgradeAmount(other.upgradeAmount) {}
+
+        UpgradeManaGeneratorProductionEvent& operator=(const UpgradeManaGeneratorProductionEvent& other)
+        {
+            id = other.id;
+            upgradeAmount = other.upgradeAmount;
+            return *this;
+        }
+
+        _unique_id id;       // ID of the mana generator to upgrade.
+        float upgradeAmount; // Amount by which to boost production (and possibly capacity).
+    };
+
     struct OnManaGeneratorHarvest
     {
         OnManaGeneratorHarvest(_unique_id id) : id(id) {}
@@ -31,7 +48,7 @@ namespace pg
         _unique_id id;
     };
 
-    struct ManaGeneratorSystem : public System<Own<ManaGenerator>, Listener<TickEvent>, Listener<OnManaGeneratorHarvest>>
+    struct ManaGeneratorSystem : public System<Own<ManaGenerator>, Listener<TickEvent>, Listener<OnManaGeneratorHarvest>, Listener<UpgradeManaGeneratorProductionEvent>>
     {
         virtual std::string getSystemName() const override { return "Mana Generator System"; }
 
@@ -55,6 +72,24 @@ namespace pg
             ecsRef->sendEvent(IncreaseFact{"mana", gen->currentMana});
 
             gen->currentMana = 0.0f;
+        }
+
+        virtual void onEvent(const UpgradeManaGeneratorProductionEvent& event) override
+        {
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent or (not ent->has<ManaGenerator>()))
+            {
+                LOG_ERROR("UpgradeManaGenerator", "Entity requested doesn't have a ManaGenerator component!");
+                return;
+            }
+
+            auto gen = ent->get<ManaGenerator>();
+
+            // Upgrade: Increase production rate and capacity.
+            gen->productionRate += event.upgradeAmount;
+
+            LOG_INFO("UpgradeManaGenerator", "Generator upgraded: new productionRate = " << gen->productionRate);
         }
 
         virtual void execute() override
