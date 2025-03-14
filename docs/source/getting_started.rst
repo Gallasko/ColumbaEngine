@@ -1,6 +1,8 @@
-```rst
 Getting Started
 ===============
+
+.. autosummary::
+   :toctree: generated
 
 Welcome to the **PgEngine** project! This guide will help you get started with setting up and using the engine. Whether you're a contributor or just interested in testing out the engine, this section will cover everything you need to know to get up and running.
 
@@ -137,4 +139,3 @@ Contact and Support
 -------------------
 
 If you have questions or run into issues, feel free to open an issue on the `GitHub Issues page <https://github.com/Gallasko/PgEngine/issues>`_ or reach out to the maintainers for help.
-```
