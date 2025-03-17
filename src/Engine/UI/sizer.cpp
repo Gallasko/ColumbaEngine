@@ -45,10 +45,20 @@ namespace pg
         uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z, PosOpType::Add, 1});
 
         view->entities.push_back(ent);
+    }
 
-        recalculateChildrenPos(viewEnt);
+    void HorizontalLayoutSystem::removeEntity(EntityRef viewEnt, _unique_id index)
+    {
+        LOG_INFO(DOM, "Removing Entity " << index);
+        auto view = viewEnt->get<HorizontalLayout>();
 
-        updateVisibility(viewEnt, view->visible);
+        auto it = std::find_if(view->entities.begin(), view->entities.end(), [index](const EntityRef& entity) { return entity.id == index; });
+
+        if (it != view->entities.end())
+        {
+            view->entities.erase(it);
+            ecsRef->removeEntity(index);
+        }
     }
 
     void HorizontalLayoutSystem::recalculateChildrenPos(EntityRef viewEnt)
@@ -192,7 +202,7 @@ namespace pg
                 }
 
                 pos->setVisibility(isCompVisible);
-            }            
+            }
         }
     }
 
@@ -243,9 +253,20 @@ namespace pg
         uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z, PosOpType::Add, 1});
 
         view->entities.push_back(ent);
+    }
 
-        recalculateChildrenPos(viewEnt);
-        updateVisibility(viewEnt, view->visible);
+    void VerticalLayoutSystem::removeEntity(EntityRef viewEnt, _unique_id index)
+    {
+        LOG_INFO(DOM, "Removing Entity " << index);
+        auto view = viewEnt->get<VerticalLayout>();
+
+        auto it = std::find_if(view->entities.begin(), view->entities.end(), [index](const EntityRef& entity) { return entity.id == index; });
+
+        if (it != view->entities.end())
+        {
+            view->entities.erase(it);
+            ecsRef->removeEntity(index);
+        }
     }
 
     void VerticalLayoutSystem::recalculateChildrenPos(EntityRef viewEnt)
@@ -380,7 +401,7 @@ namespace pg
                 }
 
                 pos->setVisibility(isCompVisible);
-            }            
+            }
         }
     }
 
