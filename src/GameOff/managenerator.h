@@ -15,51 +15,41 @@ namespace pg
         float capacity = 100.0f;       // Maximum mana the generator can store
     };
 
-    // Event for upgrading the mana generator.
-    struct UpgradeManaGeneratorProductionEvent
+    struct ManaGeneratorSystem : public System<Own<ManaGenerator>, Listener<TickEvent>, Listener<StandardEvent>, InitSys>
     {
-        UpgradeManaGeneratorProductionEvent(_unique_id id, float upgradeAmount) : id(id), upgradeAmount(upgradeAmount) {}
-        UpgradeManaGeneratorProductionEvent(const UpgradeManaGeneratorProductionEvent& other) : id(other.id), upgradeAmount(other.upgradeAmount) {}
-
-        UpgradeManaGeneratorProductionEvent& operator=(const UpgradeManaGeneratorProductionEvent& other)
+        virtual void init() override
         {
-            id = other.id;
-            upgradeAmount = other.upgradeAmount;
-            return *this;
+            addListenerToStandardEvent("mana_harvest");
+            addListenerToStandardEvent("mana_gen_upgrade");
         }
 
-        _unique_id id;       // ID of the mana generator to upgrade.
-        float upgradeAmount; // Amount by which to boost production (and possibly capacity).
-    };
-
-    struct OnManaGeneratorHarvest
-    {
-        OnManaGeneratorHarvest(_unique_id id) : id(id) {}
-        OnManaGeneratorHarvest(const OnManaGeneratorHarvest& other) : id(other.id) {}
-
-        OnManaGeneratorHarvest& operator=(const OnManaGeneratorHarvest& other)
-        {
-            id = other.id;
-
-            return *this;
-        }
-
-        // Unique ID of the mana generator that was harvested
-        _unique_id id;
-    };
-
-    struct ManaGeneratorSystem : public System<Own<ManaGenerator>, Listener<TickEvent>, Listener<OnManaGeneratorHarvest>, Listener<UpgradeManaGeneratorProductionEvent>>
-    {
         virtual std::string getSystemName() const override { return "Mana Generator System"; }
+
+        virtual void onEvent(const StandardEvent& event) override
+        {
+            if (event.name == "mana_harvest")
+            {
+                auto id = event.values.at("id").get<size_t>();
+
+                onManaHarvest(id);
+            }
+            else if (event.name == "mana_gen_upgrade")
+            {
+                auto id = event.values.at("id").get<size_t>();
+                auto upgradeAmount = event.values.at("upgradeAmount").get<float>();
+
+                onManaGeneratorUpgrade(id, upgradeAmount);
+            }
+        }
 
         virtual void onEvent(const TickEvent& event) override
         {
             deltaTime += event.tick;
         }
 
-        virtual void onEvent(const OnManaGeneratorHarvest& event) override
+        void onManaHarvest(_unique_id id)
         {
-            auto ent = ecsRef->getEntity(event.id);
+            auto ent = ecsRef->getEntity(id);
 
             if (not ent or (not ent->has<ManaGenerator>()))
             {
@@ -68,15 +58,15 @@ namespace pg
             }
 
             auto gen = ent->get<ManaGenerator>();
-            
+
             ecsRef->sendEvent(IncreaseFact{"mana", gen->currentMana});
 
             gen->currentMana = 0.0f;
         }
 
-        virtual void onEvent(const UpgradeManaGeneratorProductionEvent& event) override
+        void onManaGeneratorUpgrade(_unique_id id, float amount)
         {
-            auto ent = ecsRef->getEntity(event.id);
+            auto ent = ecsRef->getEntity(id);
 
             if (not ent or (not ent->has<ManaGenerator>()))
             {
@@ -87,7 +77,7 @@ namespace pg
             auto gen = ent->get<ManaGenerator>();
 
             // Upgrade: Increase production rate and capacity.
-            gen->productionRate += event.upgradeAmount;
+            gen->productionRate += amount;
 
             LOG_INFO("UpgradeManaGenerator", "Generator upgraded: new productionRate = " << gen->productionRate);
         }
@@ -109,7 +99,7 @@ namespace pg
 
                 deltaTime = 0;
             }
-            
+
         }
 
         size_t deltaTime = 0;

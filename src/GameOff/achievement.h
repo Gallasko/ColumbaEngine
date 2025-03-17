@@ -34,7 +34,7 @@ namespace pg
 
     struct AchievementReward
     {
-        AchievementReward() : type(AchievementRewardType::NoReward), reward(StandardEvent("Noop")) { }
+        AchievementReward() : type(AchievementRewardType::NoReward), reward(StandardEvent("Noop")), visible(false) { }
         AchievementReward(const StandardEvent& event) : type(AchievementRewardType::Event), reward(event) {}
         AchievementReward(const AddFact& fact) : type(AchievementRewardType::Add), reward(fact) {}
         AchievementReward(const RemoveFact& fact) : type(AchievementRewardType::Remove), reward(fact) {}
@@ -59,7 +59,7 @@ namespace pg
             case AchievementRewardType::Event:
                 ecsRef->sendEvent(std::get<StandardEvent>(reward));
                 break;
-            
+
             case AchievementRewardType::Add:
                 ecsRef->sendEvent(std::get<AddFact>(reward));
                 break;
@@ -80,6 +80,7 @@ namespace pg
 
         AchievementRewardType type;
         std::variant<StandardEvent, AddFact, RemoveFact, IncreaseFact> reward;
+        bool visible = true;
     };
 
     template <>
@@ -204,10 +205,10 @@ namespace pg
             while (not achievementToUnlock.empty())
             {
                 auto achi = achievementToUnlock.front();
-                
+
                 achi->setUnlocked(ecsRef);
                 achievementUnlocked.push_back(*achi);
-                
+
                 achievementToUnlock.pop();
             }
 
@@ -218,7 +219,7 @@ namespace pg
                 auto ptr = std::make_shared<Achievement>(achievement);
 
                 bool unlocked = checkAchievementForResolve(ptr, worldFacts);
-                
+
                 if (unlocked)
                 {
                     achievementUnlocked.push_back(achievement);
@@ -290,7 +291,7 @@ namespace pg
             for (auto it = achievementLocked.rbegin(); it != end;)
             {
                 bool unlocked = checkAchievementForResolve(*it, worldFacts);
-                
+
                 if (unlocked)
                 {
                     achievementToUnlock.push(*it);
@@ -314,7 +315,7 @@ namespace pg
                 if (not fact.check(facts->factMap))
                 {
                     unlocked = false;
-                    
+
                     achievementToResolve[fact.name].emplace_back(fact.name, ptr);
                 }
             }
