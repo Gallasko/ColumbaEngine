@@ -77,85 +77,85 @@ Methods
 .. warning::
         All methods trigger a ``PositionComponentChangedEvent`` (and sometimes a ``ParentingEvent``) when the underlying value is modified.
 
-- **setTopAnchor(const PosAnchor &anchor)**
+- ``setTopAnchor(const PosAnchor &anchor)``
     Sets the top anchor and marks it as active. Sends a parenting event linking the target entity to this component, and a position change event.
 
-- **clearTopAnchor()**
+- ``clearTopAnchor()``
     Clears the top anchor (if active), sending a clear parenting event and triggering a position change event.
 
-- **setLeftAnchor(const PosAnchor &anchor)**
+- ``setLeftAnchor(const PosAnchor &anchor)``
     Sets the left anchor, marks it as active, and dispatches the necessary events.
 
-- **clearLeftAnchor()**
+- ``clearLeftAnchor()``
     Clears the left anchor and sends the corresponding events.
 
-- **setRightAnchor(const PosAnchor &anchor)**
+- ``setRightAnchor(const PosAnchor &anchor)``
     Sets the right anchor, marks it as active, and sends events to update the system.
 
-- **clearRightAnchor()**
+- ``clearRightAnchor()``
     Clears the right anchor and triggers the appropriate events.
 
-- **setBottomAnchor(const PosAnchor &anchor)**
+- ``setBottomAnchor(const PosAnchor &anchor)``
     Sets the bottom anchor, marks it as active, and sends events.
 
-- **clearBottomAnchor()**
+- ``clearBottomAnchor()``
     Clears the bottom anchor and sends a clear parenting event along with a position change event.
 
-- **setVerticalCenter(const PosAnchor &anchor)**
+- ``setVerticalCenter(const PosAnchor &anchor)``
     Sets the vertical center anchor and marks it as active, sending necessary events.
 
-- **clearVerticalCenter()**
+- ``clearVerticalCenter()``
     Clears the vertical center anchor and triggers a change event.
 
-- **setHorizontalCenter(const PosAnchor &anchor)**
+- ``setHorizontalCenter(const PosAnchor &anchor)``
     Sets the horizontal center anchor, marks it as active, and dispatches the corresponding events.
 
-- **clearHorizontalCenter()**
+- ``clearHorizontalCenter()``
     Clears the horizontal center anchor and sends events.
 
-- **fillIn(const UiAnchor &anchor)**
+- ``fillIn(const UiAnchor &anchor)``
     Sets all basic cardinal anchors (top, left, right, bottom) based on another **UiAnchor**.
 
-- **fillIn(const UiAnchor *anchor)**
+- ``fillIn(const UiAnchor *anchor)``
     Same as above but accepts a pointer to a **UiAnchor**.
 
-- **centeredIn(const UiAnchor &anchor)**
+- ``centeredIn(const UiAnchor &anchor)``
     Sets the vertical and horizontal center anchors based on another **UiAnchor**.
 
-- **centeredIn(const UiAnchor *anchor)**
+- ``centeredIn(const UiAnchor *anchor)``
     Same as above for pointer input.
 
-- **clearAnchors()**
+- ``clearAnchors()``
     Clears all anchors, including basic (top, left, right, bottom) and advanced (vertical and horizontal center).
 
-- **setTopMargin(float value)**
+- ``setTopMargin(float value)``
     Sets the top margin and triggers a position change event.
 
-- **setLeftMargin(float value)**
+- ``setLeftMargin(float value)``
     Sets the left margin and triggers a position change event.
 
-- **setRightMargin(float value)**
+- ``setRightMargin(float value)``
     Sets the right margin and triggers a position change event.
 
-- **setBottomMargin(float value)**
+- ``setBottomMargin(float value)``
     Sets the bottom margin and triggers a position change event.
 
-- **setWidthConstrain(const PosConstrain &constrain)**
+- ``setWidthConstrain(const PosConstrain &constrain)``
     Sets a width constraint, marks it as active, and sends parenting and change events.
 
-- **setHeightConstrain(const PosConstrain &constrain)**
+- ``setHeightConstrain(const PosConstrain &constrain)``
     Sets a height constraint, marks it as active, and dispatches events.
 
-- **setZConstrain(const PosConstrain &constrain)**
+- ``setZConstrain(const PosConstrain &constrain)``
     Sets a Z coordinate constraint, marks it as active, and sends the relevant events.
 
-- **updateAnchor(bool hasAnchor, PosAnchor &anchor)**
+- ``updateAnchor(bool hasAnchor, PosAnchor &anchor)``
     Updates the specified anchor's value if it is active, by querying the associated **PositionComponent**.
 
-- **update(CompRef<PositionComponent> pos)**
+- ``update(CompRef<PositionComponent> pos)``
     Synchronizes anchor values with the current state of the **PositionComponent**. Returns `true` if any anchor value has changed.
 
-- **onCreation(EntityRef entity)**
+- ``onCreation(EntityRef entity)``
     Initializes the **UiAnchor** component upon creation. Sets up default anchors and stores a reference to the ECS.
 
 Working with the UiAnchor Component
@@ -190,9 +190,9 @@ Basic Usage Example
     nameAnchor->setLeftMargin(15);
 
 In this example:
-- A UI texture (icon) and a text input (name) are created.
-- The **UiAnchor** attached to the name input is used to anchor it below the icon, with specified margins.
-- As a result, if the icon's position changes, the name input will automatically adjust its position accordingly.
+    - A UI texture (icon) and a text input (name) are created.
+    - The **UiAnchor** attached to the name input is used to anchor it below the icon, with specified margins.
+    - As a result, if the icon's position changes, the name input will automatically adjust its position accordingly.
 
 Conclusion
 ----------

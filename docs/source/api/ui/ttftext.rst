@@ -10,7 +10,8 @@ Main implementation files:
 TTFText Component
 -----------------
 
-**Attributes:**
+Attributes:
+-----------------
 
 - *std::string* ``text``:
     The text content to be rendered.
@@ -42,17 +43,19 @@ TTFText Component
 - *bool* ``changed``:
     A flag indicating whether the text has changed and requires an update.
 
-**Methods:**
+Methods:
+-----------------
+
 .. warning::
     All those methods will send a ``EntityChangedEvent`` with the id of the entity holding the ttf component, **if and only if** the underlying value is modified !
 
-- **setText(const std::string &text)**
+- ``setText(const std::string &text)``
     Sets the text content.
 
-- **setColor(const constant::Vector4D &colors)**
+- ``setColor(const constant::Vector4D &colors)``
     Sets the text color.
 
-- **setWrap(bool wrap)**
+- ``setWrap(bool wrap)``
     Enables or disables text wrapping.
 
 TTFTextCall

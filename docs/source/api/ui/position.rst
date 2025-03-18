@@ -30,6 +30,7 @@ Attributes
 
 Methods
 -------
+
 .. warning::
     All those methods will send a ``PositionComponentChangedEvent`` with the id of the entity holding the position component, **if and only if** the underlying value is modified !
 
