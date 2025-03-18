@@ -12,7 +12,7 @@ namespace pg
     {
         auto group = registerGroup<PositionComponent, HorizontalLayout>();
 
-        group->addOnGroup([this](EntityRef entity) {
+        group->addOnGroup([](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - hLayout group !");
 
             auto hLayout = entity->get<HorizontalLayout>();
@@ -192,7 +192,7 @@ namespace pg
                 }
 
                 pos->setVisibility(isCompVisible);
-            }            
+            }
         }
     }
 
@@ -210,7 +210,7 @@ namespace pg
     {
         auto group = registerGroup<PositionComponent, VerticalLayout>();
 
-        group->addOnGroup([this](EntityRef entity) {
+        group->addOnGroup([](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - vLayout group!");
 
             auto vLayout = entity->get<VerticalLayout>();
@@ -380,7 +380,7 @@ namespace pg
                 }
 
                 pos->setVisibility(isCompVisible);
-            }            
+            }
         }
     }
 

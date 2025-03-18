@@ -33,8 +33,8 @@ namespace pg
     {
         virtual std::string getSystemName() const override { return "InventorySystem"; }
 
-        void onEvent(const GainItem& event);
-        void onEvent(const LoseItem& event);
+        void onEvent(const GainItem& event) override;
+        void onEvent(const LoseItem& event) override;
 
         bool hasEnough(const Item& item) const;
 

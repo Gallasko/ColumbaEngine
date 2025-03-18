@@ -15,7 +15,7 @@ namespace pg
 
         auto group = registerGroup<PositionComponent, ListView>();
 
-        group->addOnGroup([this](EntityRef entity) {
+        group->addOnGroup([](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - listview group !");
 
             auto listview = entity->get<ListView>();
@@ -64,9 +64,9 @@ namespace pg
             else
             {
                 LOG_ERROR("ListViewSystem", "First entity in the list [" << id << "] must have a UiAnchor!");
-            }   
+            }
         }
-        
+
     };
 
     void ListView::removeEntity(EntityRef /* entity */)
@@ -154,7 +154,7 @@ namespace pg
                 else
                 {
                     LOG_ERROR("ListViewSystem", "First entity in the list [" << viewEnt.id << "] must have a UiAnchor!");
-                }                    
+                }
             }
         }
 
@@ -183,11 +183,11 @@ namespace pg
         }
 
         auto height = viewEnt->get<PositionComponent>()->height;
-        
+
         if (maxPos > 0 and height > 0)
         {
             view->cursorHeight = (height / maxPos) * height;
-            
+
             if (view->cursorHeight > height)
             view->cursorHeight = height;
         }
@@ -226,7 +226,7 @@ namespace pg
                 }
 
                 pos->setVisibility(isCompVisible);
-            }            
+            }
         }
     }
 
