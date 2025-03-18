@@ -10,34 +10,45 @@ Main implementation file: `position.h <https://github.com/Gallasko/PgEngine/tree
 Attributes
 ----------
 
-- *float* ``x``: The X coordinate of the UI element's position on the screen.
-- *float* ``y``: The Y coordinate of the UI element's position on the screen.
-- *float* ``z``: The Z coordinate of the UI element's position on the screen
-- *float* ``width``: The width of the UI element's position on the screen
-- *float* ``height``: The height of the UI element's position on the screen
-- *bool*  ``visibility``: A boolean value indicating whether the UI element is visible (``true``) or hidden (``false``).
+- *float* ``x``:
+    The X coordinate of the UI element's position on the screen.
+
+- *float* ``y``:
+    The Y coordinate of the UI element's position on the screen.
+
+- *float* ``z``:
+    The Z coordinate of the UI element's position on the screen
+
+- *float* ``width``:
+    The width of the UI element's position on the screen
+
+- *float* ``height``:
+    The height of the UI element's position on the screen
+
+- *bool*  ``visibility``:
+    A boolean value indicating whether the UI element is visible (``true``) or hidden (``false``).
 
 Methods
 -------
 .. warning::
     All those methods will send a ``PositionComponentChangedEvent`` with the id of the entity holding the position component, **if and only if** the underlying value is modified !
 
-- **setX(float x)**
+- ``setX(float x)``
     Sets the X position of the UI element.
 
-- **setY(float y)**
+- ``setY(float y)``
     Sets the Y position of the UI element.
 
-- **setZ(float z)**
+- ``setZ(float z)``
     Sets the Z position of the UI element.
 
-- **setWidth(float width)**
+- ``setWidth(float width)``
     Sets the width of the UI element.
 
-- **setHeight(float height)**
+- ``setHeight(float height)``
     Sets the height of the UI element.
 
-- **setVisibility(bool visibility)**
+- ``setVisibility(bool visibility)``
     Sets the visibility of the UI element. If ``true``, the element is visible. If ``false``, the element is hidden.
 
 Working with the PositionComponent
@@ -65,10 +76,10 @@ Basic Usage of PositionComponent
 
 
 In this example:
-- A UI texture is created (an icon with the image ``"NoneIcon"``).
-- The ``PositionComponent`` is retrieved from the created UI texture.
-- The position of the icon is set to ``(45, 35)``, meaning it will be positioned 45 pixels from the left and 35 pixels from the top of the window or parent container.
-- The icon's visibility is set to ``false``, meaning the icon will be hidden when it is first created.
+    - A UI texture is created (an icon with the image ``"NoneIcon"``).
+    - The ``PositionComponent`` is retrieved from the created UI texture.
+    - The position of the icon is set to ``(45, 35)``, meaning it will be positioned 45 pixels from the left and 35 pixels from the top of the window or parent container.
+    - The icon's visibility is set to ``false``, meaning the icon will be hidden when it is first created.
 
 Using PositionComponent with UiAnchor
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -99,9 +110,9 @@ The ``PositionComponent`` can also be used alongside the ``UiAnchor`` component 
 
 
 In this example:
-- The position of the icon is defined explicitly using ``PositionComponent``.
-- A ``name`` input field is created, and its position is defined relative to the ``icon`` using ``UiAnchor``.
-- The ``name`` input field will appear below the icon, with a margin of 5 pixels from the icon's bottom and 15 pixels from the left side of the icon.
+    - The position of the icon is defined explicitly using ``PositionComponent``.
+    - A ``name`` input field is created, and its position is defined relative to the ``icon`` using ``UiAnchor``.
+    - The ``name`` input field will appear below the icon, with a margin of 5 pixels from the icon's bottom and 15 pixels from the left side of the icon.
 
 .. note::
     In this example, the position of the name entity is relative to the position of the icon entity, and so moving the icon will **automatically** move the name !

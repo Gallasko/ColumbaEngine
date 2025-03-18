@@ -13,45 +13,47 @@ TTFText Component
 **Attributes:**
 
 - *std::string* ``text``:
-The text content to be rendered.
+    The text content to be rendered.
 
-- *std::string* ``fontPath``
+- *std::string* ``fontPath``:
     The file path to the TrueType Font used for rendering.
 
-- *float* ``scale``
+- *float* ``scale``:
     The scale factor applied to the rendered text.
 
-- *constant::Vector4D* ``colors``
+- *constant::Vector4D* ``colors``:
     The RGBA color values for the text.
 
-- *bool* ``wrap``
+- *bool* ``wrap``:
     Indicates whether text wrapping is enabled.
 
-- *float* ``textWidth``
+- *float* ``textWidth``:
     The computed width of the rendered text.
 
-- *float* ``textHeight``
+- *float* ``textHeight``:
     The computed height of the rendered text.
 
-- *EntitySystem* ``ecsRef``
+- *EntitySystem* ``ecsRef``:
     Reference to the ECS world.
 
-- *\_unique_id* ``entityId``
+- *\_unique_id* ``entityId``:
     The unique identifier for the entity to which the component is attached.
 
-- *bool* ``changed``
+- *bool* ``changed``:
     A flag indicating whether the text has changed and requires an update.
 
 **Methods:**
+.. warning::
+    All those methods will send a ``EntityChangedEvent`` with the id of the entity holding the ttf component, **if and only if** the underlying value is modified !
 
 - **setText(const std::string &text)**
-    Sets the text content and, if an ECS reference is available, marks the component as changed and sends an ``EntityChangedEvent``.
+    Sets the text content.
 
 - **setColor(const constant::Vector4D &colors)**
-    Sets the text color and triggers an update event.
+    Sets the text color.
 
 - **setWrap(bool wrap)**
-    Enables or disables text wrapping. If the value changes, the component is marked as changed and an update event is sent.
+    Enables or disables text wrapping.
 
 TTFTextCall
 -----------
@@ -84,7 +86,6 @@ Basic Usage Example
 -------------------
 
 .. code-block:: cpp
-    :indent: 4
 
     // Reference to an entity system or a scene !
     EntitySystem *ecsRef;
