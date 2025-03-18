@@ -44,7 +44,7 @@ namespace pg
             { AchievementReward(StandardEvent("mana_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
             "main",
             {},
-            0
+            5
         });
 
         maskedButtons.push_back(DynamicNexusButton{
@@ -63,7 +63,20 @@ namespace pg
             "Runic Mage",
             {   FactChecker("altar_touched", true, FactCheckEquality::Equal),
                 FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
+            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}),
+                AchievementReward(AddFact{"runic_mage_1", ElementType{true}}),
+                AchievementReward(StandardEvent("gamelog", "message", "You feel the power of the rune, coursing through your blood")) },
+            "main",
+            {},
+            1
+        });
+
+        maskedButtons.push_back(DynamicNexusButton{
+            "RunicMage2",
+            "Runic Mage 2",
+            {   FactChecker("runic_mage_1", true, FactCheckEquality::Equal),
+                FactChecker("mage_tier", 1, FactCheckEquality::Equal) },
+            {   AchievementReward(AddFact{"mage_tier", ElementType{2}}) },
             "main",
             {},
             1
