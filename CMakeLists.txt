@@ -249,9 +249,10 @@ else()
         src/GameOff/gamefacts.cpp
         src/GameOff/inventory.cpp
         src/GameOff/item.cpp
-        src/GameOff/mainscene.cpp
         src/GameOff/location.cpp
         src/GameOff/locationscene.cpp
+        src/GameOff/mainscene.cpp
+        src/GameOff/nexusscene.cpp
         src/GameOff/skilltree.cpp
         src/GameOff/passives.cpp
         src/GameOff/spells.cpp

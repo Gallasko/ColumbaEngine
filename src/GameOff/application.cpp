@@ -31,6 +31,10 @@
 #include "UI/sizer.h"
 #include "UI/prefab.h"
 
+#include "managenerator.h"
+
+#include "nexusscene.h"
+
 using namespace pg;
 
 namespace
@@ -50,6 +54,7 @@ GameApp::~GameApp()
 
 enum class SceneName
 {
+    Nexus,
     Customization,
     Inventory,
     Location
@@ -95,6 +100,10 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     {
         switch (event.name)
         {
+        case SceneName::Nexus:
+            ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
+            break;
+
         case SceneName::Customization:
             ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<PlayerCustomizationScene>();
             break;
@@ -130,7 +139,7 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
         auto titleTTF0 = makeTTFText(ecsRef, 25, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Nexus", 0.4);
-        ecsRef->attach<MouseLeftClickComponent>(titleTTF0.entity, makeCallable<SceneToLoad>(SceneName::Customization));
+        ecsRef->attach<MouseLeftClickComponent>(titleTTF0.entity, makeCallable<SceneToLoad>(SceneName::Nexus));
         auto t0Anchor = titleTTF0.get<UiAnchor>();
 
         t0Anchor->setTopAnchor(windowAnchor->top);
@@ -412,6 +421,8 @@ void initGame()
     achievementSys->setDefaultAchievement(tutoStarted);
 
     mainWindow->ecs.createSystem<GameLog>();
+
+    mainWindow->ecs.createSystem<ManaGeneratorSystem>();
 
     mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
 
