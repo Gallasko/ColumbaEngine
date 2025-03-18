@@ -193,6 +193,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
         */
 
+
+        /* Wrapped text and layout
         auto s0 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
         auto s1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
         auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
@@ -256,6 +258,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         buttonPrefab.get<Prefab>()->addToPrefab(buttonText.entity);
 
         hLayout.get<VerticalLayout>()->addEntity(buttonPrefab.entity);
+
+        */
 
         // barComp = progressBar.get<ProgressBarComponent>();
 
