@@ -18,7 +18,7 @@ namespace pg
 
     struct RemoveHorizontalLayoutElementEvent
     {
-        _unique_id id; size_t index;
+        _unique_id id; _unique_id index;
     };
 
     struct UpdateHorizontalLayoutVisibility
@@ -35,6 +35,9 @@ namespace pg
         }
 
         void addEntity(EntityRef entity) { ecsRef->sendEvent(AddHorizontalLayoutElementEvent{id, entity.id}); }
+
+        void removeEntity(EntityRef entity) { ecsRef->sendEvent(RemoveHorizontalLayoutElementEvent{id, entity.id}); }
+        void removeEntity(_unique_id entityId) { ecsRef->sendEvent(RemoveHorizontalLayoutElementEvent{id, entityId}); }
 
         void setVisibility(bool visible) { ecsRef->sendEvent(UpdateHorizontalLayoutVisibility{id, visible}); }
 
@@ -73,9 +76,9 @@ namespace pg
             eventQueue.push(event);
         }
 
-        virtual void onEvent(const RemoveHorizontalLayoutElementEvent& /*event*/) override
+        virtual void onEvent(const RemoveHorizontalLayoutElementEvent& event) override
         {
-            // Todo
+            removeQueue.push(event);
         }
 
         virtual void onEvent(const ClearHorizontalLayoutEvent& event) override
@@ -133,6 +136,8 @@ namespace pg
 
                 clear(ent->get<HorizontalLayout>());
 
+                hLayoutUpdated.insert(ent);
+
                 clearQueue.pop();
             }
 
@@ -148,7 +153,7 @@ namespace pg
                     return;
                 }
 
-                updateVisibility(ent, event.visible);
+                hLayoutUpdated.insert(ent);
 
                 visibilityQueue.pop();
             }
@@ -167,7 +172,28 @@ namespace pg
 
                 addEntity(ent, event.ui);
 
+                hLayoutUpdated.insert(ent);
+
                 eventQueue.pop();
+            }
+
+            while (not removeQueue.empty())
+            {
+                const auto& event = removeQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not (ent->has<HorizontalLayout>()))
+                {
+                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
+                    return;
+                }
+
+                removeEntity(ent, event.index);
+
+                hLayoutUpdated.insert(ent);
+
+                removeQueue.pop();
             }
 
             for (auto ent : hLayoutUpdated)
@@ -184,6 +210,8 @@ namespace pg
 
         void addEntity(EntityRef viewEnt, _unique_id ui);
 
+        void removeEntity(EntityRef viewEnt, _unique_id);
+
         void recalculateChildrenPos(EntityRef viewEnt);
 
         void updateVisibility(EntityRef viewEnt, bool visible);
@@ -191,6 +219,8 @@ namespace pg
         void clear(CompRef<HorizontalLayout> view);
 
         std::queue<AddHorizontalLayoutElementEvent> eventQueue;
+
+        std::queue<RemoveHorizontalLayoutElementEvent> removeQueue;
 
         std::queue<ClearHorizontalLayoutEvent> clearQueue;
 
@@ -230,7 +260,7 @@ namespace pg
 
     struct RemoveVerticalLayoutElementEvent
     {
-        _unique_id id; size_t index;
+        _unique_id id; _unique_id index;
     };
 
     struct UpdateVerticalLayoutVisibility
@@ -247,6 +277,9 @@ namespace pg
         }
 
         void addEntity(EntityRef entity) { ecsRef->sendEvent(AddVerticalLayoutElementEvent{id, entity.id}); }
+
+        void removeEntity(EntityRef entity) { ecsRef->sendEvent(RemoveVerticalLayoutElementEvent{id, entity.id}); }
+        void removeEntity(_unique_id entityId) { ecsRef->sendEvent(RemoveVerticalLayoutElementEvent{id, entityId}); }
 
         void setVisibility(bool visible) { ecsRef->sendEvent(UpdateVerticalLayoutVisibility{id, visible}); }
 
@@ -285,9 +318,9 @@ namespace pg
             eventQueue.push(event);
         }
 
-        virtual void onEvent(const RemoveVerticalLayoutElementEvent& /*event*/) override
+        virtual void onEvent(const RemoveVerticalLayoutElementEvent& event) override
         {
-            // Todo
+            removeQueue.push(event);
         }
 
         virtual void onEvent(const ClearVerticalLayoutEvent& event) override
@@ -344,6 +377,8 @@ namespace pg
 
                 clear(ent->get<VerticalLayout>());
 
+                vLayoutUpdated.insert(ent);
+
                 clearQueue.pop();
             }
 
@@ -359,7 +394,7 @@ namespace pg
                     return;
                 }
 
-                updateVisibility(ent, event.visible);
+                vLayoutUpdated.insert(ent);
 
                 visibilityQueue.pop();
             }
@@ -378,7 +413,28 @@ namespace pg
 
                 addEntity(ent, event.ui);
 
+                vLayoutUpdated.insert(ent);
+
                 eventQueue.pop();
+            }
+
+            while (not removeQueue.empty())
+            {
+                const auto& event = removeQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not (ent->has<VerticalLayout>()))
+                {
+                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
+                    return;
+                }
+
+                removeEntity(ent, event.index);
+
+                vLayoutUpdated.insert(ent);
+
+                removeQueue.pop();
             }
 
             for (auto ent : vLayoutUpdated)
@@ -395,6 +451,8 @@ namespace pg
 
         void addEntity(EntityRef viewEnt, _unique_id ui);
 
+        void removeEntity(EntityRef viewEnt, _unique_id);
+
         void recalculateChildrenPos(EntityRef viewEnt);
 
         void updateVisibility(EntityRef viewEnt, bool visible);
@@ -402,6 +460,8 @@ namespace pg
         void clear(CompRef<VerticalLayout> view);
 
         std::queue<AddVerticalLayoutElementEvent> eventQueue;
+
+        std::queue<RemoveVerticalLayoutElementEvent> removeQueue;
 
         std::queue<ClearVerticalLayoutEvent> clearQueue;
 

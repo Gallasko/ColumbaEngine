@@ -24,7 +24,7 @@ namespace pg
             {   AchievementReward(AddFact{"altar_touched", ElementType{true}}) },
             "main",
             {},
-            0
+            1
         });
 
         maskedButtons.push_back(DynamicNexusButton{
@@ -45,6 +45,28 @@ namespace pg
             "main",
             {},
             0
+        });
+
+        maskedButtons.push_back(DynamicNexusButton{
+            "SpellMage",
+            "Spell Mage",
+            {   FactChecker("altar_touched", true, FactCheckEquality::Equal),
+                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
+            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
+            "main",
+            {},
+            1
+        });
+
+        maskedButtons.push_back(DynamicNexusButton{
+            "RunicMage",
+            "Runic Mage",
+            {   FactChecker("altar_touched", true, FactCheckEquality::Equal),
+                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
+            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
+            "main",
+            {},
+            1
         });
 
         auto layout = makeHorizontalLayout(ecsRef, 30, 150, 500, 400);
@@ -90,6 +112,20 @@ namespace pg
 
                 it->nbClick++;
 
+                if (it->nbClickBeforeArchive != 0 and it->nbClick >= it->nbClickBeforeArchive)
+                {
+                    it->archived = true;
+
+                    auto id = it->entityId;
+
+                    // Archive the button and remove it from the visible buttons.
+                    archivedButtons.push_back(*it);
+                    visibleButtons.erase(it);
+
+                    auto layout = nexusLayout.get<HorizontalLayout>();
+                    layout->removeEntity(id);
+                }
+
                 // Todo if nbclick >= nbClickBeforeArchive and nbClickBeforeArchive != 0 -> the button should be archived
             }
         });
@@ -115,7 +151,7 @@ namespace pg
         auto prefab = prefabEnt.get<Prefab>();
         auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
-        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 60, 60, {0, 196, 0, 255});
+        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 130, 60, {0, 196, 0, 255});
         auto backgroundAnchor = background.get<UiAnchor>();
 
         scene->ecsRef->attach<MouseLeftClickComponent>(background.entity, makeCallable<StandardEvent>("nexus_button_clicked", "id", id));
@@ -193,8 +229,8 @@ namespace pg
                     }
                     else
                     {
-                        // layout->remove(it->entityId);
-                        // ecsRef->removeEntity(it->entityId);
+                        LOG_INFO("Nexus scene", "Button id: " << it->entityId);
+                        layout->removeEntity(it->entityId);
                     }
                 }
 

@@ -407,6 +407,7 @@ void initGame()
 
     worldFacts->setDefaultFact("startTuto", true);
     worldFacts->setDefaultFact("altar_touched", false);
+    worldFacts->setDefaultFact("mage_tier", 0);
 
     auto achievementSys = mainWindow->ecs.createSystem<AchievementSys>();
 
