@@ -1,5 +1,3 @@
-.. _GITSRC: https://github.com/Gallasko/PgEngine/tree/main/src
-
 Position Component
 ==================
 
@@ -7,7 +5,7 @@ The **PositionComponent** is responsible for managing the position and visibilit
 
 This component is essential for creating and positioning UI elements dynamically within a game or application.
 
-Main implementation file: `position.h <GITSRC/Engine/2D/position.h>`_, `position.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.cpp>`_ 
+Main implementation file: `position.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.h>`_, `position.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.cpp>`_
 
 Attributes
 ----------
@@ -24,23 +22,23 @@ Methods
 .. warning::
     All those methods will send a ``PositionComponentChangedEvent`` with the id of the entity holding the position component, **if and only if** the underlying value is modified !
 
-- **setX(float x)**  
-  Sets the X position of the UI element.
+- **setX(float x)**
+    Sets the X position of the UI element.
 
-- **setY(float y)**  
-  Sets the Y position of the UI element.
+- **setY(float y)**
+    Sets the Y position of the UI element.
 
 - **setZ(float z)**
-  Sets the Z position of the UI element.
+    Sets the Z position of the UI element.
 
-- **setWidth(float width)**  
-  Sets the width of the UI element.
+- **setWidth(float width)**
+    Sets the width of the UI element.
 
 - **setHeight(float height)**
-  Sets the height of the UI element.
+    Sets the height of the UI element.
 
-- **setVisibility(bool visibility)**  
-  Sets the visibility of the UI element. If ``true``, the element is visible. If ``false``, the element is hidden.
+- **setVisibility(bool visibility)**
+    Sets the visibility of the UI element. If ``true``, the element is visible. If ``false``, the element is hidden.
 
 Working with the PositionComponent
 ----------------------------------

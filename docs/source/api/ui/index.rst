@@ -7,8 +7,8 @@ This section provides detailed documentation for UI-related components and syste
 - **UiAnchor**: Provides flexible anchoring for dynamic UI layouts.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: UI API Components
+    :maxdepth: 2
+    :caption: UI API Components
 
-   position
-   uianchor
+    position
+    uianchor
