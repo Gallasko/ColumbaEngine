@@ -13,7 +13,7 @@
 namespace tf
 {
     // Forward declaration
-    struct Taskflow;
+    class Taskflow;
 }
 
 namespace pg
@@ -111,9 +111,9 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<Ref<Comp>>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Registering a ref to '" << typeid(Comp).name() << "' to the system.");
-        
+
         static_cast<Ref<Comp>*>(system)->setRegistry(registry);
         registerComponents(system, registry, comps...);
     }
@@ -122,9 +122,9 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<Listener<Event>>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Registering a listener to event '" << typeid(Event).name() << "' to the system.");
-        
+
         static_cast<Listener<Event>*>(system)->setRegistry(registry);
         registerComponents(system, registry, comps...);
     }
@@ -133,7 +133,7 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<StoragePolicy>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Registering the system as a storage one");
 
         if (system->executionPolicy != ExecutionPolicy::Sequential)
@@ -142,7 +142,7 @@ namespace pg
         }
 
         system->setPolicy(ExecutionPolicy::Storage);
-        
+
         registerComponents(system, registry, comps...);
     }
 
@@ -150,7 +150,7 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<ManualPolicy>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Registering the system as a manual one");
 
         if (system->executionPolicy != ExecutionPolicy::Sequential)
@@ -159,7 +159,7 @@ namespace pg
         }
 
         system->setPolicy(ExecutionPolicy::Manual);
-        
+
         registerComponents(system, registry, comps...);
     }
 
@@ -167,7 +167,7 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<ParallelPolicy>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Registering the system as a parallel one");
 
         if (system->executionPolicy != ExecutionPolicy::Sequential)
@@ -176,7 +176,7 @@ namespace pg
         }
 
         system->setPolicy(ExecutionPolicy::Parallel);
-        
+
         registerComponents(system, registry, comps...);
     }
 
@@ -184,7 +184,7 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<IndependentPolicy>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Registering the system as a independent one");
 
         if (system->executionPolicy != ExecutionPolicy::Sequential)
@@ -193,7 +193,7 @@ namespace pg
         }
 
         system->setPolicy(ExecutionPolicy::Independent);
-        
+
         registerComponents(system, registry, comps...);
     }
 
@@ -201,11 +201,11 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<InitSys>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Running init");
 
         system->init();
-        
+
         registerComponents(system, registry, comps...);
     }
 
@@ -213,7 +213,7 @@ namespace pg
     void registerComponents(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Loading system data...");
 
         auto name = system->__name;
@@ -229,7 +229,7 @@ namespace pg
         {
             LOG_ERROR("System", "Trying to load an unnamed system: " << typeid(Sys).name());
         }
-        
+
         registerComponents(system, registry, comps...);
     }
 
@@ -253,7 +253,7 @@ namespace pg
     void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<SaveSys>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Saving system data...");
 
         auto name = system->__name;
@@ -271,7 +271,7 @@ namespace pg
         {
             LOG_ERROR("System", "Trying to save an unnamed system: " << typeid(Sys).name());
         }
-        
+
         unregisterComponents(system, registry, comps...);
     }
 
@@ -279,9 +279,9 @@ namespace pg
     void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Listener<Event>>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_INFO("System", "Unregistering a listener to event '" << typeid(Event).name() << "' to the system.");
-        
+
         static_cast<Listener<Event>*>(system)->unsetRegistry(registry);
         unregisterComponents(system, registry, comps...);
     }
@@ -290,9 +290,9 @@ namespace pg
     void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Comp>&, const Comps&... comps)
     {
         LOG_THIS("System");
-        
+
         LOG_MILE("System", "Unregister is not needed for: " << typeid(Comp).name());
-        
+
         unregisterComponents(system, registry, comps...);
     }
 
@@ -311,7 +311,7 @@ namespace pg
 
         /**
          * @brief Send an event to the whole ECS
-         * 
+         *
          * @tparam Event Type of the event to send
          * @param event Struct holding everything about the event
          */
@@ -326,7 +326,7 @@ namespace pg
 
         /**
          * @brief Register the current system to the registry
-         * 
+         *
          * @param registry Main registry of the current ECS
          */
         virtual void addToRegistry(ComponentRegistry *registry)
@@ -360,13 +360,13 @@ namespace pg
 
         /**
          * @brief Create a Component object
-         * 
-         * @tparam Type Type of the component to create 
+         *
+         * @tparam Type Type of the component to create
          * @tparam Args Type of the arguments to pass to the component constructor
          * @param entity Entity to bind the component to
          * @param args Argument to pass to the component constructor
          * @return Type* A pointer to the component created
-         * 
+         *
          * @todo Move those function (create component and delete component) in the Own and Ref struct
          * And call it create component so the system inherit of the correct one
          */
@@ -455,7 +455,7 @@ namespace pg
                 LOG_INFO("System", "Creating new group");
 
                 auto group = new Group<Type, Types...>(groupId);
-                // 
+                //
                 group->setRegistry(registry);
                 group->process();
 

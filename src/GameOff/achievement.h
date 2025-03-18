@@ -234,7 +234,7 @@ namespace pg
             firstInit = false;
         }
 
-        virtual void onEvent(const WorldFactsUpdate& event)
+        virtual void onEvent(const WorldFactsUpdate& event) override
         {
             for (const auto& changedFact : event.changedFacts)
             {
