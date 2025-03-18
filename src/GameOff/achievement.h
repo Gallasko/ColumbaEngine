@@ -34,7 +34,7 @@ namespace pg
 
     struct AchievementReward
     {
-        AchievementReward() : type(AchievementRewardType::NoReward), reward(StandardEvent("Noop")) { }
+        AchievementReward() : type(AchievementRewardType::NoReward), reward(StandardEvent("Noop")), visible(false) { }
         AchievementReward(const StandardEvent& event) : type(AchievementRewardType::Event), reward(event) {}
         AchievementReward(const AddFact& fact) : type(AchievementRewardType::Add), reward(fact) {}
         AchievementReward(const RemoveFact& fact) : type(AchievementRewardType::Remove), reward(fact) {}
@@ -80,6 +80,7 @@ namespace pg
 
         AchievementRewardType type;
         std::variant<StandardEvent, AddFact, RemoveFact, IncreaseFact> reward;
+        bool visible = true;
     };
 
     template <>

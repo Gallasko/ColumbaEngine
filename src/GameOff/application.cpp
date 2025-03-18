@@ -406,6 +406,7 @@ void initGame()
     auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
 
     worldFacts->setDefaultFact("startTuto", true);
+    worldFacts->setDefaultFact("altar_touched", false);
 
     auto achievementSys = mainWindow->ecs.createSystem<AchievementSys>();
 

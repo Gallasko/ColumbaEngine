@@ -14,7 +14,7 @@ namespace pg
         case AchievementRewardType::Event:
             serialize(archive, "reward", std::get<StandardEvent>(value.reward));
             break;
-        
+
         case AchievementRewardType::Add:
             serialize(archive, "reward", std::get<AddFact>(value.reward));
             break;
@@ -31,6 +31,8 @@ namespace pg
             LOG_ERROR("AchivementReward", "Trying to serialize an empty Achievement Reward");
             break;
         }
+
+        serialize(archive, "visible", value.visible);
 
         archive.endSerialization();
     }
@@ -57,7 +59,7 @@ namespace pg
             case AchievementRewardType::Event:
                 data.reward = deserialize<StandardEvent>(serializedString["reward"]);
                 break;
-            
+
             case AchievementRewardType::Add:
                 data.reward = deserialize<AddFact>(serializedString["reward"]);
                 break;
@@ -74,6 +76,8 @@ namespace pg
                 LOG_ERROR("AchivementReward", "Trying to serialize an empty Achievement Reward");
                 break;
             }
+
+            defaultDeserialize(serializedString, "visible", data.visible);
 
             return data;
         }
