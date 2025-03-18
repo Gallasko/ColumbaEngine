@@ -178,8 +178,7 @@ Basic Usage Example
     iconUi->setY(35);
 
     // Create a text input for the character name.
-    auto name = makeTTFTextInput(this, 0, 0, StandardEvent("CharaNameChange"),
-                                                                "res/font/Inter/static/Inter_28pt-Light.ttf", "Character 1", 0.7);
+    auto name = makeTTFTextInput(this, 0, 0, StandardEvent("CharaNameChange"), "res/font/Inter/static/Inter_28pt-Light.ttf", "Character 1", 0.7);
     auto nameUi = name.get<PositionComponent>();
     auto nameAnchor = name.get<UiAnchor>();
 

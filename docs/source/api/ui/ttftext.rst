@@ -10,7 +10,7 @@ Main implementation files:
 TTFText Component
 -----------------
 
-Attributes:
+Attributes
 -----------------
 
 - *std::string* ``text``:
@@ -43,7 +43,7 @@ Attributes:
 - *bool* ``changed``:
     A flag indicating whether the text has changed and requires an update.
 
-Methods:
+Methods
 -----------------
 
 .. warning::
