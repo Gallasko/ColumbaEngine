@@ -4,8 +4,8 @@ TTFText Component and System
 The **TTFText** component provides a mechanism for rendering text using TrueType Fonts (TTF) within the ECS (Entity-Component-System) framework. It stores text content, font path, scale, color, and wrapping options. The **TTFTextSystem** handles the rendering of these text elements by leveraging FreeType to load fonts and generate glyph textures.
 
 Main implementation files:
-`ttftext.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/ttftext.h>`_,
-`ttftext.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/ttftext.cpp>`_
+`ttftext.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/UI/ttftext.h>`_,
+`ttftext.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/UI/ttftext.cpp>`_
 
 TTFText Component
 -----------------
@@ -121,4 +121,4 @@ Conclusion
 The **TTFText** component and **TTFTextSystem** together provide a robust framework for rendering text within the ECS. By storing text properties and using FreeType to generate glyph textures, the system supports dynamic text rendering with customizable fonts, scales, colors, and wrapping options.
 
 For further details, please refer to the source files:
-`ttftext.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/ttftext.h>`_ and `ttftext.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/ttftext.cpp>`_.
+`ttftext.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/UI/ttftext.h>`_ and `ttftext.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/UI/ttftext.cpp>`_.
