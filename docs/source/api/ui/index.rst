@@ -5,6 +5,7 @@ This section provides detailed documentation for UI-related components and syste
 
 - **PositionComponent**: Manages the position and visibility of UI elements.
 - **UiAnchor**: Provides flexible anchoring for dynamic UI layouts.
+- **TTFText**: Provides a way to render text using ttf fonts.
 
 .. toctree::
     :maxdepth: 2
@@ -12,3 +13,4 @@ This section provides detailed documentation for UI-related components and syste
 
     position
     uianchor
+    ttftext

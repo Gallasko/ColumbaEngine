@@ -12,8 +12,8 @@ documentation for details.
 
 
 .. toctree::
-      :maxdepth: 1
-      :caption: Contents:
+    :maxdepth: 1
+    :caption: Contents:
 
-      getting_started
-      api/api
+    getting_started
+    api/api
