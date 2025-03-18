@@ -21,10 +21,10 @@ namespace pg
     class InputSystem;
     class ClassInstance;
     class InterpreterSystem;
-    
-    template <class T>                                                  
+
+    template <class T>
     class HasStaticName
-    {       
+    {
         template <class U, class = typename std::enable_if<!std::is_member_pointer<decltype(&U::getType)>::value>::type>
             static std::true_type check(int);
         template <class>
@@ -38,13 +38,13 @@ namespace pg
 
     template <typename Type, typename... Types>
     struct Group;
-    
+
     class EntitySystem;
 
     /**
      * @brief Structure tag used to specify onCreation member on a component
      *
-     * @todo find a better class name 
+     * @todo find a better class name
      */
     struct Ctor
     {
@@ -56,7 +56,7 @@ namespace pg
     /**
      * @brief Structure tag used to specify onCreation member on a component
      *
-     * @todo find a better class name 
+     * @todo find a better class name
      */
     struct Dtor
     {
@@ -68,7 +68,7 @@ namespace pg
     /**
      * @brief Structure tag used to specify onCreation member on a component
      *
-     * @todo find a better class name 
+     * @todo find a better class name
      */
     struct Copy
     {
@@ -79,13 +79,13 @@ namespace pg
 
     /**
      * @brief Structure tag used to specify a component as a singleton component
-     * 
+     *
      * When this tag is set for a component. That means that the component should only be created once
      * and when a system or a component need this component we can use the same refererence everywhere.
-     * 
+     *
      * So when a component with this tag is created we can directly save the ref in the ecs and used
      * it throughout !
-     * 
+     *
      * @todo make this
      */
     struct SingletonComp
@@ -111,6 +111,14 @@ namespace pg
 
         StandardEvent(const StandardEvent& other) : name(other.name), values(other.values) {}
 
+        StandardEvent& operator=(const StandardEvent& other)
+        {
+            name = other.name;
+            values = other.values;
+
+            return *this;
+        }
+
         std::string name;
 
         std::unordered_map<std::string, ElementType> values;
@@ -128,7 +136,7 @@ namespace pg
 
         /**
          * @brief Store an owner in this registry
-         * 
+         *
          * @tparam Type Type of the owner
          * @param owner A pointer to a class that owns a component
          */
@@ -137,7 +145,7 @@ namespace pg
 
         /**
          * @brief Unstore an owner from this registry
-         * 
+         *
          * @tparam Type Type of the owner
          * @param owner A pointer to a class that owns a component
          */
@@ -172,7 +180,7 @@ namespace pg
             LOG_THIS_MEMBER("Component Registry");
 
             const auto& id = getTypeId<Event>();
-            
+
             eventStorageMap[id].emplace((intptr_t)listener, [listener](const std::any& event)
             {
                 listener->onEvent(std::any_cast<const Event&>(event));
@@ -200,7 +208,7 @@ namespace pg
         void addStandardEventListener(const std::string& name, EventListener* listener)
         {
             LOG_THIS_MEMBER("Component Registry");
-            
+
             standardEventStorageMap[name].emplace((intptr_t)listener, [listener](const StandardEvent& event)
             {
                 listener->onEvent(event);
@@ -221,7 +229,7 @@ namespace pg
         void addStandardEventListener(EntityRef entity, const std::string& name, std::function<void(const StandardEvent&)> callback)
         {
             LOG_THIS_MEMBER("Component Registry");
-            
+
             standardEventStorageMap[name].emplace(entity.id, callback);
         }
 
@@ -238,7 +246,7 @@ namespace pg
         void addEventListener(EntityRef entity, _unique_id eventId, std::function<void(const std::any&)> callback)
         {
             LOG_THIS_MEMBER("Component Registry");
-            
+
             eventStorageMap[eventId].emplace(entity.id, callback);
         }
 
@@ -315,7 +323,7 @@ namespace pg
 
             return static_cast<Group<Type, Types...>*>(groupStorageMap.at(id));
         }
-    
+
         template <typename Type>
         _unique_id getTypeId() const noexcept
         {
@@ -332,7 +340,7 @@ namespace pg
             }
 
             return it->second;
-            
+
             // This can't work as the static make this id the same through all the different object
             // static const _unique_id id = idGenerator.generateId();
             // return id;
@@ -401,7 +409,7 @@ namespace pg
                 f(UnserializedObject(it->second, objectName));
                 return true;
             }
-            else 
+            else
             {
                 LOG_WARNING("Registry", "Cannot load system: " << objectName << " system is not saved (This should happend in first load !)");
             }
@@ -429,11 +437,11 @@ namespace pg
 
             if (const auto& it = eventStorageMap.find(id); it != eventStorageMap.end())
             {
-                return it->second.size(); 
-            } 
+                return it->second.size();
+            }
 
             LOG_ERROR("Component Registry", "Could not find event: " << typeid(Event).name());
-            
+
             return 0;
         }
 
@@ -467,7 +475,7 @@ namespace pg
     void ComponentRegistry::processEvent(const StandardEvent& event);
 
     template <class Type>
-    struct Ref 
+    struct Ref
     {
         // Take an unique id only to have the same signature as Own object
         Ref() { LOG_THIS_MEMBER("Ref"); }
@@ -527,7 +535,7 @@ namespace pg
 
         /**
          * @brief Add this owner object to the registry.
-         * 
+         *
          * @param registry The registry where to add the owner object.
          */
         void setRegistry(ComponentRegistry* registry)
@@ -542,7 +550,7 @@ namespace pg
 
         /**
          * @brief Remove this owner object of the registry.
-         * 
+         *
          * @param registry The registry where to delete the owner object.
          */
         void unsetRegistry(ComponentRegistry* registry)
@@ -557,13 +565,13 @@ namespace pg
 
         /**
          * @brief Create a new component of this type in the underlaying sparse set.
-         * 
+         *
          * @tparam Args Types of the arguments to pass to the constructor of the component.
-         * 
-         * @param entity The entity to attach the new component to. 
+         *
+         * @param entity The entity to attach the new component to.
          * @param args Arguments to pass to the constructor of the component.
-         * 
-         * @return Type* A pointer to the newly created component. 
+         *
+         * @return Type* A pointer to the newly created component.
          */
         template <typename... Args>
         inline Type* internalCreateComponent(Entity* entity, Args&&... args)
@@ -587,8 +595,8 @@ namespace pg
 
         /**
          * @brief Remove a component of this type from the underlaying sparse set.
-         * 
-         * @param entity The entity to remove the component from. 
+         *
+         * @param entity The entity to remove the component from.
          */
         inline void internalRemoveComponent(Entity* entity)
         {
@@ -600,7 +608,7 @@ namespace pg
 
             // Erase the component from the entity
             auto it = std::find(entity->componentList.begin(), entity->componentList.end(), _componentId);
-            
+
             if (it != entity->componentList.end())
                 entity->componentList.erase(it);
 
@@ -611,10 +619,10 @@ namespace pg
 
         /**
          * @brief Get the component of an entity from the underlaying sparse set.
-         * 
+         *
          * @param id The id of the entity that has the component.
-         * 
-         * @return A pointer to the component. 
+         *
+         * @return A pointer to the component.
          */
         inline Type* getComponent(_unique_id id) const
         {
@@ -630,8 +638,8 @@ namespace pg
 
         /**
          * @brief Get the id of the component.
-         * 
-         * @return _unique_id the id of the component. 
+         *
+         * @return _unique_id the id of the component.
          */
         inline _unique_id getId() const
         {
@@ -655,7 +663,7 @@ namespace pg
 
         CompRef(const CompRef& rhs)
         {
-            (*this) = rhs; 
+            (*this) = rhs;
         }
 
         void operator=(const CompRef& rhs);
@@ -672,6 +680,6 @@ namespace pg
         bool initialized;
         Comp* component;
         _unique_id entityId;
-        const EntitySystem* ecsRef;  
+        const EntitySystem* ecsRef;
     };
 }

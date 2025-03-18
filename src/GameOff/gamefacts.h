@@ -23,7 +23,7 @@ namespace pg
 
     struct IncreaseFact
     {
-        IncreaseFact(const std::string& name = "Noop", int value = 1) : name(name), value(value) {} 
+        IncreaseFact(const std::string& name = "Noop", int value = 1) : name(name), value(value) {}
         IncreaseFact(const IncreaseFact& other) : name(other.name), value(other.value) {}
 
         IncreaseFact& operator=(const IncreaseFact& other)
@@ -51,7 +51,7 @@ namespace pg
     struct WorldFactsUpdate
     {
         std::unordered_map<std::string, ElementType> *factMap;
-        
+
         std::vector<std::string> changedFacts;
     };
 
@@ -121,11 +121,11 @@ namespace pg
                     case FactCheckEquality::Equal:
                         return (it->second == value).isTrue();
                         break;
-                    
+
                     case FactCheckEquality::NotEqual:
                         return (it->second != value).isTrue();
                         break;
-                    
+
                     case FactCheckEquality::Greater:
                         return (it->second > value).isTrue();
                         break;
@@ -133,7 +133,7 @@ namespace pg
                     case FactCheckEquality::GreaterEqual:
                         return (it->second >= value).isTrue();
                         break;
-                    
+
                     case FactCheckEquality::None:
                     default:
                         return false;
@@ -158,12 +158,12 @@ namespace pg
     {
         virtual std::string getSystemName() const override { return "WorldFacts"; }
 
-        virtual void save(Archive& archive)
+        virtual void save(Archive& archive) override
         {
             serialize(archive, "worldFacts", factMap);
         }
 
-        virtual void load(const UnserializedObject& serializedString)
+        virtual void load(const UnserializedObject& serializedString) override
         {
             defaultDeserialize(serializedString, "worldFacts", factMap);
         }
@@ -209,7 +209,7 @@ namespace pg
             }
             else
             {
-                factMap[event.name] = event.value;   
+                factMap[event.name] = event.value;
             }
 
             changedFacts.push_back(event.name);
@@ -223,7 +223,7 @@ namespace pg
 
             if (it == factMap.end())
             {
-                factMap[name] = value;   
+                factMap[name] = value;
             }
         }
 

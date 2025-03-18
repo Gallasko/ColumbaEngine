@@ -287,7 +287,7 @@ struct PortraitLoader : public System<Listener<ChangePortraitEvent>, StoragePoli
 
         portrait.get<PositionComponent>()->setX(250);
         portrait.get<PositionComponent>()->setY(300);
-        
+
         tex = portrait.get<Texture2DComponent>();
 
         auto fee = makeUiTexture(ecsRef, 100, 100, "Hahahah");

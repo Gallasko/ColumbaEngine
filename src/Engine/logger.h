@@ -10,7 +10,7 @@
 
 #include <chrono>
 
-// Todo include date when printing log 
+// Todo include date when printing log
 #include "Helpers/date.h"
 
 #include "Files/filemanager.h"
@@ -66,13 +66,13 @@
 
 namespace pg
 {
-    class ElementType;
+    struct ElementType;
 
     /**
      * @brief Helper struct to stringfy log messages
-     * 
+     *
      */
-    class Strfy 
+    class Strfy
     {
     public:
         Strfy(const std::string& msg) : data(msg) {}
@@ -141,18 +141,18 @@ namespace pg
 
     /**
      * @class Logger
-     * 
+     *
      * Main logging class responsible of managing logging sinks and print various info of the code
-     * 
+     *
      */
     class Logger
     {
     public:
         /**
          * @enum LogLevel
-         * 
+         *
          * A enum class holding the emergency level of the log
-         * 
+         *
          * @todo add a debug level
          */
         enum class InfoLevel
@@ -161,15 +161,15 @@ namespace pg
             test     = 1, ///< Log level only used for testing purposes
             mile     = 2, ///< Log level used to print relevant information of some in build data types
             info     = 3, ///< Info level used to print some important and informative message about the execution of the code
-            alert    = 4, ///< Alert level used to alert the dev of weird branchings that can affect the output 
-            warning  = 5, ///< Warning level used to warn the developer of an error that is non blocking 
+            alert    = 4, ///< Alert level used to alert the dev of weird branchings that can affect the output
+            warning  = 5, ///< Warning level used to warn the developer of an error that is non blocking
             error    = 6, ///< Error level used to tell the developer of an error that is blocking and may need a restart of a component
             critical = 7  ///< Critical level used to tell the developer of an error that is critical to the integrity of the application and need a full reboot of it
         };
 
         /**
          * @struct Info
-         * 
+         *
          * A structure holding all the information about a log message
          */
         struct Info
@@ -194,7 +194,7 @@ namespace pg
              : line(line), file(file), function(function), object(object), objectName(objectName), scope(scope), msg(msg), level(level)
             {
                 auto& logger = Logger::getLogger();
-                
+
                 // Fonctor to use C++ scope initialisation to easely lock log pushback
                 // std::lock_guard<std::recursive_mutex> lock(logger->_lock);
 
@@ -202,7 +202,7 @@ namespace pg
 
                 // Call all the sink registered and push the received message to them
                 for (const auto& sink : logger->sinks)
-                    *sink << log; 
+                    *sink << log;
             }
 
             ~Logging()
@@ -216,7 +216,7 @@ namespace pg
 
                 // Call all the sink registered and push the received message to them
                 for (const auto& sink : logger->sinks)
-                    *sink << log;  
+                    *sink << log;
             }
 
             const int line;
@@ -231,9 +231,9 @@ namespace pg
 
         /**
          * @class LogSink
-         * 
+         *
          * Pure virtual class to create derive classes used to be end points of the logs system
-         * 
+         *
          */
         class LogSink
         {
@@ -246,7 +246,7 @@ namespace pg
 
                 /**
                  * @brief Check if the log need to be filtered
-                 * 
+                 *
                  * @param log The log to be checked
                  * @return true if the log need to be filtered out and false if the filter doesn t apply to the log
                  */
@@ -257,10 +257,10 @@ namespace pg
             {
             public:
                 FilterFile(std::string_view filename, bool blacklisted = true) : filename(filename), blacklisted(blacklisted) {}
-                
+
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
-                    return blacklisted ? log.filename == filename : log.filename != filename; 
+                    return blacklisted ? log.filename == filename : log.filename != filename;
                 }
 
             private:
@@ -272,10 +272,10 @@ namespace pg
             {
             public:
                 FilterFunction(std::string_view function, bool blacklisted = true) : function(function), blacklisted(blacklisted) {}
-                
+
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
-                    return blacklisted ? log.function == function : log.function != function; 
+                    return blacklisted ? log.function == function : log.function != function;
                 }
 
             private:
@@ -288,13 +288,13 @@ namespace pg
             {
             public:
                 FilterObject(void* object, bool blacklisted = true) : object(object), blacklisted(blacklisted) {}
-                
+
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
                     if (object == nullptr or log.object == nullptr)
                         return true;
-    
-                    return blacklisted ? log.object == object : log.object != object; 
+
+                    return blacklisted ? log.object == object : log.object != object;
                 }
 
             private:
@@ -306,10 +306,10 @@ namespace pg
             {
             public:
                 FilterObjectName(std::string_view objectName, bool blacklisted = true) : objectName(objectName), blacklisted(blacklisted) {}
-                
+
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
-                    return blacklisted ? log.objectName == objectName : log.objectName != objectName; 
+                    return blacklisted ? log.objectName == objectName : log.objectName != objectName;
                 }
 
             private:
@@ -321,10 +321,10 @@ namespace pg
             {
             public:
                 FilterScope(std::string_view scope, bool blacklisted = true) : scope(scope), blacklisted(blacklisted) {}
-                
+
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
-                    return blacklisted ? log.scope == scope : log.scope != scope; 
+                    return blacklisted ? log.scope == scope : log.scope != scope;
                 }
 
             private:
@@ -336,10 +336,10 @@ namespace pg
             {
             public:
                 FilterLogLevel(const Logger::InfoLevel& level, bool blacklisted = true) : level(level), blacklisted(blacklisted) {}
-                
+
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
-                    return blacklisted ? log.level == level : log.level != level; 
+                    return blacklisted ? log.level == level : log.level != level;
                 }
 
             private:
@@ -376,11 +376,11 @@ namespace pg
     public:
         /**
          * @brief Register a sink to dumb log into
-         * 
+         *
          * @tparam Sink Which type of sink to be initialised
          * @tparam Args Variadic list of arguments to initialize the sink
          * @param args Arguments of the sink to be initialised
-         * @return a pointer to the sink instance registered 
+         * @return a pointer to the sink instance registered
          */
         template <typename Sink, typename... Args>
         inline static std::shared_ptr<Logger::LogSink> registerSink(Args... args);
@@ -389,7 +389,7 @@ namespace pg
 
         /**
          * @brief Main function used to register a single log message
-         * 
+         *
          * @param line          Line where the log message happened
          * @param file          File where the log message happened
          * @param function      Function where the log message happened
@@ -415,7 +415,7 @@ namespace pg
 
          /**
          * @brief Overload function used to register a single log message
-         * 
+         *
          * @param[in] line          Line where the log message happened
          * @param[in] file          File where the log message happened
          * @param[in] function      Function where the log message happened
@@ -432,7 +432,7 @@ namespace pg
 
         /**
          * @brief Main function used to register a log message
-         * 
+         *
          * @param[in] line          Line where the log message happened
          * @param[in] file          File where the log message happened
          * @param[in] function      Function where the log message happened
@@ -449,7 +449,7 @@ namespace pg
 
         /**
          * @brief Overload function used to register a log message
-         * 
+         *
          * @param[in] line          Line where the log message happened
          * @param[in] file          File where the log message happened
          * @param[in] function      Function where the log message happened
@@ -467,9 +467,9 @@ namespace pg
 
         /**
          * @brief Get the reference of the unique Logger instance
-         * 
+         *
          * @return a pointer to the logger instance.
-         * 
+         *
          * This function create an Logger object the first time it is called and then return an unique reference to this object
          *
          */
@@ -477,7 +477,7 @@ namespace pg
 
         /**
          * @brief Get the number of sinks currently attached to the logger subsystem
-         * 
+         *
          * @return the number of sink
          */
         inline static unsigned int getNbSink() { return sinks.size(); }
@@ -487,8 +487,8 @@ namespace pg
     private:
         /** Current batch of log */
         static std::vector<LogSinkPtr> sinks;
-        
-        /** Mutex for pushing and accessing logs */ 
+
+        /** Mutex for pushing and accessing logs */
         mutable std::recursive_mutex _lock;
     };
 
@@ -516,7 +516,7 @@ namespace pg
     public:
         TerminalSink() : ignoreNonErrors(false) {}
         TerminalSink(bool ignoreNonErrors) : ignoreNonErrors(ignoreNonErrors) {}
-        
+
         virtual ~TerminalSink() {}
 
         /** Stream operator used to get the log and print the message to the console */
@@ -532,9 +532,9 @@ namespace pg
     friend class Logger;
     public:
         FileSink(const std::string& fileName = "log.txt", bool ignoreNonErrors = false) : filename(fileName), dataBuffer(""), ignoreNonErrors(ignoreNonErrors) {}
-        
+
         virtual ~FileSink() override;
-        
+
         /** Stream operator used to get the log and print the message to the console */
         virtual void processLog(const Logger::Info& log) override;
 
