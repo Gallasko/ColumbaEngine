@@ -391,6 +391,8 @@ namespace pg
         ecs.createSystem<MouseLeaveClickSystem>(inputHandler);
 
         ecs.createSystem<MouseWheelSystem>(inputHandler);
+
+        ecs.createSystem<MouseHoverSystem>();
         
         ecs.createSystem<TextInputSystem>(inputHandler);
 

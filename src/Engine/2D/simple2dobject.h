@@ -25,12 +25,22 @@ namespace pg
         Simple2DObject(const Shape2D& shape) : shape(shape) { }
         Simple2DObject(const Shape2D& shape, const constant::Vector4D& c) : shape(shape), colors(c) { }
 
-        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), entity(rhs.entity) { }
+        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), id(rhs.id), ecsRef(rhs.ecsRef) { }
         virtual ~Simple2DObject() {}
 
         inline static std::string getType() { return "Simple2DObject"; } 
 
-        virtual void onCreation(EntityRef entity) { this->entity = entity; }
+        virtual void onCreation(EntityRef entity) { id = entity.id; ecsRef = entity.ecsRef; }
+
+        void setColors(const constant::Vector4D& colors)
+        {
+            this->colors = colors;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{id});
+            }
+        }
 
         Shape2D shape;
 
@@ -40,7 +50,9 @@ namespace pg
         // Todo make the colors normalized (0.0f <-> 1.0f) to not do the division in the shader
         constant::Vector4D colors {255.0f, 255.0f, 255.0f, 255.0f};
 
-        Entity *entity = nullptr;
+        _unique_id id;
+
+        EntitySystem *ecsRef = nullptr;
     };
 
     template <>

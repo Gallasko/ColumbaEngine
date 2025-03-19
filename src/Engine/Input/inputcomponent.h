@@ -78,6 +78,36 @@ namespace pg
         MouseButton button;
     };
 
+    // Component that triggers a callback when the mouse enters the entity’s area.
+    struct MouseEnterComponent
+    {
+        MouseEnterComponent(CallablePtr callback) : callback(callback) { }
+        MouseEnterComponent(const MouseEnterComponent& other) : callback(other.callback) { }
+
+        MouseEnterComponent& operator=(const MouseEnterComponent& other)
+        {
+            callback = other.callback;
+            return *this;
+        }
+
+        CallablePtr callback;
+    };
+
+    // Component that triggers a callback when the mouse leaves the entity’s area.
+    struct MouseLeaveComponent
+    {
+        MouseLeaveComponent(CallablePtr callback) : callback(callback) { }
+        MouseLeaveComponent(const MouseLeaveComponent& other) : callback(other.callback) { }
+
+        MouseLeaveComponent& operator=(const MouseLeaveComponent& other)
+        {
+            callback = other.callback;
+            return *this;
+        }
+
+        CallablePtr callback;
+    };
+
     struct OnMouseMove
     {
         MousePos pos;
@@ -246,6 +276,92 @@ namespace pg
 
         Input *inputHandler;
         std::set<MouseAreaZ, std::greater<>> mouseAreaHolder;
+    };
+
+    struct MouseHoverSystem : public System<Listener<OnMouseMove>, Own<MouseEnterComponent>, Own<MouseLeaveComponent>, InitSys, StoragePolicy>
+    {
+        virtual std::string getSystemName() const override { return "Mouse Hover System"; }
+
+        // On initialization, register all entities that have PositionComponent and a hover component.
+        virtual void init() override
+        {
+            // Register group for entities with PositionComponent and MouseEnterComponent.
+            auto groupEnter = registerGroup<PositionComponent, MouseEnterComponent>();
+
+            groupEnter->addOnGroup([this](EntityRef entity) {
+                // Insert the entity into our hover state map.
+                hoverState[entity->id] = false;
+            });
+
+            groupEnter->removeOfGroup([this](EntitySystem*, _unique_id id) {
+                auto entity = ecsRef->getEntity(id);
+                // Only remove from hoverState if the entity no longer has either hover component.
+                if (not entity or (not entity->has<MouseEnterComponent>() and not entity->has<MouseLeaveComponent>()))
+                {
+                    hoverState.erase(id);
+                }
+            });
+
+            // Register group for entities with PositionComponent and MouseLeaveComponent.
+            auto groupLeave = registerGroup<PositionComponent, MouseLeaveComponent>();
+
+            groupLeave->addOnGroup([this](EntityRef entity) {
+                // Insert the entity into our hover state map.
+                hoverState[entity->id] = false;
+            });
+
+            groupLeave->removeOfGroup([this](EntitySystem*, _unique_id id) {
+                auto entity = ecsRef->getEntity(id);
+                if (not entity or (not entity->has<MouseEnterComponent>() and not entity->has<MouseLeaveComponent>()))
+                {
+                    hoverState.erase(id);
+                }
+            });
+        }
+
+        // Listen for mouse move events.
+        virtual void onEvent(const OnMouseMove& event) override
+        {
+            MousePos mousePos = event.pos;
+            // Iterate over all entities in our hover state.
+            for (auto& pair : hoverState)
+            {
+                _unique_id entityId = pair.first;
+                bool currentlyHovering = pair.second;
+                auto entity = ecsRef->getEntity(entityId);
+
+                if (not entity or (not entity->has<PositionComponent>()))
+                    continue;
+
+                bool inside = inClipBound(entity, mousePos.x, mousePos.y);
+
+                // If the mouse has entered and wasn't previously inside...
+                if (inside and not currentlyHovering)
+                {
+                    if (entity->has<MouseEnterComponent>())
+                    {
+                        auto comp = entity->get<MouseEnterComponent>();
+                        comp->callback->call(world());
+                    }
+
+                    pair.second = true;
+                }
+                // If the mouse was inside and now has left...
+                else if (not inside and currentlyHovering)
+                {
+                    if (entity->has<MouseLeaveComponent>())
+                    {
+                        auto comp = entity->get<MouseLeaveComponent>();
+                        comp->callback->call(world());
+                    }
+
+                    pair.second = false;
+                }
+            }
+        }
+
+        // Map of entity id to whether the mouse is currently hovering.
+        std::unordered_map<_unique_id, bool> hoverState;
     };
 
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs);

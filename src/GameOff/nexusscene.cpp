@@ -10,6 +10,16 @@
 
 namespace pg
 {
+    namespace 
+    {
+        struct OnBackgroundButtonHover
+        {
+            _unique_id id;
+
+            bool state;
+        };
+    }
+
     void NexusScene::init()
     {
         // Create the basic mana generator entity.
@@ -103,6 +113,27 @@ namespace pg
             updateDynamicButtons(*event.factMap);
         });
 
+        listenToEvent<OnBackgroundButtonHover>([this](const OnBackgroundButtonHover& event) {
+            const auto& it = buttonBackgrounds.find(event.id);
+
+            if (it != buttonBackgrounds.end())
+            {
+                LOG_INFO("Hovering", "Current Hover state: " << event.state);
+
+                if (it->second->has<Simple2DObject>())
+                {
+                    if (event.state)
+                    {
+                        it->second->get<Simple2DObject>()->setColors({0, 255, 0, 255});
+                    }
+                    else
+                    {
+                        it->second->get<Simple2DObject>()->setColors({0, 196, 0, 255});
+                    }
+                }
+            }
+        });
+
         listenToStandardEvent("nexus_button_clicked", [this](const StandardEvent& event) {
             auto buttonId = event.values.at("id").get<std::string>();
 
@@ -168,6 +199,11 @@ namespace pg
         auto backgroundAnchor = background.get<UiAnchor>();
 
         scene->ecsRef->attach<MouseLeftClickComponent>(background.entity, makeCallable<StandardEvent>("nexus_button_clicked", "id", id));
+
+        scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, true}));
+        scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, false}));
+
+        scene->buttonBackgrounds[background.entity.id] = background.entity;
 
         prefabAnchor->setWidthConstrain(PosConstrain{background.entity.id, AnchorType::Width});
         prefabAnchor->setHeightConstrain(PosConstrain{background.entity.id, AnchorType::Height});

@@ -43,5 +43,7 @@ namespace pg
         std::vector<DynamicNexusButton> archivedButtons;
 
         EntityRef nexusLayout;
+
+        std::unordered_map<_unique_id, EntityRef> buttonBackgrounds;
     };
 }
