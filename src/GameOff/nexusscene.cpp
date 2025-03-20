@@ -20,6 +20,57 @@ namespace pg
         };
     }
 
+    template <>
+    void serialize(Archive& archive, const DynamicNexusButton& value)
+    {
+        archive.startSerialization("DynamicNexusButton");
+        
+        serialize(archive, "id", value.id);
+        serialize(archive, "label", value.label);
+        serialize(archive, "conditions", value.conditions);
+        serialize(archive, "outcome", value.outcome);
+        serialize(archive, "category", value.category);
+        serialize(archive, "neededConditionsForVisibility", value.neededConditionsForVisibility);
+        serialize(archive, "nbClickBeforeArchive", value.nbClickBeforeArchive);
+        serialize(archive, "nbClick", value.nbClick);
+        serialize(archive, "archived", value.archived);
+        
+        archive.endSerialization();
+    }
+
+    template <>
+    DynamicNexusButton deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("DynamicNexusButton");
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("DynamicNexusButtonr", "Element is null");
+        }
+        else
+        {
+            LOG_MILE("DynamicNexusButtonr", "Deserializing DynamicNexusButton");
+
+            DynamicNexusButton data;
+
+            defaultDeserialize(serializedString, "id", data.id);
+            defaultDeserialize(serializedString, "label", data.label);
+            defaultDeserialize(serializedString, "conditions", data.conditions);
+            defaultDeserialize(serializedString, "outcome", data.outcome);
+            defaultDeserialize(serializedString, "category", data.category);
+            defaultDeserialize(serializedString, "neededConditionsForVisibility", data.neededConditionsForVisibility);
+            defaultDeserialize(serializedString, "nbClickBeforeArchive", data.nbClickBeforeArchive);
+            defaultDeserialize(serializedString, "nbClick", data.nbClick);
+            defaultDeserialize(serializedString, "archived", data.archived);
+
+            return data;
+        }
+
+        return DynamicNexusButton{};
+    }
+
     void NexusScene::init()
     {
         // Create the basic mana generator entity.

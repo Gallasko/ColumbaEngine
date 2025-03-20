@@ -6,6 +6,8 @@
 #include "item.h"
 #include "locationscene.h"
 
+#include "nexusscene.h"
+
 namespace pg
 {
     class CreateCharacter : public Function
@@ -211,6 +213,49 @@ namespace pg
 
             return list;
         }
+    };
+
+    class CreateNexusButton : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp()
+        {    
+            setArity(0, 0);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            DynamicNexusButton button;
+
+            auto list = serializeToInterpreter(this, button);
+
+            return list;
+        }
+    };
+
+    class RegisterNexusButton : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(EntitySystem *ecsRef)
+        {
+            this->ecsRef = ecsRef;
+    
+            setArity(1, 1);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto nexusButton = args.front();
+            args.pop();
+
+            auto button = deserializeTo<DynamicNexusButton>(nexusButton);
+
+            return nullptr;
+        }
+
+        EntitySystem *ecsRef;
     };
 
     struct GameModule : public SysModule

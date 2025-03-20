@@ -27,6 +27,9 @@ namespace pg
         _unique_id entityId = 0;                // Entity identifier
     };
 
+    template <>
+    void serialize(Archive& archive, const DynamicNexusButton& value);
+
     struct NexusScene : public Scene
     {
         virtual void init() override;
