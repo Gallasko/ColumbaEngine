@@ -106,4 +106,100 @@ namespace pg
 
         size_t deltaTime = 0;
     };
+
+    /**
+     * ConverterComponent: Attach this to an entity that acts as a converter
+     */
+    struct ConverterComponent
+    {
+        /** Ressources to be deducted */
+        std::vector<std::string> input;
+        /** Ressources to be gained */
+        std::vector<std::string> output;
+
+        /** How much of input is required per conversion */
+        std::vector<float> cost;
+        /** How much of output is granted per conversion */
+        std::vector<float> yield;
+    };
+
+    // Standard event name to trigger a conversion.
+    // When a converter's UI is clicked, you should send:
+    //   StandardEvent("converter_triggered", "id", <converter_entity_id as string>)
+    static const std::string ConverterTriggeredEventName = "converter_triggered";
+
+    struct ConverterSystem : public System<Own<ConverterComponent>, Listener<StandardEvent>, InitSys>
+    {
+        virtual std::string getSystemName() const override { return "Converter System"; }
+
+        virtual void init() override
+        {
+            addListenerToStandardEvent(ConverterTriggeredEventName);
+        }
+
+        virtual void onEvent(const StandardEvent& event) override
+        {
+            // Check that the event is for a converter trigger.
+            if (event.name != ConverterTriggeredEventName)
+                return;
+
+            // Expect the event to have an "id" parameter containing the converter entity's id.
+            auto it = event.values.find("id");
+            if (it == event.values.end())
+            {
+                LOG_ERROR("ConverterSystem", "No id provided in converter_triggered event.");
+                return;
+            }
+
+            // Convert the id value to _unique_id (assuming your engine uses string conversion)
+            _unique_id convId = event.values.at("id").get<size_t>();
+
+            auto ent = ecsRef->getEntity(convId);
+            if (not ent or not ent->has<ConverterComponent>())
+            {
+                LOG_ERROR("ConverterSystem", "Entity " << convId << " does not have a ConverterComponent!");
+                return;
+            }
+            auto conv = ent->get<ConverterComponent>();
+
+            // Get current amount of resourceIn from the WorldFacts system.
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+
+            bool conversionPosible = true;
+
+            if (conv->cost.size() < conv->input.size() or conv->yield.size() < conv->output.size())
+            {
+                LOG_ERROR("ConverterSystem", "Invalid converter configuration: " << "cost and yield vectors have different sizes.");
+                return;
+            }
+
+            for (size_t i = 0; i < conv->input.size(); i++)
+            {
+                float available = 0.0f;
+
+                auto factIt = wf->factMap.find(conv->input[i]);
+                if (factIt != wf->factMap.end())
+                {
+                    available = factIt->second.get<float>();
+                }
+
+                if (available < conv->cost[i])
+                {
+                    LOG_ERROR("ConverterSystem", "Insufficient " << conv->input[i] << ": " << available << " available, " << conv->cost[i] << " required.");
+                    conversionPosible = false;
+                    break;
+                }
+            }
+
+            if (conversionPosible)
+            {
+                // Deduct resourceIn and add resourceOut.
+                for (size_t i = 0; i < conv->input.size(); i++)
+                    ecsRef->sendEvent(IncreaseFact{conv->input[i], -conv->cost[i]});
+
+                for (size_t i = 0; i < conv->output.size(); i++)
+                    ecsRef->sendEvent(IncreaseFact{conv->output[i], conv->yield[i]});
+            }
+        }
+    };
 }

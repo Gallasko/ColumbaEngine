@@ -135,6 +135,14 @@ namespace pg
         auto basicGen = createEntity();
         attach<RessourceGenerator>(basicGen);
 
+        // Mana -> Scrap converter
+        auto converterEntity = createEntity();
+        auto convComp = attach<ConverterComponent>(converterEntity);
+        convComp->input = {"mana"};
+        convComp->output = {"scrap"};
+        convComp->cost = {5.0f};
+        convComp->yield = {1.0f};
+
         PgInterpreter interpreter;
 
         interpreter.addSystemModule("nexus", NexusModule{this});
@@ -159,6 +167,16 @@ namespace pg
             "Harvest",
             { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
             { AchievementReward(StandardEvent("res_harvest", "id", basicGen.id)) },
+            "main",
+            {},
+            0
+        });
+
+        maskedButtons.push_back(DynamicNexusButton{
+            "ScrapConverter",
+            "Convert [Scrap]",
+            { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
+            { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
             "main",
             {},
             0
@@ -225,6 +243,13 @@ namespace pg
             if (it != event.changedFacts.end())
             {
                 LOG_INFO("onRessourceGeneratorHarvest", "Current Mana: " << event.factMap->at("mana").get<float>());
+            }
+
+            const auto& scrapIt = std::find(event.changedFacts.begin(), event.changedFacts.end(), "scrap");
+
+            if (scrapIt != event.changedFacts.end())
+            {
+                LOG_INFO("onRessourceGeneratorHarvest", "Current Scrap: " << event.factMap->at("scrap").get<float>());
             }
 
             updateDynamicButtons(*event.factMap);
@@ -397,6 +422,8 @@ namespace pg
                     {
                         LOG_INFO("Nexus scene", "Button id: " << it->entityId);
                         layout->removeEntity(it->entityId);
+
+                        it->entityId = 0;
                     }
                 }
 
