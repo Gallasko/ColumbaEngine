@@ -279,10 +279,11 @@ namespace pg
             args.pop();
             std::string key = args.front()->getElement().toString();
             args.pop();
+
             const auto& message = args.front()->getElement();
+            AchievementReward reward = createAchievementRewardEvent(eventName, key, message);
             args.pop();
 
-            AchievementReward reward = createAchievementRewardEvent(eventName, key, message);
             return serializeToInterpreter(this, reward);
         }
     };
