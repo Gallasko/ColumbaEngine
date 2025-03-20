@@ -1,6 +1,7 @@
 # Pg Engine
 
 A pure Entity Component System based Graphical Engine
+You can find the official documentation for the Engine with a list of available components and tutorials [here](https://pgengine.readthedocs.io/en/latest/)
 
 # Design Goals
 - **Useful**: A complete 2D set with an upcoming 3D support
@@ -12,7 +13,7 @@ A pure Entity Component System based Graphical Engine
 
 # Engine
 
-A custom engine is available to create 2D scene 
+A custom engine is available to create 2D scene
 
 ![Engine](docs/engine.gif)
 
@@ -28,7 +29,7 @@ You can find all the game that I made using this engine at:
 https://pigeoncodeur.itch.io/
 
 ## Warning
-PGEngine is still in the early stage of development, important features are missing and expect some code bracking update changes happening with some migration guides provided ! 
+PGEngine is still in the early stage of development, important features are missing and expect some code bracking update changes happening with some migration guides provided !
 
 # How to build
 
@@ -50,7 +51,7 @@ The first step to build is to download the two external dependencies of this pro
 
 ### Windows
 
-The first step is to install [Mingw 64](https://www.mingw-w64.org/downloads/) 
+The first step is to install [Mingw 64](https://www.mingw-w64.org/downloads/)
 
 The next step is to install Cmake
 
