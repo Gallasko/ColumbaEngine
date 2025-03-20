@@ -133,7 +133,7 @@ namespace pg
     {
         // Create the basic mana generator entity.
         auto basicGen = createEntity();
-        attach<ManaGenerator>(basicGen);
+        attach<RessourceGenerator>(basicGen);
 
         PgInterpreter interpreter;
 
@@ -158,7 +158,7 @@ namespace pg
             "BasicHarvest",
             "Harvest",
             { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-            { AchievementReward(StandardEvent("mana_harvest", "id", basicGen.id)) },
+            { AchievementReward(StandardEvent("res_harvest", "id", basicGen.id)) },
             "main",
             {},
             0
@@ -168,7 +168,7 @@ namespace pg
             "UpgradeProd1",
             "UpgradeProd",
             { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-            { AchievementReward(StandardEvent("mana_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
+            { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
             "main",
             {},
             5
@@ -224,7 +224,7 @@ namespace pg
 
             if (it != event.changedFacts.end())
             {
-                LOG_INFO("onManaGeneratorHarvest", "Current Mana: " << event.factMap->at("mana").get<float>());
+                LOG_INFO("onRessourceGeneratorHarvest", "Current Mana: " << event.factMap->at("mana").get<float>());
             }
 
             updateDynamicButtons(*event.factMap);
