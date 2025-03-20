@@ -227,7 +227,29 @@ namespace pg
             1
         });
 
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        auto windowAnchor = windowEnt->get<UiAnchor>();
+
+        auto listView = makeListView(ecsRef, 1, 1, 150, 1);
+
+        auto listViewUi = listView.get<UiAnchor>();
+
+        listViewUi->setTopAnchor(windowAnchor->top);
+        listViewUi->setTopMargin(120);
+        listViewUi->setBottomAnchor(windowAnchor->bottom);
+        listViewUi->setLeftAnchor(windowAnchor->left);
+        listViewUi->setLeftMargin(10);
+
+        resLayout = listView.entity;
+
+        addResourceDisplay("mana");
+        addResourceDisplay("scrap");
+
         auto layout = makeHorizontalLayout(ecsRef, 30, 150, 500, 400);
+        auto layoutAnchor = layout.get<UiAnchor>();
+
+        layoutAnchor->setLeftAnchor(listViewUi->right);
+        layoutAnchor->setLeftMargin(10);
 
         layout.get<HorizontalLayout>()->spacing = 30;
 
@@ -253,6 +275,7 @@ namespace pg
             }
 
             updateDynamicButtons(*event.factMap);
+            updateRessourceView();
         });
 
         listenToEvent<OnBackgroundButtonHover>([this](const OnBackgroundButtonHover& event) {
@@ -324,10 +347,29 @@ namespace pg
         auto sys = ecsRef->getSystem<WorldFacts>();
 
         updateDynamicButtons(sys->factMap);
+
+        updateRessourceView();
     }
 
     void NexusScene::execute()
     {
+        if (newRes)
+        {
+            updateRessourceView();
+            newRes = false;
+        }
+
+        while (not resourceToBeDisplayed.empty())
+        {
+            const auto& res = resourceToBeDisplayed.front();
+
+            _addResourceDisplay(res);
+
+            resourceToBeDisplayed.pop();
+
+            newRes = true;
+        }
+
         // This scene could be extended to update UI, handle animations, etc.
     }
 
@@ -443,4 +485,61 @@ namespace pg
         updateButtonsVisibility(factMap, visibleButtons, maskedButtons, false);
     }
 
+    // Helper method to add a new resource display entry.
+    void NexusScene::_addResourceDisplay(const std::string& resourceName)
+    {
+        // Create a new UI text entity using your existing TTFText helper.
+        // We start with an empty text; it'll be updated in execute().
+        auto textEntity = makeTTFText(ecsRef, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
+        textEntity.get<PositionComponent>()->setVisibility(false);
+
+        resLayout->get<ListView>()->addEntity(textEntity.entity);
+
+        // Create a ResourceDisplayEntry and add it to the list.
+        ResourceDisplayEntry entry;
+        entry.resourceName = resourceName;
+        entry.uiEntity = textEntity.entity;
+        resourceList.push_back(entry);
+    }
+
+    void NexusScene::updateRessourceView()
+    {
+        LOG_INFO("NexusScene", "updateRessourceView");
+        // Update the resource list view.
+        WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+        if (not wf) return;
+
+        for (auto& entry : resourceList)
+        {
+            float value = 0.0f;
+            float maxValue = 0.0f;
+            bool hasMax = false;
+
+            auto it = wf->factMap.find(entry.resourceName);
+            if (it != wf->factMap.end())
+            {
+                value = it->second.get<float>();
+            }
+
+            auto itMax = wf->factMap.find(entry.resourceName + "_max_value");
+            if (itMax != wf->factMap.end())
+            {
+                maxValue = itMax->second.get<float>();
+                hasMax = true;
+            }
+
+            std::ostringstream oss;
+            oss << entry.resourceName << ": " << value;
+
+            if (hasMax)
+                oss << "/" << maxValue;
+
+            // Update the text of the corresponding TTFText component.
+            if (entry.uiEntity and entry.uiEntity->has<TTFText>())
+            {
+                auto textComp = entry.uiEntity->get<TTFText>();
+                textComp->setText(oss.str());
+            }
+        }
+    }
 }

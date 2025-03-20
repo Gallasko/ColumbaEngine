@@ -27,6 +27,12 @@ namespace pg
         _unique_id entityId = 0;                // Entity identifier
     };
 
+    struct ResourceDisplayEntry
+    {
+        std::string resourceName;
+        EntityRef uiEntity;
+    };
+
     template <>
     void serialize(Archive& archive, const DynamicNexusButton& value);
 
@@ -48,5 +54,20 @@ namespace pg
         EntityRef nexusLayout;
 
         std::unordered_map<_unique_id, EntityRef> buttonBackgrounds;
+
+        // Adds a resource entry to the list view.
+        void addResourceDisplay(const std::string& resourceName) { resourceToBeDisplayed.push(resourceName); }
+        void _addResourceDisplay(const std::string& resourceName);
+
+        void updateRessourceView();
+
+        EntityRef resLayout;
+
+        std::queue<std::string> resourceToBeDisplayed;
+
+        bool newRes = false;
+
+        // A vector storing all resource display entries.
+        std::vector<ResourceDisplayEntry> resourceList;
     };
 }
