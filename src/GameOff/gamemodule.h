@@ -244,6 +244,7 @@ namespace pg
 
         virtual ValuablePtr call(ValuableQueue& args) override
         {
+            // Todo check type of elements gotten here
             // Assume arguments: name (string), value (ElementType), equality (string)
             std::string name = args.front()->getElement().toString();
             args.pop();
@@ -264,7 +265,7 @@ namespace pg
         void setUp() { setArity(3, 3); }
 
         // Helper to create an AchievementReward from a StandardEvent
-        AchievementReward createAchievementRewardEvent(const std::string& eventName, const std::string& key, const std::string& message)
+        AchievementReward createAchievementRewardEvent(const std::string& eventName, const std::string& key, const ElementType& message)
         {
             StandardEvent ev(eventName, key, message);
             return AchievementReward(ev);
@@ -272,12 +273,13 @@ namespace pg
 
         virtual ValuablePtr call(ValuableQueue& args) override
         {
+            // Todo check type of elements gotten here
             // Assume arguments: eventName (string), key (string), message (string)
             std::string eventName = args.front()->getElement().toString();
             args.pop();
             std::string key = args.front()->getElement().toString();
             args.pop();
-            std::string message = args.front()->getElement().toString();
+            const auto& message = args.front()->getElement();
             args.pop();
 
             AchievementReward reward = createAchievementRewardEvent(eventName, key, message);

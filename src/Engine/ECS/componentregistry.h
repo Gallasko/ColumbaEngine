@@ -109,6 +109,8 @@ namespace pg
             values[valueName] = ElementType{value};
         }
 
+        // Todo need to make a ElementType ctor to avoid a copy
+
         StandardEvent(const StandardEvent& other) : name(other.name), values(other.values) {}
 
         StandardEvent& operator=(const StandardEvent& other)

@@ -120,12 +120,88 @@ namespace pg
         NexusScene *scene;
     };
 
+    class TrackNewResource : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusScene *scene)
+        {
+            this->scene = scene;
+
+            setArity(1, 1);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto resName = args.front()->getElement().toString();
+            args.pop();
+
+            scene->addResourceDisplay(resName);
+
+            return nullptr;
+        }
+
+        NexusScene *scene;
+    };
+
+    class CreateGenerator : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusScene *scene)
+        {
+            this->scene = scene;
+
+            setArity(1, 4);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Todo check type of elements gotten here
+
+            RessourceGenerator gen;
+
+            gen.ressource = args.front()->getElement().toString();
+            args.pop();
+
+            if (not args.empty())
+            {
+                gen.currentMana = args.front()->getElement().get<float>();
+                args.pop();
+            }
+
+            if (not args.empty())
+            {
+                gen.productionRate = args.front()->getElement().get<float>();
+                args.pop();
+            }
+
+            if (not args.empty())
+            {
+                gen.capacity = args.front()->getElement().get<float>();
+                args.pop();
+            }
+
+            auto ent = scene->createEntity();
+            scene->attach<RessourceGenerator>(ent, gen);
+
+            return makeVar(ent.id);
+        }
+
+        NexusScene *scene;
+    };
+
     struct NexusModule : public SysModule
     {
         NexusModule(NexusScene *scene)
         {
             addSystemFunction<CreateNexusButton>("NexusButton");
             addSystemFunction<RegisterNexusButton>("registerNexusButton", scene);
+            addSystemFunction<TrackNewResource>("addResourceDisplay", scene);
+            addSystemFunction<CreateGenerator>("createGenerator", scene);
+
+            //Todo add basic generator / converter ids as system vars
+            //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
         }
     };
 
@@ -231,6 +307,9 @@ namespace pg
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
         auto listView = makeListView(ecsRef, 1, 1, 150, 1);
+
+        auto listViewComp = listView.get<ListView>();
+        listViewComp->spacing = 8;
 
         auto listViewUi = listView.get<UiAnchor>();
 
