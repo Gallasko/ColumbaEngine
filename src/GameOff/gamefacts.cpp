@@ -6,10 +6,10 @@ namespace pg
     void serialize(Archive& archive, const AddFact& value)
     {
         archive.startSerialization("AddFact");
-        
+
         serialize(archive, "name", value.name);
         serialize(archive, "value", value.value);
-        
+
         archive.endSerialization();
     }
 
@@ -43,9 +43,9 @@ namespace pg
     void serialize(Archive& archive, const RemoveFact& value)
     {
         archive.startSerialization("RemoveFact");
-        
+
         serialize(archive, "name", value.name);
-        
+
         archive.endSerialization();
     }
 
@@ -76,10 +76,10 @@ namespace pg
     void serialize(Archive& archive, const IncreaseFact& value)
     {
         archive.startSerialization("IncreaseFact");
-        
+
         serialize(archive, "name", value.name);
         serialize(archive, "value", value.value);
-        
+
         archive.endSerialization();
     }
 
@@ -113,11 +113,11 @@ namespace pg
     void serialize(Archive& archive, const FactChecker& value)
     {
         archive.startSerialization("FactChecker");
-        
+
         serialize(archive, "name", value.name);
         serialize(archive, "value", value.value);
         serialize(archive, "equality", equalityToString.at(value.equality));
-        
+
         archive.endSerialization();
     }
 

@@ -27,7 +27,7 @@ namespace pg
             if (not v.isLitteral())
             {
                 LOG_ERROR("Character module", "Character name should be a literal");
-                
+
                 return nullptr;
             }
 
@@ -60,14 +60,14 @@ namespace pg
             if (not v.isLitteral())
             {
                 LOG_ERROR("Character module", "Character name should be a literal");
-                
+
                 return nullptr;
             }
 
             Item item;
 
             item.name = v.toString();
-                                  
+
             auto list = serializeToInterpreter(this, item);
 
             return list;
@@ -106,7 +106,7 @@ namespace pg
         void setUp(EntitySystem *ecsRef)
         {
             this->ecsRef = ecsRef;
-    
+
             setArity(2, 2);
         }
 
@@ -155,7 +155,7 @@ namespace pg
         using Function::Function;
     public:
         void setUp()
-        {    
+        {
             setArity(1, 1);
         }
 
@@ -167,7 +167,7 @@ namespace pg
             if (not v.isLitteral())
             {
                 LOG_ERROR("Character module", "Character name should be a literal");
-                
+
                 return nullptr;
             }
 
@@ -191,7 +191,7 @@ namespace pg
         using Function::Function;
     public:
         void setUp()
-        {    
+        {
             setArity(1, 1);
         }
 
@@ -203,7 +203,7 @@ namespace pg
             if (not v.isLitteral())
             {
                 LOG_ERROR("Character module", "Character name should be a literal");
-                
+
                 return nullptr;
             }
 
@@ -226,6 +226,72 @@ namespace pg
             addSystemFunction<CreatePassive>("createPassive");
 
             addSystemFunction<ReadCharaList>("readCharaList");
+        }
+    };
+
+    class CreateFactChecker : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(3, 3); }
+
+        FactChecker createFactChecker(const std::string& name, const ElementType& value, const std::string& equalityStr)
+        {
+            auto equalityIt = stringToEquality.find(equalityStr);
+            FactCheckEquality equality = (equalityIt != stringToEquality.end()) ? equalityIt->second : FactCheckEquality::None;
+            return FactChecker(name, value, equality);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Assume arguments: name (string), value (ElementType), equality (string)
+            std::string name = args.front()->getElement().toString();
+            args.pop();
+            ElementType value = args.front()->getElement();
+            args.pop();
+            std::string equalityStr = args.front()->getElement().toString();
+            args.pop();
+
+            FactChecker fc = createFactChecker(name, value, equalityStr);
+            return serializeToInterpreter(this, fc);
+        }
+    };
+
+    class CreateAchievementRewardEvent : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(3, 3); }
+
+        // Helper to create an AchievementReward from a StandardEvent
+        AchievementReward createAchievementRewardEvent(const std::string& eventName, const std::string& key, const std::string& message)
+        {
+            StandardEvent ev(eventName, key, message);
+            return AchievementReward(ev);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Assume arguments: eventName (string), key (string), message (string)
+            std::string eventName = args.front()->getElement().toString();
+            args.pop();
+            std::string key = args.front()->getElement().toString();
+            args.pop();
+            std::string message = args.front()->getElement().toString();
+            args.pop();
+
+            AchievementReward reward = createAchievementRewardEvent(eventName, key, message);
+            return serializeToInterpreter(this, reward);
+        }
+    };
+
+    struct AchievementModule : public SysModule
+    {
+        AchievementModule()
+        {
+            addSystemFunction<CreateFactChecker>("FactChecker");
+            addSystemFunction<CreateAchievementRewardEvent>("AchievementRewardEvent");
+            // add additional functions as needed
         }
     };
 }

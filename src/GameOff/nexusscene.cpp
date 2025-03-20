@@ -10,10 +10,11 @@
 
 #include "Interpreter/pginterpreter.h"
 #include "Systems/logmodule.h"
+#include "gamemodule.h"
 
 namespace pg
 {
-    namespace 
+    namespace
     {
         struct OnBackgroundButtonHover
         {
@@ -27,7 +28,7 @@ namespace pg
     void serialize(Archive& archive, const DynamicNexusButton& value)
     {
         archive.startSerialization("DynamicNexusButton");
-        
+
         serialize(archive, "id", value.id);
         serialize(archive, "label", value.label);
         serialize(archive, "conditions", value.conditions);
@@ -37,7 +38,7 @@ namespace pg
         serialize(archive, "nbClickBeforeArchive", value.nbClickBeforeArchive);
         serialize(archive, "nbClick", value.nbClick);
         serialize(archive, "archived", value.archived);
-        
+
         archive.endSerialization();
     }
 
@@ -79,7 +80,7 @@ namespace pg
         using Function::Function;
     public:
         void setUp()
-        {    
+        {
             setArity(0, 0);
         }
 
@@ -100,7 +101,7 @@ namespace pg
         void setUp(NexusScene *scene)
         {
             this->scene = scene;
-    
+
             setArity(1, 1);
         }
 
@@ -138,6 +139,7 @@ namespace pg
 
         interpreter.addSystemModule("nexus", NexusModule{this});
         interpreter.addSystemModule("log", LogModule{nullptr});
+        interpreter.addSystemModule("achievement", AchievementModule{});
 
         interpreter.interpretFromFile("nexus.pg");
 
