@@ -8,6 +8,9 @@
 #include "UI/prefab.h"
 #include "UI/sizer.h"
 
+#include "Interpreter/pginterpreter.h"
+#include "Systems/logmodule.h"
+
 namespace pg
 {
     namespace 
@@ -71,11 +74,72 @@ namespace pg
         return DynamicNexusButton{};
     }
 
+    class CreateNexusButton : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp()
+        {    
+            setArity(0, 0);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            DynamicNexusButton button;
+
+            auto list = serializeToInterpreter(this, button);
+
+            return list;
+        }
+    };
+
+    class RegisterNexusButton : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusScene *scene)
+        {
+            this->scene = scene;
+    
+            setArity(1, 1);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto nexusButton = args.front();
+            args.pop();
+
+            auto button = deserializeTo<DynamicNexusButton>(nexusButton);
+
+            scene->maskedButtons.push_back(button);
+
+            return nullptr;
+        }
+
+        NexusScene *scene;
+    };
+
+    struct NexusModule : public SysModule
+    {
+        NexusModule(NexusScene *scene)
+        {
+            addSystemFunction<CreateNexusButton>("NexusButton");
+            addSystemFunction<RegisterNexusButton>("registerNexusButton", scene);
+        }
+    };
+
     void NexusScene::init()
     {
         // Create the basic mana generator entity.
         auto basicGen = createEntity();
         attach<ManaGenerator>(basicGen);
+
+        PgInterpreter interpreter;
+
+        interpreter.addSystemModule("nexus", NexusModule{this});
+        interpreter.addSystemModule("log", LogModule{nullptr});
+
+        interpreter.interpretFromFile("nexus.pg");
 
         maskedButtons.push_back(DynamicNexusButton{
             "TouchAltar",

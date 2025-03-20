@@ -129,6 +129,8 @@ namespace pg
     // Todo better define save path
     Window::Window(const std::string &title, const std::string& savePath) : ecs(savePath), title(title)
     {
+        terminalSink = pg::Logger::registerSink<pg::TerminalSink>(true);
+
         LOG_THIS_MEMBER(DOM);
 
         LOG_INFO(DOM, "Window creation...");
@@ -144,7 +146,7 @@ namespace pg
         interpreter->addSystemFunction<DebugPrint>("debugPrint");
         interpreter->addSystemFunction<ToString>("toString");
 
-        interpreter->addSystemModule("log", LogModule{});
+        interpreter->addSystemModule("log", LogModule{terminalSink});
         interpreter->addSystemModule("ui", UiModule{&ecs});
         interpreter->addSystemModule("2Dshapes", Shape2DModule{&ecs});
         interpreter->addSystemModule("2Dtexture", Texture2DModule{&ecs});
