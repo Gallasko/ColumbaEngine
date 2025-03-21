@@ -62,6 +62,7 @@ namespace pg
             auto gen = ent->get<RessourceGenerator>();
 
             ecsRef->sendEvent(IncreaseFact{gen->ressource, gen->currentMana});
+            ecsRef->sendEvent(IncreaseFact{"total_" + gen->ressource, gen->currentMana});
 
             gen->currentMana = 0.0f;
         }
@@ -198,7 +199,10 @@ namespace pg
                     ecsRef->sendEvent(IncreaseFact{conv->input[i], -conv->cost[i]});
 
                 for (size_t i = 0; i < conv->output.size(); i++)
+                {
                     ecsRef->sendEvent(IncreaseFact{conv->output[i], conv->yield[i]});
+                    ecsRef->sendEvent(IncreaseFact{"total_" + conv->output[i], conv->yield[i]});
+                }
             }
         }
     };

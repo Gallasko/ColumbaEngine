@@ -259,6 +259,17 @@ namespace pg
         });
 
         maskedButtons.push_back(DynamicNexusButton{
+            "Test_012",
+            "Test show",
+            { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual),
+              FactChecker("mana", 25, FactCheckEquality::GreaterEqual) },
+            { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
+            "main",
+            {0},
+            5
+        });
+
+        maskedButtons.push_back(DynamicNexusButton{
             "UpgradeProd1",
             "UpgradeProd",
             { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
@@ -392,6 +403,12 @@ namespace pg
             }
             else
             {
+                if (not it->clickable)
+                {
+                    LOG_WARNING("NexusScene", "Button is not clickable: " << buttonId);
+                    return;
+                }
+
                 // Todo check if all the conditions are met
                 for (auto it2 : it->outcome)
                 {
@@ -484,6 +501,44 @@ namespace pg
         return prefabEnt.entity;
     }
 
+    void NexusScene::updateButtonsClickability(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in)
+    {
+        for (auto& button : in)
+        {
+            if (button.neededConditionsForVisibility.empty())
+            {
+                continue;
+            }
+
+            bool clickable = true;
+
+            for (const auto& it : button.conditions)
+            {
+                if (not it.check(factMap))
+                {
+                    clickable = false;
+                    break;
+                }
+            }
+
+            if (button.clickable != clickable)
+            {
+                button.clickable = clickable;
+
+                // if (clickable)
+                // {
+                //     scene->ecsRef->attach<MouseEnterComponent>(button.entityId, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.entityId, true}));
+                //     scene->ecsRef->attach<MouseLeaveComponent>(button.entityId, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.entityId, false}));
+                // }
+                // else
+                // {
+                //     scene->ecsRef->detach<MouseEnterComponent>(button.entityId);
+                //     scene->ecsRef->detach<MouseLeaveComponent>(button.entityId);
+                // }
+            }
+        }
+    }
+
     void NexusScene::updateButtonsVisibility(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in, std::vector<DynamicNexusButton>& out, bool visiblility)
     {
         auto layout = nexusLayout.get<HorizontalLayout>();
@@ -491,6 +546,7 @@ namespace pg
         for (auto it = in.begin(); it != in.end();)
         {
             bool reveal = true;
+            bool clickable = true;
 
             if (it->neededConditionsForVisibility.empty())
             {
@@ -514,6 +570,15 @@ namespace pg
                         break;
                     }
                 }
+
+                for (const auto& it2 : it->conditions)
+                {
+                    if (not it2.check(factMap))
+                    {
+                        clickable = false;
+                        break;
+                    }
+                }
             }
 
             if (reveal == visiblility)
@@ -529,6 +594,7 @@ namespace pg
                         // Create a new entity for the button
                         auto buttonEntity = createButtonPrefab(this, it->label, it->id);
                         it->entityId = buttonEntity.id;
+                        it->clickable = clickable;
 
                         layout->addEntity(buttonEntity);
                     }
@@ -560,6 +626,7 @@ namespace pg
 
     void NexusScene::updateDynamicButtons(const std::unordered_map<std::string, ElementType>& factMap)
     {
+        updateButtonsClickability(factMap, visibleButtons);
         updateButtonsVisibility(factMap, maskedButtons, visibleButtons, true);
         updateButtonsVisibility(factMap, visibleButtons, maskedButtons, false);
     }
