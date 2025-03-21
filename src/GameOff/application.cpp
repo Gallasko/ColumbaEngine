@@ -101,6 +101,7 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         switch (event.name)
         {
         case SceneName::Nexus:
+            ecsRef->saveSystems();
             ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
             break;
 
@@ -361,6 +362,23 @@ void initGame()
 {
     printf("Initializing engine ...\n");
 
+    #ifdef __EMSCRIPTEN__
+        EM_ASM(
+            console.error("Syncing... !");
+            FS.mkdir('/save');
+            console.error("Syncing... !");
+            FS.mount(IDBFS, {autoPersist: true}, '/save');
+            console.error("Syncing... !");
+            FS.syncfs(true, function (err) {
+                console.error("Synced !");
+                if (err) {
+                    console.error("Initial sync error:", err);
+                }
+            });
+            console.error("Syncing... !");
+        );
+    #endif
+
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
@@ -521,25 +539,15 @@ void mainloop(void* arg)
 int GameApp::exec()
 {
 #ifdef __EMSCRIPTEN__
-    EM_ASM(
-        FS.mkdir('/save');
-        FS.mount(IDBFS, {autoPersist: true}, '/save');
-        FS.syncfs(true, function (err) {
-            if (err) {
-                console.error("Initial sync error:", err);
-            }
-        });
-    );
-
     printf("Start init thread...\n");
     initThread = new std::thread(initWindow, appName);
     printf("Detach init thread...\n");
-
+    
     SDL_Window *pWindow =
-        SDL_CreateWindow("Hello Triangle Minimal",
-                         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                         820, 640,
-                         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+    SDL_CreateWindow("Hello Triangle Minimal",
+                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                        820, 640,
+                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
 
     emscripten_set_main_loop_arg(mainloop, pWindow, 0, 1);
 

@@ -47,7 +47,7 @@ namespace pg
     {
         LOG_THIS_MEMBER("ComponentRegistry");
 
-        systemSerializer.setFile("systems.sz");
+        systemSerializer.setFile("save/systems.sz");
     } 
 
     ComponentRegistry::~ComponentRegistry()

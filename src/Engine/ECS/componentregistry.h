@@ -447,6 +447,8 @@ namespace pg
             return 0;
         }
 
+        void saveRegistry() const { systemSerializer.save(); }
+
     private:
         template <typename Type>
         _unique_id getGlobalGenericId() const noexcept

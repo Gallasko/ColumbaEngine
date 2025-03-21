@@ -191,22 +191,52 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
     target_include_directories(PgEngineSrc PUBLIC src/Editor)
 
-    add_executable(PgEngine src/main.cpp)
+    add_executable(GameOff src/GameOff/main.cpp)
 
-    target_sources(PgEngine PRIVATE
-        src/application.cpp
-        src/application.h
-        src/Editor/Gui/contextmenu.cpp
-        src/Editor/Gui/inspector.cpp
+    target_include_directories(GameOff PUBLIC src/GameOff)
+
+    target_sources(GameOff PRIVATE
+        src/GameOff/achievement.cpp
+        src/GameOff/application.cpp
+        src/GameOff/character.cpp
+        src/GameOff/characustomizationscene.cpp
+        src/GameOff/fightscene.cpp
+        src/GameOff/gamefacts.cpp
+        src/GameOff/inventory.cpp
+        src/GameOff/item.cpp
+        src/GameOff/location.cpp
+        src/GameOff/locationscene.cpp
+        src/GameOff/mainscene.cpp
+        src/GameOff/nexusscene.cpp
+        src/GameOff/skilltree.cpp
+        src/GameOff/passives.cpp
+        src/GameOff/spells.cpp
     )
 
-    target_link_libraries(PgEngine PRIVATE PgEngineSrc)
+    target_link_libraries(GameOff PRIVATE PgEngineSrc)
 
-    set_target_properties(PgEngine
+    set_target_properties(GameOff
         PROPERTIES SUFFIX ".html"
         LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
 
-    target_link_libraries(PgEngine PRIVATE glm)
+    target_link_libraries(GameOff PRIVATE glm)
+
+    # add_executable(PgEngine src/main.cpp)
+
+    # target_sources(PgEngine PRIVATE
+    #     src/application.cpp
+    #     src/application.h
+    #     src/Editor/Gui/contextmenu.cpp
+    #     src/Editor/Gui/inspector.cpp
+    # )
+
+    # target_link_libraries(PgEngine PRIVATE PgEngineSrc)
+
+    # set_target_properties(PgEngine
+    #     PROPERTIES SUFFIX ".html"
+    #     LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
+
+    # target_link_libraries(PgEngine PRIVATE glm)
 
 else()
     target_include_directories(PgEngineSrc PUBLIC src/Engine)

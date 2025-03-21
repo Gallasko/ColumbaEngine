@@ -137,6 +137,14 @@ namespace pg
         }
 
         /**
+         * @brief Save the underlaying registry to file
+         */
+        void saveSystems() const
+        {
+            registry.saveRegistry();
+        }
+
+        /**
          * @brief Generate a new unique identifier (on a 64bit generator)
          * 
          * @return _unique_id A unique identifier for Systems and Entities
