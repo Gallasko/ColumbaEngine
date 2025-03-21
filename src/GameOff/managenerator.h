@@ -9,8 +9,9 @@ namespace pg
 {
     // Todo need to implement
     // -> Storage
-    // -> One time Generatir/Consumers (Standard event that add or remove a certain resource)
+    // -> One time Generator/Consumers (Standard event that add or remove a certain resource)
     // -> Harvester (Make the generator/converter automatic)
+    // -> Make random timed events that increase some values
 
     // Component for a mana generator (e.g., your altar)
     struct RessourceGenerator
