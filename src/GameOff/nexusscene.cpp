@@ -664,7 +664,7 @@ namespace pg
     {
         // Create a new UI text entity using your existing TTFText helper.
         // We start with an empty text; it'll be updated in execute().
-        auto textEntity = makeTTFText(ecsRef, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
+        auto textEntity = makeTTFText(this, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
         textEntity.get<PositionComponent>()->setVisibility(false);
 
         resLayout->get<ListView>()->addEntity(textEntity.entity);
