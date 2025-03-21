@@ -25,6 +25,7 @@ namespace pg
         bool clickable = true;                  // Flag to track if the button is visible but not all conditions are met
 
         _unique_id entityId = 0;                // Entity identifier
+        _unique_id backgroundId = 0;            // Background identifier
     };
 
     struct ResourceDisplayEntry

@@ -317,7 +317,7 @@ namespace pg
         auto windowEnt = ecsRef->getEntity("__MainWindow");
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
-        auto listView = makeListView(ecsRef, 1, 1, 150, 1);
+        auto listView = makeListView(this, 1, 1, 150, 1);
 
         auto listViewComp = listView.get<ListView>();
         listViewComp->spacing = 8;
@@ -469,19 +469,29 @@ namespace pg
         // This scene could be extended to update UI, handle animations, etc.
     }
 
-    EntityRef createButtonPrefab(NexusScene *scene, const std::string& text, const std::string& id)
+    EntityRef createButtonPrefab(NexusScene *scene, const std::string& text, const std::string& id, DynamicNexusButton* button)
     {
         auto prefabEnt = makeAnchoredPrefab(scene);
         auto prefab = prefabEnt.get<Prefab>();
         auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
-        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 130, 60, {0, 196, 0, 255});
+        constant::Vector4D colors = {0, 196, 0, 255};
+
+        if (not button->clickable)
+        {
+            colors = {196, 0, 0, 255};
+        }
+
+        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 130, 60, colors);
         auto backgroundAnchor = background.get<UiAnchor>();
 
         scene->ecsRef->attach<MouseLeftClickComponent>(background.entity, makeCallable<StandardEvent>("nexus_button_clicked", "id", id));
 
-        scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, true}));
-        scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, false}));
+        if (button->clickable)
+        {
+            scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, true}));
+            scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, false}));
+        }
 
         scene->buttonBackgrounds[background.entity.id] = background.entity;
 
@@ -497,6 +507,9 @@ namespace pg
 
         prefab->addToPrefab(background.entity);
         prefab->addToPrefab(ttfText.entity);
+
+        button->entityId = prefabEnt.entity.id;
+        button->backgroundId = background.entity.id;
 
         return prefabEnt.entity;
     }
@@ -525,16 +538,32 @@ namespace pg
             {
                 button.clickable = clickable;
 
-                // if (clickable)
-                // {
-                //     scene->ecsRef->attach<MouseEnterComponent>(button.entityId, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.entityId, true}));
-                //     scene->ecsRef->attach<MouseLeaveComponent>(button.entityId, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.entityId, false}));
-                // }
-                // else
-                // {
-                //     scene->ecsRef->detach<MouseEnterComponent>(button.entityId);
-                //     scene->ecsRef->detach<MouseLeaveComponent>(button.entityId);
-                // }
+                auto background = ecsRef->getEntity(button.backgroundId);
+                if (not background or not background->has<PositionComponent>())
+                {
+                    LOG_ERROR("Nexus scene", "Background: " << button.backgroundId << " is not in a valid state!");
+                    continue;
+                }
+
+                if (button.clickable)
+                {
+                    if (background->has<Simple2DObject>())
+                        background->get<Simple2DObject>()->setColors({0, 196, 0, 255});
+
+                    ecsRef->attach<MouseEnterComponent>(background, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.backgroundId, true}));
+                    ecsRef->attach<MouseLeaveComponent>(background, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.backgroundId, false}));
+                }
+                else
+                {
+                    if (background->has<Simple2DObject>())
+                        background->get<Simple2DObject>()->setColors({196, 0, 0, 255});
+
+                    if (background->has<MouseEnterComponent>())
+                        ecsRef->detach<MouseEnterComponent>(background);
+
+                    if (background->has<MouseLeaveComponent>())
+                        ecsRef->detach<MouseLeaveComponent>(background);
+                }
             }
         }
     }
@@ -591,10 +620,9 @@ namespace pg
                     }
                     else
                     {
-                        // Create a new entity for the button
-                        auto buttonEntity = createButtonPrefab(this, it->label, it->id);
-                        it->entityId = buttonEntity.id;
                         it->clickable = clickable;
+                        // Create a new entity for the button
+                        auto buttonEntity = createButtonPrefab(this, it->label, it->id, it.base());
 
                         layout->addEntity(buttonEntity);
                     }
