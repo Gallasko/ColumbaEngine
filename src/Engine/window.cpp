@@ -24,6 +24,7 @@
 #include "UI/listview.h"
 #include "UI/prefab.h"
 #include "UI/sizer.h"
+#include "UI/animation.h"
 
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
@@ -100,7 +101,7 @@ namespace pg
                     addToList(list, token, {file.filepath, file.data});
                 }
 
-                return list; 
+                return list;
             }
         };
 
@@ -157,7 +158,7 @@ namespace pg
         interpreter->addSystemModule("uitext", SentenceModule{&ecs});
         interpreter->addSystemModule("scene", SceneModule{&ecs});
         interpreter->addSystemModule("audio", AudioModule{&ecs});
-        
+
         // Script to configure the logger
         interpreter->interpretFromFile("logManager.pg");
         // [End] Interpreter definition
@@ -215,7 +216,7 @@ namespace pg
         {
             LOG_ERROR(DOM, "SDL initialisation failed");
             LOG_ERROR(DOM, SDL_GetError());
-            
+
             return false;
         }
 
@@ -266,7 +267,7 @@ namespace pg
         }
 
         LOG_INFO(DOM, "Creating OpenGL context...");
-                
+
         // OpenGL context
         context = SDL_GL_CreateContext(window);
 
@@ -308,7 +309,7 @@ namespace pg
         LOG_INFO(DOM, "Renderer: " << renderer);
         LOG_INFO(DOM, "OpenGL version supported " << version);
 #endif
-            
+
         LOG_INFO(DOM, "Setting gl functions...");
         // glViewport(0, 0, width, height);
         // Todo set this or not
@@ -383,6 +384,8 @@ namespace pg
 
         ecs.createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
 
+        ecs.createSystem<AnimationPositionSystem>();
+
         // Todo fix for emscripten
         audioSystem = ecs.createSystem<AudioSystem>();
 
@@ -395,7 +398,7 @@ namespace pg
         ecs.createSystem<MouseWheelSystem>(inputHandler);
 
         ecs.createSystem<MouseHoverSystem>();
-        
+
         ecs.createSystem<TextInputSystem>(inputHandler);
 
         ecs.createSystem<RunScriptFromTextInputSystem>();
@@ -426,6 +429,8 @@ namespace pg
         ecs.succeed<PositionComponentSystem, HorizontalLayoutSystem>();
         ecs.succeed<PositionComponentSystem, VerticalLayoutSystem>();
 
+        ecs.succeed<AnimationPositionSystem, PositionComponentSystem>();
+
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
         ecs.succeed<MasterRenderer, Texture2DComponentSystem>();
@@ -445,7 +450,7 @@ namespace pg
         ecs.dumbTaskflow();
 
         screenEntity = ecs.createEntity();
-        // Todo remove this 
+        // Todo remove this
         screenUi = ecs.attach<UiComponent>(screenEntity);
         screenUi->width = width;
         screenUi->height = height;
@@ -513,7 +518,7 @@ namespace pg
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYPRESSED);
                 ecs.sendEvent(OnSDLScanCode{event.key.keysym.scancode});
                 break;
-            
+
             case SDL_MOUSEBUTTONDOWN:
                 LOG_MILE(DOM, "Button pressed : " << event.button.button);
                 inputHandler->registerMouseInput(event.button.button, Input::InputState::MOUSEPRESS);
@@ -533,7 +538,7 @@ namespace pg
                 mousePos = currentPos;
                 break;
             }
-            
+
             case SDL_CONTROLLERDEVICEADDED:
                 // Todo
                 LOG_INFO(DOM, "Gamepad added !");
@@ -586,7 +591,7 @@ namespace pg
             auto pos = ent->get<PositionComponent>();
 
             pos->setWidth(width);
-            
+
             pos->setHeight(height);
         }
 
@@ -594,7 +599,7 @@ namespace pg
         {
             screenUi->setWidth(width);
         }
-        
+
         if (screenUi->height != height)
         {
             screenUi->setHeight(height);
