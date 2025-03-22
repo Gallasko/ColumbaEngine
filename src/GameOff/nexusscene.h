@@ -18,10 +18,12 @@ namespace pg
         std::vector<size_t> neededConditionsForVisibility; // Conditions that must be met for the button to appear. (If empty, every condition must be met)
 
         size_t nbClickBeforeArchive = 1;        // Number of times the button should be clicked before being archived (0 means infinite)
+        std::string description = "";           // Description of the button, to be shown in the tooltip
+
+        // Internals
         size_t nbClick = 0;                     // Number of times the button was clicked
         bool archived = false;                  // Flag indicating whether the button is archived or not.
 
-        // Todo add
         bool clickable = true;                  // Flag to track if the button is visible but not all conditions are met
 
         _unique_id entityId = 0;                // Entity identifier
@@ -54,8 +56,6 @@ namespace pg
         std::vector<DynamicNexusButton> archivedButtons;
 
         EntityRef nexusLayout;
-
-        std::unordered_map<_unique_id, EntityRef> buttonBackgrounds;
 
         // Adds a resource entry to the list view.
         void addResourceDisplay(const std::string& resourceName) { resourceToBeDisplayed.push(resourceName); }

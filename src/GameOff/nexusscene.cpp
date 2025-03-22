@@ -18,6 +18,8 @@ namespace pg
     {
         struct OnBackgroundButtonHover
         {
+            std::string buttonId;
+
             _unique_id id;
 
             bool state;
@@ -369,21 +371,36 @@ namespace pg
         });
 
         listenToEvent<OnBackgroundButtonHover>([this](const OnBackgroundButtonHover& event) {
-            const auto& it = buttonBackgrounds.find(event.id);
+            auto bgEnt = ecsRef->getEntity(event.id);
 
-            if (it != buttonBackgrounds.end())
+            auto buttonId = event.buttonId;
+
+            auto it = std::find_if(visibleButtons.begin(), visibleButtons.end(), [buttonId](const DynamicNexusButton& button) {
+                return button.id == buttonId;
+            });
+
+            if (it == visibleButtons.end())
             {
-                LOG_INFO("Hovering", "Current Hover state: " << event.state);
+                LOG_ERROR("NexusScene", "Button not found: " << buttonId);
+                return;
+            }
 
-                if (it->second->has<Simple2DObject>())
+            if (bgEnt)
+            {
+                LOG_INFO("Hovering", "Current Hover state: " << event.state << "  clickable: " << it->clickable);
+
+                if (not it->clickable)
+                    return;
+
+                if (bgEnt->has<Simple2DObject>())
                 {
                     if (event.state)
                     {
-                        it->second->get<Simple2DObject>()->setColors({0, 255, 0, 255});
+                        bgEnt->get<Simple2DObject>()->setColors({0, 255, 0, 255});
                     }
                     else
                     {
-                        it->second->get<Simple2DObject>()->setColors({0, 196, 0, 255});
+                        bgEnt->get<Simple2DObject>()->setColors({0, 196, 0, 255});
                     }
                 }
             }
@@ -487,13 +504,8 @@ namespace pg
 
         scene->ecsRef->attach<MouseLeftClickComponent>(background.entity, makeCallable<StandardEvent>("nexus_button_clicked", "id", id));
 
-        if (button->clickable)
-        {
-            scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, true}));
-            scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, false}));
-        }
-
-        scene->buttonBackgrounds[background.entity.id] = background.entity;
+        scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button->id, background.entity.id, true}));
+        scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button->id, background.entity.id, false}));
 
         prefabAnchor->setWidthConstrain(PosConstrain{background.entity.id, AnchorType::Width});
         prefabAnchor->setHeightConstrain(PosConstrain{background.entity.id, AnchorType::Height});
@@ -549,20 +561,11 @@ namespace pg
                 {
                     if (background->has<Simple2DObject>())
                         background->get<Simple2DObject>()->setColors({0, 196, 0, 255});
-
-                    ecsRef->attach<MouseEnterComponent>(background, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.backgroundId, true}));
-                    ecsRef->attach<MouseLeaveComponent>(background, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.backgroundId, false}));
                 }
                 else
                 {
                     if (background->has<Simple2DObject>())
                         background->get<Simple2DObject>()->setColors({196, 0, 0, 255});
-
-                    if (background->has<MouseEnterComponent>())
-                        ecsRef->detach<MouseEnterComponent>(background);
-
-                    if (background->has<MouseLeaveComponent>())
-                        ecsRef->detach<MouseLeaveComponent>(background);
                 }
             }
         }
