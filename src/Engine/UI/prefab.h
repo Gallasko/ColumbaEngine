@@ -48,7 +48,7 @@ namespace pg
                 if (entity->has<ClippedTo>())
                 {
                     entity->world()->detach<ClippedTo>(entity);
-                }                
+                }
             }
             else
             {
@@ -66,7 +66,7 @@ namespace pg
                 }
                 else
                 {
-                    ecsRef->attach<ClippedTo>(entity, clip->clipperId);    
+                    ecsRef->attach<ClippedTo>(entity, clip->clipperId);
                 }
             }
         }
@@ -104,12 +104,13 @@ namespace pg
 
         _unique_id id = 0;
 
+        // Todo make it simpler to find a specific child in a prefab
         std::set<_unique_id> childrenIds;
 
         // Data to keep track
 
         bool isClippedToWindow = true;
-    
+
         bool visible = true;
 
         bool deleteEntityUponRelease = true;
@@ -155,7 +156,7 @@ namespace pg
                     if (not entity->has<ClippedTo>())
                     {
                         auto prefab = entity->get<Prefab>();
-                        
+
                         prefab->isClippedToWindow = true;
                         prefab->update();
                     }

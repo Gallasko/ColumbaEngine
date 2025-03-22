@@ -22,9 +22,10 @@ namespace pg
         bool archived = false;                  // Flag indicating whether the button is archived or not.
 
         // Todo add
-        // bool clickable = true; // in case it is visible but not all conditions are met
+        bool clickable = true;                  // Flag to track if the button is visible but not all conditions are met
 
         _unique_id entityId = 0;                // Entity identifier
+        _unique_id backgroundId = 0;            // Background identifier
     };
 
     struct ResourceDisplayEntry
@@ -44,6 +45,7 @@ namespace pg
 
         virtual void execute() override;
 
+        void updateButtonsClickability(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in);
         void updateButtonsVisibility(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in, std::vector<DynamicNexusButton>& out, bool visiblility);
         void updateDynamicButtons(const std::unordered_map<std::string, ElementType>& factMap);
 

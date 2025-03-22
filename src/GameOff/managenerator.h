@@ -7,6 +7,12 @@
 
 namespace pg
 {
+    // Todo need to implement
+    // -> Storage
+    // -> One time Generator/Consumers (Standard event that add or remove a certain resource)
+    // -> Harvester (Make the generator/converter automatic)
+    // -> Make random timed events that increase some values
+
     // Component for a mana generator (e.g., your altar)
     struct RessourceGenerator
     {
@@ -15,6 +21,8 @@ namespace pg
         float currentMana = 0.0f;      // Current stored mana
         float productionRate = 1.0f;   // Mana produced per second
         float capacity = 100.0f;       // Maximum mana the generator can store
+
+        // Todo add support for multipliers
     };
 
     struct RessourceGeneratorSystem : public System<Own<RessourceGenerator>, Listener<TickEvent>, Listener<StandardEvent>, InitSys>
@@ -62,6 +70,7 @@ namespace pg
             auto gen = ent->get<RessourceGenerator>();
 
             ecsRef->sendEvent(IncreaseFact{gen->ressource, gen->currentMana});
+            ecsRef->sendEvent(IncreaseFact{"total_" + gen->ressource, gen->currentMana});
 
             gen->currentMana = 0.0f;
         }
@@ -121,6 +130,8 @@ namespace pg
         std::vector<float> cost;
         /** How much of output is granted per conversion */
         std::vector<float> yield;
+
+        // Todo add support for multipliers
     };
 
     // Standard event name to trigger a conversion.
@@ -198,7 +209,10 @@ namespace pg
                     ecsRef->sendEvent(IncreaseFact{conv->input[i], -conv->cost[i]});
 
                 for (size_t i = 0; i < conv->output.size(); i++)
+                {
                     ecsRef->sendEvent(IncreaseFact{conv->output[i], conv->yield[i]});
+                    ecsRef->sendEvent(IncreaseFact{"total_" + conv->output[i], conv->yield[i]});
+                }
             }
         }
     };

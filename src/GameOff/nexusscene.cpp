@@ -259,6 +259,17 @@ namespace pg
         });
 
         maskedButtons.push_back(DynamicNexusButton{
+            "Test_012",
+            "Test show",
+            { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual),
+              FactChecker("mana", 25, FactCheckEquality::GreaterEqual) },
+            { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
+            "main",
+            {0},
+            5
+        });
+
+        maskedButtons.push_back(DynamicNexusButton{
             "UpgradeProd1",
             "UpgradeProd",
             { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
@@ -306,7 +317,7 @@ namespace pg
         auto windowEnt = ecsRef->getEntity("__MainWindow");
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
-        auto listView = makeListView(ecsRef, 1, 1, 150, 1);
+        auto listView = makeListView(this, 1, 1, 150, 1);
 
         auto listViewComp = listView.get<ListView>();
         listViewComp->spacing = 8;
@@ -392,6 +403,12 @@ namespace pg
             }
             else
             {
+                if (not it->clickable)
+                {
+                    LOG_WARNING("NexusScene", "Button is not clickable: " << buttonId);
+                    return;
+                }
+
                 // Todo check if all the conditions are met
                 for (auto it2 : it->outcome)
                 {
@@ -452,19 +469,29 @@ namespace pg
         // This scene could be extended to update UI, handle animations, etc.
     }
 
-    EntityRef createButtonPrefab(NexusScene *scene, const std::string& text, const std::string& id)
+    EntityRef createButtonPrefab(NexusScene *scene, const std::string& text, const std::string& id, DynamicNexusButton* button)
     {
         auto prefabEnt = makeAnchoredPrefab(scene);
         auto prefab = prefabEnt.get<Prefab>();
         auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
-        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 130, 60, {0, 196, 0, 255});
+        constant::Vector4D colors = {0, 196, 0, 255};
+
+        if (not button->clickable)
+        {
+            colors = {196, 0, 0, 255};
+        }
+
+        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 130, 60, colors);
         auto backgroundAnchor = background.get<UiAnchor>();
 
         scene->ecsRef->attach<MouseLeftClickComponent>(background.entity, makeCallable<StandardEvent>("nexus_button_clicked", "id", id));
 
-        scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, true}));
-        scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, false}));
+        if (button->clickable)
+        {
+            scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, true}));
+            scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{background.entity.id, false}));
+        }
 
         scene->buttonBackgrounds[background.entity.id] = background.entity;
 
@@ -481,7 +508,64 @@ namespace pg
         prefab->addToPrefab(background.entity);
         prefab->addToPrefab(ttfText.entity);
 
+        button->entityId = prefabEnt.entity.id;
+        button->backgroundId = background.entity.id;
+
         return prefabEnt.entity;
+    }
+
+    void NexusScene::updateButtonsClickability(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in)
+    {
+        for (auto& button : in)
+        {
+            if (button.neededConditionsForVisibility.empty())
+            {
+                continue;
+            }
+
+            bool clickable = true;
+
+            for (const auto& it : button.conditions)
+            {
+                if (not it.check(factMap))
+                {
+                    clickable = false;
+                    break;
+                }
+            }
+
+            if (button.clickable != clickable)
+            {
+                button.clickable = clickable;
+
+                auto background = ecsRef->getEntity(button.backgroundId);
+                if (not background or not background->has<PositionComponent>())
+                {
+                    LOG_ERROR("Nexus scene", "Background: " << button.backgroundId << " is not in a valid state!");
+                    continue;
+                }
+
+                if (button.clickable)
+                {
+                    if (background->has<Simple2DObject>())
+                        background->get<Simple2DObject>()->setColors({0, 196, 0, 255});
+
+                    ecsRef->attach<MouseEnterComponent>(background, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.backgroundId, true}));
+                    ecsRef->attach<MouseLeaveComponent>(background, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button.backgroundId, false}));
+                }
+                else
+                {
+                    if (background->has<Simple2DObject>())
+                        background->get<Simple2DObject>()->setColors({196, 0, 0, 255});
+
+                    if (background->has<MouseEnterComponent>())
+                        ecsRef->detach<MouseEnterComponent>(background);
+
+                    if (background->has<MouseLeaveComponent>())
+                        ecsRef->detach<MouseLeaveComponent>(background);
+                }
+            }
+        }
     }
 
     void NexusScene::updateButtonsVisibility(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in, std::vector<DynamicNexusButton>& out, bool visiblility)
@@ -491,6 +575,7 @@ namespace pg
         for (auto it = in.begin(); it != in.end();)
         {
             bool reveal = true;
+            bool clickable = true;
 
             if (it->neededConditionsForVisibility.empty())
             {
@@ -514,6 +599,15 @@ namespace pg
                         break;
                     }
                 }
+
+                for (const auto& it2 : it->conditions)
+                {
+                    if (not it2.check(factMap))
+                    {
+                        clickable = false;
+                        break;
+                    }
+                }
             }
 
             if (reveal == visiblility)
@@ -526,9 +620,9 @@ namespace pg
                     }
                     else
                     {
+                        it->clickable = clickable;
                         // Create a new entity for the button
-                        auto buttonEntity = createButtonPrefab(this, it->label, it->id);
-                        it->entityId = buttonEntity.id;
+                        auto buttonEntity = createButtonPrefab(this, it->label, it->id, it.base());
 
                         layout->addEntity(buttonEntity);
                     }
@@ -560,6 +654,7 @@ namespace pg
 
     void NexusScene::updateDynamicButtons(const std::unordered_map<std::string, ElementType>& factMap)
     {
+        updateButtonsClickability(factMap, visibleButtons);
         updateButtonsVisibility(factMap, maskedButtons, visibleButtons, true);
         updateButtonsVisibility(factMap, visibleButtons, maskedButtons, false);
     }
@@ -569,7 +664,7 @@ namespace pg
     {
         // Create a new UI text entity using your existing TTFText helper.
         // We start with an empty text; it'll be updated in execute().
-        auto textEntity = makeTTFText(ecsRef, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
+        auto textEntity = makeTTFText(this, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
         textEntity.get<PositionComponent>()->setVisibility(false);
 
         resLayout->get<ListView>()->addEntity(textEntity.entity);
