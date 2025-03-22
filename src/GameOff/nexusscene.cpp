@@ -38,6 +38,7 @@ namespace pg
         serialize(archive, "category", value.category);
         serialize(archive, "neededConditionsForVisibility", value.neededConditionsForVisibility);
         serialize(archive, "nbClickBeforeArchive", value.nbClickBeforeArchive);
+        serialize(archive, "description", value.description);
         serialize(archive, "nbClick", value.nbClick);
         serialize(archive, "archived", value.archived);
 
@@ -68,6 +69,7 @@ namespace pg
             defaultDeserialize(serializedString, "category", data.category);
             defaultDeserialize(serializedString, "neededConditionsForVisibility", data.neededConditionsForVisibility);
             defaultDeserialize(serializedString, "nbClickBeforeArchive", data.nbClickBeforeArchive);
+            defaultDeserialize(serializedString, "description", data.description);
             defaultDeserialize(serializedString, "nbClick", data.nbClick);
             defaultDeserialize(serializedString, "archived", data.archived);
 
@@ -86,7 +88,7 @@ namespace pg
             setArity(0, 0);
         }
 
-        virtual ValuablePtr call(ValuableQueue& args) override
+        virtual ValuablePtr call(ValuableQueue&) override
         {
             DynamicNexusButton button;
 
@@ -350,6 +352,45 @@ namespace pg
 
         nexusLayout = layout.entity;
 
+        // [Begin] Tooltip Ui definition
+
+        auto tooltipBg = makeUiSimple2DShape(this, Shape2D::Square, 100, 70, {18, 18, 18, 255});
+        tooltipBg.get<PositionComponent>()->setVisibility(false);
+        tooltipBg.get<PositionComponent>()->setZ(5);
+        auto tooltipBgAnchor = tooltipBg.get<UiAnchor>();
+
+        auto tooltipBgHighLight = makeUiSimple2DShape(this, Shape2D::Square, 102, 72, {255, 255, 255, 255});
+        tooltipBgHighLight.get<PositionComponent>()->setVisibility(false);
+        tooltipBgHighLight.get<PositionComponent>()->setZ(4);
+        auto tooltipBgHighLightAnchor = tooltipBgHighLight.get<UiAnchor>();
+
+        tooltipBgHighLightAnchor->setTopAnchor(tooltipBgAnchor->top);
+        tooltipBgHighLightAnchor->setTopMargin(-1);
+        tooltipBgHighLightAnchor->setLeftAnchor(tooltipBgAnchor->left);
+        tooltipBgHighLightAnchor->setLeftMargin(-1);
+
+        auto descTextEnt = makeTTFText(this, 0, 0, 6, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
+        auto descTextPos = descTextEnt.get<PositionComponent>();
+        auto descText = descTextEnt.get<TTFText>();
+        auto descTextAnchor = descTextEnt.get<UiAnchor>();
+
+        descTextPos->setVisibility(false);
+        
+        descText->setWrap(true);
+
+        descTextAnchor->setTopAnchor(tooltipBgAnchor->top);
+        descTextAnchor->setTopMargin(5);
+        descTextAnchor->setLeftAnchor(tooltipBgAnchor->left);
+        descTextAnchor->setLeftMargin(5);
+        descTextAnchor->setRightAnchor(tooltipBgAnchor->right);
+        descTextAnchor->setRightMargin(5);
+
+        tooltipsEntities["background"] = tooltipBg.entity;
+        tooltipsEntities["backHighlight"] = tooltipBgHighLight.entity;
+        tooltipsEntities["desc"] = descTextEnt.entity;
+
+        // [End] Tooltip Ui definition
+
         // Listen for world fact updates to log mana or upgrades.
         listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
             const auto& it = std::find(event.changedFacts.begin(), event.changedFacts.end(), "mana");
@@ -387,7 +428,31 @@ namespace pg
 
             if (bgEnt)
             {
-                LOG_INFO("Hovering", "Current Hover state: " << event.state << "  clickable: " << it->clickable);
+                if (event.state)
+                {
+                    tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(true);
+                    tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(true);
+
+                    if (bgEnt->has<UiAnchor>())
+                    {
+                        tooltipsEntities["background"]->get<UiAnchor>()->setTopAnchor(bgEnt->get<UiAnchor>()->bottom);
+                        tooltipsEntities["background"]->get<UiAnchor>()->setTopMargin(-2);
+                        tooltipsEntities["background"]->get<UiAnchor>()->setHorizontalCenter(bgEnt->get<UiAnchor>()->horizontalCenter);
+                    }
+
+                    if (it->description != "")
+                    {
+                        tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(true);
+                        tooltipsEntities["desc"]->get<TTFText>()->setText(it->description);
+                    }
+                }
+                else
+                {
+                    tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(false);
+                    tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(false);
+
+                    tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(false);
+                }
 
                 if (not it->clickable)
                     return;

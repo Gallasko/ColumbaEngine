@@ -67,6 +67,8 @@ namespace pg
 
         std::queue<std::string> resourceToBeDisplayed;
 
+        std::unordered_map<std::string, EntityRef> tooltipsEntities;
+
         bool newRes = false;
 
         // A vector storing all resource display entries.
