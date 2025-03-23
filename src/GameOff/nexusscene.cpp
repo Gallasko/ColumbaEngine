@@ -24,6 +24,37 @@ namespace pg
 
             bool state;
         };
+
+        constant::Vector4D getButtonColors(ThemeInfo& info, bool clickable, bool highlight = false)
+        {
+            if (clickable)
+            {
+                if (highlight)
+                {
+                    return {
+                        info.values["hoverClickableNexusButton.r"].get<float>(),
+                        info.values["hoverClickableNexusButton.g"].get<float>(),
+                        info.values["hoverClickableNexusButton.b"].get<float>(),
+                        info.values["hoverClickableNexusButton.a"].get<float>()};
+                }
+                else
+                {
+                    return {
+                        info.values["clickableNexusButton.r"].get<float>(),
+                        info.values["clickableNexusButton.g"].get<float>(),
+                        info.values["clickableNexusButton.b"].get<float>(),
+                        info.values["clickableNexusButton.a"].get<float>()};
+                }
+            }
+            else
+            {
+                return {
+                    info.values["unclickableNexusButton.r"].get<float>(),
+                    info.values["unclickableNexusButton.g"].get<float>(),
+                    info.values["unclickableNexusButton.b"].get<float>(),
+                    info.values["unclickableNexusButton.a"].get<float>()};
+            }
+        }
     }
 
     template <>
@@ -211,6 +242,17 @@ namespace pg
 
     void NexusScene::init()
     {
+        auto themeSys = ecsRef->getSystem<ThemeSystem>();
+
+        if (themeSys)
+        {
+            theme = themeSys->getCurrentTheme();
+        }
+        else
+        {
+            LOG_ERROR("Nexus", "Couldn't load theme !");
+        }
+
         // Create the basic mana generator entity.
         auto basicGen = createEntity();
         attach<RessourceGenerator>(basicGen);
@@ -354,7 +396,7 @@ namespace pg
 
         // [Begin] Tooltip Ui definition
 
-        auto tooltipBg = makeUiSimple2DShape(this, Shape2D::Square, 100, 70, {18, 18, 18, 255});
+        auto tooltipBg = makeUiSimple2DShape(this, Shape2D::Square, 100, 70, {theme.values["tooltipBg.r"].get<float>(), theme.values["tooltipBg.g"].get<float>(), theme.values["tooltipBg.b"].get<float>(), theme.values["tooltipBg.a"].get<float>()});
         tooltipBg.get<PositionComponent>()->setVisibility(false);
         tooltipBg.get<PositionComponent>()->setZ(5);
         auto tooltipBgAnchor = tooltipBg.get<UiAnchor>();
@@ -459,14 +501,9 @@ namespace pg
 
                 if (bgEnt->has<Simple2DObject>())
                 {
-                    if (event.state)
-                    {
-                        bgEnt->get<Simple2DObject>()->setColors({0, 255, 0, 255});
-                    }
-                    else
-                    {
-                        bgEnt->get<Simple2DObject>()->setColors({0, 196, 0, 255});
-                    }
+                    auto colors = getButtonColors(theme, true, event.state);
+                     
+                    bgEnt->get<Simple2DObject>()->setColors(colors);
                 }
             }
         });
@@ -557,12 +594,8 @@ namespace pg
         auto prefab = prefabEnt.get<Prefab>();
         auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
-        constant::Vector4D colors = {0, 196, 0, 255};
-
-        if (not button->clickable)
-        {
-            colors = {196, 0, 0, 255};
-        }
+        // Todo lookup the colors from a theme instead of hardcoded
+        constant::Vector4D colors = getButtonColors(scene->theme, button->clickable); 
 
         auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 130, 60, colors);
         auto backgroundAnchor = background.get<UiAnchor>();
@@ -622,16 +655,10 @@ namespace pg
                     continue;
                 }
 
-                if (button.clickable)
-                {
-                    if (background->has<Simple2DObject>())
-                        background->get<Simple2DObject>()->setColors({0, 196, 0, 255});
-                }
-                else
-                {
-                    if (background->has<Simple2DObject>())
-                        background->get<Simple2DObject>()->setColors({196, 0, 0, 255});
-                }
+                auto colors = getButtonColors(theme, clickable); 
+
+                if (background->has<Simple2DObject>())
+                    background->get<Simple2DObject>()->setColors(colors);
             }
         }
     }
@@ -780,7 +807,10 @@ namespace pg
             if (entry.uiEntity and entry.uiEntity->has<TTFText>())
             {
                 auto textComp = entry.uiEntity->get<TTFText>();
-                textComp->setText(oss.str());
+
+                auto str = oss.str();
+                str[0] = std::toupper(str[0]);
+                textComp->setText(str);
             }
         }
     }

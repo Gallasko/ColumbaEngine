@@ -286,6 +286,7 @@ else()
         src/GameOff/skilltree.cpp
         src/GameOff/passives.cpp
         src/GameOff/spells.cpp
+        src/GameOff/theme.cpp
     )
 
     target_link_libraries(GameOff PRIVATE PgEngineSrc)

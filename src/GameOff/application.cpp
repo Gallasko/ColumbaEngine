@@ -35,6 +35,8 @@
 
 #include "nexusscene.h"
 
+#include "theme.h"
+
 using namespace pg;
 
 namespace
@@ -382,6 +384,8 @@ void initGame()
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    mainWindow->ecs.createSystem<ThemeSystem>();
 
     mainWindow->ecs.createSystem<FpsSystem>();
 

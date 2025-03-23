@@ -5,6 +5,8 @@
 #include "achievement.h"
 #include "gamefacts.h"
 
+#include "theme.h"
+
 namespace pg
 {
     // A data‐driven UI button definition.
@@ -73,5 +75,7 @@ namespace pg
 
         // A vector storing all resource display entries.
         std::vector<ResourceDisplayEntry> resourceList;
+
+        ThemeInfo theme;
     };
 }
