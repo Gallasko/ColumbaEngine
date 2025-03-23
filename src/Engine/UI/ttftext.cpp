@@ -332,6 +332,7 @@ namespace pg
 
         // Resize data array and assign properties.
         call.data.resize(11);
+
         call.data[0] = xPos;
         call.data[1] = yPos;
         call.data[2] = z;

@@ -219,10 +219,14 @@ namespace pg
 
         call.processPositionComponent(ui);
 
-        if (obj->colors.w == 255.0f)
-            call.setOpacity(OpacityType::Opaque);
-        else
-            call.setOpacity(OpacityType::Additive);
+        // Todo
+        // if (obj->colors.w == 255.0f)
+        //     call.setOpacity(OpacityType::Opaque);
+        // else
+        //     call.setOpacity(OpacityType::Additive);
+
+        // Cannot set to opaque because the z testing get messed up if you don't order it properly with other systems
+        call.setOpacity(OpacityType::Additive);
 
         call.setRenderStage(renderStage);
 
