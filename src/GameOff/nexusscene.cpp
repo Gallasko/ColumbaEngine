@@ -396,22 +396,25 @@ namespace pg
 
         // [Begin] Tooltip Ui definition
 
-        auto tooltipBg = makeUiSimple2DShape(this, Shape2D::Square, 100, 70, {theme.values["tooltipBg.r"].get<float>(), theme.values["tooltipBg.g"].get<float>(), theme.values["tooltipBg.b"].get<float>(), theme.values["tooltipBg.a"].get<float>()});
+        auto tooltipBg = makeUiSimple2DShape(this, Shape2D::Square, theme.values["tooltip.width"].get<float>(), theme.values["tooltip.height"].get<float>(), {theme.values["tooltipBg.r"].get<float>(), theme.values["tooltipBg.g"].get<float>(), theme.values["tooltipBg.b"].get<float>(), theme.values["tooltipBg.a"].get<float>()});
         tooltipBg.get<PositionComponent>()->setVisibility(false);
         tooltipBg.get<PositionComponent>()->setZ(5);
         auto tooltipBgAnchor = tooltipBg.get<UiAnchor>();
 
-        auto tooltipBgHighLight = makeUiSimple2DShape(this, Shape2D::Square, 102, 72, {255, 255, 255, 255});
+        auto tooltipBgHighLight = makeUiSimple2DShape(this, Shape2D::Square, 0, 0, {theme.values["tooltipBgHighlight.r"].get<float>(), theme.values["tooltipBgHighlight.g"].get<float>(), theme.values["tooltipBgHighlight.b"].get<float>(), theme.values["tooltipBgHighlight.a"].get<float>()});
         tooltipBgHighLight.get<PositionComponent>()->setVisibility(false);
         tooltipBgHighLight.get<PositionComponent>()->setZ(4);
         auto tooltipBgHighLightAnchor = tooltipBgHighLight.get<UiAnchor>();
+
+        tooltipBgHighLightAnchor->setWidthConstrain(PosConstrain{tooltipBg.entity.id, AnchorType::Width, PosOpType::Add, 2});
+        tooltipBgHighLightAnchor->setHeightConstrain(PosConstrain{tooltipBg.entity.id, AnchorType::Height, PosOpType::Add, 2});
 
         tooltipBgHighLightAnchor->setTopAnchor(tooltipBgAnchor->top);
         tooltipBgHighLightAnchor->setTopMargin(-1);
         tooltipBgHighLightAnchor->setLeftAnchor(tooltipBgAnchor->left);
         tooltipBgHighLightAnchor->setLeftMargin(-1);
 
-        auto descTextEnt = makeTTFText(this, 0, 0, 6, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
+        auto descTextEnt = makeTTFText(this, 0, 0, 6, theme.values["tooltipTitle.font"].get<std::string>(), "", theme.values["tooltipTitle.scale"].get<float>());
         auto descTextPos = descTextEnt.get<PositionComponent>();
         auto descText = descTextEnt.get<TTFText>();
         auto descTextAnchor = descTextEnt.get<UiAnchor>();
@@ -421,11 +424,11 @@ namespace pg
         descText->setWrap(true);
 
         descTextAnchor->setTopAnchor(tooltipBgAnchor->top);
-        descTextAnchor->setTopMargin(5);
+        descTextAnchor->setTopMargin(theme.values["tooltip.topMargin"].get<float>());
         descTextAnchor->setLeftAnchor(tooltipBgAnchor->left);
-        descTextAnchor->setLeftMargin(5);
+        descTextAnchor->setLeftMargin(theme.values["tooltip.leftMargin"].get<float>());
         descTextAnchor->setRightAnchor(tooltipBgAnchor->right);
-        descTextAnchor->setRightMargin(5);
+        descTextAnchor->setRightMargin(theme.values["tooltip.rightMargin"].get<float>());
 
         tooltipsEntities["background"] = tooltipBg.entity;
         tooltipsEntities["backHighlight"] = tooltipBgHighLight.entity;
@@ -597,7 +600,7 @@ namespace pg
         // Todo lookup the colors from a theme instead of hardcoded
         constant::Vector4D colors = getButtonColors(scene->theme, button->clickable); 
 
-        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, 130, 60, colors);
+        auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, scene->theme.values["nexusbutton.width"].get<float>(), scene->theme.values["nexusbutton.height"].get<float>(), colors);
         auto backgroundAnchor = background.get<UiAnchor>();
 
         scene->ecsRef->attach<MouseLeftClickComponent>(background.entity, makeCallable<StandardEvent>("nexus_button_clicked", "id", id));
@@ -610,7 +613,7 @@ namespace pg
         backgroundAnchor->setTopAnchor(prefabAnchor->top);
         backgroundAnchor->setLeftAnchor(prefabAnchor->left);
 
-        auto ttfText = makeTTFText(scene->ecsRef, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", text, 0.4f);
+        auto ttfText = makeTTFText(scene->ecsRef, 0, 0, 1, scene->theme.values["nexusbutton.font"].get<std::string>(), text, scene->theme.values["nexusbutton.scale"].get<float>());
         auto ttfTextAnchor = ttfText.get<UiAnchor>();
 
         ttfTextAnchor->centeredIn(backgroundAnchor);
@@ -759,7 +762,7 @@ namespace pg
     {
         // Create a new UI text entity using your existing TTFText helper.
         // We start with an empty text; it'll be updated in execute().
-        auto textEntity = makeTTFText(this, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "", 0.4f);
+        auto textEntity = makeTTFText(this, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), "", theme.values["resourcedisplay.scale"].get<float>());
         textEntity.get<PositionComponent>()->setVisibility(false);
 
         resLayout->get<ListView>()->addEntity(textEntity.entity);
