@@ -591,7 +591,7 @@ namespace pg
                         tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(true);
                         tooltipsEntities["desc"]->get<TTFText>()->setText(it->description);
 
-                        // tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["desc"]->get<UiAnchor>()->bottom);
+                        tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["desc"]->get<UiAnchor>()->bottom);
                     }
 
                     if (it->costs.size() > 0)

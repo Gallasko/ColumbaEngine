@@ -590,13 +590,7 @@ namespace pg
                         // If the position component get changed by the anchor moving then we push its children to the queue for check
                         auto changed = pos->updatefromAnchor(*anchor);
 
-                        // Todo check this, this may be overkill and not necessary
-                        if (changed and not changedIds.count(id))
-                        {
-                            subsequentlyChangedIds.insert(id);
-                            pushChildrenInChange(subsequentlyChangedIds, id);
-                        }
-
+                        anchorChanged |= changed;
                     }
 
                     ecsRef->sendEvent(EntityChangedEvent{id});
