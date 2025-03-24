@@ -232,7 +232,7 @@ namespace pg
         {
             this->scene = scene;
 
-            setArity(1, 4);
+            setArity(2, 5);
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
@@ -240,6 +240,9 @@ namespace pg
             // Todo check type of elements gotten here
 
             RessourceGenerator gen;
+
+            gen.id = args.front()->getElement().toString();
+            args.pop();
 
             gen.ressource = args.front()->getElement().toString();
             args.pop();
@@ -300,15 +303,19 @@ namespace pg
 
         // Create the basic mana generator entity.
         auto basicGen = createEntity();
-        attach<RessourceGenerator>(basicGen);
+        auto manaGen = attach<RessourceGenerator>(basicGen);
+        manaGen->id = "basic_mana_generator";
 
         // Mana -> Scrap converter
         auto converterEntity = createEntity();
         auto convComp = attach<ConverterComponent>(converterEntity);
+        convComp->id = "scrap_converter";
         convComp->input = {"mana"};
         convComp->output = {"scrap"};
         convComp->cost = {5.0f};
         convComp->yield = {1.0f};
+
+        ecsRef->sendEvent( AddFact{ "scrap_converter_mana_cost", ElementType{5.0f} } );
 
         PgInterpreter interpreter;
 
@@ -346,6 +353,17 @@ namespace pg
         //     {},
         //     0
         // });
+
+        maskedButtons.push_back(DynamicNexusButton{
+            "ScrapConverter",
+            "Convert [Scrap]",
+            { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual) },
+            { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
+            "main",
+            "Convert Mana to Scrap",
+            0,
+            { NexusButtonCost{"mana", 0, "scrap_converter_mana_cost", false} }
+        });
 
         maskedButtons.push_back(DynamicNexusButton{
             "Test_012",
@@ -475,20 +493,6 @@ namespace pg
 
         // Listen for world fact updates to log mana or upgrades.
         listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
-            const auto& it = std::find(event.changedFacts.begin(), event.changedFacts.end(), "mana");
-
-            if (it != event.changedFacts.end())
-            {
-                LOG_INFO("onRessourceGeneratorHarvest", "Current Mana: " << event.factMap->at("mana").get<float>());
-            }
-
-            const auto& scrapIt = std::find(event.changedFacts.begin(), event.changedFacts.end(), "scrap");
-
-            if (scrapIt != event.changedFacts.end())
-            {
-                LOG_INFO("onRessourceGeneratorHarvest", "Current Scrap: " << event.factMap->at("scrap").get<float>());
-            }
-
             updateDynamicButtons(*event.factMap);
             updateRessourceView();
         });
@@ -572,6 +576,26 @@ namespace pg
                 for (auto it2 : it->outcome)
                 {
                     it2.call(ecsRef);
+                }
+
+                if (not it->costs.empty())
+                {
+                    WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+
+                    for (auto it3 : it->costs)
+                    {
+                        if (it3.consumed)
+                        {
+                            auto cost = IncreaseFact(it3.resourceId, -it3.value);
+
+                            if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
+                            {
+                                cost.value = -wf->factMap.at(it3.valueId);
+                            }
+
+                            ecsRef->sendEvent(cost);
+                        }
+                    }
                 }
 
                 it->nbClick++;
@@ -676,7 +700,6 @@ namespace pg
 
         for (const auto& it : button.costs)
         {
-            LOG_INFO("Checking", "Cost");
             auto fc = FactChecker();
             fc.name = it.resourceId;
             fc.equality = FactCheckEquality::GreaterEqual;

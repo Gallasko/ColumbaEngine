@@ -131,16 +131,16 @@ namespace pg
             LOG_ERROR(DOM, "Failed to load font");
             return;
         }
-        
+
         // FT_Set_Char_Size(face, 0, size * 64, 300, 300);
         FT_Set_Pixel_Sizes(face, 0, size);
 
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction
-  
+
         for (unsigned char c = 0; c < 128; c++)
         {
             auto f = [fontPath, face, c, this](size_t oldId) {
-                // load character glyph 
+                // load character glyph
                 if (FT_Load_Char(face, c, FT_LOAD_RENDER))
                 {
                     LOG_ERROR(DOM, "Failed to load Glyph for: " << std::string(1, c));
@@ -178,7 +178,7 @@ namespace pg
 
                 // now store character for later use
                 Character character = {
-                    texture, 
+                    texture,
                     glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
                     glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
                     static_cast<unsigned int>(face->glyph->advance.x)
@@ -209,9 +209,9 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(entityId);
-        
+
         if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFTextCall>())
-            return; 
+            return;
 
         textUpdateQueue.push(entityId);
 
@@ -260,7 +260,7 @@ namespace pg
         {
             renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
         }
-        
+
         changed = false;
     }
 
@@ -273,7 +273,7 @@ namespace pg
         {
             Character ch = charactersMap[fontPath][c];
             float chHeight = ch.size.y * scale;
-            
+
             if (chHeight > lineHeight)
                 lineHeight = chHeight;
         }
@@ -294,12 +294,12 @@ namespace pg
     float TTFTextSystem::computeWordWidth(const std::string& word, const std::string& fontPath, float scale)
     {
         float width = 0.0f;
-        
+
         for (char c : word)
         {
             width += getGlyphAdvance(c, fontPath, scale);
         }
-    
+
         return width;
     }
 
@@ -355,14 +355,14 @@ namespace pg
         RenderCall spaceCall = createGlyphRenderCall(ui, fontPath, spaceChar, currentX, currentY, z, scale, lineHeight, colors);
         calls.push_back(spaceCall);
         float spaceAdvance = getGlyphAdvance(spaceChar, fontPath, scale);
-        
+
         currentX += spaceAdvance;
         currentLineWidth += spaceAdvance;
     }
 
     std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
     {
-        if (obj->wrap)        
+        if (obj->wrap)
             return createWrappedRenderCall(ui, obj);
         else
             return createNormalRenderCall(ui, obj);
@@ -371,20 +371,20 @@ namespace pg
     std::vector<RenderCall> TTFTextSystem::createWrappedRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
     {
         std::vector<RenderCall> calls;
-        
+
         float startX = ui->x;
         float startY = ui->y;
         float z = ui->z;
         float scale = obj->scale;
         auto colors = obj->colors;
-        
+
         std::string text = obj->text;
         std::string fontPath = obj->fontPath;
-        
+
         // Compute line height and determine maximum allowed width.
         float lineHeight = computeLineHeight(text, fontPath, scale);
         float maxWidth = (ui->width > 0) ? ui->width : 10000.0f;
-        
+
         // Initialize positions and dimensions.
         float currentX = startX;
         float currentY = startY;
@@ -392,7 +392,7 @@ namespace pg
         float maxLineWidth = 0.0f;
         int lineCount = 1;
         bool firstWordOfLine = true;
-        
+
         // Split the text by newline characters.
         std::istringstream textStream(text);
         std::vector<std::string> rawLines;
@@ -402,12 +402,12 @@ namespace pg
         {
             rawLines.push_back(rawLine);
         }
-        
+
         // Process each raw line separately.
         for (size_t i = 0; i < rawLines.size(); i++)
         {
             const std::string& line = rawLines[i];
-            
+
             // If the raw line is empty, force a newline.
             if (line.empty())
             {
@@ -418,7 +418,7 @@ namespace pg
                 firstWordOfLine = true;
                 continue;
             }
-            
+
             // Wrap the current raw line.
             std::istringstream iss(line);
             std::string word;
@@ -426,24 +426,24 @@ namespace pg
             {
                 float wordWidth = computeWordWidth(word, fontPath, scale);
                 float spaceWidth = (not firstWordOfLine) ? getGlyphAdvance(' ', fontPath, scale) : 0.0f;
-        
+
                 // If adding this word would exceed the max width, wrap to a new line.
                 if (currentLineWidth + spaceWidth + wordWidth > maxWidth)
                 {
                     if (currentLineWidth > maxLineWidth)
                         maxLineWidth = currentLineWidth;
-                    
+
                     currentY += lineHeight;
                     currentX = startX;
                     currentLineWidth = 0.0f;
                     firstWordOfLine = true;
                     lineCount++;
                 }
-        
+
                 // Insert a space if not the first word on the line.
                 if (not firstWordOfLine)
                     addSpaceRenderCall(calls, ui, fontPath, currentX, currentLineWidth, currentY, z, scale, lineHeight, colors);
-        
+
                 // Render each character in the word.
                 for (char c : word)
                 {
@@ -453,16 +453,16 @@ namespace pg
                     currentX += advance;
                     currentLineWidth += advance;
                 }
-        
+
                 firstWordOfLine = false;
             }
-            
+
             // After processing a raw line, if there are more raw lines, force a newline.
             if (i < rawLines.size() - 1)
             {
                 if (currentLineWidth > maxLineWidth)
                     maxLineWidth = currentLineWidth;
-                
+
                 currentY += lineHeight;
                 currentX = startX;
                 currentLineWidth = 0.0f;
@@ -470,27 +470,28 @@ namespace pg
                 lineCount++;
             }
         }
-        
+
         if (currentLineWidth > maxLineWidth)
             maxLineWidth = currentLineWidth;
-        
+
         float totalTextWidth = maxLineWidth;
         float totalTextHeight = lineCount * lineHeight;
-        
+
         if (obj->textWidth != totalTextWidth)
         {
             obj->textWidth = totalTextWidth;
         }
-        
+
         if (obj->textHeight != totalTextHeight)
         {
             obj->textHeight = totalTextHeight;
             ui->setHeight(totalTextHeight);
         }
-        
+
         return calls;
     }
 
+    // Todo add \n text splitting for normal ttf render call (currently only available for wrapped text rendering)
     std::vector<RenderCall> TTFTextSystem::createNormalRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
     {
         // Todo fix position issue right here !
@@ -513,7 +514,7 @@ namespace pg
         float textHeight = computeLineHeight(text, fontPath, scale);
 
         std::string::const_iterator c;
-        for (c = obj->text.begin(); c != obj->text.end(); c++)
+        for (c = text.begin(); c != text.end(); c++)
         {
             Character ch = charactersMap[obj->fontPath][*c];
             // textWidth += w;
@@ -539,7 +540,7 @@ namespace pg
             obj->textHeight = textHeight;
             ui->setHeight(textHeight);
         }
-        
+
         return calls;
     }
 }

@@ -16,6 +16,8 @@ namespace pg
     // Component for a mana generator (e.g., your altar)
     struct RessourceGenerator
     {
+        std::string id = "generator";  // Name of the generator
+
         std::string ressource = "mana";// Ressouce created by this generator
 
         float currentMana = 0.0f;      // Current stored mana
@@ -121,6 +123,9 @@ namespace pg
      */
     struct ConverterComponent
     {
+        /** Name of the converter */
+        std::string id = "converter";
+
         /** Ressources to be deducted */
         std::vector<std::string> input;
         /** Ressources to be gained */
