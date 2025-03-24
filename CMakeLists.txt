@@ -55,7 +55,8 @@ else()
     if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
     else()
-        set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O3 -DNDEBUG")
+        # Todo make sure that -03 is enabled when release
+        set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -DNDEBUG")
         # set(CMAKE_CXX_FLAGS " -Wall -Wextra -pthread -s -O3 -DNDEBUG")
     endif()
 

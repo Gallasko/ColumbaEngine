@@ -53,6 +53,11 @@ namespace pg
         defaultTheme.values["tooltip.topMargin"] = 5.0f;
         defaultTheme.values["tooltip.leftMargin"] = 5.0f;
         defaultTheme.values["tooltip.rightMargin"] = 5.0f;
+        defaultTheme.values["tooltip.bottomMargin"] = 5.0f;
+
+        defaultTheme.values["tooltipCostValues.topMargin"] = 5.0f;
+        defaultTheme.values["tooltipCostValues.leftMargin"] = 12.0f;
+        defaultTheme.values["tooltipCostValues.rightMargin"] = 5.0f;
 
         defaultTheme.values["tooltipTitle.font"] = "res/font/Inter/static/Inter_28pt-Light.ttf";
         defaultTheme.values["tooltipTitle.scale"] = 0.4f;

@@ -154,7 +154,7 @@ namespace pg
         // Todo add function to handle center, vertical and horizontal center alignment
 
         virtual void onCreation(EntityRef entity) override;
- 
+
         void updateAnchor(bool hasAnchor, PosAnchor& anchor);
 
         bool update(CompRef<PositionComponent> positionComp);
@@ -230,7 +230,7 @@ namespace pg
     };
 
     // Todo add Listener<ResizeEvent>,
-    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<PositionComponentChangedEvent>>
+    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, Listener<PositionComponentChangedEvent>>
     {
         virtual std::string getSystemName() const override { return "Position System"; }
 
@@ -239,13 +239,18 @@ namespace pg
             parentalMap[event.parent].insert(event.child);
         }
 
+        virtual void onEvent(const ClearParentingEvent& event) override
+        {
+            parentalMap[event.parent].erase(event.id);
+        }
+
         virtual void onEvent(const PositionComponentChangedEvent& event) override
         {
             eventQueue.push(event);
         }
 
-        void pushChildrenInChange(_unique_id parentId);
-        
+        void pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId);
+
         virtual void execute() override;
 
         std::unordered_map<_unique_id, std::set<_unique_id>> parentalMap;

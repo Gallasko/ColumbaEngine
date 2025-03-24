@@ -456,6 +456,8 @@ namespace pg
         tooltipBg.get<PositionComponent>()->setZ(5);
         auto tooltipBgAnchor = tooltipBg.get<UiAnchor>();
 
+        tooltipBgAnchor->setBottomMargin(-theme.values["tooltip.bottomMargin"].get<float>());
+
         auto tooltipBgHighLight = makeUiSimple2DShape(this, Shape2D::Square, 0, 0, {theme.values["tooltipBgHighlight.r"].get<float>(), theme.values["tooltipBgHighlight.g"].get<float>(), theme.values["tooltipBgHighlight.b"].get<float>(), theme.values["tooltipBgHighlight.a"].get<float>()});
         tooltipBgHighLight.get<PositionComponent>()->setVisibility(false);
         tooltipBgHighLight.get<PositionComponent>()->setZ(4);
@@ -518,6 +520,22 @@ namespace pg
         costTextAnchor->setRightAnchor(tooltipBgAnchor->right);
         costTextAnchor->setRightMargin(theme.values["tooltip.rightMargin"].get<float>());
 
+        // Cost Values UI
+        auto costValuesEnt = makeTTFText(this, 0, 0, 6, theme.values["tooltipTitle.font"].get<std::string>(), "", theme.values["tooltipTitle.scale"].get<float>());
+        auto costValuesPos = costValuesEnt.get<PositionComponent>();
+        auto costValuesText = costValuesEnt.get<TTFText>();
+        auto costValuesAnchor = costValuesEnt.get<UiAnchor>();
+
+        costValuesPos->setVisibility(false);
+        costValuesText->setWrap(true);
+
+        costValuesAnchor->setTopAnchor(costTextAnchor->bottom);
+        costValuesAnchor->setTopMargin(theme.values["tooltipCostValues.topMargin"].get<float>());
+        costValuesAnchor->setLeftAnchor(tooltipBgAnchor->left);
+        costValuesAnchor->setLeftMargin(theme.values["tooltipCostValues.leftMargin"].get<float>());
+        costValuesAnchor->setRightAnchor(tooltipBgAnchor->right);
+        costValuesAnchor->setRightMargin(theme.values["tooltipCostValues.rightMargin"].get<float>());
+
         // Register UI elements in map
 
         tooltipsEntities["background"] = tooltipBg.entity;
@@ -525,6 +543,7 @@ namespace pg
         tooltipsEntities["desc"] = descTextEnt.entity;
         tooltipsEntities["costSpacer"] = tooltipCostSpacer.entity;
         tooltipsEntities["costTitle"] = costTextEnt.entity;
+        tooltipsEntities["costValues"] = costValuesEnt.entity;
 
         // -- [End] Tooltip Ui definition
 
@@ -556,24 +575,47 @@ namespace pg
                     tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(true);
                     tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(true);
 
+                    tooltipsEntities["background"]->get<UiAnchor>()->clearBottomAnchor();
+
                     if (bgEnt->has<UiAnchor>())
                     {
                         tooltipsEntities["background"]->get<UiAnchor>()->setTopAnchor(bgEnt->get<UiAnchor>()->bottom);
                         tooltipsEntities["background"]->get<UiAnchor>()->setTopMargin(-2);
                         tooltipsEntities["background"]->get<UiAnchor>()->setHorizontalCenter(bgEnt->get<UiAnchor>()->horizontalCenter);
+
+                        tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(bgEnt->get<UiAnchor>()->bottom);
                     }
 
                     if (it->description != "")
                     {
                         tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(true);
                         tooltipsEntities["desc"]->get<TTFText>()->setText(it->description);
+
+                        // tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["desc"]->get<UiAnchor>()->bottom);
                     }
 
                     if (it->costs.size() > 0)
                     {
                         tooltipsEntities["costSpacer"]->get<PositionComponent>()->setVisibility(true);
                         tooltipsEntities["costTitle"]->get<PositionComponent>()->setVisibility(true);
+                        tooltipsEntities["costValues"]->get<PositionComponent>()->setVisibility(true);
+
+                        std::ostringstream costText;
+
+                        for (const auto& cost : it->costs)
+                        {
+                            auto str = cost.resourceId;
+                            str[0] = std::toupper(str[0]);
+
+                            costText << str << ": " << cost.value << "\n";
+                        }
+
+                        tooltipsEntities["costValues"]->get<TTFText>()->setText(costText.str());
+
+                        tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["costValues"]->get<UiAnchor>()->bottom);
                     }
+
+                    LOG_INFO("Nexus", "Bottom value: " << tooltipsEntities["background"]->get<UiAnchor>()->bottomAnchor.value);
                 }
                 else
                 {
@@ -585,6 +627,8 @@ namespace pg
 
                     tooltipsEntities["costSpacer"]->get<PositionComponent>()->setVisibility(false);
                     tooltipsEntities["costTitle"]->get<PositionComponent>()->setVisibility(false);
+
+                    tooltipsEntities["costValues"]->get<PositionComponent>()->setVisibility(false);
                 }
 
                 if (not it->clickable)
@@ -884,6 +928,17 @@ namespace pg
         updateButtonsClickability(factMap, visibleButtons);
         updateButtonsVisibility(factMap, maskedButtons, visibleButtons, true);
         updateButtonsVisibility(factMap, visibleButtons, maskedButtons, false);
+
+        // Update value cost of visible buttons
+        for (auto& button : visibleButtons)
+        {
+            for (auto& cost : button.costs)
+            {
+                if (not cost.valueId.empty() and factMap.find(cost.valueId) != factMap.end()) {
+                    cost.value = factMap.at(cost.valueId).get<float>();
+                }
+            }
+        }
     }
 
     // Helper method to add a new resource display entry.

@@ -59,7 +59,7 @@ namespace pg
             case AnchorType::Height:
                 value = pos->height;
                 break;
-            
+
             case AnchorType::X:
                 value = pos->x;
                 break;
@@ -96,7 +96,7 @@ namespace pg
                     value /= constrain.opValue;
                 else
                 {
-                    LOG_ERROR("UiAnchor", "Division by zero"); 
+                    LOG_ERROR("UiAnchor", "Division by zero");
                 }
                 break;
 
@@ -112,6 +112,9 @@ namespace pg
 
     void UiAnchor::setTopAnchor(const PosAnchor& anchor)
     {
+        if (hasTopAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
+
         topAnchor = anchor;
         hasTopAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -129,6 +132,9 @@ namespace pg
 
     void UiAnchor::setLeftAnchor(const PosAnchor& anchor)
     {
+        if (hasLeftAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
+
         leftAnchor = anchor;
         hasLeftAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -146,6 +152,9 @@ namespace pg
 
     void UiAnchor::setRightAnchor(const PosAnchor& anchor)
     {
+        if (hasRightAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
+
         rightAnchor = anchor;
         hasRightAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -163,6 +172,9 @@ namespace pg
 
     void UiAnchor::setBottomAnchor(const PosAnchor& anchor)
     {
+        if (hasBottomAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
+
         bottomAnchor = anchor;
         hasBottomAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -329,7 +341,7 @@ namespace pg
 
     bool UiAnchor::update(CompRef<PositionComponent> pos)
     {
-        bool anchorChanged = top.value != pos->y or 
+        bool anchorChanged = top.value != pos->y or
                              left.value != pos->x or
                              right.value != pos->x + pos->width or
                              bottom.value != pos->y + pos->height;
@@ -441,7 +453,7 @@ namespace pg
         if (this->rotation != rotation)
         {
             this->rotation = rotation;
-            
+
             if (ecsRef)
                 ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
@@ -522,62 +534,80 @@ namespace pg
         return oldX != x or oldY != y or oldZ != z or oldWidth != width or oldHeight != height;
     }
 
-    void PositionComponentSystem::pushChildrenInChange(_unique_id parentId)
+    void PositionComponentSystem::pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId)
     {
         for (const auto& child : parentalMap[parentId])
         {
-            auto inserted = changedIds.insert(child);
+            auto inserted = set.insert(child);
 
             if (inserted.second)
-                pushChildrenInChange(child);
+                pushChildrenInChange(set, child);
         }
     }
-    
+
     void PositionComponentSystem::execute()
     {
         while (not eventQueue.empty())
         {
             const auto& event = eventQueue.front();
-        
+
             if (not changedIds.count(event.id))
             {
                 changedIds.insert(event.id);
-                pushChildrenInChange(event.id);
+                pushChildrenInChange(changedIds, event.id);
             }
-        
+
             eventQueue.pop();
         }
 
         if (changedIds.size() > 0)
         {
-            for (const auto& id : changedIds)
+            std::set<_unique_id> subsequentlyChangedIds;
+
+            do
             {
-                auto anchorChanged = false;
-                auto entity = ecsRef->getEntity(id);
+                changedIds.insert(subsequentlyChangedIds.begin(), subsequentlyChangedIds.end());
 
-                if (not entity or not entity->has<PositionComponent>())
-                    continue;
+                subsequentlyChangedIds.clear();
 
-                if (entity->has<UiAnchor>())
+                for (const auto& id : changedIds)
                 {
-                    auto anchor = entity->get<UiAnchor>();
+                    auto anchorChanged = false;
+                    auto entity = ecsRef->getEntity(id);
 
-                    auto pos = entity->get<PositionComponent>();
-                    
-                    anchorChanged = anchor->update(pos);
+                    if (not entity or not entity->has<PositionComponent>())
+                        continue;
 
-                    // Todo check
-                    // If the position component get changed by the anchor moving then we push its children to the queue for check
-                    pos->updatefromAnchor(*anchor);
+                    if (entity->has<UiAnchor>())
+                    {
+                        auto anchor = entity->get<UiAnchor>();
+
+                        auto pos = entity->get<PositionComponent>();
+
+                        anchorChanged = anchor->update(pos);
+
+                        // Todo check
+                        // If the position component get changed by the anchor moving then we push its children to the queue for check
+                        auto changed = pos->updatefromAnchor(*anchor);
+
+                        // Todo check this, this may be overkill and not necessary
+                        if (changed and not changedIds.count(id))
+                        {
+                            subsequentlyChangedIds.insert(id);
+                            pushChildrenInChange(subsequentlyChangedIds, id);
+                        }
+
+                    }
+
+                    ecsRef->sendEvent(EntityChangedEvent{id});
+
+                    if (anchorChanged)
+                        ecsRef->sendEvent(PositionComponentChangedEvent{id});
                 }
 
-                ecsRef->sendEvent(EntityChangedEvent{id});
+                changedIds.clear();
 
-                if (anchorChanged)
-                    ecsRef->sendEvent(PositionComponentChangedEvent{id});
-            }
-
-            changedIds.clear();
+            } while (not subsequentlyChangedIds.empty());
         }
     }
 
@@ -601,7 +631,7 @@ namespace pg
 
     bool inClipBound(EntityRef entity, float x, float y)
     {
-        // We first check if the pos is in the entity 
+        // We first check if the pos is in the entity
         auto inEntityBound = inBound(entity, x, y);
 
         // Early exit if the pos is not in the entity
@@ -613,7 +643,7 @@ namespace pg
         {
             return inEntityBound;
         }
-        
+
         // If the entity is clipped to something, then we just check if the pos is also in the clipper's bound
         auto clipper = entity->world()->getEntity(entity->get<ClippedTo>()->clipperId);
 
