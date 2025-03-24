@@ -546,7 +546,7 @@ int GameApp::exec()
     printf("Start init thread...\n");
     initThread = new std::thread(initWindow, appName);
     printf("Detach init thread...\n");
-    
+
     SDL_Window *pWindow =
     SDL_CreateWindow("Hello Triangle Minimal",
                         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,

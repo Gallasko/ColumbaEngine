@@ -1,6 +1,5 @@
 #pragma once
 
-#include <sstream>
 #include <cstdint>
 
 #include "Systems/oneventcomponent.h"

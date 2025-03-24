@@ -4,9 +4,9 @@
  * @brief Definition of the entity system
  * @version 0.1
  * @date 2022-08-06
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 
 #include "entitysystem.h"
@@ -14,6 +14,8 @@
 #include "system.h"
 
 #include "Systems/coresystems.h"
+
+#include "Interpreter/interpretersystem.h"
 
 namespace
 {
@@ -58,8 +60,8 @@ namespace pg
             // During the command dispatcher no other system should be running
             // So it should be safe to allow for creation and deletion of entities/components on the spot
             running = false;
-            eventDispatcher.process(); 
-                        
+            eventDispatcher.process();
+
             cmdDispatcher.process();
 
             if (not stopRequested)
@@ -77,7 +79,7 @@ namespace pg
                 nbExecution = 0;
                 start = end;
             }
-            
+
             }).name("Basic Task");
 
         LOG_INFO(DOM, "Ecs started !");
@@ -106,7 +108,7 @@ namespace pg
     EntityRef EntitySystem::createEntity()
     {
         LOG_THIS_MEMBER("ECS");
-        
+
         if (running)
             return cmdDispatcher.createEntity();
         else
@@ -123,7 +125,7 @@ namespace pg
         if (entity == nullptr)
         {
             LOG_ERROR("ECS", "Entity doesn't exists !");
-            
+
             return;
         }
 
@@ -131,6 +133,60 @@ namespace pg
             cmdDispatcher.deleteEntity(entity);
         else
             deleteEntityFromPool(entity);
+    }
+
+    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        // Todo: add support for system creation during runtime
+        if (running)
+        {
+            LOG_ERROR("ECS", "System creation during runtime is not supported");
+            return nullptr;
+        }
+
+        auto system = new InterpreterSystem(env, sysInstance);
+        system->_id = registry.idGenerator.generateId();
+
+        system->ecsRef = this;
+
+        systems.emplace(system->_id, system);
+
+        system->addToRegistry(&registry);
+
+        // Only add the system to the taskflow if the execution policy is set to sequential or independent !
+        if (system->executionPolicy == ExecutionPolicy::Sequential)
+        {
+            auto task = taskflow.emplace([system]()
+            {
+                // Todo time the whole exec of a run of the taskflow
+                auto start = std::chrono::steady_clock::now();
+
+                system->execute();
+
+                auto end = std::chrono::steady_clock::now();
+
+                if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
+                    std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+
+            }).name(std::to_string(system->_id));
+
+            // Put the task after every other basic task
+            task.succeed(basicTask);
+
+            // Register the task in case we need to call precede and succeed
+            tasks[system->_id] = task;
+        }
+        else if (system->executionPolicy == ExecutionPolicy::Independent)
+        {
+            auto task = taskflow.emplace([system](){system->execute();}).name(std::to_string(system->_id));
+
+            // Register the task in case we need to call precede and succeed
+            tasks[system->_id] = task;
+        }
+
+        return system;
     }
 
     void EntitySystem::deleteSystem(_unique_id id)

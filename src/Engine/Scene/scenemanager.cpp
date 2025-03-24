@@ -1,5 +1,7 @@
 #include "scenemanager.h"
 
+#include <sstream>
+
 #include "Files/fileparser.h"
 
 #include "Interpreter/pginterpreter.h"

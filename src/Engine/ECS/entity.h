@@ -3,19 +3,20 @@
 #include <set>
 #include <algorithm>
 
-#include "Memory/memorypool.h"
-
 #include "serialization.h"
 
 #include "uniqueid.h"
 
 namespace pg
 {
+    template <typename T, size_t N>
+    class AllocatorPool;
+
     // Todo find the correct place for this
     template <class T>struct tag{using type=T;};
 
     class EntitySystem;
-    
+
     template <typename Type>
     struct CompRef;
 
@@ -25,7 +26,7 @@ namespace pg
     {
     friend class EntitySystem;
     friend class CommandDispatcher;
-    friend class AllocatorPool<Entity>;
+    friend class AllocatorPool<Entity, 1>;
     public:
         struct EntityHeld
         {
@@ -97,7 +98,7 @@ namespace pg
         // Entity& operator=(Entity& mE)   = default;
         // Entity(Entity&& mE)             = default;
         // Entity& operator=(Entity&& mE)  = default;
-        
+
         inline bool has(const _unique_id& otherId) const noexcept
         {
             return std::find(componentList.begin(), componentList.end(), otherId) != componentList.end();
@@ -108,7 +109,7 @@ namespace pg
 
         template <typename Comp>
         inline CompRef<Comp> get() noexcept;
-    
+
         inline EntitySystem* world() const noexcept { return ecsRef; }
 
         _unique_id id;
@@ -150,7 +151,7 @@ namespace pg
 
         EntityRef(const EntityRef& rhs)
         {
-            (*this) = rhs; 
+            (*this) = rhs;
         }
 
         bool operator==(const EntityRef& rhs);
@@ -184,7 +185,7 @@ namespace pg
     {
         CompListGetter(CompRef<Comp> comp) : comp(comp) {}
 
-        inline CompRef<Comp> get() const { return comp; } 
+        inline CompRef<Comp> get() const { return comp; }
 
         CompRef<Comp> comp;
     };
