@@ -562,46 +562,38 @@ namespace pg
 
         if (changedIds.size() > 0)
         {
-            std::set<_unique_id> subsequentlyChangedIds;
+            LOG_INFO("PositionComponentSystem", "Id changed: " << changedIds.size());
 
-            do
+            for (const auto& id : changedIds)
             {
-                changedIds.insert(subsequentlyChangedIds.begin(), subsequentlyChangedIds.end());
+                auto anchorChanged = false;
+                auto entity = ecsRef->getEntity(id);
 
-                subsequentlyChangedIds.clear();
+                if (not entity or not entity->has<PositionComponent>())
+                    continue;
 
-                for (const auto& id : changedIds)
+                if (entity->has<UiAnchor>())
                 {
-                    auto anchorChanged = false;
-                    auto entity = ecsRef->getEntity(id);
+                    auto anchor = entity->get<UiAnchor>();
 
-                    if (not entity or not entity->has<PositionComponent>())
-                        continue;
+                    auto pos = entity->get<PositionComponent>();
 
-                    if (entity->has<UiAnchor>())
-                    {
-                        auto anchor = entity->get<UiAnchor>();
+                    anchorChanged = anchor->update(pos);
 
-                        auto pos = entity->get<PositionComponent>();
+                    // Todo check
+                    // If the position component get changed by the anchor moving then we push its children to the queue for check
+                    auto changed = pos->updatefromAnchor(*anchor);
 
-                        anchorChanged = anchor->update(pos);
-
-                        // Todo check
-                        // If the position component get changed by the anchor moving then we push its children to the queue for check
-                        auto changed = pos->updatefromAnchor(*anchor);
-
-                        anchorChanged |= changed;
-                    }
-
-                    ecsRef->sendEvent(EntityChangedEvent{id});
-
-                    if (anchorChanged)
-                        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+                    anchorChanged |= changed;
                 }
 
-                changedIds.clear();
+                ecsRef->sendEvent(EntityChangedEvent{id});
 
-            } while (not subsequentlyChangedIds.empty());
+                if (anchorChanged)
+                    ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+
+            changedIds.clear();
         }
     }
 
