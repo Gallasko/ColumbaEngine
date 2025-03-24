@@ -9,6 +9,14 @@
 
 namespace pg
 {
+    struct NexusButtonCost
+    {
+        std::string resourceId = "";
+        float value = 0.0f;
+        std::string valueId = "";
+        bool consumed = true;
+    };
+
     // A data‐driven UI button definition.
     struct DynamicNexusButton
     {
@@ -17,10 +25,13 @@ namespace pg
         std::vector<FactChecker> conditions;    // Conditions that must be met for the button to trigger the outcome.
         std::vector<AchievementReward> outcome; // Callback executed on click.
         std::string category;                   // Category (e.g., "Main", "Mana Upgrade", etc.)
-        std::vector<size_t> neededConditionsForVisibility; // Conditions that must be met for the button to appear. (If empty, every condition must be met)
+        std::string description = "";           // Description of the button, to be shown in the tooltip
 
         size_t nbClickBeforeArchive = 1;        // Number of times the button should be clicked before being archived (0 means infinite)
-        std::string description = "";           // Description of the button, to be shown in the tooltip
+        std::vector<NexusButtonCost> costs = {};// Cost of clicking the button
+        std::vector<float> costIncrease = {};   // Increment of the cost of the button after each click
+
+        std::vector<size_t> neededConditionsForVisibility = {}; // Conditions that must be met for the button to appear. (If empty, every condition must be met)
 
         // Internals
         size_t nbClick = 0;                     // Number of times the button was clicked
@@ -37,6 +48,9 @@ namespace pg
         std::string resourceName;
         EntityRef uiEntity;
     };
+
+    template <>
+    void serialize(Archive& archive, const NexusButtonCost& value);
 
     template <>
     void serialize(Archive& archive, const DynamicNexusButton& value);

@@ -58,6 +58,47 @@ namespace pg
     }
 
     template <>
+    void serialize(Archive& archive, const NexusButtonCost& value)
+    {
+        archive.startSerialization("NexusButtonCost");
+
+        serialize(archive, "resourceId", value.resourceId);
+        serialize(archive, "value", value.value);
+        serialize(archive, "valueId", value.valueId);
+        serialize(archive, "consumed", value.consumed);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    NexusButtonCost deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("NexusButtonCost");
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("NexusButtonCost", "Element is null");
+        }
+        else
+        {
+            LOG_MILE("NexusButtonCost", "Deserializing NexusButtonCost");
+
+            NexusButtonCost data;
+
+            defaultDeserialize(serializedString, "resourceId", data.resourceId);
+            defaultDeserialize(serializedString, "value", data.value);
+            defaultDeserialize(serializedString, "valueId", data.valueId);
+            defaultDeserialize(serializedString, "consumed", data.consumed);
+
+            return data;
+        }
+
+        return NexusButtonCost{};
+    }
+
+    template <>
     void serialize(Archive& archive, const DynamicNexusButton& value)
     {
         archive.startSerialization("DynamicNexusButton");
@@ -67,9 +108,11 @@ namespace pg
         serialize(archive, "conditions", value.conditions);
         serialize(archive, "outcome", value.outcome);
         serialize(archive, "category", value.category);
-        serialize(archive, "neededConditionsForVisibility", value.neededConditionsForVisibility);
-        serialize(archive, "nbClickBeforeArchive", value.nbClickBeforeArchive);
         serialize(archive, "description", value.description);
+        serialize(archive, "nbClickBeforeArchive", value.nbClickBeforeArchive);
+        serialize(archive, "costs", value.costs);
+        serialize(archive, "costIncrease", value.costIncrease);
+        serialize(archive, "neededConditionsForVisibility", value.neededConditionsForVisibility);
         serialize(archive, "nbClick", value.nbClick);
         serialize(archive, "archived", value.archived);
 
@@ -85,11 +128,11 @@ namespace pg
 
         if (serializedString.isNull())
         {
-            LOG_ERROR("DynamicNexusButtonr", "Element is null");
+            LOG_ERROR("DynamicNexusButton", "Element is null");
         }
         else
         {
-            LOG_MILE("DynamicNexusButtonr", "Deserializing DynamicNexusButton");
+            LOG_MILE("DynamicNexusButton", "Deserializing DynamicNexusButton");
 
             DynamicNexusButton data;
 
@@ -98,9 +141,11 @@ namespace pg
             defaultDeserialize(serializedString, "conditions", data.conditions);
             defaultDeserialize(serializedString, "outcome", data.outcome);
             defaultDeserialize(serializedString, "category", data.category);
-            defaultDeserialize(serializedString, "neededConditionsForVisibility", data.neededConditionsForVisibility);
-            defaultDeserialize(serializedString, "nbClickBeforeArchive", data.nbClickBeforeArchive);
             defaultDeserialize(serializedString, "description", data.description);
+            defaultDeserialize(serializedString, "nbClickBeforeArchive", data.nbClickBeforeArchive);
+            defaultDeserialize(serializedString, "costs", data.costs);
+            defaultDeserialize(serializedString, "costIncrease", data.costIncrease);
+            defaultDeserialize(serializedString, "neededConditionsForVisibility", data.neededConditionsForVisibility);
             defaultDeserialize(serializedString, "nbClick", data.nbClick);
             defaultDeserialize(serializedString, "archived", data.archived);
 
@@ -280,8 +325,6 @@ namespace pg
                 FactChecker("startTuto", true, FactCheckEquality::Equal) },
             {   AchievementReward(AddFact{"altar_touched", ElementType{true}}) },
             "main",
-            {},
-            1
         });
 
         maskedButtons.push_back(DynamicNexusButton{
@@ -290,40 +333,40 @@ namespace pg
             { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
             { AchievementReward(StandardEvent("res_harvest", "id", basicGen.id)) },
             "main",
-            {},
+            "Harvest the mana stored in the altar.",
             0
         });
 
-        maskedButtons.push_back(DynamicNexusButton{
-            "ScrapConverter",
-            "Convert [Scrap]",
-            { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-            { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
-            "main",
-            {},
-            0
-        });
+        // maskedButtons.push_back(DynamicNexusButton{
+        //     "ScrapConverter",
+        //     "Convert [Scrap]",
+        //     { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
+        //     { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
+        //     "main",
+        //     {},
+        //     0
+        // });
 
         maskedButtons.push_back(DynamicNexusButton{
             "Test_012",
             "Test show",
-            { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual),
-              FactChecker("mana", 25, FactCheckEquality::GreaterEqual) },
+            { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual) },
             { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
             "main",
-            {0},
-            5
+            "Upgrade button that cost 25 mana",
+            5,
+            { NexusButtonCost{"mana", 25} }
         });
 
-        maskedButtons.push_back(DynamicNexusButton{
-            "UpgradeProd1",
-            "UpgradeProd",
-            { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-            { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
-            "main",
-            {},
-            5
-        });
+        // maskedButtons.push_back(DynamicNexusButton{
+        //     "UpgradeProd1",
+        //     "UpgradeProd",
+        //     { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
+        //     { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
+        //     "main",
+        //     {},
+        //     5
+        // });
 
         maskedButtons.push_back(DynamicNexusButton{
             "SpellMage",
@@ -332,8 +375,6 @@ namespace pg
                 FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
             {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
             "main",
-            {},
-            1
         });
 
         maskedButtons.push_back(DynamicNexusButton{
@@ -345,8 +386,6 @@ namespace pg
                 AchievementReward(AddFact{"runic_mage_1", ElementType{true}}),
                 AchievementReward(StandardEvent("gamelog", "message", "You feel the power of the rune, coursing through your blood")) },
             "main",
-            {},
-            1
         });
 
         maskedButtons.push_back(DynamicNexusButton{
@@ -356,8 +395,6 @@ namespace pg
                 FactChecker("mage_tier", 1, FactCheckEquality::Equal) },
             {   AchievementReward(AddFact{"mage_tier", ElementType{2}}) },
             "main",
-            {},
-            1
         });
 
         auto windowEnt = ecsRef->getEntity("__MainWindow");
@@ -420,7 +457,7 @@ namespace pg
         auto descTextAnchor = descTextEnt.get<UiAnchor>();
 
         descTextPos->setVisibility(false);
-        
+
         descText->setWrap(true);
 
         descTextAnchor->setTopAnchor(tooltipBgAnchor->top);
@@ -505,7 +542,7 @@ namespace pg
                 if (bgEnt->has<Simple2DObject>())
                 {
                     auto colors = getButtonColors(theme, true, event.state);
-                     
+
                     bgEnt->get<Simple2DObject>()->setColors(colors);
                 }
             }
@@ -598,7 +635,7 @@ namespace pg
         auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
         // Todo lookup the colors from a theme instead of hardcoded
-        constant::Vector4D colors = getButtonColors(scene->theme, button->clickable); 
+        constant::Vector4D colors = getButtonColors(scene->theme, button->clickable);
 
         auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, scene->theme.values["nexusbutton.width"].get<float>(), scene->theme.values["nexusbutton.height"].get<float>(), colors);
         auto backgroundAnchor = background.get<UiAnchor>();
@@ -627,25 +664,51 @@ namespace pg
         return prefabEnt.entity;
     }
 
+    bool isButtonClickable(const std::unordered_map<std::string, ElementType>& factMap, const DynamicNexusButton& button)
+    {
+        for (const auto& it : button.conditions)
+        {
+            if (not it.check(factMap))
+            {
+                return false;
+            }
+        }
+
+        for (const auto& it : button.costs)
+        {
+            LOG_INFO("Checking", "Cost");
+            auto fc = FactChecker();
+            fc.name = it.resourceId;
+            fc.equality = FactCheckEquality::GreaterEqual;
+
+            if (it.valueId != "" and factMap.find(it.valueId) != factMap.end())
+            {
+                fc.value = factMap.at(it.valueId);
+            }
+            else
+            {
+                fc.value = it.value;
+            }
+
+            if (not fc.check(factMap))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     void NexusScene::updateButtonsClickability(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in)
     {
         for (auto& button : in)
         {
-            if (button.neededConditionsForVisibility.empty())
+            if (button.neededConditionsForVisibility.empty() and button.costs.empty())
             {
                 continue;
             }
 
-            bool clickable = true;
-
-            for (const auto& it : button.conditions)
-            {
-                if (not it.check(factMap))
-                {
-                    clickable = false;
-                    break;
-                }
-            }
+            bool clickable = isButtonClickable(factMap, button);
 
             if (button.clickable != clickable)
             {
@@ -658,7 +721,7 @@ namespace pg
                     continue;
                 }
 
-                auto colors = getButtonColors(theme, clickable); 
+                auto colors = getButtonColors(theme, clickable);
 
                 if (background->has<Simple2DObject>())
                     background->get<Simple2DObject>()->setColors(colors);
@@ -673,7 +736,7 @@ namespace pg
         for (auto it = in.begin(); it != in.end();)
         {
             bool reveal = true;
-            bool clickable = true;
+            bool clickable = false;
 
             if (it->neededConditionsForVisibility.empty())
             {
@@ -697,15 +760,11 @@ namespace pg
                         break;
                     }
                 }
+            }
 
-                for (const auto& it2 : it->conditions)
-                {
-                    if (not it2.check(factMap))
-                    {
-                        clickable = false;
-                        break;
-                    }
-                }
+            if (visiblility == true)
+            {
+                clickable = isButtonClickable(factMap, *it.base());
             }
 
             if (reveal == visiblility)
