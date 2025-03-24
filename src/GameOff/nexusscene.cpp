@@ -614,14 +614,11 @@ namespace pg
 
                         tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["costValues"]->get<UiAnchor>()->bottom);
                     }
-
-                    LOG_INFO("Nexus", "Bottom value: " << tooltipsEntities["background"]->get<UiAnchor>()->bottomAnchor.value);
                 }
                 else
                 {
                     tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(false);
                     tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(false);
-
 
                     tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(false);
 
