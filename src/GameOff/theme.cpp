@@ -14,6 +14,13 @@ namespace pg
         defaultTheme.values["tooltipBg.b"] = 18.0f;
         defaultTheme.values["tooltipBg.a"] = 255.0f;
 
+        defaultTheme.values["tooltipSpacer.r"] = 255.0f;
+        defaultTheme.values["tooltipSpacer.g"] = 255.0f;
+        defaultTheme.values["tooltipSpacer.b"] = 255.0f;
+        defaultTheme.values["tooltipSpacer.a"] = 255.0f;
+
+        defaultTheme.values["tooltipCostSpacer.topMargin"] = 5.0f;
+
         defaultTheme.values["tooltipBgHighlight.r"] = 255.0f;
         defaultTheme.values["tooltipBgHighlight.g"] = 255.0f;
         defaultTheme.values["tooltipBgHighlight.b"] = 255.0f;
@@ -28,7 +35,7 @@ namespace pg
         defaultTheme.values["clickableNexusButton.g"] = 196.0f;
         defaultTheme.values["clickableNexusButton.b"] = 196.0f;
         defaultTheme.values["clickableNexusButton.a"] = 255.0f;
-        
+
         defaultTheme.values["unclickableNexusButton.r"] = 96.0f;
         defaultTheme.values["unclickableNexusButton.g"] = 96.0f;
         defaultTheme.values["unclickableNexusButton.b"] = 96.0f;

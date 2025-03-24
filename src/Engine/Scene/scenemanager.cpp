@@ -15,13 +15,13 @@ namespace pg
         static constexpr char const * DOM = "Scene Element System";
 
         static constexpr char const * NONESCRIPT = "#__PGNone";
-        static constexpr char const * ONENTERSCRIPT = "#__PGEnterScene";
-        static constexpr char const * ONLEAVESCRIPT = "#__PGLeaveScene";
-        static constexpr char const * NEWSCENEENTITY = "#__PGEntityBegin";
-        static constexpr char const * ENDSCENEENTITY = "#__PGEntityEnd";
-        static constexpr char const * BEGINSUBSCENE = "#__PGSubSceneBegin";
-        static constexpr char const * ORIGINSUBSCENE = "#__PGSubSceneOrigin";
-        static constexpr char const * ENDSUBSCENE = "#__PGSubSceneEnd";
+        // static constexpr char const * ONENTERSCRIPT = "#__PGEnterScene";
+        // static constexpr char const * ONLEAVESCRIPT = "#__PGLeaveScene";
+        // static constexpr char const * NEWSCENEENTITY = "#__PGEntityBegin";
+        // static constexpr char const * ENDSCENEENTITY = "#__PGEntityEnd";
+        // static constexpr char const * BEGINSUBSCENE = "#__PGSubSceneBegin";
+        // static constexpr char const * ORIGINSUBSCENE = "#__PGSubSceneOrigin";
+        // static constexpr char const * ENDSUBSCENE = "#__PGSubSceneEnd";
     }
 
     std::vector<float> splitFloats(const std::string &s, char delim)
@@ -47,10 +47,10 @@ namespace pg
 
     /**
      * @brief A function that trim all whitespace characters from the beginning of a string
-     * 
+     *
      * @param str The string to trim
      * @param whitespace Characters used as whitespace characters
-     * 
+     *
      * @return std::string The resulting string trimmed of the whitespace characters
      */
     std::string trim(const std::string& str, const std::string& whitespace = " \t")
@@ -103,7 +103,7 @@ namespace pg
 
             ++i;
         }
-        
+
         archive.endSerialization();
     }
 
@@ -217,7 +217,7 @@ namespace pg
 
             addToList(list, this->token, {"subscenes", subsceneList});
 
-            return list; 
+            return list;
         }
 
         SceneFile sceneFile;
@@ -226,7 +226,7 @@ namespace pg
     EntityRef Scene::createEntity()
     {
         auto entity = ecsRef->createEntity();
-    
+
         ecsRef->attach<SceneElement>(entity);
 
         return entity;
@@ -376,16 +376,17 @@ namespace pg
             LOG_INFO(DOM, "Scene loaded");
         }
         else if (sceneToLoadFlag == SceneToLoadFlag::FileScene and currentState == LoadingState::SubSceneLoading)
-        {            
+        {
             // Todo upgrade this !
-            auto mainWindowEnt = ecsRef->getEntity(ecsRef->getSystem<EntityNameSystem>()->getEntityId("__MainWindow"));
+            // auto mainWindowEnt = ecsRef->getEntity(ecsRef->getSystem<EntityNameSystem>()->getEntityId("__MainWindow"));
 
-            auto ui = mainWindowEnt->get<UiComponent>();
+            // auto ui = mainWindowEnt->get<UiComponent>();
 
-            for (const auto& subScene : nextScene.subScenes)
-            {
-                translateEntitiesInScene(subScene, ui->frame);
-            }
+            // Todo
+            // for (const auto& subScene : nextScene.subScenes)
+            // {
+            //     translateEntitiesInScene(subScene, ui->frame);
+            // }
 
             currentState = LoadingState::OnEnter;
         }
@@ -430,13 +431,13 @@ namespace pg
             currentState = LoadingState::EntityLoading;
         }
         else if (currentLoadedScene == SceneToLoadFlag::FileScene and currentState == LoadingState::OnLeave)
-        {            
+        {
             runLeaveScript(currentScene);
 
             currentState = LoadingState::EntityUnloading;
         }
         else if (currentLoadedScene == SceneToLoadFlag::SystemScene and currentState == LoadingState::OnLeave)
-        {            
+        {
             if (systemScene)
             {
                 systemScene->onLeave();
@@ -564,72 +565,72 @@ namespace pg
         }
     }
 
-    void SceneElementSystem::translateEntitiesInScene(const SceneFile& subScene, const UiFrame& oriFrame)
-    {
-        LOG_THIS_MEMBER(DOM);
-        // UiFrame originFrame = oriFrame;
+    // void SceneElementSystem::translateEntitiesInScene(const SceneFile& subScene, const UiFrame& oriFrame)
+    // {
+    //     LOG_THIS_MEMBER(DOM);
+    //     // UiFrame originFrame = oriFrame;
 
-        UiFrame originFrame;
-        originFrame.pos.x = static_cast<float>(oriFrame.pos.x);
-        originFrame.pos.y = static_cast<float>(oriFrame.pos.y);
+    //     UiFrame originFrame;
+    //     originFrame.pos.x = static_cast<float>(oriFrame.pos.x);
+    //     originFrame.pos.y = static_cast<float>(oriFrame.pos.y);
 
-        std::string coord = subScene.originCoord;
+    //     std::string coord = subScene.originCoord;
 
-        // Todo
-        if (coord != "")
-        {
-            if (coord.find("Entity") != coord.npos)
-            {
-                LOG_ERROR(DOM, "Not supported yet !");
-            }
-            else
-            {
-                auto coordSplit = splitFloats(coord, ',');
+    //     // Todo
+    //     if (coord != "")
+    //     {
+    //         if (coord.find("Entity") != coord.npos)
+    //         {
+    //             LOG_ERROR(DOM, "Not supported yet !");
+    //         }
+    //         else
+    //         {
+    //             auto coordSplit = splitFloats(coord, ',');
 
-                if (coordSplit.size() != 5)
-                {
-                    LOG_ERROR(DOM, "Invalid coordinates given, current size: " << coordSplit.size());
-                }
-                else
-                {
-                    originFrame.pos.x += coordSplit[0];
-                    originFrame.pos.y += coordSplit[1];
-                    originFrame.pos.z += coordSplit[2];
-                    originFrame.w += coordSplit[3];
-                    originFrame.h += coordSplit[4];
-                }
-            }
-        }
+    //             if (coordSplit.size() != 5)
+    //             {
+    //                 LOG_ERROR(DOM, "Invalid coordinates given, current size: " << coordSplit.size());
+    //             }
+    //             else
+    //             {
+    //                 originFrame.pos.x += coordSplit[0];
+    //                 originFrame.pos.y += coordSplit[1];
+    //                 originFrame.pos.z += coordSplit[2];
+    //                 originFrame.w += coordSplit[3];
+    //                 originFrame.h += coordSplit[4];
+    //             }
+    //         }
+    //     }
 
-        for (auto entity : subScene.instancedEntities)
-        {
-            if (entity.has<UiComponent>())
-            {
-                auto ui = entity.get<UiComponent>();
+    //     for (auto entity : subScene.instancedEntities)
+    //     {
+    //         if (entity.has<UiComponent>())
+    //         {
+    //             auto ui = entity.get<UiComponent>();
 
-                // Todo fix this for full anchored component and width/height anchor...
-                // Todo this can be easily fix if all UiComponent have a parent and the base parent for everyone is the window
-                // And so this can be just view as changing the window parent to our origin point !
+    //             // Todo fix this for full anchored component and width/height anchor...
+    //             // Todo this can be easily fix if all UiComponent have a parent and the base parent for everyone is the window
+    //             // And so this can be just view as changing the window parent to our origin point !
 
-                ui->pos.x += originFrame.pos.x;
-                ui->pos.y += originFrame.pos.y;
-                // ui->pos.z += originFrame.pos.z;
+    //             ui->pos.x += originFrame.pos.x;
+    //             ui->pos.y += originFrame.pos.y;
+    //             // ui->pos.z += originFrame.pos.z;
 
-                ui->hasTopAnchor = false;
-                ui->hasRightAnchor = false;
-                ui->hasBottomAnchor = false;
-                ui->hasLeftAnchor = false;
+    //             ui->hasTopAnchor = false;
+    //             ui->hasRightAnchor = false;
+    //             ui->hasBottomAnchor = false;
+    //             ui->hasLeftAnchor = false;
 
-                ui->update();
-            }
-        }
+    //             ui->update();
+    //         }
+    //     }
 
-        // Recursively translate all sub subscenes with the new origin point !
-        for (const auto& subscene : subScene.subScenes)
-        {
-            translateEntitiesInScene(subscene, originFrame);
-        }
-    }
+    //     // Recursively translate all sub subscenes with the new origin point !
+    //     for (const auto& subscene : subScene.subScenes)
+    //     {
+    //         translateEntitiesInScene(subscene, originFrame);
+    //     }
+    // }
 
     void SceneElementSystem::runEnterScript(const SceneFile& scene)
     {
@@ -666,5 +667,5 @@ namespace pg
             ecsRef->sendEvent(ExecuteFileScriptEvent{scene.onLeaveScript, function});
         }
     }
-    
+
 }

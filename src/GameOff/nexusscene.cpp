@@ -469,6 +469,8 @@ namespace pg
         tooltipBgHighLightAnchor->setLeftAnchor(tooltipBgAnchor->left);
         tooltipBgHighLightAnchor->setLeftMargin(-1);
 
+        // Description UI
+
         auto descTextEnt = makeTTFText(this, 0, 0, 6, theme.values["tooltipTitle.font"].get<std::string>(), "", theme.values["tooltipTitle.scale"].get<float>());
         auto descTextPos = descTextEnt.get<PositionComponent>();
         auto descText = descTextEnt.get<TTFText>();
@@ -485,11 +487,46 @@ namespace pg
         descTextAnchor->setRightAnchor(tooltipBgAnchor->right);
         descTextAnchor->setRightMargin(theme.values["tooltip.rightMargin"].get<float>());
 
+        // Cost Spacer UI
+
+        auto tooltipCostSpacer = makeUiSimple2DShape(this, Shape2D::Square, 0, 1, {theme.values["tooltipSpacer.r"].get<float>(), theme.values["tooltipSpacer.g"].get<float>(), theme.values["tooltipSpacer.b"].get<float>(), theme.values["tooltipSpacer.a"].get<float>()});
+        tooltipCostSpacer.get<PositionComponent>()->setVisibility(false);
+        tooltipCostSpacer.get<PositionComponent>()->setZ(6);
+        auto tooltipCostSpacerAnchor = tooltipCostSpacer.get<UiAnchor>();
+
+        tooltipCostSpacerAnchor->setWidthConstrain(PosConstrain{tooltipBg.entity.id, AnchorType::Width, PosOpType::Mul, 0.8f});
+
+        tooltipCostSpacerAnchor->setTopAnchor(descTextAnchor->bottom);
+        tooltipCostSpacerAnchor->setTopMargin(theme.values["tooltipCostSpacer.topMargin"].get<float>());
+        tooltipCostSpacerAnchor->setHorizontalCenter(tooltipBgAnchor->horizontalCenter);
+
+        // Cost Text UI
+
+        auto costTextEnt = makeTTFText(this, 0, 0, 6, theme.values["tooltipTitle.font"].get<std::string>(), "Cost:", theme.values["tooltipTitle.scale"].get<float>());
+        auto costTextPos = costTextEnt.get<PositionComponent>();
+        auto costText = costTextEnt.get<TTFText>();
+        auto costTextAnchor = costTextEnt.get<UiAnchor>();
+
+        costTextPos->setVisibility(false);
+
+        costText->setWrap(true);
+
+        costTextAnchor->setTopAnchor(tooltipCostSpacerAnchor->bottom);
+        costTextAnchor->setTopMargin(theme.values["tooltip.topMargin"].get<float>());
+        costTextAnchor->setLeftAnchor(tooltipBgAnchor->left);
+        costTextAnchor->setLeftMargin(theme.values["tooltip.leftMargin"].get<float>());
+        costTextAnchor->setRightAnchor(tooltipBgAnchor->right);
+        costTextAnchor->setRightMargin(theme.values["tooltip.rightMargin"].get<float>());
+
+        // Register UI elements in map
+
         tooltipsEntities["background"] = tooltipBg.entity;
         tooltipsEntities["backHighlight"] = tooltipBgHighLight.entity;
         tooltipsEntities["desc"] = descTextEnt.entity;
+        tooltipsEntities["costSpacer"] = tooltipCostSpacer.entity;
+        tooltipsEntities["costTitle"] = costTextEnt.entity;
 
-        // [End] Tooltip Ui definition
+        // -- [End] Tooltip Ui definition
 
         // Listen for world fact updates to log mana or upgrades.
         listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
@@ -531,13 +568,23 @@ namespace pg
                         tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(true);
                         tooltipsEntities["desc"]->get<TTFText>()->setText(it->description);
                     }
+
+                    if (it->costs.size() > 0)
+                    {
+                        tooltipsEntities["costSpacer"]->get<PositionComponent>()->setVisibility(true);
+                        tooltipsEntities["costTitle"]->get<PositionComponent>()->setVisibility(true);
+                    }
                 }
                 else
                 {
                     tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(false);
                     tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(false);
 
+
                     tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(false);
+
+                    tooltipsEntities["costSpacer"]->get<PositionComponent>()->setVisibility(false);
+                    tooltipsEntities["costTitle"]->get<PositionComponent>()->setVisibility(false);
                 }
 
                 if (not it->clickable)
