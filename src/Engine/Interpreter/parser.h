@@ -106,13 +106,13 @@ namespace pg
 
                 switch (peek()) 
                 {
-                    case TokenType::CLASS:
-                    case TokenType::FUN:
-                    case TokenType::VAR:
-                    case TokenType::FOR:
-                    case TokenType::IF:
-                    case TokenType::WHILE:
-                    case TokenType::RETURN:
+                    case TokenType::TOK_CLASS:
+                    case TokenType::TOK_FUN:
+                    case TokenType::TOK_VAR:
+                    case TokenType::TOK_FOR:
+                    case TokenType::TOK_IF:
+                    case TokenType::TOK_WHILE:
+                    case TokenType::TOK_RETURN:
                         return;
                         break;
 

@@ -25,23 +25,23 @@ namespace pg
     {
         /** The table of used keywords and the corresponding TokenType */
         const std::unordered_map<std::string, TokenType> keywords = {
-            {"true",    TokenType::TRUE},
-            {"false",   TokenType::FALSE},
-            {"if",      TokenType::IF},
-            {"else",    TokenType::ELSE},
-            {"var",     TokenType::VAR},
-            {"while",   TokenType::WHILE},
-            {"for",     TokenType::FOR},
+            {"true",    TokenType::KEYTRUE},
+            {"false",   TokenType::KEYFALSE},
+            {"if",      TokenType::TOK_IF},
+            {"else",    TokenType::TOK_ELSE},
+            {"var",     TokenType::TOK_VAR},
+            {"while",   TokenType::TOK_WHILE},
+            {"for",     TokenType::TOK_FOR},
             {"and",     TokenType::LOGICAND},
             {"or",      TokenType::LOGICOR},
             {"not",     TokenType::NOT},
-            {"fun",     TokenType::FUN},
-            {"return",  TokenType::RETURN},
-            {"class",   TokenType::CLASS},
-            {"this",    TokenType::THIS},
-            {"import",  TokenType::IMPORT},
-            {"from",    TokenType::FROM},
-            {"as",      TokenType::AS}
+            {"fun",     TokenType::TOK_FUN},
+            {"return",  TokenType::TOK_RETURN},
+            {"class",   TokenType::TOK_CLASS},
+            {"this",    TokenType::TOK_THIS},
+            {"import",  TokenType::TOK_IMPORT},
+            {"from",    TokenType::TOK_FROM},
+            {"as",      TokenType::TOK_AS}
             
         };
 

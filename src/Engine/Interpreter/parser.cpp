@@ -450,8 +450,8 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        if (match(TokenType::TRUE)) return std::make_shared<Atom>(true);
-        if (match(TokenType::FALSE)) return std::make_shared<Atom>(false);
+        if (match(TokenType::KEYTRUE)) return std::make_shared<Atom>(true);
+        if (match(TokenType::KEYFALSE)) return std::make_shared<Atom>(false);
 
         //TODO see if it is relevant to create a null expression
         //if(match(TokenType::NULL)) return std::make_shared<Atom>(nullptr)
@@ -460,7 +460,7 @@ namespace pg
         if (match(TokenType::FLOAT)) return std::make_shared<Atom>(std::stof(previousToken.text));
         if (match(TokenType::STRING)) return std::make_shared<Atom>(previousToken.text);
 
-        if (match(TokenType::THIS)) return std::make_shared<This>(previousToken);
+        if (match(TokenType::TOK_THIS)) return std::make_shared<This>(previousToken);
 
         if (match(TokenType::EXPRESSION)) return std::make_shared<Var>(previousToken);
 
@@ -486,9 +486,9 @@ namespace pg
 
         try
         {
-            if (match(TokenType::VAR))   return varDeclaration();
-            if (match(TokenType::FUN))   return funDeclaration();
-            if (match(TokenType::CLASS)) return classDeclaration();
+            if (match(TokenType::TOK_VAR))   return varDeclaration();
+            if (match(TokenType::TOK_FUN))   return funDeclaration();
+            if (match(TokenType::TOK_CLASS)) return classDeclaration();
 
             return statement();
         }
@@ -507,12 +507,12 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        if (match(TokenType::RETURN))    return returnStatement();
-        if (match(TokenType::FOR))       return forStatement();
-        if (match(TokenType::IF))        return ifStatement();
-        if (match(TokenType::WHILE))     return whileStatement();
+        if (match(TokenType::TOK_RETURN))    return returnStatement();
+        if (match(TokenType::TOK_FOR))       return forStatement();
+        if (match(TokenType::TOK_IF))        return ifStatement();
+        if (match(TokenType::TOK_WHILE))     return whileStatement();
         if (match(TokenType::BENTER))    return blockDeclaration();
-        if (match(TokenType::IMPORT))    return importStatement();
+        if (match(TokenType::TOK_IMPORT))    return importStatement();
 
         return expressionStatement();
     }
@@ -635,7 +635,7 @@ namespace pg
         
         if (match(TokenType::END))
             initializer = nullptr;
-        else if (match(TokenType::VAR))
+        else if (match(TokenType::TOK_VAR))
         {
             name = consume("Expected variable name", TokenType::EXPRESSION);
 
@@ -843,7 +843,7 @@ namespace pg
 
         skipEOL();
 
-        if (match(TokenType::ELSE))
+        if (match(TokenType::TOK_ELSE))
             elseBranch = statement();
 
         return std::make_shared<IfStatement>(condition, thenBranch, elseBranch);
@@ -909,7 +909,7 @@ namespace pg
                 imports.push(expression());
             }
 
-            if (not multipleImport and match(TokenType::AS))
+            if (not multipleImport and match(TokenType::TOK_AS))
             {
                 importName = expression();
             }
