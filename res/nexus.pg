@@ -27,8 +27,6 @@ debugLog(gen)
 
 registerNexusButton(button)
 
-addResourceDisplay("gold")
-
 
 
 var button = NexusButton()
@@ -40,12 +38,29 @@ button.conditions = [FactChecker("altar_touched", false, "Equal"), FactChecker("
 button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Altar is coming back to life...")
     , AddFact("altar_touched", true)
-    , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 2) ]
+    , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 2)
+    , AchievementRewardEvent("add_res_display", "res", "mana") ]
 
 button.description = "A pretty dusty altar..."
 
 registerNexusButton(button)
 
+
+var altar_gen = createGenerator("altar", "mana", 0, 1.0, 20.0)
+
+var button = NexusButton()
+
+button.id = "BasicHarvest"
+button.label = "Harvest Altar"
+
+button.conditions = [FactChecker("altar_touched", true, "Equal")]
+button.outcome =
+    [ AchievementRewardEvent("res_harvest", "id", altar_gen) ]
+
+button.description = "Harvest the mana stored in the altar"
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
 
 
 var button = NexusButton()
@@ -54,9 +69,30 @@ button.id = "PowerOnScrapper"
 button.label = "Touch Black Box"
 
 button.conditions = [FactChecker("altar_touched", true, "Equal")]
-button.outcome = [AchievementRewardEvent("gamelog", "message", "Black box is turning on! Weird scraps comes out of it..."), AddFact("scrapper_on", true)]
+button.outcome =
+    [ AchievementRewardEvent("gamelog", "message", "Black box is turning on! Weird scraps comes out of it...")
+    , AddFact("scrapper_on", true)
+    , AchievementRewardEvent("add_res_display", "res", "scrap")
+    , AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1)]
+
 button.description = "A weird black box near the altar, it should be useful..."
 button.costs = [ ButtonCost("mana", 10) ]
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "BasicReadingTools"
+button.label = "Create Reading Tools"
+
+button.conditions = [FactChecker("total_scrap", 1, "GreaterEqual")]
+button.outcome =
+    [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
+    , AddFact("basic_reading_tools", true) ]
+
+button.description = "A weird black box near the altar, it should be useful..."
+button.costs = [ ButtonCost("mana", 10), ButtonCost("scrap", 5) ]
 
 registerNexusButton(button)
 

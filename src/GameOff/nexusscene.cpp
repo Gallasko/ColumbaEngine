@@ -363,15 +363,6 @@ namespace pg
 
         interpreter.interpretFromFile("nexus.pg");
 
-        maskedButtons.push_back(DynamicNexusButton{
-            "BasicHarvest",
-            "Harvest",
-            { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-            { AchievementReward(StandardEvent("res_harvest", "id", basicGen.id)) },
-            "main",
-            "Harvest the mana stored in the altar.",
-            0
-        });
 
         maskedButtons.push_back(DynamicNexusButton{
             "ScrapConverter",
@@ -454,9 +445,6 @@ namespace pg
         listViewUi->setLeftMargin(10);
 
         resLayout = listView.entity;
-
-        addResourceDisplay("mana");
-        addResourceDisplay("scrap");
 
         auto layout = makeHorizontalLayout(ecsRef, 30, 150, 500, 400);
         auto layoutAnchor = layout.get<UiAnchor>();
@@ -568,6 +556,13 @@ namespace pg
         tooltipsEntities["costValues"] = costValuesEnt.entity;
 
         // -- [End] Tooltip Ui definition
+
+        listenToStandardEvent("add_res_display", [this](const StandardEvent& event) {
+            auto res = event.values.at("res").get<std::string>();
+
+            addResourceDisplay(res);
+        });
+
 
         listenToStandardEvent("one_shot_res", [this](const StandardEvent& event) {
             if (event.values.find("res") == event.values.end() or event.values.find("value") == event.values.end())
