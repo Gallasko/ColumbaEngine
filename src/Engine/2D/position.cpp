@@ -562,8 +562,6 @@ namespace pg
 
         if (changedIds.size() > 0)
         {
-            LOG_INFO("PositionComponentSystem", "Id changed: " << changedIds.size());
-
             for (const auto& id : changedIds)
             {
                 auto anchorChanged = false;

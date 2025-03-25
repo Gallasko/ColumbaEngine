@@ -262,7 +262,7 @@ namespace pg
     {
         using Function::Function;
     public:
-        void setUp() { setArity(3, 3); }
+        void setUp() { setArity(3, -1); }
 
         // Helper to create an AchievementReward from a StandardEvent
         AchievementReward createAchievementRewardEvent(const std::string& eventName, const std::string& key, const ElementType& message)
@@ -274,14 +274,50 @@ namespace pg
         virtual ValuablePtr call(ValuableQueue& args) override
         {
             // Todo check type of elements gotten here
-            // Assume arguments: eventName (string), key (string), message (string)
+            // Assume arguments: eventName (string), key (string), message (ElementType)
             std::string eventName = args.front()->getElement().toString();
             args.pop();
             std::string key = args.front()->getElement().toString();
             args.pop();
 
             const auto& message = args.front()->getElement();
-            AchievementReward reward = createAchievementRewardEvent(eventName, key, message);
+            StandardEvent ev(eventName, key, message);
+            args.pop();
+
+            while (not args.empty())
+            {
+                std::string key = args.front()->getElement().toString();
+                args.pop();
+
+                if (args.empty())
+                    throw RuntimeException(token, "Invalid number of arguments for function call: '" + token.text + "' expected value after a key .");
+
+                ev.values[key] = args.front()->getElement();
+                args.pop();
+            }
+
+            AchievementReward reward(ev);
+
+            return serializeToInterpreter(this, reward);
+        }
+    };
+
+    class CreateAchievementAddFact: public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(2, 2); }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Todo check type of elements gotten here
+            // Assume arguments: eventName (string), message (ElementType)
+            std::string eventName = args.front()->getElement().toString();
+            args.pop();
+
+            const auto& message = args.front()->getElement();
+
+            AchievementReward reward(AddFact{eventName, message});
             args.pop();
 
             return serializeToInterpreter(this, reward);
@@ -294,6 +330,9 @@ namespace pg
         {
             addSystemFunction<CreateFactChecker>("FactChecker");
             addSystemFunction<CreateAchievementRewardEvent>("AchievementRewardEvent");
+
+            // Todo maybe rename it AchievementAddFact
+            addSystemFunction<CreateAchievementAddFact>("AddFact");
             // add additional functions as needed
         }
     };

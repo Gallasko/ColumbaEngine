@@ -274,6 +274,43 @@ namespace pg
         NexusScene *scene;
     };
 
+    class CreateButtonCost : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(1, 4); }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            NexusButtonCost cost;
+
+            // Todo check type of elements gotten here
+            // Assume arguments: eventName (string), key (string), message (string)
+            cost.resourceId = args.front()->getElement().toString();
+            args.pop();
+
+            if (not args.empty())
+            {
+                cost.value = args.front()->getElement().get<float>();
+                args.pop();
+            }
+
+            if (not args.empty())
+            {
+                cost.valueId = args.front()->getElement().get<std::string>();
+                args.pop();
+            }
+
+            if (not args.empty())
+            {
+                cost.consumed = args.front()->getElement().get<bool>();
+                args.pop();
+            }
+
+            return serializeToInterpreter(this, cost);
+        }
+    };
+
     struct NexusModule : public SysModule
     {
         NexusModule(NexusScene *scene)
@@ -282,6 +319,7 @@ namespace pg
             addSystemFunction<RegisterNexusButton>("registerNexusButton", scene);
             addSystemFunction<TrackNewResource>("addResourceDisplay", scene);
             addSystemFunction<CreateGenerator>("createGenerator", scene);
+            addSystemFunction<CreateButtonCost>("ButtonCost");
 
             //Todo add basic generator / converter ids as system vars
             //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
@@ -326,15 +364,6 @@ namespace pg
         interpreter.interpretFromFile("nexus.pg");
 
         maskedButtons.push_back(DynamicNexusButton{
-            "TouchAltar",
-            "Touch Altar",
-            {   FactChecker("altar_touched", false, FactCheckEquality::Equal),
-                FactChecker("startTuto", true, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"altar_touched", ElementType{true}}) },
-            "main",
-        });
-
-        maskedButtons.push_back(DynamicNexusButton{
             "BasicHarvest",
             "Harvest",
             { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
@@ -344,20 +373,10 @@ namespace pg
             0
         });
 
-        // maskedButtons.push_back(DynamicNexusButton{
-        //     "ScrapConverter",
-        //     "Convert [Scrap]",
-        //     { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-        //     { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
-        //     "main",
-        //     {},
-        //     0
-        // });
-
         maskedButtons.push_back(DynamicNexusButton{
             "ScrapConverter",
             "Convert [Scrap]",
-            { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual) },
+            { FactChecker("scrapper_on", true, FactCheckEquality::Equal) },
             { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
             "main",
             "Convert Mana to Scrap",
@@ -371,7 +390,7 @@ namespace pg
             { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual) },
             { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
             "main",
-            "Upgrade button that cost 25 mana",
+            "Upgrade Mana generation (+0,5 mana/sec)",
             5,
             { NexusButtonCost{"mana", 25} }
         });
@@ -389,7 +408,7 @@ namespace pg
         maskedButtons.push_back(DynamicNexusButton{
             "SpellMage",
             "Spell Mage",
-            {   FactChecker("altar_touched", true, FactCheckEquality::Equal),
+            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
                 FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
             {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
             "main",
@@ -398,12 +417,15 @@ namespace pg
         maskedButtons.push_back(DynamicNexusButton{
             "RunicMage",
             "Runic Mage",
-            {   FactChecker("altar_touched", true, FactCheckEquality::Equal),
+            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
                 FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
             {   AchievementReward(AddFact{"mage_tier", ElementType{1}}),
                 AchievementReward(AddFact{"runic_mage_1", ElementType{true}}),
                 AchievementReward(StandardEvent("gamelog", "message", "You feel the power of the rune, coursing through your blood")) },
             "main",
+            "Become a runic Mage",
+            1,
+            { NexusButtonCost{"mana", 300} }
         });
 
         maskedButtons.push_back(DynamicNexusButton{
@@ -546,6 +568,21 @@ namespace pg
         tooltipsEntities["costValues"] = costValuesEnt.entity;
 
         // -- [End] Tooltip Ui definition
+
+        listenToStandardEvent("one_shot_res", [this](const StandardEvent& event) {
+            if (event.values.find("res") == event.values.end() or event.values.find("value") == event.values.end())
+            {
+                LOG_ERROR("NexusScene", "Event 'one_shot_res' received without res and value.");
+                return;
+            }
+
+            auto res = event.values.at("res").get<std::string>();
+
+            auto value = event.values.at("value");
+
+            ecsRef->sendEvent(IncreaseFact{res, value});
+            ecsRef->sendEvent(IncreaseFact{"total_" + res, value});
+        });
 
         // Listen for world fact updates to log mana or upgrades.
         listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
