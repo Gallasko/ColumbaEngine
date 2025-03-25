@@ -1,0 +1,62 @@
+import "nexus"
+import "achievement"
+import "log"
+
+var button = NexusButton()
+
+button.id = "Test"
+button.label = "Test"
+
+button.conditions = [FactChecker("mana", 25, "GreaterEqual")]
+button.outcome = [AchievementRewardEvent("gamelog", "message", "Mana threshold reached!")]
+
+registerNexusButton(button)
+
+var gen = createGenerator("gold_gen", "gold", 0, 1, 5)
+
+var button = NexusButton()
+
+button.id = "GoldHarvest"
+button.label = "Harvest [Gold]"
+
+button.conditions = [FactChecker("mana", 25, "GreaterEqual")]
+button.outcome = [AchievementRewardEvent("res_harvest", "id", gen)]
+button.nbClickBeforeArchive = 0
+
+debugLog(gen)
+
+registerNexusButton(button)
+
+addResourceDisplay("gold")
+
+
+
+var button = NexusButton()
+
+button.id = "TouchAltar"
+button.label = "Touch Altar"
+
+button.conditions = [FactChecker("altar_touched", false, "Equal"), FactChecker("startTuto", true, "Equal")]
+button.outcome =
+    [ AchievementRewardEvent("gamelog", "message", "Altar is coming back to life...")
+    , AddFact("altar_touched", true)
+    , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 2) ]
+
+button.description = "A pretty dusty altar..."
+
+registerNexusButton(button)
+
+
+
+var button = NexusButton()
+
+button.id = "PowerOnScrapper"
+button.label = "Touch Black Box"
+
+button.conditions = [FactChecker("altar_touched", true, "Equal")]
+button.outcome = [AchievementRewardEvent("gamelog", "message", "Black box is turning on! Weird scraps comes out of it..."), AddFact("scrapper_on", true)]
+button.description = "A weird black box near the altar, it should be useful..."
+button.costs = [ ButtonCost("mana", 10) ]
+
+registerNexusButton(button)
+

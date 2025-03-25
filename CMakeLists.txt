@@ -275,6 +275,8 @@ else()
 
     add_executable(GameOff src/GameOff/main.cpp)
 
+    configure_file(res/nexus.pg nexus.pg COPYONLY)
+
     target_include_directories(GameOff PUBLIC src/GameOff)
 
     target_sources(GameOff PRIVATE
