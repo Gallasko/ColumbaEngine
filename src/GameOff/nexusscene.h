@@ -9,6 +9,8 @@
 
 namespace pg
 {
+    struct RessourceGenerator;
+
     struct NexusButtonCost
     {
         std::string resourceId = "";
@@ -78,6 +80,11 @@ namespace pg
         void _addResourceDisplay(const std::string& resourceName);
 
         void updateRessourceView();
+
+        std::unordered_map<std::string, EntityRef> generatorViews;
+
+        EntityRef createGeneratorView(const RessourceGenerator& gen);
+        void updateGeneratorViews();
 
         EntityRef resLayout;
 

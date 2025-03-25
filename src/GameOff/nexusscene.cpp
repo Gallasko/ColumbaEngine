@@ -583,6 +583,7 @@ namespace pg
         listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
             updateDynamicButtons(*event.factMap);
             updateRessourceView();
+            updateGeneratorViews();
         });
 
         listenToEvent<OnBackgroundButtonHover>([this](const OnBackgroundButtonHover& event) {
@@ -1027,6 +1028,125 @@ namespace pg
                 auto str = oss.str();
                 str[0] = std::toupper(str[0]);
                 textComp->setText(str);
+            }
+        }
+    }
+
+    EntityRef NexusScene::createGeneratorView(const RessourceGenerator& gen)
+    {
+        auto prefabEnt = makeAnchoredPrefab(this);
+        auto prefab = prefabEnt.get<Prefab>();
+        auto prefabAnchor = prefabEnt.get<UiAnchor>();
+
+        auto genEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), gen.id, theme.values["resourcedisplay.scale"].get<float>());
+        auto genEntAnchor = genEnt.get<UiAnchor>();
+
+        genEntAnchor->setTopAnchor(prefabAnchor->top);
+        genEntAnchor->setLeftAnchor(prefabAnchor->left);
+        genEntAnchor->setLeftMargin(2);
+
+        auto genResEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), gen.ressource, theme.values["resourcedisplay.scale"].get<float>());
+        auto genResEntAnchor = genResEnt.get<UiAnchor>();
+
+        genResEntAnchor->setTopAnchor(genEntAnchor->bottom);
+        genResEntAnchor->setTopMargin(5);
+        genResEntAnchor->setLeftAnchor(prefabAnchor->left);
+        genResEntAnchor->setLeftMargin(15);
+
+        auto genProdEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), std::to_string(gen.productionRate), theme.values["resourcedisplay.scale"].get<float>());
+        auto genProdEntAnchor = genProdEnt.get<UiAnchor>();
+
+        genProdEntAnchor->setBottomAnchor(genResEntAnchor->bottom);
+        genProdEntAnchor->setLeftAnchor(genResEntAnchor->right);
+        genProdEntAnchor->setLeftMargin(5);
+
+        auto genCapaEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), std::to_string(gen.capacity), theme.values["resourcedisplay.scale"].get<float>());
+        auto genCapaEntAnchor = genCapaEnt.get<UiAnchor>();
+
+        genCapaEntAnchor->setBottomAnchor(genProdEntAnchor->bottom);
+        genCapaEntAnchor->setRightAnchor(prefabAnchor->right);
+        genCapaEntAnchor->setRightMargin(5);
+
+        auto genCurrentEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), std::to_string(gen.currentMana), theme.values["resourcedisplay.scale"].get<float>());
+        auto genCurrentEntAnchor = genCapaEnt.get<UiAnchor>();
+
+        genCurrentEntAnchor->setBottomAnchor(genProdEntAnchor->bottom);
+        genCurrentEntAnchor->setRightAnchor(genCapaEntAnchor->right);
+        genCurrentEntAnchor->setRightMargin(5);
+
+        prefabAnchor->setBottomAnchor(genResEntAnchor->bottom);
+
+        generatorViews[gen.id] = prefabEnt.entity;
+        generatorViews[gen.id + "_gen"] = genEnt.entity;
+        generatorViews[gen.id + "_res"] = genResEnt.entity;
+        generatorViews[gen.id + "_prod"] = genProdEnt.entity;
+        generatorViews[gen.id + "_capa"] = genCapaEnt.entity;
+        generatorViews[gen.id + "_current"] = genCurrentEnt.entity;
+
+        prefab->addToPrefab(genEnt.entity);
+        prefab->addToPrefab(genResEnt.entity);
+        prefab->addToPrefab(genProdEnt.entity);
+        prefab->addToPrefab(genCapaEnt.entity);
+        prefab->addToPrefab(genCurrentEnt.entity);
+
+        return prefabEnt.entity;
+    }
+
+    void NexusScene::updateGeneratorViews()
+    {
+        auto generators = ecsRef->view<RessourceGenerator>();
+
+        for (const auto& gen : generators)
+        {
+            // Check if a view for this generator already exists.
+            if (generatorViews.find(gen->id) == generatorViews.end())
+            {
+                // Create a new generator view UI element.
+                EntityRef viewEnt = createGeneratorView(*gen);
+                auto anchor = viewEnt->get<UiAnchor>();
+                auto layoutAnchor = resLayout->get<UiAnchor>();
+
+                anchor->setLeftAnchor(layoutAnchor->left);
+                anchor->setRightAnchor(layoutAnchor->right);
+
+                // Optionally add the view to a ListView layout dedicated to generators.
+                resLayout->get<ListView>()->addEntity(viewEnt);
+            }
+
+            auto ent1 = generatorViews[gen->id + "_gen"];
+            auto ent2 = generatorViews[gen->id + "_res"];
+            auto ent3 = generatorViews[gen->id + "_prod"];
+            auto ent4 = generatorViews[gen->id + "_capa"];
+            auto ent5 = generatorViews[gen->id + "_current"];
+
+            if (ent1 and ent1->has<TTFText>())
+            {
+                auto textComp = ent1->get<TTFText>();
+                textComp->setText(gen->id);
+            }
+
+            if (ent2 and ent2->has<TTFText>())
+            {
+                auto textComp = ent2->get<TTFText>();
+                textComp->setText(gen->ressource);
+            }
+
+            if (ent3 and ent3->has<TTFText>())
+            {
+                auto textComp = ent3->get<TTFText>();
+                textComp->setText(std::to_string(gen->productionRate));
+            }
+
+            if (ent4 and ent4->has<TTFText>())
+            {
+                auto textComp = ent4->get<TTFText>();
+                textComp->setText(std::to_string(gen->capacity));
+            }
+
+            if (ent5 and ent5->has<TTFText>())
+            {
+                auto textComp = ent5->get<TTFText>();
+                textComp->setText(std::to_string(gen->currentMana));
             }
         }
     }
