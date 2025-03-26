@@ -12,10 +12,20 @@
 #include "Systems/logmodule.h"
 #include "gamemodule.h"
 
+#include <iomanip>
+#include <sstream>
+
 namespace pg
 {
     namespace
     {
+        std::string floatToString(float value, int decimalPlaces)
+        {
+            std::ostringstream out;
+            out << std::fixed << std::setprecision(decimalPlaces) << value;
+            return out.str();
+        }
+
         struct OnBackgroundButtonHover
         {
             std::string buttonId;
@@ -431,7 +441,7 @@ namespace pg
         auto windowEnt = ecsRef->getEntity("__MainWindow");
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
-        auto listView = makeListView(this, 1, 1, 150, 1);
+        auto listView = makeListView(this, 1, 1, 350, 1);
 
         auto listViewComp = listView.get<ListView>();
         listViewComp->spacing = 8;
@@ -990,7 +1000,6 @@ namespace pg
 
     void NexusScene::updateRessourceView()
     {
-        LOG_INFO("NexusScene", "updateRessourceView");
         // Update the resource list view.
         WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
         if (not wf) return;
@@ -1053,26 +1062,27 @@ namespace pg
         genResEntAnchor->setLeftAnchor(prefabAnchor->left);
         genResEntAnchor->setLeftMargin(15);
 
-        auto genProdEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), std::to_string(gen.productionRate), theme.values["resourcedisplay.scale"].get<float>());
+        auto genProdEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), floatToString(gen.productionRate, 2), theme.values["resourcedisplay.scale"].get<float>());
         auto genProdEntAnchor = genProdEnt.get<UiAnchor>();
 
         genProdEntAnchor->setBottomAnchor(genResEntAnchor->bottom);
+        // genProdEntAnchor->setRightAnchor(prefabAnchor->right);
         genProdEntAnchor->setLeftAnchor(genResEntAnchor->right);
         genProdEntAnchor->setLeftMargin(5);
 
-        auto genCapaEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), std::to_string(gen.capacity), theme.values["resourcedisplay.scale"].get<float>());
+        auto genCapaEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), "/" + std::to_string(int(gen.capacity)), theme.values["resourcedisplay.scale"].get<float>());
         auto genCapaEntAnchor = genCapaEnt.get<UiAnchor>();
 
-        genCapaEntAnchor->setBottomAnchor(genProdEntAnchor->bottom);
+        genCapaEntAnchor->setBottomAnchor(genResEntAnchor->bottom);
         genCapaEntAnchor->setRightAnchor(prefabAnchor->right);
-        genCapaEntAnchor->setRightMargin(5);
+        genCapaEntAnchor->setRightMargin(20);
 
-        auto genCurrentEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), std::to_string(gen.currentMana), theme.values["resourcedisplay.scale"].get<float>());
-        auto genCurrentEntAnchor = genCapaEnt.get<UiAnchor>();
+        auto genCurrentEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["resourcedisplay.font"].get<std::string>(), std::to_string(int(gen.currentMana)), theme.values["resourcedisplay.scale"].get<float>());
+        auto genCurrentEntAnchor = genCurrentEnt.get<UiAnchor>();
 
-        genCurrentEntAnchor->setBottomAnchor(genProdEntAnchor->bottom);
-        genCurrentEntAnchor->setRightAnchor(genCapaEntAnchor->right);
-        genCurrentEntAnchor->setRightMargin(5);
+        genCurrentEntAnchor->setBottomAnchor(genResEntAnchor->bottom);
+        genCurrentEntAnchor->setRightAnchor(genCapaEntAnchor->left);
+        // genCurrentEntAnchor->setRightMargin(5);
 
         prefabAnchor->setBottomAnchor(genResEntAnchor->bottom);
 
@@ -1107,7 +1117,10 @@ namespace pg
                 auto layoutAnchor = resLayout->get<UiAnchor>();
 
                 anchor->setLeftAnchor(layoutAnchor->left);
-                anchor->setRightAnchor(layoutAnchor->right);
+
+                anchor->setWidthConstrain(PosConstrain{layoutAnchor.entityId, AnchorType::Width});
+
+                // anchor->setRightAnchor(layoutAnchor->right);
 
                 // Optionally add the view to a ListView layout dedicated to generators.
                 resLayout->get<ListView>()->addEntity(viewEnt);
@@ -1134,19 +1147,19 @@ namespace pg
             if (ent3 and ent3->has<TTFText>())
             {
                 auto textComp = ent3->get<TTFText>();
-                textComp->setText(std::to_string(gen->productionRate));
+                textComp->setText(floatToString(gen->productionRate, 2));
             }
 
             if (ent4 and ent4->has<TTFText>())
             {
                 auto textComp = ent4->get<TTFText>();
-                textComp->setText(std::to_string(gen->capacity));
+                textComp->setText(" / " + std::to_string(int(gen->capacity)));
             }
 
             if (ent5 and ent5->has<TTFText>())
             {
                 auto textComp = ent5->get<TTFText>();
-                textComp->setText(std::to_string(gen->currentMana));
+                textComp->setText(std::to_string(int(gen->currentMana)));
             }
         }
     }

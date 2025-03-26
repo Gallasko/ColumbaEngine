@@ -108,6 +108,9 @@ namespace pg
 
                     if (gen->currentMana > gen->capacity)
                         gen->currentMana = gen->capacity;
+
+                    // Todo check perf, we may only need to update all res only once per execute or even once every 150ms
+                    ecsRef->sendEvent(AddFact{gen->id + "_current_res", ElementType(gen->currentMana)});
                 }
 
                 deltaTime = 0;

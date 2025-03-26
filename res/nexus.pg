@@ -89,10 +89,29 @@ button.label = "Create Reading Tools"
 button.conditions = [FactChecker("total_scrap", 1, "GreaterEqual")]
 button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
-    , AddFact("basic_reading_tools", true) ]
+    , AddFact("basic_reading_tools", true)
+    , AchievementRewardEvent("add_res_display", "res", "rune") ]
 
 button.description = "A weird black box near the altar, it should be useful..."
 button.costs = [ ButtonCost("mana", 10), ButtonCost("scrap", 5) ]
 
 registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "CreateRune"
+button.label = "Carve Rune"
+
+button.conditions = [FactChecker("basic_reading_tools", true, "Equal")]
+button.outcome =
+    [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
+    , AchievementRewardEvent("one_shot_res", "res", "rune", "value", 1) ]
+
+button.description = "Carving some runes"
+button.costs = [ ButtonCost("scrap", 3) ]
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
 
