@@ -188,9 +188,9 @@ namespace pg
     {
         using Function::Function;
     public:
-        void setUp(NexusScene *scene)
+        void setUp(NexusSystem *sys)
         {
-            this->scene = scene;
+            this->sys = sys;
 
             setArity(1, 1);
         }
@@ -202,21 +202,21 @@ namespace pg
 
             auto button = deserializeTo<DynamicNexusButton>(nexusButton);
 
-            scene->maskedButtons.push_back(button);
+            sys->savedButtons.push_back(button);
 
             return nullptr;
         }
 
-        NexusScene *scene;
+        NexusSystem *sys;
     };
 
     class TrackNewResource : public Function
     {
         using Function::Function;
     public:
-        void setUp(NexusScene *scene)
+        void setUp(NexusSystem *sys)
         {
-            this->scene = scene;
+            this->sys = sys;
 
             setArity(1, 1);
         }
@@ -226,21 +226,21 @@ namespace pg
             auto resName = args.front()->getElement().toString();
             args.pop();
 
-            scene->addResourceDisplay(resName);
+            sys->addResourceDisplay(resName);
 
             return nullptr;
         }
 
-        NexusScene *scene;
+        NexusSystem *sys;
     };
 
     class CreateGenerator : public Function
     {
         using Function::Function;
     public:
-        void setUp(NexusScene *scene)
+        void setUp(NexusSystem *sys)
         {
-            this->scene = scene;
+            this->sys = sys;
 
             setArity(2, 5);
         }
@@ -275,13 +275,13 @@ namespace pg
                 args.pop();
             }
 
-            auto ent = scene->createEntity();
-            scene->attach<RessourceGenerator>(ent, gen);
+            auto ent = sys->ecsRef->createEntity();
+            sys->ecsRef->attach<RessourceGenerator>(ent, gen);
 
             return makeVar(ent.id);
         }
 
-        NexusScene *scene;
+        NexusSystem *sys;
     };
 
     class CreateButtonCost : public Function
@@ -323,18 +323,94 @@ namespace pg
 
     struct NexusModule : public SysModule
     {
-        NexusModule(NexusScene *scene)
+        NexusModule(NexusSystem *sys)
         {
             addSystemFunction<CreateNexusButton>("NexusButton");
-            addSystemFunction<RegisterNexusButton>("registerNexusButton", scene);
-            addSystemFunction<TrackNewResource>("addResourceDisplay", scene);
-            addSystemFunction<CreateGenerator>("createGenerator", scene);
+            addSystemFunction<RegisterNexusButton>("registerNexusButton", sys);
+            addSystemFunction<TrackNewResource>("addResourceDisplay", sys);
+            addSystemFunction<CreateGenerator>("createGenerator", sys);
             addSystemFunction<CreateButtonCost>("ButtonCost");
 
             //Todo add basic generator / converter ids as system vars
             //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
         }
     };
+
+    void NexusSystem::init()
+    {
+        PgInterpreter interpreter;
+
+        interpreter.addSystemModule("nexus", NexusModule{this});
+        interpreter.addSystemModule("log", LogModule{nullptr});
+        interpreter.addSystemModule("achievement", AchievementModule{});
+
+        interpreter.interpretFromFile("nexus.pg");
+
+
+        // savedButtons.push_back(DynamicNexusButton{
+        //     "ScrapConverter",
+        //     "Convert [Scrap]",
+        //     { FactChecker("scrapper_on", true, FactCheckEquality::Equal) },
+        //     { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
+        //     "main",
+        //     "Convert Mana to Scrap",
+        //     0,
+        //     { NexusButtonCost{"mana", 0, "scrap_converter_mana_cost", false} }
+        // });
+
+        // savedButtons.push_back(DynamicNexusButton{
+        //     "Test_012",
+        //     "Test show",
+        //     { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual) },
+        //     { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
+        //     "main",
+        //     "Upgrade Mana generation (+0,5 mana/sec)",
+        //     5,
+        //     { NexusButtonCost{"mana", 25} }
+        // });
+
+        // maskedButtons.push_back(DynamicNexusButton{
+        //     "UpgradeProd1",
+        //     "UpgradeProd",
+        //     { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
+        //     { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
+        //     "main",
+        //     {},
+        //     5
+        // });
+
+        savedButtons.push_back(DynamicNexusButton{
+            "SpellMage",
+            "Spell Mage",
+            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
+                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
+            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
+            "main",
+        });
+
+        savedButtons.push_back(DynamicNexusButton{
+            "RunicMage",
+            "Runic Mage",
+            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
+                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
+            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}),
+                AchievementReward(AddFact{"runic_mage_1", ElementType{true}}),
+                AchievementReward(StandardEvent("gamelog", "message", "You feel the power of the rune, coursing through your blood")) },
+            "main",
+            "Become a runic Mage",
+            1,
+            { NexusButtonCost{"mana", 300} }
+        });
+
+        savedButtons.push_back(DynamicNexusButton{
+            "RunicMage2",
+            "Runic Mage 2",
+            {   FactChecker("runic_mage_1", true, FactCheckEquality::Equal),
+                FactChecker("mage_tier", 1, FactCheckEquality::Equal) },
+            {   AchievementReward(AddFact{"mage_tier", ElementType{2}}) },
+            "main",
+        });
+    }
 
     void NexusScene::init()
     {
@@ -349,94 +425,36 @@ namespace pg
             LOG_ERROR("Nexus", "Couldn't load theme !");
         }
 
+        auto nexusSys = ecsRef->getSystem<NexusSystem>();
+
+        maskedButtons = nexusSys->savedButtons;
+
+        for (const auto& button : maskedButtons)
+        {
+            LOG_INFO("Nexus Scene", "Button loaded: " << button.id << " " << button.archived << " " << button.nbClick << " " << button.nbClickBeforeArchive);
+        }
+
+        for (const auto& res : nexusSys->resourceToBeDisplayed)
+        {
+            resourceToBeDisplayed.push(res);
+        }
+
         // Create the basic mana generator entity.
-        auto basicGen = createEntity();
-        auto manaGen = attach<RessourceGenerator>(basicGen);
-        manaGen->id = "basic_mana_generator";
+        // auto basicGen = createEntity();
+        // auto manaGen = attach<RessourceGenerator>(basicGen);
+        // manaGen->id = "basic_mana_generator";
 
-        // Mana -> Scrap converter
-        auto converterEntity = createEntity();
-        auto convComp = attach<ConverterComponent>(converterEntity);
-        convComp->id = "scrap_converter";
-        convComp->input = {"mana"};
-        convComp->output = {"scrap"};
-        convComp->cost = {5.0f};
-        convComp->yield = {1.0f};
+        // // Mana -> Scrap converter
+        // auto converterEntity = createEntity();
+        // auto convComp = attach<ConverterComponent>(converterEntity);
+        // convComp->id = "scrap_converter";
+        // convComp->input = {"mana"};
+        // convComp->output = {"scrap"};
+        // convComp->cost = {5.0f};
+        // convComp->yield = {1.0f};
 
-        ecsRef->sendEvent( AddFact{ "scrap_converter_mana_cost", ElementType{5.0f} } );
+        // ecsRef->sendEvent( AddFact{ "scrap_converter_mana_cost", ElementType{5.0f} } );
 
-        PgInterpreter interpreter;
-
-        interpreter.addSystemModule("nexus", NexusModule{this});
-        interpreter.addSystemModule("log", LogModule{nullptr});
-        interpreter.addSystemModule("achievement", AchievementModule{});
-
-        interpreter.interpretFromFile("nexus.pg");
-
-
-        maskedButtons.push_back(DynamicNexusButton{
-            "ScrapConverter",
-            "Convert [Scrap]",
-            { FactChecker("scrapper_on", true, FactCheckEquality::Equal) },
-            { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
-            "main",
-            "Convert Mana to Scrap",
-            0,
-            { NexusButtonCost{"mana", 0, "scrap_converter_mana_cost", false} }
-        });
-
-        maskedButtons.push_back(DynamicNexusButton{
-            "Test_012",
-            "Test show",
-            { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual) },
-            { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
-            "main",
-            "Upgrade Mana generation (+0,5 mana/sec)",
-            5,
-            { NexusButtonCost{"mana", 25} }
-        });
-
-        // maskedButtons.push_back(DynamicNexusButton{
-        //     "UpgradeProd1",
-        //     "UpgradeProd",
-        //     { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-        //     { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
-        //     "main",
-        //     {},
-        //     5
-        // });
-
-        maskedButtons.push_back(DynamicNexusButton{
-            "SpellMage",
-            "Spell Mage",
-            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
-                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
-            "main",
-        });
-
-        maskedButtons.push_back(DynamicNexusButton{
-            "RunicMage",
-            "Runic Mage",
-            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
-                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}),
-                AchievementReward(AddFact{"runic_mage_1", ElementType{true}}),
-                AchievementReward(StandardEvent("gamelog", "message", "You feel the power of the rune, coursing through your blood")) },
-            "main",
-            "Become a runic Mage",
-            1,
-            { NexusButtonCost{"mana", 300} }
-        });
-
-        maskedButtons.push_back(DynamicNexusButton{
-            "RunicMage2",
-            "Runic Mage 2",
-            {   FactChecker("runic_mage_1", true, FactCheckEquality::Equal),
-                FactChecker("mage_tier", 1, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"mage_tier", ElementType{2}}) },
-            "main",
-        });
 
         auto windowEnt = ecsRef->getEntity("__MainWindow");
         auto windowAnchor = windowEnt->get<UiAnchor>();
@@ -569,6 +587,8 @@ namespace pg
 
         listenToStandardEvent("add_res_display", [this](const StandardEvent& event) {
             auto res = event.values.at("res").get<std::string>();
+
+            ecsRef->getSystem<NexusSystem>()->addResourceDisplay(res);
 
             addResourceDisplay(res);
         });
@@ -745,16 +765,28 @@ namespace pg
                     layout->removeEntity(id);
                 }
 
-                // Todo if nbclick >= nbClickBeforeArchive and nbClickBeforeArchive != 0 -> the button should be archived
+                ecsRef->sendEvent(NexusButtonStateChange{*it});
             }
         });
     }
 
     void NexusScene::startUp()
     {
-        // Additional startup logic can go here.
-
         auto sys = ecsRef->getSystem<WorldFacts>();
+
+        for (auto it = maskedButtons.begin(); it != maskedButtons.end();)
+        {
+            if (it->archived)
+            {
+                LOG_INFO("NexusSystem", "Archiving button: " << it->id);
+                archivedButtons.push_back(*it);
+                it = maskedButtons.erase(it);
+            }
+            else
+            {
+                ++it;
+            }
+        }
 
         updateDynamicButtons(sys->factMap);
 

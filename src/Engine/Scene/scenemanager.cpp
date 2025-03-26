@@ -412,7 +412,6 @@ namespace pg
         }
         else if (sceneToLoadFlag == SceneToLoadFlag::SystemScene and currentState == LoadingState::EntityLoading)
         {
-            // If some subscene are present we skip another render pass to avoid jittering when the subscenes are being relocated in the frame
             nextSystemScene->init();
 
             currentState = LoadingState::OnEnter;

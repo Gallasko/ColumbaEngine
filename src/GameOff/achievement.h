@@ -40,12 +40,13 @@ namespace pg
         AchievementReward(const RemoveFact& fact) : type(AchievementRewardType::Remove), reward(fact) {}
         AchievementReward(const IncreaseFact& fact) : type(AchievementRewardType::Increase), reward(fact) {}
 
-        AchievementReward(const AchievementReward& other) : type(other.type), reward(other.reward) {}
+        AchievementReward(const AchievementReward& other) : type(other.type), reward(other.reward), visible(other.visible) {}
 
         AchievementReward& operator=(const AchievementReward& other)
         {
             type = other.type;
             reward = other.reward;
+            visible = other.visible;
 
             return *this;
         }

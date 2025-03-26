@@ -61,6 +61,8 @@ namespace pg
     {
         virtual ~AbstractSystem() { LOG_THIS_MEMBER("System"); }
 
+        virtual void onRegisterFinished() {};
+
         virtual void execute() { LOG_THIS_MEMBER("System"); }
 
         // Todo
@@ -339,6 +341,8 @@ namespace pg
             __name = getSystemName();
 
             registerComponents(this, registry, tag<Comps>{}...);
+
+            onRegisterFinished();
         }
 
         /**

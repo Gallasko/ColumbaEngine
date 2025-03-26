@@ -452,6 +452,7 @@ void initGame()
 
     mainWindow->ecs.createSystem<RessourceGeneratorSystem>();
     mainWindow->ecs.createSystem<ConverterSystem>();
+    mainWindow->ecs.createSystem<NexusSystem>();
 
     mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
 

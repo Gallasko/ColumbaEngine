@@ -264,13 +264,6 @@ namespace pg
     public:
         void setUp() { setArity(3, -1); }
 
-        // Helper to create an AchievementReward from a StandardEvent
-        AchievementReward createAchievementRewardEvent(const std::string& eventName, const std::string& key, const ElementType& message)
-        {
-            StandardEvent ev(eventName, key, message);
-            return AchievementReward(ev);
-        }
-
         virtual ValuablePtr call(ValuableQueue& args) override
         {
             // Todo check type of elements gotten here

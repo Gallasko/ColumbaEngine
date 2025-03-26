@@ -57,6 +57,75 @@ namespace pg
     template <>
     void serialize(Archive& archive, const DynamicNexusButton& value);
 
+
+    struct NexusButtonStateChange
+    {
+        DynamicNexusButton button;
+    };
+
+    struct NexusSystem : public System<Listener<NexusButtonStateChange>, SaveSys, InitSys, StoragePolicy>
+    {
+        virtual std::string getSystemName() const override { return "NexusSystem"; }
+
+        virtual ~NexusSystem() override { LOG_INFO("NexusSystem", "destructor"); }
+
+        virtual void onEvent(const NexusButtonStateChange& event) override
+        {
+            auto it = std::find_if(savedButtons.begin(), savedButtons.end(), [event](const DynamicNexusButton& button) { return button.id == event.button.id; });
+
+            if (it != savedButtons.end())
+            {
+                LOG_INFO("NexusButtonStateChange", "Button state changed: " << it->id << " archived: " << it->archived << " nb click: " << it->nbClick);
+
+                it->archived = event.button.archived;
+                it->nbClick = event.button.nbClick;
+
+                LOG_INFO("NexusButtonStateChange", "Button state changed !: " << it->id << " archived: " << it->archived << " nb click: " << it->nbClick);
+            }
+            else
+            {
+                LOG_ERROR("NexusSystem", "Button: " << event.button.id << " was not found during init!");
+                savedButtons.push_back(event.button);
+            }
+        }
+
+        virtual void init() override;
+
+        virtual void onRegisterFinished() override
+        {
+            for (const auto& button : savedButtons)
+            {
+                auto id = button.id;
+                const auto& it = std::find_if(initButtons.begin(), initButtons.end(), [id](const DynamicNexusButton& button) { return button.id == id; });
+
+                if (it == initButtons.end())
+                {
+                    initButtons.push_back(button);
+                }
+            }
+
+            savedButtons = initButtons;
+        }
+
+        virtual void save(Archive& archive) override
+        {
+            serialize(archive, "nexusbuttons", savedButtons);
+            serialize(archive, "resourceToBeDisplayed", resourceToBeDisplayed);
+        }
+
+        virtual void load(const UnserializedObject& serializedString) override
+        {
+            defaultDeserialize(serializedString, "nexusbuttons", initButtons);
+            defaultDeserialize(serializedString, "resourceToBeDisplayed", resourceToBeDisplayed);
+        }
+
+        virtual void addResourceDisplay(const std::string& res) { resourceToBeDisplayed.push_back(res); }
+
+        std::vector<DynamicNexusButton> initButtons;
+        std::vector<DynamicNexusButton> savedButtons;
+        std::vector<std::string> resourceToBeDisplayed;
+    };
+
     struct NexusScene : public Scene
     {
         virtual void init() override;
