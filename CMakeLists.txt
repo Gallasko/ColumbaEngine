@@ -214,6 +214,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         src/GameOff/location.cpp
         src/GameOff/locationscene.cpp
         src/GameOff/mainscene.cpp
+        src/GameOff/managenerator.cpp
         src/GameOff/nexusscene.cpp
         src/GameOff/skilltree.cpp
         src/GameOff/passives.cpp
@@ -291,6 +292,7 @@ else()
         src/GameOff/location.cpp
         src/GameOff/locationscene.cpp
         src/GameOff/mainscene.cpp
+        src/GameOff/managenerator.cpp
         src/GameOff/nexusscene.cpp
         src/GameOff/skilltree.cpp
         src/GameOff/passives.cpp

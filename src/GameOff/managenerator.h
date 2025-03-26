@@ -18,7 +18,7 @@ namespace pg
     {
         RessourceGenerator() {}
         RessourceGenerator(const std::string& id, const std::string& ressource, float productionRate = 0.0f, float capacity = 0.0f) : id(id), ressource(ressource), productionRate(productionRate), capacity(capacity) {}
-        RessourceGenerator(const RessourceGenerator& other) : id(other.id), ressource(other.ressource), currentMana(other.currentMana), productionRate(other.productionRate), capacity(other.capacity) {}
+        RessourceGenerator(const RessourceGenerator& other) : id(other.id), ressource(other.ressource), currentMana(other.currentMana), productionRate(other.productionRate), capacity(other.capacity), active(other.active) {}
 
         RessourceGenerator& operator=(const RessourceGenerator& other)
         {
@@ -38,6 +38,8 @@ namespace pg
         float currentMana = 0.0f;      // Current stored mana
         float productionRate = 1.0f;   // Mana produced per second
         float capacity = 100.0f;       // Maximum mana the generator can store
+
+        bool active = false;
 
         // Todo add support for multipliers
     };
@@ -59,6 +61,7 @@ namespace pg
         {
             addListenerToStandardEvent("res_harvest");
             addListenerToStandardEvent("res_gen_upgrade");
+            addListenerToStandardEvent("activate_gen");
         }
 
         virtual void save(Archive& archive) override
@@ -83,7 +86,9 @@ namespace pg
             {
                 auto genEnt = ecsRef->createEntity();
 
-                auto generator = ecsRef->attach<RessourceGenerator>(genEnt, gen);
+                ecsRef->attach<RessourceGenerator>(genEnt, gen);
+
+                generatorMap[gen.id] = genEnt.id;
             }
         }
 
@@ -101,7 +106,7 @@ namespace pg
 
             auto genEnt = ecsRef->createEntity();
 
-            auto generator = ecsRef->attach<RessourceGenerator>(genEnt, event.generator);
+            ecsRef->attach<RessourceGenerator>(genEnt, event.generator);
 
             generatorMap[event.generator.id] = genEnt.id;
         }
@@ -116,10 +121,17 @@ namespace pg
             }
             else if (event.name == "res_gen_upgrade")
             {
-                auto id = event.values.at("id").get<size_t>();
+                auto id = event.values.at("id").get<std::string>();
                 auto upgradeAmount = event.values.at("upgradeAmount").get<float>();
 
                 onRessourceGeneratorUpgrade(id, upgradeAmount);
+            }
+            else if (event.name == "activate_gen")
+            {
+                auto id = event.values.at("id").get<std::string>();
+                auto active = event.values.at("active").get<bool>();
+
+                onActivateGenerator(id, active);
             }
         }
 
@@ -154,9 +166,17 @@ namespace pg
             gen->currentMana = 0.0f;
         }
 
-        void onRessourceGeneratorUpgrade(_unique_id id, float amount)
+        void onRessourceGeneratorUpgrade(const std::string& id, float amount)
         {
-            auto ent = ecsRef->getEntity(id);
+            if (generatorMap.find(id) == generatorMap.end())
+            {
+                LOG_ERROR("RessourceGeneratorHarvest", "Generator with id '" << id << "' not found!");
+                return;
+            }
+
+            auto entId = generatorMap.at(id);
+
+            auto ent = ecsRef->getEntity(entId);
 
             if (not ent or (not ent->has<RessourceGenerator>()))
             {
@@ -172,6 +192,29 @@ namespace pg
             LOG_INFO("UpgradeRessourceGenerator", "Generator upgraded: new productionRate = " << gen->productionRate);
         }
 
+        void onActivateGenerator(const std::string& id, bool active)
+        {
+            if (generatorMap.find(id) == generatorMap.end())
+            {
+                LOG_ERROR("RessourceGeneratorHarvest", "Generator with id '" << id << "' not found!");
+                return;
+            }
+
+            auto entId = generatorMap.at(id);
+
+            auto ent = ecsRef->getEntity(entId);
+
+            if (not ent or (not ent->has<RessourceGenerator>()))
+            {
+                LOG_ERROR("UpgradeRessourceGenerator", "Entity requested doesn't have a RessourceGenerator component!");
+                return;
+            }
+
+            auto gen = ent->get<RessourceGenerator>();
+
+            gen->active = active;
+        }
+
         virtual void execute() override
         {
             if (deltaTime > 0)
@@ -181,6 +224,9 @@ namespace pg
                 // For each mana generator in the scene, increase the current mana.
                 for (auto gen : view<RessourceGenerator>())
                 {
+                    if (not gen->active)
+                        continue;
+
                     gen->currentMana += gen->productionRate * df;
 
                     if (gen->currentMana > gen->capacity)
@@ -218,21 +264,79 @@ namespace pg
         /** How much of output is granted per conversion */
         std::vector<float> yield;
 
+        bool active = false;
+
         // Todo add support for multipliers
     };
+
+    struct NewConverterEvent
+    {
+        ConverterComponent converter;
+    };
+
+    template <>
+    void serialize(Archive& archive, const ConverterComponent& value);
+
+    template <>
+    ConverterComponent deserialize(const UnserializedObject& serializedString);
 
     // Standard event name to trigger a conversion.
     // When a converter's UI is clicked, you should send:
     //   StandardEvent("converter_triggered", "id", <converter_entity_id as string>)
     static const std::string ConverterTriggeredEventName = "converter_triggered";
 
-    struct ConverterSystem : public System<Own<ConverterComponent>, Listener<StandardEvent>, InitSys>
+    struct ConverterSystem : public System<Own<ConverterComponent>, Listener<NewConverterEvent>, Listener<StandardEvent>, InitSys, SaveSys>
     {
         virtual std::string getSystemName() const override { return "Converter System"; }
 
         virtual void init() override
         {
             addListenerToStandardEvent(ConverterTriggeredEventName);
+        }
+
+        virtual void save(Archive& archive) override
+        {
+            std::vector<ConverterComponent> converters;
+
+            // Iterate over all entities with a ConverterComponent and save their data.
+            for (const auto& conv : view<ConverterComponent>())
+            {
+                converters.push_back(*conv);
+            }
+
+            serialize(archive, "converters", converters);
+        }
+
+        virtual void load(const UnserializedObject& serializedString) override
+        {
+            std::vector<ConverterComponent> converters;
+            defaultDeserialize(serializedString, "converters", converters);
+
+            // Recreate converter entities based on the saved data.
+            for (const auto& conv : converters)
+            {
+                auto convEnt = ecsRef->createEntity();
+                ecsRef->attach<ConverterComponent>(convEnt, conv);
+                // Store the entity ID in the converter map for later lookup.
+                converterMap[conv.id] = convEnt.id;
+            }
+        }
+
+        virtual void onEvent(const NewConverterEvent& event) override
+        {
+            // Check if a converter with the same id already exists.
+            if (converterMap.find(event.converter.id) != converterMap.end())
+            {
+                LOG_ERROR("ConverterSystem", "Converter with id '" << event.converter.id << "' already exists.");
+                return;
+            }
+
+            // Create a new entity for the converter.
+            auto convEnt = ecsRef->createEntity();
+            ecsRef->attach<ConverterComponent>(convEnt, event.converter);
+
+            // Save the mapping for later lookup.
+            converterMap[event.converter.id] = convEnt.id;
         }
 
         virtual void onEvent(const StandardEvent& event) override
@@ -302,5 +406,7 @@ namespace pg
                 }
             }
         }
+
+        std::unordered_map<std::string, _unique_id> converterMap;
     };
 }

@@ -242,7 +242,7 @@ namespace pg
         {
             this->sys = sys;
 
-            setArity(2, 5);
+            setArity(2, 6);
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
@@ -272,6 +272,12 @@ namespace pg
             if (not args.empty())
             {
                 gen.capacity = args.front()->getElement().get<float>();
+                args.pop();
+            }
+
+            if (not args.empty())
+            {
+                gen.active = args.front()->getElement().get<bool>();
                 args.pop();
             }
 
@@ -614,6 +620,15 @@ namespace pg
                 gen.capacity = event.values.at("storage").get<float>();
             }
 
+            if (event.values.find("active") != event.values.end())
+            {
+                gen.active = event.values.at("active").get<bool>();
+            }
+            else
+            {
+                gen.active = true;
+            }
+
             ecsRef->sendEvent(NewGeneratorEvent{gen});
         });
 
@@ -630,6 +645,10 @@ namespace pg
 
             ecsRef->sendEvent(IncreaseFact{res, value});
             ecsRef->sendEvent(IncreaseFact{"total_" + res, value});
+        });
+
+        listenToStandardEvent("activate_gen", [this](const StandardEvent&) {
+            updateGeneratorViews();
         });
 
         // Listen for world fact updates to log mana or upgrades.
@@ -1215,6 +1234,23 @@ namespace pg
             {
                 auto textComp = ent5->get<TTFText>();
                 textComp->setText(std::to_string(int(gen->currentMana)));
+            }
+
+            auto prefab = generatorViews[gen->id];
+
+            if (prefab and prefab->has<Prefab>())
+            {
+                if (gen->active)
+                {
+                    // Todo a change of visibility of the position component should trigger the set visibility of the prefab component
+                    prefab->get<Prefab>()->setVisibility(true);
+                    // prefab->get<PositionComponent>()->setVisibility(true);
+                }
+                else
+                {
+                    prefab->get<Prefab>()->setVisibility(false);
+                    // prefab->get<PositionComponent>()->setVisibility(false);
+                }
             }
         }
     }

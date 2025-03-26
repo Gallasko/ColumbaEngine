@@ -12,6 +12,7 @@ namespace pg
         serialize(archive, "currentMana", value.currentMana);
         serialize(archive, "productionRate", value.productionRate);
         serialize(archive, "capacity", value.capacity);
+        serialize(archive, "active", value.active);
 
         archive.endSerialization();
     }
@@ -23,12 +24,10 @@ namespace pg
 
         if (serializedString.isNull())
         {
-            LOG_ERROR("Achievement", "Element is null");
+            LOG_ERROR("RessourceGenerator", "Element is null");
         }
         else
         {
-            LOG_INFO("Achievement", "Deserializing Achievement");
-
             RessourceGenerator data;
 
             defaultDeserialize(serializedString, "id", data.id);
@@ -36,10 +35,45 @@ namespace pg
             defaultDeserialize(serializedString, "currentMana", data.currentMana);
             defaultDeserialize(serializedString, "productionRate", data.productionRate);
             defaultDeserialize(serializedString, "capacity", data.capacity);
+            defaultDeserialize(serializedString, "active", data.active);
 
             return data;
         }
 
         return RessourceGenerator{};
+    }
+
+    template <>
+    void serialize(Archive& archive, const ConverterComponent& value)
+    {
+        archive.startSerialization("ConverterComponent");
+
+        serialize(archive, "id", value.id);
+        serialize(archive, "input", value.input);
+        serialize(archive, "output", value.output);
+        serialize(archive, "cost", value.cost);
+        serialize(archive, "yield", value.yield);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    ConverterComponent deserialize(const UnserializedObject& serializedString)
+    {
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("ConverterComponent", "Element is null");
+            return ConverterComponent{};
+        }
+
+        ConverterComponent data;
+
+        defaultDeserialize(serializedString, "id", data.id);
+        defaultDeserialize(serializedString, "input", data.input);
+        defaultDeserialize(serializedString, "output", data.output);
+        defaultDeserialize(serializedString, "cost", data.cost);
+        defaultDeserialize(serializedString, "yield", data.yield);
+
+        return data;
     }
 }

@@ -65,6 +65,35 @@ registerNexusButton(button)
 
 var button = NexusButton()
 
+button.id = "TurnOffAltar"
+button.label = "Turn Off Altar"
+
+button.conditions = [FactChecker("altar_touched", true, "Equal")]
+button.outcome =
+    [ AchievementRewardEvent("activate_gen", "id", "altar", "active", false) ]
+
+button.description = "Harvest the mana stored in the altar"
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
+var button = NexusButton()
+
+button.id = "TurnOnAltar"
+button.label = "Turn On Altar"
+
+button.conditions = [FactChecker("altar_touched", true, "Equal")]
+button.outcome =
+    [ AchievementRewardEvent("activate_gen", "id", "altar", "active", true) ]
+
+button.description = "Harvest the mana stored in the altar"
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
 button.id = "PowerOnScrapper"
 button.label = "Touch Black Box"
 
