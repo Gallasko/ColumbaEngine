@@ -16,6 +16,21 @@ namespace pg
     // Component for a mana generator (e.g., your altar)
     struct RessourceGenerator
     {
+        RessourceGenerator() {}
+        RessourceGenerator(const std::string& id, const std::string& ressource, float productionRate = 0.0f, float capacity = 0.0f) : id(id), ressource(ressource), productionRate(productionRate), capacity(capacity) {}
+        RessourceGenerator(const RessourceGenerator& other) : id(other.id), ressource(other.ressource), currentMana(other.currentMana), productionRate(other.productionRate), capacity(other.capacity) {}
+
+        RessourceGenerator& operator=(const RessourceGenerator& other)
+        {
+            id = other.id;
+            ressource = other.ressource;
+            currentMana = other.currentMana;
+            productionRate = other.productionRate;
+            capacity = other.capacity;
+
+            return *this;
+        }
+
         std::string id = "generator";  // Name of the generator
 
         std::string ressource = "mana";// Ressouce created by this generator
@@ -27,7 +42,18 @@ namespace pg
         // Todo add support for multipliers
     };
 
-    struct RessourceGeneratorSystem : public System<Own<RessourceGenerator>, Listener<TickEvent>, Listener<StandardEvent>, InitSys>
+    template <>
+    void serialize(Archive& archive, const RessourceGenerator& value);
+
+    template <>
+    RessourceGenerator deserialize(const UnserializedObject& serializedString);
+
+    struct NewGeneratorEvent
+    {
+        RessourceGenerator generator;
+    };
+
+    struct RessourceGeneratorSystem : public System<Own<RessourceGenerator>, Listener<NewGeneratorEvent>, Listener<TickEvent>, Listener<StandardEvent>, InitSys, SaveSys>
     {
         virtual void init() override
         {
@@ -35,13 +61,56 @@ namespace pg
             addListenerToStandardEvent("res_gen_upgrade");
         }
 
-        virtual std::string getSystemName() const override { return "Mana Generator System"; }
+        virtual void save(Archive& archive) override
+        {
+            std::vector<RessourceGenerator> generators;
+
+            for (const auto& gen : view<RessourceGenerator>())
+            {
+                generators.push_back(*gen);
+            }
+
+            serialize(archive, "generators", generators);
+        }
+
+        virtual void load(const UnserializedObject& serializedString) override
+        {
+            std::vector<RessourceGenerator> generators;
+
+            defaultDeserialize(serializedString, "generators", generators);
+
+            for (const auto& gen : generators)
+            {
+                auto genEnt = ecsRef->createEntity();
+
+                auto generator = ecsRef->attach<RessourceGenerator>(genEnt, gen);
+            }
+        }
+
+        virtual std::string getSystemName() const override { return "Resource Generator System"; }
+
+        virtual void onEvent(const NewGeneratorEvent& event) override
+        {
+            const auto& it = generatorMap.find(event.generator.id);
+
+            if (it != generatorMap.end())
+            {
+                LOG_ERROR("Ressource Generator", "Generator already exists");
+                return;
+            }
+
+            auto genEnt = ecsRef->createEntity();
+
+            auto generator = ecsRef->attach<RessourceGenerator>(genEnt, event.generator);
+
+            generatorMap[event.generator.id] = genEnt.id;
+        }
 
         virtual void onEvent(const StandardEvent& event) override
         {
             if (event.name == "res_harvest")
             {
-                auto id = event.values.at("id").get<size_t>();
+                auto id = event.values.at("id").get<std::string>();
 
                 onManaHarvest(id);
             }
@@ -59,9 +128,17 @@ namespace pg
             deltaTime += event.tick;
         }
 
-        void onManaHarvest(_unique_id id)
+        void onManaHarvest(const std::string& id)
         {
-            auto ent = ecsRef->getEntity(id);
+            if (generatorMap.find(id) == generatorMap.end())
+            {
+                LOG_ERROR("RessourceGeneratorHarvest", "Generator with id '" << id << "' not found!");
+                return;
+            }
+
+            auto entId = generatorMap.at(id);
+
+            auto ent = ecsRef->getEntity(entId);
 
             if (not ent or (not ent->has<RessourceGenerator>()))
             {
@@ -119,6 +196,8 @@ namespace pg
         }
 
         size_t deltaTime = 0;
+
+        std::unordered_map<std::string, _unique_id> generatorMap;
     };
 
     /**

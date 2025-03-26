@@ -116,7 +116,8 @@
         "alignedvector3": "cpp",
         "fft": "cpp",
         "tensor": "cpp",
-        "ciso646": "cpp"
+        "ciso646": "cpp",
+        "matrixfunctions": "cpp"
     },
     "files.exclude": {
         "**/*.o": true,

@@ -12,21 +12,22 @@ button.outcome = [AchievementRewardEvent("gamelog", "message", "Mana threshold r
 
 registerNexusButton(button)
 
-var gen = createGenerator("gold_gen", "gold", 0, 1, 5)
-
-var button = NexusButton()
-
-button.id = "GoldHarvest"
-button.label = "Harvest [Gold]"
-
-button.conditions = [FactChecker("mana", 25, "GreaterEqual")]
-button.outcome = [AchievementRewardEvent("res_harvest", "id", gen)]
-button.nbClickBeforeArchive = 0
-
-debugLog(gen)
-
-registerNexusButton(button)
-
+//
+//var gen = createGenerator("gold_gen", "gold", 0, 1, 5)
+//
+//var button = NexusButton()
+//
+//button.id = "GoldHarvest"
+//button.label = "Harvest [Gold]"
+//
+//button.conditions = [FactChecker("mana", 25, "GreaterEqual")]
+//button.outcome = [AchievementRewardEvent("res_harvest", "id", gen)]
+//button.nbClickBeforeArchive = 0
+//
+//debugLog(gen)
+//
+//registerNexusButton(button)
+//
 
 
 var button = NexusButton()
@@ -39,14 +40,13 @@ button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Altar is coming back to life...")
     , AddFact("altar_touched", true)
     , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 2)
-    , AchievementRewardEvent("add_res_display", "res", "mana") ]
+    , AchievementRewardEvent("add_res_display", "res", "mana")
+    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 1.0, "storage", 20.0) ]
 
 button.description = "A pretty dusty altar..."
 
 registerNexusButton(button)
 
-
-var altar_gen = createGenerator("altar", "mana", 0, 1.0, 20.0)
 
 var button = NexusButton()
 
@@ -55,7 +55,7 @@ button.label = "Harvest Altar"
 
 button.conditions = [FactChecker("altar_touched", true, "Equal")]
 button.outcome =
-    [ AchievementRewardEvent("res_harvest", "id", altar_gen) ]
+    [ AchievementRewardEvent("res_harvest", "id", "altar") ]
 
 button.description = "Harvest the mana stored in the altar"
 button.nbClickBeforeArchive = 0

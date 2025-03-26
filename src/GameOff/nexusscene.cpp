@@ -275,10 +275,9 @@ namespace pg
                 args.pop();
             }
 
-            auto ent = sys->ecsRef->createEntity();
-            sys->ecsRef->attach<RessourceGenerator>(ent, gen);
+            sys->ecsRef->sendEvent(RessourceGenerator{gen});
 
-            return makeVar(ent.id);
+            return makeVar(gen.id);
         }
 
         NexusSystem *sys;
@@ -593,6 +592,30 @@ namespace pg
             addResourceDisplay(res);
         });
 
+        listenToStandardEvent("add_generator", [this](const StandardEvent& event) {
+            if (event.values.find("id") == event.values.end() or event.values.find("res") == event.values.end())
+            {
+                LOG_ERROR("NexusScene", "Event 'add_generator' received without id and res.");
+                return;
+            }
+
+            auto id = event.values.at("id").get<std::string>();
+            auto res = event.values.at("res").get<std::string>();
+
+            RessourceGenerator gen(id, res);
+
+            if (event.values.find("prod") != event.values.end())
+            {
+                gen.productionRate = event.values.at("prod").get<float>();
+            }
+
+            if (event.values.find("storage") != event.values.end())
+            {
+                gen.capacity = event.values.at("storage").get<float>();
+            }
+
+            ecsRef->sendEvent(NewGeneratorEvent{gen});
+        });
 
         listenToStandardEvent("one_shot_res", [this](const StandardEvent& event) {
             if (event.values.find("res") == event.values.end() or event.values.find("value") == event.values.end())

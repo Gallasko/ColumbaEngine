@@ -24,9 +24,9 @@ namespace pg
         virtual void load(const UnserializedObject& serializedString) override;
 
         ThemeInfo getCurrentTheme()
-        { 
+        {
             auto it = loadedTheme.find(currentTheme);
-            
+
             if (it != loadedTheme.end())
                 return it->second;
             else
