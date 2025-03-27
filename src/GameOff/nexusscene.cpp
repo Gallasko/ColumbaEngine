@@ -326,6 +326,54 @@ namespace pg
         }
     };
 
+    class CreateConverter : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(1, 1); }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            ConverterComponent converter;
+
+            // Todo check type of elements gotten here
+            // Assume arguments: eventName (string), key (string), message (string)
+            converter.id = args.front()->getElement().toString();
+            args.pop();
+
+            return serializeToInterpreter(this, converter);
+        }
+    };
+
+    class RegisterConverter : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusSystem *sys)
+        {
+            this->sys = sys;
+
+            setArity(1, 1);
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Todo check type of elements gotten here
+            // Assume arguments: eventName (string), key (string), message (string)
+            auto arg = args.front();
+            args.pop();
+
+            auto converter = deserializeTo<ConverterComponent>(arg);
+
+            auto converterEntity = sys->ecsRef->createEntity();
+            sys->ecsRef->attach<ConverterComponent>(converterEntity, converter);
+
+            return makeVar(converterEntity.id);
+        }
+
+        NexusSystem *sys;
+    };
+
     struct NexusModule : public SysModule
     {
         NexusModule(NexusSystem *sys)
@@ -335,6 +383,8 @@ namespace pg
             addSystemFunction<TrackNewResource>("addResourceDisplay", sys);
             addSystemFunction<CreateGenerator>("createGenerator", sys);
             addSystemFunction<CreateButtonCost>("ButtonCost");
+            addSystemFunction<CreateConverter>("Converter");
+            addSystemFunction<RegisterConverter>("registerConverter", sys);
 
             //Todo add basic generator / converter ids as system vars
             //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
@@ -444,22 +494,8 @@ namespace pg
             resourceToBeDisplayed.push(res);
         }
 
-        // Create the basic mana generator entity.
-        // auto basicGen = createEntity();
-        // auto manaGen = attach<RessourceGenerator>(basicGen);
-        // manaGen->id = "basic_mana_generator";
-
-        // // Mana -> Scrap converter
-        // auto converterEntity = createEntity();
-        // auto convComp = attach<ConverterComponent>(converterEntity);
-        // convComp->id = "scrap_converter";
-        // convComp->input = {"mana"};
-        // convComp->output = {"scrap"};
-        // convComp->cost = {5.0f};
-        // convComp->yield = {1.0f};
-
-        // ecsRef->sendEvent( AddFact{ "scrap_converter_mana_cost", ElementType{5.0f} } );
-
+        // Todo add this in the converter sys as: <id>_<res>_<cost>
+        ecsRef->sendEvent( AddFact{ "scrap_converter_mana_cost", ElementType{5.0f} } );
 
         auto windowEnt = ecsRef->getEntity("__MainWindow");
         auto windowAnchor = windowEnt->get<UiAnchor>();
@@ -793,9 +829,13 @@ namespace pg
 
                 it->nbClick++;
 
+                LOG_ERROR("NexusScene", "Button clicked: " << buttonId << ", clicked: " << it->nbClick << ", it->id: " << it->id);
+
                 if (it->nbClickBeforeArchive != 0 and it->nbClick >= it->nbClickBeforeArchive)
                 {
                     it->archived = true;
+
+                    ecsRef->sendEvent(NexusButtonStateChange{*it});
 
                     auto id = it->entityId;
 
@@ -806,8 +846,10 @@ namespace pg
                     auto layout = nexusLayout.get<HorizontalLayout>();
                     layout->removeEntity(id);
                 }
-
-                ecsRef->sendEvent(NexusButtonStateChange{*it});
+                else
+                {
+                    ecsRef->sendEvent(NexusButtonStateChange{*it});
+                }
             }
         });
     }
@@ -818,6 +860,8 @@ namespace pg
 
         for (auto it = maskedButtons.begin(); it != maskedButtons.end();)
         {
+            LOG_INFO("Nexus", "Button: " << it->id << ", clicked: " << it->nbClick << ", archived: " << it->archived);
+
             if (it->archived)
             {
                 LOG_INFO("NexusSystem", "Archiving button: " << it->id);

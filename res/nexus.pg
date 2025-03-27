@@ -41,7 +41,7 @@ button.outcome =
     , AddFact("altar_touched", true)
     , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 2)
     , AchievementRewardEvent("add_res_display", "res", "mana")
-    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 1.0, "storage", 20.0) ]
+    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0) ]
 
 button.description = "A pretty dusty altar..."
 
@@ -143,4 +143,25 @@ button.nbClickBeforeArchive = 0
 
 registerNexusButton(button)
 
+var scrapConverter = Converter("scrap_converter")
 
+scrapConverter.input = ["mana"]
+scrapConverter.output = ["scrap"]
+scrapConverter.cost = [5.0]
+scrapConverter.yield = [1.0]
+
+var scrapConverterId = registerConverter(scrapConverter)
+
+var button = NexusButton()
+
+button.id = "ScrapConverter"
+button.label = "Convert [Scrap]"
+
+button.conditions = [FactChecker("scrapper_on", true, "Equal")]
+button.outcome = [ AchievementRewardEvent("converter_triggered", "id", scrapConverterId) ]
+
+button.description = "Convert Mana to Scrap"
+button.costs = [ ButtonCost("mana", 0, "scrap_converter_mana_cost", false) ]
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)

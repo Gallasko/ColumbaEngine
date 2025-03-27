@@ -75,7 +75,7 @@ namespace pg
 
             if (it != savedButtons.end())
             {
-                LOG_INFO("NexusButtonStateChange", "Button state changed: " << it->id << " archived: " << it->archived << " nb click: " << it->nbClick);
+                LOG_INFO("NexusButtonStateChange", "Event Button: " << event.button.id << " Button state changed: " << it->id << " archived: " << it->archived << " nb click: " << it->nbClick);
 
                 it->archived = event.button.archived;
                 it->nbClick = event.button.nbClick;
@@ -93,18 +93,17 @@ namespace pg
 
         virtual void onRegisterFinished() override
         {
-            for (const auto& button : savedButtons)
+            for (const auto& button : initButtons)
             {
                 auto id = button.id;
-                const auto& it = std::find_if(initButtons.begin(), initButtons.end(), [id](const DynamicNexusButton& button) { return button.id == id; });
+                auto it = std::find_if(savedButtons.begin(), savedButtons.end(), [id](const DynamicNexusButton& button) { return button.id == id; });
 
-                if (it == initButtons.end())
+                if (it != savedButtons.end())
                 {
-                    initButtons.push_back(button);
+                    it->archived = button.archived;
+                    it->nbClick = button.nbClick;
                 }
             }
-
-            savedButtons = initButtons;
         }
 
         virtual void save(Archive& archive) override
