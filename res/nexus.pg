@@ -152,6 +152,7 @@ scrapConverter.yield = [1.0]
 
 var scrapConverterId = registerConverter(scrapConverter)
 
+
 var button = NexusButton()
 
 button.id = "ScrapConverter"
@@ -165,3 +166,21 @@ button.costs = [ ButtonCost("mana", 0, "scrap_converter_mana_cost", false) ]
 button.nbClickBeforeArchive = 0
 
 registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "FocusedConvertScrap"
+button.label = "FocusedConvertScrap"
+
+button.conditions = [FactChecker("scrapper_on", true, "Equal")]
+button.outcome = [ AchievementRewardEvent("converter_triggered", "id", scrapConverterId) ]
+
+button.description = "Convert Mana to Scrap"
+button.costs = [ ButtonCost("mana", 0, "scrap_converter_mana_cost", false) ]
+button.nbClickBeforeArchive = 0
+button.activable = true
+
+
+registerNexusButton(button)
+

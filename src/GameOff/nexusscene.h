@@ -2,6 +2,8 @@
 
 #include "Scene/scenemanager.h"
 
+#include "Systems/coresystems.h"
+
 #include "achievement.h"
 #include "gamefacts.h"
 
@@ -35,11 +37,17 @@ namespace pg
 
         std::vector<size_t> neededConditionsForVisibility = {}; // Conditions that must be met for the button to appear. (If empty, every condition must be met)
 
+        bool activable = false;                 // Indicates if the button can be activated.
+        float activationTime = 1000.0f;         // Time in milliseconds needed for the button to be active for outputing outcome (Todo this should be an union between a string (value comes from a worldfact) and a float(value is set)).
+
         // Internals
         size_t nbClick = 0;                     // Number of times the button was clicked
         bool archived = false;                  // Flag indicating whether the button is archived or not.
 
         bool clickable = true;                  // Flag to track if the button is visible but not all conditions are met
+
+        bool active = false;                    // Indicates if the button is currently active.
+        float activeTime = 0.0f;                // Time in milliseconds the button has been active.
 
         _unique_id entityId = 0;                // Entity identifier
         _unique_id backgroundId = 0;            // Background identifier
@@ -63,11 +71,11 @@ namespace pg
         DynamicNexusButton button;
     };
 
-    struct NexusSystem : public System<Listener<NexusButtonStateChange>, SaveSys, InitSys, StoragePolicy>
+    struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, SaveSys, InitSys>
     {
         virtual std::string getSystemName() const override { return "NexusSystem"; }
 
-        virtual ~NexusSystem() override { LOG_INFO("NexusSystem", "destructor"); }
+        virtual void init() override;
 
         virtual void onEvent(const NexusButtonStateChange& event) override
         {
@@ -79,17 +87,33 @@ namespace pg
 
                 it->archived = event.button.archived;
                 it->nbClick = event.button.nbClick;
+                it->active = event.button.active;
+                // it->activeTime = event.button.activeTime;
+
+                if (it->active)
+                {
+                    if (not activeButton)
+                        deltaTime = 0;
+
+                    activeButton = true;
+                    currentActiveButton = it.base();
+                }
 
                 LOG_INFO("NexusButtonStateChange", "Button state changed !: " << it->id << " archived: " << it->archived << " nb click: " << it->nbClick);
             }
             else
             {
                 LOG_ERROR("NexusSystem", "Button: " << event.button.id << " was not found during init!");
-                savedButtons.push_back(event.button);
+                // savedButtons.push_back(event.button);
             }
         }
 
-        virtual void init() override;
+        virtual void onEvent(const TickEvent& event) override
+        {
+            deltaTime += event.tick;
+        }
+
+        virtual void execute() override;
 
         virtual void onRegisterFinished() override
         {
@@ -102,6 +126,8 @@ namespace pg
                 {
                     it->archived = button.archived;
                     it->nbClick = button.nbClick;
+                    it->active = button.active;
+                    it->activeTime = button.activeTime;
                 }
             }
         }
@@ -123,6 +149,11 @@ namespace pg
         std::vector<DynamicNexusButton> initButtons;
         std::vector<DynamicNexusButton> savedButtons;
         std::vector<std::string> resourceToBeDisplayed;
+
+        size_t deltaTime = 0;
+
+        bool activeButton = false;
+        DynamicNexusButton* currentActiveButton;
     };
 
     struct NexusScene : public Scene

@@ -35,6 +35,11 @@ namespace pg
             bool state;
         };
 
+        struct HideButton
+        {
+            std::string buttonId;
+        };
+
         constant::Vector4D getButtonColors(ThemeInfo& info, bool clickable, bool highlight = false)
         {
             if (clickable)
@@ -64,6 +69,40 @@ namespace pg
                     info.values["unclickableNexusButton.b"].get<float>(),
                     info.values["unclickableNexusButton.a"].get<float>()};
             }
+        }
+
+        bool isButtonClickable(const std::unordered_map<std::string, ElementType>& factMap, const DynamicNexusButton& button)
+        {
+            for (const auto& it : button.conditions)
+            {
+                if (not it.check(factMap))
+                {
+                    return false;
+                }
+            }
+
+            for (const auto& it : button.costs)
+            {
+                auto fc = FactChecker();
+                fc.name = it.resourceId;
+                fc.equality = FactCheckEquality::GreaterEqual;
+
+                if (it.valueId != "" and factMap.find(it.valueId) != factMap.end())
+                {
+                    fc.value = factMap.at(it.valueId);
+                }
+                else
+                {
+                    fc.value = it.value;
+                }
+
+                if (not fc.check(factMap))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
     }
 
@@ -125,6 +164,10 @@ namespace pg
         serialize(archive, "neededConditionsForVisibility", value.neededConditionsForVisibility);
         serialize(archive, "nbClick", value.nbClick);
         serialize(archive, "archived", value.archived);
+        serialize(archive, "activable", value.activable);
+        serialize(archive, "active", value.active);
+        serialize(archive, "activeTime", value.activeTime);
+        serialize(archive, "activationTime", value.activationTime);
 
         archive.endSerialization();
     }
@@ -158,6 +201,10 @@ namespace pg
             defaultDeserialize(serializedString, "neededConditionsForVisibility", data.neededConditionsForVisibility);
             defaultDeserialize(serializedString, "nbClick", data.nbClick);
             defaultDeserialize(serializedString, "archived", data.archived);
+            defaultDeserialize(serializedString, "activable", data.activable);
+            defaultDeserialize(serializedString, "active", data.active);
+            defaultDeserialize(serializedString, "activeTime", data.activeTime);
+            defaultDeserialize(serializedString, "activationTime", data.activationTime);
 
             return data;
         }
@@ -465,6 +512,65 @@ namespace pg
             {   AchievementReward(AddFact{"mage_tier", ElementType{2}}) },
             "main",
         });
+    }
+
+    void NexusSystem::execute()
+    {
+        if (activeButton and deltaTime > 0)
+        {
+            currentActiveButton->activeTime += deltaTime;
+
+            if (currentActiveButton->activeTime >= currentActiveButton->activationTime)
+            {
+                WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+
+                if (not isButtonClickable(wf->factMap, *currentActiveButton))
+                {
+                    currentActiveButton->active = false;
+                    activeButton = false;
+                    return;
+                }
+
+                // Todo check if all the conditions are met
+                for (auto it2 : currentActiveButton->outcome)
+                {
+                    it2.call(ecsRef);
+                }
+
+                if (not currentActiveButton->costs.empty())
+                {
+                    for (auto it3 : currentActiveButton->costs)
+                    {
+                        if (it3.consumed)
+                        {
+                            auto cost = IncreaseFact(it3.resourceId, -it3.value);
+
+                            if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
+                            {
+                                cost.value = -wf->factMap.at(it3.valueId);
+                            }
+
+                            ecsRef->sendEvent(cost);
+                        }
+                    }
+                }
+
+                currentActiveButton->nbClick++;
+                currentActiveButton->activeTime -= currentActiveButton->activationTime;
+
+                if (currentActiveButton->nbClickBeforeArchive != 0 and currentActiveButton->nbClick >= currentActiveButton->nbClickBeforeArchive)
+                {
+                    currentActiveButton->archived = true;
+                    currentActiveButton->active = false;
+                    activeButton = false;
+
+                    ecsRef->sendEvent(HideButton{currentActiveButton->id});
+                }
+            }
+
+            deltaTime = 0;
+        }
+
     }
 
     void NexusScene::init()
@@ -781,6 +887,27 @@ namespace pg
             }
         });
 
+        listenToEvent<HideButton>([this](const HideButton& button) {
+            auto it = std::find_if(visibleButtons.begin(), visibleButtons.end(), [button](const DynamicNexusButton& b) {
+                return b.id == button.buttonId;
+            });
+
+            if (it == visibleButtons.end())
+            {
+                LOG_ERROR("NexusScene", "Button not found: " << button.buttonId);
+                return;
+            }
+
+            auto id = it->entityId;
+
+            // Archive the button and remove it from the visible buttons.
+            archivedButtons.push_back(*it);
+            visibleButtons.erase(it);
+
+            auto layout = nexusLayout.get<HorizontalLayout>();
+            layout->removeEntity(id);
+        });
+
         listenToStandardEvent("nexus_button_clicked", [this](const StandardEvent& event) {
             auto buttonId = event.values.at("id").get<std::string>();
 
@@ -798,6 +925,17 @@ namespace pg
                 if (not it->clickable)
                 {
                     LOG_WARNING("NexusScene", "Button is not clickable: " << buttonId);
+                    return;
+                }
+
+                if (it->activable)
+                {
+                    // Todo
+                    // it->active = not it->active;
+                    it->active = true;
+
+                    ecsRef->sendEvent(NexusButtonStateChange{*it});
+
                     return;
                 }
 
@@ -860,11 +998,8 @@ namespace pg
 
         for (auto it = maskedButtons.begin(); it != maskedButtons.end();)
         {
-            LOG_INFO("Nexus", "Button: " << it->id << ", clicked: " << it->nbClick << ", archived: " << it->archived);
-
             if (it->archived)
             {
-                LOG_INFO("NexusSystem", "Archiving button: " << it->id);
                 archivedButtons.push_back(*it);
                 it = maskedButtons.erase(it);
             }
@@ -935,40 +1070,6 @@ namespace pg
         button->backgroundId = background.entity.id;
 
         return prefabEnt.entity;
-    }
-
-    bool isButtonClickable(const std::unordered_map<std::string, ElementType>& factMap, const DynamicNexusButton& button)
-    {
-        for (const auto& it : button.conditions)
-        {
-            if (not it.check(factMap))
-            {
-                return false;
-            }
-        }
-
-        for (const auto& it : button.costs)
-        {
-            auto fc = FactChecker();
-            fc.name = it.resourceId;
-            fc.equality = FactCheckEquality::GreaterEqual;
-
-            if (it.valueId != "" and factMap.find(it.valueId) != factMap.end())
-            {
-                fc.value = factMap.at(it.valueId);
-            }
-            else
-            {
-                fc.value = it.value;
-            }
-
-            if (not fc.check(factMap))
-            {
-                return false;
-            }
-        }
-
-        return true;
     }
 
     void NexusScene::updateButtonsClickability(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in)
