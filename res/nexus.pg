@@ -119,29 +119,13 @@ button.conditions = [FactChecker("total_scrap", 1, "GreaterEqual")]
 button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
     , AddFact("basic_reading_tools", true)
-    , AchievementRewardEvent("add_res_display", "res", "rune") ]
+    , AchievementRewardEvent("add_res_display", "res", "knowledge") ]
 
 button.description = "A weird black box near the altar, it should be useful..."
 button.costs = [ ButtonCost("mana", 10), ButtonCost("scrap", 5) ]
 
 registerNexusButton(button)
 
-
-var button = NexusButton()
-
-button.id = "CreateRune"
-button.label = "Carve Rune"
-
-button.conditions = [FactChecker("basic_reading_tools", true, "Equal")]
-button.outcome =
-    [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
-    , AchievementRewardEvent("one_shot_res", "res", "rune", "value", 1) ]
-
-button.description = "Carving some runes"
-button.costs = [ ButtonCost("scrap", 3) ]
-button.nbClickBeforeArchive = 0
-
-registerNexusButton(button)
 
 var scrapConverter = Converter("scrap_converter")
 
@@ -170,17 +154,69 @@ registerNexusButton(button)
 
 var button = NexusButton()
 
-button.id = "FocusedConvertScrap"
-button.label = "FocusedConvertScrap"
+button.id = "KnowledgeFocus"
+button.label = "Read books"
 
-button.conditions = [FactChecker("scrapper_on", true, "Equal")]
-button.outcome = [ AchievementRewardEvent("converter_triggered", "id", scrapConverterId) ]
+button.conditions = [FactChecker("basic_reading_tools", true, "Equal")]
+button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "knowledge", "value", 0.5) ]
 
-button.description = "Convert Mana to Scrap"
-button.costs = [ ButtonCost("mana", 0, "scrap_converter_mana_cost", false) ]
+button.description = "Read books to gain some knowledge about this place"
 button.nbClickBeforeArchive = 0
 button.activable = true
-
+button.activationTime = 500.0
 
 registerNexusButton(button)
 
+
+var button = NexusButton()
+
+button.id = "LearnRuneCarving"
+button.label = "Learn Runes"
+
+button.conditions = [FactChecker("total_knowledge", 1, "GreaterEqual")]
+button.outcome =
+    [ AddFact("carving_runes_learned", true)
+    , AchievementRewardEvent("add_res_display", "res", "rune") ]
+
+button.costs = [ ButtonCost("knowledge", 5) ]
+
+button.description = "Learn how to carve some magical runes"
+button.nbClickBeforeArchive = 1
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "CarvingRunes"
+button.label = "Carve Rune"
+
+button.conditions = [FactChecker("carving_runes_learned", true, "Equal")]
+button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "rune", "value", 1) ]
+
+button.costs = [ ButtonCost("scrap", 3), ButtonCost("mana", 5) ]
+
+button.description = "Take your time to mold and carve some scrap into a magical rune"
+button.nbClickBeforeArchive = 0
+button.activable = true
+button.activationTime = 2000.0
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "LearnScrollWriting"
+button.label = "Learn Scroll"
+
+button.conditions = [FactChecker("total_knowledge", 1, "GreaterEqual")]
+button.outcome =
+    [ AddFact("writing_scrolls_learned", true)
+    , AchievementRewardEvent("add_res_display", "res", "scroll") ]
+
+button.costs = [ ButtonCost("knowledge", 5) ]
+
+button.description = "Learn how to write some magical scroll"
+button.nbClickBeforeArchive = 1
+
+registerNexusButton(button)
