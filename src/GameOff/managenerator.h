@@ -160,10 +160,50 @@ namespace pg
 
             auto gen = ent->get<RessourceGenerator>();
 
-            ecsRef->sendEvent(IncreaseFact{gen->ressource, gen->currentMana});
-            ecsRef->sendEvent(IncreaseFact{"total_" + gen->ressource, gen->currentMana});
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+            if (not wf) return;
 
-            gen->currentMana = 0.0f;
+            float value = 0.0f;
+            float maxValue = 0.0f;
+            bool hasMax = false;
+
+            auto it = wf->factMap.find(gen->ressource );
+            if (it != wf->factMap.end())
+            {
+                value = it->second.get<float>();
+            }
+
+            auto itMax = wf->factMap.find(gen->ressource + "_max_value");
+            if (itMax != wf->factMap.end())
+            {
+                maxValue = itMax->second.get<float>();
+                hasMax = true;
+            }
+
+            if (hasMax)
+            {
+                auto availableSpace = maxValue - value;
+
+                if (availableSpace <= 0)
+                {
+                    LOG_INFO("RessourceGeneratorHarvest", "No space left for ressource '" << gen->ressource << "'");
+                    return;
+                }
+
+                availableSpace = std::min(availableSpace, gen->currentMana);
+
+                ecsRef->sendEvent(IncreaseFact{gen->ressource, availableSpace});
+                ecsRef->sendEvent(IncreaseFact{"total_" + gen->ressource, availableSpace});
+
+                gen->currentMana -= availableSpace;
+            }
+            else
+            {
+                ecsRef->sendEvent(IncreaseFact{gen->ressource, gen->currentMana});
+                ecsRef->sendEvent(IncreaseFact{"total_" + gen->ressource, gen->currentMana});
+
+                gen->currentMana = 0.0f;
+            }
         }
 
         void onRessourceGeneratorUpgrade(const std::string& id, float amount)

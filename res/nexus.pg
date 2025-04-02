@@ -41,7 +41,8 @@ button.outcome =
     , AddFact("altar_touched", true)
     , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 2)
     , AchievementRewardEvent("add_res_display", "res", "mana")
-    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0) ]
+    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0)
+    , AddFact("mana_max_value", 20.0) ]
 
 button.description = "A pretty dusty altar..."
 
@@ -198,6 +199,24 @@ button.costs = [ ButtonCost("scrap", 3), ButtonCost("mana", 5) ]
 
 button.description = "Take your time to mold and carve some scrap into a magical rune"
 button.nbClickBeforeArchive = 0
+button.activable = true
+button.activationTime = 2000.0
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "UpgradeAltarSpeed"
+button.label = "Upgrade Altar"
+
+button.conditions = [FactChecker("carving_runes_learned", true, "Equal")]
+button.outcome = [ AchievementReward("res_gen_upgrade", "id", "altar", "upgradeAmount", 1) ]
+
+button.costs = [ ButtonCost("rune", 5), ButtonCost("mana", 20) ]
+
+button.description = "Upgrade Mana generation (+1 mana/sec) and mana storage"
+button.nbClickBeforeArchive = 1
 button.activable = true
 button.activationTime = 2000.0
 
