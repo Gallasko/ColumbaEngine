@@ -103,10 +103,28 @@ button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Black box is turning on! Weird scraps comes out of it...")
     , AddFact("scrapper_on", true)
     , AchievementRewardEvent("add_res_display", "res", "scrap")
-    , AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1)]
+    , AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1)
+    , AddFact("scrap_max_value", 5.0)]
 
 button.description = "A weird black box near the altar, it should be useful..."
 button.costs = [ ButtonCost("mana", 10) ]
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "ScrapBox"
+button.label = "Create a Scrap box"
+
+button.conditions = [FactChecker("scrapper_on", true, "Equal")]
+button.outcome =
+    [ IncreaseFact("scrap_max_value", 5.0)]
+
+button.description = "Use some scrap and forge them into a scrap box using some mana.\nThis should help to hold more of those pesky scraps"
+button.costs = [ ButtonCost("mana", 5), ButtonCost("scrap", 3) ]
+button.costIncrease = [1.3, 1.3]
+button.nbClickBeforeArchive = 0
 
 registerNexusButton(button)
 
@@ -211,11 +229,13 @@ button.id = "UpgradeAltarSpeed"
 button.label = "Upgrade Altar"
 
 button.conditions = [FactChecker("carving_runes_learned", true, "Equal")]
-button.outcome = [ AchievementReward("res_gen_upgrade", "id", "altar", "upgradeAmount", 1) ]
+button.outcome =
+    [ AchievementReward("res_gen_upgrade", "id", "altar", "upgradeAmount", 1)
+    , IncreaseFact("mana_max_value", 20) ]
 
 button.costs = [ ButtonCost("rune", 5), ButtonCost("mana", 20) ]
 
-button.description = "Upgrade Mana generation (+1 mana/sec) and mana storage"
+button.description = "Upgrade Mana generation (+1 mana/sec) and increase mana storage by 20"
 button.nbClickBeforeArchive = 1
 button.activable = true
 button.activationTime = 2000.0

@@ -81,8 +81,10 @@ namespace pg
                 }
             }
 
-            for (const auto& it : button.costs)
+            for (size_t i = 0; i < button.costs.size(); ++i)
             {
+                auto it = button.costs[i];
+
                 auto fc = FactChecker();
                 fc.name = it.resourceId;
                 fc.equality = FactCheckEquality::GreaterEqual;
@@ -94,6 +96,11 @@ namespace pg
                 else
                 {
                     fc.value = it.value;
+                }
+
+                if (button.costIncrease.size() > i and fc.value.isNumber())
+                {
+                    fc.value = ElementType{fc.value.get<float>() * std::pow(button.costIncrease[i], button.nbClick)};
                 }
 
                 if (not fc.check(factMap))
@@ -539,8 +546,10 @@ namespace pg
 
                 if (not currentActiveButton->costs.empty())
                 {
-                    for (auto it3 : currentActiveButton->costs)
+                    for (size_t i = 0; i < currentActiveButton->costs.size(); ++i)
                     {
+                        auto it3 = currentActiveButton->costs[i];
+
                         if (it3.consumed)
                         {
                             auto cost = IncreaseFact(it3.resourceId, -it3.value);
@@ -548,6 +557,11 @@ namespace pg
                             if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
                             {
                                 cost.value = -wf->factMap.at(it3.valueId);
+                            }
+
+                            if (currentActiveButton->costIncrease.size() > i and cost.value.isNumber())
+                            {
+                                cost.value = ElementType{cost.value.get<float>() * std::pow(currentActiveButton->costIncrease[i], currentActiveButton->nbClick)};
                             }
 
                             ecsRef->sendEvent(cost);
@@ -849,12 +863,21 @@ namespace pg
 
                         std::ostringstream costText;
 
-                        for (const auto& cost : it->costs)
+                        for (size_t i = 0; i < it->costs.size(); ++i)
                         {
+                            const auto& cost = it->costs[i];
+
                             auto str = cost.resourceId;
                             str[0] = std::toupper(str[0]);
 
-                            costText << str << ": " << cost.value << "\n";
+                            auto value = cost.value;
+
+                            if (it->costIncrease.size() > i)
+                            {
+                                value = value * std::pow(it->costIncrease[i], it->nbClick);
+                            }
+
+                            costText << str << ": " << value << "\n";
                         }
 
                         tooltipsEntities["costValues"]->get<TTFText>()->setText(costText.str());
@@ -949,8 +972,10 @@ namespace pg
                 {
                     WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
 
-                    for (auto it3 : it->costs)
+                    for (size_t i = 0; i < it->costs.size(); ++i)
                     {
+                        auto it3 = it->costs[i];
+
                         if (it3.consumed)
                         {
                             auto cost = IncreaseFact(it3.resourceId, -it3.value);
@@ -958,6 +983,11 @@ namespace pg
                             if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
                             {
                                 cost.value = -wf->factMap.at(it3.valueId);
+                            }
+
+                            if (it->costIncrease.size() > i and cost.value.isNumber())
+                            {
+                                cost.value = ElementType{cost.value.get<float>() * std::pow(it->costIncrease[i], it->nbClick)};
                             }
 
                             ecsRef->sendEvent(cost);
@@ -1191,8 +1221,10 @@ namespace pg
         // Update value cost of visible buttons
         for (auto& button : visibleButtons)
         {
-            for (auto& cost : button.costs)
+            for (size_t i = 0; i < button.costs.size(); ++i)
             {
+                auto& cost = button.costs[i];
+
                 if (not cost.valueId.empty() and factMap.find(cost.valueId) != factMap.end()) {
                     cost.value = factMap.at(cost.valueId).get<float>();
                 }

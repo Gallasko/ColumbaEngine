@@ -317,6 +317,47 @@ namespace pg
         }
     };
 
+    class CreateAchievementRemoveFact: public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(1, 1); }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Todo check type of elements gotten here
+            // Assume arguments: eventName (string)
+            std::string eventName = args.front()->getElement().toString();
+            args.pop();
+
+            AchievementReward reward(RemoveFact{eventName});
+
+            return serializeToInterpreter(this, reward);
+        }
+    };
+
+    class CreateAchievementIncreaseFact: public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(2, 2); }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Todo check type of elements gotten here
+            // Assume arguments: eventName (string), value (ElementType)
+            std::string eventName = args.front()->getElement().toString();
+            args.pop();
+
+            const auto& value = args.front()->getElement();
+
+            AchievementReward reward(IncreaseFact{eventName, value});
+            args.pop();
+
+            return serializeToInterpreter(this, reward);
+        }
+    };
+
     struct AchievementModule : public SysModule
     {
         AchievementModule()
@@ -326,6 +367,8 @@ namespace pg
 
             // Todo maybe rename it AchievementAddFact
             addSystemFunction<CreateAchievementAddFact>("AddFact");
+            addSystemFunction<CreateAchievementRemoveFact>("RemoveFact");
+            addSystemFunction<CreateAchievementIncreaseFact>("IncreaseFact");
             // add additional functions as needed
         }
     };
