@@ -455,39 +455,6 @@ namespace pg
 
         interpreter.interpretFromFile("nexus.pg");
 
-
-        // savedButtons.push_back(DynamicNexusButton{
-        //     "ScrapConverter",
-        //     "Convert [Scrap]",
-        //     { FactChecker("scrapper_on", true, FactCheckEquality::Equal) },
-        //     { AchievementReward(StandardEvent(ConverterTriggeredEventName, "id", converterEntity.id)) },
-        //     "main",
-        //     "Convert Mana to Scrap",
-        //     0,
-        //     { NexusButtonCost{"mana", 0, "scrap_converter_mana_cost", false} }
-        // });
-
-        // savedButtons.push_back(DynamicNexusButton{
-        //     "Test_012",
-        //     "Test show",
-        //     { FactChecker("total_mana", 1, FactCheckEquality::GreaterEqual) },
-        //     { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
-        //     "main",
-        //     "Upgrade Mana generation (+0,5 mana/sec)",
-        //     5,
-        //     { NexusButtonCost{"mana", 25} }
-        // });
-
-        // maskedButtons.push_back(DynamicNexusButton{
-        //     "UpgradeProd1",
-        //     "UpgradeProd",
-        //     { FactChecker("altar_touched", true, FactCheckEquality::Equal) },
-        //     { AchievementReward(StandardEvent("res_gen_upgrade", "id", basicGen.id, "upgradeAmount", 0.5f)) },
-        //     "main",
-        //     {},
-        //     5
-        // });
-
         savedButtons.push_back(DynamicNexusButton{
             "SpellMage",
             "Spell Mage",
@@ -993,6 +960,27 @@ namespace pg
                             ecsRef->sendEvent(cost);
                         }
                     }
+
+                    std::ostringstream costText;
+
+                    for (size_t i = 0; i < it->costs.size(); ++i)
+                    {
+                        const auto& cost = it->costs[i];
+
+                        auto str = cost.resourceId;
+                        str[0] = std::toupper(str[0]);
+
+                        auto value = cost.value;
+
+                        if (it->costIncrease.size() > i)
+                        {
+                            value = value * std::pow(it->costIncrease[i], it->nbClick + 1);
+                        }
+
+                        costText << str << ": " << value << "\n";
+                    }
+
+                    tooltipsEntities["costValues"]->get<TTFText>()->setText(costText.str());
                 }
 
                 it->nbClick++;
