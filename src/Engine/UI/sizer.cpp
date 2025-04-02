@@ -69,6 +69,24 @@ namespace pg
         float currentX = viewUi->x, currentY = viewUi->y, maxHeight = 0.0f;
         size_t nbElementOnCurrentRow = 0;
 
+        for (size_t i = 0; i < view->entities.size(); i++)
+        {
+            auto ent = view->entities[i];
+
+            if (not ent->has<PositionComponent>())
+            {
+                LOG_ERROR(DOM, "Entity " << ent.id << " must have a PositionComponent!");
+                continue;
+            }
+
+            auto pos = ent->get<PositionComponent>();
+
+            if (pos->height > maxHeight)
+                maxHeight = pos->height;
+        }
+
+        auto totalHeight = 0.0f;
+
         float currentRowWidth = 0.0f;
         size_t firstRowElementIndex = 0;
 
@@ -86,7 +104,12 @@ namespace pg
 
             auto pos = ent->get<PositionComponent>();
 
-            if (nbElementOnCurrentRow == 0 and pos->width >= viewUi->width)
+            if (nbElementOnCurrentRow == 0)
+            {
+                totalHeight += maxHeight + view->spacing;
+            }
+
+            if (nbElementOnCurrentRow != 0 and pos->width >= viewUi->width)
             {
                 pos->setX(currentX);
                 pos->setY(currentY);
@@ -143,9 +166,15 @@ namespace pg
             pos->setY(currentY);
 
             currentX += pos->width + view->spacing;
-            maxHeight = std::max(maxHeight, pos->height);
             nbElementOnCurrentRow++;
         }
+
+        if (nbElementOnCurrentRow == 0)
+        {
+            totalHeight += maxHeight + view->spacing;
+        }
+
+        viewUi->setHeight(totalHeight);
 
         if (view->spacedInWidth and (firstRowElementIndex < view->entities.size()))
         {
@@ -277,6 +306,24 @@ namespace pg
         float currentX = viewUi->x, currentY = viewUi->y, maxWidth = 0.0f;
         size_t nbElementOnCurrentColumn = 0;
 
+        for (size_t i = 0; i < view->entities.size(); i++)
+        {
+            auto ent = view->entities[i];
+
+            if (not ent->has<PositionComponent>())
+            {
+                LOG_ERROR(DOM, "Entity " << ent.id << " must have a PositionComponent!");
+                continue;
+            }
+
+            auto pos = ent->get<PositionComponent>();
+
+            if (pos->width > maxWidth)
+                maxWidth = pos->width;
+        }
+
+        auto totalWidth = 0.0f;
+
         float currentColumnHeight = 0.0f;
         size_t firstColumnElementIndex = 0;
 
@@ -294,7 +341,12 @@ namespace pg
 
             auto pos = ent->get<PositionComponent>();
 
-            if (nbElementOnCurrentColumn == 0 and pos->height >= viewUi->height)
+            if (nbElementOnCurrentColumn == 0)
+            {
+                totalWidth += maxWidth + view->spacing;
+            }
+
+            if (nbElementOnCurrentColumn != 0 and pos->height >= viewUi->height)
             {
                 pos->setX(currentX);
                 pos->setY(currentY);
@@ -344,9 +396,15 @@ namespace pg
             pos->setX(currentX);
 
             currentY += pos->height + view->spacing;
-            maxWidth = std::max(maxWidth, pos->width);
             nbElementOnCurrentColumn++;
         }
+
+        if (nbElementOnCurrentColumn == 0)
+        {
+            totalWidth += maxWidth + view->spacing;
+        }
+
+        viewUi->setHeight(totalWidth);
 
         if (view->spacedInHeight and (firstColumnElementIndex < view->entities.size()))
         {
