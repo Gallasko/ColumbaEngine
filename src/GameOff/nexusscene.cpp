@@ -587,7 +587,7 @@ namespace pg
         auto windowEnt = ecsRef->getEntity("__MainWindow");
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
-        auto listView = makeListView(this, 1, 1, 350, 1);
+        auto listView = makeListView(this, 1, 1, 240, 1);
 
         auto listViewComp = listView.get<ListView>();
         listViewComp->spacing = 8;
@@ -609,11 +609,37 @@ namespace pg
         layoutAnchor->setLeftMargin(10);
 
         layout.get<HorizontalLayout>()->spacing = 30;
+        layout.get<HorizontalLayout>()->setVisibility(false);
 
         layout.get<HorizontalLayout>()->spacedInWidth = false;
         layout.get<HorizontalLayout>()->fitToWidth = true;
 
         nexusLayout = layout.entity;
+
+        auto categoryListView = makeListView(this, 1, 1, 350, 1);
+        auto categoryView = categoryListView.get<ListView>();
+        auto categoryListUi = categoryListView.get<UiAnchor>();
+
+        categoryView->spacing = 8;
+
+        categoryListUi->setTopAnchor(windowAnchor->top);
+        categoryListUi->setTopMargin(120);
+        categoryListUi->setBottomAnchor(windowAnchor->bottom);
+        categoryListUi->setLeftAnchor(listViewUi->right);
+        categoryListUi->setLeftMargin(10);
+
+        auto logViewEnt = ecsRef->getEntity("logview");
+        auto logViewUi = logViewEnt->get<UiAnchor>();
+
+        categoryListUi->setRightAnchor(logViewUi->left);
+
+        auto mainCat = createCategoryUI("Main");
+        auto upgradeCat = createCategoryUI("Upgrades");
+
+        categoryView->addEntity(mainCat);
+        categoryView->addEntity(upgradeCat);
+
+        categoryList = categoryListView.entity;
 
         // [Begin] Tooltip Ui definition
 
@@ -1088,6 +1114,40 @@ namespace pg
         button->backgroundId = background.entity.id;
 
         return prefabEnt.entity;
+    }
+
+    // Helper function to create a category UI panel in the Nexus scene.
+    EntityRef NexusScene::createCategoryUI(const std::string &categoryName)
+    {
+        // Create a vertical layout to hold the category title, separator, and button layout.
+        auto categoryLayout = makeVerticalLayout(ecsRef, 30, 100, 500, 150); // Adjust x, y, width, height as needed.
+        auto verticalLayout = categoryLayout.get<VerticalLayout>();
+        verticalLayout->spacing = 5; // Space between elements in the category panel.
+
+        // 1. Category Name: Create a TTFText element for the category title.
+        auto titleEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["categoryTitle.font"].get<std::string>(), categoryName, theme.values["categoryTitle.scale"].get<float>());
+        // Optionally, you can adjust the anchor of the title here.
+        verticalLayout->addEntity(titleEnt.entity);
+
+        // 2. Separator Line: Create a 2D shape rectangle with a height of 1.
+        float lineWidth = 500; // Adjust as needed to match category panel width.
+        auto lineEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, lineWidth, 1, {200, 200, 200, 255});
+        verticalLayout->addEntity(lineEnt.entity);
+
+        // 3. Horizontal Layout for Buttons: Create an HLayout that will hold the buttons.
+        auto buttonLayoutEnt = makeHorizontalLayout(ecsRef, 0, 0, lineWidth, 60); // Adjust height as needed.
+        auto buttonLayout = buttonLayoutEnt.get<HorizontalLayout>();
+        buttonLayout->spacing = 10;
+        buttonLayout->fitToWidth = true;
+        buttonLayout->spacedInWidth = false;
+
+        buttonLayout->setVisibility(false); // Initially hide the button layout.
+
+        // Add the horizontal button layout to the vertical category layout.
+        verticalLayout->addEntity(buttonLayoutEnt.entity);
+
+        // Return the category layout entity for further positioning or manipulation.
+        return categoryLayout.entity;
     }
 
     void NexusScene::updateButtonsClickability(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in)

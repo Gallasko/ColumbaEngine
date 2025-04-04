@@ -230,7 +230,7 @@ button.label = "Upgrade Altar"
 
 button.conditions = [FactChecker("carving_runes_learned", true, "Equal")]
 button.outcome =
-    [ AchievementReward("res_gen_upgrade", "id", "altar", "upgradeAmount", 1)
+    [ AchievementRewardEvent("res_gen_upgrade", "id", "altar", "upgradeAmount", 1)
     , IncreaseFact("mana_max_value", 20) ]
 
 button.costs = [ ButtonCost("rune", 5), ButtonCost("mana", 20) ]

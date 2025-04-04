@@ -24,6 +24,7 @@ namespace pg
             auto windowAnchor = windowEnt->get<UiAnchor>();
 
             auto listView = makeListView(ecsRef, 10, 10, 255, 0);
+            ecsRef->attach<EntityName>(listView.entity, "logview");
             auto logView = listView.get<ListView>();
 
             auto listViewAnchor = listView.get<UiAnchor>();
@@ -31,8 +32,10 @@ namespace pg
             listViewAnchor->setTopAnchor(windowAnchor->top);
             listViewAnchor->setTopMargin(35);
             listViewAnchor->setRightAnchor(windowAnchor->right);
-            listViewAnchor->setBottomAnchor(windowAnchor->bottom);
-            listViewAnchor->setBottomMargin(35);
+            // listViewAnchor->setBottomAnchor(windowAnchor->bottom);
+            // listViewAnchor->setBottomMargin(35);
+
+            listViewAnchor->setHeightConstrain(PosConstrain{windowEnt->id, AnchorType::Height, PosOpType::Mul, 0.4f});
 
             logView->stickToBottom = true;
 
@@ -66,7 +69,7 @@ namespace pg
                 auto anchor = log.get<UiAnchor>();
 
                 text->wrap = true;
-        
+
                 ui->setVisibility(false);
 
                 auto logView = listViewEnt.get<ListView>();
@@ -76,7 +79,7 @@ namespace pg
                 anchor->setLeftMargin(15);
                 anchor->setRightAnchor(logAnchor->right);
                 anchor->setRightMargin(15);
-        
+
                 logView->addEntity(log.entity);
 
                 eventQueue.pop();

@@ -50,6 +50,9 @@ namespace pg
         defaultTheme.values["resourcedisplay.font"] = "res/font/Inter/static/Inter_28pt-Light.ttf";
         defaultTheme.values["resourcedisplay.scale"] = 0.4f;
 
+        defaultTheme.values["categoryTitle.font"] = "res/font/Inter/static/Inter_28pt-Light.ttf";
+        defaultTheme.values["categoryTitle.scale"] = 0.4f;
+
         defaultTheme.values["tooltip.topMargin"] = 5.0f;
         defaultTheme.values["tooltip.leftMargin"] = 5.0f;
         defaultTheme.values["tooltip.rightMargin"] = 5.0f;

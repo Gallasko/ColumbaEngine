@@ -129,6 +129,8 @@ namespace pg
                     it->active = button.active;
                     it->activeTime = button.activeTime;
                 }
+
+                categories.insert(button.category);
             }
         }
 
@@ -150,6 +152,8 @@ namespace pg
         std::vector<DynamicNexusButton> savedButtons;
         std::vector<std::string> resourceToBeDisplayed;
 
+        std::set<std::string> categories;
+
         size_t deltaTime = 0;
 
         bool activeButton = false;
@@ -164,6 +168,8 @@ namespace pg
 
         virtual void execute() override;
 
+        EntityRef createCategoryUI(const std::string &categoryName);
+
         void updateButtonsClickability(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in);
         void updateButtonsVisibility(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in, std::vector<DynamicNexusButton>& out, bool visiblility);
         void updateDynamicButtons(const std::unordered_map<std::string, ElementType>& factMap);
@@ -173,6 +179,7 @@ namespace pg
         std::vector<DynamicNexusButton> archivedButtons;
 
         EntityRef nexusLayout;
+        EntityRef categoryList;
 
         // Adds a resource entry to the list view.
         void addResourceDisplay(const std::string& resourceName) { resourceToBeDisplayed.push(resourceName); }
