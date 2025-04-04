@@ -19,6 +19,8 @@ namespace pg
         defaultTheme.values["tooltipSpacer.b"] = 255.0f;
         defaultTheme.values["tooltipSpacer.a"] = 255.0f;
 
+        defaultTheme.values["tooltipSpacer.ratio"] = 0.8f;
+
         defaultTheme.values["tooltipCostSpacer.topMargin"] = 5.0f;
 
         defaultTheme.values["tooltipBgHighlight.r"] = 255.0f;

@@ -456,6 +456,8 @@ void initGame()
 
     mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
 
+    mainWindow->ecs.dumbTaskflow();
+
     mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
 
     mainWindow->interpreter->interpretFromFile("main.pg");

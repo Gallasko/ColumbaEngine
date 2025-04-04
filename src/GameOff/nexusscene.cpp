@@ -688,7 +688,7 @@ namespace pg
         tooltipCostSpacer.get<PositionComponent>()->setZ(6);
         auto tooltipCostSpacerAnchor = tooltipCostSpacer.get<UiAnchor>();
 
-        tooltipCostSpacerAnchor->setWidthConstrain(PosConstrain{tooltipBg.entity.id, AnchorType::Width, PosOpType::Mul, 0.8f});
+        tooltipCostSpacerAnchor->setWidthConstrain(PosConstrain{tooltipBg.entity.id, AnchorType::Width, PosOpType::Mul, theme.values["tooltipSpacer.ratio"].get<float>()});
 
         tooltipCostSpacerAnchor->setTopAnchor(descTextAnchor->bottom);
         tooltipCostSpacerAnchor->setTopMargin(theme.values["tooltipCostSpacer.topMargin"].get<float>());

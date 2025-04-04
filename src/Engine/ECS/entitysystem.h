@@ -214,6 +214,11 @@ namespace pg
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
             {
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
                 auto task = taskflow.emplace([system]()
                 {
                     // Todo time the whole exec of a run of the taskflow
@@ -233,7 +238,7 @@ namespace pg
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
                         std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
 
-                }).name(std::to_string(system->_id));
+                }).name(name);
 
                 // Put the task after every other basic task
                 task.succeed(basicTask);
@@ -243,7 +248,12 @@ namespace pg
             }
             else if (system->executionPolicy == ExecutionPolicy::Independent)
             {
-                auto task = taskflow.emplace([system](){system->execute();}).name(std::to_string(system->_id));
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
+                auto task = taskflow.emplace([system](){system->execute();}).name(name);
 
                 // Register the task in case we need to call precede and succeed
                 tasks[system->_id] = task;
@@ -321,6 +331,11 @@ namespace pg
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
             {
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
                 auto task = taskflow.emplace([system]()
                 {
                     // Todo time the whole exec of a run of the taskflow
@@ -333,7 +348,7 @@ namespace pg
                     if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
                         std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
 
-                }).name(std::to_string(system->_id));
+                }).name(name);
 
                 // Put the task after every other basic task
                 task.succeed(basicTask);
@@ -343,7 +358,12 @@ namespace pg
             }
             else if (system->executionPolicy == ExecutionPolicy::Independent)
             {
-                auto task = taskflow.emplace([system](){system->execute();}).name(std::to_string(system->_id));
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
+                auto task = taskflow.emplace([system](){system->execute();}).name(name);
 
                 // Register the task in case we need to call precede and succeed
                 tasks[system->_id] = task;
