@@ -153,6 +153,13 @@ namespace pg
                     return;
                 }
 
+                ent->get<HorizontalLayout>()->visible = event.visible;
+
+                if (ent->has<PositionComponent>())
+                {
+                    ent->get<PositionComponent>()->visible = event.visible;
+                }
+
                 hLayoutUpdated.insert(ent);
 
                 visibilityQueue.pop();
@@ -392,6 +399,13 @@ namespace pg
                 {
                     LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component!");
                     return;
+                }
+
+                ent->get<VerticalLayout>()->visible = event.visible;
+
+                if (ent->has<PositionComponent>())
+                {
+                    ent->get<PositionComponent>()->visible = event.visible;
                 }
 
                 vLayoutUpdated.insert(ent);
