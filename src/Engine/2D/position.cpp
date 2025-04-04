@@ -17,16 +17,28 @@ namespace pg
                     return posComp->x;
                     break;
                 case AnchorType::Right:
-                    return posComp->x + posComp->width;
+                    if (posComp->visible)
+                        return posComp->x + posComp->width;
+                    else
+                        return posComp->x;
                     break;
                 case AnchorType::Bottom:
-                    return posComp->y + posComp->height;
+                    if (posComp->visible)
+                        return posComp->y + posComp->height;
+                    else
+                        return posComp->y;
                     break;
                 case AnchorType::VerticalCenter:
-                    return posComp->y + posComp->height / 2.0f;
+                    if (posComp->visible)
+                        return posComp->y + posComp->height / 2.0f;
+                    else
+                        return posComp->y;
                     break;
                 case AnchorType::HorizontalCenter:
-                    return posComp->x + posComp->width / 2.0f;
+                    if (posComp->visible)
+                        return posComp->x + posComp->width / 2.0f;
+                    else
+                        return posComp->x;
                     break;
                 default:
                     // Todo add support for width, height, center alignment ... to this getter
@@ -341,15 +353,17 @@ namespace pg
 
     bool UiAnchor::update(CompRef<PositionComponent> pos)
     {
+        auto visible = pos->visible;
+
         bool anchorChanged = top.value != pos->y or
                              left.value != pos->x or
-                             right.value != pos->x + pos->width or
-                             bottom.value != pos->y + pos->height;
+                             (right.value != visible ? pos->x + pos->width : pos->x) or
+                             (bottom.value != visible ? pos->y + pos->height : pos->y);
 
         top.value = pos->y;
         left.value = pos->x;
-        right.value = pos->x + pos->width;
-        bottom.value = pos->y + pos->height;
+        right.value = visible ? pos->x + pos->width : pos->x;
+        bottom.value = visible ? pos->y + pos->height : pos->y;
         verticalCenter.value = pos->y + pos->height / 2.0f;
         horizontalCenter.value = pos->x + pos->width / 2.0f;
 

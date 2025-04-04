@@ -66,6 +66,37 @@ namespace pg
         auto view = viewEnt->get<HorizontalLayout>();
         auto viewUi = viewEnt->get<PositionComponent>();
 
+        // This snippet handles the horizontal layout of entities within a parent view when neither `fitToWidth` nor `spacedInWidth` is enabled.
+        // It aligns entities horizontally by setting their left anchor relative to the previous entity's right anchor, with a specified spacing.
+        // The top anchor of each entity is aligned with the top anchor of the parent view.
+        // Finally, the parent view's right anchor is updated to encompass all child entities.
+        if (not view->fitToWidth and not view->spacedInWidth)
+        {
+            auto viewAnchor = viewEnt->get<UiAnchor>();
+            auto currentLeftAnchor = viewAnchor->left;
+
+            for (auto& ent : view->entities)
+            {
+                if (not ent->has<UiAnchor>())
+                {
+                    LOG_ERROR(DOM, "Entity " << ent.id << " must have an Anchor component!");
+                    continue;
+                }
+
+                auto anchor = ent->get<UiAnchor>();
+
+                anchor->setLeftAnchor(currentLeftAnchor);
+                anchor->setLeftMargin(view->spacing);
+
+                anchor->setTopAnchor(viewAnchor->top);
+
+                currentLeftAnchor = anchor->right;
+            }
+
+            viewAnchor->setRightAnchor(currentLeftAnchor);
+            return;
+        }
+
         float currentX = viewUi->x, currentY = viewUi->y, maxHeight = 0.0f;
         size_t nbElementOnCurrentRow = 0;
 
@@ -302,6 +333,37 @@ namespace pg
     {
         auto view = viewEnt->get<VerticalLayout>();
         auto viewUi = viewEnt->get<PositionComponent>();
+
+        // This snippet handles the vertical layout of entities within a parent view when neither `fitToHeight` nor `spacedInHeight` is enabled.
+        // It aligns entities vertically by setting their top anchor relative to the previous entity's bottom anchor, with a specified spacing.
+        // The left anchor of each entity is aligned with the left anchor of the parent view.
+        // Finally, the parent view's bottom anchor is updated to encompass all child entities.
+        if (not view->fitToHeight and not view->spacedInHeight)
+        {
+            auto viewAnchor = viewEnt->get<UiAnchor>();
+            auto currentBotAnchor = viewAnchor->top;
+
+            for (auto& ent : view->entities)
+            {
+                if (not ent->has<UiAnchor>())
+                {
+                    LOG_ERROR(DOM, "Entity " << ent.id << " must have an Anchor component!");
+                    continue;
+                }
+
+                auto anchor = ent->get<UiAnchor>();
+
+                anchor->setTopAnchor(currentBotAnchor);
+                anchor->setTopMargin(view->spacing);
+
+                anchor->setLeftAnchor(viewAnchor->left);
+
+                currentBotAnchor = anchor->bottom;
+            }
+
+            viewAnchor->setBottomAnchor(currentBotAnchor);
+            return;
+        }
 
         float currentX = viewUi->x, currentY = viewUi->y, maxWidth = 0.0f;
         size_t nbElementOnCurrentColumn = 0;
