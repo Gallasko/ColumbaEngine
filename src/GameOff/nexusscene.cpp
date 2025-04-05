@@ -454,38 +454,6 @@ namespace pg
         interpreter.addSystemModule("achievement", AchievementModule{});
 
         interpreter.interpretFromFile("nexus.pg");
-
-        savedButtons.push_back(DynamicNexusButton{
-            "SpellMage",
-            "Spell Mage",
-            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
-                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}) },
-            "main",
-        });
-
-        savedButtons.push_back(DynamicNexusButton{
-            "RunicMage",
-            "Runic Mage",
-            {   FactChecker("specialization_0_available", true, FactCheckEquality::Equal),
-                FactChecker("mage_tier", 0, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"mage_tier", ElementType{1}}),
-                AchievementReward(AddFact{"runic_mage_1", ElementType{true}}),
-                AchievementReward(StandardEvent("gamelog", "message", "You feel the power of the rune, coursing through your blood")) },
-            "main",
-            "Become a runic Mage",
-            1,
-            { NexusButtonCost{"mana", 300} }
-        });
-
-        savedButtons.push_back(DynamicNexusButton{
-            "RunicMage2",
-            "Runic Mage 2",
-            {   FactChecker("runic_mage_1", true, FactCheckEquality::Equal),
-                FactChecker("mage_tier", 1, FactCheckEquality::Equal) },
-            {   AchievementReward(AddFact{"mage_tier", ElementType{2}}) },
-            "main",
-        });
     }
 
     void NexusSystem::execute()
@@ -602,25 +570,11 @@ namespace pg
 
         resLayout = listView.entity;
 
-        auto layout = makeHorizontalLayout(ecsRef, 30, 150, 500, 400);
-        auto layoutAnchor = layout.get<UiAnchor>();
-
-        layoutAnchor->setLeftAnchor(listViewUi->right);
-        layoutAnchor->setLeftMargin(10);
-
-        layout.get<HorizontalLayout>()->spacing = 30;
-        layout.get<HorizontalLayout>()->setVisibility(false);
-
-        layout.get<HorizontalLayout>()->spacedInWidth = false;
-        layout.get<HorizontalLayout>()->fitToWidth = true;
-
-        nexusLayout = layout.entity;
-
         auto categoryListView = makeListView(this, 1, 1, 350, 1);
         auto categoryView = categoryListView.get<ListView>();
         auto categoryListUi = categoryListView.get<UiAnchor>();
 
-        categoryView->spacing = 8;
+        // categoryView->spacing = 8;
 
         categoryListUi->setTopAnchor(windowAnchor->top);
         categoryListUi->setTopMargin(120);
@@ -634,10 +588,26 @@ namespace pg
         categoryListUi->setRightAnchor(logViewUi->left);
 
         auto mainCat = createCategoryUI("Main");
-        auto upgradeCat = createCategoryUI("Upgrades");
+        auto harvestCat = createCategoryUI("Harvest");
+        auto taskCat = createCategoryUI("Task");
+        auto upgradeCat = createCategoryUI("Upgrade");
 
         categoryView->addEntity(mainCat);
+        categoryView->addEntity(harvestCat);
+        categoryView->addEntity(taskCat);
         categoryView->addEntity(upgradeCat);
+
+        for (const auto& category : nexusSys->categories)
+        {
+            if (category == "Main" or category == "Upgrade" or category == "Task" or category == "Harvest")
+            {
+                continue;
+            }
+
+            auto cat = createCategoryUI(category);
+        
+            categoryView->addEntity(cat);
+        }
 
         categoryList = categoryListView.entity;
 
@@ -915,13 +885,22 @@ namespace pg
             }
 
             auto id = it->entityId;
+            auto category = it->category;
 
             // Archive the button and remove it from the visible buttons.
             archivedButtons.push_back(*it);
             visibleButtons.erase(it);
 
-            auto layout = nexusLayout.get<HorizontalLayout>();
+            auto layout = categoryMap[category]->get<HorizontalLayout>();
+            
             layout->removeEntity(id);
+
+            auto nbVisible = getNbVisibleElementsInLayout(layout);
+
+            if (nbVisible <= 1)
+            {
+                categoryMap[category + "_main"]->get<VerticalLayout>()->setVisibility(false);
+            }
         });
 
         listenToStandardEvent("nexus_button_clicked", [this](const StandardEvent& event) {
@@ -1020,13 +999,22 @@ namespace pg
                     ecsRef->sendEvent(NexusButtonStateChange{*it});
 
                     auto id = it->entityId;
+                    auto category = it->category;
 
                     // Archive the button and remove it from the visible buttons.
                     archivedButtons.push_back(*it);
                     visibleButtons.erase(it);
 
-                    auto layout = nexusLayout.get<HorizontalLayout>();
+                    auto layout = categoryMap[category]->get<HorizontalLayout>();
+
                     layout->removeEntity(id);
+
+                    auto nbVisible = getNbVisibleElementsInLayout(layout);
+
+                    if (nbVisible <= 1)
+                    {
+                        categoryMap[category + "_main"]->get<VerticalLayout>()->setVisibility(false);
+                    }
                 }
                 else
                 {
@@ -1120,28 +1108,33 @@ namespace pg
     EntityRef NexusScene::createCategoryUI(const std::string &categoryName)
     {
         // Create a vertical layout to hold the category title, separator, and button layout.
-        auto categoryLayout = makeVerticalLayout(ecsRef, 30, 100, 500, 150); // Adjust x, y, width, height as needed.
+        auto categoryLayout = makeVerticalLayout(this, 30, 100, 500, 150); // Adjust x, y, width, height as needed.
         auto verticalLayout = categoryLayout.get<VerticalLayout>();
+        verticalLayout->setVisibility(false); // Initially hide the category layout.
         verticalLayout->spacing = 5; // Space between elements in the category panel.
 
         // 1. Category Name: Create a TTFText element for the category title.
-        auto titleEnt = makeTTFText(ecsRef, 0, 0, 1, theme.values["categoryTitle.font"].get<std::string>(), categoryName, theme.values["categoryTitle.scale"].get<float>());
+        auto titleEnt = makeTTFText(this, 0, 0, 1, theme.values["categoryTitle.font"].get<std::string>(), categoryName, theme.values["categoryTitle.scale"].get<float>());
         // Optionally, you can adjust the anchor of the title here.
         verticalLayout->addEntity(titleEnt.entity);
 
         // 2. Separator Line: Create a 2D shape rectangle with a height of 1.
         float lineWidth = 500; // Adjust as needed to match category panel width.
-        auto lineEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, lineWidth, 1, {200, 200, 200, 255});
+        auto lineEnt = makeUiSimple2DShape(this, Shape2D::Square, lineWidth, 1, {200, 200, 200, 255});
         verticalLayout->addEntity(lineEnt.entity);
 
         // 3. Horizontal Layout for Buttons: Create an HLayout that will hold the buttons.
-        auto buttonLayoutEnt = makeHorizontalLayout(ecsRef, 0, 0, lineWidth, 60); // Adjust height as needed.
+        auto buttonLayoutEnt = makeHorizontalLayout(this, 0, 0, lineWidth, 60); // Adjust height as needed.
         auto buttonLayout = buttonLayoutEnt.get<HorizontalLayout>();
         buttonLayout->spacing = 10;
         buttonLayout->fitToWidth = true;
         buttonLayout->spacedInWidth = false;
 
-        buttonLayout->setVisibility(false); // Initially hide the button layout.
+        // buttonLayout->setVisibility(false); // Initially hide the button layout.
+
+        categoryMap[categoryName] = buttonLayoutEnt.entity;
+
+        categoryMap[categoryName + "_main"] = categoryLayout.entity;
 
         // Add the horizontal button layout to the vertical category layout.
         verticalLayout->addEntity(buttonLayoutEnt.entity);
@@ -1182,8 +1175,6 @@ namespace pg
 
     void NexusScene::updateButtonsVisibility(const std::unordered_map<std::string, ElementType>& factMap, std::vector<DynamicNexusButton>& in, std::vector<DynamicNexusButton>& out, bool visiblility)
     {
-        auto layout = nexusLayout.get<HorizontalLayout>();
-
         for (auto it = in.begin(); it != in.end();)
         {
             bool reveal = true;
@@ -1232,7 +1223,9 @@ namespace pg
                         // Create a new entity for the button
                         auto buttonEntity = createButtonPrefab(this, it->label, it->id, it.base());
 
-                        layout->addEntity(buttonEntity);
+                        categoryMap[it->category]->get<HorizontalLayout>()->addEntity(buttonEntity);
+
+                        categoryMap[it->category + "_main"]->get<VerticalLayout>()->setVisibility(true);
                     }
                 }
                 else
@@ -1244,9 +1237,19 @@ namespace pg
                     else
                     {
                         LOG_INFO("Nexus scene", "Button id: " << it->entityId);
+                        auto category = it->category;
+                        auto layout = categoryMap[category]->get<HorizontalLayout>();
+
                         layout->removeEntity(it->entityId);
 
                         it->entityId = 0;
+
+                        auto nbVisible = getNbVisibleElementsInLayout(layout);
+
+                        if (nbVisible <= 1)
+                        {
+                            categoryMap[category + "_main"]->get<VerticalLayout>()->setVisibility(false);
+                        }
                     }
                 }
 

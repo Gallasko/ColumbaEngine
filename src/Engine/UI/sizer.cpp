@@ -466,7 +466,7 @@ namespace pg
             totalWidth += maxWidth + view->spacing;
         }
 
-        viewUi->setHeight(totalWidth);
+        viewUi->setWidth(totalWidth);
 
         if (view->spacedInHeight and (firstColumnElementIndex < view->entities.size()))
         {

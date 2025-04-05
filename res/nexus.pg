@@ -53,6 +53,7 @@ var button = NexusButton()
 
 button.id = "BasicHarvest"
 button.label = "Harvest Altar"
+button.category = "Harvest"
 
 button.conditions = [FactChecker("altar_touched", true, "Equal")]
 button.outcome =
@@ -132,7 +133,7 @@ registerNexusButton(button)
 var button = NexusButton()
 
 button.id = "BasicReadingTools"
-button.label = "Create Reading Tools"
+button.label = "Reading Tools"
 
 button.conditions = [FactChecker("total_scrap", 1, "GreaterEqual")]
 button.outcome =
@@ -160,6 +161,7 @@ var button = NexusButton()
 
 button.id = "ScrapConverter"
 button.label = "Convert [Scrap]"
+button.category = "Task"
 
 button.conditions = [FactChecker("scrapper_on", true, "Equal")]
 button.outcome = [ AchievementRewardEvent("converter_triggered", "id", scrapConverterId) ]
@@ -175,6 +177,7 @@ var button = NexusButton()
 
 button.id = "KnowledgeFocus"
 button.label = "Read books"
+button.category = "Knowledge"
 
 button.conditions = [FactChecker("basic_reading_tools", true, "Equal")]
 button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "knowledge", "value", 0.5) ]
@@ -191,6 +194,8 @@ var button = NexusButton()
 
 button.id = "LearnRuneCarving"
 button.label = "Learn Runes"
+button.category = "Knowledge"
+
 
 button.conditions = [FactChecker("total_knowledge", 1, "GreaterEqual")]
 button.outcome =
@@ -209,6 +214,7 @@ var button = NexusButton()
 
 button.id = "CarvingRunes"
 button.label = "Carve Rune"
+button.category = "Task"
 
 button.conditions = [FactChecker("carving_runes_learned", true, "Equal")]
 button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "rune", "value", 1) ]
@@ -227,6 +233,7 @@ var button = NexusButton()
 
 button.id = "UpgradeAltarSpeed"
 button.label = "Upgrade Altar"
+button.category = "Upgrade"
 
 button.conditions = [FactChecker("carving_runes_learned", true, "Equal")]
 button.outcome =
@@ -247,6 +254,7 @@ var button = NexusButton()
 
 button.id = "LearnScrollWriting"
 button.label = "Learn Scroll"
+button.category = "Knowledge"
 
 button.conditions = [FactChecker("total_knowledge", 1, "GreaterEqual")]
 button.outcome =

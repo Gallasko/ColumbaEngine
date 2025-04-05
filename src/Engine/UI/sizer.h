@@ -26,6 +26,27 @@ namespace pg
         _unique_id id; bool visible;
     };
 
+    template <typename Layout>
+    size_t getNbVisibleElementsInLayout(Layout layout)
+    {
+        size_t nb = 0;
+
+        for (auto& ent : layout->entities)
+        {
+            if (ent->template has<PositionComponent>())
+            {
+                auto pos = ent->template get<PositionComponent>();
+
+                if (pos->visible)
+                {
+                    nb++;
+                }
+            }
+        }
+
+        return nb;
+    }
+
     struct HorizontalLayout: public Ctor
     {
         void onCreation(EntityRef entity) override

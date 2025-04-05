@@ -28,7 +28,7 @@ namespace pg
         std::string label;                      // Button text.
         std::vector<FactChecker> conditions;    // Conditions that must be met for the button to trigger the outcome.
         std::vector<AchievementReward> outcome; // Callback executed on click.
-        std::string category;                   // Category (e.g., "Main", "Mana Upgrade", etc.)
+        std::string category = "Main";                   // Category (e.g., "Main", "Mana Upgrade", etc.)
         std::string description = "";           // Description of the button, to be shown in the tooltip
 
         size_t nbClickBeforeArchive = 1;        // Number of times the button should be clicked before being archived (0 means infinite)
@@ -117,12 +117,12 @@ namespace pg
 
         virtual void onRegisterFinished() override
         {
-            for (const auto& button : initButtons)
+            for (const auto& button : savedButtons)
             {
                 auto id = button.id;
-                auto it = std::find_if(savedButtons.begin(), savedButtons.end(), [id](const DynamicNexusButton& button) { return button.id == id; });
+                auto it = std::find_if(initButtons.begin(), initButtons.end(), [id](const DynamicNexusButton& button) { return button.id == id; });
 
-                if (it != savedButtons.end())
+                if (it != initButtons.end())
                 {
                     it->archived = button.archived;
                     it->nbClick = button.nbClick;
@@ -178,8 +178,9 @@ namespace pg
         std::vector<DynamicNexusButton> visibleButtons;
         std::vector<DynamicNexusButton> archivedButtons;
 
-        EntityRef nexusLayout;
         EntityRef categoryList;
+
+        std::unordered_map<std::string, EntityRef> categoryMap;
 
         // Adds a resource entry to the list view.
         void addResourceDisplay(const std::string& resourceName) { resourceToBeDisplayed.push(resourceName); }
