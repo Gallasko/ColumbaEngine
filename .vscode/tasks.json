@@ -16,10 +16,17 @@
                 ]
             },
             "linux": {
-                "command": "bash",
+                "command": "cmake",
                 "args": [
-                    "-c",
-                    "make DEBUG=True PROD=False"
+                    // "-c",
+                    "--build",
+                    "${workspaceFolder}/debug",
+                    "--config",
+                    "Debug",
+                    "--target",
+                    "GameOff",
+                    "-j",
+                    "10"
                 ]
             },
             "osx": {

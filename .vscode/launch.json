@@ -13,7 +13,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/debug/main"
+                "program": "${workspaceFolder}/debug/GameOff"
             },
             "osx": {
                 "MIMode": "lldb",

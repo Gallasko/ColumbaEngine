@@ -114,31 +114,7 @@ namespace pg
 
         virtual void onEvent(const EntityChangedEvent& event) override
         {
-            auto ent = ecsRef->getEntity(event.id);
-
-            if (not ent)
-            {
-                return;
-            }
-
-            if (ent->has<HorizontalLayout>())
-            {
-                hLayoutUpdated.insert(ent);
-                return;
-            }
-
-            for (auto v : view<HorizontalLayout>())
-            {
-                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-
-                if (it != v->entities.end())
-                {
-                    hLayoutUpdated.insert(ecsRef->getEntity(v->id));
-                    // An entity should not be in multple layouts at the same time
-                    return;
-                }
-            }
-
+            entityChangedQueue.push(event);
         }
 
         virtual void execute() override
@@ -227,6 +203,41 @@ namespace pg
 
                 removeQueue.pop();
             }
+            
+            while (not entityChangedQueue.empty())
+            {
+                const auto& event = entityChangedQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not ent)
+                {
+                    entityChangedQueue.pop();
+                    continue;
+                }
+
+                if (ent->has<HorizontalLayout>())
+                {
+                    hLayoutUpdated.insert(ent);
+                    entityChangedQueue.pop();
+                    continue;
+                }
+
+                for (auto v : view<HorizontalLayout>())
+                {
+                    const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+
+                    if (it != v->entities.end())
+                    {
+                        hLayoutUpdated.insert(ecsRef->getEntity(v->id));
+                        entityChangedQueue.pop();
+                        // An entity should not be in multple layouts at the same time
+                        continue;
+                    }
+                }
+
+                entityChangedQueue.pop();
+            }
 
             for (auto ent : hLayoutUpdated)
             {
@@ -263,6 +274,8 @@ namespace pg
         std::queue<ClearHorizontalLayoutEvent> clearQueue;
 
         std::queue<UpdateHorizontalLayoutVisibility> visibilityQueue;
+
+        std::queue<EntityChangedEvent> entityChangedQueue;
 
         std::set<EntityRef> hLayoutUpdated;
     };
@@ -373,30 +386,7 @@ namespace pg
 
         virtual void onEvent(const EntityChangedEvent& event) override
         {
-            auto ent = ecsRef->getEntity(event.id);
-
-            if (not ent)
-            {
-                return;
-            }
-
-            if (ent->has<VerticalLayout>())
-            {
-                vLayoutUpdated.insert(ent);
-                return;
-            }
-
-            for (auto v : view<VerticalLayout>())
-            {
-                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-
-                if (it != v->entities.end())
-                {
-                    vLayoutUpdated.insert(ecsRef->getEntity(v->id));
-                    // An entity should not be in multiple layouts at the same time
-                    return;
-                }
-            }
+            entityChangedQueue.push(event);
         }
 
         virtual void execute() override
@@ -486,6 +476,41 @@ namespace pg
                 removeQueue.pop();
             }
 
+            while (not entityChangedQueue.empty())
+            {
+                const auto& event = entityChangedQueue.front();
+
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (not ent)
+                {
+                    entityChangedQueue.pop();
+                    continue;
+                }
+    
+                if (ent->has<VerticalLayout>())
+                {
+                    vLayoutUpdated.insert(ent);
+                    entityChangedQueue.pop();
+                    continue;
+                }
+    
+                for (auto v : view<VerticalLayout>())
+                {
+                    const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+    
+                    if (it != v->entities.end())
+                    {
+                        vLayoutUpdated.insert(ecsRef->getEntity(v->id));
+                        // An entity should not be in multiple layouts at the same time
+                        entityChangedQueue.pop();
+                        continue;
+                    }
+                }
+
+                entityChangedQueue.pop();
+            }
+
             for (auto ent : vLayoutUpdated)
             {
                 // Todo investigate this, it happens when changing scene
@@ -522,6 +547,8 @@ namespace pg
         std::queue<ClearVerticalLayoutEvent> clearQueue;
 
         std::queue<UpdateVerticalLayoutVisibility> visibilityQueue;
+
+        std::queue<EntityChangedEvent> entityChangedQueue;
 
         std::set<EntityRef> vLayoutUpdated;
     };
