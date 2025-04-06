@@ -152,7 +152,8 @@ namespace pg
                 if (not (ent->has<HorizontalLayout>()))
                 {
                     LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    return;
+                    clearQueue.pop();
+                    continue;
                 }
 
                 clear(ent->get<HorizontalLayout>());
@@ -171,7 +172,8 @@ namespace pg
                 if (not (ent->has<HorizontalLayout>()))
                 {
                     LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component!");
-                    return;
+                    visibilityQueue.pop();
+                    continue;
                 }
 
                 ent->get<HorizontalLayout>()->visible = event.visible;
@@ -195,7 +197,8 @@ namespace pg
                 if (not (ent->has<HorizontalLayout>()))
                 {
                     LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    return;
+                    eventQueue.pop();
+                    continue;
                 }
 
                 addEntity(ent, event.ui);
@@ -214,7 +217,8 @@ namespace pg
                 if (not (ent->has<HorizontalLayout>()))
                 {
                     LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    return;
+                    removeQueue.pop();
+                    continue;
                 }
 
                 removeEntity(ent, event.index);
@@ -226,6 +230,12 @@ namespace pg
 
             for (auto ent : hLayoutUpdated)
             {
+                if (not ent->has<HorizontalLayout>() or not ent->has<PositionComponent>())
+                {
+                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
+                    continue;
+                }
+
                 recalculateChildrenPos(ent);
 
                 auto view = ent->get<HorizontalLayout>();
@@ -400,7 +410,8 @@ namespace pg
                 if (not (ent->has<VerticalLayout>()))
                 {
                     LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    return;
+                    clearQueue.pop();
+                    continue;
                 }
 
                 clear(ent->get<VerticalLayout>());
@@ -419,7 +430,8 @@ namespace pg
                 if (not (ent->has<VerticalLayout>()))
                 {
                     LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component!");
-                    return;
+                    visibilityQueue.pop();
+                    continue;
                 }
 
                 ent->get<VerticalLayout>()->visible = event.visible;
@@ -443,7 +455,8 @@ namespace pg
                 if (not (ent->has<VerticalLayout>()))
                 {
                     LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    return;
+                    eventQueue.pop();
+                    continue;
                 }
 
                 addEntity(ent, event.ui);
@@ -462,7 +475,8 @@ namespace pg
                 if (not (ent->has<VerticalLayout>()))
                 {
                     LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    return;
+                    removeQueue.pop();
+                    continue;
                 }
 
                 removeEntity(ent, event.index);
@@ -474,6 +488,13 @@ namespace pg
 
             for (auto ent : vLayoutUpdated)
             {
+                // Todo investigate this, it happens when changing scene
+                if (not ent->has<VerticalLayout>() or not ent->has<PositionComponent>())
+                {
+                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
+                    continue;
+                }
+
                 recalculateChildrenPos(ent);
 
                 auto view = ent->get<VerticalLayout>();

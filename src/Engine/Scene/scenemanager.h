@@ -154,6 +154,8 @@ namespace pg
         Listener<SceneElementClicked>, Listener<SaveScene>, Listener<LoadScene>, Listener<NameScene>,
         Own<SceneElement>, InitSys>
     {
+        virtual std::string getSystemName() const override { return "Scene System"; }
+
         enum class LoadingState : uint8_t
         {
             Idle = 0,
