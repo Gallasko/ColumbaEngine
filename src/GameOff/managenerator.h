@@ -167,7 +167,7 @@ namespace pg
             float maxValue = 0.0f;
             bool hasMax = false;
 
-            auto it = wf->factMap.find(gen->ressource );
+            auto it = wf->factMap.find(gen->ressource);
             if (it != wf->factMap.end())
             {
                 value = it->second.get<float>();

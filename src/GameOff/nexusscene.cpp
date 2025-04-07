@@ -807,7 +807,7 @@ namespace pg
         });
 
         listenToStandardEvent("one_shot_res", [this](const StandardEvent& event) {
-            if (event.values.find("res") == event.values.end() or event.values.find("value") == event.values.end())
+            if (event.values.find("res") == event.values.end() or (event.values.find("value") == event.values.end() and event.values.find("valueId") == event.values.end()))
             {
                 LOG_ERROR("NexusScene", "Event 'one_shot_res' received without res and value.");
                 return;
@@ -815,10 +815,69 @@ namespace pg
 
             auto res = event.values.at("res").get<std::string>();
 
-            auto value = event.values.at("value");
+            ElementType givenValue;
 
-            ecsRef->sendEvent(IncreaseFact{res, value});
-            ecsRef->sendEvent(IncreaseFact{"total_" + res, value});
+            if (event.values.find("value") != event.values.end())
+            {
+                givenValue = event.values.at("value");
+            }
+
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+            if (not wf) return;
+
+            if (event.values.find("valueId") != event.values.end())
+            {
+                auto valueId = event.values.at("valueId").get<std::string>();
+
+                auto it = wf->factMap.find(valueId);
+                if (it != wf->factMap.end())
+                {
+                    givenValue = it->second;
+                }
+                else
+                {
+                    LOG_ERROR("NexusScene", "Event 'one_shot_res' received with valueId '" << valueId << "' not found.");
+                    return;
+                }
+            }
+
+            float value = 0.0f;
+            float maxValue = 0.0f;
+            bool hasMax = false;
+
+            auto it = wf->factMap.find(res);
+            if (it != wf->factMap.end())
+            {
+                value = it->second.get<float>();
+            }
+
+            auto itMax = wf->factMap.find(res + "_max_value");
+            if (itMax != wf->factMap.end())
+            {
+                maxValue = itMax->second.get<float>();
+                hasMax = true;
+            }
+
+            if (hasMax)
+            {
+                auto availableSpace = maxValue - value;
+
+                if (availableSpace <= 0)
+                {
+                    LOG_INFO("RessourceGeneratorHarvest", "No space left for ressource '" << res << "'");
+                    return;
+                }
+
+                availableSpace = std::min(availableSpace, givenValue.get<float>());
+
+                ecsRef->sendEvent(IncreaseFact{res, availableSpace});
+                ecsRef->sendEvent(IncreaseFact{"total_" + res, availableSpace});
+            }
+            else
+            {
+                ecsRef->sendEvent(IncreaseFact{res, givenValue});
+                ecsRef->sendEvent(IncreaseFact{"total_" + res, givenValue});
+            }
         });
 
         listenToStandardEvent("activate_gen", [this](const StandardEvent&) {
@@ -986,8 +1045,6 @@ namespace pg
 
                         activeButtonsUi["topHighlight"]->get<UiAnchor>()->setTopMargin(theme.values["nexusbutton.height"].get<float>() * 0.15f);
                     }
-                    // currentActiveButton = &(*it);
-                    // activeButton = true;
                 }
             }
         });

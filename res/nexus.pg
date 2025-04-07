@@ -57,36 +57,8 @@ button.category = "Harvest"
 
 button.conditions = [FactChecker("altar_touched", true, "Equal")]
 button.outcome =
-    [ AchievementRewardEvent("res_harvest", "id", "altar") ]
-
-button.description = "Harvest the mana stored in the altar"
-button.nbClickBeforeArchive = 0
-
-registerNexusButton(button)
-
-
-var button = NexusButton()
-
-button.id = "TurnOffAltar"
-button.label = "Turn Off Altar"
-
-button.conditions = [FactChecker("altar_touched", true, "Equal")]
-button.outcome =
-    [ AchievementRewardEvent("activate_gen", "id", "altar", "active", false) ]
-
-button.description = "Harvest the mana stored in the altar"
-button.nbClickBeforeArchive = 0
-
-registerNexusButton(button)
-
-var button = NexusButton()
-
-button.id = "TurnOnAltar"
-button.label = "Turn On Altar"
-
-button.conditions = [FactChecker("altar_touched", true, "Equal")]
-button.outcome =
-    [ AchievementRewardEvent("activate_gen", "id", "altar", "active", true) ]
+    [ AchievementRewardEvent("res_harvest", "id", "altar")
+    , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 0.5) ]
 
 button.description = "Harvest the mana stored in the altar"
 button.nbClickBeforeArchive = 0
@@ -116,9 +88,9 @@ registerNexusButton(button)
 var button = NexusButton()
 
 button.id = "ScrapBox"
-button.label = "Create a Scrap box"
+button.label = "Scrap box"
 
-button.conditions = [FactChecker("scrapper_on", true, "Equal")]
+button.conditions = [FactChecker("scrap_storage_unlocked", true, "Equal")]
 button.outcome =
     [ IncreaseFact("scrap_max_value", 5.0)]
 
@@ -139,6 +111,7 @@ button.conditions = [FactChecker("total_scrap", 1, "GreaterEqual")]
 button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
     , AddFact("basic_reading_tools", true)
+    , AddFact("knowledge_max_value", 10)
     , AchievementRewardEvent("add_res_display", "res", "knowledge") ]
 
 button.description = "A weird black box near the altar, it should be useful..."
@@ -231,14 +204,15 @@ registerNexusButton(button)
 
 var button = NexusButton()
 
-button.id = "UpgradeAltarSpeed"
+button.id = "UpgradeAltarSpeed1"
 button.label = "Upgrade Altar"
-button.category = "Upgrade"
+button.category = "Main"
 
 button.conditions = [FactChecker("carving_runes_learned", true, "Equal")]
 button.outcome =
     [ AchievementRewardEvent("res_gen_upgrade", "id", "altar", "upgradeAmount", 1)
-    , IncreaseFact("mana_max_value", 20) ]
+    , IncreaseFact("mana_max_value", 20)
+    , AddFact("first_altar_upgrade", true) ]
 
 button.costs = [ ButtonCost("rune", 5), ButtonCost("mana", 20) ]
 
@@ -263,7 +237,150 @@ button.outcome =
 
 button.costs = [ ButtonCost("knowledge", 5) ]
 
-button.description = "Learn how to write some magical scroll"
+button.description = "Learn how to create some magical scroll"
 button.nbClickBeforeArchive = 1
 
 registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "CreateScroll"
+button.label = "Create Scroll"
+button.category = "Task"
+
+button.conditions = [FactChecker("writing_scrolls_learned", true, "Equal")]
+button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "scroll", "value", 1) ]
+
+button.costs = [ ButtonCost("scrap", 1), ButtonCost("mana", 10) ]
+
+button.description = "By pouring decent amount of mana in some scrap, you can manage to create some scroll to write some off your newly acquired knowledge"
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "TakeSomeNotes"
+button.label = "Write Notes"
+button.category = "Knowledge"
+
+button.conditions =
+    [ FactChecker("writing_scrolls_learned", true, "Equal")
+    , FactChecker("first_knowledge_cap", true, "Equal") ]
+
+button.outcome = [ IncreaseFact("knowledge_max_value", 20) ]
+
+button.costs = [ ButtonCost("knowledge", 5), ButtonCost("scroll", 1) ]
+button.costIncrease = [1.5, 1.2]
+
+button.description = "Take some notes about your new found knowledge, to further increase the knowledge that you can understand.\n(Knowledge cap +20)"
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "Storage1"
+button.label = "Storage"
+button.category = "Knowledge"
+
+button.conditions = [ FactChecker("first_knowledge_cap", true, "Equal") ]
+
+button.outcome = [ AddFact("storage_1_learned", true) ]
+
+button.costs = [ ButtonCost("knowledge", 15) ]
+
+button.description = "Research some ways to use our spare scrap to build some storage"
+
+registerNexusButton(button)
+
+
+
+var button = NexusButton()
+
+button.id = "Meditation1"
+button.label = "Meditation"
+button.category = "Knowledge"
+
+button.conditions = [ FactChecker("first_knowledge_cap", true, "Equal") ]
+
+button.outcome = [ IncreaseFact("learn_meditation_1", true) ]
+
+button.costs = [ ButtonCost("knowledge", 25) ]
+
+button.description = "Understand some meditation technique that could be useful to store more mana in your body."
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
+
+
+var button = NexusButton()
+
+button.id = "Meditation1"
+button.label = "Meditation"
+button.category = "Storage"
+
+button.conditions = [ FactChecker("learn_meditation_1", true, "Equal") ]
+
+button.outcome = [ IncreaseFact("mana_max_value", 10), IncreaseFact("basic_meditation_done", 1) ]
+
+button.costs = [ ]
+
+button.description = "Take some time to harness the ambiant mana.\n(Mana cap +10)"
+button.nbClickBeforeArchive = 5
+button.activable = true
+button.activationTime = 30000.0
+
+registerNexusButton(button)
+
+
+
+var button = NexusButton()
+
+button.id = "TakeSomeNotes"
+button.label = "Write Notes"
+button.category = "Knowledge"
+
+button.conditions =
+    [ FactChecker("writing_scrolls_learned", true, "Equal")
+    , FactChecker("first_knowledge_cap", true, "Equal") ]
+
+button.outcome = [ IncreaseFact("knowledge_max_value", 20) ]
+
+button.costs = [ ButtonCost("knowledge", 5), ButtonCost("scroll", 1) ]
+button.costIncrease = [1.5, 1.2]
+
+button.description = "Take some notes about your new found knowledge, to further increase the knowledge that you can understand.\n(Knowledge cap +20)"
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
+
+
+var button = NexusButton()
+
+button.id = "Scribe"
+button.label = "Scribe"
+button.category = "Specialization"
+
+button.conditions =
+    [ FactChecker("writing_scrolls_learned", true, "Equal")
+    , FactChecker("first_knowledge_cap", true, "Equal")
+    , FactChecker("mage_tier", 0, "Equal") ]
+
+button.outcome =
+    [ IncreaseFact("knowledge_max_value", 100)
+    , IncreaseFact("mana_max_value", 50)
+    , AddFact("mage_tier", 1) ]
+
+button.costs = [ ButtonCost("knowledge", 50), ButtonCost("scroll", 10), ButtonCost("mana", 100) ]
+
+button.description = "Specialize yourself in tbe creation of magical scroll.\nA major step in the mage process (Mutually exclusive with other spcialization !)\nKnowledge cap +100\nMana cap +50"
+button.nbClickBeforeArchive = 1
+
+registerNexusButton(button)
+

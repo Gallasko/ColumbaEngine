@@ -448,6 +448,14 @@ void initGame()
 
     achievementSys->setDefaultAchievement(tutoStarted);
 
+    Achievement knowledgeFirstCap;
+
+    knowledgeFirstCap.name = "knowledgeFirstCap";
+    knowledgeFirstCap.prerequisiteFacts = { FactChecker{"knowledge", 10, FactCheckEquality::GreaterEqual} };
+    knowledgeFirstCap.rewardFacts = { StandardEvent{"gamelog", "message", "You seem to have hit a wall in your study.\nTaking some notes may help you in the future..."}, AddFact{"first_knowledge_cap", ElementType{true}} };
+
+    achievementSys->setDefaultAchievement(knowledgeFirstCap);
+
     mainWindow->ecs.createSystem<GameLog>();
 
     mainWindow->ecs.createSystem<RessourceGeneratorSystem>();
