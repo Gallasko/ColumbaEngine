@@ -117,7 +117,8 @@
         "fft": "cpp",
         "tensor": "cpp",
         "ciso646": "cpp",
-        "matrixfunctions": "cpp"
+        "matrixfunctions": "cpp",
+        "ranges": "cpp"
     },
     "files.exclude": {
         "**/*.o": true,

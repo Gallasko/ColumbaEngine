@@ -37,6 +37,8 @@
 
 #include "theme.h"
 
+#include "Systems/tween.h"
+
 using namespace pg;
 
 namespace
@@ -171,6 +173,19 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         t3Anchor->setLeftAnchor(t2Anchor->right);
         t3Anchor->setLeftMargin(8);
         t3Anchor->setBottomAnchor(t1Anchor->bottom);
+
+        auto tweenTest = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        tweenTest.get<PositionComponent>()->setX(30);
+        tweenTest.get<PositionComponent>()->setY(120);
+
+        ecsRef->attach<TweenComponent>(tweenTest.entity, TweenComponent {
+            255.0f,
+            0.0f,
+            2000.0f,
+            [tweenTest](const TweenValue& value){ tweenTest.get<Simple2DObject>()->setColors({0.0f, 196.0f, 0.0f, std::get<float>(value)}); },
+            makeCallable<StandardEvent>("gamelog", "message", "Tween complete !")
+        });
+
 
         /* Clipped progress bar exemple:
         auto spacer = ecsRef->createEntity();
@@ -393,6 +408,8 @@ void initGame()
 
     mainWindow->ecs.createSystem<MoveToSystem>();
 
+    mainWindow->ecs.createSystem<TweenSystem>();
+
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();
     auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
@@ -474,6 +491,8 @@ void initGame()
 
     // hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
     // hLayout.get<HorizontalLayout>()->addEntity(s5.entity);
+
+    mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
 
     mainWindow->ecs.start();
 

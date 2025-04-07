@@ -208,6 +208,8 @@ namespace pg
 
         bool newRes = false;
 
+        bool updateUi = false;
+
         // A vector storing all resource display entries.
         std::vector<ResourceDisplayEntry> resourceList;
 

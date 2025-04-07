@@ -38,13 +38,28 @@ button.label = "Touch Altar"
 button.conditions = [FactChecker("altar_touched", false, "Equal"), FactChecker("startTuto", true, "Equal")]
 button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Altar is coming back to life...")
-    , AddFact("altar_touched", true)
-    , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 2)
-    , AchievementRewardEvent("add_res_display", "res", "mana")
-    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0)
-    , AddFact("mana_max_value", 20.0) ]
+    , AddFact("altar_touched", true) ]
 
 button.description = "A pretty dusty altar..."
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "FalseBasicHarvest"
+button.label = "Harvest Altar"
+button.category = "Harvest"
+
+button.conditions = [FactChecker("altar_touched", true, "Equal")]
+button.outcome =
+    [ AchievementRewardEvent("add_res_display", "res", "mana")
+    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0)
+    , AddFact("mana_max_value", 20.0)
+    , AddFact("false_harvest_clicked", true) ]
+
+button.description = "Harvest the mana stored in the altar"
+button.nbClickBeforeArchive = 1
 
 registerNexusButton(button)
 
@@ -55,7 +70,7 @@ button.id = "BasicHarvest"
 button.label = "Harvest Altar"
 button.category = "Harvest"
 
-button.conditions = [FactChecker("altar_touched", true, "Equal")]
+button.conditions = [FactChecker("false_harvest_clicked", true, "Equal")]
 button.outcome =
     [ AchievementRewardEvent("res_harvest", "id", "altar")
     , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 0.5) ]
@@ -112,6 +127,7 @@ button.outcome =
     [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
     , AddFact("basic_reading_tools", true)
     , AddFact("knowledge_max_value", 10)
+    , AddFact("knowledge_per_completion", 0.5)
     , AchievementRewardEvent("add_res_display", "res", "knowledge") ]
 
 button.description = "A weird black box near the altar, it should be useful..."
@@ -169,7 +185,7 @@ button.label = "Read books"
 button.category = "Knowledge"
 
 button.conditions = [FactChecker("basic_reading_tools", true, "Equal")]
-button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "knowledge", "value", 0.5) ]
+button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "knowledge", "valueId", "knowledge_per_completion") ]
 
 button.description = "Read books to gain some knowledge about this place"
 button.nbClickBeforeArchive = 0
@@ -299,6 +315,26 @@ registerNexusButton(button)
 
 var button = NexusButton()
 
+button.id = "SpeedReading1"
+button.label = "Speed Reading"
+button.category = "Knowledge"
+
+button.conditions =
+    [ FactChecker("writing_scrolls_learned", true, "Equal")
+    , FactChecker("first_knowledge_cap", true, "Equal") ]
+
+button.outcome = [ IncreaseFact("knowledge_per_completion", 0.5) ]
+
+button.costs = [ ButtonCost("knowledge", 20) ]
+
+button.description = "Increase the speed at which you read your books\n(Knowledge per second +1)"
+button.nbClickBeforeArchive = 1
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
 button.id = "Storage1"
 button.label = "Storage"
 button.category = "Knowledge"
@@ -362,7 +398,7 @@ button.outcome = [ IncreaseFact("learn_meditation_1", true) ]
 button.costs = [ ButtonCost("knowledge", 25) ]
 
 button.description = "Understand some meditation technique that could be useful to store more mana in your body."
-button.nbClickBeforeArchive = 0
+button.nbClickBeforeArchive = 1
 
 registerNexusButton(button)
 

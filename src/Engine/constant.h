@@ -67,6 +67,24 @@ namespace pg
                 return vec;
             }
 
+            inline Vector2D operator-(const Vector2D &rhs) const
+            {
+                Vector2D vec;
+                vec.x = this->x - rhs.x;
+                vec.y = this->y - rhs.y;
+
+                return vec;
+            }
+
+            inline Vector2D operator*(float scalar) const
+            {
+                Vector2D vec;
+                vec.x = this->x * scalar;
+                vec.y = this->y * scalar;
+
+                return vec;
+            }
+
             inline Vector2D& operator+=(const Vector2D &rhs)
             {
                 this->x += rhs.x;
@@ -116,6 +134,26 @@ namespace pg
                 vec.x = this->x + rhs.x;
                 vec.y = this->y + rhs.y;
                 vec.z = this->z + rhs.z;
+
+                return vec;
+            }
+
+            inline Vector3D operator-(const Vector3D &rhs) const
+            {
+                Vector3D vec;
+                vec.x = this->x - rhs.x;
+                vec.y = this->y - rhs.y;
+                vec.z = this->z - rhs.z;
+
+                return vec;
+            }
+
+            inline Vector3D operator*(float scalar) const
+            {
+                Vector3D vec;
+                vec.x = this->x * scalar;
+                vec.y = this->y * scalar;
+                vec.z = this->z * scalar;
 
                 return vec;
             }
@@ -173,6 +211,28 @@ namespace pg
                 vec.y = this->y + rhs.y;
                 vec.z = this->z + rhs.z;
                 vec.w = this->w + rhs.w;
+
+                return vec;
+            }
+
+            inline Vector4D operator-(const Vector4D &rhs) const
+            {
+                Vector4D vec;
+                vec.x = this->x - rhs.x;
+                vec.y = this->y - rhs.y;
+                vec.z = this->z - rhs.z;
+                vec.w = this->w - rhs.w;
+
+                return vec;
+            }
+
+            inline Vector4D operator*(float scalar) const
+            {
+                Vector4D vec;
+                vec.x = this->x * scalar;
+                vec.y = this->y * scalar;
+                vec.z = this->z * scalar;
+                vec.w = this->w * scalar;
 
                 return vec;
             }

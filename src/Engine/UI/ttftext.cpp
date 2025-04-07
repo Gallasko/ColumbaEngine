@@ -223,6 +223,17 @@ namespace pg
         if (not changed)
             return;
 
+        renderCallList.clear();
+
+        const auto& renderCallView = view<TTFTextCall>();
+
+        renderCallList.reserve(renderCallView.nbComponents());
+
+        for (const auto& renderCall : renderCallView)
+        {
+            renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
+        }
+
         while (not textUpdateQueue.empty())
         {
             auto entityId = textUpdateQueue.front();
@@ -248,17 +259,6 @@ namespace pg
             }
 
             textUpdateQueue.pop();
-        }
-
-        renderCallList.clear();
-
-        const auto& renderCallView = view<TTFTextCall>();
-
-        renderCallList.reserve(renderCallView.nbComponents());
-
-        for (const auto& renderCall : renderCallView)
-        {
-            renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
         }
 
         changed = false;

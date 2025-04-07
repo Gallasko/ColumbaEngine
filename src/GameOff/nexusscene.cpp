@@ -604,13 +604,13 @@ namespace pg
 
         categoryList = categoryListView.entity;
 
-        auto mainCat = createCategoryUI("Main");
         auto harvestCat = createCategoryUI("Harvest");
+        auto mainCat = createCategoryUI("Main");
         auto taskCat = createCategoryUI("Task");
         auto upgradeCat = createCategoryUI("Upgrade");
 
-        categoryView->addEntity(mainCat);
         categoryView->addEntity(harvestCat);
+        categoryView->addEntity(mainCat);
         categoryView->addEntity(taskCat);
         categoryView->addEntity(upgradeCat);
 
@@ -885,10 +885,9 @@ namespace pg
         });
 
         // Listen for world fact updates to log mana or upgrades.
-        listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate& event) {
-            updateDynamicButtons(*event.factMap);
-            updateRessourceView();
+        listenToEvent<WorldFactsUpdate>([this](const WorldFactsUpdate&) {
             updateGeneratorViews();
+            updateUi = true;
         });
 
         listenToEvent<OnBackgroundButtonHover>([this](const OnBackgroundButtonHover& event) {
@@ -1172,8 +1171,6 @@ namespace pg
 
     void NexusScene::startUp()
     {
-        auto sys = ecsRef->getSystem<WorldFacts>();
-
         for (auto it = maskedButtons.begin(); it != maskedButtons.end();)
         {
             if (it->archived)
@@ -1187,13 +1184,23 @@ namespace pg
             }
         }
 
-        updateDynamicButtons(sys->factMap);
+        updateGeneratorViews();
 
-        updateRessourceView();
+        updateUi = true;
     }
 
     void NexusScene::execute()
     {
+        if (updateUi)
+        {
+            auto sys = ecsRef->getSystem<WorldFacts>();
+
+            updateDynamicButtons(sys->factMap);
+            updateRessourceView();
+
+            updateUi = false;
+        }
+
         if (newRes)
         {
             updateRessourceView();
