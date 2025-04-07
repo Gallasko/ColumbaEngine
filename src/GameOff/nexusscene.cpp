@@ -587,6 +587,8 @@ namespace pg
 
         categoryListUi->setRightAnchor(logViewUi->left);
 
+        categoryList = categoryListView.entity;
+
         auto mainCat = createCategoryUI("Main");
         auto harvestCat = createCategoryUI("Harvest");
         auto taskCat = createCategoryUI("Task");
@@ -605,11 +607,9 @@ namespace pg
             }
 
             auto cat = createCategoryUI(category);
-        
+
             categoryView->addEntity(cat);
         }
-
-        categoryList = categoryListView.entity;
 
         // [Begin] Tooltip Ui definition
 
@@ -892,7 +892,7 @@ namespace pg
             visibleButtons.erase(it);
 
             auto layout = categoryMap[category]->get<HorizontalLayout>();
-            
+
             layout->removeEntity(id);
 
             auto nbVisible = getNbVisibleElementsInLayout(layout);
@@ -1121,10 +1121,12 @@ namespace pg
         // 2. Separator Line: Create a 2D shape rectangle with a height of 1.
         float lineWidth = 500; // Adjust as needed to match category panel width.
         auto lineEnt = makeUiSimple2DShape(this, Shape2D::Square, lineWidth, 1, {200, 200, 200, 255});
+        lineEnt.get<UiAnchor>()->setWidthConstrain(PosConstrain{categoryList.id, AnchorType::Width, PosOpType::Mul, 0.9f});
         verticalLayout->addEntity(lineEnt.entity);
 
         // 3. Horizontal Layout for Buttons: Create an HLayout that will hold the buttons.
         auto buttonLayoutEnt = makeHorizontalLayout(this, 0, 0, lineWidth, 60); // Adjust height as needed.
+        buttonLayoutEnt.get<UiAnchor>()->setWidthConstrain(PosConstrain{categoryList.id, AnchorType::Width, PosOpType::Mul, 0.9f});
         auto buttonLayout = buttonLayoutEnt.get<HorizontalLayout>();
         buttonLayout->spacing = 10;
         buttonLayout->fitToWidth = true;
