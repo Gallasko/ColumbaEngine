@@ -15,6 +15,8 @@
 #include <iomanip>
 #include <sstream>
 
+#include "Systems/tween.h"
+
 namespace pg
 {
     namespace
@@ -1230,6 +1232,8 @@ namespace pg
         // Todo lookup the colors from a theme instead of hardcoded
         constant::Vector4D colors = getButtonColors(scene->theme, button->clickable, button->activable);
 
+        colors.w = 0.0f;
+
         auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, scene->theme.values["nexusbutton.width"].get<float>(), scene->theme.values["nexusbutton.height"].get<float>(), colors);
         auto backgroundAnchor = background.get<UiAnchor>();
 
@@ -1237,6 +1241,17 @@ namespace pg
 
         scene->ecsRef->attach<MouseEnterComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button->id, background.entity.id, true}));
         scene->ecsRef->attach<MouseLeaveComponent>(background.entity, makeCallable<OnBackgroundButtonHover>(OnBackgroundButtonHover{button->id, background.entity.id, false}));
+
+        auto tweenComp = TweenComponent{
+            0.0f,
+            255.0f,
+            350.0f,
+            [background](const TweenValue& value) { background.get<Simple2DObject>()->setOpacity(std::get<float>(value)); },
+        };
+
+        tweenComp.easing = TweenQuad;
+
+        scene->ecsRef->attach<TweenComponent>(background.entity, tweenComp);
 
         prefabAnchor->setWidthConstrain(PosConstrain{background.entity.id, AnchorType::Width});
         prefabAnchor->setHeightConstrain(PosConstrain{background.entity.id, AnchorType::Height});

@@ -42,6 +42,16 @@ namespace pg
             }
         }
 
+        void setOpacity(float alpha)
+        {
+            colors.w = alpha;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{id});
+            }
+        }
+
         Shape2D shape;
 
         // Todo be specific for each shape (rect = [width, height], circle = [origin, radius], triangle = [base, height] + rotation arg)

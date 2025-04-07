@@ -275,6 +275,7 @@ namespace pg
 
         // Z + 3 so the cursor is always on top of the slider
         auto cursor = makeUiTexture(ecs, 15, height, "cursor");
+        cursor.template get<PositionComponent>()->setVisibility(false);
         auto cursorAnchor = cursor.template get<UiAnchor>();
 
         cursorAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 3});
@@ -337,6 +338,7 @@ namespace pg
 
         // Z + 2 so the slider is always on top of any entity in the list
         auto slider = makeUiTexture(ecs, 15, 1, "slider");
+        slider.template get<PositionComponent>()->setVisibility(false);
         auto sliderAnchor = slider.template get<UiAnchor>();
 
         sliderAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 2});

@@ -69,9 +69,14 @@ namespace pg
         }, value);
     }
 
-    float TweenLinear(float value)
+    static float TweenLinear(float value)
     {
         return value;
+    }
+
+    static float TweenQuad(float value)
+    {
+        return 1 - (1 - value) * (1 - value);
     }
 
     struct TweenComponent
