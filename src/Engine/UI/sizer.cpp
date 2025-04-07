@@ -123,6 +123,8 @@ namespace pg
 
         const float maxWidthPos = viewUi->x + viewUi->width;
 
+        bool lastElementWasOversized = false;
+
         for (size_t i = 0; i < view->entities.size(); i++)
         {
             auto ent = view->entities[i];
@@ -138,19 +140,23 @@ namespace pg
             if (nbElementOnCurrentRow == 0)
             {
                 totalHeight += maxHeight + view->spacing;
+
+                if (pos->width >= viewUi->width)
+                {
+                    lastElementWasOversized = true;
+
+                    pos->setX(currentX);
+                    pos->setY(currentY);
+
+                    currentY += pos->height + view->spacing;
+
+                    firstRowElementIndex = i + 1;
+
+                    continue;
+                }
             }
 
-            if (nbElementOnCurrentRow != 0 and pos->width >= viewUi->width)
-            {
-                pos->setX(currentX);
-                pos->setY(currentY);
-
-                currentY += pos->height + view->spacing;
-
-                firstRowElementIndex = i + 1;
-
-                continue;
-            }
+            lastElementWasOversized = false;
 
             if (view->fitToWidth and (currentX + pos->width > maxWidthPos))
             {
@@ -200,7 +206,7 @@ namespace pg
             nbElementOnCurrentRow++;
         }
 
-        if (nbElementOnCurrentRow == 0)
+        if (nbElementOnCurrentRow == 0 and not lastElementWasOversized)
         {
             totalHeight += maxHeight + view->spacing;
         }
@@ -391,6 +397,8 @@ namespace pg
 
         const float maxHeightPos = viewUi->y + viewUi->height;
 
+        bool lastElementWasOversized = false;
+
         for (size_t i = 0; i < view->entities.size(); i++)
         {
             auto ent = view->entities[i];
@@ -406,17 +414,21 @@ namespace pg
             if (nbElementOnCurrentColumn == 0)
             {
                 totalWidth += maxWidth + view->spacing;
+
+                if (pos->height >= viewUi->height)
+                {
+                    lastElementWasOversized = true;
+
+                    pos->setX(currentX);
+                    pos->setY(currentY);
+
+                    currentX += pos->width + view->spacing;
+                    firstColumnElementIndex = i + 1;
+                    continue;
+                }
             }
 
-            if (nbElementOnCurrentColumn != 0 and pos->height >= viewUi->height)
-            {
-                pos->setX(currentX);
-                pos->setY(currentY);
-
-                currentX += pos->width + view->spacing;
-                firstColumnElementIndex = i + 1;
-                continue;
-            }
+            lastElementWasOversized = false;
 
             if (view->fitToHeight and (currentY + pos->height > maxHeightPos))
             {
@@ -461,7 +473,7 @@ namespace pg
             nbElementOnCurrentColumn++;
         }
 
-        if (nbElementOnCurrentColumn == 0)
+        if (nbElementOnCurrentColumn == 0 and not lastElementWasOversized)
         {
             totalWidth += maxWidth + view->spacing;
         }

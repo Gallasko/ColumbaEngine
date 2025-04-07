@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.18)
 
 project(PgEngine VERSION 1.0)
 
+option(UseGDB "UseGDB" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
@@ -67,6 +69,10 @@ else()
     endif()
 
     # set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+endif()
+
+if(${UseGDB} EQUAL ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
 endif()
 
 add_subdirectory(${GLM_DIR})
