@@ -38,10 +38,20 @@ namespace pg
         defaultTheme.values["clickableNexusButton.b"] = 196.0f;
         defaultTheme.values["clickableNexusButton.a"] = 255.0f;
 
+        defaultTheme.values["activeClickableNexusButton.r"] = 120.0f;
+        defaultTheme.values["activeClickableNexusButton.g"] = 180.0f;
+        defaultTheme.values["activeClickableNexusButton.b"] = 255.0f;
+        defaultTheme.values["activeClickableNexusButton.a"] = 255.0f;
+
         defaultTheme.values["unclickableNexusButton.r"] = 96.0f;
         defaultTheme.values["unclickableNexusButton.g"] = 96.0f;
         defaultTheme.values["unclickableNexusButton.b"] = 96.0f;
         defaultTheme.values["unclickableNexusButton.a"] = 255.0f;
+
+        defaultTheme.values["activeFocus.r"] = 255.0f;
+        defaultTheme.values["activeFocus.g"] = 255.0f;
+        defaultTheme.values["activeFocus.b"] = 255.0f;
+        defaultTheme.values["activeFocus.a"] = 255.0f;
 
         defaultTheme.values["nexusbutton.width"] = 160.0f;
         defaultTheme.values["nexusbutton.height"] = 55.0f;

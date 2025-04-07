@@ -71,6 +71,11 @@ namespace pg
         DynamicNexusButton button;
     };
 
+    struct CurrentActiveButton
+    {
+        std::vector<std::string> ids;
+    };
+
     struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, SaveSys, InitSys>
     {
         virtual std::string getSystemName() const override { return "NexusSystem"; }
@@ -88,7 +93,6 @@ namespace pg
                 it->archived = event.button.archived;
                 it->nbClick = event.button.nbClick;
                 it->active = event.button.active;
-                // it->activeTime = event.button.activeTime;
 
                 if (it->active)
                 {
@@ -97,6 +101,8 @@ namespace pg
 
                     activeButton = true;
                     currentActiveButton = it.base();
+
+                    ecsRef->sendEvent(CurrentActiveButton{std::vector<std::string>{it->id}});
                 }
 
                 LOG_INFO("NexusButtonStateChange", "Button state changed !: " << it->id << " archived: " << it->archived << " nb click: " << it->nbClick);
@@ -104,7 +110,6 @@ namespace pg
             else
             {
                 LOG_ERROR("NexusSystem", "Button: " << event.button.id << " was not found during init!");
-                // savedButtons.push_back(event.button);
             }
         }
 
@@ -181,6 +186,8 @@ namespace pg
         EntityRef categoryList;
 
         std::unordered_map<std::string, EntityRef> categoryMap;
+
+        std::unordered_map<std::string, EntityRef> activeButtonsUi;
 
         // Adds a resource entry to the list view.
         void addResourceDisplay(const std::string& resourceName) { resourceToBeDisplayed.push(resourceName); }

@@ -40,10 +40,19 @@ namespace pg
             std::string buttonId;
         };
 
-        constant::Vector4D getButtonColors(ThemeInfo& info, bool clickable, bool highlight = false)
+        constant::Vector4D getButtonColors(ThemeInfo& info, bool clickable, bool activable, bool highlight = false)
         {
             if (clickable)
             {
+                if (activable)
+                {
+                    return {
+                        info.values["activeClickableNexusButton.r"].get<float>(),
+                        info.values["activeClickableNexusButton.g"].get<float>(),
+                        info.values["activeClickableNexusButton.b"].get<float>(),
+                        info.values["activeClickableNexusButton.a"].get<float>()};
+                }
+
                 if (highlight)
                 {
                     return {
@@ -462,17 +471,21 @@ namespace pg
         {
             currentActiveButton->activeTime += deltaTime;
 
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+
+            if (not isButtonClickable(wf->factMap, *currentActiveButton))
+            {
+                currentActiveButton->activeTime -= deltaTime;
+                currentActiveButton->active = false;
+                activeButton = false;
+
+                ecsRef->sendEvent(CurrentActiveButton{std::vector<std::string>{}});
+
+                return;
+            }
+
             if (currentActiveButton->activeTime >= currentActiveButton->activationTime)
             {
-                WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
-
-                if (not isButtonClickable(wf->factMap, *currentActiveButton))
-                {
-                    currentActiveButton->active = false;
-                    activeButton = false;
-                    return;
-                }
-
                 // Todo check if all the conditions are met
                 for (auto it2 : currentActiveButton->outcome)
                 {
@@ -512,6 +525,8 @@ namespace pg
                     currentActiveButton->archived = true;
                     currentActiveButton->active = false;
                     activeButton = false;
+
+                    ecsRef->sendEvent(CurrentActiveButton{std::vector<std::string>{}});
 
                     ecsRef->sendEvent(HideButton{currentActiveButton->id});
                 }
@@ -709,6 +724,46 @@ namespace pg
 
         // -- [End] Tooltip Ui definition
 
+        // -- [Start] Active Focus
+
+        auto activeFocusTop = makeUiSimple2DShape(this, Shape2D::Square, theme.values["nexusbutton.width"].get<float>() * 0.85, 1, {theme.values["activeFocus.r"].get<float>(), theme.values["activeFocus.g"].get<float>(), theme.values["activeFocus.b"].get<float>(), theme.values["activeFocus.a"].get<float>()});
+        auto activeFocusLeft = makeUiSimple2DShape(this, Shape2D::Square, 1, theme.values["nexusbutton.height"].get<float>() * 0.70, {theme.values["activeFocus.r"].get<float>(), theme.values["activeFocus.g"].get<float>(), theme.values["activeFocus.b"].get<float>(), theme.values["activeFocus.a"].get<float>()});
+        auto activeFocusRight = makeUiSimple2DShape(this, Shape2D::Square, 1, theme.values["nexusbutton.height"].get<float>() * 0.70, {theme.values["activeFocus.r"].get<float>(), theme.values["activeFocus.g"].get<float>(), theme.values["activeFocus.b"].get<float>(), theme.values["activeFocus.a"].get<float>()});
+        auto activeFocusBottom = makeUiSimple2DShape(this, Shape2D::Square, theme.values["nexusbutton.width"].get<float>() * 0.85, 1, {theme.values["activeFocus.r"].get<float>(), theme.values["activeFocus.g"].get<float>(), theme.values["activeFocus.b"].get<float>(), theme.values["activeFocus.a"].get<float>()});
+
+        auto activeFocusTopPos = activeFocusTop.get<PositionComponent>();
+        auto activeFocusTopAnchor = activeFocusTop.get<UiAnchor>();
+        activeFocusTopPos->setVisibility(false);
+        activeFocusTopPos->setZ(3);
+
+        auto activeFocusLeftPos = activeFocusLeft.get<PositionComponent>();
+        auto activeFocusLeftAnchor = activeFocusLeft.get<UiAnchor>();
+        activeFocusLeftPos->setVisibility(false);
+        activeFocusLeftPos->setZ(3);
+        activeFocusLeftAnchor->setTopAnchor(activeFocusTopAnchor->top);
+        activeFocusLeftAnchor->setLeftAnchor(activeFocusTopAnchor->left);
+
+        auto activeFocusRightPos = activeFocusRight.get<PositionComponent>();
+        auto activeFocusRightAnchor = activeFocusRight.get<UiAnchor>();
+        activeFocusRightPos->setVisibility(false);
+        activeFocusRightPos->setZ(3);
+        activeFocusRightAnchor->setTopAnchor(activeFocusTopAnchor->top);
+        activeFocusRightAnchor->setRightAnchor(activeFocusTopAnchor->right);
+
+        auto activeFocusBottomPos = activeFocusBottom.get<PositionComponent>();
+        auto activeFocusBottomAnchor = activeFocusBottom.get<UiAnchor>();
+        activeFocusBottomPos->setVisibility(false);
+        activeFocusBottomPos->setZ(3);
+        activeFocusBottomAnchor->setBottomAnchor(activeFocusLeftAnchor->bottom);
+        activeFocusBottomAnchor->setLeftAnchor(activeFocusTopAnchor->left);
+
+        activeButtonsUi["topHighlight"] = activeFocusTop.entity;
+        activeButtonsUi["leftHighlight"] = activeFocusLeft.entity;
+        activeButtonsUi["rightHighlight"] = activeFocusRight.entity;
+        activeButtonsUi["bottomHighlight"] = activeFocusBottom.entity;
+
+        // -- [End] Active Focus
+
         listenToStandardEvent("add_res_display", [this](const StandardEvent& event) {
             auto res = event.values.at("res").get<std::string>();
 
@@ -794,6 +849,16 @@ namespace pg
 
             if (bgEnt)
             {
+                tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(false);
+                tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(false);
+
+                tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(false);
+
+                tooltipsEntities["costSpacer"]->get<PositionComponent>()->setVisibility(false);
+                tooltipsEntities["costTitle"]->get<PositionComponent>()->setVisibility(false);
+
+                tooltipsEntities["costValues"]->get<PositionComponent>()->setVisibility(false);
+
                 if (event.state)
                 {
                     tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(true);
@@ -848,25 +913,13 @@ namespace pg
                         tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["costValues"]->get<UiAnchor>()->bottom);
                     }
                 }
-                else
-                {
-                    tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(false);
-                    tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(false);
-
-                    tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(false);
-
-                    tooltipsEntities["costSpacer"]->get<PositionComponent>()->setVisibility(false);
-                    tooltipsEntities["costTitle"]->get<PositionComponent>()->setVisibility(false);
-
-                    tooltipsEntities["costValues"]->get<PositionComponent>()->setVisibility(false);
-                }
 
                 if (not it->clickable)
                     return;
 
                 if (bgEnt->has<Simple2DObject>())
                 {
-                    auto colors = getButtonColors(theme, true, event.state);
+                    auto colors = getButtonColors(theme, true, it->activable, event.state);
 
                     bgEnt->get<Simple2DObject>()->setColors(colors);
                 }
@@ -900,6 +953,42 @@ namespace pg
             if (nbVisible <= 1)
             {
                 categoryMap[category + "_main"]->get<VerticalLayout>()->setVisibility(false);
+            }
+        });
+
+        listenToEvent<CurrentActiveButton>([this](const CurrentActiveButton& event) {
+            if (event.ids.empty())
+            {
+                activeButtonsUi["topHighlight"]->get<PositionComponent>()->setVisibility(false);
+                activeButtonsUi["leftHighlight"]->get<PositionComponent>()->setVisibility(false);
+                activeButtonsUi["rightHighlight"]->get<PositionComponent>()->setVisibility(false);
+                activeButtonsUi["bottomHighlight"]->get<PositionComponent>()->setVisibility(false);
+            }
+            else
+            {
+                auto it = std::find_if(visibleButtons.begin(), visibleButtons.end(), [&event](const DynamicNexusButton& button) {
+                    return button.id == event.ids[0];
+                });
+
+                if (it != visibleButtons.end())
+                {
+                    activeButtonsUi["topHighlight"]->get<PositionComponent>()->setVisibility(true);
+                    activeButtonsUi["leftHighlight"]->get<PositionComponent>()->setVisibility(true);
+                    activeButtonsUi["rightHighlight"]->get<PositionComponent>()->setVisibility(true);
+                    activeButtonsUi["bottomHighlight"]->get<PositionComponent>()->setVisibility(true);
+
+                    auto ent = ecsRef->getEntity(it->backgroundId);
+
+                    if (ent)
+                    {
+                        activeButtonsUi["topHighlight"]->get<UiAnchor>()->setTopAnchor(ent->get<UiAnchor>()->top);
+                        activeButtonsUi["topHighlight"]->get<UiAnchor>()->setHorizontalCenter(ent->get<UiAnchor>()->horizontalCenter);
+
+                        activeButtonsUi["topHighlight"]->get<UiAnchor>()->setTopMargin(theme.values["nexusbutton.height"].get<float>() * 0.15f);
+                    }
+                    // currentActiveButton = &(*it);
+                    // activeButton = true;
+                }
             }
         });
 
@@ -1075,7 +1164,7 @@ namespace pg
         auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
         // Todo lookup the colors from a theme instead of hardcoded
-        constant::Vector4D colors = getButtonColors(scene->theme, button->clickable);
+        constant::Vector4D colors = getButtonColors(scene->theme, button->clickable, button->activable);
 
         auto background = makeUiSimple2DShape(scene->ecsRef, Shape2D::Square, scene->theme.values["nexusbutton.width"].get<float>(), scene->theme.values["nexusbutton.height"].get<float>(), colors);
         auto backgroundAnchor = background.get<UiAnchor>();
@@ -1167,7 +1256,7 @@ namespace pg
                     continue;
                 }
 
-                auto colors = getButtonColors(theme, clickable);
+                auto colors = getButtonColors(theme, clickable, button.activable);
 
                 if (background->has<Simple2DObject>())
                     background->get<Simple2DObject>()->setColors(colors);
