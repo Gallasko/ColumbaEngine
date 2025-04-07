@@ -130,6 +130,22 @@ scrapConverter.yield = [1.0]
 var scrapConverterId = registerConverter(scrapConverter)
 
 
+// Todo use that back (right now it doesn't work as we can overcap on resources)
+//var button = NexusButton()
+//
+//button.id = "ScrapConverter"
+//button.label = "Convert [Scrap]"
+//button.category = "Task"
+//
+//button.conditions = [FactChecker("scrapper_on", true, "Equal")]
+//button.outcome = [ AchievementRewardEvent("converter_triggered", "id", scrapConverterId) ]
+//
+//button.description = "Convert Mana to Scrap"
+//button.costs = [ ButtonCost("mana", 0, "scrap_converter_mana_cost", false) ]
+//button.nbClickBeforeArchive = 0
+//
+//registerNexusButton(button)
+
 var button = NexusButton()
 
 button.id = "ScrapConverter"
@@ -137,10 +153,10 @@ button.label = "Convert [Scrap]"
 button.category = "Task"
 
 button.conditions = [FactChecker("scrapper_on", true, "Equal")]
-button.outcome = [ AchievementRewardEvent("converter_triggered", "id", scrapConverterId) ]
+button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1) ]
 
 button.description = "Convert Mana to Scrap"
-button.costs = [ ButtonCost("mana", 0, "scrap_converter_mana_cost", false) ]
+button.costs = [ ButtonCost("mana", 0, "scrap_converter_mana_cost", true) ]
 button.nbClickBeforeArchive = 0
 
 registerNexusButton(button)
