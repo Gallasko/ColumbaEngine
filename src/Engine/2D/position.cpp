@@ -357,13 +357,13 @@ namespace pg
 
         bool anchorChanged = top.value != pos->y or
                              left.value != pos->x or
-                             (right.value != visible ? pos->x + pos->width : pos->x) or
-                             (bottom.value != visible ? pos->y + pos->height : pos->y);
+                             (right.value != (visible ? pos->x + pos->width : pos->x)) or
+                             (bottom.value != (visible ? pos->y + pos->height : pos->y));
 
         top.value = pos->y;
         left.value = pos->x;
-        right.value = visible ? pos->x + pos->width : pos->x;
-        bottom.value = visible ? pos->y + pos->height : pos->y;
+        right.value = (visible ? pos->x + pos->width : pos->x);
+        bottom.value = (visible ? pos->y + pos->height : pos->y);
         verticalCenter.value = pos->y + pos->height / 2.0f;
         horizontalCenter.value = pos->x + pos->width / 2.0f;
 
