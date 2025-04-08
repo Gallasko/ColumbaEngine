@@ -2,20 +2,23 @@
 
 out vec4 FragColor;
 
-in vec2 TexCoord;
+in vec2 finalUV;
 in float opacity;
 in vec3 mixColor;
 in float mixColorRatio;
 
-// texture samplers
-uniform sampler2D texture1;
-uniform int time;
+uniform sampler2D texture1;  // The atlas texture
 
 void main()
 {
-	vec4 pixelColor = vec4(1.0, 1.0, 1.0, texture(texture1, TexCoord).r);
+	// Sample from the atlas using finalUV.
+    vec4 sampleColor = texture(texture1, finalUV);
+    // The atlas stores glyphs in the red channel, so we use .r to determine opacity.
+    vec4 pixelColor = vec4(1.0, 1.0, 1.0, sampleColor.r);
 
-	vec3 color = mix(pixelColor.xyz, mixColor, mixColorRatio);
+    // Mix the pixel color with a provided mixColor.
+    vec3 color = mix(pixelColor.rgb, mixColor, mixColorRatio);
 
-	FragColor = vec4(color, pixelColor.a);
+    // The final color uses the computed alpha.
+    FragColor = vec4(color, pixelColor.a);
 }
