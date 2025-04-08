@@ -492,7 +492,7 @@ void initGame()
     // hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
     // hLayout.get<HorizontalLayout>()->addEntity(s5.entity);
 
-    mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
+    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
 
     mainWindow->ecs.start();
 

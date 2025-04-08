@@ -69,12 +69,12 @@ namespace pg
         }, value);
     }
 
-    static float TweenLinear(float value)
+    inline float TweenLinear(float value)
     {
         return value;
     }
 
-    static float TweenQuad(float value)
+    inline float TweenQuad(float value)
     {
         return 1 - (1 - value) * (1 - value);
     }
@@ -85,17 +85,17 @@ namespace pg
         TweenValue end;
 
         float duration = 0.0f; // Duration of the tween in milliseconds
-        
+
         std::function<void(const TweenValue&)> onUpdateCallback; // Callback to be called on each update
-        
+
         CallablePtr onCompleteCallback = nullptr; // Callback to be called when the tween completes
 
         int loops = 1; // Whether the tween should loop
         bool pingpong = false; // Whether the tween should ping-pong
         bool reverse = false; // Whether the tween is currently in reverse mode
-        
+
         std::function<float(float)> easing = TweenLinear; // Type of tweening function to use
-        
+
         bool active = true; // Whether the tween is currently active
         float elapsedTime = 0.0f; // Time elapsed since the tween started
     };

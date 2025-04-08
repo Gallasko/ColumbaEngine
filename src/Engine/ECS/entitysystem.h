@@ -17,6 +17,16 @@
 #include "logger.h"
 #include "Memory/memorypool.h"
 
+#ifdef PROFILE
+#include <atomic>
+#include <mutex>
+extern std::mutex profileMutex;
+// Profiling data
+
+extern std::unordered_map<std::string, long long> _systemExecutionTimes;
+extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
+#endif
+
 namespace pg
 {
     // Todo create a queue that hold all entity id that got deleted to reattribute them later on
@@ -221,8 +231,10 @@ namespace pg
 
                 auto task = taskflow.emplace([system]()
                 {
+#ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
+#endif
 
                     try
                     {
@@ -233,11 +245,27 @@ namespace pg
                         LOG_ERROR("ECS", "Exception thrown whhile execution sys: " << typeid(Sys).name() << ", error: " << e.what());
                     }
 
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
                     auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-                    if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
 
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        std::string systemName = system->getSystemName();
+                        _systemExecutionTimes[systemName] += duration;
+                        _systemExecutionCounts[systemName]++;
+
+                        // std::cout << "Updated " << systemName
+                        // << " total time = " << _systemExecutionTimes[systemName]
+                        // << ", count = " << _systemExecutionCounts[systemName] << std::endl;
+                    }
+#endif
                 }).name(name);
 
                 // Put the task after every other basic task
@@ -253,7 +281,33 @@ namespace pg
                 if (name == "UnNamed")
                     name = std::to_string(system->_id);
 
-                auto task = taskflow.emplace([system](){system->execute();}).name(name);
+                auto task = taskflow.emplace([system]()
+                {
+#ifdef PROFILE
+                    // Todo time the whole exec of a run of the taskflow
+                    auto start = std::chrono::steady_clock::now();
+#endif
+
+                    system->execute();
+
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
+                    auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
+
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        std::string systemName = system->getSystemName();
+                        _systemExecutionTimes[systemName] += duration;
+                        _systemExecutionCounts[systemName]++;
+                    }
+#endif
+                }).name(name);
 
                 // Register the task in case we need to call precede and succeed
                 tasks[system->_id] = task;
@@ -338,16 +392,30 @@ namespace pg
 
                 auto task = taskflow.emplace([system]()
                 {
+#ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
+#endif
 
                     system->execute();
 
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
                     auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-                    if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
 
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        std::string systemName = system->getSystemName();
+                        _systemExecutionTimes[systemName] += duration;
+                        _systemExecutionCounts[systemName]++;
+                    }
+#endif
                 }).name(name);
 
                 // Put the task after every other basic task
@@ -575,6 +643,8 @@ namespace pg
 
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
         inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
+
+        void reportSystemProfiles();
 
     private:
         friend void serialize<>(Archive& archive, const EntitySystem& ecs);

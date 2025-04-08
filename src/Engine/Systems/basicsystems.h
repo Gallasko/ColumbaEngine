@@ -90,6 +90,8 @@ namespace pg
                 generatedText->setText(fpsStr2.getData());
                 executionText->setText(std::to_string(ecsRef->getCurrentNbOfExecution()));
                 drawCallText->setText(std::to_string(rendererSys->getNbRenderCall()));
+
+                ecsRef->reportSystemProfiles();
             }
         }
 
