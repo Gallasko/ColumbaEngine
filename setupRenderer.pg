@@ -5,7 +5,7 @@ print("Setting up renderer...")
 print("Loading shaders...")
 
 loadShader("simpleTexture", "shader/default.vs", "shader/default.fs");
-loadShader("ttfTexture", "shader/default.vs", "shader/ttftext.fs");
+loadShader("ttfTexture", "shader/ttftext.vs", "shader/ttftext.fs");
 loadShader("atlasTexture", "shader/atlastexture.vs", "shader/atlastexture.fs");
 loadShader("gui", "shader/default.vs", "shader/default.fs");
 loadShader("text", "shader/textrendering.vs", "shader/textrendering.fs");
