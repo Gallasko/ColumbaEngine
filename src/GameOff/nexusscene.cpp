@@ -587,8 +587,10 @@ namespace pg
 
         resLayout = listView.entity;
 
-        auto categoryListView = makeListView(this, 1, 1, 350, 1);
-        auto categoryView = categoryListView.get<ListView>();
+        // auto categoryListView = makeListView(this, 1, 1, 350, 1);
+        auto categoryListView = makeVerticalLayout(this, 1, 1, 350, 1);
+        // auto categoryView = categoryListView.get<ListView>();
+        auto categoryView = categoryListView.get<VerticalLayout>();
         auto categoryListUi = categoryListView.get<UiAnchor>();
 
         // categoryView->spacing = 8;

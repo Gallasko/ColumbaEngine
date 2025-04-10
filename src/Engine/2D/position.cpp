@@ -124,6 +124,9 @@ namespace pg
 
     void UiAnchor::setTopAnchor(const PosAnchor& anchor)
     {
+        if (hasTopAnchor and topAnchor.id == anchor.id)
+            return;
+
         if (hasTopAnchor)
             ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
 
@@ -136,14 +139,19 @@ namespace pg
     void UiAnchor::clearTopAnchor()
     {
         if (hasTopAnchor)
+        {
             ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
 
-        hasTopAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasTopAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setLeftAnchor(const PosAnchor& anchor)
     {
+        if (hasLeftAnchor and leftAnchor.id == anchor.id)
+            return;
+
         if (hasLeftAnchor)
             ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
 
@@ -156,14 +164,19 @@ namespace pg
     void UiAnchor::clearLeftAnchor()
     {
         if (hasLeftAnchor)
+        {
             ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
 
-        hasLeftAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasLeftAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setRightAnchor(const PosAnchor& anchor)
     {
+        if (hasRightAnchor and rightAnchor.id == anchor.id)
+            return;
+
         if (hasRightAnchor)
             ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
 
@@ -176,14 +189,19 @@ namespace pg
     void UiAnchor::clearRightAnchor()
     {
         if (hasRightAnchor)
+        {
             ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
 
-        hasRightAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasRightAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setBottomAnchor(const PosAnchor& anchor)
     {
+        if (hasBottomAnchor and bottomAnchor.id == anchor.id)
+            return;
+
         if (hasBottomAnchor)
             ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
 
@@ -196,14 +214,19 @@ namespace pg
     void UiAnchor::clearBottomAnchor()
     {
         if (hasBottomAnchor)
+        {
             ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
 
-        hasBottomAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasBottomAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setVerticalCenter(const PosAnchor& anchor)
     {
+        if (hasVerticalCenter and verticalCenterAnchor.id == anchor.id)
+            return;
+
         verticalCenterAnchor = anchor;
         hasVerticalCenter = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -213,14 +236,19 @@ namespace pg
     void UiAnchor::clearVerticalCenter()
     {
         if (hasVerticalCenter)
+        {
             ecsRef->sendEvent(ClearParentingEvent{verticalCenterAnchor.id, id});
 
-        hasVerticalCenter = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasVerticalCenter = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setHorizontalCenter(const PosAnchor& anchor)
     {
+        if (hasHorizontalCenter and horizontalCenterAnchor.id == anchor.id)
+            return;
+
         horizontalCenterAnchor = anchor;
         hasHorizontalCenter = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -230,10 +258,12 @@ namespace pg
     void UiAnchor::clearHorizontalCenter()
     {
         if (hasHorizontalCenter)
+        {
             ecsRef->sendEvent(ClearParentingEvent{horizontalCenterAnchor.id, id});
 
-        hasHorizontalCenter = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasHorizontalCenter = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::fillIn(const UiAnchor& anchor)
@@ -276,31 +306,50 @@ namespace pg
 
     void UiAnchor::setTopMargin(float value)
     {
-        topMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (topMargin != value)
+        {
+            topMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setLeftMargin(float value)
     {
-        leftMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (leftMargin != value)
+        {
+            leftMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setRightMargin(float value)
     {
-        rightMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (rightMargin != value)
+        {
+            rightMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setBottomMargin(float value)
     {
-        bottomMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (bottomMargin != value)
+        {
+            bottomMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     // Todo need to create a clear constrain method for the constrains
     void UiAnchor::setWidthConstrain(const PosConstrain& constrain)
     {
+        if (hasWidthConstrain and widthConstrain.id == constrain.id)
+            return;
+
         widthConstrain = constrain;
         hasWidthConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -309,6 +358,9 @@ namespace pg
 
     void UiAnchor::setHeightConstrain(const PosConstrain& constrain)
     {
+        if (hasHeightConstrain and heightConstrain.id == constrain.id)
+            return;
+
         heightConstrain = constrain;
         hasHeightConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -317,6 +369,9 @@ namespace pg
 
     void UiAnchor::setZConstrain(const PosConstrain& constrain)
     {
+        if (hasZConstrain and zConstrain.id == constrain.id)
+            return;
+
         zConstrain = constrain;
         hasZConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -597,6 +652,8 @@ namespace pg
                     auto changed = pos->updatefromAnchor(*anchor);
 
                     anchorChanged |= changed;
+
+                    LOG_MILE("PositionComponentSystem", "Position changed: " << changed << ", anchor changed: " << anchorChanged << " for entity: " << id);
                 }
 
                 ecsRef->sendEvent(EntityChangedEvent{id});

@@ -272,7 +272,6 @@ namespace pg
 
         while (not textUpdateQueue.empty())
         {
-            LOG_INFO("TTFText", "Not empty queue !");
             auto entityId = textUpdateQueue.front();
 
             auto entity = ecsRef->getEntity(entityId);
@@ -286,7 +285,7 @@ namespace pg
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<TTFText>();
 
-            LOG_INFO("TTFText", "Updating entity " << entityId << ", with text: " << obj->text);
+            LOG_MILE("TTFText", "Updating entity " << entityId << ", with text: " << obj->text);
 
             if (entity->has<TTFTextCall>())
             {

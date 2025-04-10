@@ -402,7 +402,7 @@ void initGame()
 
     mainWindow->ecs.createSystem<ThemeSystem>();
 
-    // mainWindow->ecs.createSystem<FpsSystem>();
+    mainWindow->ecs.createSystem<FpsSystem>();
 
     mainWindow->ecs.createSystem<InventorySystem>();
 
