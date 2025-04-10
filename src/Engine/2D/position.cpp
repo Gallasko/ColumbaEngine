@@ -560,32 +560,37 @@ namespace pg
         float oldWidth = width;
         float oldHeight = height;
 
+        float topMargin = (visible ? anchor.topMargin : 0.0f);
+        float leftMargin = (visible ? anchor.leftMargin : 0.0f);
+        float rightMargin = (visible ? anchor.rightMargin : 0.0f);
+        float bottomMargin = (visible ? anchor.bottomMargin : 0.0f);
+
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
-            this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value + anchor.topMargin);
-            this->y = anchor.topAnchor.value + anchor.topMargin;
+            this->height = (anchor.bottomAnchor.value - bottomMargin) - (anchor.topAnchor.value + topMargin);
+            this->y = anchor.topAnchor.value + topMargin;
         }
         else if (anchor.hasTopAnchor and not anchor.hasBottomAnchor)
         {
-            this->y = anchor.topAnchor.value + anchor.topMargin;
+            this->y = anchor.topAnchor.value + topMargin;
         }
         else if (not anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
-            this->y = (anchor.bottomAnchor.value - anchor.bottomMargin) - this->height;
+            this->y = (anchor.bottomAnchor.value - bottomMargin) - this->height;
         }
 
         if (anchor.hasRightAnchor and anchor.hasLeftAnchor)
         {
-            this->width = (anchor.rightAnchor.value - anchor.rightMargin) - (anchor.leftAnchor.value + anchor.leftMargin);
-            this->x = anchor.leftAnchor.value + anchor.leftMargin;
+            this->width = (anchor.rightAnchor.value - rightMargin) - (anchor.leftAnchor.value + leftMargin);
+            this->x = anchor.leftAnchor.value + leftMargin;
         }
         else if (anchor.hasRightAnchor and not anchor.hasLeftAnchor)
         {
-            this->x = (anchor.rightAnchor.value - anchor.rightMargin) - this->width;
+            this->x = (anchor.rightAnchor.value - rightMargin) - this->width;
         }
         else if (not anchor.hasRightAnchor and anchor.hasLeftAnchor)
         {
-            this->x = anchor.leftAnchor.value + anchor.leftMargin;
+            this->x = anchor.leftAnchor.value + leftMargin;
         }
 
         // Todo we shouldn't be able to center vertically or horizontally if a basic cardinal anchor is set and vice versa
