@@ -299,7 +299,7 @@ namespace pg
             textUpdateQueue.pop();
         }
 
-        changed = false;
+        finishChanges();
     }
 
     // Helper: Computes the maximum line height based on the font's glyph heights.

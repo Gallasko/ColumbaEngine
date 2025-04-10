@@ -17,8 +17,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for Shape2D 
-     * 
+     * @brief Specialization of the serialize function for Shape2D
+     *
      * @param archive A references to the archive
      * @param value The shape 2d value
      */
@@ -53,8 +53,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for Simple2DObject 
-     * 
+     * @brief Specialization of the serialize function for Simple2DObject
+     *
      * @param archive A references to the archive
      * @param value The simple 2d object value
      */
@@ -208,7 +208,7 @@ namespace pg
             renderCallList.push_back(renderCall->call);
         }
 
-        changed = false;
+        finishChanges();
     }
 
     RenderCall Simple2DObjectSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Simple2DObject> obj)
@@ -252,9 +252,9 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(event.id);
-        
+
         if (not entity or not entity->has<Simple2DObject>())
-            return; 
+            return;
 
         shapeUpdateQueue.push(event.id);
 

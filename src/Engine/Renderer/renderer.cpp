@@ -211,11 +211,23 @@ namespace pg
 
         renderCallList[tempRenderList].clear();
 
+        bool isDirty = false;
+
         for (auto renderer : renderers)
         {
             const auto& calls = renderer->getRenderCalls();
 
             renderCallList[tempRenderList].insert(renderCallList[tempRenderList].end(), calls.begin(), calls.end());
+
+            isDirty |= renderer->isDirty();
+
+            renderer->setDirty(false);
+        }
+
+        // Nothing changed since last time we can skip the render pass
+        if (not isDirty)
+        {
+            return;
         }
 
         std::sort(renderCallList[tempRenderList].begin(), renderCallList[tempRenderList].end());

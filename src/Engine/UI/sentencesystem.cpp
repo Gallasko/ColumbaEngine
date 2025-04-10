@@ -62,7 +62,7 @@ namespace pg
     SentenceSystem::SentenceSystem(MasterRenderer *renderer, const std::string& fontPath) : AbstractRenderer(renderer, RenderStage::Render),
         // Todo fix this
         // font(fontPath, std::unordered_map<std::string, ParserCallback> {
-        //     {"Opacity 1", [this](FileParser& parser, const std::string&){ LOG_INFO(DOM, "0"); opacity[0] = std::stoi(parser.getNextLine());}}, 
+        //     {"Opacity 1", [this](FileParser& parser, const std::string&){ LOG_INFO(DOM, "0"); opacity[0] = std::stoi(parser.getNextLine());}},
         //     {"Opacity 2", [this](FileParser& parser, const std::string&){ LOG_INFO(DOM, "1"); opacity[1] = std::stoi(parser.getNextLine());}},
         //     {"Opacity 3", [this](FileParser& parser, const std::string&){ LOG_INFO(DOM, "2"); opacity[2] = std::stoi(parser.getNextLine());}}})
         font(fontPath)
@@ -134,9 +134,9 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(entityId);
-        
+
         if (not entity or not entity->has<UiComponent>() or not entity->has<SentenceRenderCall>())
-            return; 
+            return;
 
         auto ui = entity->get<UiComponent>();
         auto shape = entity->get<SentenceText>();
@@ -162,7 +162,7 @@ namespace pg
             renderCallList.push_back(renderCall->call);
         }
 
-        changed = false;
+        finishChanges();
     }
 
     RenderCall SentenceSystem::createRenderCall(CompRef<UiComponent> ui, CompRef<SentenceText> obj)
@@ -267,7 +267,7 @@ namespace pg
         }
 
         auto nbChara = sentence->text.length();
-        
+
         float currentX = 0.0f;
         float outO = 0.0f;    //Outline Offset
 

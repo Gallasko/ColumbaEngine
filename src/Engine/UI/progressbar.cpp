@@ -28,7 +28,7 @@ namespace pg
         serialize(archive, "fullTextureName", value.fullTextureName);
         serialize(archive, "fillRatio", value.percent);
         serialize(archive, "fillDirection", directionToString.at(value.direction));
-    
+
         archive.endSerialization();
     }
 
@@ -115,7 +115,7 @@ namespace pg
             renderCallList.push_back(renderCall->call);
         }
 
-        changed = false;
+        finishChanges();
     }
 
     RenderCall ProgressBarComponentSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<ProgressBarComponent> obj)
@@ -172,9 +172,9 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(entityId);
-        
+
         if (not entity or not entity->has<ProgressBarRenderCall>())
-            return; 
+            return;
 
         auto ui = entity->get<PositionComponent>();
         auto shape = entity->get<ProgressBarComponent>();

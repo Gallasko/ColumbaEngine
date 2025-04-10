@@ -269,6 +269,12 @@ namespace pg
 
         const std::vector<RenderCall>& getRenderCalls() const { return renderCallList; }
 
+        void finishChanges() { changed = false; dirty = true; }
+
+        void setDirty(bool dirty) { this->dirty = dirty; }
+
+        bool isDirty() const { return dirty; }
+
     protected:
         MasterRenderer *masterRenderer;
 
@@ -277,6 +283,7 @@ namespace pg
         RenderStage renderStage;
 
         bool changed = true;
+        bool dirty = true;
     };
 
     class AbstractRenderer : public BaseAbstractRenderer
