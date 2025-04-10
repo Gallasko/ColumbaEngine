@@ -428,9 +428,6 @@ namespace pg
                              areNotAlmostEqual(right.value, (visible ? (pos->x + pos->width) : pos->x)) or
                              areNotAlmostEqual(bottom.value, (visible ? (pos->y + pos->height) : pos->y));
 
-        LOG_INFO("UiAnchor", "X: " << pos->x << ", Y: " << pos->y << ", Width: " << pos->width << ", Height: " << pos->height);
-        LOG_INFO("UiAnchor", "Top: " << top.value << ", Left: " << left.value << ", Right: " << right.value << ", Bottom: " << bottom.value);
-
         top.value = pos->y;
         left.value = pos->x;
         right.value = (visible ? (pos->x + pos->width) : pos->x);
@@ -563,8 +560,6 @@ namespace pg
         float oldWidth = width;
         float oldHeight = height;
 
-        LOG_INFO("PosSystem", "[Start] X: " << x << ", Y: " << y << ", Width: " << width << ", Height: " << height);
-
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
             this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value + anchor.topMargin);
@@ -618,8 +613,6 @@ namespace pg
                 height = constrainCalculation(ecsRef, anchor.heightConstrain);
         }
 
-        LOG_INFO("PosSystem", "[End] X: " << x << ", Y: " << y << ", Width: " << width << ", Height: " << height);
-
         return areNotAlmostEqual(oldX, x) or areNotAlmostEqual(oldY, y) or areNotAlmostEqual(oldZ, z) or areNotAlmostEqual(oldWidth, width) or areNotAlmostEqual(oldHeight, height);
     }
 
@@ -669,14 +662,11 @@ namespace pg
 
                     auto pos = entity->get<PositionComponent>();
 
-                    LOG_INFO("PosSystem", "X: " << pos->x << ", Y: " << pos->y << ", Width: " << pos->width << ", Height: " << pos->height);
                     anchorChanged = anchor->update(pos);
 
                     // Todo check
                     // If the position component get changed by the anchor moving then we push its children to the queue for check
                     auto changed = pos->updatefromAnchor(*anchor);
-
-                    LOG_INFO("PositionComponentSystem", "Position changed: " << changed << ", anchor changed: " << anchorChanged << " for entity: " << id);
 
                     anchorChanged |= changed;
                 }

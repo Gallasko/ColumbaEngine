@@ -1461,6 +1461,9 @@ namespace pg
         updateButtonsVisibility(factMap, maskedButtons, visibleButtons, true);
         updateButtonsVisibility(factMap, visibleButtons, maskedButtons, false);
 
+        // Todo remove this
+        ecsRef->sendEvent(SkipRenderPass{4});
+
         // Update value cost of visible buttons
         for (auto& button : visibleButtons)
         {
