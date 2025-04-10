@@ -61,6 +61,20 @@ namespace pg
             }
         }
 
+        void setSpacing(float spacing)
+        {
+            if (this->spacing != spacing)
+            {
+                this->spacing = spacing;
+
+                if (ecsRef)
+                {
+                    changed = true;
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
+            }
+        }
+
         std::string text;
 
         float textWidth, textHeight;
@@ -72,6 +86,8 @@ namespace pg
         constant::Vector4D colors;
 
         bool wrap = false;
+
+        float spacing = 0.0f;
 
         EntitySystem * ecsRef = nullptr;
 
@@ -142,10 +158,8 @@ namespace pg
         float getGlyphAdvance(char c, const std::string& fontPath, float scale);
         float computeWordWidth(const std::string& word, const std::string& fontPath, float scale);
         RenderCall createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors);
-        void addSpaceRenderCall(std::vector<RenderCall>& calls, CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, float& currentX, float& currentLineWidth, float currentY, float z, float scale, float lineHeight, const constant::Vector4D& colors);
 
-        std::vector<RenderCall> createWrappedRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
-        std::vector<RenderCall> createNormalRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
+        std::vector<TTFText> parseFormattedText(const TTFText &original);
 
         size_t getMaterialId(const std::string& fontPath);
 

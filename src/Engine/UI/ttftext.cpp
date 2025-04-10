@@ -272,6 +272,7 @@ namespace pg
 
         while (not textUpdateQueue.empty())
         {
+            LOG_INFO("TTFText", "Not empty queue !");
             auto entityId = textUpdateQueue.front();
 
             auto entity = ecsRef->getEntity(entityId);
@@ -284,6 +285,8 @@ namespace pg
 
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<TTFText>();
+
+            LOG_INFO("TTFText", "Updating entity " << entityId << ", with text: " << obj->text);
 
             if (entity->has<TTFTextCall>())
             {
@@ -381,29 +384,13 @@ namespace pg
         return call;
     }
 
-    // Helper: Adds a space glyph RenderCall and advances the cursor.
-    void TTFTextSystem::addSpaceRenderCall(std::vector<RenderCall>& calls, CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, float& currentX, float& currentLineWidth, float currentY, float z, float scale, float lineHeight, const constant::Vector4D& colors)
-    {
-        char spaceChar = ' ';
-        RenderCall spaceCall = createGlyphRenderCall(ui, fontPath, materialId, spaceChar, currentX, currentY, z, scale, lineHeight, colors);
-        calls.push_back(spaceCall);
-        float spaceAdvance = getGlyphAdvance(spaceChar, fontPath, scale);
-
-        currentX += spaceAdvance;
-        currentLineWidth += spaceAdvance;
-    }
-
     std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
     {
-        if (obj->wrap)
-            return createWrappedRenderCall(ui, obj);
-        else
-            return createNormalRenderCall(ui, obj);
-    }
-
-    std::vector<RenderCall> TTFTextSystem::createWrappedRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
-    {
         std::vector<RenderCall> calls;
+
+        // First, parse the text into segments with formatting applied.
+        // Each segment is stored in a TTFText instance (with its text and color updated).
+        std::vector<TTFText> segments = parseFormattedText(*obj);
 
         float startX = ui->x;
         float startY = ui->y;
@@ -411,174 +398,214 @@ namespace pg
         float scale = obj->scale;
         auto colors = obj->colors;
 
+        auto wrap = obj->wrap;
+
         std::string text = obj->text;
         std::string fontPath = obj->fontPath;
 
         size_t materialId = getMaterialId(fontPath);
 
         // Compute line height and determine maximum allowed width.
-        float lineHeight = computeLineHeight(text, fontPath, scale);
+        float lineHeight = computeLineHeight(text, fontPath, scale) + obj->spacing;
         float maxWidth = (ui->width > 0) ? ui->width : 10000.0f;
 
         // Initialize positions and dimensions.
         float currentX = startX;
         float currentY = startY;
-        float currentLineWidth = 0.0f;
-        float maxLineWidth = 0.0f;
-        int lineCount = 1;
-        bool firstWordOfLine = true;
 
-        // Split the text by newline characters.
-        std::istringstream textStream(text);
-        std::vector<std::string> rawLines;
-        std::string rawLine;
-
-        while (std::getline(textStream, rawLine, '\n'))
+        // Iterate over each parsed segment.
+        for (const auto &seg : segments)
         {
-            rawLines.push_back(rawLine);
-        }
-
-        // Process each raw line separately.
-        for (size_t i = 0; i < rawLines.size(); i++)
-        {
-            const std::string& line = rawLines[i];
-
-            // If the raw line is empty, force a newline.
-            if (line.empty())
+            // If the segment contains only "\n", treat it as a forced newline.
+            if (seg.text == "\n")
             {
                 currentY += lineHeight;
-                lineCount++;
                 currentX = startX;
-                currentLineWidth = 0.0f;
-                firstWordOfLine = true;
                 continue;
             }
 
-            // Wrap the current raw line.
-            std::istringstream iss(line);
+            // Create a string stream for the segment so we can split on whitespace.
+            std::istringstream iss(seg.text);
             std::string word;
+            bool firstWordInLine = true;
+
             while (iss >> word)
             {
-                float wordWidth = computeWordWidth(word, fontPath, scale);
-                float spaceWidth = (not firstWordOfLine) ? getGlyphAdvance(' ', fontPath, scale) : 0.0f;
+                // Compute the width of the word.
+                float wordWidth = computeWordWidth(word, obj->fontPath, scale);
+                // Get the width of a space if needed.
+                float spaceWidth = firstWordInLine ? 0.0f : getGlyphAdvance(' ', obj->fontPath, scale);
 
-                // If adding this word would exceed the max width, wrap to a new line.
-                if (currentLineWidth + spaceWidth + wordWidth > maxWidth)
+                // If adding this word (with a preceding space) would exceed the allowed width, wrap.
+                if (wrap and (currentX - startX + spaceWidth + wordWidth > maxWidth))
                 {
-                    if (currentLineWidth > maxLineWidth)
-                        maxLineWidth = currentLineWidth;
-
                     currentY += lineHeight;
                     currentX = startX;
-                    currentLineWidth = 0.0f;
-                    firstWordOfLine = true;
-                    lineCount++;
+                    firstWordInLine = true;
                 }
 
-                // Insert a space if not the first word on the line.
-                if (not firstWordOfLine)
-                    addSpaceRenderCall(calls, ui, fontPath, materialId, currentX, currentLineWidth, currentY, z, scale, lineHeight, colors);
+                // If not the first word, add a space glyph render call.
+                if (not firstWordInLine)
+                {
+                    currentX += spaceWidth;
+                }
 
-                // Render each character in the word.
+                // For each character in the word, create a glyph render call.
                 for (char c : word)
                 {
-                    RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, colors);
+                    RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, seg.colors);
                     calls.push_back(call);
+                    // Advance the current X position based on the glyph's advance.
                     float advance = getGlyphAdvance(c, fontPath, scale);
                     currentX += advance;
-                    currentLineWidth += advance;
                 }
 
-                firstWordOfLine = false;
-            }
-
-            // After processing a raw line, if there are more raw lines, force a newline.
-            if (i < rawLines.size() - 1)
-            {
-                if (currentLineWidth > maxLineWidth)
-                    maxLineWidth = currentLineWidth;
-
-                currentY += lineHeight;
-                currentX = startX;
-                currentLineWidth = 0.0f;
-                firstWordOfLine = true;
-                lineCount++;
+                firstWordInLine = false;
             }
         }
 
-        if (currentLineWidth > maxLineWidth)
-            maxLineWidth = currentLineWidth;
+        // Update the overall dimensions based on the final cursor positions.
+        float totalWidth = currentX - startX;
+        float totalHeight = (currentY - startY) + lineHeight;
 
-        float totalTextWidth = maxLineWidth;
-        float totalTextHeight = lineCount * lineHeight;
-
-        if (obj->textWidth != totalTextWidth)
+        if (obj->textWidth != totalWidth)
         {
-            obj->textWidth = totalTextWidth;
+            obj->textWidth = totalWidth;
+            ui->setWidth(totalWidth);
         }
-
-        if (obj->textHeight != totalTextHeight)
+        if (obj->textHeight != totalHeight)
         {
-            obj->textHeight = totalTextHeight;
-            ui->setHeight(totalTextHeight);
+            obj->textHeight = totalHeight;
+            ui->setHeight(totalHeight);
         }
 
         return calls;
     }
 
-    // Todo add \n text splitting for normal ttf render call (currently only available for wrapped text rendering)
-    std::vector<RenderCall> TTFTextSystem::createNormalRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
+    // Parses inline formatting commands (such as \n for newline and \c{r,g,b,a} for color changes)
+    // and returns a vector of TTFText segments (each segment is a copy of the original, with its text and color set).
+    std::vector<TTFText> TTFTextSystem::parseFormattedText(const TTFText& original)
     {
-        // Todo fix position issue right here !
-        LOG_THIS_MEMBER(DOM);
+        std::vector<TTFText> segments;
+        std::string currentSegment;
+        // Start with the original color.
+        constant::Vector4D currentColor = original.colors;
 
-        std::vector<RenderCall> calls;
-
-        float x = ui->x;
-        float y = ui->y;
-        float z = ui->z;
-
-        float scale = obj->scale;
-
-        auto colors = obj->colors;
-
-        std::string text = obj->text;
-        std::string fontPath = obj->fontPath;
-
-        size_t materialId = getMaterialId(fontPath);
-
-        float textWidth = 0.0f;
-        float textHeight = computeLineHeight(text, fontPath, scale);
-
-        std::string::const_iterator c;
-        for (c = text.begin(); c != text.end(); c++)
+        size_t i = 0;
+        while (i < original.text.size())
         {
-            Character ch = charactersMap[obj->fontPath][*c];
-            // textWidth += w;
-            textWidth += (ch.advance >> 6) * scale;
+            if (original.text[i] == '\n')
+            {
+                // If we have accumulated text, flush it into a segment.
+                if (not currentSegment.empty())
+                {
+                    TTFText seg = original;
+                    seg.text = currentSegment;
+                    seg.colors = currentColor;
+                    segments.push_back(seg);
+                    currentSegment.clear();
+                }
+                // Insert a newline marker as a segment.
+                TTFText newlineSeg = original;
+                newlineSeg.text = "\n";
+                newlineSeg.colors = currentColor;
+                segments.push_back(newlineSeg);
+                i += 1;  // Skip over "\n"
+                continue;
+            }
 
-            RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, *c, x, y, z, scale, textHeight, colors);
+            // Check for an escape character.
+            if (original.text[i] == '\\')
+            {
+                if (i + 1 < original.text.size())
+                {
+                    char nextChar = original.text[i + 1];
+                    // Newline tag: "\n"
+                    if (nextChar == 'n')
+                    {
+                        // If we have accumulated text, flush it into a segment.
+                        if (not currentSegment.empty())
+                        {
+                            TTFText seg = original;
+                            seg.text = currentSegment;
+                            seg.colors = currentColor;
+                            segments.push_back(seg);
+                            currentSegment.clear();
+                        }
+                        // Insert a newline marker as a segment.
+                        TTFText newlineSeg = original;
+                        newlineSeg.text = "\n";
+                        newlineSeg.colors = currentColor;
+                        segments.push_back(newlineSeg);
+                        i += 2;  // Skip over "\n"
+                        continue;
+                    }
+                    // Color change tag: "\c{r,g,b,a}"
+                    else if (nextChar == 'c' and i + 2 < original.text.size() and original.text[i + 2] == '{')
+                    {
+                        // Flush the current text.
+                        if (not currentSegment.empty())
+                        {
+                            TTFText seg = original;
+                            seg.text = currentSegment;
+                            seg.colors = currentColor;
+                            segments.push_back(seg);
+                            currentSegment.clear();
+                        }
 
-            calls.push_back(call);
-
-            // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
-            x += (ch.advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
-            // x += 16; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+                        // Jump past "\c{"
+                        i += 3;
+                        std::string colorSpec;
+                        // Read until the closing '}'
+                        while (i < original.text.size() and original.text[i] != '}')
+                        {
+                            colorSpec.push_back(original.text[i]);
+                            i++;
+                        }
+                        if (i < original.text.size() and original.text[i] == '}')
+                        {
+                            i++; // Skip the closing '}'
+                        }
+                        // Parse the color spec (assumed CSV format)
+                        std::istringstream iss(colorSpec);
+                        std::string token;
+                        std::vector<float> rgba;
+                        while (std::getline(iss, token, ','))
+                        {
+                            try
+                            {
+                                rgba.push_back(std::stof(token));
+                            }
+                            catch (const std::exception&)
+                            {
+                                LOG_ERROR(DOM, "Failed to parse color value: " << token);
+                            }
+                        }
+                        if (rgba.size() == 4)
+                        {
+                            currentColor = constant::Vector4D(rgba[0], rgba[1], rgba[2], rgba[3]);
+                        }
+                        else
+                        {
+                            // If parsing fails, fallback to default color.
+                            currentColor = original.colors;
+                        }
+                        continue;
+                    }
+                }
+            }
+            // Regular character: add it to the current segment.
+            currentSegment.push_back(original.text[i]);
+            i++;
         }
-
-        if (obj->textWidth != textWidth)
-        {
-            obj->textWidth = textWidth;
-            ui->setWidth(textWidth);
+        // Flush remaining text.
+        if (not currentSegment.empty()) {
+            TTFText seg = original;
+            seg.text = currentSegment;
+            seg.colors = currentColor;
+            segments.push_back(seg);
         }
-
-        if (obj->textHeight != textHeight)
-        {
-            obj->textHeight = textHeight;
-            ui->setHeight(textHeight);
-        }
-
-        return calls;
+        return segments;
     }
 
     size_t TTFTextSystem::getMaterialId(const std::string& fontPath)

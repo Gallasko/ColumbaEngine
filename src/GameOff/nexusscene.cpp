@@ -707,6 +707,7 @@ namespace pg
 
         costValuesPos->setVisibility(false);
         costValuesText->setWrap(true);
+        costValuesText->spacing = 2.0f;
 
         costValuesAnchor->setTopAnchor(costTextAnchor->bottom);
         costValuesAnchor->setTopMargin(theme.values["tooltipCostValues.topMargin"].get<float>());
@@ -951,8 +952,15 @@ namespace pg
 
                         std::ostringstream costText;
 
+                        bool addEscape = false;
+
                         for (size_t i = 0; i < it->costs.size(); ++i)
                         {
+                            if (addEscape)
+                            {
+                                costText << "\n";
+                            }
+
                             const auto& cost = it->costs[i];
 
                             auto str = cost.resourceId;
@@ -965,7 +973,9 @@ namespace pg
                                 value = value * std::pow(it->costIncrease[i], it->nbClick);
                             }
 
-                            costText << str << ": " << value << "\n";
+                            costText << str << ": " << value;
+
+                            addEscape = true;
                         }
 
                         tooltipsEntities["costValues"]->get<TTFText>()->setText(costText.str());
@@ -1114,9 +1124,15 @@ namespace pg
                     }
 
                     std::ostringstream costText;
+                    bool addEscape = false;
 
                     for (size_t i = 0; i < it->costs.size(); ++i)
                     {
+                        if (addEscape)
+                        {
+                            costText << "\n";
+                        }
+
                         const auto& cost = it->costs[i];
 
                         auto str = cost.resourceId;
@@ -1129,8 +1145,12 @@ namespace pg
                             value = value * std::pow(it->costIncrease[i], it->nbClick + 1);
                         }
 
-                        costText << str << ": " << value << "\n";
+                        costText << str << ": " << value;
+
+                        addEscape = true;
                     }
+
+                    LOG_INFO("Nexus Scene", "Cost text: " << costText.str());
 
                     tooltipsEntities["costValues"]->get<TTFText>()->setText(costText.str());
                 }

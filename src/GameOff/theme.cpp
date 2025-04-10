@@ -53,8 +53,8 @@ namespace pg
         defaultTheme.values["activeFocus.b"] = 255.0f;
         defaultTheme.values["activeFocus.a"] = 255.0f;
 
-        defaultTheme.values["nexusbutton.width"] = 160.0f;
-        defaultTheme.values["nexusbutton.height"] = 55.0f;
+        defaultTheme.values["nexusbutton.width"] = 185.0f;
+        defaultTheme.values["nexusbutton.height"] = 45.0f;
 
         defaultTheme.values["nexusbutton.font"] = "res/font/Inter/static/Inter_28pt-Light.ttf";
         defaultTheme.values["nexusbutton.scale"] = 0.4f;

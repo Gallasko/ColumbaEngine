@@ -131,7 +131,7 @@ button.outcome =
     , AchievementRewardEvent("add_res_display", "res", "knowledge") ]
 
 button.description = "A weird black box near the altar, it should be useful..."
-button.costs = [ ButtonCost("mana", 10), ButtonCost("scrap", 5) ]
+button.costs = [ ButtonCost("mana", 10), ButtonCost("scrap", 5), ButtonCost("mana", 1) ]
 
 registerNexusButton(button)
 

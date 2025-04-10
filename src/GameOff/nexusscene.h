@@ -28,7 +28,7 @@ namespace pg
         std::string label;                      // Button text.
         std::vector<FactChecker> conditions;    // Conditions that must be met for the button to trigger the outcome.
         std::vector<AchievementReward> outcome; // Callback executed on click.
-        std::string category = "Main";                   // Category (e.g., "Main", "Mana Upgrade", etc.)
+        std::string category = "Main";          // Category (e.g., "Main", "Mana Upgrade", etc.)
         std::string description = "";           // Description of the button, to be shown in the tooltip
 
         size_t nbClickBeforeArchive = 1;        // Number of times the button should be clicked before being archived (0 means infinite)
