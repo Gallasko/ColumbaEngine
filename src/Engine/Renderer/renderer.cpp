@@ -144,7 +144,7 @@ namespace pg
     }
 
     void MasterRenderer::execute()
-    { 
+    {
         // Todo Fix in group and ecs ! ( whereaver we are holding pointer of a comp actually ! )
         // Todo hold a ref to the component list and the component index inside of this list instead of the raw pointer to not get invalidated on resize !
 
@@ -153,7 +153,7 @@ namespace pg
         // {
         //     std::unique_lock lk(renderMutex);
         //     execCv.notify_all();
-            
+
         //     renderCv.wait(lk, [this]{ return inBetweenRender.load();});
         // }
 
@@ -177,17 +177,17 @@ namespace pg
             materialListTemp.clear();
             materialDictTemp.clear();
 
-            materialListTemp = materialList; 
-            materialDictTemp = materialDict; 
+            materialListTemp = materialList;
+            materialDictTemp = materialDict;
 
             for (const auto& holder : materialRegisterQueue)
-            {            
+            {
                 LOG_MILE(DOM, "Registering material");
                 materialListTemp.push_back(holder.material);
 
                 if (holder.materialName != "")
                     materialDictTemp[holder.materialName] = nbMaterials;
-                
+
                 nbMaterials++;
             }
 
@@ -199,9 +199,9 @@ namespace pg
         }
 
         // If the skip flag is set we unset it and we pass the current render update
-        if (skipRenderPass)
+        if (skipRenderPass > 0)
         {
-            skipRenderPass = false;
+            skipRenderPass--;
             return;
         }
 
@@ -224,7 +224,7 @@ namespace pg
         if (renderCallList[tempRenderList].size() > 2)
         {
             std::vector<RenderCall> tempRenderCallList;
-        
+
             RenderCall currentRenderCall = renderCallList[tempRenderList][0];
 
             for (size_t i = 1; i < renderCallList[tempRenderList].size(); ++i)
@@ -302,7 +302,7 @@ namespace pg
         {
             processRenderCall(call);
         }
-        
+
         nbRenderedFrames++;
 
         if (inSwap)
@@ -338,7 +338,7 @@ namespace pg
     }
 
     // TODO mirror or not the texture
-    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...        
+    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...
     OpenGLTexture MasterRenderer::registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId, bool instantRegister)
     {
         LOG_THIS_MEMBER(DOM);
@@ -363,7 +363,7 @@ namespace pg
         }
 
         LOG_INFO(DOM, "Loaded texture " << name << " from " << texturePath << " with width = " << width << " height = " << height << " nbchannels = " << nrChannels);
-        
+
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
         unsigned int texture;
@@ -394,7 +394,7 @@ namespace pg
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         // load image, create texture and generate mipmaps
-// #endif   
+// #endif
         OpenGLTexture tex;
 
         tex.id = texture;
@@ -424,9 +424,9 @@ namespace pg
         return tex;
     }
 
-    
+
     void MasterRenderer::registerTexture(const std::string& name, const char* texturePath)
-    { 
+    {
         registerTextureHelper(name, texturePath);
     }
 
@@ -503,7 +503,7 @@ namespace pg
         if (not shaderProgram)
         {
             LOG_ERROR(DOM, "Shader not found");
-            
+
             return;
         }
 
@@ -578,7 +578,7 @@ namespace pg
                         case ElementType::UnionType::STRING:
                         default:
                         {
-                            LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());    
+                            LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());
                         }
                     }
                 }

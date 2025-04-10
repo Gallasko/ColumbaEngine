@@ -19,7 +19,7 @@
 #include "camera.h"
 
 namespace pg
-{    
+{
     // Forwarding
     class OpenGLShaderProgram;
     class OpenGLContext;
@@ -89,7 +89,7 @@ namespace pg
 
         bool operator==(const OpenGLState& rhs) const
         {
-            return scissorEnabled == rhs.scissorEnabled and scissorBound == rhs.scissorBound; 
+            return scissorEnabled == rhs.scissorEnabled and scissorBound == rhs.scissorBound;
         }
 
         bool operator!=(const OpenGLState& rhs) const
@@ -114,22 +114,22 @@ namespace pg
     struct RenderCall
     {
         /**
-         * This key is used to sort the data for the renderer 
+         * This key is used to sort the data for the renderer
          * This key is a bit field that contains the following data:
-         * 
+         *
          * 1 bit indicating if the texture is visible or not
          * 4 bits for the targeted rendering pass
          * 3 bits for the target viewport
          * 2 bits for the translucency type (Opaque, normal, additive or substractive)
          * 24 bits for depth
          * 30 bits for material ID (VAO, shader, texture ID, uniforms)
-         * 
+         *
          * key[63]            => Visibility
          * key[62] -- key[59] => Rendering pass
          * key[58] -- key[56] => Viewport
          * key[55] -- key[54] => Translucency type
          * key[53] -- key[30] => Depth
-         * key[29] -- key[0]  => Material ID 
+         * key[29] -- key[0]  => Material ID
          */
         uint64_t key = 0;
 
@@ -273,7 +273,7 @@ namespace pg
         MasterRenderer *masterRenderer;
 
         std::vector<RenderCall> renderCallList;
-    
+
         RenderStage renderStage;
 
         bool changed = true;
@@ -288,7 +288,7 @@ namespace pg
         RenderStage getRenderStage() const { return renderStage; }
     };
 
-    //[TODO] Multiple FBO -> 1 for a whole screen capture and other for batch rendering on a texture 
+    //[TODO] Multiple FBO -> 1 for a whole screen capture and other for batch rendering on a texture
     // Add Particle system with instancing already done / create an alternative if needed
 
     enum class UniformType
@@ -407,7 +407,7 @@ namespace pg
         std::shared_ptr<Mesh> mesh = nullptr;
     };
 
-    struct SkipRenderPass {};
+    struct SkipRenderPass { size_t count = 1; };
 
     // Todo fix crash on renderer when failure to grab a missing texture or shader
 
@@ -426,7 +426,7 @@ namespace pg
                 index = other.index;
 
                 return *this;
-            } 
+            }
 
             std::string materialName;
             Material material;
@@ -446,7 +446,7 @@ namespace pg
         virtual std::string getSystemName() const override { return "Renderer System"; }
 
         virtual void onEvent(const OnSDLScanCode& event) override;
-        virtual void onEvent(const SkipRenderPass&) override { skipRenderPass = true; }
+        virtual void onEvent(const SkipRenderPass& event ) override { skipRenderPass += event.count; }
 
         virtual void execute() override;
 
@@ -494,13 +494,13 @@ namespace pg
 
         bool hasMaterial(const std::string& materialName) const
         {
-            bool result = false; 
+            bool result = false;
 
             {
                 std::lock_guard<std::mutex> lock(materialRegisterMutex);
 
                 auto it = std::find_if(materialRegisterQueue.begin(), materialRegisterQueue.end(), [materialName](const MaterialHolder& holder) { return holder.materialName == materialName; });
-                
+
                 result = materialDict.find(materialName) != materialDict.end() or it != materialRegisterQueue.end();
             }
 
@@ -523,7 +523,7 @@ namespace pg
         }
 
         OpenGLTexture getTexture(const std::string& name) const
-        { 
+        {
             try
             {
                 return textureList.at(name);
@@ -531,7 +531,7 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Texture named " << name << " don't exist !");
-                
+
                 auto it = textureList.find("NoneIcon");
 
                 if (it != textureList.end())
@@ -562,7 +562,7 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
-                
+
                 static Material dummyMaterial;
 
                 return dummyMaterial;
@@ -578,7 +578,7 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Material id " << id << " don't exist !");
-                
+
                 static Material dummyMaterial;
 
                 return dummyMaterial;
@@ -602,7 +602,7 @@ namespace pg
                 catch (const std::exception& e)
                 {
                     LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
-                    
+
                     return 0;
                 }
             }
@@ -615,7 +615,7 @@ namespace pg
         MasterRenderer& operator<<(Renderable* toRender) { renderer(this, toRender); return *this; }
 
         void setWindowSize(float width, float height)
-        { 
+        {
             systemParameters["ScreenWidth"] = width;
             systemParameters["ScreenHeight"] = height;
         }
@@ -648,7 +648,7 @@ namespace pg
         moodycamel::ConcurrentQueue<TextureRegisteringQueueItem> textureRegisteringQueue;
 
         size_t nbRegisteredMaterials = 0;
-        
+
     private:
         void initializeParameters();
 
@@ -666,12 +666,12 @@ namespace pg
         std::vector<Material> materialListTemp;
         std::unordered_map<std::string, size_t> materialDictTemp;
 
-        size_t nbMaterials = 0;     
-   
-        /** 
+        size_t nbMaterials = 0;
+
+        /**
          * Flag to indicate that the current frame should not be recreated (RenderCallList should not be updated)
          * Usefull to avoid any jittering when loading a scene as it takes 2 execute cycle to process all the entities correctly */
-        bool skipRenderPass = false;
+        size_t skipRenderPass = 0;
 
         Camera camera;
 

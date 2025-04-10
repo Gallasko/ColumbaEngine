@@ -442,6 +442,41 @@ button.description = "Research a way to harvest the mana stored in the altar aut
 registerNexusButton(button)
 
 
+var button = NexusButton()
+
+button.id = "ManaReserveKnowledge1"
+button.label = "Mana Reserve"
+button.category = "Knowledge"
+
+button.conditions = [ FactChecker("note_taken", 3, "GreaterEqual") ]
+
+button.outcome = [ AddFact("mana_reservoir_1_researched", true) ]
+
+button.costs = [ ButtonCost("knowledge", 65) ]
+
+button.description = "Research a way to increase your own mana reserve."
+
+registerNexusButton(button)
+
+
+var button = NexusButton()
+
+button.id = "ManaReserveUpgrade1"
+button.label = "Mana Reservoir"
+button.category = "Storage"
+
+button.conditions = [ FactChecker("mana_reservoir_1_researched", True, "Equal") ]
+
+button.outcome = [ AddFact("mana_reservoir_1_researched", true) ]
+
+button.costs = [ ButtonCost("knowledge", 65) ]
+button.costIncrease = [1.3]
+
+button.description = "Attune some runes with your body to increase your mana reserve."
+button.nbClickBeforeArchive = 0
+
+registerNexusButton(button)
+
 
 var button = NexusButton()
 
