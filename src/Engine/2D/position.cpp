@@ -6,6 +6,19 @@ namespace pg
 {
     namespace
     {
+        constexpr float EPSILON = 1e-5f;
+
+        bool areAlmostEqual(float a, float b, float epsilon = EPSILON)
+        {
+            return std::fabs(a - b) <= epsilon * std::max({1.0f, std::fabs(a), std::fabs(b)});
+        }
+
+        bool areNotAlmostEqual(float a, float b, float epsilon = EPSILON)
+        {
+            return not areAlmostEqual(a, b, epsilon);
+        }
+
+
         float getValueFromType(CompRef<PositionComponent> posComp, const AnchorType& dir)
         {
             switch (dir)
@@ -306,7 +319,7 @@ namespace pg
 
     void UiAnchor::setTopMargin(float value)
     {
-        if (topMargin != value)
+        if (areNotAlmostEqual(topMargin, value))
         {
             topMargin = value;
 
@@ -316,7 +329,7 @@ namespace pg
 
     void UiAnchor::setLeftMargin(float value)
     {
-        if (leftMargin != value)
+        if (areNotAlmostEqual(leftMargin, value))
         {
             leftMargin = value;
 
@@ -326,7 +339,7 @@ namespace pg
 
     void UiAnchor::setRightMargin(float value)
     {
-        if (rightMargin != value)
+        if (areNotAlmostEqual(rightMargin, value))
         {
             rightMargin = value;
 
@@ -336,7 +349,7 @@ namespace pg
 
     void UiAnchor::setBottomMargin(float value)
     {
-        if (bottomMargin != value)
+        if (areNotAlmostEqual(bottomMargin, value))
         {
             bottomMargin = value;
 
@@ -410,15 +423,18 @@ namespace pg
     {
         auto visible = pos->visible;
 
-        bool anchorChanged = top.value != pos->y or
-                             left.value != pos->x or
-                             (right.value != (visible ? pos->x + pos->width : pos->x)) or
-                             (bottom.value != (visible ? pos->y + pos->height : pos->y));
+        bool anchorChanged = areNotAlmostEqual(top.value, pos->y) or
+                             areNotAlmostEqual(left.value, pos->x) or
+                             areNotAlmostEqual(right.value, (visible ? (pos->x + pos->width) : pos->x)) or
+                             areNotAlmostEqual(bottom.value, (visible ? (pos->y + pos->height) : pos->y));
+
+        LOG_INFO("UiAnchor", "X: " << pos->x << ", Y: " << pos->y << ", Width: " << pos->width << ", Height: " << pos->height);
+        LOG_INFO("UiAnchor", "Top: " << top.value << ", Left: " << left.value << ", Right: " << right.value << ", Bottom: " << bottom.value);
 
         top.value = pos->y;
         left.value = pos->x;
-        right.value = (visible ? pos->x + pos->width : pos->x);
-        bottom.value = (visible ? pos->y + pos->height : pos->y);
+        right.value = (visible ? (pos->x + pos->width) : pos->x);
+        bottom.value = (visible ? (pos->y + pos->height) : pos->y);
         verticalCenter.value = pos->y + pos->height / 2.0f;
         horizontalCenter.value = pos->x + pos->width / 2.0f;
 
@@ -464,7 +480,7 @@ namespace pg
 
     void PositionComponent::setX(float x)
     {
-        if (this->x != x)
+        if (areNotAlmostEqual(this->x, x))
         {
             this->x = x;
 
@@ -475,7 +491,7 @@ namespace pg
 
     void PositionComponent::setY(float y)
     {
-        if (this->y != y)
+        if (areNotAlmostEqual(this->y, y))
         {
             this->y = y;
 
@@ -486,7 +502,7 @@ namespace pg
 
     void PositionComponent::setZ(float z)
     {
-        if (this->z != z)
+        if (areNotAlmostEqual(this->z, z))
         {
             this->z = z;
 
@@ -497,7 +513,7 @@ namespace pg
 
     void PositionComponent::setWidth(float width)
     {
-        if (this->width != width)
+        if (areNotAlmostEqual(this->width, width))
         {
             this->width = width;
 
@@ -508,7 +524,7 @@ namespace pg
 
     void PositionComponent::setHeight(float height)
     {
-        if (this->height != height)
+        if (areNotAlmostEqual(this->height, height))
         {
             this->height = height;
 
@@ -519,7 +535,7 @@ namespace pg
 
     void PositionComponent::setRotation(float rotation)
     {
-        if (this->rotation != rotation)
+        if (areNotAlmostEqual(this->rotation, rotation))
         {
             this->rotation = rotation;
 
@@ -546,6 +562,8 @@ namespace pg
         float oldZ = z;
         float oldWidth = width;
         float oldHeight = height;
+
+        LOG_INFO("PosSystem", "[Start] X: " << x << ", Y: " << y << ", Width: " << width << ", Height: " << height);
 
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
@@ -600,7 +618,9 @@ namespace pg
                 height = constrainCalculation(ecsRef, anchor.heightConstrain);
         }
 
-        return oldX != x or oldY != y or oldZ != z or oldWidth != width or oldHeight != height;
+        LOG_INFO("PosSystem", "[End] X: " << x << ", Y: " << y << ", Width: " << width << ", Height: " << height);
+
+        return areNotAlmostEqual(oldX, x) or areNotAlmostEqual(oldY, y) or areNotAlmostEqual(oldZ, z) or areNotAlmostEqual(oldWidth, width) or areNotAlmostEqual(oldHeight, height);
     }
 
     void PositionComponentSystem::pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId)
@@ -629,6 +649,10 @@ namespace pg
             eventQueue.pop();
         }
 
+        // std::set<_unique_id> modifiedIds;
+        // std::set<_unique_id> impactedIds;
+
+        // while (changedIds.size() > 0)
         if (changedIds.size() > 0)
         {
             for (const auto& id : changedIds)
@@ -645,25 +669,41 @@ namespace pg
 
                     auto pos = entity->get<PositionComponent>();
 
+                    LOG_INFO("PosSystem", "X: " << pos->x << ", Y: " << pos->y << ", Width: " << pos->width << ", Height: " << pos->height);
                     anchorChanged = anchor->update(pos);
 
                     // Todo check
                     // If the position component get changed by the anchor moving then we push its children to the queue for check
                     auto changed = pos->updatefromAnchor(*anchor);
 
+                    LOG_INFO("PositionComponentSystem", "Position changed: " << changed << ", anchor changed: " << anchorChanged << " for entity: " << id);
+
                     anchorChanged |= changed;
-
-                    LOG_MILE("PositionComponentSystem", "Position changed: " << changed << ", anchor changed: " << anchorChanged << " for entity: " << id);
                 }
-
                 ecsRef->sendEvent(EntityChangedEvent{id});
 
                 if (anchorChanged)
                     ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+                // modifiedIds.insert(id);
+
+                // if (anchorChanged)
+                    // impactedIds.insert(id);
             }
 
+            // LOG_INFO("PositionComponentSystem", "Changed ids: " << changedIds.size() << ", modified ids: " << modifiedIds.size() << ", impacted ids: " << impactedIds.size());
+
             changedIds.clear();
+
+            // changedIds = impactedIds;
+
+            // impactedIds.clear();
         }
+
+        // for (const auto& id : modifiedIds)
+        // {
+            // ecsRef->sendEvent(EntityChangedEvent{id});
+        // }
     }
 
     bool inBound(EntityRef entity, float x, float y)

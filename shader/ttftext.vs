@@ -37,7 +37,6 @@ float rad(float degree) {
 }
 
 void main() {
-    // --- Existing transformations (unchanged) ---
     mat4 posMat = mat4(
         vec4(1.0, 0.0, 0.0, 0.0),
         vec4(0.0, 1.0, 0.0, 0.0),
