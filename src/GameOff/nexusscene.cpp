@@ -42,6 +42,8 @@ namespace pg
             std::string buttonId;
         };
 
+        struct UpdateGenView {};
+
         constant::Vector4D getButtonColors(ThemeInfo& info, bool clickable, bool activable, bool highlight = false)
         {
             if (clickable)
@@ -885,6 +887,10 @@ namespace pg
             }
         });
 
+        listenToEvent<UpdateGenView>([this](const UpdateGenView&) {
+            updateGeneratorViews();
+        });
+
         listenToStandardEvent("activate_gen", [this](const StandardEvent&) {
             updateGeneratorViews();
         });
@@ -1208,7 +1214,7 @@ namespace pg
             }
         }
 
-        updateGeneratorViews();
+        ecsRef->sendEvent(UpdateGenView{});
 
         updateUi = true;
     }
