@@ -407,8 +407,7 @@ namespace pg
 
         ecs.createSystem<PrefabSystem>();
 
-        ecs.createSystem<HorizontalLayoutSystem>();
-        ecs.createSystem<VerticalLayoutSystem>();
+        ecs.createSystem<LayoutSystem>();
 
         ecs.createSystem<ListViewSystem>();
 
@@ -426,8 +425,7 @@ namespace pg
         ecs.succeed<PositionComponentSystem, TTFTextSystem>();
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs.succeed<PositionComponentSystem, ListViewSystem>();
-        ecs.succeed<PositionComponentSystem, HorizontalLayoutSystem>();
-        ecs.succeed<PositionComponentSystem, VerticalLayoutSystem>();
+        ecs.succeed<PositionComponentSystem, LayoutSystem>();
 
         ecs.succeed<AnimationPositionSystem, PositionComponentSystem>();
 

@@ -1325,8 +1325,8 @@ namespace pg
         buttonLayoutEnt.get<UiAnchor>()->setWidthConstrain(PosConstrain{categoryList.id, AnchorType::Width, PosOpType::Mul, 0.9f});
         auto buttonLayout = buttonLayoutEnt.get<HorizontalLayout>();
         buttonLayout->spacing = 10;
-        buttonLayout->fitToWidth = true;
-        buttonLayout->spacedInWidth = false;
+        buttonLayout->fitToAxis = true;
+        buttonLayout->spaced = false;
 
         // buttonLayout->setVisibility(false); // Initially hide the button layout.
 

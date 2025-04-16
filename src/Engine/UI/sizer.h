@@ -6,24 +6,30 @@
 
 namespace pg
 {
-    struct ClearHorizontalLayoutEvent
+    enum class LayoutOrientation
     {
-        _unique_id id;
+        Horizontal,
+        Vertical
     };
 
-    struct AddHorizontalLayoutElementEvent
+    struct ClearLayoutEvent
     {
-        _unique_id id; _unique_id ui;
+        _unique_id id; LayoutOrientation orientation;
     };
 
-    struct RemoveHorizontalLayoutElementEvent
+    struct AddLayoutElementEvent
     {
-        _unique_id id; _unique_id index;
+        _unique_id id; _unique_id ui; LayoutOrientation orientation;
     };
 
-    struct UpdateHorizontalLayoutVisibility
+    struct RemoveLayoutElementEvent
     {
-        _unique_id id; bool visible;
+        _unique_id id; _unique_id index; LayoutOrientation orientation;
+    };
+
+    struct UpdateLayoutVisibility
+    {
+        _unique_id id; bool visible; LayoutOrientation orientation;
     };
 
     template <typename Layout>
@@ -47,237 +53,604 @@ namespace pg
         return nb;
     }
 
-    struct HorizontalLayout: public Ctor
+    struct BaseLayout : public Ctor
     {
-        void onCreation(EntityRef entity) override
+        virtual void onCreation(EntityRef entity) override
         {
             id = entity.id;
             ecsRef = entity.ecsRef;
         }
 
-        void addEntity(EntityRef entity) { ecsRef->sendEvent(AddHorizontalLayoutElementEvent{id, entity.id}); }
+        void addEntity(EntityRef entity)
+        {
+            ecsRef->sendEvent(AddLayoutElementEvent{id, entity.id, orientation});
+        }
 
-        void removeEntity(EntityRef entity) { ecsRef->sendEvent(RemoveHorizontalLayoutElementEvent{id, entity.id}); }
-        void removeEntity(_unique_id entityId) { ecsRef->sendEvent(RemoveHorizontalLayoutElementEvent{id, entityId}); }
+        void removeEntity(EntityRef entity)
+        {
+            ecsRef->sendEvent(RemoveLayoutElementEvent{id, entity.id, orientation});
+        }
 
-        void setVisibility(bool visible) { ecsRef->sendEvent(UpdateHorizontalLayoutVisibility{id, visible}); }
+        void removeEntity(_unique_id entityId)
+        {
+            ecsRef->sendEvent(RemoveLayoutElementEvent{id, entityId, orientation});
+        }
 
-        void clear() { ecsRef->sendEvent(ClearHorizontalLayoutEvent{id}); }
+        void setVisibility(bool vis)
+        {
+            ecsRef->sendEvent(UpdateLayoutVisibility{id, vis, orientation});
+        }
 
-        bool fitToWidth = false;
+        void clear()
+        {
+            ecsRef->sendEvent(ClearLayoutEvent{id, orientation});
+        }
 
-        bool spacedInWidth = false;
-
+        bool fitToAxis = false;
+        bool spaced = false;
         size_t spacing = 0;
-
         bool visible = true;
+
+        LayoutOrientation orientation = LayoutOrientation::Horizontal;
 
         std::vector<EntityRef> entities;
 
         _unique_id id;
-
         EntitySystem *ecsRef;
     };
 
-    struct HorizontalLayoutSystem : public System<
+
+    struct HorizontalLayout : public BaseLayout
+    {
+        HorizontalLayout() : BaseLayout()
+        {
+            orientation = LayoutOrientation::Horizontal;
+        }
+    };
+
+    struct VerticalLayout : public BaseLayout
+    {
+        VerticalLayout() : BaseLayout()
+        {
+            orientation = LayoutOrientation::Vertical;
+        }
+    };
+
+    struct LayoutSystem : public System<
         Listener<EntityChangedEvent>,
-        Listener<AddHorizontalLayoutElementEvent>,
-        Listener<RemoveHorizontalLayoutElementEvent>,
-        Listener<UpdateHorizontalLayoutVisibility>,
-        Listener<ClearHorizontalLayoutEvent>,
+        Listener<AddLayoutElementEvent>,
+        Listener<RemoveLayoutElementEvent>,
+        Listener<UpdateLayoutVisibility>,
+        Listener<ClearLayoutEvent>,
         Own<HorizontalLayout>,
+        Own<VerticalLayout>,
         InitSys>
     {
-        virtual std::string getSystemName() const override { return "Horizontal Layout System"; }
+        virtual std::string getSystemName() const override { return "Layout System"; }
 
         virtual void init() override;
 
-        virtual void onEvent(const AddHorizontalLayoutElementEvent& event) override
+        virtual void onEvent(const AddLayoutElementEvent& event) override
         {
-            eventQueue.push(event);
+            addQueue.push(event);
         }
 
-        virtual void onEvent(const RemoveHorizontalLayoutElementEvent& event) override
+        virtual void onEvent(const RemoveLayoutElementEvent& event) override
         {
             removeQueue.push(event);
         }
 
-        virtual void onEvent(const ClearHorizontalLayoutEvent& event) override
-        {
-            clearQueue.push(event);
-        }
-
-        virtual void onEvent(const UpdateHorizontalLayoutVisibility& event) override
+        virtual void onEvent(const UpdateLayoutVisibility& event) override
         {
             visibilityQueue.push(event);
         }
 
+        virtual void onEvent(const ClearLayoutEvent& event) override
+        {
+            clearQueue.push(event);
+        }
+
         virtual void onEvent(const EntityChangedEvent& event) override
         {
-            entityChangedQueue.push(event);
+            changedEntities.push(event);
         }
 
         virtual void execute() override
         {
+            processClear();
+            processVisibility();
+            processAdd();
+            processRemove();
+            processChanged();
+
+            for (auto ent : layoutUpdate)
+            {
+                if (not ent->has<PositionComponent>())
+                    continue;
+
+                if (ent->has<HorizontalLayout>())
+                {
+                    auto view = ent->get<HorizontalLayout>();
+
+                    recalculateChildrenPos(ent, view);
+
+                    updateVisibility(ent, view, view->visible);
+                }
+
+                if (ent->has<VerticalLayout>())
+                {
+                    auto view = ent->get<VerticalLayout>();
+
+                    recalculateChildrenPos(ent, view);
+
+                    updateVisibility(ent, view, view->visible);
+                }
+            }
+
+            layoutUpdate.clear();
+        }
+
+        void processClear()
+        {
             while (not clearQueue.empty())
             {
                 const auto& event = clearQueue.front();
-
                 auto ent = ecsRef->getEntity(event.id);
 
-                if (not (ent->has<HorizontalLayout>()))
+                if (ent)
                 {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    clearQueue.pop();
-                    continue;
+                    if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
+                        clear(ent->get<HorizontalLayout>());
+
+                    if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
+                        clear(ent->get<VerticalLayout>());
+
+                    layoutUpdate.insert(ent);
                 }
-
-                clear(ent->get<HorizontalLayout>());
-
-                hLayoutUpdated.insert(ent);
 
                 clearQueue.pop();
             }
+        }
 
+        void processVisibility()
+        {
             while (not visibilityQueue.empty())
             {
                 const auto& event = visibilityQueue.front();
-
                 auto ent = ecsRef->getEntity(event.id);
 
-                if (not (ent->has<HorizontalLayout>()))
+                if (ent)
                 {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component!");
-                    visibilityQueue.pop();
-                    continue;
+                    if (ent->has<HorizontalLayout>())
+                        ent->get<HorizontalLayout>()->visible = event.visible;
+
+                    if (ent->has<VerticalLayout>())
+                        ent->get<VerticalLayout>()->visible = event.visible;
+
+                    if (ent->has<PositionComponent>())
+                        ent->get<PositionComponent>()->visible = event.visible;
+
+                    layoutUpdate.insert(ent);
                 }
-
-                ent->get<HorizontalLayout>()->visible = event.visible;
-
-                if (ent->has<PositionComponent>())
-                {
-                    ent->get<PositionComponent>()->visible = event.visible;
-                }
-
-                hLayoutUpdated.insert(ent);
 
                 visibilityQueue.pop();
             }
+        }
 
-            while (not eventQueue.empty())
+        void processAdd()
+        {
+            while (not addQueue.empty())
             {
-                const auto& event = eventQueue.front();
-
+                const auto& event = addQueue.front();
                 auto ent = ecsRef->getEntity(event.id);
 
-                if (not (ent->has<HorizontalLayout>()))
+                if (ent and (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>()))
                 {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    eventQueue.pop();
-                    continue;
+                    addEntity(ent, event.ui, event.orientation);
+
+                    layoutUpdate.insert(ent);
                 }
 
-                addEntity(ent, event.ui);
-
-                hLayoutUpdated.insert(ent);
-
-                eventQueue.pop();
+                addQueue.pop();
             }
+        }
 
+        void processRemove()
+        {
             while (not removeQueue.empty())
             {
                 const auto& event = removeQueue.front();
-
                 auto ent = ecsRef->getEntity(event.id);
 
-                if (not (ent->has<HorizontalLayout>()))
+                if (ent)
                 {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    removeQueue.pop();
-                    continue;
+                    if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
+                    {
+                        removeEntity(ent->get<HorizontalLayout>(), event.index);
+                    }
+
+                    if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
+                    {
+                        removeEntity(ent->get<VerticalLayout>(), event.index);
+                    }
+
+                    layoutUpdate.insert(ent);
                 }
-
-                removeEntity(ent, event.index);
-
-                hLayoutUpdated.insert(ent);
 
                 removeQueue.pop();
             }
-            
-            while (not entityChangedQueue.empty())
-            {
-                const auto& event = entityChangedQueue.front();
+        }
 
+        void processChanged()
+        {
+            while (not changedEntities.empty())
+            {
+                const auto& event = changedEntities.front();
                 auto ent = ecsRef->getEntity(event.id);
 
                 if (not ent)
                 {
-                    entityChangedQueue.pop();
+                    changedEntities.pop();
                     continue;
                 }
 
-                if (ent->has<HorizontalLayout>())
+                if (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>())
                 {
-                    hLayoutUpdated.insert(ent);
-                    entityChangedQueue.pop();
+                    layoutUpdate.insert(ent);
+                    changedEntities.pop();
                     continue;
                 }
 
+                // Todo maybe add a flag to all the entity put in a layout so we can just check for the flag presence and get rid of this
                 for (auto v : view<HorizontalLayout>())
                 {
                     const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
 
                     if (it != v->entities.end())
                     {
-                        hLayoutUpdated.insert(ecsRef->getEntity(v->id));
-                        entityChangedQueue.pop();
+                        layoutUpdate.insert(ecsRef->getEntity(v->id));
+                        changedEntities.pop();
                         // An entity should not be in multple layouts at the same time
                         continue;
                     }
                 }
 
-                entityChangedQueue.pop();
+                for (auto v : view<VerticalLayout>())
+                {
+                    const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+
+                    if (it != v->entities.end())
+                    {
+                        layoutUpdate.insert(ecsRef->getEntity(v->id));
+                        changedEntities.pop();
+                        // An entity should not be in multple layouts at the same time
+                        continue;
+                    }
+                }
+
+                changedEntities.pop();
+            }
+        }
+
+
+        template <typename Layout>
+        void recalculateChildrenPos(EntityRef viewEnt, Layout view)
+        {
+            auto orientation = view->orientation;
+
+            auto viewUi = viewEnt->template get<PositionComponent>();
+
+            // This snippet handles the vertical layout of entities within a parent view when neither `fitToHeight` nor `spacedInHeight` is enabled.
+            // It aligns entities vertically by setting their top anchor relative to the previous entity's bottom anchor, with a specified spacing.
+            // The left anchor of each entity is aligned with the left anchor of the parent view.
+            // Finally, the parent view's bottom anchor is updated to encompass all child entities.
+            if (not view->fitToAxis and not view->spaced)
+            {
+                auto viewAnchor = viewEnt->template get<UiAnchor>();
+                auto currentBotAnchor = viewAnchor->top;
+
+                for (auto& ent : view->entities)
+                {
+                    if (not ent->template has<UiAnchor>())
+                    {
+                        LOG_ERROR("Layout", "Entity " << ent.id << " must have an Anchor component!");
+                        continue;
+                    }
+
+                    auto anchor = ent->template get<UiAnchor>();
+
+                    anchor->setTopAnchor(currentBotAnchor);
+                    anchor->setTopMargin(view->spacing);
+
+                    anchor->setLeftAnchor(viewAnchor->left);
+
+                    currentBotAnchor = anchor->bottom;
+                }
+
+                viewAnchor->setBottomAnchor(currentBotAnchor);
+                return;
             }
 
-            for (auto ent : hLayoutUpdated)
+            float start, axis, axisSize;
+
+            if (orientation == LayoutOrientation::Horizontal)
             {
-                if (not ent->has<HorizontalLayout>() or not ent->has<PositionComponent>())
+                start = viewUi->x;
+                axisSize = viewUi->width;
+            }
+            else if (orientation == LayoutOrientation::Vertical)
+            {
+                start = viewUi->y;
+                axisSize = viewUi->height;
+            }
+            else
+            {
+                LOG_ERROR("Layout", "Invalid orientation for layout: " << static_cast<int>(orientation));
+                return;
+            }
+
+            float currentX = viewUi->x, currentY = viewUi->y, maxVal = 0.0f;
+            size_t nbCurrentElement = 0;
+
+            for (size_t i = 0; i < view->entities.size(); ++i)
+            {
+                auto ent = view->entities[i];
+
+                if (not ent->template has<PositionComponent>())
                 {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
+                    LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
                     continue;
                 }
 
-                recalculateChildrenPos(ent);
+                auto pos = ent->template get<PositionComponent>();
 
-                auto view = ent->get<HorizontalLayout>();
+                if (orientation == LayoutOrientation::Horizontal)
+                {
+                    axis = pos->height;
+                }
+                else if (orientation == LayoutOrientation::Horizontal)
+                {
+                    axis = pos->width;
+                }
 
-                updateVisibility(ent, view->visible);
+                if (axis > maxVal)
+                    maxVal = axis;
             }
 
-            hLayoutUpdated.clear();
+            auto totalVal = 0.0f;
+
+            float currentSize = 0.0f;
+            size_t firstElementIndex = 0;
+
+            const float maxPos = start + axisSize;
+
+            bool lastElementWasOversized = false;
+
+            for (size_t i = 0; i < view->entities.size(); i++)
+            {
+                auto ent = view->entities[i];
+
+                if (not ent->template has<PositionComponent>())
+                {
+                    LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
+                    continue;
+                }
+
+                auto pos = ent->template get<PositionComponent>();
+
+                float posSecondAxis;
+                float *boundAxis, *otherAxis;
+
+                if (orientation == LayoutOrientation::Horizontal)
+                {
+                    posSecondAxis = pos->width;
+
+                    boundAxis = &currentY;
+                    otherAxis = &currentX;
+                }
+                else if (orientation == LayoutOrientation::Vertical)
+                {
+                    posSecondAxis = pos->height;
+
+                    boundAxis = &currentX;
+                    otherAxis = &currentY;
+                }
+
+                if (nbCurrentElement == 0)
+                {
+                    totalVal += maxVal + view->spacing;
+
+                    if (posSecondAxis >= axisSize)
+                    {
+                        lastElementWasOversized = true;
+
+                        pos->setX(currentX);
+                        pos->setY(currentY);
+
+                        *boundAxis += pos->width + view->spacing;
+                        firstElementIndex = i + 1;
+                        continue;
+                    }
+                }
+
+                lastElementWasOversized = false;
+
+                if (view->fitToAxis and (*otherAxis + posSecondAxis > maxPos))
+                {
+                    *otherAxis = start;
+                    *boundAxis += maxVal + view->spacing;
+
+                    if (view->spaced)
+                    {
+                        auto elemSpacing = nbCurrentElement > 1 ? (axisSize - currentSize) / (nbCurrentElement - 1) : (axisSize - currentSize);
+                        auto currentSpacedStart = start;
+
+                        for (size_t j = 0; j < nbCurrentElement; j++)
+                        {
+                            auto columnEnt = view->entities[firstElementIndex + j];
+                            auto columnPos = columnEnt->template get<PositionComponent>();
+
+                            if (orientation == LayoutOrientation::Horizontal)
+                            {
+                                columnPos->setX(currentSpacedStart);
+                                currentSpacedStart += columnPos->width + elemSpacing;
+                            }
+                            else if (orientation == LayoutOrientation::Vertical)
+                            {
+                                columnPos->setY(currentSpacedStart);
+                                currentSpacedStart += columnPos->height + elemSpacing;
+                            }
+                        }
+
+                        currentSize = 0;
+                        firstElementIndex = i;
+                    }
+
+                    i--;
+                    nbCurrentElement = 0;
+                    continue;
+                }
+
+                if (view->spaced)
+                {
+                    currentSize += axisSize;
+                }
+                else
+                {
+                    if (orientation == LayoutOrientation::Horizontal)
+                    {
+                        pos->setX(*boundAxis);
+                    }
+                    else if (orientation == LayoutOrientation::Vertical)
+                    {
+                        pos->setY(*boundAxis);
+                    }
+                }
+
+                if (orientation == LayoutOrientation::Horizontal)
+                {
+                    pos->setY(*otherAxis);
+                }
+                else if (orientation == LayoutOrientation::Vertical)
+                {
+                    pos->setX(*otherAxis);
+                }
+
+                *boundAxis += axisSize + view->spacing;
+                nbCurrentElement++;
+            }
+
+            if (nbCurrentElement == 0 and not lastElementWasOversized)
+            {
+                totalVal += maxVal + view->spacing;
+            }
+
+            if (orientation == LayoutOrientation::Horizontal)
+            {
+                viewUi->setHeight(totalVal);
+            }
+            else if (orientation == LayoutOrientation::Vertical)
+            {
+                viewUi->setWidth(totalVal);
+            }
+
+            if (view->spaced and (firstElementIndex < view->entities.size()))
+            {
+                // The +1 ensures that spacing is applied to all gaps between elements,
+                // including the space before the first and after the last.
+                auto elemSpacing = (axisSize - currentSize) / (nbCurrentElement + 1);
+                auto currentSpacedStart = start;
+
+                if (currentSize > axisSize)
+                    elemSpacing = view->spacing;
+                else
+                    currentSpacedStart += elemSpacing;
+
+                for (size_t j = 0; j < nbCurrentElement; j++)
+                {
+                    auto columnEnt = view->entities[firstElementIndex + j];
+                    auto columnPos = columnEnt->template get<PositionComponent>();
+
+                    if (orientation == LayoutOrientation::Horizontal)
+                    {
+                        columnPos->setX(currentSpacedStart);
+                        currentSpacedStart += columnPos->width + elemSpacing;
+                    }
+                    else if (orientation == LayoutOrientation::Vertical)
+                    {
+                        columnPos->setY(currentSpacedStart);
+                        currentSpacedStart += columnPos->height + elemSpacing;
+                    }
+                }
+
+                currentSize = 0;
+            }
         }
 
-        void addEntity(EntityRef viewEnt, _unique_id ui);
+        void addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation);
 
-        void removeEntity(EntityRef viewEnt, _unique_id);
+        template <typename Layout>
+        void removeEntity(Layout view, _unique_id index)
+        {
+            auto it = std::find_if(view->entities.begin(), view->entities.end(), [index](const EntityRef& entity) { return entity.id == index; });
 
-        void recalculateChildrenPos(EntityRef viewEnt);
+            if (it != view->entities.end())
+            {
+                view->entities.erase(it);
+                ecsRef->removeEntity(index);
+            }
+        }
 
-        void updateVisibility(EntityRef viewEnt, bool visible);
+        template <typename Layout>
+        void updateVisibility(EntityRef viewEnt, Layout view, bool visible)
+        {
+            view->visible = visible;
 
-        void clear(CompRef<HorizontalLayout> view);
+            auto& entities = view->entities;
 
-        std::queue<AddHorizontalLayoutElementEvent> eventQueue;
+            for (auto& ui : entities)
+            {
+                if (ui->template has<PositionComponent>())
+                {
+                    auto pos = ui->template get<PositionComponent>();
+                    bool isCompVisible = false;
 
-        std::queue<RemoveHorizontalLayoutElementEvent> removeQueue;
+                    if (visible)
+                    {
+                        float childTop    = pos->y;
+                        float childBottom = pos->y + pos->height;
+                        float childLeft   = pos->x;
+                        float childRight  = pos->x + pos->width;
 
-        std::queue<ClearHorizontalLayoutEvent> clearQueue;
+                        if (inBound(viewEnt, childLeft, childTop) or inBound(viewEnt, childLeft, childBottom) or inBound(viewEnt, childRight, childTop) or inBound(viewEnt, childRight, childBottom))
+                        {
+                            isCompVisible = true;
+                        }
+                    }
 
-        std::queue<UpdateHorizontalLayoutVisibility> visibilityQueue;
+                    pos->setVisibility(isCompVisible);
+                }
+            }
+        }
 
-        std::queue<EntityChangedEvent> entityChangedQueue;
+        template <typename Layout>
+        void clear(Layout view)
+        {
+            for (auto ent : view->entities)
+            {
+                ecsRef->removeEntity(ent);
+            }
 
-        std::set<EntityRef> hLayoutUpdated;
+            view->entities.clear();
+        }
+
+        std::queue<AddLayoutElementEvent> addQueue;
+        std::queue<RemoveLayoutElementEvent> removeQueue;
+        std::queue<ClearLayoutEvent> clearQueue;
+        std::queue<UpdateLayoutVisibility> visibilityQueue;
+        std::queue<EntityChangedEvent> changedEntities;
+
+        std::set<EntityRef> layoutUpdate;
     };
 
     template <typename Type>
@@ -298,260 +671,6 @@ namespace pg
 
         return {entity, ui, anchor, view};
     }
-
-    struct ClearVerticalLayoutEvent
-    {
-        _unique_id id;
-    };
-
-    struct AddVerticalLayoutElementEvent
-    {
-        _unique_id id; _unique_id ui;
-    };
-
-    struct RemoveVerticalLayoutElementEvent
-    {
-        _unique_id id; _unique_id index;
-    };
-
-    struct UpdateVerticalLayoutVisibility
-    {
-        _unique_id id; bool visible;
-    };
-
-    struct VerticalLayout: public Ctor
-    {
-        void onCreation(EntityRef entity) override
-        {
-            id = entity.id;
-            ecsRef = entity.ecsRef;
-        }
-
-        void addEntity(EntityRef entity) { ecsRef->sendEvent(AddVerticalLayoutElementEvent{id, entity.id}); }
-
-        void removeEntity(EntityRef entity) { ecsRef->sendEvent(RemoveVerticalLayoutElementEvent{id, entity.id}); }
-        void removeEntity(_unique_id entityId) { ecsRef->sendEvent(RemoveVerticalLayoutElementEvent{id, entityId}); }
-
-        void setVisibility(bool visible) { ecsRef->sendEvent(UpdateVerticalLayoutVisibility{id, visible}); }
-
-        void clear() { ecsRef->sendEvent(ClearVerticalLayoutEvent{id}); }
-
-        bool fitToHeight = false;
-
-        bool spacedInHeight = false;
-
-        size_t spacing = 0;
-
-        bool visible = true;
-
-        std::vector<EntityRef> entities;
-
-        _unique_id id;
-
-        EntitySystem *ecsRef;
-    };
-
-    struct VerticalLayoutSystem : public System<
-        Listener<EntityChangedEvent>,
-        Listener<AddVerticalLayoutElementEvent>,
-        Listener<RemoveVerticalLayoutElementEvent>,
-        Listener<UpdateVerticalLayoutVisibility>,
-        Listener<ClearVerticalLayoutEvent>,
-        Own<VerticalLayout>,
-        InitSys>
-    {
-        virtual std::string getSystemName() const override { return "Vertical Layout System"; }
-
-        virtual void init() override;
-
-        virtual void onEvent(const AddVerticalLayoutElementEvent& event) override
-        {
-            eventQueue.push(event);
-        }
-
-        virtual void onEvent(const RemoveVerticalLayoutElementEvent& event) override
-        {
-            removeQueue.push(event);
-        }
-
-        virtual void onEvent(const ClearVerticalLayoutEvent& event) override
-        {
-            clearQueue.push(event);
-        }
-
-        virtual void onEvent(const UpdateVerticalLayoutVisibility& event) override
-        {
-            visibilityQueue.push(event);
-        }
-
-        virtual void onEvent(const EntityChangedEvent& event) override
-        {
-            entityChangedQueue.push(event);
-        }
-
-        virtual void execute() override
-        {
-            while (not clearQueue.empty())
-            {
-                const auto& event = clearQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not (ent->has<VerticalLayout>()))
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    clearQueue.pop();
-                    continue;
-                }
-
-                clear(ent->get<VerticalLayout>());
-
-                vLayoutUpdated.insert(ent);
-
-                clearQueue.pop();
-            }
-
-            while (not visibilityQueue.empty())
-            {
-                const auto& event = visibilityQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not (ent->has<VerticalLayout>()))
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component!");
-                    visibilityQueue.pop();
-                    continue;
-                }
-
-                ent->get<VerticalLayout>()->visible = event.visible;
-
-                if (ent->has<PositionComponent>())
-                {
-                    ent->get<PositionComponent>()->visible = event.visible;
-                }
-
-                vLayoutUpdated.insert(ent);
-
-                visibilityQueue.pop();
-            }
-
-            while (not eventQueue.empty())
-            {
-                const auto& event = eventQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not (ent->has<VerticalLayout>()))
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    eventQueue.pop();
-                    continue;
-                }
-
-                addEntity(ent, event.ui);
-
-                vLayoutUpdated.insert(ent);
-
-                eventQueue.pop();
-            }
-
-            while (not removeQueue.empty())
-            {
-                const auto& event = removeQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not (ent->has<VerticalLayout>()))
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    removeQueue.pop();
-                    continue;
-                }
-
-                removeEntity(ent, event.index);
-
-                vLayoutUpdated.insert(ent);
-
-                removeQueue.pop();
-            }
-
-            while (not entityChangedQueue.empty())
-            {
-                const auto& event = entityChangedQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not ent)
-                {
-                    entityChangedQueue.pop();
-                    continue;
-                }
-    
-                if (ent->has<VerticalLayout>())
-                {
-                    vLayoutUpdated.insert(ent);
-                    entityChangedQueue.pop();
-                    continue;
-                }
-    
-                for (auto v : view<VerticalLayout>())
-                {
-                    const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-    
-                    if (it != v->entities.end())
-                    {
-                        vLayoutUpdated.insert(ecsRef->getEntity(v->id));
-                        // An entity should not be in multiple layouts at the same time
-                        entityChangedQueue.pop();
-                        continue;
-                    }
-                }
-
-                entityChangedQueue.pop();
-            }
-
-            for (auto ent : vLayoutUpdated)
-            {
-                // Todo investigate this, it happens when changing scene
-                if (not ent->has<VerticalLayout>() or not ent->has<PositionComponent>())
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    continue;
-                }
-
-                recalculateChildrenPos(ent);
-
-                auto view = ent->get<VerticalLayout>();
-
-                updateVisibility(ent, view->visible);
-            }
-
-            vLayoutUpdated.clear();
-        }
-
-        void addEntity(EntityRef viewEnt, _unique_id ui);
-
-        void removeEntity(EntityRef viewEnt, _unique_id);
-
-        void recalculateChildrenPos(EntityRef viewEnt);
-
-        void updateVisibility(EntityRef viewEnt, bool visible);
-
-        void clear(CompRef<VerticalLayout> view);
-
-        std::queue<AddVerticalLayoutElementEvent> eventQueue;
-
-        std::queue<RemoveVerticalLayoutElementEvent> removeQueue;
-
-        std::queue<ClearVerticalLayoutEvent> clearQueue;
-
-        std::queue<UpdateVerticalLayoutVisibility> visibilityQueue;
-
-        std::queue<EntityChangedEvent> entityChangedQueue;
-
-        std::set<EntityRef> vLayoutUpdated;
-    };
 
     template <typename Type>
     CompList<PositionComponent, UiAnchor, VerticalLayout> makeVerticalLayout(Type *ecs, float x, float y, float width, float height)

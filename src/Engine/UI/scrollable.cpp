@@ -9,42 +9,42 @@ namespace pg
         static constexpr const char * const DOM = "Scrollable";
     }
 
-    void ScrollableSystem::addChild(EntityRef list, EntityRef child)
-    {
-        LOG_THIS_MEMBER(DOM);
+    // void ScrollableSystem::addChild(EntityRef list, EntityRef child)
+    // {
+    //     LOG_THIS_MEMBER(DOM);
 
-        if (not list->has<Scrollable>())
-        {
-            LOG_ERROR(DOM, "This entity[" << list.id << "] doesn't have a scrollable component !");
-            return;
-        }
+    //     if (not list->has<Scrollable>())
+    //     {
+    //         LOG_ERROR(DOM, "This entity[" << list.id << "] doesn't have a scrollable component !");
+    //         return;
+    //     }
 
-        auto scroll = list->get<Scrollable>();
+    //     auto scroll = list->get<Scrollable>();
 
-        scroll->entities.push_back(child);
-    }
-    
-    void ScrollableSystem::removeChild(EntityRef list, EntityRef child)
-    {
-        LOG_THIS_MEMBER(DOM);
+    //     scroll->entities.push_back(child);
+    // }
 
-        if (not list->has<Scrollable>())
-        {
-            LOG_ERROR(DOM, "This entity[" << list.id << "] doesn't have a scrollable component !");
-            return;
-        }
+    // void ScrollableSystem::removeChild(EntityRef list, EntityRef child)
+    // {
+    //     LOG_THIS_MEMBER(DOM);
 
-        auto scroll = list->get<Scrollable>();
+    //     if (not list->has<Scrollable>())
+    //     {
+    //         LOG_ERROR(DOM, "This entity[" << list.id << "] doesn't have a scrollable component !");
+    //         return;
+    //     }
 
-        auto it = std::find(scroll->entities.begin(), scroll->entities.end(), child);
+    //     auto scroll = list->get<Scrollable>();
 
-        if (it != scroll->entities.end())
-        {
-            scroll->entities.erase(it);
-        }
-        else
-        {
-            LOG_ERROR(DOM, "This scrollable[" << list.id << "] doesn't have entity[" << child.id << "] as a child component !");
-        }
-    }
+    //     auto it = std::find(scroll->entities.begin(), scroll->entities.end(), child);
+
+    //     if (it != scroll->entities.end())
+    //     {
+    //         scroll->entities.erase(it);
+    //     }
+    //     else
+    //     {
+    //         LOG_ERROR(DOM, "This scrollable[" << list.id << "] doesn't have entity[" << child.id << "] as a child component !");
+    //     }
+    // }
 }
