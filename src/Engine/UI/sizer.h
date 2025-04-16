@@ -440,6 +440,8 @@ namespace pg
 
             const float maxPos = start + axisSize;
 
+            bool lastElementWasOversized = false;
+
             for (size_t i = 0; i < view->entities.size(); i++)
             {
                 auto ent = view->entities[i];
@@ -473,7 +475,21 @@ namespace pg
                 if (nbCurrentElement == 0)
                 {
                     totalVal += maxVal + view->spacing;
+
+                    if (posSecondAxis >= axisSize)
+                    {
+                        lastElementWasOversized = true;
+
+                        pos->setX(currentX);
+                        pos->setY(currentY);
+
+                        *boundAxis += pos->width + view->spacing;
+                        firstElementIndex = i + 1;
+                        continue;
+                    }
                 }
+
+                lastElementWasOversized = false;
 
                 if (view->fitToAxis and (*otherAxis + posSecondAxis > maxPos))
                 {
@@ -540,7 +556,7 @@ namespace pg
                 nbCurrentElement++;
             }
 
-            if (nbCurrentElement == 0)
+            if (nbCurrentElement == 0 and not lastElementWasOversized)
             {
                 totalVal += maxVal + view->spacing;
             }
