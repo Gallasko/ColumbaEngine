@@ -340,14 +340,14 @@ namespace pg
 
             auto viewUi = viewEnt->template get<PositionComponent>();
 
-            // This snippet handles the vertical layout of entities within a parent view when neither `fitToHeight` nor `spacedInHeight` is enabled.
-            // It aligns entities vertically by setting their top anchor relative to the previous entity's bottom anchor, with a specified spacing.
-            // The left anchor of each entity is aligned with the left anchor of the parent view.
-            // Finally, the parent view's bottom anchor is updated to encompass all child entities.
+            // This snippet handles the layout of entities within a parent view when neither `fitToAxis` nor `spaced` is enabled.
+            // It aligns entities along the primary axis (horizontal or vertical) by setting their anchor relative to the previous entity's anchor, with a specified spacing.
+            // The secondary axis is aligned with the parent view's anchor.
+            // Finally, the parent view's size along the primary axis is updated to encompass all child entities.
             if (not view->fitToAxis and not view->spaced)
             {
                 auto viewAnchor = viewEnt->template get<UiAnchor>();
-                auto currentBotAnchor = viewAnchor->top;
+                auto currentAnchor = (orientation == LayoutOrientation::Horizontal) ? viewAnchor->left : viewAnchor->top;
 
                 for (auto& ent : view->entities)
                 {
@@ -359,15 +359,31 @@ namespace pg
 
                     auto anchor = ent->template get<UiAnchor>();
 
-                    anchor->setTopAnchor(currentBotAnchor);
-                    anchor->setTopMargin(view->spacing);
-
-                    anchor->setLeftAnchor(viewAnchor->left);
-
-                    currentBotAnchor = anchor->bottom;
+                    if (orientation == LayoutOrientation::Horizontal)
+                    {
+                        anchor->setLeftAnchor(currentAnchor);
+                        anchor->setLeftMargin(view->spacing);
+                        anchor->setTopAnchor(viewAnchor->top);
+                        currentAnchor = anchor->right;
+                    }
+                    else if (orientation == LayoutOrientation::Vertical)
+                    {
+                        anchor->setTopAnchor(currentAnchor);
+                        anchor->setTopMargin(view->spacing);
+                        anchor->setLeftAnchor(viewAnchor->left);
+                        currentAnchor = anchor->bottom;
+                    }
                 }
 
-                viewAnchor->setBottomAnchor(currentBotAnchor);
+                if (orientation == LayoutOrientation::Horizontal)
+                {
+                    viewAnchor->setRightAnchor(currentAnchor);
+                }
+                else if (orientation == LayoutOrientation::Vertical)
+                {
+                    viewAnchor->setBottomAnchor(currentAnchor);
+                }
+
                 return;
             }
 
@@ -408,7 +424,7 @@ namespace pg
                 {
                     axis = pos->height;
                 }
-                else if (orientation == LayoutOrientation::Horizontal)
+                else if (orientation == LayoutOrientation::Vertical)
                 {
                     axis = pos->width;
                 }
@@ -423,8 +439,6 @@ namespace pg
             size_t firstElementIndex = 0;
 
             const float maxPos = start + axisSize;
-
-            bool lastElementWasOversized = false;
 
             for (size_t i = 0; i < view->entities.size(); i++)
             {
@@ -459,21 +473,7 @@ namespace pg
                 if (nbCurrentElement == 0)
                 {
                     totalVal += maxVal + view->spacing;
-
-                    if (posSecondAxis >= axisSize)
-                    {
-                        lastElementWasOversized = true;
-
-                        pos->setX(currentX);
-                        pos->setY(currentY);
-
-                        *boundAxis += pos->width + view->spacing;
-                        firstElementIndex = i + 1;
-                        continue;
-                    }
                 }
-
-                lastElementWasOversized = false;
 
                 if (view->fitToAxis and (*otherAxis + posSecondAxis > maxPos))
                 {
@@ -513,34 +513,34 @@ namespace pg
 
                 if (view->spaced)
                 {
-                    currentSize += axisSize;
+                    currentSize += posSecondAxis;
                 }
                 else
                 {
                     if (orientation == LayoutOrientation::Horizontal)
                     {
-                        pos->setX(*boundAxis);
+                        pos->setX(*otherAxis);
                     }
                     else if (orientation == LayoutOrientation::Vertical)
                     {
-                        pos->setY(*boundAxis);
+                        pos->setY(*otherAxis);
                     }
                 }
 
                 if (orientation == LayoutOrientation::Horizontal)
                 {
-                    pos->setY(*otherAxis);
+                    pos->setY(*boundAxis);
                 }
                 else if (orientation == LayoutOrientation::Vertical)
                 {
-                    pos->setX(*otherAxis);
+                    pos->setX(*boundAxis);
                 }
 
-                *boundAxis += axisSize + view->spacing;
+                *otherAxis += posSecondAxis + view->spacing;
                 nbCurrentElement++;
             }
 
-            if (nbCurrentElement == 0 and not lastElementWasOversized)
+            if (nbCurrentElement == 0)
             {
                 totalVal += maxVal + view->spacing;
             }
