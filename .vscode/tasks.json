@@ -101,6 +101,7 @@
                     "Release",
                     "--target",
                     "GameOff",
+                    "PgEngine",
                     "-j",
                     "8"
                 ]

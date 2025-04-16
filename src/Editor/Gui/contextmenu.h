@@ -3,7 +3,10 @@
 #include "ECS/entitysystem.h"
 
 #include "ECS/callable.h"
-namespace pg 
+
+#include "2D/position.h"
+
+namespace pg
 {
     enum class UiComponentType
     {
@@ -16,7 +19,6 @@ namespace pg
         PREFAB // Todo to implement !
     };
 
-    class UiComponent;
     class Input;
 
 namespace editor
@@ -25,7 +27,7 @@ namespace editor
 
     struct SaveFile {};
 
-    struct ShowContextMenu 
+    struct ShowContextMenu
     {
         ShowContextMenu(const Input* const inputHandler) : inputHandler(inputHandler) {}
 
@@ -69,11 +71,13 @@ namespace editor
         virtual void execute() override;
 
         EntityRef parent;
-        CompRef<UiComponent> parentUi;
+        CompRef<PositionComponent> parentPos;
+        CompRef<UiAnchor> parentUi;
 
-        CompRef<UiComponent> backgroundC;
+        CompRef<PositionComponent> backgroundPos;
+        CompRef<UiAnchor> backgroundC;
 
-        std::vector<CompRef<UiComponent>> components;
+        std::vector<EntityRef> components;
 
         float currentX = 0.0f, currentY = 0.0f;
 

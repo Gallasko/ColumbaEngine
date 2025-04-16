@@ -81,11 +81,11 @@ namespace pg
 
         struct InspectedText
         {
-            InspectedText(std::string* value, CompRef<UiComponent> ui) : valuePointer(value), ui(ui) {}
+            InspectedText(std::string* value, CompRef<PositionComponent> ui) : valuePointer(value), ui(ui) {}
             InspectedText(const InspectedText& rhs) : valuePointer(rhs.valuePointer), ui(rhs.ui) {}
 
             std::string* valuePointer;
-            CompRef<UiComponent> ui;
+            CompRef<PositionComponent> ui;
         };
 
         struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, InitSys>

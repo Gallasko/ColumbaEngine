@@ -8,7 +8,7 @@ namespace pg
     namespace editor
     {
 
-        namespace 
+        namespace
         {
             static const char* const DOM = "Inspector";
 
@@ -19,7 +19,7 @@ namespace pg
                     if (child.className == "")
                     {
                         std::string str;
-                        
+
                         if (strcmp(ARCHIVEVERSION, "1.0.0") == 0)
                             str = ATTRIBUTECONST + " " + child.type + " {" + child.value + "}";
 
@@ -58,13 +58,13 @@ namespace pg
 
             auto windowEnt = ecsRef->getEntity("__MainWindow");
 
-            auto windowUi = windowEnt->get<UiComponent>();
+            auto windowUi = windowEnt->get<UiAnchor>();
 
             auto listView = makeListView(ecsRef, 1, 1, 300, 1);
-            
+
             ecsRef->attach<Texture2DComponent>(listView.entity, "TabTexture");
 
-            auto listViewUi = listView.get<UiComponent>();
+            auto listViewUi = listView.get<UiAnchor>();
 
             listViewUi->setTopAnchor(windowUi->top);
             listViewUi->setBottomAnchor(windowUi->bottom);
@@ -79,14 +79,14 @@ namespace pg
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeSentence(ecsRef, 1, 1, {textTemp});
+            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 1);
 
-            auto sentUi = sentence.get<UiComponent>();
+            auto sentUi = sentence.get<PositionComponent>();
 
             sentUi->setVisibility(false);
             sentUi->setZ(1);
 
-            view->addEntity(sentUi);
+            view->addEntity(sentence.entity);
         }
 
         void InspectorSystem::addNewAttribute(const std::string& text, const std::string& type, std::string& value)
@@ -95,9 +95,10 @@ namespace pg
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeSentence(ecsRef, 1, 1, {textTemp});
+            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 1);
 
-            auto sentUi = sentence.get<UiComponent>();
+            auto sentUi = sentence.get<PositionComponent>();
+            auto sentAnchor = sentence.get<UiAnchor>();
 
             sentUi->setVisibility(false);
             sentUi->setZ(1);
@@ -108,22 +109,23 @@ namespace pg
 
             valueInput.get<TextInputComponent>()->clearTextAfterEnter = false;
 
-            auto valueInputUi = valueInput.get<UiComponent>();
+            auto valueInputUi = valueInput.get<PositionComponent>();
+            auto valueInputAnchor = valueInput.get<UiAnchor>();
 
             valueInputUi->setVisibility(false);
             valueInputUi->setZ(1);
 
-            valueInputUi->setLeftAnchor(sentUi->right);
+            valueInputAnchor->setLeftAnchor(sentAnchor->right);
 
             inspectorText.emplace_back(&value, valueInputUi);
 
-            view->addEntity(sentUi);
+            view->addEntity(sentence.entity);
 
-            view->addEntity(valueInputUi);
+            view->addEntity(valueInput.entity);
         }
 
         void InspectorSystem::printChildren(SerializedInfoHolder& parent, size_t indentLevel)
-        {            
+        {
             // If no class name then we got an attribute
             if (parent.className == "" and indentLevel > 2)
             {
