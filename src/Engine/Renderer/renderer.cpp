@@ -266,6 +266,34 @@ namespace pg
         inSwap = true;
     }
 
+    void MasterRenderer::registerTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
+    {
+        const auto& it = textureList.find(name);
+
+        size_t oldId = 0;
+
+        if (it == textureList.end())
+        {
+            LOG_MILE(DOM, "Registering texture: " << name);
+        }
+        else
+        {
+            LOG_WARNING(DOM, "Replacing registered texture: " << name);
+            oldId = it->second.id;
+        }
+
+        auto texture = callback(oldId);
+
+        if (texture.id != 0)
+        {
+            registerTexture(name, texture);
+        }
+        else
+        {
+            LOG_ERROR(DOM, "Trying to register a null texture: " << name);
+        }
+    }
+
     void MasterRenderer::processTextureRegister()
     {
         TextureRegisteringQueueItem item;
@@ -274,31 +302,7 @@ namespace pg
 
         while (found)
         {
-            const auto& it = textureList.find(item.name);
-
-            size_t oldId = 0;
-
-            if (it == textureList.end())
-            {
-                LOG_MILE(DOM, "Registering texture: " << item.name);
-            }
-            else
-            {
-                LOG_WARNING(DOM, "Replacing registered texture: " << item.name);
-                oldId = it->second.id;
-            }
-
-            auto texture = item.callback(oldId);
-
-            if (texture.id != 0)
-            {
-                registerTexture(item.name, texture);
-            }
-            else
-            {
-                LOG_ERROR(DOM, "Trying to register a null texture: " << item.name);
-            }
-
+            registerTexture(item.name, item.callback);
 
             found = textureRegisteringQueue.try_dequeue(item);
         }

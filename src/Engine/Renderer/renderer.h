@@ -474,9 +474,17 @@ namespace pg
             std::string path = texturePath;
             std::function<OpenGLTexture(size_t)> f = [name, path, this](size_t oldId) { return registerTextureHelper(name, path.c_str(), oldId, false); };
 
-            textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, f});
+            queueRegisterTexture(name, f);
         }
-        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback) { textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback}); }
+
+        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
+        {
+            if (ecsRef->isRunning())
+                textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback});
+            else
+                registerTexture(name, callback);
+
+        }
 
         size_t registerMaterial(const Material& material)
         {
@@ -662,6 +670,8 @@ namespace pg
         void setState(const OpenGLState& state);
 
         void processRenderCall(const RenderCall& call);
+
+        void registerTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback);
 
     private:
         RefracRef systemParameters;
