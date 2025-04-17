@@ -62,6 +62,15 @@ namespace editor
         backgroundC->fillIn(parentUi);
 
         auto vLayout = makeVerticalLayout(ecsRef, 1, 1, 200, 200);
+        auto layoutPos = vLayout.get<PositionComponent>();
+        layoutPos->setZ(11);
+        auto layoutAnchor = vLayout.get<UiAnchor>();
+        // layoutAnchor->fillIn(parentUi);
+
+        layoutAnchor->setTopAnchor(parentUi->top);
+        layoutAnchor->setLeftAnchor(parentUi->left);
+        layoutAnchor->setWidthConstrain(PosConstrain{parent.id, AnchorType::Width});
+        layoutAnchor->setHeightConstrain(PosConstrain{parent.id, AnchorType::Height});
 
         auto layoutComp = vLayout.get<VerticalLayout>();
 
@@ -91,9 +100,12 @@ namespace editor
         auto addItemEntity = addItem.entity;
 
         ecsRef->attach<MouseLeftClickComponent>(addItemEntity, callable);
-        auto addItemAnchor = ecsRef->attach<UiAnchor>(addItemEntity);
 
-        // ref->addEntity(addItemEntity);
+        LOG_ERROR("Context Menu", layout->has<VerticalLayout>());
+
+        auto vLayout = layout->get<VerticalLayout>();
+
+        vLayout->addEntity(addItemEntity);
     }
 
     void ContextMenu::hide()
@@ -104,10 +116,7 @@ namespace editor
 
         backgroundPos->setVisibility(false);
 
-        for (auto& comp : components)
-        {
-            comp->get<PositionComponent>()->setVisibility(false);
-        }
+        layout->get<PositionComponent>()->setVisibility(false);
     }
 
     void ContextMenu::onEvent(const ShowContextMenu& event)
@@ -246,10 +255,7 @@ namespace editor
 
             backgroundPos->setVisibility(true);
 
-            for (auto& comp : components)
-            {
-                comp->get<PositionComponent>()->setVisibility(true);
-            }
+            layout->get<PositionComponent>()->setVisibility(true);
 
             showEventQueue.pop();
         }
