@@ -246,6 +246,7 @@ namespace pg
 
                 if (ent and (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>()))
                 {
+                    entitiesInLayout.insert(event.id);
                     addEntity(ent, event.ui, event.orientation);
 
                     layoutUpdate.insert(ent);
@@ -274,6 +275,8 @@ namespace pg
                         removeEntity(ent->get<VerticalLayout>(), event.index);
                     }
 
+                    entitiesInLayout.erase(event.id);
+
                     layoutUpdate.insert(ent);
                 }
 
@@ -301,7 +304,17 @@ namespace pg
                     continue;
                 }
 
+                // If entity is not in a layout anymore we can skip the heavy lookup in layouts
+                if (not entitiesInLayout.count(ent->id))
+                {
+                    changedEntities.pop();
+                    continue;
+                }
+
+                bool found = false;
+
                 // Todo maybe add a flag to all the entity put in a layout so we can just check for the flag presence and get rid of this
+                // An entity should not be in multple layouts at the same time
                 for (auto v : view<HorizontalLayout>())
                 {
                     const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
@@ -310,10 +323,14 @@ namespace pg
                     {
                         layoutUpdate.insert(ecsRef->getEntity(v->id));
                         changedEntities.pop();
-                        // An entity should not be in multple layouts at the same time
-                        continue;
+
+                        found = true;
+                        break;
                     }
                 }
+
+                if (found)
+                    continue;
 
                 for (auto v : view<VerticalLayout>())
                 {
@@ -323,15 +340,18 @@ namespace pg
                     {
                         layoutUpdate.insert(ecsRef->getEntity(v->id));
                         changedEntities.pop();
-                        // An entity should not be in multple layouts at the same time
-                        continue;
+
+                        found = true;
+                        break;
                     }
                 }
+
+                if (found)
+                    continue;
 
                 changedEntities.pop();
             }
         }
-
 
         template <typename Layout>
         void recalculateChildrenPos(EntityRef viewEnt, Layout view)
@@ -654,6 +674,7 @@ namespace pg
         {
             for (auto ent : view->entities)
             {
+                entitiesInLayout.erase(ent.id);
                 ecsRef->removeEntity(ent);
             }
 
@@ -667,6 +688,8 @@ namespace pg
         std::queue<EntityChangedEvent> changedEntities;
 
         std::set<EntityRef> layoutUpdate;
+
+        std::set<_unique_id> entitiesInLayout;
     };
 
     template <typename Type>
