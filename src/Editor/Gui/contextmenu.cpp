@@ -36,10 +36,10 @@ namespace editor
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto file = makeTTFText(ecsRef, 0.0f, 0.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Open", 1);
+        auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFile>());
 
-        auto save = makeTTFText(ecsRef, 50.0f, 0.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Save", 1);
+        auto save = makeTTFText(ecsRef, 70.0f, 5.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Save", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(save.entity, makeCallable<SaveFile>());
 
         parent = ecsRef->createEntity();
@@ -57,8 +57,17 @@ namespace editor
         auto backTexture = makeUiTexture(ecsRef, 1, 1, "TabTexture");
         auto background = backTexture.entity;
         backgroundPos = backTexture.get<PositionComponent>();
+        backgroundPos->setZ(10);
         backgroundC = backTexture.get<UiAnchor>();
         backgroundC->fillIn(parentUi);
+
+        auto vLayout = makeVerticalLayout(ecsRef, 1, 1, 200, 200);
+
+        auto layoutComp = vLayout.get<VerticalLayout>();
+
+        layoutComp->spacing = 8.0f;
+
+        layout = vLayout.entity;
 
         setContextList("Add Sentence",  makeCallable<CreateElement>(UiComponentType::TEXT),
                        "Add TTF Text",  makeCallable<CreateElement>(UiComponentType::TTFTEXT),
@@ -78,33 +87,13 @@ namespace editor
 
     void ContextMenu::addItemInContextMenu(const std::string& text, CallablePtr callable)
     {
-        auto addItem = makeTTFText(ecsRef, 0, 0, 11.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", text, 1);
+        auto addItem = makeTTFText(ecsRef, 0, 0, 11.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", text, 0.5);
         auto addItemEntity = addItem.entity;
 
         ecsRef->attach<MouseLeftClickComponent>(addItemEntity, callable);
         auto addItemAnchor = ecsRef->attach<UiAnchor>(addItemEntity);
 
-        if (not components.empty())
-            addItemAnchor->setTopAnchor(components.back()->get<UiAnchor>()->bottom);
-        else
-            addItemAnchor->setTopAnchor(parentUi->top);
-
-        addItemAnchor->setLeftAnchor(parentUi->left);
-
-        auto addItemPos = addItem.get<PositionComponent>();
-        if (addItemPos->width > parentPos->width)
-        {
-            parentPos->setWidth(addItemPos->width);
-
-            for (auto comp : components)
-            {
-                comp->get<PositionComponent>()->setWidth(addItemPos->width);
-            }
-        }
-
-        parentPos->setHeight(parentPos->height + addItemPos->height);
-
-        components.push_back(addItemEntity);
+        // ref->addEntity(addItemEntity);
     }
 
     void ContextMenu::hide()
@@ -210,6 +199,8 @@ namespace editor
                 case UiComponentType::TEXTURE:
                 {
                     auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
+                    newElement.get<PositionComponent>()->setX(currentX);
+                    newElement.get<PositionComponent>()->setY(currentY);
                     ecsRef->attach<SceneElement>(newElement.entity);
                     break;
                 }

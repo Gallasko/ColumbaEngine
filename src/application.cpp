@@ -113,7 +113,7 @@ void initGame()
 
     mainWindow->resize(820, 640);
 
-    mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<ProjectSelectorScene>();
+    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<ProjectSelectorScene>();
 
     printf("Engine initialized\n");
 }

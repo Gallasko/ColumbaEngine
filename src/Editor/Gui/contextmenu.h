@@ -6,6 +6,8 @@
 
 #include "2D/position.h"
 
+#include "UI/sizer.h"
+
 namespace pg
 {
     enum class UiComponentType
@@ -76,6 +78,8 @@ namespace editor
 
         CompRef<PositionComponent> backgroundPos;
         CompRef<UiAnchor> backgroundC;
+
+        EntityRef layout;
 
         std::vector<EntityRef> components;
 

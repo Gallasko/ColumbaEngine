@@ -7,7 +7,7 @@ namespace pg
 {
     namespace
     {
-
+        struct CreateNewProject {};
     }
 
     void ProjectManagerSystem::onEvent(const LoadProjectData& event)
@@ -23,11 +23,17 @@ namespace pg
 
         auto text = makeTTFText(this, 100, 220, 0, "res/font/Inter/static/Inter_28pt-Italic.ttf", "Create Project...", 0.5, {255.0f, 0.0f, 0.0f, 255.0f});
 
+        ecsRef->attach<MouseLeftClickComponent>(text.entity, makeCallable<CreateNewProject>());
+
         makeTTFText(this, 100, 250, 0, "res/font/Inter/static/Inter_28pt-Italic.ttf", "Open Project...", 0.5);
 
         makeTTFText(this, 80, 300, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Recent:", 0.4);
         // Todo
         makeTTFText(this, 100, 350, 0, "res/font/Inter/static/Inter_28pt-Italic.ttf", "res/a.pg", 0.5);
+
+        listenToEvent<CreateNewProject>([this](const CreateNewProject& event) {
+
+        });
 
     }
 

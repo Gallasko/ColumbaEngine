@@ -578,7 +578,7 @@ namespace pg
         this->width = width;
         this->height = height;
 
-        std::lock_guard<std::mutex> lock(renderMutex);
+        // std::lock_guard<std::mutex> lock(renderMutex);
 
         glViewport(0, 0, width, height);
 
@@ -610,7 +610,7 @@ namespace pg
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-        std::lock_guard<std::mutex> lock(renderMutex);
+        // std::lock_guard<std::mutex> lock(renderMutex);
 
         // SDL_GL_MakeCurrent(window, context);
 
