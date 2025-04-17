@@ -79,7 +79,7 @@ namespace pg
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 1);
+            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
 
             auto sentUi = sentence.get<PositionComponent>();
 
@@ -95,7 +95,7 @@ namespace pg
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 1);
+            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
 
             auto sentUi = sentence.get<PositionComponent>();
             auto sentAnchor = sentence.get<UiAnchor>();

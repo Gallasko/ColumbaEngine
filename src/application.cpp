@@ -13,6 +13,8 @@
 
 #include "UI/ttftext.h"
 
+#include "UI/utils.h"
+
 using namespace pg;
 using namespace editor;
 
@@ -23,24 +25,50 @@ namespace
 
 struct EntityFinder : public System<Listener<OnMouseClick>, Ref<UiComponent>, Ref<SceneElement>, InitSys>
 {
+    EntityRef selectionOutline;
+
     virtual void init() override
     {
-        registerGroup<UiComponent, SceneElement>();
+        registerGroup<PositionComponent, SceneElement>();
+
+        selectionOutline = makeSelectionOutlinePrefab(ecsRef, 2.f, {255.0f, 255.0f, 0.0f, 255.0f}, false).entity;
     }
 
     virtual void onEvent(const OnMouseClick& event) override
     {
-        for (const auto& elem : viewGroup<UiComponent, SceneElement>())
+        bool hit = false;
+
+        // scan all scene elements under the click
+        for (const auto& elem : viewGroup<PositionComponent, SceneElement>())
         {
-            auto ui = elem->get<UiComponent>();
-
-            if (ui->inClipBound(event.pos.x, event.pos.y))
+            if (inClipBound(elem->entity, event.pos.x, event.pos.y))
             {
-                LOG_INFO(DOM, "Clicked on entity: " << ui.entityId);
+                hit = true;
 
-                ecsRef->sendEvent(InspectEvent{elem->entity});
-                return;
+                LOG_INFO(DOM, "Clicked on entity: " << elem->entityId);
+
+                // send inspect event
+                ecsRef->sendEvent(InspectEvent{ elem->entity });
+
+                // position & size our outline to wrap this entity
+                auto pos = elem->get<PositionComponent>();
+                auto outlinePos = selectionOutline.get<PositionComponent>();
+                outlinePos->setX(pos->x - 2.0f);
+                outlinePos->setY(pos->y - 2.0f);
+                outlinePos->setWidth(pos->width + 4.0f);
+                outlinePos->setHeight(pos->height + 4.0f);
+
+                // show it
+                selectionOutline.get<Prefab>()->setVisibility(true);
+
+                break;
             }
+        }
+
+        // If we clicked on empty space, hide the outline (and maybe clear inspect)
+        if (not hit)
+        {
+            selectionOutline.get<Prefab>()->setVisibility(false);
         }
     }
 };
