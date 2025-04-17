@@ -135,6 +135,240 @@ namespace pg
         }
     }
 
+    // AnchorType to string map
+    const std::map<AnchorType, std::string> AnchorTypeToStringMap = {
+        {AnchorType::None, "None"},
+        {AnchorType::Top, "Top"},
+        {AnchorType::Right, "Right"},
+        {AnchorType::Bottom, "Bottom"},
+        {AnchorType::Left, "Left"},
+        {AnchorType::X, "X"},
+        {AnchorType::Y, "Y"},
+        {AnchorType::Z, "Z"},
+        {AnchorType::Width, "Width"},
+        {AnchorType::Height, "Height"},
+        {AnchorType::TMargin, "TMargin"},
+        {AnchorType::RMargin, "RMargin"},
+        {AnchorType::BMargin, "BMargin"},
+        {AnchorType::LMargin, "LMargin"},
+        {AnchorType::VerticalCenter, "VerticalCenter"},
+        {AnchorType::HorizontalCenter, "HorizontalCenter"}
+    };
+
+    // String to AnchorType map
+    const std::map<std::string, AnchorType> StringToAnchorTypeMap = {
+        {"None", AnchorType::None},
+        {"Top", AnchorType::Top},
+        {"Right", AnchorType::Right},
+        {"Bottom", AnchorType::Bottom},
+        {"Left", AnchorType::Left},
+        {"X", AnchorType::X},
+        {"Y", AnchorType::Y},
+        {"Z", AnchorType::Z},
+        {"Width", AnchorType::Width},
+        {"Height", AnchorType::Height},
+        {"TMargin", AnchorType::TMargin},
+        {"RMargin", AnchorType::RMargin},
+        {"BMargin", AnchorType::BMargin},
+        {"LMargin", AnchorType::LMargin},
+        {"VerticalCenter", AnchorType::VerticalCenter},
+        {"HorizontalCenter", AnchorType::HorizontalCenter}
+    };
+
+    // PosOpType to string map
+    const std::map<PosOpType, std::string> PosOpTypeToStringMap = {
+        {PosOpType::None, "None"},
+        {PosOpType::Add, "Add"},
+        {PosOpType::Sub, "Sub"},
+        {PosOpType::Mul, "Mul"},
+        {PosOpType::Div, "Div"}
+    };
+
+    // String to PosOpType map
+    const std::map<std::string, PosOpType> StringToPosOpTypeMap = {
+        {"None", PosOpType::None},
+        {"Add", PosOpType::Add},
+        {"Sub", PosOpType::Sub},
+        {"Mul", PosOpType::Mul},
+        {"Div", PosOpType::Div}
+    };
+
+    // Serialize function for PositionComponent
+    template <>
+    void serialize(Archive& archive, const PositionComponent& value)
+    {
+        archive.startSerialization("PositionComponent");
+
+        serialize(archive, "x", value.x);
+        serialize(archive, "y", value.y);
+        serialize(archive, "z", value.z);
+
+        serialize(archive, "width", value.width);
+        serialize(archive, "height", value.height);
+
+        serialize(archive, "rotation", value.rotation);
+        serialize(archive, "visible", value.visible);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for PositionComponent
+    template <>
+    PositionComponent deserialize(const UnserializedObject& serializedString)
+    {
+        PositionComponent data;
+
+        defaultDeserialize(serializedString, "x", data.x);
+        defaultDeserialize(serializedString, "y", data.y);
+        defaultDeserialize(serializedString, "z", data.z);
+
+        defaultDeserialize(serializedString, "width", data.width);
+        defaultDeserialize(serializedString, "height", data.height);
+
+        defaultDeserialize(serializedString, "rotation", data.rotation);
+        defaultDeserialize(serializedString, "visible", data.visible);
+
+        return data;
+    }
+
+        // Serialize function for UiAnchor
+    template <>
+    void serialize(Archive& archive, const UiAnchor& value)
+    {
+        archive.startSerialization("UiAnchor");
+
+        serialize(archive, "topAnchor", value.topAnchor);
+        serialize(archive, "leftAnchor", value.leftAnchor);
+        serialize(archive, "rightAnchor", value.rightAnchor);
+        serialize(archive, "bottomAnchor", value.bottomAnchor);
+
+        serialize(archive, "hasTopAnchor", value.hasTopAnchor);
+        serialize(archive, "hasLeftAnchor", value.hasLeftAnchor);
+        serialize(archive, "hasRightAnchor", value.hasRightAnchor);
+        serialize(archive, "hasBottomAnchor", value.hasBottomAnchor);
+
+        serialize(archive, "verticalCenterAnchor", value.verticalCenterAnchor);
+        serialize(archive, "horizontalCenterAnchor", value.horizontalCenterAnchor);
+
+        serialize(archive, "hasVerticalCenter", value.hasVerticalCenter);
+        serialize(archive, "hasHorizontalCenter", value.hasHorizontalCenter);
+
+        serialize(archive, "topMargin", value.topMargin);
+        serialize(archive, "leftMargin", value.leftMargin);
+        serialize(archive, "rightMargin", value.rightMargin);
+        serialize(archive, "bottomMargin", value.bottomMargin);
+
+        serialize(archive, "widthConstrain", value.widthConstrain);
+        serialize(archive, "heightConstrain", value.heightConstrain);
+        serialize(archive, "zConstrain", value.zConstrain);
+
+        serialize(archive, "hasWidthConstrain", value.hasWidthConstrain);
+        serialize(archive, "hasHeightConstrain", value.hasHeightConstrain);
+        serialize(archive, "hasZConstrain", value.hasZConstrain);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for UiAnchor
+    template <>
+    UiAnchor deserialize(const UnserializedObject& serializedString)
+    {
+        UiAnchor data;
+
+        defaultDeserialize(serializedString, "topAnchor", data.topAnchor);
+        defaultDeserialize(serializedString, "leftAnchor", data.leftAnchor);
+        defaultDeserialize(serializedString, "rightAnchor", data.rightAnchor);
+        defaultDeserialize(serializedString, "bottomAnchor", data.bottomAnchor);
+
+        defaultDeserialize(serializedString, "hasTopAnchor", data.hasTopAnchor);
+        defaultDeserialize(serializedString, "hasLeftAnchor", data.hasLeftAnchor);
+        defaultDeserialize(serializedString, "hasRightAnchor", data.hasRightAnchor);
+        defaultDeserialize(serializedString, "hasBottomAnchor", data.hasBottomAnchor);
+
+        defaultDeserialize(serializedString, "verticalCenterAnchor", data.verticalCenterAnchor);
+        defaultDeserialize(serializedString, "horizontalCenterAnchor", data.horizontalCenterAnchor);
+
+        defaultDeserialize(serializedString, "hasVerticalCenter", data.hasVerticalCenter);
+        defaultDeserialize(serializedString, "hasHorizontalCenter", data.hasHorizontalCenter);
+
+        defaultDeserialize(serializedString, "topMargin", data.topMargin);
+        defaultDeserialize(serializedString, "leftMargin", data.leftMargin);
+        defaultDeserialize(serializedString, "rightMargin", data.rightMargin);
+        defaultDeserialize(serializedString, "bottomMargin", data.bottomMargin);
+
+        defaultDeserialize(serializedString, "widthConstrain", data.widthConstrain);
+        defaultDeserialize(serializedString, "heightConstrain", data.heightConstrain);
+        defaultDeserialize(serializedString, "zConstrain", data.zConstrain);
+
+        defaultDeserialize(serializedString, "hasWidthConstrain", data.hasWidthConstrain);
+        defaultDeserialize(serializedString, "hasHeightConstrain", data.hasHeightConstrain);
+        defaultDeserialize(serializedString, "hasZConstrain", data.hasZConstrain);
+
+        return data;
+    }
+
+    // Serialize function for PosAnchor
+    template <>
+    void serialize(Archive& archive, const PosAnchor& value)
+    {
+        archive.startSerialization("PosAnchor");
+
+        serialize(archive, "id", value.id);
+        serialize(archive, "type", AnchorTypeToStringMap.at(value.type)); // Use the map for conversion
+        serialize(archive, "value", value.value);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for PosAnchor
+    template <>
+    PosAnchor deserialize(const UnserializedObject& serializedString)
+    {
+        PosAnchor data;
+
+        defaultDeserialize(serializedString, "id", data.id);
+        std::string typeStr;
+        defaultDeserialize(serializedString, "type", typeStr);
+        data.type = StringToAnchorTypeMap.at(typeStr); // Use the map for conversion
+        defaultDeserialize(serializedString, "value", data.value);
+
+        return data;
+    }
+
+    // Serialize function for PosConstrain
+    template <>
+    void serialize(Archive& archive, const PosConstrain& value)
+    {
+        archive.startSerialization("PosConstrain");
+
+        serialize(archive, "id", value.id);
+        serialize(archive, "type", AnchorTypeToStringMap.at(value.type)); // Use the map for conversion
+        serialize(archive, "opType", PosOpTypeToStringMap.at(value.opType)); // Use the map for conversion
+        serialize(archive, "opValue", value.opValue);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for PosConstrain
+    template <>
+    PosConstrain deserialize(const UnserializedObject& serializedString)
+    {
+        PosConstrain data;
+
+        defaultDeserialize(serializedString, "id", data.id);
+        std::string typeStr;
+        defaultDeserialize(serializedString, "type", typeStr);
+        data.type = StringToAnchorTypeMap.at(typeStr); // Use the map for conversion
+
+        std::string opTypeStr;
+        defaultDeserialize(serializedString, "opType", opTypeStr);
+        data.opType = StringToPosOpTypeMap.at(opTypeStr); // Use the map for conversion
+
+        defaultDeserialize(serializedString, "opValue", data.opValue);
+
+        return data;
+    }
+
     void UiAnchor::setTopAnchor(const PosAnchor& anchor)
     {
         if (hasTopAnchor and topAnchor.id == anchor.id)

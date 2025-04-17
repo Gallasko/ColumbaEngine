@@ -38,6 +38,16 @@ namespace pg
         Div
     };
 
+    // AnchorType to string and string to AnchorType maps
+    extern const std::map<AnchorType, std::string> AnchorTypeToStringMap;
+    extern const std::map<std::string, AnchorType> StringToAnchorTypeMap;
+
+    // PosOpType to string and string to PosOpType maps
+    extern const std::map<PosOpType, std::string> PosOpTypeToStringMap;
+    extern const std::map<std::string, PosOpType> StringToPosOpTypeMap;
+
+    inline static std::string getType() { return "UiComponent"; }
+
     struct PosConstrain
     {
         _unique_id id = 0;
@@ -45,6 +55,8 @@ namespace pg
 
         PosOpType opType = PosOpType::None;
         float opValue = 0.0f;
+
+        inline static std::string getType() { return "PosContrain"; }
     };
 
     struct PosAnchor
@@ -52,6 +64,8 @@ namespace pg
         _unique_id id = 0;
         AnchorType type = AnchorType::None;
         float value = 0.0f;
+
+        inline static std::string getType() { return "PosAnchor"; }
     };
 
     struct ParentingEvent
@@ -159,6 +173,8 @@ namespace pg
 
         bool update(CompRef<PositionComponent> positionComp);
 
+        inline static std::string getType() { return "UiAnchor"; }
+
         // Private:
 
         _unique_id id = 0;
@@ -222,12 +238,26 @@ namespace pg
 
         bool updatefromAnchor(const UiAnchor& anchor);
 
+        inline static std::string getType() { return "PositionComponent"; }
+
         // Private:
 
         _unique_id id = 0;
 
         EntitySystem *ecsRef = nullptr;
     };
+
+    template <>
+    void serialize(Archive& archive, const PositionComponent& value);
+
+    template <>
+    void serialize(Archive& archive, const UiAnchor& value);
+
+    template <>
+    void serialize(Archive& archive, const PosAnchor& value);
+
+    template <>
+    void serialize(Archive& archive, const PosConstrain& value);
 
     // Todo add Listener<ResizeEvent>,
     struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, Listener<PositionComponentChangedEvent>>
