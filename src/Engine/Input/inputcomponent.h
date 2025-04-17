@@ -78,6 +78,23 @@ namespace pg
         MouseButton button;
     };
 
+    struct OnMouseRelease
+    {
+        OnMouseRelease(const MousePos& pos, const MouseButton& button) : pos(pos), button(button) { }
+        OnMouseRelease(const OnMouseRelease& other) : pos(other.pos), button(other.button) { }
+
+        OnMouseRelease& operator=(const OnMouseRelease& other)
+        {
+            pos = other.pos;
+            button = other.button;
+
+            return *this;
+        }
+
+        MousePos pos;
+        MouseButton button;
+    };
+
     // Component that triggers a callback when the mouse enters the entity’s area.
     struct MouseEnterComponent
     {
@@ -205,7 +222,7 @@ namespace pg
 
             group->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("MouseLeaveClickSystem", "Add entity " << entity->id << " to ui - mouse leave click group !");
-                
+
                 mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
             });
 
@@ -256,7 +273,7 @@ namespace pg
 
             group->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("MouseWheelSystem", "Add entity " << entity->id << " to ui - mouse wheel group !");
-                
+
                 mouseAreaHolder.emplace(entity->id, entity, entity->get<PositionComponent>());
             });
 

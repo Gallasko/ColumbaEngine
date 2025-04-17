@@ -73,6 +73,63 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Ref<UiComponent>, Re
     }
 };
 
+struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
+{
+    _unique_id draggingEntity = 0;
+    float offsetX = 0.f, offsetY = 0.f;
+
+    virtual std::string getSystemName() const override { return "Drag System"; }
+
+    virtual void init() override
+    {
+        // we’ll want to query all draggable scene elements
+        registerGroup<PositionComponent, SceneElement>();
+    }
+
+    virtual void onEvent(const OnMouseClick& e) override
+    {
+        // only start drag on left button
+        if (e.button != SDL_BUTTON_LEFT) return;
+
+        // find topmost element under cursor
+        for (const auto& elem : viewGroup<PositionComponent, SceneElement>())
+        {
+            auto pos = elem->get<PositionComponent>();
+            if (inClipBound(elem->entity, e.pos.x, e.pos.y))
+            {
+                draggingEntity = elem->entity.id;
+                // remember offset so entity doesn't jump under cursor
+                offsetX = e.pos.x - pos->x;
+                offsetY = e.pos.y - pos->y;
+                break;
+            }
+        }
+    }
+
+    virtual void onEvent(const OnMouseMove& e) override
+    {
+        if (draggingEntity == 0) return;
+
+        // update position each frame
+        auto pos = ecsRef->getComponent<PositionComponent>(draggingEntity);
+        if (not pos) return;
+
+        pos->setX(e.pos.x - offsetX);
+        pos->setY(e.pos.y - offsetY);
+
+        // fire an event so other systems (layouts, inspector) know it moved
+        ecsRef->sendEvent(EntityChangedEvent{ draggingEntity });
+    }
+
+    virtual void onEvent(const OnMouseRelease& e) override
+    {
+        // only stop drag on left button
+        if (e.button != SDL_BUTTON_LEFT) return;
+
+        draggingEntity = 0;
+    }
+};
+
 EditorApp::EditorApp(const std::string& appName) : appName(appName)
 {
     LOG_THIS_MEMBER(DOM);
@@ -134,6 +191,7 @@ void initGame()
     mainWindow->ecs.attach<OnEventComponent>(ent, callback);
 
     mainWindow->ecs.createSystem<EntityFinder>();
+    mainWindow->ecs.createSystem<DragSystem>();
 
     mainWindow->ecs.start();
 
