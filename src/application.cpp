@@ -23,7 +23,15 @@ namespace
     static const char* const DOM = "Editor app";
 }
 
-struct EntityFinder : public System<Listener<OnMouseClick>, Ref<UiComponent>, Ref<SceneElement>, InitSys>
+struct SelectedEntity
+{
+    SelectedEntity() : id(0) {}
+    SelectedEntity(_unique_id id) : id(id) {}
+
+    _unique_id id;
+};
+
+struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
 {
     EntityRef selectionOutline;
 
@@ -31,7 +39,13 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Ref<UiComponent>, Re
     {
         registerGroup<PositionComponent, SceneElement>();
 
-        selectionOutline = makeSelectionOutlinePrefab(ecsRef, 2.f, {255.0f, 255.0f, 0.0f, 255.0f}, false).entity;
+        auto outline = makeSelectionOutlinePrefab(ecsRef, 2.f, {255.0f, 255.0f, 0.0f, 255.0f}, false);
+
+        outline.get<PositionComponent>()->setZ(25.f);
+
+        selectionOutline = outline.entity;
+        ecsRef->attach<EntityName>(selectionOutline, "SelectionOutline");
+        ecsRef->attach<SelectedEntity>(selectionOutline);
     }
 
     virtual void onEvent(const OnMouseClick& event) override
@@ -60,6 +74,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Ref<UiComponent>, Re
 
                 // show it
                 selectionOutline.get<Prefab>()->setVisibility(true);
+                selectionOutline.get<SelectedEntity>()->id = elem->entity.id;
 
                 break;
             }
@@ -117,8 +132,18 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         pos->setX(e.pos.x - offsetX);
         pos->setY(e.pos.y - offsetY);
 
-        // fire an event so other systems (layouts, inspector) know it moved
-        ecsRef->sendEvent(EntityChangedEvent{ draggingEntity });
+        auto ent = ecsRef->getEntity("SelectionOutline");
+        if (not ent) return;
+
+        if (ent->get<SelectedEntity>()->id == draggingEntity)
+        {
+            auto outlinePos = ent->get<PositionComponent>();
+
+            outlinePos->setX(pos->x - 2.f);
+            outlinePos->setY(pos->y - 2.f);
+            outlinePos->setWidth(pos->width + 4.f);
+            outlinePos->setHeight(pos->height + 4.f);
+        }
     }
 
     virtual void onEvent(const OnMouseRelease& e) override

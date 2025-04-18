@@ -105,7 +105,7 @@ namespace pg
 
             auto nbElements = inspectorText.size();
 
-            auto valueInput = makeTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), {value});
+            auto valueInput = makeTTFTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), "res/font/Inter/static/Inter_28pt-Light.ttf", {value}, 0.4);
 
             valueInput.get<TextInputComponent>()->clearTextAfterEnter = false;
 
