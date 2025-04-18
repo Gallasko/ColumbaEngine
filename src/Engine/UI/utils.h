@@ -33,6 +33,7 @@ namespace pg
             a->setTopAnchor(outlineAnchor->top);
             a->setLeftAnchor(outlineAnchor->left);
             a->setWidthConstrain(PosConstrain{outline.entity.id, AnchorType::Width});
+            a->setZConstrain(PosConstrain{outline.entity.id, AnchorType::Z});
 
             outlinePrefab->addToPrefab(edge.entity);
         }
@@ -52,6 +53,7 @@ namespace pg
             a->setBottomAnchor(outlineAnchor->bottom);
             a->setLeftAnchor(outlineAnchor->left);
             a->setWidthConstrain(PosConstrain{outline.entity.id, AnchorType::Width});
+            a->setZConstrain(PosConstrain{outline.entity.id, AnchorType::Z});
 
             outlinePrefab->addToPrefab(edge.entity);
         }
@@ -71,6 +73,7 @@ namespace pg
             a->setTopAnchor(outlineAnchor->top);
             a->setLeftAnchor(outlineAnchor->left);
             a->setHeightConstrain(PosConstrain{outline.entity.id, AnchorType::Height});
+            a->setZConstrain(PosConstrain{outline.entity.id, AnchorType::Z});
 
             outlinePrefab->addToPrefab(edge.entity);
         }
@@ -90,6 +93,7 @@ namespace pg
             a->setTopAnchor(outlineAnchor->top);
             a->setRightAnchor(outlineAnchor->right);
             a->setHeightConstrain(PosConstrain{outline.entity.id, AnchorType::Height});
+            a->setZConstrain(PosConstrain{outline.entity.id, AnchorType::Z});
 
             outlinePrefab->addToPrefab(edge.entity);
         }
