@@ -81,14 +81,15 @@ namespace pg
 
         struct InspectedText
         {
-            InspectedText(std::string* value, CompRef<PositionComponent> ui) : valuePointer(value), ui(ui) {}
-            InspectedText(const InspectedText& rhs) : valuePointer(rhs.valuePointer), ui(rhs.ui) {}
+            InspectedText(const std::string& name, std::string *valuePointer, _unique_id id) : name(name), valuePointer(valuePointer), id(id) {}
+            InspectedText(const InspectedText& rhs) : name(rhs.name), valuePointer(rhs.valuePointer), id(rhs.id) {}
 
-            std::string* valuePointer;
-            CompRef<PositionComponent> ui;
+            std::string name;
+            std::string *valuePointer = nullptr;
+            _unique_id id;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, Listener<EntityChangedEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -100,11 +101,15 @@ namespace pg
 
             void printChildren(SerializedInfoHolder& parent, size_t indentLevel);
 
+            virtual void onEvent(const EntityChangedEvent& event) override { eventQueue.push(event); }
+
             virtual void onEvent(const InspectEvent& event) override;
 
             virtual void onEvent(const NewSceneLoaded& event) override;
 
             virtual void execute() override;
+
+            void processEntityChanged(const EntityChangedEvent& event);
 
             void deserializeCurrentEntity();
 
@@ -125,6 +130,8 @@ namespace pg
             bool needUpdateEntity = false;
 
             bool needClear = false;
+
+            std::queue<EntityChangedEvent> eventQueue;
 
             _unique_id currentId = 0;
         };

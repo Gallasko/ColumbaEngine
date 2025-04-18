@@ -425,6 +425,7 @@ namespace pg
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs.succeed<PositionComponentSystem, ListViewSystem>();
         ecs.succeed<PositionComponentSystem, LayoutSystem>();
+        ecs.succeed<PositionComponentSystem, TextInputComponent>();
 
         ecs.succeed<AnimationPositionSystem, PositionComponentSystem>();
 

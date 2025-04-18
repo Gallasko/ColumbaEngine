@@ -107,7 +107,9 @@ namespace pg
 
             auto valueInput = makeTTFTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), "res/font/Inter/static/Inter_28pt-Light.ttf", {value}, 0.4);
 
-            valueInput.get<TextInputComponent>()->clearTextAfterEnter = false;
+            auto input = valueInput.get<TextInputComponent>();
+
+            input->clearTextAfterEnter = false;
 
             auto valueInputUi = valueInput.get<PositionComponent>();
             auto valueInputAnchor = valueInput.get<UiAnchor>();
@@ -117,7 +119,7 @@ namespace pg
 
             valueInputAnchor->setLeftAnchor(sentAnchor->right);
 
-            inspectorText.emplace_back(&value, valueInputUi);
+            inspectorText.emplace_back(text, &value, valueInput.entity.id);
 
             view->addEntity(sentence.entity);
 
@@ -146,10 +148,49 @@ namespace pg
             }
         }
 
+
+        void InspectorSystem::processEntityChanged(const EntityChangedEvent& event)
+        {
+            if (currentId == 0 or event.id != currentId)
+                return;
+
+            auto pos = ecsRef->getComponent<PositionComponent>(currentId);
+            if (not pos) return;
+
+            // now update each field by name
+            for (const auto& f : inspectorText)
+            {
+                if (not (f.name == "x" or f.name == "y" or f.name == "z" or f.name == "width" or f.name == "height"))
+                    continue;
+
+                auto comp = ecsRef->getComponent<TextInputComponent>(f.id);
+
+                if (not comp)
+                {
+                    LOG_ERROR(DOM, "Component not found for id: " << f.id);
+                    continue;
+                }
+
+                if (f.name == "x")
+                    comp->setText(std::to_string(pos->x));
+                else if (f.name == "y")
+                    comp->setText(std::to_string(pos->y));
+                else if (f.name == "z")
+                    comp->setText(std::to_string(pos->z));
+                else if (f.name == "width")
+                    comp->setText(std::to_string(pos->width));
+                else if (f.name == "height")
+                    comp->setText(std::to_string(pos->height));
+            }
+        }
+
         void InspectorSystem::onEvent(const InspectEvent& event)
         {
-            this->event = event;
-            eventRequested = true;
+            if (currentId != event.entity.id)
+            {
+                this->event = event;
+                eventRequested = true;
+            }
         }
 
         void InspectorSystem::onEvent(const NewSceneLoaded&)
@@ -160,6 +201,14 @@ namespace pg
 
         void InspectorSystem::execute()
         {
+            while (not eventQueue.empty())
+            {
+                const auto& event = eventQueue.front();
+                processEntityChanged(event);
+
+                eventQueue.pop();
+            }
+
             if (needUpdateEntity)
             {
                 ecsRef->sendEvent(EntityChangedEvent{currentId});

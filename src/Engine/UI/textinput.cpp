@@ -112,7 +112,35 @@ namespace pg
                         LOG_ERROR(DOM, "Received unknown scan code: " << event.key);
                     }
                 }
-                
+
+            }
+        }
+    }
+
+    void TextInputSystem::execute()
+    {
+        while (not eventQueue.empty())
+        {
+            auto event = eventQueue.front();
+            eventQueue.pop();
+
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent)
+                continue;
+
+            auto text = ent->get<TextInputComponent>();
+
+            text->text = event.text;
+
+            if (ent->has<SentenceText>())
+            {
+                ent->get<SentenceText>()->setText(text->text);
+            }
+
+            if (ent->has<TTFText>())
+            {
+                ent->get<TTFText>()->setText(text->text);
             }
         }
     }
