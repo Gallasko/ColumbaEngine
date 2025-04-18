@@ -229,6 +229,8 @@ namespace pg
 
                 archive.mainNode.children.clear();
 
+                ecsRef->sendEvent(SkipRenderPass{3});
+
                 needClear = false;
             }
 

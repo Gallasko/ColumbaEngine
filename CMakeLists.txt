@@ -341,6 +341,7 @@ else()
         test/ecssystem.cc
         test/filemanager.cc
         test/interpreter.cc
+        test/layout.cc
         # test/mock2dsimpleshape.h
         # test/simple2dobject.cc
         test/position.cc

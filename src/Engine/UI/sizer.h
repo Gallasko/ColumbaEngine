@@ -366,6 +366,12 @@ namespace pg
             // Finally, the parent view's size along the primary axis is updated to encompass all child entities.
             if (not view->fitToAxis and not view->spaced)
             {
+                if (not viewEnt->template has<UiAnchor>())
+                {
+                    LOG_ERROR("Layout", "Entity " << viewEnt.id << " must have an Anchor component!");
+                    return;
+                }
+
                 auto viewAnchor = viewEnt->template get<UiAnchor>();
                 auto currentAnchor = (orientation == LayoutOrientation::Horizontal) ? viewAnchor->left : viewAnchor->top;
 
