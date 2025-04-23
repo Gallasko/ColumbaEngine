@@ -366,49 +366,41 @@ namespace pg
             // Finally, the parent view's size along the primary axis is updated to encompass all child entities.
             if (not view->fitToAxis and not view->spaced)
             {
-                if (not viewEnt->template has<UiAnchor>())
-                {
-                    LOG_ERROR("Layout", "Entity " << viewEnt.id << " must have an Anchor component!");
-                    return;
-                }
-
-                auto viewAnchor = viewEnt->template get<UiAnchor>();
-                auto currentAnchor = (orientation == LayoutOrientation::Horizontal) ? viewAnchor->left : viewAnchor->top;
+                float currentX = viewUi->x;
+                float currentY = viewUi->y;
 
                 for (auto& ent : view->entities)
                 {
-                    if (not ent->template has<UiAnchor>())
+                    if (not ent->template has<PositionComponent>())
                     {
-                        LOG_ERROR("Layout", "Entity " << ent.id << " must have an Anchor component!");
+                        LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
                         continue;
                     }
 
-                    auto anchor = ent->template get<UiAnchor>();
+                    auto pos = ent->template get<PositionComponent>();
 
                     if (orientation == LayoutOrientation::Horizontal)
                     {
-                        anchor->setLeftAnchor(currentAnchor);
-                        anchor->setLeftMargin(view->spacing);
-                        anchor->setTopAnchor(viewAnchor->top);
-                        currentAnchor = anchor->right;
+                        pos->setX(currentX);
+                        pos->setY(viewUi->y); // Align with the top of the parent layout
+                        currentX += pos->width + view->spacing; // Move to the next position
                     }
                     else if (orientation == LayoutOrientation::Vertical)
                     {
-                        anchor->setTopAnchor(currentAnchor);
-                        anchor->setTopMargin(view->spacing);
-                        anchor->setLeftAnchor(viewAnchor->left);
-                        currentAnchor = anchor->bottom;
+                        pos->setX(viewUi->x); // Align with the left of the parent layout
+                        pos->setY(currentY);
+                        currentY += pos->height + view->spacing; // Move to the next position
                     }
                 }
 
-                if (orientation == LayoutOrientation::Horizontal)
-                {
-                    viewAnchor->setRightAnchor(currentAnchor);
-                }
-                else if (orientation == LayoutOrientation::Vertical)
-                {
-                    viewAnchor->setBottomAnchor(currentAnchor);
-                }
+                // if (orientation == LayoutOrientation::Horizontal)
+                // {
+                //     viewAnchor->setRightAnchor(currentAnchor);
+                // }
+                // else if (orientation == LayoutOrientation::Vertical)
+                // {
+                //     viewAnchor->setBottomAnchor(currentAnchor);
+                // }
 
                 return;
             }
