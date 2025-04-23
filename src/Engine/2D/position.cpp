@@ -786,6 +786,17 @@ namespace pg
         }
     }
 
+    void PositionComponent::setObservable(bool observable)
+    {
+        if (this->observable != observable)
+        {
+            this->observable = observable;
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+    }
+
     bool PositionComponent::updatefromAnchor(const UiAnchor& anchor)
     {
         float oldX = x;
@@ -909,6 +920,7 @@ namespace pg
 
                     anchorChanged |= changed;
                 }
+
                 ecsRef->sendEvent(EntityChangedEvent{id});
 
                 if (anchorChanged)

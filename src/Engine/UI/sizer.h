@@ -90,6 +90,7 @@ namespace pg
         bool spaced = false;
         size_t spacing = 0;
         bool visible = true;
+        bool sizedToContent = true;
 
         LayoutOrientation orientation = LayoutOrientation::Horizontal;
 
@@ -379,6 +380,10 @@ namespace pg
 
                     auto pos = ent->template get<PositionComponent>();
 
+                    // Skip invisible components
+                    if (not pos->visible)
+                        continue;
+
                     if (orientation == LayoutOrientation::Horizontal)
                     {
                         pos->setX(currentX);
@@ -393,14 +398,18 @@ namespace pg
                     }
                 }
 
-                // if (orientation == LayoutOrientation::Horizontal)
-                // {
-                //     viewAnchor->setRightAnchor(currentAnchor);
-                // }
-                // else if (orientation == LayoutOrientation::Vertical)
-                // {
-                //     viewAnchor->setBottomAnchor(currentAnchor);
-                // }
+                // Todo the view is not properly placed if it is not sized to content !
+                if (view->sizedToContent)
+                {
+                    if (orientation == LayoutOrientation::Horizontal)
+                    {
+                        viewUi->setWidth(currentX - viewUi->x);
+                    }
+                    else if (orientation == LayoutOrientation::Vertical)
+                    {
+                        viewUi->setHeight(currentY - viewUi->y);
+                    }
+                }
 
                 return;
             }
@@ -438,6 +447,10 @@ namespace pg
 
                 auto pos = ent->template get<PositionComponent>();
 
+                // Skip invisible components
+                if (not pos->visible)
+                    continue;
+
                 if (orientation == LayoutOrientation::Horizontal)
                 {
                     axis = pos->height;
@@ -472,6 +485,10 @@ namespace pg
 
                 auto pos = ent->template get<PositionComponent>();
 
+                // Skip invisible components
+                if (not pos->visible)
+                    continue;
+
                 float posSecondAxis;
                 float *boundAxis, *otherAxis;
 
@@ -501,7 +518,7 @@ namespace pg
                         pos->setX(currentX);
                         pos->setY(currentY);
 
-                        *boundAxis += pos->width + view->spacing;
+                        *boundAxis += (orientation == LayoutOrientation::Vertical ? pos->width : pos->height) + view->spacing;
                         firstElementIndex = i + 1;
                         continue;
                     }
@@ -523,6 +540,9 @@ namespace pg
                         {
                             auto columnEnt = view->entities[firstElementIndex + j];
                             auto columnPos = columnEnt->template get<PositionComponent>();
+
+                            if (not columnPos->visible)
+                                continue;
 
                             if (orientation == LayoutOrientation::Horizontal)
                             {
@@ -605,6 +625,9 @@ namespace pg
                     auto columnEnt = view->entities[firstElementIndex + j];
                     auto columnPos = columnEnt->template get<PositionComponent>();
 
+                    if (not columnPos->visible)
+                        continue;
+
                     if (orientation == LayoutOrientation::Horizontal)
                     {
                         columnPos->setX(currentSpacedStart);
@@ -662,7 +685,7 @@ namespace pg
                         }
                     }
 
-                    pos->setVisibility(isCompVisible);
+                    pos->setObservable(isCompVisible);
                 }
             }
         }

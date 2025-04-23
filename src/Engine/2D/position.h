@@ -222,6 +222,7 @@ namespace pg
         float rotation = 0.0f;
 
         bool visible = true;
+        bool observable = true;
 
         virtual void onCreation(EntityRef entity) override;
 
@@ -235,6 +236,11 @@ namespace pg
         void setRotation(float rotation);
 
         void setVisibility(bool visible);
+        void setObservable(bool observable);
+
+        bool isVisible() const { return visible; }
+        bool isObservable() const { return observable; }
+        bool isRenderable() const { return visible and observable; }
 
         bool updatefromAnchor(const UiAnchor& anchor);
 

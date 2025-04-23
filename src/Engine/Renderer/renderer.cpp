@@ -62,7 +62,7 @@ namespace pg
 
     void RenderCall::processPositionComponent(CompRef<PositionComponent> component)
     {
-        setVisibility(component->visible);
+        setVisibility(component->isRenderable());
 
         auto entity = component.getEntity();
 
