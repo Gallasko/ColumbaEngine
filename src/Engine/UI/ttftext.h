@@ -27,23 +27,33 @@ namespace pg
 
         void setText(const std::string& text)
         {
-            this->text = text;
-
-            if (ecsRef)
+            if (this->text != text)
             {
-                changed = true;
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
+                LOG_THIS("TTF Text");
+
+                this->text = text;
+
+                if (ecsRef)
+                {
+                    changed = true;
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
             }
         }
 
         void setColor(const constant::Vector4D& colors)
         {
-            this->colors = colors;
-
-            if (ecsRef)
+            if (this->colors != colors)
             {
-                changed = true;
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
+                LOG_THIS("TTF Text");
+
+                this->colors = colors;
+
+                if (ecsRef)
+                {
+                    changed = true;
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
             }
         }
 
@@ -51,6 +61,8 @@ namespace pg
         {
             if (this->wrap != wrap)
             {
+                LOG_THIS("TTF Text");
+
                 this->wrap = wrap;
 
                 if (ecsRef)
@@ -65,6 +77,8 @@ namespace pg
         {
             if (this->spacing != spacing)
             {
+                LOG_THIS("TTF Text");
+
                 this->spacing = spacing;
 
                 if (ecsRef)

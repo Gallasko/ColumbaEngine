@@ -814,8 +814,6 @@ namespace pg
         {
             LOG_THIS(DOM);
 
-            LOG_ERROR(DOM, "Setting height to " << height << " from " << this->height);
-
             this->height = height;
 
             if (ecsRef)
