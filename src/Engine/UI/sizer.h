@@ -92,6 +92,8 @@ namespace pg
         bool visible = true;
         bool sizedToContent = true;
 
+        float contentWidth = 0.0f, contentHeight = 0.0f;
+
         LayoutOrientation orientation = LayoutOrientation::Horizontal;
 
         std::vector<EntityRef> entities;
@@ -401,15 +403,34 @@ namespace pg
                 // Todo the view is not properly placed if it is not sized to content !
                 if (view->sizedToContent)
                 {
-                    if (orientation == LayoutOrientation::Horizontal)
+                    bool constrained = false;
+
+                    if (viewEnt->has<UiAnchor>())
+                    {
+                        auto anchor = viewEnt->get<UiAnchor>();
+
+                        if (orientation == LayoutOrientation::Horizontal)
+                        {
+                            constrained = anchor->hasWidthConstrain or (anchor->hasRightAnchor and anchor->hasLeftAnchor);
+                        }
+                        else if (orientation == LayoutOrientation::Vertical)
+                        {
+                            constrained = anchor->hasHeightConstrain or (anchor->hasTopAnchor and anchor->hasBottomAnchor);
+                        }
+                    }
+
+                    if (orientation == LayoutOrientation::Horizontal and not constrained)
                     {
                         viewUi->setWidth(currentX - viewUi->x);
                     }
-                    else if (orientation == LayoutOrientation::Vertical)
+                    else if (orientation == LayoutOrientation::Vertical and not constrained)
                     {
                         viewUi->setHeight(currentY - viewUi->y);
                     }
                 }
+
+                view->contentWidth = currentX - viewUi->x;
+                view->contentHeight = currentY - viewUi->y;
 
                 return;
             }
@@ -653,6 +674,8 @@ namespace pg
 
             if (it != view->entities.end())
             {
+                ecsRef->sendEvent(ClearParentingEvent{index, view->id});
+
                 view->entities.erase(it);
                 ecsRef->removeEntity(index);
             }

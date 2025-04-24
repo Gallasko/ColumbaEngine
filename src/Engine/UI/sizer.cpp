@@ -42,27 +42,32 @@ namespace pg
 
         auto ent = ecsRef->getEntity(ui);
 
-        if (not ent or not ent->has<PositionComponent>() or not ent->has<UiAnchor>())
+        // if (not ent or not ent->has<PositionComponent>() or not ent->has<UiAnchor>())
+        // {
+        //     LOG_ERROR(DOM, "Entity " << ui << " must have a PositionComponent and UiAnchor!");
+        //     return;
+        // }
+
+        // Todo check if we really need to force children of a layout to have a UiAnchor just to be able to set the z constrain
+        if (ent->has<UiAnchor>())
         {
-            LOG_ERROR(DOM, "Entity " << ui << " must have a PositionComponent and UiAnchor!");
-            return;
+            auto uiAnchor = ent->get<UiAnchor>();
+
+            // Z + 1 so the initial z of the list is for the background
+            uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z, PosOpType::Add, 1});
         }
 
-        auto uiAnchor = ent->get<UiAnchor>();
+        ecsRef->sendEvent(ParentingEvent{ui, viewEnt.id});
 
         if (orientation == LayoutOrientation::Horizontal)
         {
             auto view = viewEnt->get<HorizontalLayout>();
-            // Z + 1 so the initial z of the list is for the background
-            uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z, PosOpType::Add, 1});
 
             view->entities.push_back(ent);
         }
         else if (orientation == LayoutOrientation::Vertical)
         {
             auto view = viewEnt->get<VerticalLayout>();
-            // Z + 1 so the initial z of the list is for the background
-            uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z, PosOpType::Add, 1});
 
             view->entities.push_back(ent);
         }

@@ -237,6 +237,8 @@ namespace pg
         {
             std::vector<RenderCall> tempRenderCallList;
 
+            tempRenderCallList.reserve(renderCallList[tempRenderList].size());
+
             RenderCall currentRenderCall = renderCallList[tempRenderList][0];
 
             for (size_t i = 1; i < renderCallList[tempRenderList].size(); ++i)

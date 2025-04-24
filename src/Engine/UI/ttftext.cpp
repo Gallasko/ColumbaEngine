@@ -270,6 +270,15 @@ namespace pg
             renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
         }
 
+        // LOG_INFO(DOM, "Updating " << textUpdateQueue.size() << " TTFTexts...");
+
+        if (textUpdateQueue.empty())
+        {
+            finishChanges();
+
+            return;
+        }
+
         while (not textUpdateQueue.empty())
         {
             auto entityId = textUpdateQueue.front();
@@ -298,8 +307,6 @@ namespace pg
 
             textUpdateQueue.pop();
         }
-
-        finishChanges();
     }
 
     // Helper: Computes the maximum line height based on the font's glyph heights.

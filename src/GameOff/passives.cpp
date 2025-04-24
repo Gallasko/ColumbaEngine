@@ -32,7 +32,7 @@ namespace pg
     template <>
     PassiveInfo deserialize(const UnserializedObject& serializedString)
     {
-        LOG_THIS(DOM);
+        LOG_THIS("Passive");
 
         std::string type = "";
 
@@ -93,7 +93,7 @@ namespace pg
     template <>
     PassiveCall deserialize(const UnserializedObject& serializedString)
     {
-        LOG_THIS(DOM);
+        LOG_THIS("PassiveCall");
 
         std::string type = "";
 

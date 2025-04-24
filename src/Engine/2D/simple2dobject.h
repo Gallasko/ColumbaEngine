@@ -28,7 +28,7 @@ namespace pg
         Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), id(rhs.id), ecsRef(rhs.ecsRef) { }
         virtual ~Simple2DObject() {}
 
-        inline static std::string getType() { return "Simple2DObject"; } 
+        inline static std::string getType() { return "Simple2DObject"; }
 
         virtual void onCreation(EntityRef entity) { id = entity.id; ecsRef = entity.ecsRef; }
 
@@ -107,7 +107,7 @@ namespace pg
     template <typename Type>
     CompList<PositionComponent, Simple2DObject> makeSimple2DShape(Type *ecs, const Shape2D& shape, float width = 0.0f, float height = 0.0f, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
-        LOG_THIS(DOM);
+        LOG_THIS("Simple 2D Shape");
 
         auto entity = ecs->createEntity();
 
@@ -124,7 +124,7 @@ namespace pg
     template <typename Type>
     CompList<PositionComponent, UiAnchor, Simple2DObject> makeUiSimple2DShape(Type *ecs, const Shape2D& shape, float width = 0.0f, float height = 0.0f, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
-        LOG_THIS(DOM);
+        LOG_THIS("Simple 2D Shape");
 
         auto entity = ecs->createEntity();
 

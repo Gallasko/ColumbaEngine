@@ -6,6 +6,8 @@ namespace pg
 {
     namespace
     {
+        static constexpr const char * const DOM = "Position";
+
         constexpr float EPSILON = 1e-5f;
 
         bool areAlmostEqual(float a, float b, float epsilon = EPSILON)
@@ -374,6 +376,8 @@ namespace pg
         if (hasTopAnchor and topAnchor.id == anchor.id)
             return;
 
+        LOG_THIS(DOM);
+
         if (hasTopAnchor)
             ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
 
@@ -387,6 +391,8 @@ namespace pg
     {
         if (hasTopAnchor)
         {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
 
             hasTopAnchor = false;
@@ -398,6 +404,8 @@ namespace pg
     {
         if (hasLeftAnchor and leftAnchor.id == anchor.id)
             return;
+
+        LOG_THIS(DOM);
 
         if (hasLeftAnchor)
             ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
@@ -412,6 +420,8 @@ namespace pg
     {
         if (hasLeftAnchor)
         {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
 
             hasLeftAnchor = false;
@@ -423,6 +433,8 @@ namespace pg
     {
         if (hasRightAnchor and rightAnchor.id == anchor.id)
             return;
+
+        LOG_THIS(DOM);
 
         if (hasRightAnchor)
             ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
@@ -437,6 +449,8 @@ namespace pg
     {
         if (hasRightAnchor)
         {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
 
             hasRightAnchor = false;
@@ -448,6 +462,8 @@ namespace pg
     {
         if (hasBottomAnchor and bottomAnchor.id == anchor.id)
             return;
+
+        LOG_THIS(DOM);
 
         if (hasBottomAnchor)
             ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
@@ -462,6 +478,8 @@ namespace pg
     {
         if (hasBottomAnchor)
         {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
 
             hasBottomAnchor = false;
@@ -474,6 +492,8 @@ namespace pg
         if (hasVerticalCenter and verticalCenterAnchor.id == anchor.id)
             return;
 
+        LOG_THIS(DOM);
+
         verticalCenterAnchor = anchor;
         hasVerticalCenter = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -484,6 +504,8 @@ namespace pg
     {
         if (hasVerticalCenter)
         {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{verticalCenterAnchor.id, id});
 
             hasVerticalCenter = false;
@@ -496,6 +518,8 @@ namespace pg
         if (hasHorizontalCenter and horizontalCenterAnchor.id == anchor.id)
             return;
 
+        LOG_THIS(DOM);
+
         horizontalCenterAnchor = anchor;
         hasHorizontalCenter = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -506,6 +530,8 @@ namespace pg
     {
         if (hasHorizontalCenter)
         {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{horizontalCenterAnchor.id, id});
 
             hasHorizontalCenter = false;
@@ -555,6 +581,8 @@ namespace pg
     {
         if (areNotAlmostEqual(topMargin, value))
         {
+            LOG_THIS(DOM);
+
             topMargin = value;
 
             ecsRef->sendEvent(PositionComponentChangedEvent{id});
@@ -565,6 +593,8 @@ namespace pg
     {
         if (areNotAlmostEqual(leftMargin, value))
         {
+            LOG_THIS(DOM);
+
             leftMargin = value;
 
             ecsRef->sendEvent(PositionComponentChangedEvent{id});
@@ -575,6 +605,8 @@ namespace pg
     {
         if (areNotAlmostEqual(rightMargin, value))
         {
+            LOG_THIS(DOM);
+
             rightMargin = value;
 
             ecsRef->sendEvent(PositionComponentChangedEvent{id});
@@ -585,6 +617,8 @@ namespace pg
     {
         if (areNotAlmostEqual(bottomMargin, value))
         {
+            LOG_THIS(DOM);
+
             bottomMargin = value;
 
             ecsRef->sendEvent(PositionComponentChangedEvent{id});
@@ -597,6 +631,8 @@ namespace pg
         if (hasWidthConstrain and widthConstrain.id == constrain.id)
             return;
 
+        LOG_THIS(DOM);
+
         widthConstrain = constrain;
         hasWidthConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -608,6 +644,8 @@ namespace pg
         if (hasHeightConstrain and heightConstrain.id == constrain.id)
             return;
 
+        LOG_THIS(DOM);
+
         heightConstrain = constrain;
         hasHeightConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -618,6 +656,8 @@ namespace pg
     {
         if (hasZConstrain and zConstrain.id == constrain.id)
             return;
+
+        LOG_THIS(DOM);
 
         zConstrain = constrain;
         hasZConstrain = true;
@@ -638,6 +678,13 @@ namespace pg
 
         verticalCenter = PosAnchor{id, AnchorType::VerticalCenter, 0.0f};
         horizontalCenter = PosAnchor{id, AnchorType::HorizontalCenter, 0.0f};
+    }
+
+    void UiAnchor::onDeletion(EntityRef)
+    {
+        clearAnchors();
+
+        // Todo clear constrains
     }
 
     void UiAnchor::updateAnchor(bool hasAnchor, PosAnchor& anchor)
@@ -713,6 +760,8 @@ namespace pg
     {
         if (areNotAlmostEqual(this->x, x))
         {
+            LOG_THIS(DOM);
+
             this->x = x;
 
             if (ecsRef)
@@ -724,6 +773,8 @@ namespace pg
     {
         if (areNotAlmostEqual(this->y, y))
         {
+            LOG_THIS(DOM);
+
             this->y = y;
 
             if (ecsRef)
@@ -735,6 +786,8 @@ namespace pg
     {
         if (areNotAlmostEqual(this->z, z))
         {
+            LOG_THIS(DOM);
+
             this->z = z;
 
             if (ecsRef)
@@ -746,6 +799,8 @@ namespace pg
     {
         if (areNotAlmostEqual(this->width, width))
         {
+            LOG_THIS(DOM);
+
             this->width = width;
 
             if (ecsRef)
@@ -757,6 +812,10 @@ namespace pg
     {
         if (areNotAlmostEqual(this->height, height))
         {
+            LOG_THIS(DOM);
+
+            LOG_ERROR(DOM, "Setting height to " << height << " from " << this->height);
+
             this->height = height;
 
             if (ecsRef)
@@ -768,6 +827,8 @@ namespace pg
     {
         if (areNotAlmostEqual(this->rotation, rotation))
         {
+            LOG_THIS(DOM);
+
             this->rotation = rotation;
 
             if (ecsRef)
@@ -779,6 +840,8 @@ namespace pg
     {
         if (this->visible != visible)
         {
+            LOG_THIS(DOM);
+
             this->visible = visible;
 
             if (ecsRef)
@@ -790,6 +853,8 @@ namespace pg
     {
         if (this->observable != observable)
         {
+            LOG_THIS(DOM);
+
             this->observable = observable;
 
             if (ecsRef)

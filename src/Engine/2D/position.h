@@ -86,7 +86,7 @@ namespace pg
     // Todo add a Dtor that remove any parenting
     // Be careful on edge case such as being anchored and clipped at the same time to the same entity
     // Need to count the number of time a child is parented to another entity
-    struct UiAnchor : public Ctor
+    struct UiAnchor : public Ctor, Dtor
     {
         // Current Anchor of this component
         PosAnchor top;
@@ -168,6 +168,8 @@ namespace pg
         // Todo add function to handle center, vertical and horizontal center alignment
 
         virtual void onCreation(EntityRef entity) override;
+
+        virtual void onDeletion(EntityRef entity) override;
 
         void updateAnchor(bool hasAnchor, PosAnchor& anchor);
 
