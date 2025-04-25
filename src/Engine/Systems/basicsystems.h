@@ -92,6 +92,8 @@ namespace pg
                 drawCallText->setText(std::to_string(rendererSys->getNbRenderCall()));
 
                 ecsRef->reportSystemProfiles();
+
+                rendererSys->printAllDrawCalls();
             }
         }
 

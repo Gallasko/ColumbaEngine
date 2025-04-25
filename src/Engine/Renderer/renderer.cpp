@@ -230,38 +230,40 @@ namespace pg
             return;
         }
 
-        std::sort(renderCallList[tempRenderList].begin(), renderCallList[tempRenderList].end());
+        std::map<uint64_t, std::vector<RenderCall>> buckets;
 
-        // This loop batch all the same render call together
-        if (renderCallList[tempRenderList].size() > 2)
+        for (auto& rc : renderCallList[tempRenderList])
         {
-            std::vector<RenderCall> tempRenderCallList;
+            auto& group = buckets[rc.key];
+            bool found = false;
 
-            tempRenderCallList.reserve(renderCallList[tempRenderList].size());
-
-            RenderCall currentRenderCall = renderCallList[tempRenderList][0];
-
-            for (size_t i = 1; i < renderCallList[tempRenderList].size(); ++i)
+            for (auto& call : group)
             {
-                const auto& call = renderCallList[tempRenderList][i];
-
-                if (currentRenderCall.batchable and call.key == currentRenderCall.key and call.state == currentRenderCall.state)
+                if (call.batchable and call.state == rc.state)
                 {
-                    currentRenderCall.data.insert(currentRenderCall.data.end(), call.data.begin(), call.data.end());
-                }
-                else
-                {
-                    tempRenderCallList.push_back(currentRenderCall);
-
-                    currentRenderCall = call;
+                    call.data.insert(call.data.end(), rc.data.begin(), rc.data.end());
+                    found = true;
+                    break;
                 }
             }
 
-            tempRenderCallList.push_back(currentRenderCall);
-
-            // Todo fix this auto batching make things worse, this takes a lot of cycles !
-            renderCallList[tempRenderList].swap(tempRenderCallList);
+            if (not found)
+                group.push_back(std::move(rc));
         }
+
+        std::vector<RenderCall> merged;
+        merged.reserve(renderCallList[tempRenderList].size());
+
+        for (auto& pair : buckets)
+        {
+            for (auto& call : pair.second)
+            {
+                merged.push_back(std::move(call));
+            }
+        }
+
+        // 4) Swap back
+        renderCallList[tempRenderList].swap(merged);
 
         nbGeneratedFrames++;
 
@@ -479,6 +481,18 @@ namespace pg
         }
 
         currentState = state;
+    }
+
+    void MasterRenderer::printAllDrawCalls()
+    {
+#ifdef PROFILE
+
+        for (const auto& calls : renderCallList[currentRenderList])
+        {
+            std::cout << "Call Key:" << calls.key << ", batchable: " << calls.batchable << ", nbElements:" << calls.data.size() << std::endl;
+        }
+
+#endif
     }
 
     void MasterRenderer::processRenderCall(const RenderCall& call)

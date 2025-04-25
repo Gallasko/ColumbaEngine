@@ -649,6 +649,8 @@ namespace pg
 
         inline size_t getNbRenderCall() const { return renderCallList[currentRenderList.load()].size(); }
 
+        void printAllDrawCalls();
+
     private:
         std::atomic<bool> inSwap {false};
         std::atomic<bool> newMaterialRegistered {false};
