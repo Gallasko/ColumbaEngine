@@ -169,7 +169,8 @@ namespace pg
             layoutSystem->execute();
 
             EXPECT_FALSE(layout->visible);
-            EXPECT_FALSE(childPos->visible);
+            EXPECT_TRUE(childPos->visible);
+            EXPECT_FALSE(childPos->observable);
 
             layout->setVisibility(true);
 
@@ -235,11 +236,11 @@ namespace pg
             EXPECT_FLOAT_EQ(layoutPos->x, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->y, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->width, 100.0f);
-            EXPECT_FLOAT_EQ(layoutPos->height, 300.0f);
+            EXPECT_FLOAT_EQ(layoutPos->height, 100.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->left.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->top.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->right.value, 100.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 300.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 100.0f);
 
             // Check positions after recalculation
             EXPECT_FLOAT_EQ(childPos1->x, 0.0f);

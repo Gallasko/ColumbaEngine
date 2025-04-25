@@ -255,6 +255,9 @@ namespace pg
         std::vector<RenderCall> merged;
         merged.reserve(renderCallList[tempRenderList].size());
 
+        // Todo we can break early when the key visibility is set to false
+        // as all the element after the first invisible element will be invisible
+
         for (auto& pair : buckets)
         {
             for (auto& call : pair.second)

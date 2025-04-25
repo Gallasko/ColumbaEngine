@@ -117,7 +117,7 @@ namespace pg
          * This key is used to sort the data for the renderer
          * This key is a bit field that contains the following data:
          *
-         * 1 bit indicating if the texture is visible or not
+         * 1 bit indicating if the texture is visible or not (visible == 0, invisible == 1)
          * 4 bits for the targeted rendering pass
          * 3 bits for the target viewport
          * 2 bits for the translucency type (Opaque, normal, additive or substractive)
@@ -185,13 +185,12 @@ namespace pg
 
         void setVisibility(bool visible)
         {
-            // Todo reverse visible in the key so that all the visible element are first
-            key = (key & ~((uint64_t)0b1 << 63)) | static_cast<uint64_t>(visible) << 63;
+            key = (key & ~((uint64_t)0b1 << 63)) | static_cast<uint64_t>(not visible) << 63;
         }
 
         bool getVisibility() const
         {
-            return (key >> 63);
+            return !(key >> 63);
         }
 
         void setRenderStage(const RenderStage& stage)
@@ -650,6 +649,14 @@ namespace pg
         inline size_t getNbRenderCall() const { return renderCallList[currentRenderList.load()].size(); }
 
         void printAllDrawCalls();
+
+        inline std::vector<RenderCall> getRenderCalls(int index = -1) const
+        {
+            if (index < 0 or index >= 2)
+                return renderCallList[currentRenderList.load()];
+
+            return renderCallList[index];
+        }
 
     private:
         std::atomic<bool> inSwap {false};
