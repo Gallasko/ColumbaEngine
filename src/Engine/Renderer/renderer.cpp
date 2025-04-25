@@ -215,10 +215,6 @@ namespace pg
 
         for (auto renderer : renderers)
         {
-            const auto& calls = renderer->getRenderCalls();
-
-            renderCallList[tempRenderList].insert(renderCallList[tempRenderList].end(), calls.begin(), calls.end());
-
             isDirty |= renderer->isDirty();
 
             renderer->setDirty(false);
@@ -232,23 +228,28 @@ namespace pg
 
         std::map<uint64_t, std::vector<RenderCall>> buckets;
 
-        for (auto& rc : renderCallList[tempRenderList])
+        for (auto renderer : renderers)
         {
-            auto& group = buckets[rc.key];
-            bool found = false;
+            const auto& calls = renderer->getRenderCalls();
 
-            for (auto& call : group)
+            for (auto& rc : calls)
             {
-                if (call.batchable and call.state == rc.state)
-                {
-                    call.data.insert(call.data.end(), rc.data.begin(), rc.data.end());
-                    found = true;
-                    break;
-                }
-            }
+                auto& group = buckets[rc.key];
+                bool found = false;
 
-            if (not found)
-                group.push_back(std::move(rc));
+                for (auto& call : group)
+                {
+                    if (call.batchable and rc.batchable and call.state == rc.state)
+                    {
+                        call.data.insert(call.data.end(), rc.data.begin(), rc.data.end());
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (not found)
+                    group.emplace_back(std::move(rc));
+            }
         }
 
         std::vector<RenderCall> merged;
@@ -258,11 +259,10 @@ namespace pg
         {
             for (auto& call : pair.second)
             {
-                merged.push_back(std::move(call));
+                merged.emplace_back(std::move(call));
             }
         }
 
-        // 4) Swap back
         renderCallList[tempRenderList].swap(merged);
 
         nbGeneratedFrames++;

@@ -271,7 +271,7 @@ namespace pg
 
         void finishChanges() { changed = false; dirty = true; }
 
-        void setDirty(bool dirty) { this->dirty = dirty; }
+        inline void setDirty(bool dirty) { this->dirty = dirty; }
 
         bool isDirty() const { return dirty; }
 

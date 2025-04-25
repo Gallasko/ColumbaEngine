@@ -93,7 +93,7 @@ namespace pg
 
                 ecsRef->reportSystemProfiles();
 
-                rendererSys->printAllDrawCalls();
+                // rendererSys->printAllDrawCalls();
             }
         }
 
