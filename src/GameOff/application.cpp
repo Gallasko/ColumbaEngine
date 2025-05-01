@@ -186,6 +186,33 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
             makeCallable<StandardEvent>("gamelog", "message", "Tween complete !")
         });
 
+        auto tweenRotationTest = makeUiTexture(ecsRef, 60, 60, "NoneIcon");
+        tweenRotationTest.get<PositionComponent>()->setX(30);
+        tweenRotationTest.get<PositionComponent>()->setY(300);
+
+        ecsRef->attach<TweenComponent>(tweenRotationTest.entity, TweenComponent {
+            0.0f,
+            360.0f,
+            4000.0f,
+            [tweenRotationTest](const TweenValue& value){ tweenRotationTest.get<PositionComponent>()->setRotation(std::get<float>(value)); },
+            makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
+            5
+        });
+
+        auto tweenRotationTest2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {192.0f, 0.0f, 0.0f, 255.0f});
+        tweenRotationTest2.get<PositionComponent>()->setX(110);
+        tweenRotationTest2.get<PositionComponent>()->setY(300);
+
+        ecsRef->attach<TweenComponent>(tweenRotationTest2.entity, TweenComponent {
+            360.0f,
+            0.0f,
+            4000.0f,
+            [tweenRotationTest2](const TweenValue& value){ tweenRotationTest2.get<PositionComponent>()->setRotation(std::get<float>(value)); },
+            makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
+            5
+        });
+
+
 
         /* Clipped progress bar exemple:
         auto spacer = ecsRef->createEntity();
