@@ -20,7 +20,6 @@ namespace pg
             return not areAlmostEqual(a, b, epsilon);
         }
 
-
         float getValueFromType(CompRef<PositionComponent> posComp, const AnchorType& dir)
         {
             switch (dir)
@@ -1020,7 +1019,7 @@ namespace pg
 
         auto pos = entity->get<PositionComponent>();
 
-        if (not pos->visible)
+        if (not pos->isRenderable())
         {
             return false;
         }
