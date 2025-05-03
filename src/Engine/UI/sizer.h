@@ -92,7 +92,11 @@ namespace pg
         bool visible = true;
         bool sizedToContent = true;
 
+        // Scrollbar parameters
+        EntityRef horizontalScrollBar, verticalScrollBar;
+        float xOffset = 0.0f, yOffset = 0.0f;
         float contentWidth = 0.0f, contentHeight = 0.0f;
+        float scrollSpeed = 25.0f;
 
         LayoutOrientation orientation = LayoutOrientation::Horizontal;
 
@@ -120,6 +124,7 @@ namespace pg
     };
 
     struct LayoutSystem : public System<
+        Listener<StandardEvent>,
         Listener<EntityChangedEvent>,
         Listener<AddLayoutElementEvent>,
         Listener<RemoveLayoutElementEvent>,
@@ -132,6 +137,8 @@ namespace pg
         virtual std::string getSystemName() const override { return "Layout System"; }
 
         virtual void init() override;
+
+        virtual void onEvent(const StandardEvent& event) override;
 
         virtual void onEvent(const AddLayoutElementEvent& event) override
         {
@@ -363,14 +370,57 @@ namespace pg
 
             auto viewUi = viewEnt->template get<PositionComponent>();
 
+            view->xOffset = std::max(0.0f, std::min(view->xOffset, view->contentWidth  - viewUi->width));
+            view->yOffset = std::max(0.0f, std::min(view->yOffset, view->contentHeight - viewUi->height));
+
+            // update scrollbars here (optional—you can drive their PositionComponents / Anchors)
+            if (not view->horizontalScrollBar.empty() and view->horizontalScrollBar.template has<PositionComponent>())
+            {
+                auto sbPos = view->horizontalScrollBar.template get<PositionComponent>();
+
+                if (viewUi->width != view->contentWidth and view->contentWidth != 0)
+                {
+                    // width proportional: visibleWidth/contentWidth
+                    float thumbWidth = (viewUi->width / view->contentWidth) * viewUi->width;
+                    sbPos->setX(viewUi->x + (view->xOffset / (view->contentWidth - viewUi->width)) * (viewUi->width - thumbWidth));
+                    sbPos->setWidth(thumbWidth);
+
+                    sbPos->setVisibility(true);
+                }
+                else
+                {
+                    sbPos->setVisibility(false);
+                }
+            }
+            if (not view->verticalScrollBar.empty() and view->verticalScrollBar.template has<PositionComponent>())
+            {
+                auto sbPos = view->verticalScrollBar.template get<PositionComponent>();
+
+                if (viewUi->height != view->contentHeight and view->contentHeight != 0)
+                {
+                    float thumbHeight = (viewUi->height / view->contentHeight) * viewUi->height;
+                    sbPos->setY(viewUi->y + (view->yOffset / (view->contentHeight - viewUi->height)) * (viewUi->height - thumbHeight));
+                    sbPos->setHeight(thumbHeight);
+
+                    sbPos->setVisibility(true);
+                }
+                else
+                {
+                    sbPos->setVisibility(false);
+                }
+            }
+
             // This snippet handles the layout of entities within a parent view when neither `fitToAxis` nor `spaced` is enabled.
             // It aligns entities along the primary axis (horizontal or vertical) by setting their anchor relative to the previous entity's anchor, with a specified spacing.
             // The secondary axis is aligned with the parent view's anchor.
             // Finally, the parent view's size along the primary axis is updated to encompass all child entities.
             if (not view->fitToAxis and not view->spaced)
             {
-                float currentX = viewUi->x;
-                float currentY = viewUi->y;
+                float currentX = viewUi->x - view->xOffset;
+                float currentY = viewUi->y - view->yOffset;
+
+                view->contentWidth = 0.0f;
+                view->contentHeight = 0.0f;
 
                 for (auto& ent : view->entities)
                 {
@@ -388,15 +438,15 @@ namespace pg
 
                     if (orientation == LayoutOrientation::Horizontal)
                     {
-                        pos->setX(currentX);
+                        pos->setX(currentX + view->contentWidth);
                         pos->setY(viewUi->y); // Align with the top of the parent layout
-                        currentX += pos->width + view->spacing; // Move to the next position
+                        view->contentWidth += pos->width + view->spacing; // Move to the next position
                     }
                     else if (orientation == LayoutOrientation::Vertical)
                     {
                         pos->setX(viewUi->x); // Align with the left of the parent layout
-                        pos->setY(currentY);
-                        currentY += pos->height + view->spacing; // Move to the next position
+                        pos->setY(currentY + view->contentHeight);
+                        view->contentHeight += pos->height + view->spacing; // Move to the next position
                     }
                 }
 
@@ -421,16 +471,13 @@ namespace pg
 
                     if (orientation == LayoutOrientation::Horizontal and not constrained)
                     {
-                        viewUi->setWidth(currentX - viewUi->x);
+                        viewUi->setWidth(view->contentWidth);
                     }
                     else if (orientation == LayoutOrientation::Vertical and not constrained)
                     {
-                        viewUi->setHeight(currentY - viewUi->y);
+                        viewUi->setHeight(view->contentHeight);
                     }
                 }
-
-                view->contentWidth = currentX - viewUi->x;
-                view->contentHeight = currentY - viewUi->y;
 
                 return;
             }
@@ -453,7 +500,9 @@ namespace pg
                 return;
             }
 
-            float currentX = viewUi->x, currentY = viewUi->y, maxVal = 0.0f;
+            float currentX = viewUi->x - view->xOffset;
+            float currentY = viewUi->y - view->yOffset;
+            float maxVal = 0.0f;
             size_t nbCurrentElement = 0;
 
             for (size_t i = 0; i < view->entities.size(); ++i)

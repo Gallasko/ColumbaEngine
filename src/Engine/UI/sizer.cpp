@@ -9,6 +9,8 @@ namespace pg
 
     void LayoutSystem::init()
     {
+        addListenerToStandardEvent("layoutScroll");
+
         auto vGroup = registerGroup<PositionComponent, VerticalLayout>();
 
         vGroup->addOnGroup([](EntityRef entity) {
@@ -16,6 +18,8 @@ namespace pg
 
             auto vLayout = entity->get<VerticalLayout>();
             auto position = entity->get<PositionComponent>();
+
+            entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
 
             vLayout->visible = position->visible;
         });
@@ -28,9 +32,61 @@ namespace pg
             auto hLayout = entity->get<HorizontalLayout>();
             auto position = entity->get<PositionComponent>();
 
+            entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
+
             hLayout->visible = position->visible;
         });
     }
+
+    void LayoutSystem::onEvent(const StandardEvent& event)
+    {
+        auto id = event.values.at("id").get<size_t>();
+
+        auto ent = ecsRef->getEntity(id);
+
+        if (not ent)
+        {
+            LOG_ERROR(DOM, "Error while looking for entity: " << id);
+            return;
+        }
+
+        float *offset;
+        float scrollSpeed = 0.0f;
+
+        float cW = 0.0f;
+        float cH = 0.0f;
+
+        if (ent->has<VerticalLayout>())
+        {
+            auto comp = ent->get<VerticalLayout>();
+            offset = &comp->yOffset;
+            scrollSpeed = comp->scrollSpeed;
+
+            cW = comp->contentWidth;
+            cH = comp->contentHeight;
+        }
+        else if (ent->has<HorizontalLayout>())
+        {
+            auto comp = ent->get<HorizontalLayout>();
+            offset = &comp->xOffset;
+            scrollSpeed = comp->scrollSpeed;
+
+            cW = comp->contentWidth;
+            cH = comp->contentHeight;
+        }
+        else
+        {
+            LOG_ERROR(DOM, "Error entity: " << id << " is not a layout!");
+            return;
+        }
+
+        *offset += event.values.at("y").get<int>() * scrollSpeed;
+
+        LOG_ERROR(DOM, *offset << " cH: " << cH << " cW: " << cW);
+
+        ecsRef->sendEvent(EntityChangedEvent{id});
+    };
+
 
     void LayoutSystem::addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation)
     {
