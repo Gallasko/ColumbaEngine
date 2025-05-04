@@ -60,7 +60,8 @@ else()
         # Todo make sure that -03 is enabled when release
         if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
         # set(CMAKE_CXX_FLAGS "-flto -Wall -Wextra -pthread -O3 -DNDEBUG")
-            set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
+        # set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
+            set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG")
         endif()
 
         if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")

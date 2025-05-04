@@ -134,5 +134,11 @@
     ],
     "gcovViewer.buildDirectories": [
         "x:\\Document\\GitHub\\TeclaEatsDesktop"
-    ]
+    ],
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false
+    }
 }

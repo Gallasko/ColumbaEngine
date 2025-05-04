@@ -19,7 +19,8 @@ namespace pg
             auto vLayout = entity->get<VerticalLayout>();
             auto position = entity->get<PositionComponent>();
 
-            entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
+            if (vLayout->scrollable)
+                entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
 
             vLayout->visible = position->visible;
         });
@@ -32,7 +33,8 @@ namespace pg
             auto hLayout = entity->get<HorizontalLayout>();
             auto position = entity->get<PositionComponent>();
 
-            entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
+            if (hLayout->scrollable)
+                entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
 
             hLayout->visible = position->visible;
         });
@@ -80,7 +82,7 @@ namespace pg
             return;
         }
 
-        *offset += event.values.at("y").get<int>() * scrollSpeed;
+        *offset -= event.values.at("y").get<int>() * scrollSpeed;
 
         LOG_ERROR(DOM, *offset << " cH: " << cH << " cW: " << cW);
 
@@ -110,7 +112,7 @@ namespace pg
             auto uiAnchor = ent->get<UiAnchor>();
 
             // Z + 1 so the initial z of the list is for the background
-            uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z, PosOpType::Add, 1});
+            uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z});
         }
 
         ecsRef->sendEvent(ParentingEvent{ui, viewEnt.id});
@@ -119,11 +121,21 @@ namespace pg
         {
             auto view = viewEnt->get<HorizontalLayout>();
 
+            if (view->scrollable)
+            {
+                ecsRef->attach<ClippedTo>(ent, view->id);
+            }
+
             view->entities.push_back(ent);
         }
         else if (orientation == LayoutOrientation::Vertical)
         {
             auto view = viewEnt->get<VerticalLayout>();
+
+            if (view->scrollable)
+            {
+                ecsRef->attach<ClippedTo>(ent, view->id);
+            }
 
             view->entities.push_back(ent);
         }

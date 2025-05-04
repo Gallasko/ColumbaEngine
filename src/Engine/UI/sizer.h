@@ -32,6 +32,11 @@ namespace pg
         _unique_id id; bool visible; LayoutOrientation orientation;
     };
 
+    struct UpdateLayoutScrollable
+    {
+        _unique_id id; bool scrollable; LayoutOrientation orientation;
+    };
+
     template <typename Layout>
     size_t getNbVisibleElementsInLayout(Layout layout)
     {
@@ -81,6 +86,16 @@ namespace pg
             ecsRef->sendEvent(UpdateLayoutVisibility{id, vis, orientation});
         }
 
+        void setScrollable(bool scrollable)
+        {
+            if (this->scrollable != scrollable)
+            {
+                this->scrollable = scrollable;
+
+                ecsRef->sendEvent(UpdateLayoutScrollable{id, scrollable, orientation});
+            }
+        }
+
         void clear()
         {
             ecsRef->sendEvent(ClearLayoutEvent{id, orientation});
@@ -90,7 +105,6 @@ namespace pg
         bool spaced = false;
         size_t spacing = 0;
         bool visible = true;
-        bool sizedToContent = true;
 
         // Scrollbar parameters
         EntityRef horizontalScrollBar, verticalScrollBar;
@@ -98,7 +112,11 @@ namespace pg
         float contentWidth = 0.0f, contentHeight = 0.0f;
         float scrollSpeed = 25.0f;
 
+        // Private
+
         LayoutOrientation orientation = LayoutOrientation::Horizontal;
+
+        bool scrollable = true;
 
         std::vector<EntityRef> entities;
 
@@ -130,6 +148,7 @@ namespace pg
         Listener<RemoveLayoutElementEvent>,
         Listener<UpdateLayoutVisibility>,
         Listener<ClearLayoutEvent>,
+        Listener<UpdateLayoutScrollable>,
         Own<HorizontalLayout>,
         Own<VerticalLayout>,
         InitSys>
@@ -165,8 +184,14 @@ namespace pg
             changedEntities.push(event);
         }
 
+        virtual void onEvent(const UpdateLayoutScrollable& event) override
+        {
+            scrollableQueue.push(event);
+        }
+
         virtual void execute() override
         {
+            processScroll();
             processClear();
             processVisibility();
             processAdd();
@@ -198,6 +223,70 @@ namespace pg
             }
 
             layoutUpdate.clear();
+        }
+
+        void processScroll()
+        {
+            while (not scrollableQueue.empty())
+            {
+                const auto& event = scrollableQueue.front();
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (ent)
+                {
+                    if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
+                    {
+                        processScrollHelper(ent, ent->get<HorizontalLayout>(), event.scrollable);
+                    }
+
+                    if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
+                    {
+                        processScrollHelper(ent, ent->get<VerticalLayout>(), event.scrollable);
+                    }
+
+                    layoutUpdate.insert(ent);
+                }
+
+                scrollableQueue.pop();
+            }
+        }
+
+        template <typename Layout>
+        void processScrollHelper(Entity* entity, Layout view, bool scrollable)
+        {
+            if (scrollable)
+            {
+                ecsRef->template attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
+
+                for (auto& ent : view->entities)
+                {
+                    ecsRef->template attach<ClippedTo>(ent, entity->id);
+                }
+            }
+            else
+            {
+                ecsRef->template detach<MouseWheelComponent>(entity);
+
+                for (auto& ent : view->entities)
+                {
+                    if (ent->template has<ClippedTo>())
+                        ecsRef->template detach<ClippedTo>(ent);
+                }
+
+                if (not view->horizontalScrollBar.empty() and view->horizontalScrollBar.template has<PositionComponent>())
+                {
+                    auto sbPos = view->horizontalScrollBar.template get<PositionComponent>();
+
+                    sbPos->setVisibility(false);
+                }
+
+                if (not view->verticalScrollBar.empty() and view->verticalScrollBar.template has<PositionComponent>())
+                {
+                    auto sbPos = view->verticalScrollBar.template get<PositionComponent>();
+
+                    sbPos->setVisibility(false);
+                }
+            }
         }
 
         void processClear()
@@ -451,7 +540,7 @@ namespace pg
                 }
 
                 // Todo the view is not properly placed if it is not sized to content !
-                if (view->sizedToContent)
+                if (not view->scrollable)
                 {
                     bool constrained = false;
 
@@ -779,6 +868,7 @@ namespace pg
         std::queue<ClearLayoutEvent> clearQueue;
         std::queue<UpdateLayoutVisibility> visibilityQueue;
         std::queue<EntityChangedEvent> changedEntities;
+        std::queue<UpdateLayoutScrollable> scrollableQueue;
 
         std::set<EntityRef> layoutUpdate;
 
@@ -786,15 +876,17 @@ namespace pg
     };
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, HorizontalLayout> makeHorizontalLayout(Type *ecs, float x, float y, float width, float height)
+    CompList<PositionComponent, UiAnchor, HorizontalLayout> makeHorizontalLayout(Type *ecs, float x, float y, float width, float height, bool scrollable = false)
     {
         auto entity = ecs->createEntity();
+
+        auto view = ecs->template attach<HorizontalLayout>(entity);
+
+        view->scrollable = scrollable;
 
         auto ui = ecs->template attach<PositionComponent>(entity);
 
         auto anchor = ecs->template attach<UiAnchor>(entity);
-
-        auto view = ecs->template attach<HorizontalLayout>(entity);
 
         ui->setX(x);
         ui->setY(y);
@@ -805,15 +897,17 @@ namespace pg
     }
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, VerticalLayout> makeVerticalLayout(Type *ecs, float x, float y, float width, float height)
+    CompList<PositionComponent, UiAnchor, VerticalLayout> makeVerticalLayout(Type *ecs, float x, float y, float width, float height, bool scrollable = false)
     {
         auto entity = ecs->createEntity();
+
+        auto view = ecs->template attach<VerticalLayout>(entity);
+
+        view->scrollable = scrollable;
 
         auto ui = ecs->template attach<PositionComponent>(entity);
 
         auto anchor = ecs->template attach<UiAnchor>(entity);
-
-        auto view = ecs->template attach<VerticalLayout>(entity);
 
         ui->setX(x);
         ui->setY(y);
@@ -822,4 +916,5 @@ namespace pg
 
         return {entity, ui, anchor, view};
     }
+
 }
