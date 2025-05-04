@@ -43,6 +43,11 @@ namespace pg
                 pos->setVisibility(visible);
             }
 
+            if (pos->observable != observable)
+            {
+                pos->setObservable(observable);
+            }
+
             if (isClippedToWindow)
             {
                 if (entity->has<ClippedTo>())
@@ -100,6 +105,15 @@ namespace pg
             }
         }
 
+        void setObservable(bool observable)
+        {
+            if (this->observable != observable)
+            {
+                this->observable = observable;
+                update();
+            }
+        }
+
         EntitySystem *ecsRef = nullptr;
 
         _unique_id id = 0;
@@ -112,6 +126,7 @@ namespace pg
         bool isClippedToWindow = true;
 
         bool visible = true;
+        bool observable = true;
 
         bool deleteEntityUponRelease = true;
     };
@@ -129,6 +144,7 @@ namespace pg
                 auto prefab = entity->get<Prefab>();
 
                 prefab->visible = ui->visible;
+                prefab->observable = ui->observable;
 
                 prefab->update();
             });
@@ -138,12 +154,8 @@ namespace pg
             clippedGroup->addOnGroup([](EntityRef entity) {
                 LOG_MILE("Prefab", "Add entity " << entity->id << " to pos - prefab - clip group !");
 
-                auto ui = entity->get<PositionComponent>();
                 auto prefab = entity->get<Prefab>();
-
                 prefab->isClippedToWindow = false;
-
-                prefab->visible = ui->visible;
 
                 prefab->update();
             });
@@ -179,6 +191,12 @@ namespace pg
             if (ui->visible != prefab->visible)
             {
                 prefab->visible = ui->visible;
+                modified = true;
+            }
+
+            if (ui->observable != prefab->observable)
+            {
+                prefab->observable = ui->observable;
                 modified = true;
             }
 

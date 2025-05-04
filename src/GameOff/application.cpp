@@ -229,6 +229,22 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         layoutComp->addEntity(boxT3.entity);
         layoutComp->addEntity(boxT4.entity);
 
+        auto layout2 = makeVerticalLayout(ecsRef, 0, 0, 100, 100);
+
+        auto layoutComp2 = layout2.get<VerticalLayout>();
+
+        auto boxT5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto boxT6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        auto boxT7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto boxT8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+
+        layoutComp2->addEntity(boxT5.entity);
+        layoutComp2->addEntity(boxT6.entity);
+        layoutComp2->addEntity(boxT7.entity);
+        layoutComp2->addEntity(boxT8.entity);
+
+        layoutComp->addEntity(layout2.entity);
+
         /* Clipped progress bar exemple:
         auto spacer = ecsRef->createEntity();
         auto spacerPos = ecsRef->attach<PositionComponent>(spacer);

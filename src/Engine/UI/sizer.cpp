@@ -25,6 +25,40 @@ namespace pg
             vLayout->visible = position->visible;
         });
 
+        auto vClippedGroup = registerGroup<PositionComponent, VerticalLayout, ClippedTo>();
+
+        vClippedGroup->addOnGroup([](EntityRef entity) {
+            LOG_MILE(DOM, "Add entity " << entity->id << " to ui - vLayout - clipped group!");
+
+            auto vLayout = entity->get<VerticalLayout>();
+            auto clippedTo = entity->get<ClippedTo>();
+
+            for (auto& ent : vLayout->entities)
+            {
+                entity->world()->attach<ClippedTo>(ent, clippedTo->clipperId);
+            }
+        });
+
+        vClippedGroup->removeOfGroup([](EntitySystem* ecs, _unique_id id) {
+            LOG_MILE(DOM, "Remove entity " << id << " of ui - vLayout - clipped group!");
+
+            auto ent = ecs->getEntity(id);
+
+            if (ent and ent->has<VerticalLayout>() and not ent->has<ClippedTo>())
+            {
+                auto vLayout = ent->get<VerticalLayout>();
+
+                if (not vLayout->scrollable)
+                {
+                    for (auto& ent : vLayout->entities)
+                    {
+                        if (ent->template has<ClippedTo>())
+                            ent->world()->detach<ClippedTo>(ent);
+                    }
+                }
+            }
+        });
+
         auto hGroup = registerGroup<PositionComponent, HorizontalLayout>();
 
         hGroup->addOnGroup([](EntityRef entity) {
@@ -37,6 +71,40 @@ namespace pg
                 entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
 
             hLayout->visible = position->visible;
+        });
+
+        auto hClippedGroup = registerGroup<PositionComponent, HorizontalLayout, ClippedTo>();
+
+        hClippedGroup->addOnGroup([](EntityRef entity) {
+            LOG_MILE(DOM, "Add entity " << entity->id << " to ui - hLayout - clipped group!");
+
+            auto hLayout = entity->get<HorizontalLayout>();
+            auto clippedTo = entity->get<ClippedTo>();
+            
+            for (auto& ent : hLayout->entities)
+            {
+                entity->world()->attach<ClippedTo>(ent, clippedTo->clipperId);
+            }
+        });
+
+        hClippedGroup->removeOfGroup([](EntitySystem* ecs, _unique_id id) {
+            LOG_MILE(DOM, "Remove entity " << id << " of ui - hLayout - clipped group!");
+
+            auto ent = ecs->getEntity(id);
+
+            if (ent and ent->has<HorizontalLayout>() and not ent->has<ClippedTo>())
+            {
+                auto hLayout = ent->get<HorizontalLayout>();
+
+                if (not hLayout->scrollable)
+                {
+                    for (auto& ent : hLayout->entities)
+                    {
+                        if (ent->template has<ClippedTo>())
+                            ent->world()->detach<ClippedTo>(ent);
+                    }
+                }
+            }
         });
     }
 
@@ -121,9 +189,15 @@ namespace pg
         {
             auto view = viewEnt->get<HorizontalLayout>();
 
+            // Todo need to make a special case if the vies is scrollable and clipped to something else
             if (view->scrollable)
             {
                 ecsRef->attach<ClippedTo>(ent, view->id);
+            }
+
+            if (viewEnt->has<ClippedTo>())
+            {
+                ecsRef->attach<ClippedTo>(ent, viewEnt->get<ClippedTo>()->clipperId);
             }
 
             view->entities.push_back(ent);
@@ -135,6 +209,11 @@ namespace pg
             if (view->scrollable)
             {
                 ecsRef->attach<ClippedTo>(ent, view->id);
+            }
+
+            if (viewEnt->has<ClippedTo>())
+            {
+                ecsRef->attach<ClippedTo>(ent, viewEnt->get<ClippedTo>()->clipperId);
             }
 
             view->entities.push_back(ent);

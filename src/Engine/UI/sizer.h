@@ -267,10 +267,13 @@ namespace pg
             {
                 ecsRef->template detach<MouseWheelComponent>(entity);
 
-                for (auto& ent : view->entities)
+                if (not entity->has<ClippedTo>())
                 {
-                    if (ent->template has<ClippedTo>())
-                        ecsRef->template detach<ClippedTo>(ent);
+                    for (auto& ent : view->entities)
+                    {
+                        if (ent->template has<ClippedTo>())
+                            ecsRef->template detach<ClippedTo>(ent);
+                    }
                 }
 
                 if (not view->horizontalScrollBar.empty() and view->horizontalScrollBar.template has<PositionComponent>())
@@ -826,6 +829,15 @@ namespace pg
 
             auto& entities = view->entities;
 
+            // Parent clipping bounds
+            auto parentPos = viewEnt->template get<PositionComponent>();
+            auto observable = parentPos->isObservable();
+
+            float parentTop    = parentPos->y;
+            float parentBottom = parentPos->y + parentPos->height;
+            float parentLeft   = parentPos->x;
+            float parentRight  = parentPos->x + parentPos->width;
+
             for (auto& ui : entities)
             {
                 if (ui->template has<PositionComponent>())
@@ -833,14 +845,14 @@ namespace pg
                     auto pos = ui->template get<PositionComponent>();
                     bool isCompVisible = false;
 
-                    if (visible)
+                    if (visible and observable)
                     {
                         float childTop    = pos->y;
                         float childBottom = pos->y + pos->height;
                         float childLeft   = pos->x;
                         float childRight  = pos->x + pos->width;
 
-                        if (inBound(viewEnt, childLeft, childTop) or inBound(viewEnt, childLeft, childBottom) or inBound(viewEnt, childRight, childTop) or inBound(viewEnt, childRight, childBottom))
+                        if (childRight > parentLeft and childLeft < parentRight and childBottom > parentTop and childTop < parentBottom)
                         {
                             isCompVisible = true;
                         }
