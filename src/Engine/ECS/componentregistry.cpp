@@ -99,8 +99,6 @@ namespace pg
     {
         LOG_THIS_MEMBER("Component Registry");
 
-        LOG_INFO("CReg", "Received standard event");
-
         for (auto& eventListener : standardEventStorageMap[event.name])
         {
             eventListener.second(event);

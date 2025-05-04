@@ -152,8 +152,6 @@ namespace pg
 
         *offset -= event.values.at("y").get<int>() * scrollSpeed;
 
-        LOG_ERROR(DOM, *offset << " cH: " << cH << " cW: " << cW);
-
         ecsRef->sendEvent(EntityChangedEvent{id});
     };
 
