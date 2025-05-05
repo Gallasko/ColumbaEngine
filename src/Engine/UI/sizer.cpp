@@ -80,7 +80,7 @@ namespace pg
 
             auto hLayout = entity->get<HorizontalLayout>();
             auto clippedTo = entity->get<ClippedTo>();
-            
+
             for (auto& ent : hLayout->entities)
             {
                 entity->world()->attach<ClippedTo>(ent, clippedTo->clipperId);
@@ -123,26 +123,17 @@ namespace pg
         float *offset;
         float scrollSpeed = 0.0f;
 
-        float cW = 0.0f;
-        float cH = 0.0f;
-
         if (ent->has<VerticalLayout>())
         {
             auto comp = ent->get<VerticalLayout>();
             offset = &comp->yOffset;
             scrollSpeed = comp->scrollSpeed;
-
-            cW = comp->contentWidth;
-            cH = comp->contentHeight;
         }
         else if (ent->has<HorizontalLayout>())
         {
             auto comp = ent->get<HorizontalLayout>();
             offset = &comp->xOffset;
             scrollSpeed = comp->scrollSpeed;
-
-            cW = comp->contentWidth;
-            cH = comp->contentHeight;
         }
         else
         {
@@ -158,19 +149,19 @@ namespace pg
 
     void LayoutSystem::addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation)
     {
-        if (not viewEnt->has<PositionComponent>() or not viewEnt->has<UiAnchor>())
+        if (not viewEnt->has<PositionComponent>())
         {
-            LOG_ERROR(DOM, "Entity " << viewEnt.id << " must have a PositionComponent and UiAnchor!");
+            LOG_ERROR(DOM, "Entity " << viewEnt.id << " must have a PositionComponent!");
             return;
         }
 
         auto ent = ecsRef->getEntity(ui);
 
-        // if (not ent or not ent->has<PositionComponent>() or not ent->has<UiAnchor>())
-        // {
-        //     LOG_ERROR(DOM, "Entity " << ui << " must have a PositionComponent and UiAnchor!");
-        //     return;
-        // }
+        if (not ent or not ent->has<PositionComponent>())
+        {
+            LOG_ERROR(DOM, "Entity " << ui << " must have a PositionComponent!");
+            return;
+        }
 
         // Todo check if we really need to force children of a layout to have a UiAnchor just to be able to set the z constrain
         if (ent->has<UiAnchor>())
@@ -187,7 +178,6 @@ namespace pg
         {
             auto view = viewEnt->get<HorizontalLayout>();
 
-            // Todo need to make a special case if the vies is scrollable and clipped to something else
             if (view->scrollable)
             {
                 ecsRef->attach<ClippedTo>(ent, view->id);
@@ -199,6 +189,21 @@ namespace pg
             }
 
             view->entities.push_back(ent);
+
+            // Stick to end logic for horizontal layout
+            if (view->stickToEnd)
+            {
+                auto viewUi = viewEnt->get<PositionComponent>();
+                auto entUi = ent->get<PositionComponent>();
+
+                // If another child was added during the same execute pass, we just need to adjust the offset
+                if (not view->childrenAdded)
+                    view->xOffset = std::max(0.0f, view->contentWidth - viewUi->width + entUi->width);
+                else
+                    view->xOffset += entUi->width;
+            }
+
+            view->childrenAdded = true;
         }
         else if (orientation == LayoutOrientation::Vertical)
         {
@@ -215,6 +220,21 @@ namespace pg
             }
 
             view->entities.push_back(ent);
+
+            // Stick to end logic for vertical layout
+            if (view->stickToEnd)
+            {
+                auto viewUi = viewEnt->get<PositionComponent>();
+                auto entUi = ent->get<PositionComponent>();
+
+                // If another child was added during the same execute pass, we just need to adjust the offset
+                if (not view->childrenAdded)
+                    view->yOffset = std::max(0.0f, view->contentHeight - viewUi->height + entUi->height);
+                else
+                    view->xOffset += entUi->height;
+            }
+
+            view->childrenAdded = true;
         }
         else
         {

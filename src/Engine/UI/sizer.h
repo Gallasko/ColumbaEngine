@@ -112,6 +112,8 @@ namespace pg
         float contentWidth = 0.0f, contentHeight = 0.0f;
         float scrollSpeed = 25.0f;
 
+        bool stickToEnd = false;
+
         // Private
 
         LayoutOrientation orientation = LayoutOrientation::Horizontal;
@@ -119,6 +121,8 @@ namespace pg
         bool scrollable = true;
 
         std::vector<EntityRef> entities;
+
+        bool childrenAdded = false;
 
         _unique_id id;
         EntitySystem *ecsRef;
@@ -141,6 +145,8 @@ namespace pg
         }
     };
 
+    // Todo refactor all the template that takes a templated Layout and replace it with a pointer to BaseLayout
+    // It will reduce template bloat and compilation time as well as some code duplication (on add and del for example)
     struct LayoutSystem : public System<
         Listener<StandardEvent>,
         Listener<EntityChangedEvent>,
@@ -458,12 +464,18 @@ namespace pg
         template <typename Layout>
         void recalculateChildrenPos(EntityRef viewEnt, Layout view)
         {
+            auto childrenAdded = view->childrenAdded;
+            view->childrenAdded = false;
             auto orientation = view->orientation;
 
             auto viewUi = viewEnt->template get<PositionComponent>();
 
-            view->xOffset = std::max(0.0f, std::min(view->xOffset, view->contentWidth  - viewUi->width));
-            view->yOffset = std::max(0.0f, std::min(view->yOffset, view->contentHeight - viewUi->height));
+            // If a child was added, while stick to end == true, the offset was set 'out of bound' because the size was not adjusted yet !
+            if (not childrenAdded)
+            {
+                view->xOffset = std::max(0.0f, std::min(view->xOffset, view->contentWidth  - viewUi->width));
+                view->yOffset = std::max(0.0f, std::min(view->yOffset, view->contentHeight - viewUi->height));
+            }
 
             // update scrollbars here (optional—you can drive their PositionComponents / Anchors)
             if (not view->horizontalScrollBar.empty() and view->horizontalScrollBar.template has<PositionComponent>())
