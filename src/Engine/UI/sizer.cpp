@@ -163,23 +163,23 @@ namespace pg
             if (ent->has<HorizontalLayout>())
             {
                 auto view = ent->get<HorizontalLayout>();
-
-                recalculateChildrenPos(ent, view);
-
-                updateVisibility(ent, view, view->visible);
+                updateLayout(ent, view);
             }
 
             if (ent->has<VerticalLayout>())
             {
                 auto view = ent->get<VerticalLayout>();
-
-                recalculateChildrenPos(ent, view);
-
-                updateVisibility(ent, view, view->visible);
+                updateLayout(ent, view);
             }
         }
 
         layoutUpdate.clear();
+    }
+
+    void LayoutSystem::updateLayout(EntityRef viewEnt, BaseLayout* view)
+    {
+        recalculateChildrenPos(viewEnt, view);
+        updateVisibility(viewEnt, view, view->visible);
     }
 
     void LayoutSystem::processScroll()
@@ -415,9 +415,22 @@ namespace pg
     {
         auto childrenAdded = view->childrenAdded;
         view->childrenAdded = false;
-        auto orientation = view->orientation;
 
-        auto viewUi = viewEnt->template get<PositionComponent>();
+        adjustOffsets(viewEnt, view, childrenAdded);
+        updateScrollBars(viewEnt, view);
+
+        if (not view->fitToAxis and !view->spaced)
+        {
+            layoutWithoutSpacing(viewEnt, view);
+            return;
+        }
+
+        layoutWithSpacing(viewEnt, view);
+    }
+
+    void LayoutSystem::adjustOffsets(EntityRef viewEnt, BaseLayout* view, bool childrenAdded)
+    {
+        auto viewUi = viewEnt->get<PositionComponent>();
 
         // If a child was added, while stick to end == true, the offset was set 'out of bound' because the size was not adjusted yet !
         if (not childrenAdded)
@@ -425,117 +438,136 @@ namespace pg
             view->xOffset = std::max(0.0f, std::min(view->xOffset, view->contentWidth  - viewUi->width));
             view->yOffset = std::max(0.0f, std::min(view->yOffset, view->contentHeight - viewUi->height));
         }
+    }
 
-        // update scrollbars here (optional—you can drive their PositionComponents / Anchors)
-        if (not view->horizontalScrollBar.empty() and view->horizontalScrollBar.template has<PositionComponent>())
+    void LayoutSystem::updateScrollBars(EntityRef viewEnt, BaseLayout* view)
+    {
+        auto viewUi = viewEnt->get<PositionComponent>();
+
+        if (not view->horizontalScrollBar.empty() and view->horizontalScrollBar.has<PositionComponent>())
         {
-            auto sbPos = view->horizontalScrollBar.template get<PositionComponent>();
-
-            if (viewUi->width != view->contentWidth and view->contentWidth != 0)
-            {
-                // width proportional: visibleWidth/contentWidth
-                float thumbWidth = (viewUi->width / view->contentWidth) * viewUi->width;
-                sbPos->setX(viewUi->x + (view->xOffset / (view->contentWidth - viewUi->width)) * (viewUi->width - thumbWidth));
-                sbPos->setWidth(thumbWidth);
-
-                sbPos->setVisibility(true);
-            }
-            else
-            {
-                sbPos->setVisibility(false);
-            }
-        }
-        if (not view->verticalScrollBar.empty() and view->verticalScrollBar.template has<PositionComponent>())
-        {
-            auto sbPos = view->verticalScrollBar.template get<PositionComponent>();
-
-            if (viewUi->height != view->contentHeight and view->contentHeight != 0)
-            {
-                float thumbHeight = (viewUi->height / view->contentHeight) * viewUi->height;
-                sbPos->setY(viewUi->y + (view->yOffset / (view->contentHeight - viewUi->height)) * (viewUi->height - thumbHeight));
-                sbPos->setHeight(thumbHeight);
-
-                sbPos->setVisibility(true);
-            }
-            else
-            {
-                sbPos->setVisibility(false);
-            }
+            auto sbPos = view->horizontalScrollBar.get<PositionComponent>();
+            updateHorizontalScrollBar(viewUi, view, sbPos);
         }
 
-        // This snippet handles the layout of entities within a parent view when neither `fitToAxis` nor `spaced` is enabled.
-        // It aligns entities along the primary axis (horizontal or vertical) by setting their anchor relative to the previous entity's anchor, with a specified spacing.
-        // The secondary axis is aligned with the parent view's anchor.
-        // Finally, the parent view's size along the primary axis is updated to encompass all child entities.
-        if (not view->fitToAxis and not view->spaced)
+        if (not view->verticalScrollBar.empty() and view->verticalScrollBar.has<PositionComponent>())
         {
-            float currentX = viewUi->x - view->xOffset;
-            float currentY = viewUi->y - view->yOffset;
+            auto sbPos = view->verticalScrollBar.get<PositionComponent>();
+            updateVerticalScrollBar(viewUi, view, sbPos);
+        }
+    }
 
-            view->contentWidth = 0.0f;
-            view->contentHeight = 0.0f;
+    void LayoutSystem::updateHorizontalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos)
+    {
+        if (viewUi->width != view->contentWidth && view->contentWidth != 0)
+        {
+            float thumbWidth = (viewUi->width / view->contentWidth) * viewUi->width;
+            sbPos->setX(viewUi->x + (view->xOffset / (view->contentWidth - viewUi->width)) * (viewUi->width - thumbWidth));
+            sbPos->setWidth(thumbWidth);
+            sbPos->setVisibility(true);
+        }
+        else
+        {
+            sbPos->setVisibility(false);
+        }
+    }
 
-            for (auto& ent : view->entities)
+    void LayoutSystem::updateVerticalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos)
+    {
+        if (viewUi->height != view->contentHeight and view->contentHeight != 0)
+        {
+            float thumbHeight = (viewUi->height / view->contentHeight) * viewUi->height;
+            sbPos->setY(viewUi->y + (view->yOffset / (view->contentHeight - viewUi->height)) * (viewUi->height - thumbHeight));
+            sbPos->setHeight(thumbHeight);
+            sbPos->setVisibility(true);
+        }
+        else
+        {
+            sbPos->setVisibility(false);
+        }
+    }
+
+    // This snippet handles the layout of entities within a parent view when neither `fitToAxis` nor `spaced` is enabled.
+    // It aligns entities along the primary axis (horizontal or vertical) by setting their anchor relative to the previous entity's anchor, with a specified spacing.
+    // The secondary axis is aligned with the parent view's anchor.
+    // Finally, the parent view's size along the primary axis is updated to encompass all child entities.
+    void LayoutSystem::layoutWithoutSpacing(EntityRef viewEnt, BaseLayout* view)
+    {
+        auto viewUi = viewEnt->template get<PositionComponent>();
+
+        float currentX = viewUi->x - view->xOffset;
+        float currentY = viewUi->y - view->yOffset;
+
+        view->contentWidth = 0.0f;
+        view->contentHeight = 0.0f;
+
+        auto orientation = view->orientation;
+
+        for (auto& ent : view->entities)
+        {
+            if (not ent->has<PositionComponent>())
             {
-                if (not ent->template has<PositionComponent>())
-                {
-                    LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
-                    continue;
-                }
+                LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
+                continue;
+            }
 
-                auto pos = ent->template get<PositionComponent>();
+            auto pos = ent->template get<PositionComponent>();
 
-                // Skip invisible components
-                if (not pos->visible)
-                    continue;
+            // Skip invisible components
+            if (not pos->visible)
+                continue;
+
+            if (orientation == LayoutOrientation::Horizontal)
+            {
+                pos->setX(currentX + view->contentWidth);
+                pos->setY(viewUi->y); // Align with the top of the parent layout
+                view->contentWidth += pos->width + view->spacing; // Move to the next position
+            }
+            else if (orientation == LayoutOrientation::Vertical)
+            {
+                pos->setX(viewUi->x); // Align with the left of the parent layout
+                pos->setY(currentY + view->contentHeight);
+                view->contentHeight += pos->height + view->spacing; // Move to the next position
+            }
+        }
+
+        // Todo the view is not properly placed if it is not sized to content !
+        if (not view->scrollable)
+        {
+            bool constrained = false;
+
+            if (viewEnt->has<UiAnchor>())
+            {
+                auto anchor = viewEnt->get<UiAnchor>();
 
                 if (orientation == LayoutOrientation::Horizontal)
                 {
-                    pos->setX(currentX + view->contentWidth);
-                    pos->setY(viewUi->y); // Align with the top of the parent layout
-                    view->contentWidth += pos->width + view->spacing; // Move to the next position
+                    constrained = anchor->hasWidthConstrain or (anchor->hasRightAnchor and anchor->hasLeftAnchor);
                 }
                 else if (orientation == LayoutOrientation::Vertical)
                 {
-                    pos->setX(viewUi->x); // Align with the left of the parent layout
-                    pos->setY(currentY + view->contentHeight);
-                    view->contentHeight += pos->height + view->spacing; // Move to the next position
+                    constrained = anchor->hasHeightConstrain or (anchor->hasTopAnchor and anchor->hasBottomAnchor);
                 }
             }
 
-            // Todo the view is not properly placed if it is not sized to content !
-            if (not view->scrollable)
+            if (orientation == LayoutOrientation::Horizontal and not constrained)
             {
-                bool constrained = false;
-
-                if (viewEnt->has<UiAnchor>())
-                {
-                    auto anchor = viewEnt->get<UiAnchor>();
-
-                    if (orientation == LayoutOrientation::Horizontal)
-                    {
-                        constrained = anchor->hasWidthConstrain or (anchor->hasRightAnchor and anchor->hasLeftAnchor);
-                    }
-                    else if (orientation == LayoutOrientation::Vertical)
-                    {
-                        constrained = anchor->hasHeightConstrain or (anchor->hasTopAnchor and anchor->hasBottomAnchor);
-                    }
-                }
-
-                if (orientation == LayoutOrientation::Horizontal and not constrained)
-                {
-                    viewUi->setWidth(view->contentWidth);
-                }
-                else if (orientation == LayoutOrientation::Vertical and not constrained)
-                {
-                    viewUi->setHeight(view->contentHeight);
-                }
+                viewUi->setWidth(view->contentWidth);
             }
-
-            return;
+            else if (orientation == LayoutOrientation::Vertical and not constrained)
+            {
+                viewUi->setHeight(view->contentHeight);
+            }
         }
+    }
+
+    void LayoutSystem::layoutWithSpacing(EntityRef viewEnt, BaseLayout* view)
+    {
+        auto viewUi = viewEnt->template get<PositionComponent>();
 
         float start, axis, axisSize;
+
+        auto orientation = view->orientation;
 
         if (orientation == LayoutOrientation::Horizontal)
         {

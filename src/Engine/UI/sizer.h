@@ -233,6 +233,20 @@ namespace pg
 
         void clear(BaseLayout* view);
 
+        void updateLayout(EntityRef viewEnt, BaseLayout* view);
+
+        void adjustOffsets(EntityRef viewEnt, BaseLayout* view, bool childrenAdded);
+
+        void updateScrollBars(EntityRef viewEnt, BaseLayout* view);
+
+        void updateHorizontalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos);
+
+        void updateVerticalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos);
+
+        void layoutWithoutSpacing(EntityRef viewEnt, BaseLayout* view);
+
+        void layoutWithSpacing(EntityRef viewEnt, BaseLayout* view);
+
         std::queue<AddLayoutElementEvent> addQueue;
         std::queue<RemoveLayoutElementEvent> removeQueue;
         std::queue<ClearLayoutEvent> clearQueue;
