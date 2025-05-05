@@ -11,6 +11,8 @@
 
 #include "Helpers/tinyfiledialogs.h"
 
+#include "2D/simple2dobject.h"
+
 namespace pg
 {
     namespace
@@ -81,6 +83,7 @@ namespace editor
         setContextList("Add Sentence",  makeCallable<CreateElement>(UiComponentType::TEXT),
                        "Add TTF Text",  makeCallable<CreateElement>(UiComponentType::TTFTEXT),
                        "Add Texture",   makeCallable<CreateElement>(UiComponentType::TEXTURE),
+                       "Add Shape 2D",  makeCallable<CreateElement>(UiComponentType::SHAPE2D),
                        "Add Button",    makeCallable<CreateElement>(UiComponentType::BUTTON),
                        "Add TextInput", makeCallable<CreateElement>(UiComponentType::TEXTINPUT),
                        "Add List",      makeCallable<CreateElement>(UiComponentType::LIST),
@@ -208,6 +211,15 @@ namespace editor
                 case UiComponentType::TEXTURE:
                 {
                     auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
+                    newElement.get<PositionComponent>()->setX(currentX);
+                    newElement.get<PositionComponent>()->setY(currentY);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+                    break;
+                }
+
+                case UiComponentType::SHAPE2D:
+                {
+                    auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
                     newElement.get<PositionComponent>()->setX(currentX);
                     newElement.get<PositionComponent>()->setY(currentY);
                     ecsRef->attach<SceneElement>(newElement.entity);

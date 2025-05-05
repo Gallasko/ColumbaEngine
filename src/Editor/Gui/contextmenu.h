@@ -14,6 +14,7 @@ namespace pg
     {
         BUTTON,
         TEXTURE,
+        SHAPE2D,
         TEXT,
         TTFTEXT,
         TEXTINPUT,

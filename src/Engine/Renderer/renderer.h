@@ -260,6 +260,7 @@ namespace pg
 
     class BaseAbstractRenderer
     {
+        friend class MasterRenderer;
     public:
         BaseAbstractRenderer(MasterRenderer* masterRenderer, const RenderStage& stage);
         virtual ~BaseAbstractRenderer() {}
@@ -415,9 +416,11 @@ namespace pg
 
     struct SkipRenderPass { size_t count = 1; };
 
+    struct ReRendererAll { };
+
     // Todo fix crash on renderer when failure to grab a missing texture or shader
 
-    class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>>
+    class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>>
     {
     private:
         struct MaterialHolder
@@ -453,6 +456,7 @@ namespace pg
 
         virtual void onEvent(const OnSDLScanCode& event) override;
         virtual void onEvent(const SkipRenderPass& event ) override { skipRenderPass += event.count; }
+        virtual void onEvent(const ReRendererAll&) override { reRenderAll = true; }
 
         virtual void execute() override;
 
@@ -672,6 +676,8 @@ namespace pg
         moodycamel::ConcurrentQueue<TextureRegisteringQueueItem> textureRegisteringQueue;
 
         size_t nbRegisteredMaterials = 0;
+
+        bool reRenderAll = false;
 
     private:
         void initializeParameters();

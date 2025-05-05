@@ -195,6 +195,8 @@ namespace pg
         {
             currentId = 0;
             needClear = true;
+
+            ecsRef->sendEvent(ReRendererAll{});
         }
 
         void InspectorSystem::execute()

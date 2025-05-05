@@ -270,6 +270,18 @@ namespace pg
 
         nbGeneratedFrames++;
 
+        if (reRenderAll)
+        {
+            for (auto r : renderers)
+            {
+                r->changed = true;
+                r->setDirty(true);
+            }
+
+            LOG_INFO(DOM, "Re-rendering all the renderers");
+            reRenderAll = false;
+        }
+
         inSwap = true;
     }
 
