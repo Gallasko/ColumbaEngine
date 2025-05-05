@@ -161,23 +161,25 @@ namespace pg
 
             layout->addEntity(childEntity);
 
-            layoutSystem->execute();
+            ecs.executeOnce();
+
+            EXPECT_TRUE(childPos->visible);
+            EXPECT_TRUE(childPos->observable);
 
             // Update visibility
-            layout->setVisibility(false);
+            layoutPos->setVisibility(false);
 
-            layoutSystem->execute();
+            ecs.executeOnce();
 
-            EXPECT_FALSE(layout->visible);
             EXPECT_TRUE(childPos->visible);
             EXPECT_FALSE(childPos->observable);
 
-            layout->setVisibility(true);
+            layoutPos->setVisibility(true);
 
-            layoutSystem->execute();
+            ecs.executeOnce();
 
-            EXPECT_TRUE(layout->visible);
             EXPECT_TRUE(childPos->visible);
+            EXPECT_TRUE(childPos->observable);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -547,6 +549,10 @@ namespace pg
 
                 layout->addEntity(childEntity);
             }
+
+            ecs.executeOnce();
+
+            EXPECT_FLOAT_EQ(layout->xOffset, 400.0f);
 
             ecs.executeOnce();
 
