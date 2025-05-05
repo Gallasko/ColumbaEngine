@@ -112,6 +112,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             auto pos = elem->get<PositionComponent>();
             if (inClipBound(elem->entity, e.pos.x, e.pos.y))
             {
+                LOG_INFO(DOM, "Dragging entity: " << elem->entityId);
                 draggingEntity = elem->entity.id;
                 // remember offset so entity doesn't jump under cursor
                 offsetX = e.pos.x - pos->x;
@@ -144,6 +145,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             outlinePos->setWidth(pos->width + 4.f);
             outlinePos->setHeight(pos->height + 4.f);
         }
+
+        ecsRef->sendEvent(EntityChangedEvent{ draggingEntity });
     }
 
     virtual void onEvent(const OnMouseRelease& e) override

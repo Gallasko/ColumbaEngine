@@ -138,7 +138,7 @@ namespace pg
             EntitySystem ecs;
 
             ecs.createSystem<PositionComponentSystem>();
-            auto layoutSystem = ecs.createSystem<LayoutSystem>();
+            ecs.createSystem<LayoutSystem>();
 
             // Create a horizontal layout
             auto layoutEntity = ecs.createEntity();

@@ -68,14 +68,12 @@ namespace pg
 
                 auto log = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", message, 0.4);
 
-                auto ui = log.get<PositionComponent>();
                 auto text = log.get<TTFText>();
                 auto anchor = log.get<UiAnchor>();
 
                 text->wrap = true;
 
                 auto logView = listViewEnt.get<VerticalLayout>();
-                auto logAnchor = listViewEnt.get<UiAnchor>();
 
                 anchor->setWidthConstrain(PosConstrain{listViewEnt->id, AnchorType::Width, PosOpType::Sub, 30.f});
 

@@ -17,7 +17,6 @@ namespace pg
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - vLayout group!");
 
             auto vLayout = entity->get<VerticalLayout>();
-            auto position = entity->get<PositionComponent>();
 
             if (vLayout->scrollable)
                 entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
@@ -63,7 +62,6 @@ namespace pg
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - hLayout group !");
 
             auto hLayout = entity->get<HorizontalLayout>();
-            auto position = entity->get<PositionComponent>();
 
             if (hLayout->scrollable)
                 entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});

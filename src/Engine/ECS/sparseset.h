@@ -6,7 +6,7 @@
  * @brief Definition of the sparse set container class
  * @version 0.1
  * @date 2022-08-02
- * 
+ *
  * @copyright Copyright (c) 2022
  */
 
@@ -41,43 +41,43 @@ namespace pg
             friend class SparseSetList;
                 // Public interface
             public:
-                /** 
+                /**
                  * @brief Overload of the pre increment operator
-                 * 
+                 *
                  * @return The current iterator with the next indice
                  */
                 inline Iterator& operator++() { index++; return *this; }
-                
+
                 /**
                  * @brief Overload of the post increment operator
-                 * 
+                 *
                  * @return A new iterator with the next indice
                  */
                 inline Iterator operator++(int) { Iterator old = *this; index++; return old; }
 
                 /**
                  * @brief Overload of the equal operator
-                 * 
+                 *
                  * @param rhs Value to compare to
-                 * 
+                 *
                  * @return true if the value are equal
                  * @return false otherwise
                  */
-                inline bool operator==(const Iterator& rhs) const { return index == rhs.index; } 
-                
+                inline bool operator==(const Iterator& rhs) const { return index == rhs.index; }
+
                 /**
                  * @brief Overload of the not equal operator
-                 * 
+                 *
                  * @param rhs Value to compare to
-                 * 
+                 *
                  * @return true if the value are not equal
                  * @return false otherwise
                  */
-                inline bool operator!=(const Iterator& rhs) const { return index != rhs.index; } 
+                inline bool operator!=(const Iterator& rhs) const { return index != rhs.index; }
 
                 /**
                  * @brief Overload of the * operator
-                 * 
+                 *
                  * @return _unique_id A unique identifier in the list
                  */
                 inline _unique_id operator*() const { return dense[index]; }
@@ -100,14 +100,14 @@ namespace pg
 
             /**
              * @brief Get the head iterator
-             * 
+             *
              * @return constexpr Iterator An iterator at the head of the dense list
              */
             inline Iterator begin() const { LOG_THIS_MEMBER("Sparse Set List"); return head; }
 
             /**
              * @brief Get the tail iterator
-             * 
+             *
              * @return constexpr Iterator An iterator at the tail of the dense list
              */
             inline Iterator end() const { LOG_THIS_MEMBER("Sparse Set List"); return tail; }
@@ -116,7 +116,7 @@ namespace pg
         public:
             /**
              * @brief Construct a copy of a Sparse Set List object
-             * 
+             *
              * @param other The Sparse Set List to copy
              */
             SparseSetList(const SparseSetList& other) : head(other.head), tail(other.head), dense(other.dense) { LOG_THIS_MEMBER("Sparse Set List"); }
@@ -134,9 +134,9 @@ namespace pg
             const Iterator tail;
 
             /** The dense list to iterate over */
-            _unique_id *dense;      
+            _unique_id *dense;
         };
-        
+
         // Public constructors
     public:
         /** Construct a new Sparse Set object */
@@ -147,16 +147,16 @@ namespace pg
 
         /** Destroy the Sparse Set object */
         virtual ~SparseSet();
-    
+
         // Public interface
     public:
         /**
          * @brief A check function to know if an id is in this sparse set
-         * 
+         *
          * @param id The id to check if it is in the sparse set
          * @return true if the id is in the set
          * @return false otherwise
-         * 
+         *
          * This function uses one of the main properties of the sparse set, the reciprocity of the id in the dense and sparse array
          * This operation is O(1) as it only need 2 indirections and 3 checks to know if an id is in the list and this is true whatever the size of the array
          */
@@ -164,7 +164,7 @@ namespace pg
 
         /**
          * @brief Get the id at a given index of the set
-         * 
+         *
          * @param index The index to look for in the set
          * @return _unique_id The id or 0 if the index is not inside of the set
          */
@@ -174,13 +174,13 @@ namespace pg
 
             if (index >= size)
                 return 0;
-            
+
             return dense[index];
         }
 
         /**
          * @brief Get the index of a given id if it is present in the set
-         * 
+         *
          * @param id The id to store in the set
          * @return size_t The index of the id or 0 if the index is not inside of the set
          */
@@ -208,9 +208,9 @@ namespace pg
 
         /**
          * @brief Get the current size of the list
-         * 
+         *
          * @return constexpr size_t The current size of the list
-         * 
+         *
          * The list start at index 1 to nbElement()
          * This function is used to ensure that the bound of the set are respected
          */
@@ -219,7 +219,7 @@ namespace pg
         inline SparseSetList view() const
         {
             LOG_THIS_MEMBER("Sparse Set");
-            
+
             return SparseSetList(nbElements(), dense);
         }
 
@@ -235,7 +235,7 @@ namespace pg
     private:
         /** The current size of the sparse set */
         size_t size = 1;
-        
+
         /** An interal array to hold the link componend id -> entity id */
         _unique_id* dense;
 
@@ -250,24 +250,24 @@ namespace pg
         size_t sparseCapacity = 2;
     };
 
-    // 
+    //
     /**
      * @brief A container object used to store components
-     * 
+     *
      * This container is used to store components and the entity id they are associated with.
      * As entities ids as well as components id are unsigned value. The indice start at 1,
      * so that 0 indicates that the component doesn't exist or no entity was found.
-     * 
+     *
      * This container as:
      * - O(1) time complexity for both inserting and removing components
      * - O(1) time complexity for lookup
      * - O(n) time complexity for clear (as it delete all the components in memory)
      * - O(n) time complexity for iteration over components
-     * 
+     *
      * It also stores in memory the list of components of a given type
-     * 
+     *
      * @warning Never delete a ComponentSet through a SparseSet pointer
-     * 
+     *
      * @todo Make a sparse set implementation that doesn't delete components on remove but instead reuse dead memory
      */
     template <typename Comp>
@@ -279,7 +279,7 @@ namespace pg
     public:
         /**
          * @brief List representation of the component of the component set
-         * 
+         *
          * This helper class is used to iterate through the whole component list of the component set
          * It provides a basic [] interface as well as an iterator to support range based for loop
          */
@@ -289,9 +289,9 @@ namespace pg
         public:
             /**
              * @brief An Iterator for iterating over the elements of a component set
-             * 
+             *
              * This iterator is a read only iterator that iterates over the elements ot the component set
-             * Using the operator-> you can obtain a pointer to the component 
+             * Using the operator-> you can obtain a pointer to the component
              */
             class Iterator
             {
@@ -299,64 +299,64 @@ namespace pg
             friend class ComponentSetList;
                 // Public interface
             public:
-                /** 
+                /**
                  * @brief Overload of the pre increment operator
-                 * 
+                 *
                  * @return The current iterator with the next indice
                  */
                 inline Iterator& operator++() { index++; return *this; }
-                
+
                 /**
                  * @brief Overload of the post increment operator
-                 * 
+                 *
                  * @return A new iterator with the next indice
                  */
                 inline Iterator operator++(int) { Iterator old = *this; index++; return old; }
 
                 /**
                  * @brief Overload of the equal operator
-                 * 
+                 *
                  * @param rhs Value to compare to
-                 * 
+                 *
                  * @return true if the value are equal
                  * @return false otherwise
                  */
-                inline bool operator==(const Iterator& rhs) const { return index == rhs.index; } 
-                
+                inline bool operator==(const Iterator& rhs) const { return index == rhs.index; }
+
                 /**
                  * @brief Overload of the not equal operator
-                 * 
+                 *
                  * @param rhs Value to compare to
-                 * 
+                 *
                  * @return true if the value are not equal
                  * @return false otherwise
                  */
-                inline bool operator!=(const Iterator& rhs) const { return index != rhs.index; } 
+                inline bool operator!=(const Iterator& rhs) const { return index != rhs.index; }
 
                 /**
                  * @brief Overload of the * operator
-                 * 
+                 *
                  * @return Comp* A pointer to the component stored recasted into the actual component
                  */
                 inline Comp* operator*() { return componentList[index]; }
 
                 /**
                  * @brief Overload of the * operator
-                 * 
+                 *
                  * @return Comp* A pointer to the component stored recasted into the actual component
                  */
                 inline const Comp* operator*() const { return componentList[index]; }
 
                 /**
                  * @brief Overload of the * operator
-                 * 
+                 *
                  * @return Comp* A pointer to the component stored recasted into the actual component
                  */
                 inline Comp* operator[](size_t i) { return componentList[i];}
 
                 /**
                  * @brief Overload of the * operator
-                 * 
+                 *
                  * @return Comp* A pointer to the component stored recasted into the actual component
                  */
                 inline const Comp* operator[](size_t i) const { return componentList[i];}
@@ -365,10 +365,10 @@ namespace pg
             protected:
                 /**
                  * @brief Construct a new Iterator object
-                 * 
+                 *
                  * @param pos The starting position in the component list array of the iterator
                  * @param componentList The component list to iterate over
-                 * 
+                 *
                  * This object can only be created from a ComponentSet List inside of a ComponentSet Object
                  */
                 Iterator(const size_t& pos, Comp **componentList) : index(pos), componentList(componentList) { LOG_THIS_MEMBER("Component Set List Iterator"); }
@@ -385,10 +385,10 @@ namespace pg
         public:
             /**
              * @brief Overload of the [] operator
-             * 
+             *
              * @param index Position in the component list
              * @return Comp* The pointer requested from the component list
-             * 
+             *
              * This helper operator is used to provide access to a component inside of the component list.
              * Be careful as the operator doesn't not check the bound of the list, this can throw an out of bound exception
              * Use with nbElement of the sparse set to be in bound
@@ -397,14 +397,14 @@ namespace pg
 
             /**
              * @brief Get the head iterator
-             * 
+             *
              * @return constexpr Iterator An iterator at the head of the component list
              */
             inline Iterator begin() const { LOG_THIS_MEMBER("Component Set List"); return head; }
 
             /**
              * @brief Get the tail iterator
-             * 
+             *
              * @return constexpr Iterator An iterator at the tail of the component list
              */
             inline Iterator end() const { LOG_THIS_MEMBER("Component Set List"); return tail; }
@@ -413,14 +413,14 @@ namespace pg
         public:
             /**
              * @brief Construct a copy of a Sparse Set List object
-             * 
+             *
              * @param other The Sparse Set List to copy
              */
             ComponentSetList(const ComponentSetList& other) : head(other.head), tail(other.head), componentList(other.componentList) { LOG_THIS_MEMBER("Component Set List"); }
 
             /**
              * @brief Get the number of components in the list
-             * 
+             *
              * @return size_t the number of components in the list
              */
             size_t nbComponents() const { LOG_THIS_MEMBER("Component Set List"); return tail.index; }
@@ -429,10 +429,10 @@ namespace pg
         protected:
             /**
              * @brief Construct a new Sparse Set List object
-             * 
+             *
              * @param size The current size of the component list
              * @param componentList The component list to iterate over
-             * 
+             *
              * This object can only be created from a SparseSet Object
              */
             ComponentSetList(const size_t& size, Comp **componentList) : head(1, componentList), tail(size, componentList), componentList(componentList) { LOG_THIS_MEMBER("Component Set List"); }
@@ -445,7 +445,7 @@ namespace pg
             Iterator tail;
 
             /** The component list to iterate over */
-            Comp **componentList;      
+            Comp **componentList;
         };
 
     public:
@@ -475,10 +475,10 @@ namespace pg
 
         /**
          * @brief Overload of the [] operator
-         * 
+         *
          * @param index Position in the component list
          * @return Comp* The pointer requested from the component list
-         * 
+         *
          * This helper operator is used to provide access to a component inside of the component list.
          * Be careful as the operator doesn't not check the bound of the list, this can throw an out of bound exception
          * Use with nbElement of the sparse set to be in bound
@@ -487,7 +487,7 @@ namespace pg
 
         /**
          * @brief Get a component from the entity id
-         * 
+         *
          * @param id Id of the entity
          * @return Comp* A pointer to the associated component
          */
@@ -495,7 +495,7 @@ namespace pg
 
         /**
          * @brief Reserve enough space in the set to hold the requested number of objects
-         * 
+         *
          * @param size The needed size of the set
          */
         void reserve(const size_t& size)
@@ -519,7 +519,7 @@ namespace pg
             delete[] componentList;
             componentList = tempComponentList;
             componentCapacity = targetCapacity;
-            
+
             pool.reserve(size);
         }
 
@@ -534,13 +534,15 @@ namespace pg
 
                 const auto index = find(id);
 
-                pool.release(componentList[index]);
+                Comp* old = componentList[index];
 
-                auto component = pool.allocate(std::forward<Args>(args)...);
+                // explicitly call destructor
+                old->~Comp();
 
-                componentList[index] = component;
+                // placement-new the new object into the *same* memory
+                new (old) Comp(std::forward<Args>(args)...);
 
-                return component;
+                return old;
             }
 
             const auto index = add(id);
@@ -559,7 +561,7 @@ namespace pg
             }
 
             lastEntityIndex = index;
-            
+
             // Todo: Test if allocating memory in a pool is faster than direct memory allocation with new
             auto component = pool.allocate(std::forward<Args>(args)...);
 
@@ -567,7 +569,7 @@ namespace pg
 
             return component;
         }
-        
+
         template <typename... Args>
         inline Comp* addComponent(const Entity* entity, Args&&... args)
         {
@@ -581,7 +583,7 @@ namespace pg
             LOG_THIS_MEMBER("Component Set");
 
             const auto index = remove(id);
-            
+
             if (index == 0)
             {
                 LOG_ERROR("Component Set", "Invalid index, entity was not removed");
@@ -594,7 +596,7 @@ namespace pg
             componentList[index] = componentList[--nbComponents];
 
             if (nbComponents <= 1)
-                nbComponents = 1; 
+                nbComponents = 1;
         }
 
         // TODO make a sparse set implementation that doesn't delete components on remove but instead reuse dead memory
@@ -607,10 +609,10 @@ namespace pg
 
         /**
          * @brief Expose a view of the component list to a system
-         * 
+         *
          * @tparam Comp The type of the component to cast the component stored in this list
          * @return ComponentSetList A view of the component list
-         * 
+         *
          * @warning Any operation on this view is invalid if the component list is updated
          */
         inline ComponentSetList viewComponents() const
@@ -640,21 +642,21 @@ namespace pg
 
     /**
      * @brief A container object used to store components
-     * 
+     *
      * This container is used to store components and the entity id they are associated with.
      * As entities ids as well as components id are unsigned value. The indice start at 1,
      * so that 0 indicates that the component doesn't exist or no entity was found.
-     * 
+     *
      * This container as:
      * - O(1) time complexity for both inserting and removing components
      * - O(1) time complexity for lookup
      * - O(n) time complexity for clear (as it delete all the components in memory)
      * - O(n) time complexity for iteration over components
-     * 
+     *
      * It also stores in memory the list of components of a given type
-     * 
+     *
      * @warning Never delete a ComponentSet through a SparseSet pointer
-     * 
+     *
      * @todo Make a sparse set implementation that doesn't delete components on remove but instead reuse dead memory
      */
     template <typename Comp>

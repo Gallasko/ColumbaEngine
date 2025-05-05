@@ -26,7 +26,6 @@ namespace pg
     {
     friend class EntitySystem;
     friend class CommandDispatcher;
-    friend class AllocatorPool<Entity, 1>;
     public:
         struct EntityHeld
         {
@@ -99,6 +98,14 @@ namespace pg
         // Entity(Entity&& mE)             = default;
         // Entity& operator=(Entity&& mE)  = default;
 
+        // Todo remove this as it is only for testing purposes
+        // 0 means that it can't be a valid entity !
+        Entity() : id(0), ecsRef(nullptr) {}
+
+        Entity(_unique_id id, EntitySystem *const ecs) noexcept : id(id), ecsRef(ecs) {}
+
+        ~Entity() noexcept { }
+
         inline bool has(const _unique_id& otherId) const noexcept
         {
             return std::find(componentList.begin(), componentList.end(), otherId) != componentList.end();
@@ -121,13 +128,6 @@ namespace pg
         //Todo overload operator delete to call ecsRef->deleteEntity(this);
 
     protected:
-        // Todo remove this as it is only for testing purposes
-        // 0 means that it can't be a valid entity !
-        Entity() : id(0), ecsRef(nullptr) {}
-
-        Entity(_unique_id id, EntitySystem *const ecs) noexcept : id(id), ecsRef(ecs) {}
-        ~Entity() noexcept { }
-
         friend void serialize<>(Archive& archive, const Entity& entity);
 
         // Todo use this destructor but set ecsRef to nullptr when calling it from deleteEntity of the ecs to not destroy the entity multiple time
