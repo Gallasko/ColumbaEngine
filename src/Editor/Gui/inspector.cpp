@@ -166,16 +166,19 @@ namespace pg
                     continue;
                 }
 
-                if (f.name == "x")
-                    comp->setText(std::to_string(pos->x));
-                else if (f.name == "y")
-                    comp->setText(std::to_string(pos->y));
-                else if (f.name == "z")
-                    comp->setText(std::to_string(pos->z));
-                else if (f.name == "width")
-                    comp->setText(std::to_string(pos->width));
-                else if (f.name == "height")
-                    comp->setText(std::to_string(pos->height));
+                // compute the new value string
+                std::string newVal;
+                if      (f.name == "x")      newVal = std::to_string(pos->x);
+                else if (f.name == "y")      newVal = std::to_string(pos->y);
+                else if (f.name == "z")      newVal = std::to_string(pos->z);
+                else if (f.name == "width")  newVal = std::to_string(pos->width);
+                else /* height */            newVal = std::to_string(pos->height);
+
+                // 1) update the visible text widget
+                comp->setText(newVal);
+
+                // 2) **also** write it back into your archive
+                *f.valuePointer = newVal;
             }
         }
 
