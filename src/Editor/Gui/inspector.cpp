@@ -60,17 +60,21 @@ namespace pg
 
             auto windowUi = windowEnt->get<UiAnchor>();
 
-            auto listView = makeListView(ecsRef, 1, 1, 300, 1);
+            auto listView = makeVerticalLayout(ecsRef, 1, 1, 300, 1, true);
 
-            ecsRef->attach<Texture2DComponent>(listView.entity, "TabTexture");
-
+            listView.get<PositionComponent>()->setZ(1);
             auto listViewUi = listView.get<UiAnchor>();
 
             listViewUi->setTopAnchor(windowUi->top);
             listViewUi->setBottomAnchor(windowUi->bottom);
             listViewUi->setRightAnchor(windowUi->right);
 
-            view = listView.get<ListView>();
+            auto listViewBackground = makeUiTexture(ecsRef, 0, 0, "TabTexture");
+
+            auto listViewBackgroundUi = listViewBackground.get<UiAnchor>();
+            listViewBackgroundUi->fillIn(listViewUi);
+
+            view = listView.get<VerticalLayout>();
         }
 
         void InspectorSystem::addNewText(const std::string& text)
@@ -82,9 +86,6 @@ namespace pg
             auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
 
             auto sentUi = sentence.get<PositionComponent>();
-
-            sentUi->setVisibility(false);
-            sentUi->setZ(1);
 
             view->addEntity(sentence.entity);
         }
@@ -100,9 +101,6 @@ namespace pg
             auto sentUi = sentence.get<PositionComponent>();
             auto sentAnchor = sentence.get<UiAnchor>();
 
-            sentUi->setVisibility(false);
-            sentUi->setZ(1);
-
             auto nbElements = inspectorText.size();
 
             auto valueInput = makeTTFTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), "res/font/Inter/static/Inter_28pt-Light.ttf", {value}, 0.4);
@@ -114,10 +112,7 @@ namespace pg
             auto valueInputUi = valueInput.get<PositionComponent>();
             auto valueInputAnchor = valueInput.get<UiAnchor>();
 
-            valueInputUi->setVisibility(false);
-            valueInputUi->setZ(1);
-
-            valueInputAnchor->setLeftAnchor(sentAnchor->right);
+            // valueInputAnchor->setLeftAnchor(sentAnchor->right);
 
             inspectorText.emplace_back(text, &value, valueInput.entity.id);
 

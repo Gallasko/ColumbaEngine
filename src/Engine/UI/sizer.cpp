@@ -21,8 +21,6 @@ namespace pg
 
             if (vLayout->scrollable)
                 entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
-
-            vLayout->visible = position->visible;
         });
 
         auto vClippedGroup = registerGroup<PositionComponent, VerticalLayout, ClippedTo>();
@@ -69,8 +67,6 @@ namespace pg
 
             if (hLayout->scrollable)
                 entity->world()->attach<MouseWheelComponent>(entity, StandardEvent{"layoutScroll", "id", entity->id});
-
-            hLayout->visible = position->visible;
         });
 
         auto hClippedGroup = registerGroup<PositionComponent, HorizontalLayout, ClippedTo>();
@@ -150,7 +146,6 @@ namespace pg
     {
         processScroll();
         processClear();
-        processVisibility();
         processAdd();
         processRemove();
         processChanged();
@@ -179,7 +174,7 @@ namespace pg
     void LayoutSystem::updateLayout(EntityRef viewEnt, BaseLayout* view)
     {
         recalculateChildrenPos(viewEnt, view);
-        updateVisibility(viewEnt, view, view->visible);
+        updateVisibility(viewEnt, view);
     }
 
     void LayoutSystem::processScroll()
@@ -267,31 +262,6 @@ namespace pg
             }
 
             clearQueue.pop();
-        }
-    }
-
-    void LayoutSystem::processVisibility()
-    {
-        while (not visibilityQueue.empty())
-        {
-            const auto& event = visibilityQueue.front();
-            auto ent = ecsRef->getEntity(event.id);
-
-            if (ent)
-            {
-                if (ent->has<HorizontalLayout>())
-                    ent->get<HorizontalLayout>()->visible = event.visible;
-
-                if (ent->has<VerticalLayout>())
-                    ent->get<VerticalLayout>()->visible = event.visible;
-
-                if (ent->has<PositionComponent>())
-                    ent->get<PositionComponent>()->visible = event.visible;
-
-                layoutUpdate.insert(ent);
-            }
-
-            visibilityQueue.pop();
         }
     }
 
@@ -908,15 +878,13 @@ namespace pg
         }
     }
 
-    void LayoutSystem::updateVisibility(EntityRef viewEnt, BaseLayout* view, bool visible)
+    void LayoutSystem::updateVisibility(EntityRef viewEnt, BaseLayout* view)
     {
-        view->visible = visible;
-
         auto& entities = view->entities;
 
         // Parent clipping bounds
         auto parentPos = viewEnt->template get<PositionComponent>();
-        auto observable = parentPos->isObservable();
+        auto renderable = parentPos->isRenderable();
 
         float parentTop    = parentPos->y;
         float parentBottom = parentPos->y + parentPos->height;
@@ -930,7 +898,7 @@ namespace pg
                 auto pos = ui->template get<PositionComponent>();
                 bool isCompVisible = false;
 
-                if (visible and observable)
+                if (renderable)
                 {
                     float childTop    = pos->y;
                     float childBottom = pos->y + pos->height;

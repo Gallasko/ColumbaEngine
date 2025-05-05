@@ -1029,7 +1029,7 @@ namespace pg
 
             if (nbVisible <= 1)
             {
-                categoryMap[category + "_main"]->get<VerticalLayout>()->setVisibility(false);
+                categoryMap[category + "_main"]->get<PositionComponent>()->setVisibility(false);
             }
         });
 
@@ -1187,7 +1187,7 @@ namespace pg
 
                     if (nbVisible <= 1)
                     {
-                        categoryMap[category + "_main"]->get<VerticalLayout>()->setVisibility(false);
+                        categoryMap[category + "_main"]->get<PositionComponent>()->setVisibility(false);
                     }
                 }
                 else
@@ -1305,7 +1305,7 @@ namespace pg
         // Create a vertical layout to hold the category title, separator, and button layout.
         auto categoryLayout = makeVerticalLayout(this, 30, 100, 500, 150); // Adjust x, y, width, height as needed.
         auto verticalLayout = categoryLayout.get<VerticalLayout>();
-        verticalLayout->setVisibility(false); // Initially hide the category layout.
+        categoryLayout.get<PositionComponent>()->setVisibility(false); // Initially hide the category layout.
         verticalLayout->spacing = 5; // Space between elements in the category panel.
 
         // 1. Category Name: Create a TTFText element for the category title.
@@ -1422,7 +1422,7 @@ namespace pg
 
                         categoryMap[it->category]->get<HorizontalLayout>()->addEntity(buttonEntity);
 
-                        categoryMap[it->category + "_main"]->get<VerticalLayout>()->setVisibility(true);
+                        categoryMap[it->category + "_main"]->get<PositionComponent>()->setVisibility(true);
                     }
                 }
                 else
@@ -1445,7 +1445,7 @@ namespace pg
 
                         if (nbVisible <= 1)
                         {
-                            categoryMap[category + "_main"]->get<VerticalLayout>()->setVisibility(false);
+                            categoryMap[category + "_main"]->get<PositionComponent>()->setVisibility(false);
                         }
                     }
                 }

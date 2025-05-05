@@ -6,7 +6,7 @@
 
 #include "2D/texture.h"
 
-#include "UI/listview.h"
+#include "UI/sizer.h"
 #include "UI/textinput.h"
 
 namespace pg
@@ -117,7 +117,7 @@ namespace pg
 
             std::vector<InspectedText> inspectorText;
 
-            CompRef<ListView> view;
+            CompRef<VerticalLayout> view;
 
             CompRef<UiComponent> tabUi;
 

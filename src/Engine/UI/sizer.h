@@ -27,11 +27,6 @@ namespace pg
         _unique_id id; _unique_id index; LayoutOrientation orientation;
     };
 
-    struct UpdateLayoutVisibility
-    {
-        _unique_id id; bool visible; LayoutOrientation orientation;
-    };
-
     struct UpdateLayoutScrollable
     {
         _unique_id id; bool scrollable; LayoutOrientation orientation;
@@ -81,11 +76,6 @@ namespace pg
             ecsRef->sendEvent(RemoveLayoutElementEvent{id, entityId, orientation});
         }
 
-        void setVisibility(bool vis)
-        {
-            ecsRef->sendEvent(UpdateLayoutVisibility{id, vis, orientation});
-        }
-
         void setScrollable(bool scrollable)
         {
             if (this->scrollable != scrollable)
@@ -104,7 +94,6 @@ namespace pg
         bool fitToAxis = false;
         bool spaced = false;
         size_t spacing = 0;
-        bool visible = true;
 
         // Scrollbar parameters
         EntityRef horizontalScrollBar, verticalScrollBar;
@@ -150,7 +139,6 @@ namespace pg
         Listener<EntityChangedEvent>,
         Listener<AddLayoutElementEvent>,
         Listener<RemoveLayoutElementEvent>,
-        Listener<UpdateLayoutVisibility>,
         Listener<ClearLayoutEvent>,
         Listener<UpdateLayoutScrollable>,
         Own<HorizontalLayout>,
@@ -171,11 +159,6 @@ namespace pg
         virtual void onEvent(const RemoveLayoutElementEvent& event) override
         {
             removeQueue.push(event);
-        }
-
-        virtual void onEvent(const UpdateLayoutVisibility& event) override
-        {
-            visibilityQueue.push(event);
         }
 
         virtual void onEvent(const ClearLayoutEvent& event) override
@@ -215,8 +198,6 @@ namespace pg
 
         void processClear();
 
-        void processVisibility();
-
         void processAdd();
 
         void processRemove();
@@ -229,7 +210,7 @@ namespace pg
 
         void removeEntity(BaseLayout* view, _unique_id index);
 
-        void updateVisibility(EntityRef viewEnt, BaseLayout* view, bool visible);
+        void updateVisibility(EntityRef viewEnt, BaseLayout* view);
 
         void clear(BaseLayout* view);
 
@@ -250,7 +231,6 @@ namespace pg
         std::queue<AddLayoutElementEvent> addQueue;
         std::queue<RemoveLayoutElementEvent> removeQueue;
         std::queue<ClearLayoutEvent> clearQueue;
-        std::queue<UpdateLayoutVisibility> visibilityQueue;
         std::queue<EntityChangedEvent> changedEntities;
         std::queue<UpdateLayoutScrollable> scrollableQueue;
 
