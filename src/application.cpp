@@ -223,6 +223,10 @@ void initGame()
         }
     });
 
+    inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent) {
+        LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
+    });
+
     // mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
