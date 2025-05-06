@@ -79,7 +79,7 @@ namespace pg
             if (not stopRequested)
                 running = true;
 
-            saveManager.execute();
+            saveManager._execute();
 
 #ifdef PROFILE
             // Record end time and compute elapsed time in nanoseconds.
@@ -194,7 +194,7 @@ namespace pg
                 // Todo time the whole exec of a run of the taskflow
                 auto start = std::chrono::steady_clock::now();
 #endif
-                system->execute();
+                system->_execute();
 
 #ifdef PROFILE
                 // Record end time and compute elapsed time in nanoseconds.
@@ -223,7 +223,7 @@ namespace pg
         }
         else if (system->executionPolicy == ExecutionPolicy::Independent)
         {
-            auto task = taskflow.emplace([system](){system->execute();}).name(std::to_string(system->_id));
+            auto task = taskflow.emplace([system](){system->_execute();}).name(std::to_string(system->_id));
 
             // Register the task in case we need to call precede and succeed
             tasks[system->_id] = task;

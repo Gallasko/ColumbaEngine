@@ -238,7 +238,7 @@ namespace pg
 
                     try
                     {
-                        system->execute();
+                        system->_execute();
                     }
                     catch (const std::exception& e)
                     {
@@ -288,7 +288,7 @@ namespace pg
                     auto start = std::chrono::steady_clock::now();
 #endif
 
-                    system->execute();
+                    system->_execute();
 
 #ifdef PROFILE
                     // Record end time and compute elapsed time in nanoseconds.
@@ -397,7 +397,7 @@ namespace pg
                     auto start = std::chrono::steady_clock::now();
 #endif
 
-                    system->execute();
+                    system->_execute();
 
 #ifdef PROFILE
                     // Record end time and compute elapsed time in nanoseconds.
@@ -431,7 +431,7 @@ namespace pg
                 if (name == "UnNamed")
                     name = std::to_string(system->_id);
 
-                auto task = taskflow.emplace([system](){system->execute();}).name(name);
+                auto task = taskflow.emplace([system](){system->_execute();}).name(name);
 
                 // Register the task in case we need to call precede and succeed
                 tasks[system->_id] = task;

@@ -4,6 +4,8 @@
 
 #include "logger.h"
 
+#include <queue>
+
 namespace pg
 {
     template<typename Event>
@@ -62,5 +64,21 @@ namespace pg
         std::vector<std::string> _stardardEventListenerList;
 
         ComponentRegistry* __stardardEventRegistry;
+    };
+
+    // Todo : Right now you cannot make QueuedListener and Listener of the same event cohabit, maybe fix this in the future
+    template<typename Event>
+    struct QueuedListener : public Listener<Event>
+    {
+        virtual void onProcessEvent(const Event& event) = 0;
+
+        virtual void onEvent(const Event& event) override
+        {
+            LOG_THIS_MEMBER("QueuedListener");
+
+            _eventQueue.push(event);
+        }
+
+        std::queue<Event> _eventQueue;
     };
 }
