@@ -8,6 +8,8 @@ namespace pg
 {
     struct ClearPrefabEvent { std::set<_unique_id> ids; };
 
+    struct SetMainEntityEvent { _unique_id prefabId; _unique_id entityId; };
+
     // Todo fix prefab runtime
     // Currently prefabs only works in events has the prefab need to be realized before adding other components to it
     struct Prefab : public Ctor, public Dtor
@@ -83,6 +85,11 @@ namespace pg
             childrenIds.insert(entity.id);
         }
 
+        void setMainEntity(EntityRef entity)
+        {
+            ecsRef->sendEvent(SetMainEntityEvent{id, entity->id});
+        }
+
         void update()
         {
             for (const auto& id : childrenIds)
@@ -131,7 +138,7 @@ namespace pg
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, Listener<ClearPrefabEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, Listener<ClearPrefabEvent>, Listener<SetMainEntityEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -217,6 +224,11 @@ namespace pg
             clearQueue.push(event);
         }
 
+        virtual void onEvent(const SetMainEntityEvent& event) override
+        {
+            setMainEntityQueue.push(event);
+        }
+
         virtual void execute() override
         {
             while (not clearQueue.empty())
@@ -230,9 +242,41 @@ namespace pg
 
                 clearQueue.pop();
             }
+
+            while (not setMainEntityQueue.empty())
+            {
+                const auto& event = setMainEntityQueue.front();
+
+                auto prefabEnt = ecsRef->getEntity(event.prefabId);
+                auto ent = ecsRef->getEntity(event.entityId);
+
+                // Todo support this for non anchored prefabs
+
+                if (not ent or not prefabEnt or not ent->has<UiAnchor>() or not prefabEnt->has<UiAnchor>() or not prefabEnt->has<Prefab>())
+                {
+                    LOG_ERROR("Prefab System", "Failed to set main entity for prefab " << event.prefabId << " and entity " << event.entityId << " !");
+                    return;
+                }
+
+                auto prefabAnchor = prefabEnt->get<UiAnchor>();
+                auto entAnchor = ent->get<UiAnchor>();
+
+                prefabAnchor->setWidthConstrain(PosConstrain{event.entityId, AnchorType::Width});
+                prefabAnchor->setHeightConstrain(PosConstrain{event.entityId, AnchorType::Height});
+
+                entAnchor->fillIn(prefabAnchor);
+                entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
+
+                auto prefab = prefabEnt->get<Prefab>();
+
+                prefab->addToPrefab(ent);
+
+                setMainEntityQueue.pop();
+            }
         }
 
         std::queue<ClearPrefabEvent> clearQueue;
+        std::queue<SetMainEntityEvent> setMainEntityQueue;
     };
 
     template <typename Type>
@@ -253,7 +297,7 @@ namespace pg
     }
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, Prefab> makeAnchoredPrefab(Type *ecs, float x = 0.0f, float y = 0.0f)
+    CompList<PositionComponent, UiAnchor, Prefab> makeAnchoredPrefab(Type *ecs, float x = 0.0f, float y = 0.0f, float z = 0.0f)
     {
         LOG_THIS("Prefab System");
 
@@ -263,6 +307,7 @@ namespace pg
 
         ui->setX(x);
         ui->setY(y);
+        ui->setZ(z);
 
         auto anchor = ecs->template attach<UiAnchor>(entity);
 

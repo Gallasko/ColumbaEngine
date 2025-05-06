@@ -2,6 +2,9 @@
 
 #include "Scene/scenemanager.h"
 
+#include "UI/prefab.h"
+#include "2D/simple2dobject.h"
+
 namespace pg
 {
 
@@ -284,15 +287,37 @@ namespace pg
             auto labelPos = labelEnt.get<PositionComponent>();
             rowView->addEntity(labelEnt.entity);
 
+            auto prefabEnt = makeAnchoredPrefab(ecs, 0, 0, 1);
+            auto prefabAnchor = prefabEnt.get<UiAnchor>();
+            auto prefab = prefabEnt.get<Prefab>();
+
             // Text input
+            auto background = makeUiSimple2DShape(ecs, Shape2D::Square, 140, 0, {55.f, 55.f, 55.f, 255.f});
+            auto backgroundPos = background.get<PositionComponent>();
+            auto backgroundAnchor = background.get<UiAnchor>();
+
+            prefab->setMainEntity(background.entity);
+
             auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "res/font/Inter/static/Inter_28pt-Light.ttf", { boundValue }, 0.4f);
             auto input = inputEnt.get<TextInputComponent>();
             auto inputPos = inputEnt.get<PositionComponent>();
+            auto inputAnchor = inputEnt.get<UiAnchor>();
 
             input->clearTextAfterEnter = false;
 
-            inputPos->setZ(1);
-            rowView->addEntity(inputEnt.entity);
+            inputPos->setZ(2);
+
+            backgroundAnchor->setHeightConstrain(PosConstrain{inputEnt.entity.id, AnchorType::Height, PosOpType::Add, 4.f});
+
+            inputAnchor->setTopAnchor(backgroundAnchor->top);
+            inputAnchor->setTopMargin(2.f);
+            inputAnchor->setLeftAnchor(backgroundAnchor->left);
+            inputAnchor->setLeftMargin(2.f);
+            inputAnchor->setRightAnchor(backgroundAnchor->right);
+            inputAnchor->setRightMargin(2.f);
+
+            prefab->addToPrefab(inputEnt.entity);
+            rowView->addEntity(prefabEnt.entity);
 
             sys->inspectorText.emplace_back(labelText, &boundValue, inputEnt.entity.id);
 
