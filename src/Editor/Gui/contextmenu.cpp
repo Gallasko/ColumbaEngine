@@ -122,23 +122,84 @@ namespace editor
         layout->get<PositionComponent>()->setVisibility(false);
     }
 
-    void ContextMenu::onEvent(const ShowContextMenu& event)
+    void ContextMenu::onProcessEvent(const ShowContextMenu& event)
     {
         LOG_THIS_MEMBER(DOM);
 
-        showEventQueue.push(event);
+        LOG_INFO(DOM, "Show context menu");
+
+        auto pos = event.inputHandler->getMousePos();
+
+        parentPos->setVisibility(true);
+
+        currentX = pos.x;
+        currentY = pos.y;
+
+        parentPos->setX(pos.x);
+        parentPos->setY(pos.y);
+
+        backgroundPos->setVisibility(true);
+
+        layout->get<PositionComponent>()->setVisibility(true);
     }
 
-    void ContextMenu::onEvent(const HideContextMenu& event)
+    void ContextMenu::onProcessEvent(const HideContextMenu&)
     {
         LOG_THIS_MEMBER(DOM);
 
-        hideEventQueue.push(event);
+        LOG_INFO(DOM, "Hide context menu");
+
+        hide();
     }
 
-    void ContextMenu::onEvent(const CreateElement& event)
+    void ContextMenu::onProcessEvent(const CreateElement& event)
     {
-        elementQueue.push(event);
+        switch(event.type)
+        {
+            case UiComponentType::TEXT:
+            {
+                auto newElement = makeTTFText(ecsRef, currentX, currentY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                ecsRef->attach<SceneElement>(newElement.entity);
+                break;
+            }
+
+            case UiComponentType::TTFTEXT:
+            {
+                auto newElement = makeTTFText(ecsRef, currentX, currentY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                ecsRef->attach<SceneElement>(newElement.entity);
+                break;
+            }
+
+            case UiComponentType::TEXTURE:
+            {
+                auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
+                newElement.get<PositionComponent>()->setX(currentX);
+                newElement.get<PositionComponent>()->setY(currentY);
+                ecsRef->attach<SceneElement>(newElement.entity);
+                break;
+            }
+
+            case UiComponentType::SHAPE2D:
+            {
+                auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
+                newElement.get<PositionComponent>()->setX(currentX);
+                newElement.get<PositionComponent>()->setY(currentY);
+                ecsRef->attach<SceneElement>(newElement.entity);
+                break;
+            }
+
+            case UiComponentType::TEXTINPUT:
+            {
+                auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
+                ecsRef->attach<SceneElement>(newElement.entity);
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        hide();
     }
 
     void ContextMenu::onEvent(const OpenFile&)
@@ -186,91 +247,6 @@ namespace editor
 
     void ContextMenu::execute()
     {
-        while (not elementQueue.empty())
-        {
-            LOG_INFO("Context Menu", "Create scene element");
-
-            auto& event = elementQueue.front();
-
-            switch(event.type)
-            {
-                case UiComponentType::TEXT:
-                {
-                    auto newElement = makeTTFText(ecsRef, currentX, currentY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
-                    ecsRef->attach<SceneElement>(newElement.entity);
-                    break;
-                }
-
-                case UiComponentType::TTFTEXT:
-                {
-                    auto newElement = makeTTFText(ecsRef, currentX, currentY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
-                    ecsRef->attach<SceneElement>(newElement.entity);
-                    break;
-                }
-
-                case UiComponentType::TEXTURE:
-                {
-                    auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
-                    newElement.get<PositionComponent>()->setX(currentX);
-                    newElement.get<PositionComponent>()->setY(currentY);
-                    ecsRef->attach<SceneElement>(newElement.entity);
-                    break;
-                }
-
-                case UiComponentType::SHAPE2D:
-                {
-                    auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
-                    newElement.get<PositionComponent>()->setX(currentX);
-                    newElement.get<PositionComponent>()->setY(currentY);
-                    ecsRef->attach<SceneElement>(newElement.entity);
-                    break;
-                }
-
-                case UiComponentType::TEXTINPUT:
-                {
-                    auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
-                    ecsRef->attach<SceneElement>(newElement.entity);
-                    break;
-                }
-
-                default:
-                    break;
-            }
-
-            hide();
-            elementQueue.pop();
-        }
-
-        while (not hideEventQueue.empty())
-        {
-            LOG_INFO("Context Menu", "Hide context");
-
-            hide();
-            hideEventQueue.pop();
-        }
-
-        while (not showEventQueue.empty())
-        {
-            auto& event = showEventQueue.front();
-
-            LOG_INFO("Context Menu", "Show context");
-
-            auto pos = event.inputHandler->getMousePos();
-
-            parentPos->setVisibility(true);
-
-            currentX = pos.x;
-            currentY = pos.y;
-
-            parentPos->setX(pos.x);
-            parentPos->setY(pos.y);
-
-            backgroundPos->setVisibility(true);
-
-            layout->get<PositionComponent>()->setVisibility(true);
-
-            showEventQueue.pop();
-        }
     }
 
 }

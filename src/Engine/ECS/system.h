@@ -148,13 +148,14 @@ namespace pg
         LOG_INFO("System", "Registering a queue listener to event '" << typeid(Event).name() << "' to the system.");
 
         system->_executionQueue.emplace_back([system]() {
-            while (not static_cast<QueuedListener<Event>*>(system)->_eventQueue.empty())
+            QueuedListener<Event>* castedSystem = static_cast<QueuedListener<Event>*>(system);
+            while (not castedSystem->_eventQueue.empty())
             {
-                const auto& event = static_cast<QueuedListener<Event>*>(system)->_eventQueue.front();
+                const auto& event = castedSystem->_eventQueue.front();
 
-                system->onEvent(event);
+                castedSystem->onProcessEvent(event);
 
-                static_cast<QueuedListener<Event>*>(system)->_eventQueue.pop();
+                castedSystem->_eventQueue.pop();
             }
         });
 
