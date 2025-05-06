@@ -204,7 +204,24 @@ void initGame()
 
     mainWindow->ecs.createSystem<MoveToSystem>();
     mainWindow->ecs.createSystem<ContextMenu>();
-    mainWindow->ecs.createSystem<InspectorSystem>();
+
+    auto inspector = mainWindow->ecs.createSystem<InspectorSystem>();
+
+    inspector->registerCustomDrawer("Entity", [](InspectorSystem* sys, SerializedInfoHolder& parent) {
+        LOG_INFO("Inspector", "Custom drawer for Entity");
+
+        for (auto& child : parent.children)
+        {
+            if (child.className != "")
+            {
+                sys->printChildren(child);
+            }
+            else
+            {
+                LOG_INFO("Inspector", "Entity: " << child.name);
+            }
+        }
+    });
 
     // mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();

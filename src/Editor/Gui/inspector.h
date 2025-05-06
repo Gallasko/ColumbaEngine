@@ -39,13 +39,31 @@ namespace pg
 
             void addNewAttribute(const std::string& text, const std::string& type, std::string& value);
 
-            void printChildren(SerializedInfoHolder& parent, size_t indentLevel);
+            void printChildren(SerializedInfoHolder& parent);
 
             virtual void onEvent(const EntityChangedEvent& event) override { eventQueue.push(event); }
 
             virtual void onEvent(const InspectEvent& event) override;
 
             virtual void onEvent(const NewSceneLoaded& event) override;
+
+            template <typename Comp>
+            void registerCustomDrawer(std::function<void(InspectorSystem*, SerializedInfoHolder&)> drawer)
+            {
+                if constexpr(HasStaticName<Comp>::value)
+                {
+                    customDrawers.emplace(Comp::getType(), drawer);
+                }
+                else
+                {
+                    LOG_ERROR("InspectorSystem", "Can't register custom drawer for non-named component: " << typeid(Comp).name());
+                }
+            }
+
+            void registerCustomDrawer(const std::string& type, std::function<void(InspectorSystem*, SerializedInfoHolder&)> drawer)
+            {
+                customDrawers.emplace(type, drawer);
+            }
 
             virtual void execute() override;
 
@@ -73,8 +91,12 @@ namespace pg
 
             std::queue<EntityChangedEvent> eventQueue;
 
+            std::unordered_map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&)>> customDrawers;
+
             _unique_id currentId = 0;
         };
+
+        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent);
 
         /**
          * Helper functions for building common Inspector UI widgets as prefabs.

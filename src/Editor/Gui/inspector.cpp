@@ -98,25 +98,18 @@ namespace pg
             InspectorWidgets::makeLabeledTextInput(ecsRef, view, text, value, this);
         }
 
-        void InspectorSystem::printChildren(SerializedInfoHolder& parent, size_t indentLevel)
+        void InspectorSystem::printChildren(SerializedInfoHolder& parent)
         {
-            // If no class name then we got an attribute
-            if (parent.className == "" and indentLevel > 2)
+            auto it = customDrawers.find(parent.className);
+
+            if (it != customDrawers.end())
             {
-                addNewAttribute(parent.name, parent.type, parent.value);
+                it->second(this, parent);
+                return;
             }
-            // We got a class name then it is a class ! So no type nor value
             else
             {
-                if (indentLevel > 1)
-                {
-                    addNewText(parent.className);
-                }
-            }
-
-            for (auto& child : parent.children)
-            {
-                printChildren(child, indentLevel + 1);
+                defaultInspectWidget(this, parent);
             }
         }
 
@@ -218,7 +211,10 @@ namespace pg
 
             serialize(archive, *event.entity.entity);
 
-            printChildren(archive.mainNode, 0);
+            for (auto& child : archive.mainNode.children)
+            {
+                printChildren(child);
+            }
 
             eventRequested = false;
         }
@@ -245,6 +241,25 @@ namespace pg
                 {
                     ecsRef->deserializeComponent(entity, child);
                 }
+            }
+        }
+
+        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent)
+        {
+            // If no class name then we got an attribute
+            if (parent.className == "")
+            {
+                sys->addNewAttribute(parent.name, parent.type, parent.value);
+            }
+            // We got a class name then it is a class ! So no type nor value
+            else
+            {
+                sys->addNewText(parent.className);
+            }
+
+            for (auto& child : parent.children)
+            {
+                sys->printChildren(child);
             }
         }
 
