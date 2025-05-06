@@ -480,42 +480,36 @@ namespace pg
                 pos->setX(currentX + view->contentWidth);
                 pos->setY(viewUi->y); // Align with the top of the parent layout
                 view->contentWidth += pos->width + view->spacing; // Move to the next position
+                view->contentHeight = std::max(view->contentHeight, pos->height);
             }
             else if (orientation == LayoutOrientation::Vertical)
             {
                 pos->setX(viewUi->x); // Align with the left of the parent layout
                 pos->setY(currentY + view->contentHeight);
                 view->contentHeight += pos->height + view->spacing; // Move to the next position
+                view->contentWidth = std::max(view->contentWidth, pos->width);
             }
         }
 
         // Todo the view is not properly placed if it is not sized to content !
         if (not view->scrollable)
         {
-            bool constrained = false;
+            bool hConstrained = false;
+            bool wConstrained = false;
 
             if (viewEnt->has<UiAnchor>())
             {
                 auto anchor = viewEnt->get<UiAnchor>();
 
-                if (orientation == LayoutOrientation::Horizontal)
-                {
-                    constrained = anchor->hasWidthConstrain or (anchor->hasRightAnchor and anchor->hasLeftAnchor);
-                }
-                else if (orientation == LayoutOrientation::Vertical)
-                {
-                    constrained = anchor->hasHeightConstrain or (anchor->hasTopAnchor and anchor->hasBottomAnchor);
-                }
+                wConstrained = anchor->hasWidthConstrain or (anchor->hasRightAnchor and anchor->hasLeftAnchor);
+                hConstrained = anchor->hasHeightConstrain or (anchor->hasTopAnchor and anchor->hasBottomAnchor);
             }
 
-            if (orientation == LayoutOrientation::Horizontal and not constrained)
-            {
+            if (not wConstrained)
                 viewUi->setWidth(view->contentWidth);
-            }
-            else if (orientation == LayoutOrientation::Vertical and not constrained)
-            {
+
+            if (not hConstrained)
                 viewUi->setHeight(view->contentHeight);
-            }
         }
     }
 

@@ -41,20 +41,23 @@ namespace pg
 
         void InspectorSystem::onEvent(const StandardEvent& event)
         {
-            LOG_INFO("Inspector", "Received event named: " << event.name << ", return value: " << event.values.at("return"));
+            if (event.name == "InspectorTextChanges")
+            {
+                LOG_INFO("Inspector", "Received event named: " << event.name << ", return value: " << event.values.at("return"));
 
-            auto id = event.values.at("id").get<size_t>();
+                auto id = event.values.at("id").get<size_t>();
 
-            LOG_INFO("Inspector", "Replacing text: " << *inspectorText.at(id).valuePointer << " with: " << event.values.at("return").toString());
+                LOG_INFO("Inspector", "Replacing text: " << *inspectorText.at(id).valuePointer << " with: " << event.values.at("return").toString());
 
-            *inspectorText.at(id).valuePointer = event.values.at("return").toString();
+                *inspectorText.at(id).valuePointer = event.values.at("return").toString();
 
-            needDeserialization = true;
+                needDeserialization = true;
+            }
         };
 
         void InspectorSystem::init()
         {
-            addListenerToStandardEvent("InspectorChanges");
+            addListenerToStandardEvent("InspectorTextChanges");
 
             auto windowEnt = ecsRef->getEntity("__MainWindow");
 
@@ -93,30 +96,6 @@ namespace pg
         void InspectorSystem::addNewAttribute(const std::string& text, const std::string& type, std::string& value)
         {
             InspectorWidgets::makeLabeledTextInput(ecsRef, view, text, value, this);
-
-            // auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
-
-            // auto sentUi = sentence.get<PositionComponent>();
-            // auto sentAnchor = sentence.get<UiAnchor>();
-
-            // auto nbElements = inspectorText.size();
-
-            // auto valueInput = makeTTFTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), "res/font/Inter/static/Inter_28pt-Light.ttf", {value}, 0.4);
-
-            // auto input = valueInput.get<TextInputComponent>();
-
-            // input->clearTextAfterEnter = false;
-
-            // auto valueInputUi = valueInput.get<PositionComponent>();
-            // auto valueInputAnchor = valueInput.get<UiAnchor>();
-
-            // // valueInputAnchor->setLeftAnchor(sentAnchor->right);
-
-            // inspectorText.emplace_back(text, &value, valueInput.entity.id);
-
-            // view->addEntity(sentence.entity);
-
-            // view->addEntity(valueInput.entity);
         }
 
         void InspectorSystem::printChildren(SerializedInfoHolder& parent, size_t indentLevel)
@@ -276,14 +255,14 @@ namespace pg
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
             // Horizontal row
-            auto row = makeHorizontalLayout(ecs, 0, 0, 0, 20);
+            auto row = makeHorizontalLayout(ecs, 0, 0, 0, 0);
             auto rowAnchor = row.get<UiAnchor>();
             auto rowView = row.get<HorizontalLayout>();
 
             rowAnchor->setWidthConstrain(PosConstrain{parentLayout->id, AnchorType::Width});
 
             rowView->spacing = 10;
-            // rowView->fitToAxis = true;
+            rowView->fitToAxis = true;
 
             // Label
             auto labelEnt = makeTTFText(ecs, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4f);
@@ -291,7 +270,7 @@ namespace pg
             rowView->addEntity(labelEnt.entity);
 
             // Text input
-            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorChanges", "id", sys->inspectorText.size()), "res/font/Inter/static/Inter_28pt-Light.ttf", { boundValue }, 0.4f);
+            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "res/font/Inter/static/Inter_28pt-Light.ttf", { boundValue }, 0.4f);
             auto input = inputEnt.get<TextInputComponent>();
             auto inputPos = inputEnt.get<PositionComponent>();
 
