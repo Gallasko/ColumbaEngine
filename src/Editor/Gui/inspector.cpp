@@ -92,33 +92,31 @@ namespace pg
 
         void InspectorSystem::addNewAttribute(const std::string& text, const std::string& type, std::string& value)
         {
-            std::string textTemp = text;
+            InspectorWidgets::makeLabeledTextInput(ecsRef, view, text, value, this);
 
-            std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
+            // auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
 
-            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
+            // auto sentUi = sentence.get<PositionComponent>();
+            // auto sentAnchor = sentence.get<UiAnchor>();
 
-            auto sentUi = sentence.get<PositionComponent>();
-            auto sentAnchor = sentence.get<UiAnchor>();
+            // auto nbElements = inspectorText.size();
 
-            auto nbElements = inspectorText.size();
+            // auto valueInput = makeTTFTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), "res/font/Inter/static/Inter_28pt-Light.ttf", {value}, 0.4);
 
-            auto valueInput = makeTTFTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), "res/font/Inter/static/Inter_28pt-Light.ttf", {value}, 0.4);
+            // auto input = valueInput.get<TextInputComponent>();
 
-            auto input = valueInput.get<TextInputComponent>();
+            // input->clearTextAfterEnter = false;
 
-            input->clearTextAfterEnter = false;
+            // auto valueInputUi = valueInput.get<PositionComponent>();
+            // auto valueInputAnchor = valueInput.get<UiAnchor>();
 
-            auto valueInputUi = valueInput.get<PositionComponent>();
-            auto valueInputAnchor = valueInput.get<UiAnchor>();
+            // // valueInputAnchor->setLeftAnchor(sentAnchor->right);
 
-            // valueInputAnchor->setLeftAnchor(sentAnchor->right);
+            // inspectorText.emplace_back(text, &value, valueInput.entity.id);
 
-            inspectorText.emplace_back(text, &value, valueInput.entity.id);
+            // view->addEntity(sentence.entity);
 
-            view->addEntity(sentence.entity);
-
-            view->addEntity(valueInput.entity);
+            // view->addEntity(valueInput.entity);
         }
 
         void InspectorSystem::printChildren(SerializedInfoHolder& parent, size_t indentLevel)
@@ -271,5 +269,41 @@ namespace pg
             }
         }
 
+        void InspectorWidgets::makeLabeledTextInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, std::string& boundValue, InspectorSystem* sys)
+        {
+            std::string textTemp = labelText;
+
+            std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
+
+            // Horizontal row
+            auto row = makeHorizontalLayout(ecs, 0, 0, 0, 20);
+            auto rowAnchor = row.get<UiAnchor>();
+            auto rowView = row.get<HorizontalLayout>();
+
+            rowAnchor->setWidthConstrain(PosConstrain{parentLayout->id, AnchorType::Width});
+
+            rowView->spacing = 10;
+            // rowView->fitToAxis = true;
+
+            // Label
+            auto labelEnt = makeTTFText(ecs, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4f);
+            auto labelPos = labelEnt.get<PositionComponent>();
+            rowView->addEntity(labelEnt.entity);
+
+            // Text input
+            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorChanges", "id", sys->inspectorText.size()), "res/font/Inter/static/Inter_28pt-Light.ttf", { boundValue }, 0.4f);
+            auto input = inputEnt.get<TextInputComponent>();
+            auto inputPos = inputEnt.get<PositionComponent>();
+
+            input->clearTextAfterEnter = false;
+
+            inputPos->setZ(1);
+            rowView->addEntity(inputEnt.entity);
+
+            sys->inspectorText.emplace_back(labelText, &boundValue, inputEnt.entity.id);
+
+            // Add the row into the parent vertical layout
+            parentLayout->addEntity(row.entity);
+        }
     }
 }

@@ -15,66 +15,6 @@ namespace pg
 
     namespace editor
     {
-        // struct SerializedInfoHolder
-        // {
-        //     SerializedInfoHolder() {}
-        //     SerializedInfoHolder(const std::string& className) : className(className) {}
-        //     SerializedInfoHolder(const std::string& name, const std::string& type, const std::string& value) : name(name), type(type), value(value) {}
-        //     SerializedInfoHolder(const SerializedInfoHolder& other) = delete;
-        //     SerializedInfoHolder(SerializedInfoHolder&& other) : className(std::move(other.className)), name(std::move(other.name)), type(std::move(other.type)), value(std::move(other.value)), parent(std::move(other.parent)), children(std::move(other.children)) {}
-
-        //     std::string className;
-        //     std::string name;
-        //     std::string type;
-        //     std::string value;
-
-        //     SerializedInfoHolder* parent;
-        //     std::vector<SerializedInfoHolder> children;
-        // };
-
-        // struct InspectorArchive : public Archive
-        // {
-        //     /** Start the serialization process of a class */
-        //     virtual void startSerialization(const std::string& className) override
-        //     {
-        //         auto& node = currentNode->children.emplace_back(className);
-
-        //         node.name = lastAttributeName;
-        //         lastAttributeName = "";
-
-        //         node.parent = currentNode;
-
-        //         currentNode = &node;
-        //     }
-
-        //     /** Start the serialization process of a class */
-        //     virtual void endSerialization() override
-        //     {
-        //         currentNode = currentNode->parent;
-        //     }
-
-        //     /** Put an Attribute in the serialization process*/
-        //     virtual void setAttribute(const std::string& value, const std::string& type = "") override
-        //     {
-        //         auto& attributeNode = currentNode->children.emplace_back(lastAttributeName, type, value);
-
-        //         attributeNode.parent = currentNode;
-
-        //         lastAttributeName = "";
-        //     }
-
-        //     virtual void setValueName(const std::string& name) override
-        //     {
-        //         lastAttributeName = name;
-        //     }
-
-        //     std::string lastAttributeName = "";
-
-        //     SerializedInfoHolder mainNode;
-
-        //     SerializedInfoHolder* currentNode = &mainNode;
-        // };
-
         struct InspectEvent { EntityRef entity; };
 
         struct ValueChanged { std::string valueName; std::string value; };
@@ -134,6 +74,24 @@ namespace pg
             std::queue<EntityChangedEvent> eventQueue;
 
             _unique_id currentId = 0;
+        };
+
+        /**
+         * Helper functions for building common Inspector UI widgets as prefabs.
+         */
+        class InspectorWidgets
+        {
+        public:
+            /**
+             * Creates a labeled text-input row and adds it to the given vertical layout.
+             *
+             * @param ecs         Pointer to the EntitySystem
+             * @param parentLayout   The Inspector's VerticalLayout to which to add this row
+             * @param labelText   The label to display on the left
+             * @param boundValue  Reference to the underlying std::string that backs the TextInputComponent
+             * @param onChange    StandardEvent to fire when the user commits a change
+             */
+            static void makeLabeledTextInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, std::string& boundValue, InspectorSystem* sys);
         };
     }
 

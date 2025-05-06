@@ -246,18 +246,8 @@ namespace pg
         while (not clearQueue.empty())
         {
             const auto& event = clearQueue.front();
-            auto ent = ecsRef->getEntity(event.id);
 
-            if (ent)
-            {
-                if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
-                    clear(ent->get<HorizontalLayout>());
-
-                if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
-                    clear(ent->get<VerticalLayout>());
-
-                layoutUpdate.insert(ent);
-            }
+            clear(event.entityIds);
 
             clearQueue.pop();
         }
@@ -914,15 +904,13 @@ namespace pg
         }
     }
 
-    void LayoutSystem::clear(BaseLayout* view)
+    void LayoutSystem::clear(const std::vector<_unique_id>& entityIds)
     {
-        for (auto ent : view->entities)
+        for (auto id : entityIds)
         {
-            entitiesInLayout.erase(ent.id);
-            ecsRef->removeEntity(ent);
+            entitiesInLayout.erase(id);
+            ecsRef->removeEntity(id);
         }
-
-        view->entities.clear();
     }
 
 }

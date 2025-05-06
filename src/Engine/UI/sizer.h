@@ -14,7 +14,7 @@ namespace pg
 
     struct ClearLayoutEvent
     {
-        _unique_id id; LayoutOrientation orientation;
+        std::vector<_unique_id> entityIds;
     };
 
     struct AddLayoutElementEvent
@@ -53,12 +53,18 @@ namespace pg
         return nb;
     }
 
-    struct BaseLayout : public Ctor
+    struct BaseLayout : public Ctor, public Dtor
     {
         virtual void onCreation(EntityRef entity) override
         {
             id = entity.id;
             ecsRef = entity.ecsRef;
+        }
+
+        virtual void onDeletion(EntityRef) override
+        {
+            if (clearOnDeletion)
+                clear();
         }
 
         void addEntity(EntityRef entity)
@@ -88,7 +94,18 @@ namespace pg
 
         void clear()
         {
-            ecsRef->sendEvent(ClearLayoutEvent{id, orientation});
+            std::vector<_unique_id> entityIds;
+            
+            entityIds.reserve(entities.size());
+
+            for (const auto& ent : entities)
+            {
+                entityIds.push_back(ent.id);
+            }
+
+            ecsRef->sendEvent(ClearLayoutEvent{entityIds});
+
+            entities.clear();
         }
 
         bool fitToAxis = false;
@@ -102,6 +119,8 @@ namespace pg
         float scrollSpeed = 25.0f;
 
         bool stickToEnd = false;
+
+        bool clearOnDeletion = true;
 
         // Private
 
@@ -204,6 +223,7 @@ namespace pg
 
         void processChanged();
 
+        // Todo calculate the lesser axis of the view (Biggest width for Vertical for example)
         void recalculateChildrenPos(EntityRef viewEnt, BaseLayout* view);
 
         void addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation);
@@ -212,7 +232,7 @@ namespace pg
 
         void updateVisibility(EntityRef viewEnt, BaseLayout* view);
 
-        void clear(BaseLayout* view);
+        void clear(const std::vector<_unique_id>& entityIds);
 
         void updateLayout(EntityRef viewEnt, BaseLayout* view);
 

@@ -68,7 +68,7 @@ namespace pg
 
             if (not entity or not entity->has<PositionComponent>())
             {
-                LOG_ERROR("PosConstrain", "Entity " << constrain.id << " does not have a PositionComponent!");
+                LOG_MILE("PosConstrain", "Entity " << constrain.id << " does not have a PositionComponent!");
                 return 0.0f;
             }
 
