@@ -155,6 +155,11 @@ namespace pg
             }
         }
 
+        void InspectorSystem::onProcessEvent(const EntityChangedEvent& event)
+        {
+            processEntityChanged(event);
+        }
+
         void InspectorSystem::onEvent(const InspectEvent& event)
         {
             if (currentId != event.entity.id)
@@ -174,14 +179,6 @@ namespace pg
 
         void InspectorSystem::execute()
         {
-            while (not eventQueue.empty())
-            {
-                const auto& event = eventQueue.front();
-                processEntityChanged(event);
-
-                eventQueue.pop();
-            }
-
             if (needUpdateEntity)
             {
                 ecsRef->sendEvent(EntityChangedEvent{currentId});

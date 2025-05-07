@@ -334,7 +334,7 @@ namespace pg
             EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
 
             // Position system need to execute to update the anchor values
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
@@ -427,7 +427,7 @@ namespace pg
             sys->reset();
 
             // Position system need to execute to update the anchor values
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
@@ -440,7 +440,7 @@ namespace pg
             EXPECT_EQ(sys->nbEventReceived, 2);
             sys->reset();
 
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
@@ -550,7 +550,7 @@ namespace pg
             anchor->setWidthConstrain(PosConstrain{entity2.id, AnchorType::Width, PosOpType::Add, 2.0f});
             anchor->setHeightConstrain(PosConstrain{entity2.id, AnchorType::Height, PosOpType::Sub, 3.0f});
 
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(pos->width, 7.0f);  // 5.0 + 2.0
             EXPECT_FLOAT_EQ(pos->height, 7.0f); // 10.0 - 3.0
@@ -588,7 +588,7 @@ namespace pg
             clippedPos->setWidth(20.0f);
             clippedPos->setHeight(20.0f);
 
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_TRUE(inClipBound(clippedEntity, 6.0f, 6.0f)); // Inside clipper bounds
             EXPECT_FALSE(inClipBound(clippedEntity, 11.0f, 11.0f)); // Outside clipper bounds
@@ -626,7 +626,7 @@ namespace pg
             childAnchor->setRightAnchor(parentAnchor->right);
             childAnchor->setBottomAnchor(parentAnchor->bottom);
 
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(childPos->x, 10.0f);
             EXPECT_FLOAT_EQ(childPos->y, 20.0f);
@@ -673,7 +673,7 @@ namespace pg
             childAnchor->setRightMargin(15.0f);
             childAnchor->setBottomMargin(20.0f);
 
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(childPos->x, 20.0f); // 10.0 + 10.0 (left margin)
             EXPECT_FLOAT_EQ(childPos->y, 25.0f); // 20.0 + 5.0 (top margin)
@@ -755,7 +755,7 @@ namespace pg
             grandChildAnchor->setTopAnchor(childAnchor->top);
             grandChildAnchor->setLeftAnchor(childAnchor->left);
 
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(grandChildPos->x, 10.0f);
             EXPECT_FLOAT_EQ(grandChildPos->y, 20.0f);

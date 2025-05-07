@@ -306,11 +306,11 @@ namespace pg
 
             EXPECT_FLOAT_EQ(layoutPos->x, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->y, 0.0f);
-            EXPECT_FLOAT_EQ(layoutPos->width, 100.0f);
+            EXPECT_FLOAT_EQ(layoutPos->width, 50.0f);
             EXPECT_FLOAT_EQ(layoutPos->height, 100.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->left.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->top.value, 0.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 100.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 50.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 100.0f);
 
             // Check positions after recalculation

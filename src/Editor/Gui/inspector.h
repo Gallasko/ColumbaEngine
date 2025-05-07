@@ -29,7 +29,7 @@ namespace pg
             _unique_id id;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, Listener<EntityChangedEvent>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -41,7 +41,7 @@ namespace pg
 
             void printChildren(SerializedInfoHolder& parent);
 
-            virtual void onEvent(const EntityChangedEvent& event) override { eventQueue.push(event); }
+            virtual void onProcessEvent(const EntityChangedEvent& event) override;
 
             virtual void onEvent(const InspectEvent& event) override;
 
@@ -88,8 +88,6 @@ namespace pg
             bool needUpdateEntity = false;
 
             bool needClear = false;
-
-            std::queue<EntityChangedEvent> eventQueue;
 
             std::unordered_map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&)>> customDrawers;
 

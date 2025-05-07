@@ -941,19 +941,6 @@ namespace pg
 
     void PositionComponentSystem::execute()
     {
-        while (not eventQueue.empty())
-        {
-            const auto& event = eventQueue.front();
-
-            if (not changedIds.count(event.id))
-            {
-                changedIds.insert(event.id);
-                pushChildrenInChange(changedIds, event.id);
-            }
-
-            eventQueue.pop();
-        }
-
         // std::set<_unique_id> modifiedIds;
         // std::set<_unique_id> impactedIds;
 

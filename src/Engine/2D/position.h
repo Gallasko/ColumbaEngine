@@ -268,7 +268,7 @@ namespace pg
     void serialize(Archive& archive, const PosConstrain& value);
 
     // Todo add Listener<ResizeEvent>,
-    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, Listener<PositionComponentChangedEvent>>
+    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, QueuedListener<PositionComponentChangedEvent>>
     {
         virtual std::string getSystemName() const override { return "Position System"; }
 
@@ -282,9 +282,13 @@ namespace pg
             parentalMap[event.parent].erase(event.id);
         }
 
-        virtual void onEvent(const PositionComponentChangedEvent& event) override
+        virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
         {
-            eventQueue.push(event);
+            if (not changedIds.count(event.id))
+            {
+                changedIds.insert(event.id);
+                pushChildrenInChange(changedIds, event.id);
+            }
         }
 
         void pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId);
@@ -294,8 +298,6 @@ namespace pg
         std::unordered_map<_unique_id, std::set<_unique_id>> parentalMap;
 
         std::set<_unique_id> changedIds;
-
-        std::queue<PositionComponentChangedEvent> eventQueue;
 
         bool updated = false;
     };
