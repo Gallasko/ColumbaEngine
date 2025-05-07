@@ -86,6 +86,10 @@ namespace pg
             listViewBackgroundUi->fillIn(listViewUi);
 
             view = listView.get<VerticalLayout>();
+
+            registerAttachableComponent<PositionComponent>();
+            registerAttachableComponent<UiAnchor>();
+            registerAttachableComponent<Simple2DObject>(Shape2D::Square);
         }
 
         void InspectorSystem::addNewText(const std::string& text)
@@ -101,7 +105,8 @@ namespace pg
             view->addEntity(sentence.entity);
         }
 
-        void InspectorSystem::addNewAttribute(const std::string& text, const std::string& type, std::string& value)
+        // Todo to remove type
+        void InspectorSystem::addNewAttribute(const std::string& text, const std::string&, std::string& value)
         {
             InspectorWidgets::makeLabeledTextInput(ecsRef, view, text, value, this);
         }
@@ -222,6 +227,48 @@ namespace pg
             }
 
             eventRequested = false;
+
+            auto row = makeHorizontalLayout(ecsRef, 0,0, 0,0);
+            row.get<HorizontalLayout>()->fitToAxis = true;
+            row.get<HorizontalLayout>()->spacing  = 8.f;
+
+            // label
+            auto label = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", "Add Component", 0.4f);
+            view->addEntity(label.entity);
+//
+            // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
+                // if (ev.button == SDL_BUTTON_LEFT) showAttachMenu = not showAttachMenu;
+            // };
+
+            // hook its click
+            // ecsRef->attach<OnEventComponent>(label.entity, f);
+
+            view->addEntity(row.entity);
+
+            // if (showAttachMenu)
+            // {
+                // clean up from last frame
+                for (auto e : attachMenuItems)
+                    ecsRef->removeEntity(e);
+
+                attachMenuItems.clear();
+
+                for (const auto& pair : attachableComponentMap)
+                {
+                    const auto& name = pair.first;
+
+                    auto item = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", name, 0.35f);
+                    // indent it a bit
+                    // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
+
+                    // clicking this line attaches that component
+
+                    ecsRef->attach<MouseLeftClickComponent>(item.entity, makeCallable<EditorAttachComponent>(name, currentId));
+
+                    view->addEntity(item.entity);
+                    attachMenuItems.push_back(item.entity);
+                }
+            // }
         }
 
         void InspectorSystem::deserializeCurrentEntity()
@@ -286,16 +333,16 @@ namespace pg
 
             // Label
             auto labelEnt = makeTTFText(ecs, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4f);
-            auto labelPos = labelEnt.get<PositionComponent>();
+            // auto labelPos = labelEnt.get<PositionComponent>();
             rowView->addEntity(labelEnt.entity);
 
             auto prefabEnt = makeAnchoredPrefab(ecs, 0, 0, 1);
-            auto prefabAnchor = prefabEnt.get<UiAnchor>();
+            // auto prefabAnchor = prefabEnt.get<UiAnchor>();
             auto prefab = prefabEnt.get<Prefab>();
 
             // Text input
             auto background = makeUiSimple2DShape(ecs, Shape2D::Square, 140, 0, {55.f, 55.f, 55.f, 255.f});
-            auto backgroundPos = background.get<PositionComponent>();
+            // auto backgroundPos = background.get<PositionComponent>();
             auto backgroundAnchor = background.get<UiAnchor>();
 
             prefab->setMainEntity(background.entity);

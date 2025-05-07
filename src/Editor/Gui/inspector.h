@@ -32,6 +32,23 @@ namespace pg
             float endX, endY;
         };
 
+        struct EditorAttachComponent
+        {
+            EditorAttachComponent(const std::string& name, _unique_id id) : name(name), id(id) {}
+            EditorAttachComponent(const EditorAttachComponent& rhs) : name(rhs.name), id(rhs.id) {}
+
+            EditorAttachComponent& operator=(const EditorAttachComponent& rhs)
+            {
+                name = rhs.name;
+                id = rhs.id;
+
+                return *this;
+            }
+
+            std::string name;
+            _unique_id id;
+        };
+
         struct InspectEvent { EntityRef entity; };
 
         struct ValueChanged { std::string valueName; std::string value; };
@@ -128,7 +145,7 @@ namespace pg
             float endX, endY;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -167,6 +184,20 @@ namespace pg
                 }
             }
 
+            virtual void onEvent(const EditorAttachComponent& event) override
+            {
+                auto ent = ecsRef->getEntity(event.id);
+
+                if (ent)
+                {
+                    attachableComponentMap[event.name](ent);
+
+                    // Todo only add the newly created component inspection at the end of the inspection layout,
+                    // currently this reload the whole entity information to the view which may not be intuitive for the user
+                    eventRequested = true;
+                }
+            }
+
             template <typename Comp>
             void registerCustomDrawer(std::function<void(InspectorSystem*, SerializedInfoHolder&)> drawer)
             {
@@ -183,6 +214,34 @@ namespace pg
             void registerCustomDrawer(const std::string& type, std::function<void(InspectorSystem*, SerializedInfoHolder&)> drawer)
             {
                 customDrawers.emplace(type, drawer);
+            }
+
+            template <typename Comp, typename... Args>
+            void registerAttachableComponent(const std::string& name, Args&&... args)
+            {
+                attachableComponentMap.emplace(name, [this, args...](EntityRef ent) {
+                    auto comp = ecsRef->template attach<Comp>(ent, args...);
+
+                    ecsRef->sendEvent(EntityChangedEvent{ent->id});
+                });
+            }
+
+            template <typename Comp, typename... Args>
+            void registerAttachableComponent(Args&&... args)
+            {
+                if constexpr(HasStaticName<Comp>::value)
+                {
+                    attachableComponentMap.emplace(Comp::getType(), [this, args...](EntityRef ent) {
+                        ecsRef->template attach<Comp>(ent, args...);
+
+                        ecsRef->sendEvent(EntityChangedEvent{ent->id});
+                    });
+                }
+                else
+                {
+                    LOG_ERROR("InspectorSystem", "Can't register custom attachable component for non-named component: " << typeid(Comp).name());
+                }
+
             }
 
             virtual void execute() override;
@@ -211,7 +270,11 @@ namespace pg
 
             bool needClear = false;
 
-            std::unordered_map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&)>> customDrawers;
+            std::map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&)>> customDrawers;
+
+            std::map<std::string, std::function<void(EntityRef)>> attachableComponentMap;
+            bool showAttachMenu = false;
+            std::vector<EntityRef> attachMenuItems;
 
             _unique_id currentId = 0;
         };

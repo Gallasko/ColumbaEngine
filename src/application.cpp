@@ -240,7 +240,7 @@ void initGame()
         }
     });
 
-    inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent) {
+    inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&) {
         LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
     });
 
