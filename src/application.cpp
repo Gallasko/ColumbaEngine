@@ -101,7 +101,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     }
 };
 
-struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, InitSys>
+struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<ConfiguredKeyEventReleased<EditorKeyConfig>>, InitSys>
 {
     _unique_id draggingEntity = 0;
     float offsetX = 0.f, offsetY = 0.f;
@@ -118,6 +118,20 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         else if (e.value == EditorKeyConfig::Redo)
         {
             LOG_INFO(DOM, "Redo");
+            // ecsRef->sendEvent(RedoEvent{});
+        }
+    }
+
+    virtual void onEvent(const ConfiguredKeyEventReleased<EditorKeyConfig>& e) override
+    {
+        if (e.value == EditorKeyConfig::Undo)
+        {
+            LOG_INFO(DOM, "Undo Released");
+            // ecsRef->sendEvent(UndoEvent{});
+        }
+        else if (e.value == EditorKeyConfig::Redo)
+        {
+            LOG_INFO(DOM, "Redo Released");
             // ecsRef->sendEvent(RedoEvent{});
         }
     }

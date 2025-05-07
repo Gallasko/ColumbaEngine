@@ -45,7 +45,7 @@ namespace pg
     struct DefaultScancode
     {
         DefaultScancode(const std::string& name, const SDL_Scancode& code, const Uint16& mod = KMOD_NONE) : name(name), code(code), mod(mod) {}
-        DefaultScancode(const DefaultScancode& other) : name(other.name), code(other.code) {}
+        DefaultScancode(const DefaultScancode& other) : name(other.name), code(other.code), mod(other.mod) {}
 
         DefaultScancode& operator=(const DefaultScancode& other)
         {
@@ -61,10 +61,27 @@ namespace pg
         Uint16 mod;
     };
 
+    struct ModdedSDLScancode
+    {
+        ModdedSDLScancode(const SDL_Scancode& code, const Uint16& mod = KMOD_NONE) : code(code), mod(mod) {}
+        ModdedSDLScancode(const ModdedSDLScancode& other) : code(other.code), mod(other.mod) {}
+
+        ModdedSDLScancode& operator=(const ModdedSDLScancode& other)
+        {
+            code = other.code;
+            mod = other.mod;
+
+            return *this;
+        }
+
+        SDL_Scancode code;
+        Uint16 mod;
+    };
+
     // template <typename Type>
     struct ChangeKeyBind
     {
-        ChangeKeyBind(const std::any& value, const SDL_Scancode& oldCode, const SDL_Scancode& newCode) : value(value), oldCode(oldCode), newCode(newCode) {}
+        ChangeKeyBind(const std::any& value, const ModdedSDLScancode& oldCode, const ModdedSDLScancode& newCode) : value(value), oldCode(oldCode), newCode(newCode) {}
         ChangeKeyBind(const ChangeKeyBind& other) : value(other.value), oldCode(other.oldCode), newCode(other.newCode) {}
 
         ChangeKeyBind& operator=(const ChangeKeyBind& other)
@@ -78,41 +95,25 @@ namespace pg
 
         // Todo make it a template instead of any here
         std::any value;
-        SDL_Scancode oldCode;
-        SDL_Scancode newCode;
+        ModdedSDLScancode oldCode;
+        ModdedSDLScancode newCode;
     };
 
     // Todo make this more generic and enable the fact to change the control during runtime
 
     template <typename Type>
-    class ConfiguredKeySystem : public System<Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>, Listener<ChangeKeyBind>, InitSys>
+    class ConfiguredKeySystem : public System<Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>, QueuedListener<ChangeKeyBind>, InitSys>
     {
     private:
         struct KeyState
         {
-            KeyState(const SDL_Scancode& code, bool pressed) : code(code), pressed(pressed) {}
-            KeyState(const KeyState& other) : code(other.code), pressed(other.pressed) {}
+            KeyState(const SDL_Scancode& code, const Uint16& mod, bool pressed) : code(code), mod(mod), pressed(pressed) {}
+            KeyState(const KeyState& other) : code(other.code), mod(other.mod), pressed(other.pressed) {}
 
             KeyState& operator=(const KeyState& other)
             {
                 code = other.code;
                 pressed = other.pressed;
-
-                return *this;
-            }
-
-            SDL_Scancode code;
-            bool pressed;
-        };
-
-        struct ModdedSDLScancode
-        {
-            ModdedSDLScancode(const SDL_Scancode& code, const Uint16& mod) : code(code), mod(mod) {}
-            ModdedSDLScancode(const ModdedSDLScancode& other) : code(other.code), mod(other.mod) {}
-
-            ModdedSDLScancode& operator=(const ModdedSDLScancode& other)
-            {
-                code = other.code;
                 mod = other.mod;
 
                 return *this;
@@ -120,6 +121,7 @@ namespace pg
 
             SDL_Scancode code;
             Uint16 mod;
+            bool pressed;
         };
 
         struct TypeHolder
@@ -153,67 +155,78 @@ namespace pg
 
         }
 
-        virtual void onEvent(const ChangeKeyBind& event) override
+        virtual void onProcessEvent(const ChangeKeyBind& event) override
         {
-            changeEventQueue.emplace(event);
+            Type configValue = std::any_cast<Type>(event.value);
+
+            auto it = std::find_if(scancodeToType.begin(), scancodeToType.end(), [&](auto &pair){ return pair.first.code == event.oldCode.code and pair.first.mod  == event.oldCode.mod;});
+
+            if (it == scancodeToType.end())
+            {
+                LOG_ERROR("Keyconfig", "Wrong old code given !");
+                return;
+            }
+
+            auto &holders = it->second;
+
+            auto it2 = std::find_if(holders.begin(), holders.end(),[&](auto &h){ return h.code == configValue; });
+
+            std::string name;
+
+            if (it2 != holders.end())
+            {
+                name = it2->name;
+                LOG_INFO("Keyconfig", "Removing name: " << name);
+                holders.erase(it2);
+            }
+            else
+            {
+                LOG_ERROR("Keyconfig", "Wrong old code given !");
+                return;
+            }
+
+            auto it3 = std::find_if(scancodeToType.begin(), scancodeToType.end(), [&](auto &pair){ return pair.first.code == event.newCode.code and pair.first.mod  == event.newCode.mod;});
+
+            if (it3 == scancodeToType.end())
+            {
+                scancodeToType.emplace_back(ModdedSDLScancode{event.newCode.code, event.newCode.mod}, std::vector<TypeHolder>{ TypeHolder{name, configValue} });
+            }
+            else
+                it3->second.emplace_back(name, configValue);
+
+            ecsRef->sendEvent(SaveElementEvent{name + "_key", event.newCode.code});
+            ecsRef->sendEvent(SaveElementEvent{name + "_mod", event.newCode.mod});
         }
 
         virtual void onEvent(const OnSDLScanCode& event) override
         {
-            eventQueue.emplace(event.key, true);
+            eventQueue.emplace(event.key, event.mod, true);
         }
 
         virtual void onEvent(const OnSDLScanCodeReleased& event) override
         {
-            eventQueue.emplace(event.key, false);
+            eventQueue.emplace(event.key, event.mod, false);
         }
 
         virtual void execute() override
         {
-            while (not changeEventQueue.empty())
-            {
-                const auto& event = changeEventQueue.front();
-
-                Type configValue = std::any_cast<Type>(event.value);
-
-                auto& list = scancodeToType[event.oldCode];
-
-                auto it = std::find_if(list.begin(), list.end(), [&configValue](const TypeHolder& holder) { return holder.code == configValue; } );
-
-                std::string name;
-
-                if (it != list.end())
-                {
-                    name = it->name;
-                    LOG_INFO("Keyconfig", "Removing name: " << name);
-                    list.erase(it);
-                }
-                else
-                {
-                    LOG_ERROR("Keyconfig", "Wrong old code given !");
-                }
-
-                scancodeToType[event.newCode].emplace_back(name, configValue);
-
-                ecsRef->sendEvent(SaveElementEvent{name, event.newCode});
-
-                changeEventQueue.pop();
-            }
-
             while (not eventQueue.empty())
             {
                 const auto& event = eventQueue.front();
 
-                const auto& it = scancodeToType.find(event.code);
+                // Todo need to handle special cases for special keys (the mod key like ctrl, shift, alt, etc...) because we don't trigger correctly the key event released
 
-                if (it != scancodeToType.end())
+                for (auto& pair : scancodeToType)
                 {
-                    for (const auto& eventValue : it->second)
+                    if (pair.first.code == event.code and (pair.first.mod & event.mod))
                     {
-                        if (event.pressed)
-                            ecsRef->sendEvent(ConfiguredKeyEvent<Type>{eventValue.code});
-                        else
-                            ecsRef->sendEvent(ConfiguredKeyEventReleased<Type>{eventValue.code});
+                        for (auto& holder : pair.second)
+                        {
+                            if (event.pressed)
+                                ecsRef->sendEvent(ConfiguredKeyEvent<Type>{holder.code});
+                            else
+                                ecsRef->sendEvent(ConfiguredKeyEventReleased<Type>{holder.code});
+                        }
                     }
                 }
 
@@ -227,27 +240,42 @@ namespace pg
         {
             for (const auto& defaultKey : defaultMap)
             {
-                auto savedKey = ecsRef->getSavedData(defaultKey.second.name);
+                auto savedKey = ecsRef->getSavedData(defaultKey.second.name + "_key");
+                auto savedMod = ecsRef->getSavedData(defaultKey.second.name + "_mod");
 
                 SDL_Scancode keyCode = defaultKey.second.code;
+                Uint16 mod = defaultKey.second.mod;
 
-                LOG_INFO("Key Config", "Event named " << defaultKey.second.name << ", has key : " << keyCode << ", saved data: " << savedKey.toString());
+                LOG_INFO("Key Config", "Event named " << defaultKey.second.name << ", has key : " << keyCode << ", saved data: " << savedKey.toString() << ", has mod : " << mod << ", saved data: " << savedMod.toString());
 
                 if (not savedKey.isEmpty() and savedKey.isNumber())
                 {
                     keyCode = static_cast<SDL_Scancode>(savedKey.template get<int>());
                 }
 
-                ecsRef->sendEvent(SaveElementEvent{defaultKey.second.name, keyCode});
+                if (not savedMod.isEmpty() and savedMod.isNumber())
+                {
+                    mod = static_cast<Uint16>(savedMod.template get<int>());
+                }
 
-                scancodeToType[keyCode].emplace_back(defaultKey.second.name, defaultKey.first);
+                ecsRef->sendEvent(SaveElementEvent{defaultKey.second.name + "_key", keyCode});
+                ecsRef->sendEvent(SaveElementEvent{defaultKey.second.name + "_mod", mod});
+
+                auto it = std::find_if(scancodeToType.begin(), scancodeToType.end(), [&](auto &pair){ return pair.first.code == keyCode and pair.first.mod == mod;});
+
+                if (it == scancodeToType.end())
+                {
+                    scancodeToType.emplace_back(ModdedSDLScancode{keyCode, mod}, std::vector<TypeHolder>{ TypeHolder{defaultKey.second.name, defaultKey.first} });
+                }
+                else
+                    it->second.emplace_back(defaultKey.second.name, defaultKey.first);
             }
         }
 
     private:
         DefaultScancodeMap defaultMap;
 
-        std::unordered_map<SDL_Scancode, std::vector<TypeHolder>> scancodeToType;
+        std::vector<std::pair<ModdedSDLScancode, std::vector<TypeHolder>>> scancodeToType;
 
         std::queue<KeyState> eventQueue;
 
