@@ -557,6 +557,11 @@ namespace pg
             registry.deserializeComponentToEntity(serializedObject, entity);
         }
 
+        void detach(const std::string& name, EntityRef entity) noexcept
+        {
+            registry.detachComponentFromEntity(name, entity);
+        }
+
         template <typename Type>
         void detach(Entity* entity) noexcept
         {
@@ -888,6 +893,10 @@ namespace pg
 
                 ecsRef->attach<Type>(entity, comp);
             });
+
+            componentDetachMap.emplace(Type::getType(), [this](EntityRef entity) {
+                ecsRef->detach<Type>(entity);
+            });
         }
 
         componentStorageMap.emplace(id, owner);
@@ -917,6 +926,11 @@ namespace pg
             if (const auto& it = componentDeserializeMap.find(Type::getType()); it != componentDeserializeMap.end())
             {
                 componentDeserializeMap.erase(it);
+            }
+
+            if (const auto& it = componentDetachMap.find(Type::getType()); it != componentDetachMap.end())
+            {
+                componentDetachMap.erase(it);
             }
         }
 

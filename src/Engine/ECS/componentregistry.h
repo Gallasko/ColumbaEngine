@@ -393,6 +393,20 @@ namespace pg
             }
         }
 
+        inline void detachComponentFromEntity(const std::string& name, EntityRef entity) const
+        {
+            const auto& it = componentDetachMap.find(name);
+
+            if (it != componentDetachMap.end())
+            {
+                it->second(entity);
+            }
+            else
+            {
+                LOG_ERROR("Component Registry", "Couldn't detach comp: " << name);
+            }
+        }
+
         void saveSystem(std::function<void(Archive&)> f, const std::string& objectName)
         {
             Serializer::ClassSerializer ar(&systemSerializer, objectName);
@@ -468,6 +482,7 @@ namespace pg
         std::unordered_map<_unique_id, std::function<void(Entity*)>> componentDeleteMap;
         std::unordered_map<_unique_id, std::function<void(Archive&, const Entity*)>> componentSerializeMap;
         std::unordered_map<std::string, std::function<void(const UnserializedObject&, EntityRef)>> componentDeserializeMap;
+        std::unordered_map<std::string, std::function<void(EntityRef)>> componentDetachMap;
         std::unordered_map<_unique_id, void*> groupStorageMap;
         std::unordered_map<_unique_id, std::unordered_map<intptr_t, std::function<void(const std::any&)>>> eventStorageMap;
         std::unordered_map<std::string, std::unordered_map<intptr_t, std::function<void(const StandardEvent&)>>> standardEventStorageMap;

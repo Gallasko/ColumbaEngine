@@ -145,6 +145,21 @@ namespace pg
             float endX, endY;
         };
 
+        struct InspectorSystem;
+
+        struct AttachComponentCommand : public InspectorCommands
+        {
+            AttachComponentCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id id, const std::string& name) : inspectorSys(inspectorSys), ecsRef(ecsRef), id(id), name(name) {}
+
+            virtual void execute() override;
+            virtual void undo() override;
+
+            InspectorSystem *inspectorSys;
+            EntitySystem *ecsRef;
+            _unique_id id;
+            std::string name;
+        };
+
         struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
@@ -186,16 +201,7 @@ namespace pg
 
             virtual void onEvent(const EditorAttachComponent& event) override
             {
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (ent)
-                {
-                    attachableComponentMap[event.name](ent);
-
-                    // Todo only add the newly created component inspection at the end of the inspection layout,
-                    // currently this reload the whole entity information to the view which may not be intuitive for the user
-                    eventRequested = true;
-                }
+                history.execute(std::make_unique<AttachComponentCommand>(this, ecsRef, event.id, event.name));
             }
 
             template <typename Comp>
@@ -203,7 +209,7 @@ namespace pg
             {
                 if constexpr(HasStaticName<Comp>::value)
                 {
-                    customDrawers.emplace(Comp::getType(), drawer);
+                    registerCustomDrawer(Comp::getType(), drawer);
                 }
                 else
                 {
@@ -216,11 +222,13 @@ namespace pg
                 customDrawers.emplace(type, drawer);
             }
 
+            // Todo maybe add a function to add special detach function for certain type of components
+            // Or maybe move this to the component registry
             template <typename Comp, typename... Args>
             void registerAttachableComponent(const std::string& name, Args&&... args)
             {
                 attachableComponentMap.emplace(name, [this, args...](EntityRef ent) {
-                    auto comp = ecsRef->template attach<Comp>(ent, args...);
+                    ecsRef->template attach<Comp>(ent, args...);
 
                     ecsRef->sendEvent(EntityChangedEvent{ent->id});
                 });
@@ -229,19 +237,9 @@ namespace pg
             template <typename Comp, typename... Args>
             void registerAttachableComponent(Args&&... args)
             {
-                if constexpr(HasStaticName<Comp>::value)
-                {
-                    attachableComponentMap.emplace(Comp::getType(), [this, args...](EntityRef ent) {
-                        ecsRef->template attach<Comp>(ent, args...);
+                const std::string& name = Comp::getType();
 
-                        ecsRef->sendEvent(EntityChangedEvent{ent->id});
-                    });
-                }
-                else
-                {
-                    LOG_ERROR("InspectorSystem", "Can't register custom attachable component for non-named component: " << typeid(Comp).name());
-                }
-
+                registerAttachableComponent<Comp>(name, args...);
             }
 
             virtual void execute() override;
