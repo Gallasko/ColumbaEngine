@@ -20,7 +20,7 @@ namespace pg
             return *this;
         }
 
-        inline static std::string getType() { return "SaveData"; } 
+        inline static std::string getType() { return "SaveData"; }
 
         std::unordered_map<std::string, ElementType> elements;
     };
@@ -69,7 +69,7 @@ namespace pg
         ElementType element;
     };
 
-    class SaveManager : public System<Listener<SaveElementEvent>, StoragePolicy>
+    class SaveManager : public System<QueuedListener<SaveElementEvent>, StoragePolicy>
     {
     public:
         SaveManager(const std::string& savePath);
@@ -78,7 +78,7 @@ namespace pg
 
         virtual void execute() override;
 
-        virtual void onEvent(const SaveElementEvent& event) override;
+        virtual void onProcessEvent(const SaveElementEvent& event) override;
 
         ElementType getValue(const std::string& id) const;
 
@@ -91,7 +91,7 @@ namespace pg
     private:
         SaveFile currentSave;
 
-        std::queue<SaveElementEvent> eventQueue;
+        bool needSave = false;
 
         Serializer serializer;
     };

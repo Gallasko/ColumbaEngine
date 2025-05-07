@@ -142,12 +142,6 @@ namespace pg
 
     void LayoutSystem::execute()
     {
-        processScroll();
-        processClear();
-        processAdd();
-        processRemove();
-        processChanged();
-
         for (auto ent : layoutUpdate)
         {
             if (not ent->has<PositionComponent>())
@@ -175,29 +169,23 @@ namespace pg
         updateVisibility(viewEnt, view);
     }
 
-    void LayoutSystem::processScroll()
+    void LayoutSystem::onProcessEvent(const UpdateLayoutScrollable& event)
     {
-        while (not scrollableQueue.empty())
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (ent)
         {
-            const auto& event = scrollableQueue.front();
-            auto ent = ecsRef->getEntity(event.id);
-
-            if (ent)
+            if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
             {
-                if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
-                {
-                    processScrollHelper(ent, ent->get<HorizontalLayout>(), event.scrollable);
-                }
-
-                if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
-                {
-                    processScrollHelper(ent, ent->get<VerticalLayout>(), event.scrollable);
-                }
-
-                layoutUpdate.insert(ent);
+                processScrollHelper(ent, ent->get<HorizontalLayout>(), event.scrollable);
             }
 
-            scrollableQueue.pop();
+            if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
+            {
+                processScrollHelper(ent, ent->get<VerticalLayout>(), event.scrollable);
+            }
+
+            layoutUpdate.insert(ent);
         }
     }
 
@@ -241,131 +229,89 @@ namespace pg
         }
     }
 
-    void LayoutSystem::processClear()
+    void LayoutSystem::onProcessEvent(const ClearLayoutEvent& event)
     {
-        while (not clearQueue.empty())
+        clear(event.entityIds);
+    }
+
+    void LayoutSystem::onProcessEvent(const AddLayoutElementEvent& event)
+    {
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (ent and (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>()))
         {
-            const auto& event = clearQueue.front();
+            entitiesInLayout.insert(event.id);
+            addEntity(ent, event.ui, event.orientation);
 
-            clear(event.entityIds);
-
-            clearQueue.pop();
+            layoutUpdate.insert(ent);
         }
     }
 
-    void LayoutSystem::processAdd()
+    void LayoutSystem::onProcessEvent(const RemoveLayoutElementEvent& event)
     {
-        while (not addQueue.empty())
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (ent)
         {
-            const auto& event = addQueue.front();
-            auto ent = ecsRef->getEntity(event.id);
-
-            if (ent and (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>()))
+            if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
             {
-                entitiesInLayout.insert(event.id);
-                addEntity(ent, event.ui, event.orientation);
-
-                layoutUpdate.insert(ent);
+                removeEntity(ent->get<HorizontalLayout>(), event.index);
             }
 
-            addQueue.pop();
+            if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
+            {
+                removeEntity(ent->get<VerticalLayout>(), event.index);
+            }
+
+            entitiesInLayout.erase(event.id);
+
+            layoutUpdate.insert(ent);
         }
     }
 
-    void LayoutSystem::processRemove()
+    void LayoutSystem::onProcessEvent(const EntityChangedEvent& event)
     {
-        while (not removeQueue.empty())
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (not ent)
         {
-            const auto& event = removeQueue.front();
-            auto ent = ecsRef->getEntity(event.id);
-
-            if (ent)
-            {
-                if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
-                {
-                    removeEntity(ent->get<HorizontalLayout>(), event.index);
-                }
-
-                if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
-                {
-                    removeEntity(ent->get<VerticalLayout>(), event.index);
-                }
-
-                entitiesInLayout.erase(event.id);
-
-                layoutUpdate.insert(ent);
-            }
-
-            removeQueue.pop();
+            return;
         }
-    }
 
-    void LayoutSystem::processChanged()
-    {
-        while (not changedEntities.empty())
+        if (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>())
         {
-            const auto& event = changedEntities.front();
-            auto ent = ecsRef->getEntity(event.id);
+            layoutUpdate.insert(ent);
+            return;
+        }
 
-            if (not ent)
+        // If entity is not in a layout anymore we can skip the heavy lookup in layouts
+        if (not entitiesInLayout.count(ent->id))
+        {
+            return;
+        }
+
+        // Todo maybe add a flag to all the entity put in a layout so we can just check for the flag presence and get rid of this
+        // An entity should not be in multple layouts at the same time
+        for (auto v : view<HorizontalLayout>())
+        {
+            const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+
+            if (it != v->entities.end())
             {
-                changedEntities.pop();
-                continue;
+                layoutUpdate.insert(ecsRef->getEntity(v->id));
+                return;
             }
+        }
 
-            if (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>())
+        for (auto v : view<VerticalLayout>())
+        {
+            const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+
+            if (it != v->entities.end())
             {
-                layoutUpdate.insert(ent);
-                changedEntities.pop();
-                continue;
+                layoutUpdate.insert(ecsRef->getEntity(v->id));
+                return;
             }
-
-            // If entity is not in a layout anymore we can skip the heavy lookup in layouts
-            if (not entitiesInLayout.count(ent->id))
-            {
-                changedEntities.pop();
-                continue;
-            }
-
-            bool found = false;
-
-            // Todo maybe add a flag to all the entity put in a layout so we can just check for the flag presence and get rid of this
-            // An entity should not be in multple layouts at the same time
-            for (auto v : view<HorizontalLayout>())
-            {
-                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-
-                if (it != v->entities.end())
-                {
-                    layoutUpdate.insert(ecsRef->getEntity(v->id));
-                    changedEntities.pop();
-
-                    found = true;
-                    break;
-                }
-            }
-
-            if (found)
-                continue;
-
-            for (auto v : view<VerticalLayout>())
-            {
-                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-
-                if (it != v->entities.end())
-                {
-                    layoutUpdate.insert(ecsRef->getEntity(v->id));
-                    changedEntities.pop();
-
-                    found = true;
-                    break;
-                }
-            }
-
-            if (found)
-                continue;
-
-            changedEntities.pop();
         }
     }
 

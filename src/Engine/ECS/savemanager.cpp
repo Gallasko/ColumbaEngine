@@ -54,7 +54,7 @@ namespace pg
 
             ++i;
         }
-        
+
         archive.endSerialization();
     }
 
@@ -97,33 +97,25 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        loadSave(savePath); 
+        loadSave(savePath);
     }
 
     void SaveManager::execute()
     {
-        bool needSave = false;
-
-        while (not eventQueue.empty())
-        {
-            needSave = true;
-
-            const auto& event = eventQueue.front();
-
-            currentSave.data.elements[event.name] = event.element;
-
-            eventQueue.pop();
-        }
-
         if (needSave)
+        {
             save();
+            needSave = false;
+        }
     }
 
-    void SaveManager::onEvent(const SaveElementEvent& event)
+    void SaveManager::onProcessEvent(const SaveElementEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 
-        eventQueue.push(event);
+        currentSave.data.elements[event.name] = event.element;
+
+        needSave = true;
     }
 
     ElementType SaveManager::getValue(const std::string& id) const

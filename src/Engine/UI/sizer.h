@@ -95,7 +95,7 @@ namespace pg
         void clear()
         {
             std::vector<_unique_id> entityIds;
-            
+
             entityIds.reserve(entities.size());
 
             for (const auto& ent : entities)
@@ -155,11 +155,11 @@ namespace pg
 
     struct LayoutSystem : public System<
         Listener<StandardEvent>,
-        Listener<EntityChangedEvent>,
-        Listener<AddLayoutElementEvent>,
-        Listener<RemoveLayoutElementEvent>,
-        Listener<ClearLayoutEvent>,
-        Listener<UpdateLayoutScrollable>,
+        QueuedListener<EntityChangedEvent>,
+        QueuedListener<AddLayoutElementEvent>,
+        QueuedListener<RemoveLayoutElementEvent>,
+        QueuedListener<ClearLayoutEvent>,
+        QueuedListener<UpdateLayoutScrollable>,
         Own<HorizontalLayout>,
         Own<VerticalLayout>,
         InitSys>
@@ -170,34 +170,17 @@ namespace pg
 
         virtual void onEvent(const StandardEvent& event) override;
 
-        virtual void onEvent(const AddLayoutElementEvent& event) override
-        {
-            addQueue.push(event);
-        }
+        virtual void onProcessEvent(const AddLayoutElementEvent& event) override;
 
-        virtual void onEvent(const RemoveLayoutElementEvent& event) override
-        {
-            removeQueue.push(event);
-        }
+        virtual void onProcessEvent(const RemoveLayoutElementEvent& event) override;
 
-        virtual void onEvent(const ClearLayoutEvent& event) override
-        {
-            clearQueue.push(event);
-        }
+        virtual void onProcessEvent(const ClearLayoutEvent& event) override;
 
-        virtual void onEvent(const EntityChangedEvent& event) override
-        {
-            changedEntities.push(event);
-        }
+        virtual void onProcessEvent(const EntityChangedEvent& event) override;
 
-        virtual void onEvent(const UpdateLayoutScrollable& event) override
-        {
-            scrollableQueue.push(event);
-        }
+        virtual void onProcessEvent(const UpdateLayoutScrollable& event) override;
 
         virtual void execute() override;
-
-        void processScroll();
 
         /**
          * Helper function for processScroll.
@@ -214,14 +197,6 @@ namespace pg
          * @param scrollable If true, the entity is scrollable, otherwise it is not.
          */
         void processScrollHelper(Entity* entity, BaseLayout* view, bool scrollable);
-
-        void processClear();
-
-        void processAdd();
-
-        void processRemove();
-
-        void processChanged();
 
         // Todo calculate the lesser axis of the view (Biggest width for Vertical for example)
         void recalculateChildrenPos(EntityRef viewEnt, BaseLayout* view);
@@ -247,12 +222,6 @@ namespace pg
         void layoutWithoutSpacing(EntityRef viewEnt, BaseLayout* view);
 
         void layoutWithSpacing(EntityRef viewEnt, BaseLayout* view);
-
-        std::queue<AddLayoutElementEvent> addQueue;
-        std::queue<RemoveLayoutElementEvent> removeQueue;
-        std::queue<ClearLayoutEvent> clearQueue;
-        std::queue<EntityChangedEvent> changedEntities;
-        std::queue<UpdateLayoutScrollable> scrollableQueue;
 
         std::set<EntityRef> layoutUpdate;
 

@@ -81,7 +81,7 @@ namespace pg
     // Todo make this more generic and enable the fact to change the control during runtime
 
     template <typename Type>
-    class ConfiguredKeySystem : public System<Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>, Listener<ChangeKeyBind>, InitSys>
+    class ConfiguredKeySystem : public System<Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>, QueuedListener<ChangeKeyBind>, InitSys>
     {
     private:
         struct KeyState
@@ -124,7 +124,7 @@ namespace pg
     public:
         /**
          * @brief Construct a new Configured Key System object
-         * 
+         *
          * @param controlMap A map containg all the different control that need to be handled and their default scancode
          */
         ConfiguredKeySystem(const DefaultScancodeMap& controlMap) : defaultMap(controlMap)
@@ -134,7 +134,28 @@ namespace pg
 
         virtual void onEvent(const ChangeKeyBind& event) override
         {
-            changeEventQueue.emplace(event);
+            Type configValue = std::any_cast<Type>(event.value);
+
+            auto& list = scancodeToType[event.oldCode];
+
+            auto it = std::find_if(list.begin(), list.end(), [&configValue](const TypeHolder& holder) { return holder.code == configValue; } );
+
+            std::string name;
+
+            if (it != list.end())
+            {
+                name = it->name;
+                LOG_INFO("Keyconfig", "Removing name: " << name);
+                list.erase(it);
+            }
+            else
+            {
+                LOG_ERROR("Keyconfig", "Wrong old code given !");
+            }
+
+            scancodeToType[event.newCode].emplace_back(name, configValue);
+
+            ecsRef->sendEvent(SaveElementEvent{name, event.newCode});
         }
 
         virtual void onEvent(const OnSDLScanCode& event) override
@@ -149,36 +170,6 @@ namespace pg
 
         virtual void execute() override
         {
-            while (not changeEventQueue.empty())
-            {
-                const auto& event = changeEventQueue.front();
-
-                Type configValue = std::any_cast<Type>(event.value);
-
-                auto& list = scancodeToType[event.oldCode];
-
-                auto it = std::find_if(list.begin(), list.end(), [&configValue](const TypeHolder& holder) { return holder.code == configValue; } );
-
-                std::string name;
-
-                if (it != list.end())
-                {
-                    name = it->name;
-                    LOG_INFO("Keyconfig", "Removing name: " << name);
-                    list.erase(it);
-                }
-                else
-                {
-                    LOG_ERROR("Keyconfig", "Wrong old code given !");
-                }
-
-                scancodeToType[event.newCode].emplace_back(name, configValue);
-
-                ecsRef->sendEvent(SaveElementEvent{name, event.newCode});
-
-                changeEventQueue.pop();
-            }
-
             while (not eventQueue.empty())
             {
                 const auto& event = eventQueue.front();

@@ -42,7 +42,7 @@ namespace pg
             // Add the child entity to the layout
             layout->addEntity(childEntity);
 
-            layoutSystem->execute();
+            layoutSystem->_execute();
 
             EXPECT_EQ(layout->entities.size(), 1);
             EXPECT_EQ(layout->entities[0].id, childEntity.id);
@@ -76,7 +76,7 @@ namespace pg
             // Add the child entity to the layout
             layout->addEntity(childEntity);
 
-            layoutSystem->execute();
+            layoutSystem->_execute();
 
             EXPECT_EQ(layout->entities.size(), 1);
             EXPECT_EQ(layout->entities[0].id, childEntity.id);
@@ -117,14 +117,14 @@ namespace pg
             layout->addEntity(childEntity1);
             layout->addEntity(childEntity2);
 
-            layoutSystem->execute();
+            layoutSystem->_execute();
 
             EXPECT_EQ(layout->entities.size(), 2);
 
             // Remove the first child entity
             layout->removeEntity(childEntity1);
 
-            layoutSystem->execute();
+            layoutSystem->_execute();
 
             EXPECT_EQ(layout->entities.size(), 1);
             EXPECT_EQ(layout->entities[0].id, childEntity2.id);

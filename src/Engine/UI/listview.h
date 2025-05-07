@@ -27,6 +27,8 @@
     #endif
 #endif
 
+// Todo remove this, obsolete !
+
 namespace pg
 {
     struct ClearListViewEvent
@@ -151,7 +153,7 @@ namespace pg
                     updateVisibility(ent, pos->visible);
                 }
             }
-            
+
             if (not (ent->has<ListViewBodySizer>()))
             {
                 // If we don't have a body sizer, then that means that the listview has no children, or that the children don't have a position component.
@@ -328,7 +330,7 @@ namespace pg
                 else
                 {
                     LOG_ERROR("ListViewSystem", "First entity in the list [" << viewId << "] must have a UiAnchor!");
-                }   
+                }
             }
 
             auto sys = ecs->template getSystem<ListViewSystem>();

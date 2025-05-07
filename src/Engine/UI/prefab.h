@@ -138,7 +138,7 @@ namespace pg
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, Listener<ClearPrefabEvent>, Listener<SetMainEntityEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, QueuedListener<ClearPrefabEvent>, QueuedListener<SetMainEntityEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -219,64 +219,44 @@ namespace pg
             }
         }
 
-        virtual void onEvent(const ClearPrefabEvent& event) override
+        virtual void onProcessEvent(const ClearPrefabEvent& event) override
         {
-            clearQueue.push(event);
+            for (const auto& id : event.ids)
+            {
+                ecsRef->removeEntity(id);
+            }
         }
 
-        virtual void onEvent(const SetMainEntityEvent& event) override
+        virtual void onProcessEvent(const SetMainEntityEvent& event) override
         {
-            setMainEntityQueue.push(event);
+            auto prefabEnt = ecsRef->getEntity(event.prefabId);
+            auto ent = ecsRef->getEntity(event.entityId);
+
+            // Todo support this for non anchored prefabs
+
+            if (not ent or not prefabEnt or not ent->has<UiAnchor>() or not prefabEnt->has<UiAnchor>() or not prefabEnt->has<Prefab>())
+            {
+                LOG_ERROR("Prefab System", "Failed to set main entity for prefab " << event.prefabId << " and entity " << event.entityId << " !");
+                return;
+            }
+
+            auto prefabAnchor = prefabEnt->get<UiAnchor>();
+            auto entAnchor = ent->get<UiAnchor>();
+
+            prefabAnchor->setWidthConstrain(PosConstrain{event.entityId, AnchorType::Width});
+            prefabAnchor->setHeightConstrain(PosConstrain{event.entityId, AnchorType::Height});
+
+            entAnchor->fillIn(prefabAnchor);
+            entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
+
+            auto prefab = prefabEnt->get<Prefab>();
+
+            prefab->addToPrefab(ent);
         }
 
         virtual void execute() override
         {
-            while (not clearQueue.empty())
-            {
-                const auto& event = clearQueue.front();
-
-                for (const auto& id : event.ids)
-                {
-                    ecsRef->removeEntity(id);
-                }
-
-                clearQueue.pop();
-            }
-
-            while (not setMainEntityQueue.empty())
-            {
-                const auto& event = setMainEntityQueue.front();
-
-                auto prefabEnt = ecsRef->getEntity(event.prefabId);
-                auto ent = ecsRef->getEntity(event.entityId);
-
-                // Todo support this for non anchored prefabs
-
-                if (not ent or not prefabEnt or not ent->has<UiAnchor>() or not prefabEnt->has<UiAnchor>() or not prefabEnt->has<Prefab>())
-                {
-                    LOG_ERROR("Prefab System", "Failed to set main entity for prefab " << event.prefabId << " and entity " << event.entityId << " !");
-                    return;
-                }
-
-                auto prefabAnchor = prefabEnt->get<UiAnchor>();
-                auto entAnchor = ent->get<UiAnchor>();
-
-                prefabAnchor->setWidthConstrain(PosConstrain{event.entityId, AnchorType::Width});
-                prefabAnchor->setHeightConstrain(PosConstrain{event.entityId, AnchorType::Height});
-
-                entAnchor->fillIn(prefabAnchor);
-                entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
-
-                auto prefab = prefabEnt->get<Prefab>();
-
-                prefab->addToPrefab(ent);
-
-                setMainEntityQueue.pop();
-            }
         }
-
-        std::queue<ClearPrefabEvent> clearQueue;
-        std::queue<SetMainEntityEvent> setMainEntityQueue;
     };
 
     template <typename Type>

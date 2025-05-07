@@ -150,7 +150,7 @@ namespace pg
     void AudioSystem::onEvent(const ResumeAudio&)
     {
         LOG_THIS_MEMBER(DOM);
-        
+
         // If music is in pause
         if (Mix_PausedMusic() == 1)
         {
@@ -159,11 +159,52 @@ namespace pg
         }
     }
 
-    void AudioSystem::onEvent(const PlaySoundEffect& event)
+    void AudioSystem::onProcessEvent(const PlaySoundEffect& event)
     {
         LOG_THIS_MEMBER(DOM);
 
-        sfxQueue.push(event);
+        if (not soundEffectChannelEnable)
+        {
+            LOG_ERROR(DOM, "Sound effects are not enabled");
+        }
+
+        auto it = sfxDict.find(event.effect);
+
+        Mix_Chunk *effect;
+
+        if (it != sfxDict.end())
+        {
+            effect = it->second;
+        }
+        else
+        {
+            effect = Mix_LoadWAV(event.effect.c_str());
+            sfxDict.emplace(event.effect, effect);
+        }
+
+        if (effect == nullptr)
+        {
+            LOG_ERROR(DOM, "Could not load effect: " << event.effect.c_str());
+            return;
+        }
+
+        Mix_VolumeChunk(effect, MIX_MAX_VOLUME * masterVolume * sEffectVolume);
+
+        auto channel = Mix_PlayChannel(event.channel, effect, event.loops);
+
+        if (channel == -1)
+        {
+            // This is not an error just not enough channel so we skip the sfx
+            LOG_MILE(DOM, "Could not play effect: " << event.effect.c_str());
+        }
+        else if (static_cast<unsigned int>(channel) > nbSoundEffectChannels)
+        {
+            LOG_ERROR(DOM, "Error in channel given by Mix_PlayChannel, given:  " << channel << " when only " << nbSoundEffectChannels << " are available !");
+        }
+        else
+        {
+            channels[channel] = effect;
+        }
     }
 
     void AudioSystem::updateVolume()
@@ -181,61 +222,6 @@ namespace pg
 
     void AudioSystem::execute()
     {
-        int i = 0;
-
-        while (not sfxQueue.empty() and i < nbSoundEffectChannels)
-        {
-            i++;
-
-            const auto& event = sfxQueue.front();
-
-            if (not soundEffectChannelEnable)
-            {
-                LOG_ERROR(DOM, "Sound effects are not enabled");
-            }
-
-            auto it = sfxDict.find(event.effect);
-
-            Mix_Chunk *effect;
-
-            if (it != sfxDict.end())
-            {
-                effect = it->second;
-            }
-            else
-            {
-                effect = Mix_LoadWAV(event.effect.c_str());
-                sfxDict.emplace(event.effect, effect);
-            }
-            
-            if (effect == nullptr)
-            {
-                LOG_ERROR(DOM, "Could not load effect: " << event.effect.c_str());
-                return;
-            }
-
-            Mix_VolumeChunk(effect, MIX_MAX_VOLUME * masterVolume * sEffectVolume);
-
-            auto channel = Mix_PlayChannel(event.channel, effect, event.loops);
-
-            if (channel == -1)
-            {
-                // This is not an error just not enough channel so we skip the sfx
-                LOG_MILE(DOM, "Could not play effect: " << event.effect.c_str());
-            }
-            else if (static_cast<unsigned int>(channel) > nbSoundEffectChannels)
-            {
-                LOG_ERROR(DOM, "Error in channel given by Mix_PlayChannel, given:  " << channel << " when only " << nbSoundEffectChannels << " are available !");
-            }
-            else
-            {
-                channels[channel] = effect;
-            }
-
-            sfxQueue.pop();
-        }
-
-        std::queue<PlaySoundEffect>().swap(sfxQueue);
     }
 
 }
