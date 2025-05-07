@@ -9,12 +9,22 @@
 #include "UI/sizer.h"
 #include "UI/textinput.h"
 
+#include "Input/keyconfig.h"
+
 namespace pg
 {
     struct NewSceneLoaded;
 
     namespace editor
     {
+        enum class EditorKeyConfig : uint8_t
+        {
+            Undo,
+            Redo,
+        };
+
+        extern std::map<EditorKeyConfig, DefaultScancode> scancodeMap;
+
         struct EndDragging
         {
             _unique_id id;
@@ -118,7 +128,7 @@ namespace pg
             float endX, endY;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -139,6 +149,22 @@ namespace pg
             virtual void onProcessEvent(const EndDragging& event) override
             {
                 history.execute(std::make_unique<DraggingCommand>(ecsRef, event.id, event.startX, event.startY, event.endX, event.endY));
+            }
+
+            virtual void onEvent(const ConfiguredKeyEvent<EditorKeyConfig>& e) override
+            {
+                if (e.value == EditorKeyConfig::Undo)
+                {
+                    LOG_INFO("Inspector", "Undo");
+
+                    history.undo();
+                }
+                else if (e.value == EditorKeyConfig::Redo)
+                {
+                    LOG_INFO("Inspector", "Redo");
+
+                    history.redo();
+                }
             }
 
             template <typename Comp>

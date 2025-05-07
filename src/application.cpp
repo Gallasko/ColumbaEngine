@@ -15,8 +15,6 @@
 
 #include "UI/utils.h"
 
-#include "Input/keyconfig.h"
-
 using namespace pg;
 using namespace editor;
 
@@ -24,17 +22,6 @@ namespace
 {
     static const char* const DOM = "Editor app";
 }
-
-enum class EditorKeyConfig : uint8_t
-{
-    Undo,
-    Redo,
-};
-
-static std::map<EditorKeyConfig, DefaultScancode> scancodeMap = {
-    {EditorKeyConfig::Undo,    {"Undo", SDL_SCANCODE_Z, KMOD_CTRL}},
-    {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
-    };
 
 struct SelectedEntity
 {
@@ -101,40 +88,12 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     }
 };
 
-struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<ConfiguredKeyEventReleased<EditorKeyConfig>>, InitSys>
+struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
 {
     _unique_id draggingEntity = 0;
     float offsetX = 0.f, offsetY = 0.f;
 
     virtual std::string getSystemName() const override { return "Drag System"; }
-
-    virtual void onEvent(const ConfiguredKeyEvent<EditorKeyConfig>& e) override
-    {
-        if (e.value == EditorKeyConfig::Undo)
-        {
-            LOG_INFO(DOM, "Undo");
-            // ecsRef->sendEvent(UndoEvent{});
-        }
-        else if (e.value == EditorKeyConfig::Redo)
-        {
-            LOG_INFO(DOM, "Redo");
-            // ecsRef->sendEvent(RedoEvent{});
-        }
-    }
-
-    virtual void onEvent(const ConfiguredKeyEventReleased<EditorKeyConfig>& e) override
-    {
-        if (e.value == EditorKeyConfig::Undo)
-        {
-            LOG_INFO(DOM, "Undo Released");
-            // ecsRef->sendEvent(UndoEvent{});
-        }
-        else if (e.value == EditorKeyConfig::Redo)
-        {
-            LOG_INFO(DOM, "Redo Released");
-            // ecsRef->sendEvent(RedoEvent{});
-        }
-    }
 
     virtual void init() override
     {
