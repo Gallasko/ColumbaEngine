@@ -15,6 +15,8 @@
 
 #include "UI/utils.h"
 
+#include "Input/keyconfig.h"
+
 using namespace pg;
 using namespace editor;
 
@@ -22,6 +24,17 @@ namespace
 {
     static const char* const DOM = "Editor app";
 }
+
+enum class EditorKeyConfig : uint8_t
+{
+    Undo,
+    Redo,
+};
+
+static std::map<EditorKeyConfig, DefaultScancode> scancodeMap = {
+    {EditorKeyConfig::Undo,    {"Undo", SDL_SCANCODE_Z, KMOD_CTRL}},
+    {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
+    };
 
 struct SelectedEntity
 {
@@ -88,12 +101,26 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     }
 };
 
-struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
+struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, InitSys>
 {
     _unique_id draggingEntity = 0;
     float offsetX = 0.f, offsetY = 0.f;
 
     virtual std::string getSystemName() const override { return "Drag System"; }
+
+    virtual void onEvent(const ConfiguredKeyEvent<EditorKeyConfig>& e) override
+    {
+        if (e.value == EditorKeyConfig::Undo)
+        {
+            LOG_INFO(DOM, "Undo");
+            // ecsRef->sendEvent(UndoEvent{});
+        }
+        else if (e.value == EditorKeyConfig::Redo)
+        {
+            LOG_INFO(DOM, "Redo");
+            // ecsRef->sendEvent(RedoEvent{});
+        }
+    }
 
     virtual void init() override
     {
@@ -114,6 +141,10 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             {
                 LOG_INFO(DOM, "Dragging entity: " << elem->entityId);
                 draggingEntity = elem->entity.id;
+
+                startX = pos->x;
+                startY = pos->y;
+
                 // remember offset so entity doesn't jump under cursor
                 offsetX = e.pos.x - pos->x;
                 offsetY = e.pos.y - pos->y;
@@ -154,8 +185,19 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         // only stop drag on left button
         if (e.button != SDL_BUTTON_LEFT) return;
 
+        if (draggingEntity != 0)
+        {
+            auto pos = ecsRef->getComponent<PositionComponent>(draggingEntity);
+            if (not pos) return;
+
+            // send event to notify that dragging has ended
+            ecsRef->sendEvent(EndDragging{ draggingEntity, startX, startY, pos->x, pos->y });
+        }
+
         draggingEntity = 0;
     }
+
+    float startX = 0.f, startY = 0.f;
 };
 
 EditorApp::EditorApp(const std::string& appName) : appName(appName)
@@ -194,6 +236,8 @@ void initGame()
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    mainWindow->ecs.createSystem<ConfiguredKeySystem<EditorKeyConfig>>(scancodeMap);
 
     mainWindow->ecs.createSystem<FpsSystem>();
 

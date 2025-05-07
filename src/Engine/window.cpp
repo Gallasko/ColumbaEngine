@@ -508,13 +508,13 @@ namespace pg
 
             case SDL_KEYUP:
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYRELEASED);
-                ecs.sendEvent(OnSDLScanCodeReleased{event.key.keysym.scancode});
+                ecs.sendEvent(OnSDLScanCodeReleased{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
 
             case SDL_KEYDOWN:
                 LOG_MILE(DOM, "Key pressed : " << event.key.keysym.scancode);
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYPRESSED);
-                ecs.sendEvent(OnSDLScanCode{event.key.keysym.scancode});
+                ecs.sendEvent(OnSDLScanCode{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
 
             case SDL_MOUSEBUTTONDOWN:

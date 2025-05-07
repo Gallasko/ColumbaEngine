@@ -139,11 +139,13 @@ namespace pg
     struct OnSDLScanCode
     {
         SDL_Scancode key;
+        Uint16 mod;
     };
 
     struct OnSDLScanCodeReleased
     {
         SDL_Scancode key;
+        Uint16 mod;
     };
 
     struct OnSDLMouseWheel
