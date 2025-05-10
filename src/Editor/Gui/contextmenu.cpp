@@ -13,6 +13,8 @@
 
 #include "2D/simple2dobject.h"
 
+#include "inspector.h"
+
 namespace pg
 {
     namespace
@@ -154,44 +156,68 @@ namespace editor
 
     void ContextMenu::onProcessEvent(const CreateElement& event)
     {
+        auto cX = currentX, cY = currentY;
         switch(event.type)
         {
             case UiComponentType::TEXT:
             {
-                auto newElement = makeTTFText(ecsRef, currentX, currentY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
-                ecsRef->attach<SceneElement>(newElement.entity);
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
                 break;
             }
 
             case UiComponentType::TTFTEXT:
             {
-                auto newElement = makeTTFText(ecsRef, currentX, currentY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
-                ecsRef->attach<SceneElement>(newElement.entity);
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
                 break;
             }
 
             case UiComponentType::TEXTURE:
             {
-                auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
-                newElement.get<PositionComponent>()->setX(currentX);
-                newElement.get<PositionComponent>()->setY(currentY);
-                ecsRef->attach<SceneElement>(newElement.entity);
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
+                    newElement.get<PositionComponent>()->setX(cX);
+                    newElement.get<PositionComponent>()->setY(cY);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+
                 break;
             }
 
             case UiComponentType::SHAPE2D:
             {
-                auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
-                newElement.get<PositionComponent>()->setX(currentX);
-                newElement.get<PositionComponent>()->setY(currentY);
-                ecsRef->attach<SceneElement>(newElement.entity);
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
+                    newElement.get<PositionComponent>()->setX(cX);
+                    newElement.get<PositionComponent>()->setY(cY);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+
                 break;
             }
 
             case UiComponentType::TEXTINPUT:
             {
-                auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
-                ecsRef->attach<SceneElement>(newElement.entity);
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+
                 break;
             }
 

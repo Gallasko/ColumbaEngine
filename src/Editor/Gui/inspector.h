@@ -160,7 +160,40 @@ namespace pg
             std::string name;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, InitSys>
+        struct CreateEntityCommand : public InspectorCommands
+        {
+            CreateEntityCommand(EntitySystem *ecsRef, std::function<_unique_id(EntitySystem *)> callbackCreated) : ecsRef(ecsRef), callback(callbackCreated) { }
+
+            virtual void execute() override;
+            virtual void undo() override;
+
+            EntitySystem *ecsRef;
+            std::function<_unique_id(EntitySystem *)> callback;
+            _unique_id id;
+        };
+
+        struct CreateInspectorEntityEvent
+        {
+            template <typename Func>
+            CreateInspectorEntityEvent(Func callback)
+            {
+                this->callback = callback;
+            }
+
+            CreateInspectorEntityEvent(std::function<_unique_id(EntitySystem *)> callback) : callback(callback) {}
+            CreateInspectorEntityEvent(const CreateInspectorEntityEvent& other) : callback(other.callback) {}
+
+            CreateInspectorEntityEvent& operator=(const CreateInspectorEntityEvent& other)
+            {
+                callback = other.callback;
+
+                return *this;
+            }
+
+            std::function<_unique_id(EntitySystem *)> callback;
+        };
+
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -202,6 +235,11 @@ namespace pg
             virtual void onEvent(const EditorAttachComponent& event) override
             {
                 history.execute(std::make_unique<AttachComponentCommand>(this, ecsRef, event.id, event.name));
+            }
+
+            virtual void onEvent(const CreateInspectorEntityEvent& event) override
+            {
+                history.execute(std::make_unique<CreateEntityCommand>(ecsRef, event.callback));
             }
 
             template <typename Comp>

@@ -47,31 +47,41 @@ namespace pg
             {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
             };
 
-            void AttachComponentCommand::execute()
+        void AttachComponentCommand::execute()
+        {
+            auto ent = ecsRef->getEntity(id);
+
+            if (ent)
             {
-                auto ent = ecsRef->getEntity(id);
+                inspectorSys->attachableComponentMap[name](ent);
 
-                if (ent)
-                {
-                    inspectorSys->attachableComponentMap[name](ent);
-
-                    // Todo only add the newly created component inspection at the end of the inspection layout,
-                    // currently this reload the whole entity information to the view which may not be intuitive for the user
-                    inspectorSys->eventRequested = true;
-                }
+                // Todo only add the newly created component inspection at the end of the inspection layout,
+                // currently this reload the whole entity information to the view which may not be intuitive for the user
+                inspectorSys->eventRequested = true;
             }
+        }
 
-            void AttachComponentCommand::undo()
+        void AttachComponentCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(id);
+
+            if (ent)
             {
-                auto ent = ecsRef->getEntity(id);
+                ecsRef->detach(name, ent);
 
-                if (ent)
-                {
-                    ecsRef->detach(name, ent);
-
-                    inspectorSys->eventRequested = true;
-                }
+                inspectorSys->eventRequested = true;
             }
+        }
+
+        void CreateEntityCommand::execute()
+        {
+            id = callback(ecsRef);
+        }
+
+        void CreateEntityCommand::undo()
+        {
+            ecsRef->removeEntity(id);
+        }
 
         void InspectorSystem::onEvent(const StandardEvent& event)
         {
