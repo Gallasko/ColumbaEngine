@@ -70,7 +70,13 @@ namespace pg
         _unique_id entityId;
     };
 
-    struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys>
+    struct PlayerMoveUp {};
+    struct PlayerMoveDown {};
+    struct PlayerMoveLeft {};
+    struct PlayerMoveRight {};
+
+    struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
+        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
 
@@ -86,6 +92,31 @@ namespace pg
             ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 
             player = playerEnt.entity;
+
+            auto entity2 = ecsRef->createEntity();
+            auto entity3 = ecsRef->createEntity();
+            auto entity4 = ecsRef->createEntity();
+            auto entity5 = ecsRef->createEntity();
+
+            upTimer = ecsRef->attach<Timer>(entity2);
+            leftTimer = ecsRef->attach<Timer>(entity3);
+            bottomTimer = ecsRef->attach<Timer>(entity4);
+            rightTimer = ecsRef->attach<Timer>(entity5);
+
+            upTimer->interval = 10;
+            leftTimer->interval = 10;
+            bottomTimer->interval = 10;
+            rightTimer->interval = 10;
+
+            upTimer->callback = makeCallable<PlayerMoveUp>();
+            leftTimer->callback = makeCallable<PlayerMoveLeft>();
+            bottomTimer->callback = makeCallable<PlayerMoveDown>();
+            rightTimer->callback = makeCallable<PlayerMoveRight>();
+
+            upTimer->running = false;
+            leftTimer->running = false;
+            bottomTimer->running = false;
+            rightTimer->running = false;
         }
 
         virtual void onProcessEvent(const OnMouseClick& event) override
@@ -113,16 +144,20 @@ namespace pg
             switch (event.value)
             {
             case GameKeyConfig::MoveLeft:
-                moveLeft();
+                if (not leftTimer->running)
+                    leftTimer->start();
                 break;
             case GameKeyConfig::MoveRight:
-                moveRight();
+                if (not rightTimer->running)
+                    rightTimer->start();
                 break;
             case GameKeyConfig::MoveUp:
-                moveUp();
+                if (not upTimer->running)    
+                    upTimer->start();
                 break;
             case GameKeyConfig::MoveDown:
-                moveDown();
+                if (not bottomTimer->running)    
+                    bottomTimer->start();
                 break;
 
             default:
@@ -134,6 +169,45 @@ namespace pg
         virtual void onEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
         {
             LOG_INFO("Player System", "Received game key release");
+
+            switch (event.value)
+            {
+            case GameKeyConfig::MoveLeft:
+                leftTimer->stop();
+                break;
+            case GameKeyConfig::MoveRight:
+                rightTimer->stop();
+                break;
+            case GameKeyConfig::MoveUp:
+                upTimer->stop();
+                break;
+            case GameKeyConfig::MoveDown:
+                bottomTimer->stop();
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        virtual void onEvent(const PlayerMoveUp&) override
+        {
+            movePlayer(0.f, -movespeed);
+        }
+
+        virtual void onEvent(const PlayerMoveDown&) override
+        {
+            movePlayer(0.f, movespeed);
+        }
+
+        virtual void onEvent(const PlayerMoveLeft&) override
+        {
+            movePlayer(-movespeed, 0.f);
+        }
+
+        virtual void onEvent(const PlayerMoveRight&) override
+        {
+            movePlayer(movespeed, 0.f);
         }
 
         void movePlayer(float x, float y)
@@ -143,31 +217,14 @@ namespace pg
             pos->setY(pos->y + y);
         }
 
-        void moveLeft()
-        {
-            auto pos = player->get<PositionComponent>();
-            pos->setX(pos->x - 1.f);
-        }
-
-        void moveRight()
-        {
-            auto pos = player->get<PositionComponent>();
-            pos->setX(pos->x + 1.f);
-        }
-
-        void moveUp()
-        {
-            auto pos = player->get<PositionComponent>();
-            pos->setY(pos->y - 1.f);
-        }
-
-        void moveDown()
-        {
-            auto pos = player->get<PositionComponent>();
-            pos->setY(pos->y + 1.f);
-        }
-
         EntityRef player;
+
+        CompRef<Timer> upTimer;
+        CompRef<Timer> leftTimer;
+        CompRef<Timer> bottomTimer;
+        CompRef<Timer> rightTimer;
+
+        float movespeed = 2.f;
     };
 
 } // namespace pg
