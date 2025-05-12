@@ -310,6 +310,16 @@ else()
 
     target_link_libraries(GameOff PRIVATE PgEngineSrc)
 
+    add_executable(PixelJam src/PixelJam/main.cpp)
+
+    target_include_directories(PixelJam PUBLIC src/PixelJam)
+
+    target_sources(PixelJam PRIVATE
+        src/PixelJam/application.cpp
+    )
+
+    target_link_libraries(PixelJam PRIVATE PgEngineSrc)
+
     add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
     target_sources(TetrisClone PRIVATE
