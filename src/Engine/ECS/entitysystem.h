@@ -619,7 +619,21 @@ namespace pg
         Entity* getEntity(const std::string& name) const;
 
         template <typename Comp>
-        inline Comp* getComponent(_unique_id id) const { LOG_THIS_MEMBER("ECS"); return registry.retrieve<Comp>()->getComponent(id); }
+        inline Comp* getComponent(_unique_id id) const
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            try
+            {
+                return registry.retrieve<Comp>()->getComponent(id);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_WARNING("ECS", "Can't get component [" << typeid(Comp).name() << "] from entity [" << id << "]: " << e.what());
+                return nullptr;
+            }
+        }
+
 
         inline ComponentSet<Entity>::ComponentSetList view() const
         {
