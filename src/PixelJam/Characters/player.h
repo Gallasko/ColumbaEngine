@@ -15,6 +15,9 @@
 
 namespace pg
 {
+    struct WallFlag {};
+    struct PlayerFlag {};
+    struct AllyBulletFlag {};
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys>
     {
@@ -25,6 +28,11 @@ namespace pg
             auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
+            ecsRef->attach<PlayerFlag>(playerEnt.entity);
+
+            std::vector<size_t> collidableLayer = {0};
+
+            ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 
             player = playerEnt.entity;
         }
@@ -39,7 +47,9 @@ namespace pg
                 bullet.get<PositionComponent>()->setX(pos->x + 25.f);
                 bullet.get<PositionComponent>()->setY(pos->y + 25.f);
 
-                ecsRef->attach<CollisionComponent>(bullet.entity);
+                std::vector<size_t> collidableLayer = {0};
+
+                ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
                 ecsRef->attach<MoveToComponent>(bullet.entity, constant::Vector2D{event.pos.x, event.pos.y}, 500.f, 1000.0f);
             }
         }

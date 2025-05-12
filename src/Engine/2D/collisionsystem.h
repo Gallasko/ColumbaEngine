@@ -84,8 +84,7 @@ namespace pg
     {
         CollisionComponent() {}
 
-        template <typename Type1>
-        CollisionComponent(Type1 layerId) : layerId(layerId)
+        CollisionComponent(size_t layerId) : layerId(layerId)
         {
             if (scale == 0)
             {
@@ -94,8 +93,7 @@ namespace pg
             }
         }
 
-        template <typename Type1, typename Type2>
-        CollisionComponent(Type1 layerId, Type2 scale, Type1 checkLayerId = 0) : layerId(layerId), scale(scale), checkSpecificLayerFlag(true), checkLayerId(checkLayerId)
+        CollisionComponent(size_t layerId, float scale, const std::vector<size_t>& checkLayerId = {0}) : layerId(layerId), scale(scale), checkSpecificLayerFlag(true), checkLayerId(checkLayerId)
         {
             if (scale == 0)
             {
@@ -122,7 +120,7 @@ namespace pg
 
         // When this flag is set, only check the corresponding layer instead of all of them
         bool checkSpecificLayerFlag = false;
-        size_t checkLayerId = 0;
+        std::vector<size_t> checkLayerId = {};
 
         EntitySystem* ecsRef = nullptr;
 

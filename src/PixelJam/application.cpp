@@ -101,14 +101,37 @@ struct TestSystem : public System<QueuedListener<OnMouseClick>, Listener<Collisi
             wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
             wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
 
-            ecsRef->attach<CollisionComponent>(wallEnt.entity);
+            ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
+            ecsRef->attach<WallFlag>(wallEnt.entity);
         }
     }
 
     virtual void onEvent(const CollisionEvent& event) override
     {
         LOG_INFO(DOM, "Collision detected " << event.id1 << " with " << event.id2);
+
+        auto entity1 = ecsRef->getEntity(event.id1);
+        auto entity2 = ecsRef->getEntity(event.id2);
+
+        if (entity1 == nullptr or entity2 == nullptr)
+            return;
+
+        if (entity1->has<WallFlag>())
+        {
+            LOG_INFO(DOM, "Wall hit ! ent 1");
+        }
+
+        if (entity2->has<WallFlag>())
+        {
+            LOG_INFO(DOM, "Wall hit ! ent 2");
+        }
+
     }
+};
+
+struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>>
+{
+
 };
 
 std::thread *initThread;
@@ -154,6 +177,8 @@ void initGame()
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    mainWindow->ecs.createSystem<FlagSystem>();
 
     mainWindow->ecs.createSystem<FpsSystem>();
 

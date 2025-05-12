@@ -207,19 +207,26 @@ namespace pg
             }
             else
             {
-                const auto& pagelist = loadedPages[comp->checkLayerId];
-                const auto& it = pagelist.find(layer.first);
-                if (it != pagelist.end())
+                for (const auto& checkedlayerId : comp->checkLayerId)
                 {
-                    for (auto cell : layer.second)
+                    if (checkedlayerId >= loadedPages.size())
+                        continue;
+
+                    const auto& pagelist = loadedPages[checkedlayerId];
+                    const auto& it = pagelist.find(layer.first);
+                    if (it != pagelist.end())
                     {
-                        const auto& ids = it->second.cells[cell->pos.x + cell->pos.y * it->second.size.x].ids;
+                        for (auto cell : layer.second)
+                        {
+                            const auto& ids = it->second.cells[cell->pos.x + cell->pos.y * it->second.size.x].ids;
 
-                        // LOG_INFO(DOM, "Checking cell: " << cell->pos.x + cell->pos.y * it->second.size.x << " (" << cell->pos.x << ", " << cell->pos.y << ") in page: " << layer.first.x << ", " << layer.first.y);
+                            // LOG_INFO(DOM, "Checking cell: " << cell->pos.x + cell->pos.y * it->second.size.x << " (" << cell->pos.x << ", " << cell->pos.y << ") in page: " << layer.first.x << ", " << layer.first.y);
 
-                        touchedIds.insert(ids.begin(), ids.end());
+                            touchedIds.insert(ids.begin(), ids.end());
+                        }
                     }
                 }
+
             }
 
             // touchedIds.insert(cell->ids.begin(), cell->ids.end());
