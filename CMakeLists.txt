@@ -318,6 +318,8 @@ else()
         src/PixelJam/application.cpp
         src/PixelJam/Characters/player.cpp
         src/PixelJam/config.cpp
+            src/PixelJam/Tiled_Lib/TiledLoader.cpp
+            src/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
     )
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)

@@ -470,7 +470,7 @@ namespace pg
         OpenGLTexture registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId = 0, bool instantRegister = true);
         void registerTexture(const std::string& name, OpenGLTexture texture) { textureList[name] = texture; }
         void registerTexture(const std::string& name, const char* texturePath);
-        void registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath);
+        void registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath, std::unique_ptr<LoadedAtlas> atlas = nullptr);
 
         void queueRegisterTexture(const std::string& name, const char* texturePath)
         {
@@ -567,7 +567,7 @@ namespace pg
             return textureList.find(name) != textureList.end();
         }
 
-        const LoadedAtlas::AtlasTexture& getAtlasTexture(const std::string& textureName, const std::string& atlasTextureName) const
+        const AtlasTexture& getAtlasTexture(const std::string& textureName, const std::string& atlasTextureName) const
         {
             return atlasMap.at(textureName).getTexture(atlasTextureName);
         }
