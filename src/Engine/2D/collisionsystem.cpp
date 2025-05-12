@@ -243,7 +243,7 @@ namespace pg
         {
             auto ent = ecsRef->getEntity(id);
 
-            if (ent->has<PositionComponent>())
+            if (ent and ent->has<PositionComponent>())
             {
                 auto ui = ent->get<PositionComponent>();
 
