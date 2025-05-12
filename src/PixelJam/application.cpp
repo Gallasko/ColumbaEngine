@@ -90,19 +90,49 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
     }
 };
 
-struct TestSystem : public System<QueuedListener<OnMouseClick>, Listener<CollisionEvent>>
+struct TestSystem : public System<QueuedListener<OnMouseClick>, Listener<OnSDLScanCode>, Listener<CollisionEvent>>
 {
+    int testVar = 0;
+
     virtual void onProcessEvent(const OnMouseClick& event) override
     {
         if (event.button == SDL_BUTTON_RIGHT)
         {
-            auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
+            if (testVar == 0)
+            {
+                auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
 
-            wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
-            wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
+                wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
+                wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
 
-            ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
-            ecsRef->attach<WallFlag>(wallEnt.entity);
+                ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
+                ecsRef->attach<WallFlag>(wallEnt.entity);
+            }
+            else if (testVar == 1)
+            {
+                auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
+
+                collectibleEnt.get<PositionComponent>()->setX(event.pos.x - 12.5f);
+                collectibleEnt.get<PositionComponent>()->setY(event.pos.y - 12.5f);
+
+                ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3, 3.0f);
+                ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
+            }
+
+        }
+    }
+
+    virtual void onEvent(const OnSDLScanCode& event) override
+    {
+        if (event.key == SDL_SCANCODE_1)
+        {
+            LOG_INFO(DOM, "TestSystem: 1 pressed");
+            testVar = 0;
+        }
+        else if (event.key == SDL_SCANCODE_2)
+        {
+            LOG_INFO(DOM, "TestSystem: 2 pressed");
+            testVar = 1;
         }
     }
 
@@ -126,10 +156,20 @@ struct TestSystem : public System<QueuedListener<OnMouseClick>, Listener<Collisi
             LOG_INFO(DOM, "Wall hit ! ent 2");
         }
 
+        if (entity1->has<CollectibleFlag>())
+        {
+            LOG_INFO(DOM, "Collectible hit ! ent 1");
+        }
+
+        if (entity2->has<CollectibleFlag>())
+        {
+            LOG_INFO(DOM, "Collectible hit ! ent 2");
+        }
+
     }
 };
 
-struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>>
+struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>>
 {
 
 };

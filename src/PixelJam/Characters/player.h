@@ -18,6 +18,7 @@ namespace pg
     struct WallFlag {};
     struct PlayerFlag {};
     struct AllyBulletFlag {};
+    struct CollectibleFlag {};
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys>
     {
@@ -30,7 +31,7 @@ namespace pg
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
 
-            std::vector<size_t> collidableLayer = {0};
+            std::vector<size_t> collidableLayer = {0, 3};
 
             ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 

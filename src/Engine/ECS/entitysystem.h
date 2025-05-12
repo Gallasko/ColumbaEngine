@@ -543,7 +543,7 @@ namespace pg
             }
             catch (const std::exception& e)
             {
-                LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what());
+                LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
             }
 
             return CompRef<Type>();
@@ -714,7 +714,14 @@ namespace pg
 
                 // Todo add a mechanism to avoid creating a component that is already attached to the entity
 
-                registry.retrieve<Type>()->internalCreateComponent(entity, *component);
+                try
+                {
+                    registry.retrieve<Type>()->internalCreateComponent(entity, *component);
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
+                }
             }
         }
 
