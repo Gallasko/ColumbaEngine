@@ -3,7 +3,7 @@
 #include "ECS/system.h"
 #include "ECS/callable.h"
 
-#include "UI/uisystem.h"
+#include "position.h"
 
 #include "constant.h"
 
@@ -71,7 +71,7 @@ namespace pg
         CollisionCell(const CollisionCell& other) : pagePos(other.pagePos), pos(other.pos), size(other.size), ids(other.ids) {}
 
         /** Position of the associated page */
-        const PagePos pagePos;        
+        const PagePos pagePos;
         /** Position of the cell */
         const constant::Vector2D pos;
         /** Size of the cell */
@@ -86,9 +86,9 @@ namespace pg
 
         template <typename Type1>
         CollisionComponent(Type1 layerId) : layerId(layerId)
-        { 
+        {
             if (scale == 0)
-            { 
+            {
                 LOG_ERROR("CollisionComponent", "scale must be a positive number");
                 scale = 1;
             }
@@ -96,9 +96,9 @@ namespace pg
 
         template <typename Type1, typename Type2>
         CollisionComponent(Type1 layerId, Type2 scale, Type1 checkLayerId = 0) : layerId(layerId), scale(scale), checkSpecificLayerFlag(true), checkLayerId(checkLayerId)
-        { 
+        {
             if (scale == 0)
-            { 
+            {
                 LOG_ERROR("CollisionComponent", "scale must be a positive number");
                 scale = 1;
             }
@@ -147,8 +147,8 @@ namespace pg
             }
         }
 
-        void addId(CollisionComponent& comp, const constant::Vector2D& startPos, const constant::Vector2D& objSize);    
-        
+        void addId(CollisionComponent& comp, const constant::Vector2D& startPos, const constant::Vector2D& objSize);
+
         inline bool isEmpty() const
         {
             for (const auto& cell : cells)
@@ -164,14 +164,14 @@ namespace pg
 
         /** Position of the page in the grid */
         const PagePos pos;
-        
+
         /** Size of the page (width = number of cell per row, height = number of rows)
-            Total absolute size of page is width = this->size.x * cell.size.x, same for height */ 
+            Total absolute size of page is width = this->size.x * cell.size.x, same for height */
         const constant::Vector2D size;
 
         /** Absolute size of a single cell */
         const constant::Vector2D cellSize;
-        
+
         /** Array of cell managed by this page */
         std::vector<CollisionCell> cells;
     };
@@ -180,7 +180,7 @@ namespace pg
     {
         CollisionEvent(_unique_id id1, _unique_id id2) : id1(id1), id2(id2) {}
         CollisionEvent(const CollisionEvent& other) : id1(other.id1), id2(other.id2) {}
-        
+
         _unique_id id1;
         _unique_id id2;
 
@@ -190,20 +190,20 @@ namespace pg
         }
     };
 
-    struct CollisionSystem : public System<Own<CollisionComponent>, Ref<UiComponent>, Listener<EntityChangedEvent>, InitSys>
+    struct CollisionSystem : public System<Own<CollisionComponent>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         // Todo make a ctor that load properties (pageSize, cellSi) from serialization
         CollisionSystem();
 
         virtual void init() override;
 
-        void addComponentInGrid(CompRef<UiComponent> pos, CompRef<CollisionComponent> comp);
+        void addComponentInGrid(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp);
 
         void removeComponentFromGrid(CollisionComponent* comp);
 
-        std::set<_unique_id> resolveCollisionList(CompRef<UiComponent> pos, CompRef<CollisionComponent> comp);
+        std::set<_unique_id> resolveCollisionList(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp);
 
-        bool testCollision(CompRef<UiComponent> obj1, CompRef<UiComponent> obj2) const;
+        bool testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2) const;
 
         _unique_id findNeareastId(constant::Vector2D pos, size_t layerId, size_t radius);
 

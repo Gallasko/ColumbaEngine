@@ -6,6 +6,8 @@
 
 #include "UI/sentencesystem.h"
 
+#include "2D/position.h"
+
 namespace pg
 {
     struct FpsSystem : public System<Listener<TickEvent>, InitSys, StoragePolicy>
@@ -132,11 +134,11 @@ namespace pg
         bool moving = true;
     };
 
-    struct MoveToSystem : public System<Own<MoveToComponent>, Listener<TickEvent>, InitSys>
+    struct MoveToSystem : public System<Own<MoveToComponent>, Ref<PositionComponent>, Listener<TickEvent>, InitSys>
     {
         virtual void init() override
         {
-            registerGroup<UiComponent, MoveToComponent>();
+            registerGroup<PositionComponent, MoveToComponent>();
         }
 
         virtual void onEvent(const TickEvent& event) override
@@ -149,9 +151,9 @@ namespace pg
             if (not deltaTime)
                 return;
 
-            for (const auto& elem : viewGroup<UiComponent, MoveToComponent>())
+            for (const auto& elem : viewGroup<PositionComponent, MoveToComponent>())
             {
-                auto ui = elem->get<UiComponent>();
+                auto ui = elem->get<PositionComponent>();
                 auto move = elem->get<MoveToComponent>();
 
                 if (not move->moving)
@@ -159,8 +161,8 @@ namespace pg
 
                 auto travelSpeed = move->speed * (deltaTime / 1000.0f);
 
-                float x = ui->pos.x;
-                float y = ui->pos.y;
+                float x = ui->x;
+                float y = ui->y;
 
                 if (move->changed)
                 {

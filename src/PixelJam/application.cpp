@@ -15,6 +15,7 @@
 #include "Helpers/tinyfiledialogs.h"
 
 #include "2D/position.h"
+#include "2D/collisionsystem.h"
 
 #include "UI/sizer.h"
 #include "UI/prefab.h"
@@ -89,6 +90,27 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
     }
 };
 
+struct TestSystem : public System<QueuedListener<OnMouseClick>, Listener<CollisionEvent>>
+{
+    virtual void onProcessEvent(const OnMouseClick& event) override
+    {
+        if (event.button == SDL_BUTTON_RIGHT)
+        {
+            auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
+
+            wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
+            wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
+
+            ecsRef->attach<CollisionComponent>(wallEnt.entity);
+        }
+    }
+
+    virtual void onEvent(const CollisionEvent& event) override
+    {
+        LOG_INFO(DOM, "Collision detected " << event.id1 << " with " << event.id2);
+    }
+};
+
 std::thread *initThread;
 pg::Window *mainWindow = nullptr;
 std::atomic<bool> initialized = {false};
@@ -139,7 +161,13 @@ void initGame()
 
     mainWindow->ecs.createSystem<ConfiguredKeySystem<GameKeyConfig>>(scancodeMap);
 
+    mainWindow->ecs.createSystem<CollisionSystem>();
+
+    mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
+
     mainWindow->ecs.createSystem<PlayerSystem>();
+
+    mainWindow->ecs.createSystem<TestSystem>();
 
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();

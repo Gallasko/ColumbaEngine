@@ -13,7 +13,7 @@ namespace pg
 
         auto sys = ecsRef->getSystem<CollisionSystem>();
 
-        sys->removeComponentFromGrid(this);        
+        sys->removeComponentFromGrid(this);
     }
 
     void CollisionPage::addId(CollisionComponent& comp, const constant::Vector2D& startPos, const constant::Vector2D& objSize)
@@ -45,12 +45,12 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto group = registerGroup<UiComponent, CollisionComponent>();
+        auto group = registerGroup<PositionComponent, CollisionComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - collision group !");
 
-            auto ui = entity->get<UiComponent>();
+            auto ui = entity->get<PositionComponent>();
             auto collision = entity->get<CollisionComponent>();
 
             addComponentInGrid(ui, collision);
@@ -65,7 +65,7 @@ namespace pg
         // });
     }
 
-    void CollisionSystem::addComponentInGrid(CompRef<UiComponent> pos, CompRef<CollisionComponent> comp)
+    void CollisionSystem::addComponentInGrid(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -80,8 +80,8 @@ namespace pg
             return;
         }
 
-        float x = pos->pos.x;
-        float y = pos->pos.y;
+        float x = pos->x;
+        float y = pos->y;
 
         if (comp->scale < 1)
         {
@@ -115,7 +115,7 @@ namespace pg
             for (int remainingWidth = width * comp->scale; remainingWidth > 0; remainingWidth -= usedWidth)
             {
                 PagePos key = {xPagePos, yPagePos};
-                
+
                 auto it = loadedPages[comp->layerId].find(key);
                 if (it == loadedPages[comp->layerId].end())
                 {
@@ -175,7 +175,7 @@ namespace pg
         comp->cells.clear();
     }
 
-    std::set<_unique_id> CollisionSystem::resolveCollisionList(CompRef<UiComponent> pos, CompRef<CollisionComponent> comp)
+    std::set<_unique_id> CollisionSystem::resolveCollisionList(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -221,7 +221,7 @@ namespace pg
                     }
                 }
             }
-            
+
             // touchedIds.insert(cell->ids.begin(), cell->ids.end());
         }
 
@@ -236,9 +236,9 @@ namespace pg
         {
             auto ent = ecsRef->getEntity(id);
 
-            if (ent->has<UiComponent>())
+            if (ent->has<PositionComponent>())
             {
-                auto ui = ent->get<UiComponent>();
+                auto ui = ent->get<PositionComponent>();
 
                 // Todo have different type of collision (AABB to AABB, circle to AABB, etc)
                 auto test = testCollision(pos, ui);
@@ -259,23 +259,19 @@ namespace pg
     }
 
     // TODO this only test collision for AABB to AABB for now, need to expend on it !
-    bool CollisionSystem::testCollision(CompRef<UiComponent> obj1, CompRef<UiComponent> obj2) const
+    bool CollisionSystem::testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2) const
     {
         LOG_THIS_MEMBER(DOM);
 
-        UiPosition obj1Pos = obj1->pos;
+        float obj1Xmin = obj1->x;
+        float obj1XMax = obj1->x + obj1->width;
+        float obj1YMin = obj1->y;
+        float obj1YMax = obj1->y + obj1->height;
 
-        float obj1Xmin = obj1Pos.x;
-        float obj1XMax = obj1Pos.x + obj1->width;
-        float obj1YMin = obj1Pos.y;
-        float obj1YMax = obj1Pos.y + obj1->height;       
-
-        UiPosition obj2Pos = obj2->pos;
- 
-        float obj2XMin = obj2Pos.x;
-        float obj2XMax = obj2Pos.x + obj2->width;
-        float obj2YMin = obj2Pos.y;
-        float obj2YMax = obj2Pos.y + obj2->height;        
+        float obj2XMin = obj2->x;
+        float obj2XMax = obj2->x + obj2->width;
+        float obj2YMin = obj2->y;
+        float obj2YMax = obj2->y + obj2->height;
 
         return obj1XMax > obj2XMin and
                obj1Xmin < obj2XMax and
@@ -307,13 +303,13 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(event.id);
-        
-        if (not entity or not entity->has<UiComponent>() or not entity->has<CollisionComponent>())
+
+        if (not entity or not entity->has<PositionComponent>() or not entity->has<CollisionComponent>())
             return;
 
         // LOG_INFO(DOM, "Ui changed");
 
-        auto ui = entity->get<UiComponent>();
+        auto ui = entity->get<PositionComponent>();
         auto comp = entity->get<CollisionComponent>();
 
         // float x = ui->pos.x;
