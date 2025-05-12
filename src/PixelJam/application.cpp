@@ -90,6 +90,42 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
     }
 };
 
+#include <functional>
+#include <tuple>
+#include <type_traits>
+
+// primary template left undefined
+template<typename>
+struct function_traits;
+
+// partial specialization for std::function<R(Args...)>
+template<typename R, typename... Args>
+struct function_traits<std::function<R(Args...)>>
+{
+    using return_type = R;
+    static constexpr std::size_t arity = sizeof...(Args);
+    using args = std::tuple<Args...>;
+
+    template<std::size_t N>
+    using arg = std::tuple_element_t<N, args>;
+};
+
+// generic callable
+template<typename T>
+struct function_traits : public function_traits<decltype(&T::operator())>{ };
+
+// member‐function pointer specialization
+template<typename C, typename R, typename... Args>
+struct function_traits<R(C::*)(Args...) const>
+{
+    using return_type = R;
+    static constexpr std::size_t arity = sizeof...(Args);
+    using args = std::tuple<Args...>;
+
+    template<std::size_t N>
+    using arg = std::tuple_element_t<N, args>;
+};
+
 struct CollisionHandleBase
 {
     virtual ~CollisionHandleBase() = default;
@@ -237,6 +273,30 @@ EntityRef makeCollisionHandlePair(Type* ecsRef, std::function<void(Comp1*, Comp2
     return ent;
 }
 
+template <typename Func, typename Type>
+EntityRef makeCollisionHandlePair(Type* ecsRef, Func fn)
+{
+    static_assert(std::is_same_v<void, typename function_traits<Func>::return_type>, "must be void-returning");
+
+    static_assert(function_traits<Func>::arity == 2, "must take exactly 2 arguments");
+
+    // these are exactly the lambda-parameters, e.g. PlayerFlag*
+    using Arg0 = typename function_traits<Func>::template arg<0>;
+    using Arg1 = typename function_traits<Func>::template arg<1>;
+
+    // ensure they really are pointers
+    static_assert(std::is_pointer_v<Arg0> and std::is_pointer_v<Arg1>, "handler must take two raw pointers");
+
+    // strip off the pointer → Comp1=PlayerFlag, Comp2=CollectibleFlag
+    using Comp1 = std::remove_pointer_t<Arg0>;
+    using Comp2 = std::remove_pointer_t<Arg1>;
+
+    // now wrap your original fn in the exact std::function<void(Comp1*,Comp2*)>
+    std::function<void(Comp1*, Comp2*)> wrapper = fn;
+
+    return makeCollisionHandlePair<Comp1, Comp2>(ecsRef, std::move(wrapper));
+}
+
 template <typename Type>
 EntityRef makeCollisionHandle(Type* ecsRef,
     std::function<void(Entity*, Entity*)> fn,
@@ -252,7 +312,7 @@ EntityRef makeCollisionHandle(Type* ecsRef,
     return ent;
 }
 
-struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode>, Listener<CollisionEvent>>
+struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode>>
 {
     int testVar = 0;
 
@@ -263,7 +323,14 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         makeCollisionHandle(ecsRef, [](Entity*, Entity*) { LOG_INFO(DOM, "Collision with a wall! "); },
             [](Entity* ent) { return ent->has<WallFlag>(); });
 
-        makeCollisionHandlePair<PlayerFlag, CollectibleFlag>(ecsRef, [](PlayerFlag*, CollectibleFlag*) { LOG_INFO(DOM, "Collectible collected! "); });
+        makeCollisionHandlePair(ecsRef, [](PlayerFlag*, CollectibleFlag*) { LOG_INFO(DOM, "Collectible collected! "); });
+
+        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag* bullet, WallFlag*) {
+            LOG_INFO(DOM, "Bullet hit a wall! ");
+
+            ecsRef->removeEntity(bullet->entityId);
+        });
+
     }
 
     virtual void onProcessEvent(const OnMouseClick& event) override
@@ -306,17 +373,6 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             LOG_INFO(DOM, "TestSystem: 2 pressed");
             testVar = 1;
         }
-    }
-
-    virtual void onEvent(const CollisionEvent& event) override
-    {
-        LOG_INFO(DOM, "Collision detected " << event.id1 << " with " << event.id2);
-
-        auto entity1 = ecsRef->getEntity(event.id1);
-        auto entity2 = ecsRef->getEntity(event.id2);
-
-        if (entity1 == nullptr or entity2 == nullptr)
-            return;
     }
 };
 
