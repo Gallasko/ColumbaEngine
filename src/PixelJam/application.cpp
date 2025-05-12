@@ -19,6 +19,9 @@
 #include "UI/sizer.h"
 #include "UI/prefab.h"
 
+#include "config.h"
+
+#include "Characters/player.h"
 
 using namespace pg;
 
@@ -133,6 +136,10 @@ void initGame()
     mainWindow->ecs.createSystem<FpsSystem>();
 
     mainWindow->ecs.createSystem<MoveToSystem>();
+
+    mainWindow->ecs.createSystem<ConfiguredKeySystem<GameKeyConfig>>(scancodeMap);
+
+    mainWindow->ecs.createSystem<PlayerSystem>();
 
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();

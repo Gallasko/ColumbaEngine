@@ -316,6 +316,8 @@ else()
 
     target_sources(PixelJam PRIVATE
         src/PixelJam/application.cpp
+        src/PixelJam/Characters/player.cpp
+        src/PixelJam/config.cpp
     )
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)

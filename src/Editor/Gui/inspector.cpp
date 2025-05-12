@@ -43,7 +43,7 @@ namespace pg
         }
 
         std::map<EditorKeyConfig, DefaultScancode> scancodeMap = {
-            {EditorKeyConfig::Undo,    {"Undo", SDL_SCANCODE_Z, KMOD_CTRL}},
+            {EditorKeyConfig::Undo,   {"Undo", SDL_SCANCODE_Z, KMOD_CTRL}},
             {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
             };
 
