@@ -98,13 +98,27 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     {
         testVar = 0;
 
-        makeCollisionHandle(ecsRef, [](Entity*, Entity*) { LOG_INFO(DOM, "Collision with a wall! "); },
-            [](Entity* ent) { return ent->has<WallFlag>(); });
+        // makeCollisionHandle(ecsRef, [](Entity*, Entity*) { LOG_INFO(DOM, "Collision with a wall! "); },
+        //     [](Entity* ent) { return ent->has<WallFlag>(); });
+        makeCollisionHandle(ecsRef, [](Entity*, Entity*) { LOG_INFO(DOM, "Collision ! "); } );
 
         makeCollisionHandlePair(ecsRef, [](PlayerFlag*, CollectibleFlag*) { LOG_INFO(DOM, "Collectible collected! "); });
 
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag* bullet, WallFlag*) {
             LOG_INFO(DOM, "Bullet hit a wall! ");
+
+            ecsRef->removeEntity(bullet->entityId);
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag* bullet, EnemyFlag* enemy) {
+            LOG_INFO(DOM, "Bullet hit an enemy! ");
+
+            enemy->health -= bullet->damage;
+
+            if (enemy->health <= 0)
+            {
+                ecsRef->removeEntity(enemy->entityId);
+            }
 
             ecsRef->removeEntity(bullet->entityId);
         });
@@ -135,6 +149,17 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
                 ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
             }
+            else if (testVar == 2)
+            {
+                auto enemyEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {255.f, 0.f, 0.f, 255.f});
+
+                enemyEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
+                enemyEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
+                enemyEnt.get<PositionComponent>()->setZ(10.f);
+
+                ecsRef->attach<CollisionComponent>(enemyEnt.entity, 4);
+                ecsRef->attach<EnemyFlag>(enemyEnt.entity);
+            }
 
         }
     }
@@ -151,10 +176,15 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             LOG_INFO(DOM, "TestSystem: 2 pressed");
             testVar = 1;
         }
+        else if (event.key == SDL_SCANCODE_3)
+        {
+            LOG_INFO(DOM, "TestSystem: 3 pressed");
+            testVar = 2;
+        }
     }
 };
 
-struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>>
+struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>, Own<EnemyFlag>>
 {
 
 };

@@ -209,7 +209,7 @@ namespace pg
             {
                 for (const auto& checkedlayerId : comp->checkLayerId)
                 {
-                    if (checkedlayerId >= loadedPages.size())
+                    if (loadedPages.find(checkedlayerId) == loadedPages.end())
                         continue;
 
                     const auto& pagelist = loadedPages[checkedlayerId];

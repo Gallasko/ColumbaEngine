@@ -19,16 +19,56 @@ namespace pg
     struct PlayerFlag {};
     struct AllyBulletFlag : public Ctor
     {
+        AllyBulletFlag(float dmg = 1) : damage(dmg) {}
+        AllyBulletFlag(const AllyBulletFlag& rhs) : damage(rhs.damage), ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
+
+        AllyBulletFlag& operator=(const AllyBulletFlag& rhs)
+        {
+            damage = rhs.damage;
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
+
+            return *this;
+        }
+
         virtual void onCreation(EntityRef entity)
         {
             ecsRef = entity->world();
             entityId = entity->id;
         }
 
-        _unique_id entityId;
+        float damage = 1;
+
         EntitySystem* ecsRef;
+        _unique_id entityId;
     };
+
     struct CollectibleFlag {};
+    struct EnemyFlag : public Ctor
+    {
+        EnemyFlag(float health = 3) : health(health) {}
+        EnemyFlag(const EnemyFlag& rhs) : health(rhs.health), ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
+
+        EnemyFlag& operator=(const EnemyFlag& rhs)
+        {
+            health = rhs.health;
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        float health = 3;
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys>
     {
@@ -58,7 +98,7 @@ namespace pg
                 bullet.get<PositionComponent>()->setX(pos->x + 25.f);
                 bullet.get<PositionComponent>()->setY(pos->y + 25.f);
 
-                std::vector<size_t> collidableLayer = {0};
+                std::vector<size_t> collidableLayer = {0, 4};
 
                 ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
                 ecsRef->attach<AllyBulletFlag>(bullet.entity);
