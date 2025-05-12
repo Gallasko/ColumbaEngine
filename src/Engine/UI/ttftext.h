@@ -16,7 +16,7 @@ namespace pg
         TTFText() {}
         TTFText(const std::string& text, const std::string& fontPath, float scale, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f}) : text(text), fontPath(fontPath), scale(scale), colors(colors) {}
 
-        inline static std::string getType() { return "TTFText"; } 
+        inline static std::string getType() { return "TTFText"; }
 
         virtual void onCreation(EntityRef entity)
         {
@@ -27,23 +27,33 @@ namespace pg
 
         void setText(const std::string& text)
         {
-            this->text = text;
-
-            if (ecsRef)
+            if (this->text != text)
             {
-                changed = true;
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
+                LOG_THIS("TTF Text");
+
+                this->text = text;
+
+                if (ecsRef)
+                {
+                    changed = true;
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
             }
         }
 
         void setColor(const constant::Vector4D& colors)
         {
-            this->colors = colors;
-
-            if (ecsRef)
+            if (this->colors != colors)
             {
-                changed = true;
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
+                LOG_THIS("TTF Text");
+
+                this->colors = colors;
+
+                if (ecsRef)
+                {
+                    changed = true;
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
             }
         }
 
@@ -51,7 +61,25 @@ namespace pg
         {
             if (this->wrap != wrap)
             {
+                LOG_THIS("TTF Text");
+
                 this->wrap = wrap;
+
+                if (ecsRef)
+                {
+                    changed = true;
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
+            }
+        }
+
+        void setSpacing(float spacing)
+        {
+            if (this->spacing != spacing)
+            {
+                LOG_THIS("TTF Text");
+
+                this->spacing = spacing;
 
                 if (ecsRef)
                 {
@@ -72,6 +100,8 @@ namespace pg
         constant::Vector4D colors;
 
         bool wrap = false;
+
+        float spacing = 0.0f;
 
         EntitySystem * ecsRef = nullptr;
 
@@ -100,12 +130,13 @@ namespace pg
 
     struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
     {
-        struct Character 
+        struct Character
         {
-            unsigned int textureID;  // ID handle of the glyph texture
             glm::ivec2   size;       // Size of glyph
             glm::ivec2   bearing;    // Offset from baseline to left/top of glyph
             unsigned int advance;    // Offset to advance to next glyph
+            glm::vec2    uvTopLeft;
+            glm::vec2    uvBottomRight;
         };
 
         TTFTextSystem(MasterRenderer *renderer);
@@ -140,11 +171,14 @@ namespace pg
         float computeLineHeight(const std::string& text, const std::string& fontPath, float scale);
         float getGlyphAdvance(char c, const std::string& fontPath, float scale);
         float computeWordWidth(const std::string& word, const std::string& fontPath, float scale);
-        RenderCall createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors);
-        void addSpaceRenderCall(std::vector<RenderCall>& calls, CompRef<PositionComponent> ui, const std::string& fontPath, float& currentX, float& currentLineWidth, float currentY, float z, float scale, float lineHeight, const constant::Vector4D& colors);
-        
-        std::vector<RenderCall> createWrappedRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
-        std::vector<RenderCall> createNormalRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
+        RenderCall createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors);
+
+        std::vector<TTFText> parseFormattedText(const TTFText &original);
+
+        size_t getMaterialId(const std::string& fontPath);
+
+        // Used for memoiszing the material id of a font
+        std::map<std::string, size_t> currentLoadedMaterialId;
     };
 
     template <typename Type>

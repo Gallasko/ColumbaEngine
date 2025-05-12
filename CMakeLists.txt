@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.18)
 
 project(PgEngine VERSION 1.0)
 
+option(UseGDB "UseGDB" OFF)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
@@ -55,11 +57,24 @@ else()
     if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         set(CMAKE_CXX_FLAGS "-Wa,-mbig-obj -Wall -Wextra -pthread -s -O3 -DNDEBUG")
     else()
-        set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O3 -DNDEBUG")
-    # set(CMAKE_CXX_FLAGS " -Wall -Wextra -pthread -s -O3 -DNDEBUG")
+        # Todo make sure that -03 is enabled when release
+        if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
+        # set(CMAKE_CXX_FLAGS "-flto -Wall -Wextra -pthread -O3 -DNDEBUG")
+        # set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
+            set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG")
+        endif()
+
+        if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")
+            set(CMAKE_CXX_FLAGS " -Wall -Wextra -pthread -Wa,-mbig-obj -s -O2 -DNDEBUG")
+        endif()
+
     endif()
 
     # set(CMAKE_CXX_FLAGS "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+endif()
+
+if(${UseGDB} EQUAL ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
 endif()
 
 add_subdirectory(${GLM_DIR})
@@ -191,22 +206,53 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
     target_include_directories(PgEngineSrc PUBLIC src/Editor)
 
-    add_executable(PgEngine src/main.cpp)
+    add_executable(GameOff src/GameOff/main.cpp)
 
-    target_sources(PgEngine PRIVATE
-        src/application.cpp
-        src/application.h
-        src/Editor/Gui/contextmenu.cpp
-        src/Editor/Gui/inspector.cpp
+    target_include_directories(GameOff PUBLIC src/GameOff)
+
+    target_sources(GameOff PRIVATE
+        src/GameOff/achievement.cpp
+        src/GameOff/application.cpp
+        src/GameOff/character.cpp
+        src/GameOff/characustomizationscene.cpp
+        src/GameOff/fightscene.cpp
+        src/GameOff/gamefacts.cpp
+        src/GameOff/inventory.cpp
+        src/GameOff/item.cpp
+        src/GameOff/location.cpp
+        src/GameOff/locationscene.cpp
+        src/GameOff/mainscene.cpp
+        src/GameOff/managenerator.cpp
+        src/GameOff/nexusscene.cpp
+        src/GameOff/skilltree.cpp
+        src/GameOff/passives.cpp
+        src/GameOff/spells.cpp
     )
 
-    target_link_libraries(PgEngine PRIVATE PgEngineSrc)
+    target_link_libraries(GameOff PRIVATE PgEngineSrc)
 
-    set_target_properties(PgEngine
+    set_target_properties(GameOff
         PROPERTIES SUFFIX ".html"
         LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
 
-    target_link_libraries(PgEngine PRIVATE glm)
+    target_link_libraries(GameOff PRIVATE glm)
+
+    # add_executable(PgEngine src/main.cpp)
+
+    # target_sources(PgEngine PRIVATE
+    #     src/application.cpp
+    #     src/application.h
+    #     src/Editor/Gui/contextmenu.cpp
+    #     src/Editor/Gui/inspector.cpp
+    # )
+
+    # target_link_libraries(PgEngine PRIVATE PgEngineSrc)
+
+    # set_target_properties(PgEngine
+    #     PROPERTIES SUFFIX ".html"
+    #     LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
+
+    # target_link_libraries(PgEngine PRIVATE glm)
 
 else()
     target_include_directories(PgEngineSrc PUBLIC src/Engine)
@@ -238,6 +284,8 @@ else()
 
     add_executable(GameOff src/GameOff/main.cpp)
 
+    configure_file(res/nexus.pg nexus.pg COPYONLY)
+
     target_include_directories(GameOff PUBLIC src/GameOff)
 
     target_sources(GameOff PRIVATE
@@ -249,12 +297,15 @@ else()
         src/GameOff/gamefacts.cpp
         src/GameOff/inventory.cpp
         src/GameOff/item.cpp
-        src/GameOff/mainscene.cpp
         src/GameOff/location.cpp
         src/GameOff/locationscene.cpp
+        src/GameOff/mainscene.cpp
+        src/GameOff/managenerator.cpp
+        src/GameOff/nexusscene.cpp
         src/GameOff/skilltree.cpp
         src/GameOff/passives.cpp
         src/GameOff/spells.cpp
+        src/GameOff/theme.cpp
     )
 
     target_link_libraries(GameOff PRIVATE PgEngineSrc)
@@ -291,6 +342,7 @@ else()
         test/ecssystem.cc
         test/filemanager.cc
         test/interpreter.cc
+        test/layout.cc
         # test/mock2dsimpleshape.h
         # test/simple2dobject.cc
         test/position.cc

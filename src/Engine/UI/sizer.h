@@ -6,420 +6,240 @@
 
 namespace pg
 {
-    struct ClearHorizontalLayoutEvent
+    enum class LayoutOrientation
     {
-        _unique_id id;
+        Horizontal,
+        Vertical
     };
 
-    struct AddHorizontalLayoutElementEvent
+    struct ClearLayoutEvent
     {
-        _unique_id id; _unique_id ui;
+        std::vector<_unique_id> entityIds;
     };
 
-    struct RemoveHorizontalLayoutElementEvent
+    struct AddLayoutElementEvent
     {
-        _unique_id id; size_t index;
+        _unique_id id; _unique_id ui; LayoutOrientation orientation;
     };
 
-    struct UpdateHorizontalLayoutVisibility
+    struct RemoveLayoutElementEvent
     {
-        _unique_id id; bool visible;
+        _unique_id id; _unique_id index; LayoutOrientation orientation;
     };
 
-    struct HorizontalLayout: public Ctor
+    struct UpdateLayoutScrollable
     {
-        void onCreation(EntityRef entity) override
-        {
-            id = entity.id;
-            ecsRef = entity.ecsRef;
-        }
-
-        void addEntity(EntityRef entity) { ecsRef->sendEvent(AddHorizontalLayoutElementEvent{id, entity.id}); }
-
-        void setVisibility(bool visible) { ecsRef->sendEvent(UpdateHorizontalLayoutVisibility{id, visible}); }
-
-        void clear() { ecsRef->sendEvent(ClearHorizontalLayoutEvent{id}); }
-
-        bool fitToWidth = false;
-
-        bool spacedInWidth = false;
-
-        size_t spacing = 0;
-
-        bool visible = true;
-
-        std::vector<EntityRef> entities;
-
-        _unique_id id;
-
-        EntitySystem *ecsRef;
+        _unique_id id; bool scrollable; LayoutOrientation orientation;
     };
 
-    struct HorizontalLayoutSystem : public System<
-        Listener<EntityChangedEvent>,
-        Listener<AddHorizontalLayoutElementEvent>,
-        Listener<RemoveHorizontalLayoutElementEvent>,
-        Listener<UpdateHorizontalLayoutVisibility>,
-        Listener<ClearHorizontalLayoutEvent>,
-        Own<HorizontalLayout>,
-        InitSys>
+    template <typename Layout>
+    size_t getNbVisibleElementsInLayout(Layout layout)
     {
-        virtual std::string getSystemName() const override { return "Horizontal Layout System"; }
+        size_t nb = 0;
 
-        virtual void init() override;
-
-        virtual void onEvent(const AddHorizontalLayoutElementEvent& event) override
+        for (auto& ent : layout->entities)
         {
-            eventQueue.push(event);
-        }
-
-        virtual void onEvent(const RemoveHorizontalLayoutElementEvent& /*event*/) override
-        {
-            // Todo
-        }
-
-        virtual void onEvent(const ClearHorizontalLayoutEvent& event) override
-        {
-            clearQueue.push(event);
-        }
-
-        virtual void onEvent(const UpdateHorizontalLayoutVisibility& event) override
-        {
-            visibilityQueue.push(event);
-        }
-
-        virtual void onEvent(const EntityChangedEvent& event) override
-        {
-            auto ent = ecsRef->getEntity(event.id);
-
-            if (not ent)
+            if (ent->template has<PositionComponent>())
             {
-                return;
-            }
+                auto pos = ent->template get<PositionComponent>();
 
-            if (ent->has<HorizontalLayout>())
-            {
-                hLayoutUpdated.insert(ent);
-                return;
-            }
-
-            for (auto v : view<HorizontalLayout>())
-            {
-                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-
-                if (it != v->entities.end())
+                if (pos->visible)
                 {
-                    hLayoutUpdated.insert(ecsRef->getEntity(v->id));
-                    // An entity should not be in multple layouts at the same time
-                    return;
+                    nb++;
                 }
             }
-
         }
 
-        virtual void execute() override
-        {
-            while (not clearQueue.empty())
-            {
-                const auto& event = clearQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not (ent->has<HorizontalLayout>()))
-                {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    return;
-                }
-
-                clear(ent->get<HorizontalLayout>());
-
-                clearQueue.pop();
-            }
-
-            while (not visibilityQueue.empty())
-            {
-                const auto& event = visibilityQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not (ent->has<HorizontalLayout>()))
-                {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component!");
-                    return;
-                }
-
-                updateVisibility(ent, event.visible);
-
-                visibilityQueue.pop();
-            }
-
-            while (not eventQueue.empty())
-            {
-                const auto& event = eventQueue.front();
-
-                auto ent = ecsRef->getEntity(event.id);
-
-                if (not (ent->has<HorizontalLayout>()))
-                {
-                    LOG_ERROR("HorizontalLayout", "Entity requested doesn't have a list view component !");
-                    return;
-                }
-
-                addEntity(ent, event.ui);
-
-                eventQueue.pop();
-            }
-
-            for (auto ent : hLayoutUpdated)
-            {
-                recalculateChildrenPos(ent);
-
-                auto view = ent->get<HorizontalLayout>();
-
-                updateVisibility(ent, view->visible);
-            }
-
-            hLayoutUpdated.clear();
-        }
-
-        void addEntity(EntityRef viewEnt, _unique_id ui);
-
-        void recalculateChildrenPos(EntityRef viewEnt);
-
-        void updateVisibility(EntityRef viewEnt, bool visible);
-
-        void clear(CompRef<HorizontalLayout> view);
-
-        std::queue<AddHorizontalLayoutElementEvent> eventQueue;
-
-        std::queue<ClearHorizontalLayoutEvent> clearQueue;
-
-        std::queue<UpdateHorizontalLayoutVisibility> visibilityQueue;
-
-        std::set<EntityRef> hLayoutUpdated;
-    };
-
-    template <typename Type>
-    CompList<PositionComponent, UiAnchor, HorizontalLayout> makeHorizontalLayout(Type *ecs, float x, float y, float width, float height)
-    {
-        auto entity = ecs->createEntity();
-
-        auto ui = ecs->template attach<PositionComponent>(entity);
-
-        auto anchor = ecs->template attach<UiAnchor>(entity);
-
-        auto view = ecs->template attach<HorizontalLayout>(entity);
-
-        ui->setX(x);
-        ui->setY(y);
-        ui->setWidth(width);
-        ui->setHeight(height);
-
-        return {entity, ui, anchor, view};
+        return nb;
     }
 
-    struct ClearVerticalLayoutEvent
+    struct BaseLayout : public Ctor, public Dtor
     {
-        _unique_id id;
-    };
-
-    struct AddVerticalLayoutElementEvent
-    {
-        _unique_id id; _unique_id ui;
-    };
-
-    struct RemoveVerticalLayoutElementEvent
-    {
-        _unique_id id; size_t index;
-    };
-
-    struct UpdateVerticalLayoutVisibility
-    {
-        _unique_id id; bool visible;
-    };
-
-    struct VerticalLayout: public Ctor
-    {
-        void onCreation(EntityRef entity) override
+        virtual void onCreation(EntityRef entity) override
         {
             id = entity.id;
             ecsRef = entity.ecsRef;
         }
 
-        void addEntity(EntityRef entity) { ecsRef->sendEvent(AddVerticalLayoutElementEvent{id, entity.id}); }
+        virtual void onDeletion(EntityRef) override
+        {
+            if (clearOnDeletion)
+                clear();
+        }
 
-        void setVisibility(bool visible) { ecsRef->sendEvent(UpdateVerticalLayoutVisibility{id, visible}); }
+        void addEntity(EntityRef entity)
+        {
+            ecsRef->sendEvent(AddLayoutElementEvent{id, entity.id, orientation});
+        }
 
-        void clear() { ecsRef->sendEvent(ClearVerticalLayoutEvent{id}); }
+        void removeEntity(EntityRef entity)
+        {
+            ecsRef->sendEvent(RemoveLayoutElementEvent{id, entity.id, orientation});
+        }
 
-        bool fitToHeight = false;
+        void removeEntity(_unique_id entityId)
+        {
+            ecsRef->sendEvent(RemoveLayoutElementEvent{id, entityId, orientation});
+        }
 
-        bool spacedInHeight = false;
+        void setScrollable(bool scrollable)
+        {
+            if (this->scrollable != scrollable)
+            {
+                this->scrollable = scrollable;
 
+                ecsRef->sendEvent(UpdateLayoutScrollable{id, scrollable, orientation});
+            }
+        }
+
+        void clear()
+        {
+            std::vector<_unique_id> entityIds;
+
+            entityIds.reserve(entities.size());
+
+            for (const auto& ent : entities)
+            {
+                entityIds.push_back(ent.id);
+            }
+
+            ecsRef->sendEvent(ClearLayoutEvent{entityIds});
+
+            entities.clear();
+        }
+
+        bool fitToAxis = false;
+        bool spaced = false;
         size_t spacing = 0;
 
-        bool visible = true;
+        // Scrollbar parameters
+        EntityRef horizontalScrollBar, verticalScrollBar;
+        float xOffset = 0.0f, yOffset = 0.0f;
+        float contentWidth = 0.0f, contentHeight = 0.0f;
+        float scrollSpeed = 25.0f;
+
+        bool stickToEnd = false;
+
+        bool clearOnDeletion = true;
+
+        // Private
+
+        LayoutOrientation orientation = LayoutOrientation::Horizontal;
+
+        bool scrollable = true;
 
         std::vector<EntityRef> entities;
 
-        _unique_id id;
+        bool childrenAdded = false;
 
+        _unique_id id;
         EntitySystem *ecsRef;
     };
 
-    struct VerticalLayoutSystem : public System<
-        Listener<EntityChangedEvent>,
-        Listener<AddVerticalLayoutElementEvent>,
-        Listener<RemoveVerticalLayoutElementEvent>,
-        Listener<UpdateVerticalLayoutVisibility>,
-        Listener<ClearVerticalLayoutEvent>,
+
+    struct HorizontalLayout : public BaseLayout
+    {
+        HorizontalLayout() : BaseLayout()
+        {
+            orientation = LayoutOrientation::Horizontal;
+        }
+    };
+
+    struct VerticalLayout : public BaseLayout
+    {
+        VerticalLayout() : BaseLayout()
+        {
+            orientation = LayoutOrientation::Vertical;
+        }
+    };
+
+    struct LayoutSystem : public System<
+        Listener<StandardEvent>,
+        QueuedListener<EntityChangedEvent>,
+        QueuedListener<AddLayoutElementEvent>,
+        QueuedListener<RemoveLayoutElementEvent>,
+        QueuedListener<ClearLayoutEvent>,
+        QueuedListener<UpdateLayoutScrollable>,
+        Own<HorizontalLayout>,
         Own<VerticalLayout>,
         InitSys>
     {
-        virtual std::string getSystemName() const override { return "Vertical Layout System"; }
+        virtual std::string getSystemName() const override { return "Layout System"; }
 
         virtual void init() override;
 
-        virtual void onEvent(const AddVerticalLayoutElementEvent& event) override
-        {
-            eventQueue.push(event);
-        }
+        virtual void onEvent(const StandardEvent& event) override;
 
-        virtual void onEvent(const RemoveVerticalLayoutElementEvent& /*event*/) override
-        {
-            // Todo
-        }
+        virtual void onProcessEvent(const AddLayoutElementEvent& event) override;
 
-        virtual void onEvent(const ClearVerticalLayoutEvent& event) override
-        {
-            clearQueue.push(event);
-        }
+        virtual void onProcessEvent(const RemoveLayoutElementEvent& event) override;
 
-        virtual void onEvent(const UpdateVerticalLayoutVisibility& event) override
-        {
-            visibilityQueue.push(event);
-        }
+        virtual void onProcessEvent(const ClearLayoutEvent& event) override;
 
-        virtual void onEvent(const EntityChangedEvent& event) override
-        {
-            auto ent = ecsRef->getEntity(event.id);
+        virtual void onProcessEvent(const EntityChangedEvent& event) override;
 
-            if (not ent)
-            {
-                return;
-            }
+        virtual void onProcessEvent(const UpdateLayoutScrollable& event) override;
 
-            if (ent->has<VerticalLayout>())
-            {
-                vLayoutUpdated.insert(ent);
-                return;
-            }
+        virtual void execute() override;
 
-            for (auto v : view<VerticalLayout>())
-            {
-                const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
+        /**
+         * Helper function for processScroll.
+         *
+         * If scrollable is true, a MouseWheelComponent is attached to the entity and all its children are
+         * made to be clipped to the entity. If scrollable is false, the MouseWheelComponent is detached
+         * and the children are no longer clipped to the entity.
+         *
+         * If the entity has a horizontal or vertical scrollbar and the scrollbar is visible, the
+         * scrollbar is hidden.
+         *
+         * @param entity The entity to process.
+         * @param view The layout view of the entity.
+         * @param scrollable If true, the entity is scrollable, otherwise it is not.
+         */
+        void processScrollHelper(Entity* entity, BaseLayout* view, bool scrollable);
 
-                if (it != v->entities.end())
-                {
-                    vLayoutUpdated.insert(ecsRef->getEntity(v->id));
-                    // An entity should not be in multiple layouts at the same time
-                    return;
-                }
-            }
-        }
+        // Todo calculate the lesser axis of the view (Biggest width for Vertical for example)
+        void recalculateChildrenPos(EntityRef viewEnt, BaseLayout* view);
 
-        virtual void execute() override
-        {
-            while (not clearQueue.empty())
-            {
-                const auto& event = clearQueue.front();
+        void addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation);
 
-                auto ent = ecsRef->getEntity(event.id);
+        void removeEntity(BaseLayout* view, _unique_id index);
 
-                if (not (ent->has<VerticalLayout>()))
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    return;
-                }
+        void updateVisibility(EntityRef viewEnt, BaseLayout* view);
 
-                clear(ent->get<VerticalLayout>());
+        void clear(const std::vector<_unique_id>& entityIds);
 
-                clearQueue.pop();
-            }
+        void updateLayout(EntityRef viewEnt, BaseLayout* view);
 
-            while (not visibilityQueue.empty())
-            {
-                const auto& event = visibilityQueue.front();
+        void adjustOffsets(EntityRef viewEnt, BaseLayout* view, bool childrenAdded);
 
-                auto ent = ecsRef->getEntity(event.id);
+        void updateScrollBars(EntityRef viewEnt, BaseLayout* view);
 
-                if (not (ent->has<VerticalLayout>()))
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component!");
-                    return;
-                }
+        void updateHorizontalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos);
 
-                updateVisibility(ent, event.visible);
+        void updateVerticalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos);
 
-                visibilityQueue.pop();
-            }
+        void layoutWithoutSpacing(EntityRef viewEnt, BaseLayout* view);
 
-            while (not eventQueue.empty())
-            {
-                const auto& event = eventQueue.front();
+        void layoutWithSpacing(EntityRef viewEnt, BaseLayout* view);
 
-                auto ent = ecsRef->getEntity(event.id);
+        std::set<EntityRef> layoutUpdate;
 
-                if (not (ent->has<VerticalLayout>()))
-                {
-                    LOG_ERROR("VerticalLayout", "Entity requested doesn't have a list view component !");
-                    return;
-                }
-
-                addEntity(ent, event.ui);
-
-                eventQueue.pop();
-            }
-
-            for (auto ent : vLayoutUpdated)
-            {
-                recalculateChildrenPos(ent);
-
-                auto view = ent->get<VerticalLayout>();
-
-                updateVisibility(ent, view->visible);
-            }
-
-            vLayoutUpdated.clear();
-        }
-
-        void addEntity(EntityRef viewEnt, _unique_id ui);
-
-        void recalculateChildrenPos(EntityRef viewEnt);
-
-        void updateVisibility(EntityRef viewEnt, bool visible);
-
-        void clear(CompRef<VerticalLayout> view);
-
-        std::queue<AddVerticalLayoutElementEvent> eventQueue;
-
-        std::queue<ClearVerticalLayoutEvent> clearQueue;
-
-        std::queue<UpdateVerticalLayoutVisibility> visibilityQueue;
-
-        std::set<EntityRef> vLayoutUpdated;
+        std::set<_unique_id> entitiesInLayout;
     };
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, VerticalLayout> makeVerticalLayout(Type *ecs, float x, float y, float width, float height)
+    CompList<PositionComponent, UiAnchor, HorizontalLayout> makeHorizontalLayout(Type *ecs, float x, float y, float width, float height, bool scrollable = false)
     {
         auto entity = ecs->createEntity();
+
+        auto view = ecs->template attach<HorizontalLayout>(entity);
+
+        view->scrollable = scrollable;
 
         auto ui = ecs->template attach<PositionComponent>(entity);
 
         auto anchor = ecs->template attach<UiAnchor>(entity);
-
-        auto view = ecs->template attach<VerticalLayout>(entity);
 
         ui->setX(x);
         ui->setY(y);
@@ -428,4 +248,26 @@ namespace pg
 
         return {entity, ui, anchor, view};
     }
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor, VerticalLayout> makeVerticalLayout(Type *ecs, float x, float y, float width, float height, bool scrollable = false)
+    {
+        auto entity = ecs->createEntity();
+
+        auto view = ecs->template attach<VerticalLayout>(entity);
+
+        view->scrollable = scrollable;
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        ui->setX(x);
+        ui->setY(y);
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        return {entity, ui, anchor, view};
+    }
+
 }

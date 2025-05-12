@@ -27,6 +27,8 @@
     #endif
 #endif
 
+// Todo remove this, obsolete !
+
 namespace pg
 {
     struct ClearListViewEvent
@@ -151,7 +153,7 @@ namespace pg
                     updateVisibility(ent, pos->visible);
                 }
             }
-            
+
             if (not (ent->has<ListViewBodySizer>()))
             {
                 // If we don't have a body sizer, then that means that the listview has no children, or that the children don't have a position component.
@@ -275,6 +277,7 @@ namespace pg
 
         // Z + 3 so the cursor is always on top of the slider
         auto cursor = makeUiTexture(ecs, 15, height, "cursor");
+        cursor.template get<PositionComponent>()->setVisibility(false);
         auto cursorAnchor = cursor.template get<UiAnchor>();
 
         cursorAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 3});
@@ -327,7 +330,7 @@ namespace pg
                 else
                 {
                     LOG_ERROR("ListViewSystem", "First entity in the list [" << viewId << "] must have a UiAnchor!");
-                }   
+                }
             }
 
             auto sys = ecs->template getSystem<ListViewSystem>();
@@ -337,6 +340,7 @@ namespace pg
 
         // Z + 2 so the slider is always on top of any entity in the list
         auto slider = makeUiTexture(ecs, 15, 1, "slider");
+        slider.template get<PositionComponent>()->setVisibility(false);
         auto sliderAnchor = slider.template get<UiAnchor>();
 
         sliderAnchor->setZConstrain(PosConstrain{entity->id, AnchorType::Z, PosOpType::Add, 2});

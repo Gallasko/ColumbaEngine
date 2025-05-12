@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ECS/system.h"
+#include "ECS/componentregistry.h"
 
 namespace pg
 {
@@ -65,10 +65,5 @@ namespace pg
         std::string eventName;
 
         std::function<void(const StandardEvent&)> callback;
-    };
-
-    struct OnEventComponentSystem : public System<Own<OnEventComponent>, Own<OnStandardEventComponent>, StoragePolicy>
-    {
-        virtual std::string getSystemName() const override { return "OnEventComponentSystem"; }
     };
 }

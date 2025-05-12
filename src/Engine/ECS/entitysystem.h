@@ -17,17 +17,28 @@
 #include "logger.h"
 #include "Memory/memorypool.h"
 
-#include "Interpreter/interpretersystem.h"
+#ifdef PROFILE
+#include <atomic>
+#include <mutex>
+extern std::mutex profileMutex;
+// Profiling data
+
+extern std::unordered_map<std::string, long long> _systemExecutionTimes;
+extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
+#endif
 
 namespace pg
 {
     // Todo create a queue that hold all entity id that got deleted to reattribute them later on
 
     // Todo Create a different id gen for systems so that components id are smaller and more packed
-    
+
     // Forward declarations
     class ComponentRegistry;
     struct AbstractSystem;
+    class InterpreterSystem;
+    class Environment;
+    class ClassInstance;
 
     // Todo add this in a window dependancy
     // This event is fired when the window is resized
@@ -35,9 +46,9 @@ namespace pg
 
     // Todo add batching for entity and component creation/deletion
 
-    template <class T>                                                  
+    template <class T>
     class HasOnCreation
-    {       
+    {
         template <class U, class = typename std::enable_if<!std::is_member_pointer<decltype(&U::onCreation)>::value>::type>
             static std::true_type check(int);
         template <class>
@@ -55,7 +66,7 @@ namespace pg
     friend struct InputModule;
     friend struct OnEventComponent;
     friend struct OnStandardEventComponent;
-    
+
     private:
         class EventDispatcher
         {
@@ -103,8 +114,8 @@ namespace pg
 
         /**
          * @brief Start the ecs without starting the execute thread loop, Used mainly for testing purposes
-         * 
-         * @warning This function is mainly used for testing purposes, and it does not guarantee that the ECS will run properly. @see start() if you don't know what you're doing. 
+         *
+         * @warning This function is mainly used for testing purposes, and it does not guarantee that the ECS will run properly. @see start() if you don't know what you're doing.
          */
         inline void fakeStart()
         {
@@ -137,8 +148,16 @@ namespace pg
         }
 
         /**
+         * @brief Save the underlaying registry to file
+         */
+        void saveSystems() const
+        {
+            registry.saveRegistry();
+        }
+
+        /**
          * @brief Generate a new unique identifier (on a 64bit generator)
-         * 
+         *
          * @return _unique_id A unique identifier for Systems and Entities
          */
         inline _unique_id generateId() noexcept
@@ -148,21 +167,21 @@ namespace pg
 
         /**
          * @brief Create a Entity object
-         * 
+         *
          * @return EntityRef A reference object to the entity created
          */
         EntityRef createEntity();
 
         /**
          * @brief Remove an Entity object
-         * 
+         *
          * @param entity Pointer to the entity to delete from the ecs (Remove it from the entity pool)
          */
         void removeEntity(Entity* entity);
 
         /**
          * @brief Overload of the removeEntity function
-         * 
+         *
          * @param id Id of the entity to delete
          */
         void removeEntity(_unique_id id)
@@ -172,9 +191,9 @@ namespace pg
 
         /**
          * @brief Create a new system in place and put it in the taskflow
-         * 
+         *
          * All the different option are set during contruction of the system check the ctor of System for more info
-         * 
+         *
          * @tparam Sys The type of the system to create
          * @tparam Args The types of the arguments of the system
          * @param args The arguments to pass to the ctor of the newly created system
@@ -205,26 +224,49 @@ namespace pg
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
             {
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
                 auto task = taskflow.emplace([system]()
                 {
+#ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
-            
+#endif
+
                     try
                     {
-                        system->execute();
+                        system->_execute();
                     }
                     catch (const std::exception& e)
                     {
                         LOG_ERROR("ECS", "Exception thrown whhile execution sys: " << typeid(Sys).name() << ", error: " << e.what());
                     }
 
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
                     auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-                    if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-                
-                }).name(std::to_string(system->_id));
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
+
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        std::string systemName = system->getSystemName();
+                        _systemExecutionTimes[systemName] += duration;
+                        _systemExecutionCounts[systemName]++;
+
+                        // std::cout << "Updated " << systemName
+                        // << " total time = " << _systemExecutionTimes[systemName]
+                        // << ", count = " << _systemExecutionCounts[systemName] << std::endl;
+                    }
+#endif
+                }).name(name);
 
                 // Put the task after every other basic task
                 task.succeed(basicTask);
@@ -234,7 +276,38 @@ namespace pg
             }
             else if (system->executionPolicy == ExecutionPolicy::Independent)
             {
-                auto task = taskflow.emplace([system](){system->execute();}).name(std::to_string(system->_id));
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
+                auto task = taskflow.emplace([system]()
+                {
+#ifdef PROFILE
+                    // Todo time the whole exec of a run of the taskflow
+                    auto start = std::chrono::steady_clock::now();
+#endif
+
+                    system->_execute();
+
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
+                    auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
+
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        std::string systemName = system->getSystemName();
+                        _systemExecutionTimes[systemName] += duration;
+                        _systemExecutionCounts[systemName]++;
+                    }
+#endif
+                }).name(name);
 
                 // Register the task in case we need to call precede and succeed
                 tasks[system->_id] = task;
@@ -312,19 +385,38 @@ namespace pg
             // Only add the system to the taskflow if the execution policy is set to sequential or independent !
             if (system->executionPolicy == ExecutionPolicy::Sequential)
             {
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
                 auto task = taskflow.emplace([system]()
                 {
+#ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
-            
-                    system->execute();
+#endif
 
+                    system->_execute();
+
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
                     auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
 
-                    if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-                
-                }).name(std::to_string(system->_id));
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
+
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        std::string systemName = system->getSystemName();
+                        _systemExecutionTimes[systemName] += duration;
+                        _systemExecutionCounts[systemName]++;
+                    }
+#endif
+                }).name(name);
 
                 // Put the task after every other basic task
                 task.succeed(basicTask);
@@ -334,7 +426,12 @@ namespace pg
             }
             else if (system->executionPolicy == ExecutionPolicy::Independent)
             {
-                auto task = taskflow.emplace([system](){system->execute();}).name(std::to_string(system->_id));
+                auto name = system->getSystemName();
+
+                if (name == "UnNamed")
+                    name = std::to_string(system->_id);
+
+                auto task = taskflow.emplace([system](){system->_execute();}).name(name);
 
                 // Register the task in case we need to call precede and succeed
                 tasks[system->_id] = task;
@@ -343,64 +440,11 @@ namespace pg
             return sys;
         }
 
-        template <typename... Args>
-        InterpreterSystem* createInterpreterSystem(const Args&... args)
-        {
-            LOG_THIS_MEMBER("ECS");
-
-            // Todo: add support for system creation during runtime
-            if (running)
-            {
-                LOG_ERROR("ECS", "System creation during runtime is not supported");
-                return nullptr;
-            }
-
-            auto system = new InterpreterSystem(args...);
-            system->_id = registry.idGenerator.generateId();
-
-            system->ecsRef = this;
-
-            systems.emplace(system->_id, system);
-
-            system->addToRegistry(&registry);            
-
-            // Only add the system to the taskflow if the execution policy is set to sequential or independent !
-            if (system->executionPolicy == ExecutionPolicy::Sequential)
-            {
-                auto task = taskflow.emplace([system]()
-                {
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-            
-                    system->execute();
-
-                    auto end = std::chrono::steady_clock::now();
-
-                    if (std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execute took: " << std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() << " ns" << std::endl;
-
-                }).name(std::to_string(system->_id));
-
-                // Put the task after every other basic task
-                task.succeed(basicTask);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
-            else if (system->executionPolicy == ExecutionPolicy::Independent)
-            {
-                auto task = taskflow.emplace([system](){system->execute();}).name(std::to_string(system->_id));
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
-
-            return system;
-        }
+        InterpreterSystem* createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance);
 
         /**
          * Overload of deleteSystem mainly used for deleting Interpreter system
-         * 
+         *
          * @param id Id of the system to delete
          */
         void deleteSystem(_unique_id id);
@@ -416,7 +460,7 @@ namespace pg
 
             auto it1 = tasks.find(sys1Id);
             auto it2 = tasks.find(sys2Id);
-            
+
             if (it1 != tasks.end() and it2 != tasks.end())
             {
                 it1->second.succeed(it2->second);
@@ -468,7 +512,7 @@ namespace pg
             }
         }
 
-        // Todo fix attach doesn't work if an args is a const std::string& 
+        // Todo fix attach doesn't work if an args is a const std::string&
         template <typename Type, typename... Args>
         CompRef<Type> attach(EntityRef entity, Args&&... args) noexcept
         {
@@ -478,7 +522,7 @@ namespace pg
             {
                 Type* component;
 
-                // Todo add lock a mutex for running to protect for race conditions or only build component with the cmdDispatcher 
+                // Todo add lock a mutex for running to protect for race conditions or only build component with the cmdDispatcher
                 if (running)
                 {
                     component = cmdDispatcher.attachComp<Type>(entity, std::forward<Args>(args)...);
@@ -487,7 +531,7 @@ namespace pg
                 {
                     component = registry.retrieve<Type>()->internalCreateComponent(entity, std::forward<Args>(args)...);
                 }
-                
+
                 auto res = CompRef<Type>(component, entity.id, this, not running);
 
                 if constexpr(std::is_base_of_v<Ctor, Type>)
@@ -511,6 +555,11 @@ namespace pg
         void deserializeComponent(EntityRef entity, const UnserializedObject& serializedObject) noexcept
         {
             registry.deserializeComponentToEntity(serializedObject, entity);
+        }
+
+        void detach(const std::string& name, EntityRef entity) noexcept
+        {
+            registry.detachComponentFromEntity(name, entity);
         }
 
         template <typename Type>
@@ -541,8 +590,8 @@ namespace pg
         template <typename Event>
         void sendEvent(const Event& event)
         {
-            LOG_THIS_MEMBER("ECS"); 
-            
+            LOG_THIS_MEMBER("ECS");
+
             if (running)
             {
                 eventDispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
@@ -600,6 +649,8 @@ namespace pg
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
         inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
 
+        void reportSystemProfiles();
+
     private:
         friend void serialize<>(Archive& archive, const EntitySystem& ecs);
 
@@ -617,14 +668,14 @@ namespace pg
             if (entity == nullptr)
             {
                 LOG_ERROR("ECS", "Entity doesn't exists !");
-                
+
                 return;
             }
 
             if (entity->id == 0)
             {
                 LOG_ERROR("ECS", "Trying do delete an entity that cannot exists !");
-                
+
                 return;
             }
 
@@ -681,7 +732,7 @@ namespace pg
                     res->onDeletion(entity);
                 }
 
-                registry.retrieve<Type>()->internalRemoveComponent(entity);            
+                registry.retrieve<Type>()->internalRemoveComponent(entity);
             }
             catch (const std::exception& e)
             {
@@ -737,7 +788,7 @@ namespace pg
 
             return false;
         }
-        
+
         const auto& componentId = ecsRef->getId<Comp>();
 
         return has(componentId);
@@ -782,7 +833,7 @@ namespace pg
 
             return CompRef<Comp>();
         }
-        
+
         const auto& componentId = ecsRef->getId<Comp>();
 
         const auto& it = std::find(componentList.begin(), componentList.end(), componentId);
@@ -842,6 +893,10 @@ namespace pg
 
                 ecsRef->attach<Type>(entity, comp);
             });
+
+            componentDetachMap.emplace(Type::getType(), [this](EntityRef entity) {
+                ecsRef->detach<Type>(entity);
+            });
         }
 
         componentStorageMap.emplace(id, owner);
@@ -871,6 +926,11 @@ namespace pg
             if (const auto& it = componentDeserializeMap.find(Type::getType()); it != componentDeserializeMap.end())
             {
                 componentDeserializeMap.erase(it);
+            }
+
+            if (const auto& it = componentDetachMap.find(Type::getType()); it != componentDetachMap.end())
+            {
+                componentDetachMap.erase(it);
             }
         }
 
@@ -924,7 +984,7 @@ namespace pg
         {
             // Try to find the component in the ecs to update this ref
             auto comp = ecsRef->getComponent<Comp>(entityId);
-            
+
             // Component found, updating this entity ref
             if (entityId != 0 and comp)
             {
@@ -945,7 +1005,7 @@ namespace pg
         {
             // Try to find the component in the ecs to update this ref
             auto comp = ecsRef->getComponent<Comp>(entityId);
-            
+
             // Component found, updating this entity ref
             if (entityId != 0 and comp)
             {
@@ -1029,7 +1089,7 @@ namespace pg
 
             for (size_t j = 0; j < nbOfSets - 1; j++)
             {
-                setList[j]->setElement(setList[j]->set, element, id);    
+                setList[j]->setElement(setList[j]->set, element, id);
             }
 
             if (not element.toBeDeleted)
@@ -1054,7 +1114,7 @@ namespace pg
                 // elements.removeComponent(element->entityId);
         // }
         //std::remove_if(it.begin(), it.end(), [](const GroupElement<Type, Types...>& element) { return element.toBeDeleted; });
-    
+
         // Todo sort the group
     }
 

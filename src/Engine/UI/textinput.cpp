@@ -112,9 +112,14 @@ namespace pg
                         LOG_ERROR(DOM, "Received unknown scan code: " << event.key);
                     }
                 }
-                
+
             }
         }
+    }
+
+    void TextInputSystem::execute()
+    {
+
     }
 
 }

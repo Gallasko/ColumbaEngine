@@ -62,7 +62,7 @@ namespace pg
 
     void RenderCall::processPositionComponent(CompRef<PositionComponent> component)
     {
-        setVisibility(component->visible);
+        setVisibility(component->isRenderable());
 
         auto entity = component.getEntity();
 
@@ -144,7 +144,7 @@ namespace pg
     }
 
     void MasterRenderer::execute()
-    { 
+    {
         // Todo Fix in group and ecs ! ( whereaver we are holding pointer of a comp actually ! )
         // Todo hold a ref to the component list and the component index inside of this list instead of the raw pointer to not get invalidated on resize !
 
@@ -153,7 +153,7 @@ namespace pg
         // {
         //     std::unique_lock lk(renderMutex);
         //     execCv.notify_all();
-            
+
         //     renderCv.wait(lk, [this]{ return inBetweenRender.load();});
         // }
 
@@ -177,17 +177,17 @@ namespace pg
             materialListTemp.clear();
             materialDictTemp.clear();
 
-            materialListTemp = materialList; 
-            materialDictTemp = materialDict; 
+            materialListTemp = materialList;
+            materialDictTemp = materialDict;
 
             for (const auto& holder : materialRegisterQueue)
-            {            
+            {
                 LOG_MILE(DOM, "Registering material");
                 materialListTemp.push_back(holder.material);
 
                 if (holder.materialName != "")
                     materialDictTemp[holder.materialName] = nbMaterials;
-                
+
                 nbMaterials++;
             }
 
@@ -199,9 +199,9 @@ namespace pg
         }
 
         // If the skip flag is set we unset it and we pass the current render update
-        if (skipRenderPass)
+        if (skipRenderPass > 0)
         {
-            skipRenderPass = false;
+            skipRenderPass--;
             return;
         }
 
@@ -211,47 +211,106 @@ namespace pg
 
         renderCallList[tempRenderList].clear();
 
+        bool isDirty = false;
+
+        for (auto renderer : renderers)
+        {
+            isDirty |= renderer->isDirty();
+
+            renderer->setDirty(false);
+        }
+
+        // Nothing changed since last time we can skip the render pass
+        if (not isDirty)
+        {
+            return;
+        }
+
+        std::map<uint64_t, std::vector<RenderCall>> buckets;
+
         for (auto renderer : renderers)
         {
             const auto& calls = renderer->getRenderCalls();
 
-            renderCallList[tempRenderList].insert(renderCallList[tempRenderList].end(), calls.begin(), calls.end());
-        }
-
-        std::sort(renderCallList[tempRenderList].begin(), renderCallList[tempRenderList].end());
-
-        // This loop batch all the same render call together
-        if (renderCallList[tempRenderList].size() > 2)
-        {
-            std::vector<RenderCall> tempRenderCallList;
-        
-            RenderCall currentRenderCall = renderCallList[tempRenderList][0];
-
-            for (size_t i = 1; i < renderCallList[tempRenderList].size(); ++i)
+            for (auto& rc : calls)
             {
-                const auto& call = renderCallList[tempRenderList][i];
+                auto& group = buckets[rc.key];
+                bool found = false;
 
-                if (currentRenderCall.batchable and call.key == currentRenderCall.key and call.state == currentRenderCall.state)
+                for (auto& call : group)
                 {
-                    currentRenderCall.data.insert(currentRenderCall.data.end(), call.data.begin(), call.data.end());
+                    if (call.batchable and rc.batchable and call.state == rc.state)
+                    {
+                        call.data.insert(call.data.end(), rc.data.begin(), rc.data.end());
+                        found = true;
+                        break;
+                    }
                 }
-                else
-                {
-                    tempRenderCallList.push_back(currentRenderCall);
 
-                    currentRenderCall = call;
-                }
+                if (not found)
+                    group.emplace_back(std::move(rc));
             }
-
-            tempRenderCallList.push_back(currentRenderCall);
-
-            // Todo fix this auto batching make things worse, this takes a lot of cycles !
-            renderCallList[tempRenderList].swap(tempRenderCallList);
         }
+
+        std::vector<RenderCall> merged;
+        merged.reserve(renderCallList[tempRenderList].size());
+
+        // Todo we can break early when the key visibility is set to false
+        // as all the element after the first invisible element will be invisible
+
+        for (auto& pair : buckets)
+        {
+            for (auto& call : pair.second)
+            {
+                merged.emplace_back(std::move(call));
+            }
+        }
+
+        renderCallList[tempRenderList].swap(merged);
 
         nbGeneratedFrames++;
 
+        if (reRenderAll)
+        {
+            for (auto r : renderers)
+            {
+                r->changed = true;
+                r->setDirty(true);
+            }
+
+            LOG_INFO(DOM, "Re-rendering all the renderers");
+            reRenderAll = false;
+        }
+
         inSwap = true;
+    }
+
+    void MasterRenderer::registerTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
+    {
+        const auto& it = textureList.find(name);
+
+        size_t oldId = 0;
+
+        if (it == textureList.end())
+        {
+            LOG_MILE(DOM, "Registering texture: " << name);
+        }
+        else
+        {
+            LOG_WARNING(DOM, "Replacing registered texture: " << name);
+            oldId = it->second.id;
+        }
+
+        auto texture = callback(oldId);
+
+        if (texture.id != 0)
+        {
+            registerTexture(name, texture);
+        }
+        else
+        {
+            LOG_ERROR(DOM, "Trying to register a null texture: " << name);
+        }
     }
 
     void MasterRenderer::processTextureRegister()
@@ -262,31 +321,7 @@ namespace pg
 
         while (found)
         {
-            const auto& it = textureList.find(item.name);
-
-            size_t oldId = 0;
-
-            if (it == textureList.end())
-            {
-                LOG_MILE(DOM, "Registering texture: " << item.name);
-            }
-            else
-            {
-                LOG_WARNING(DOM, "Replacing registered texture: " << item.name);
-                oldId = it->second.id;
-            }
-
-            auto texture = item.callback(oldId);
-
-            if (texture.id != 0)
-            {
-                registerTexture(item.name, texture);
-            }
-            else
-            {
-                LOG_ERROR(DOM, "Trying to register a null texture: " << item.name);
-            }
-
+            registerTexture(item.name, item.callback);
 
             found = textureRegisteringQueue.try_dequeue(item);
         }
@@ -302,7 +337,7 @@ namespace pg
         {
             processRenderCall(call);
         }
-        
+
         nbRenderedFrames++;
 
         if (inSwap)
@@ -338,7 +373,7 @@ namespace pg
     }
 
     // TODO mirror or not the texture
-    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...        
+    // Todo add an argument to specify the type of texture loaded, e.g.: RGBA, RGB, ...
     OpenGLTexture MasterRenderer::registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId, bool instantRegister)
     {
         LOG_THIS_MEMBER(DOM);
@@ -363,7 +398,7 @@ namespace pg
         }
 
         LOG_INFO(DOM, "Loaded texture " << name << " from " << texturePath << " with width = " << width << " height = " << height << " nbchannels = " << nrChannels);
-        
+
         glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 
         unsigned int texture;
@@ -394,7 +429,7 @@ namespace pg
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
         // load image, create texture and generate mipmaps
-// #endif   
+// #endif
         OpenGLTexture tex;
 
         tex.id = texture;
@@ -424,9 +459,9 @@ namespace pg
         return tex;
     }
 
-    
+
     void MasterRenderer::registerTexture(const std::string& name, const char* texturePath)
-    { 
+    {
         registerTextureHelper(name, texturePath);
     }
 
@@ -461,6 +496,18 @@ namespace pg
         }
 
         currentState = state;
+    }
+
+    void MasterRenderer::printAllDrawCalls()
+    {
+#ifdef PROFILE
+
+        for (const auto& calls : renderCallList[currentRenderList])
+        {
+            std::cout << "Call Key:" << calls.key << ", batchable: " << calls.batchable << ", nbElements:" << calls.data.size() << std::endl;
+        }
+
+#endif
     }
 
     void MasterRenderer::processRenderCall(const RenderCall& call)
@@ -503,7 +550,7 @@ namespace pg
         if (not shaderProgram)
         {
             LOG_ERROR(DOM, "Shader not found");
-            
+
             return;
         }
 
@@ -578,7 +625,7 @@ namespace pg
                         case ElementType::UnionType::STRING:
                         default:
                         {
-                            LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());    
+                            LOG_ERROR(DOM, "Cannot set uniform for id:" << id << ", Unsupported type :" << value.getTypeString());
                         }
                     }
                 }

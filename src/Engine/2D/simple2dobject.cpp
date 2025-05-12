@@ -17,8 +17,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for Shape2D 
-     * 
+     * @brief Specialization of the serialize function for Shape2D
+     *
      * @param archive A references to the archive
      * @param value The shape 2d value
      */
@@ -53,8 +53,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for Simple2DObject 
-     * 
+     * @brief Specialization of the serialize function for Simple2DObject
+     *
      * @param archive A references to the archive
      * @param value The simple 2d object value
      */
@@ -140,7 +140,7 @@ namespace pg
         simpleShapeMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
         simpleShapeMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        simpleShapeMaterial.setSimpleMesh({3, 2, 4});
+        simpleShapeMaterial.setSimpleMesh({3, 2, 1, 4});
 
         materialId = masterRenderer->registerMaterial(simpleShapeMaterial);
 
@@ -208,7 +208,7 @@ namespace pg
             renderCallList.push_back(renderCall->call);
         }
 
-        changed = false;
+        finishChanges();
     }
 
     RenderCall Simple2DObjectSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Simple2DObject> obj)
@@ -219,26 +219,31 @@ namespace pg
 
         call.processPositionComponent(ui);
 
-        if (obj->colors.w == 255.0f)
-            call.setOpacity(OpacityType::Opaque);
-        else
-            call.setOpacity(OpacityType::Additive);
+        // Todo
+        // if (obj->colors.w == 255.0f)
+        //     call.setOpacity(OpacityType::Opaque);
+        // else
+        //     call.setOpacity(OpacityType::Additive);
+
+        // Cannot set to opaque because the z testing get messed up if you don't order it properly with other systems
+        call.setOpacity(OpacityType::Additive);
 
         call.setRenderStage(renderStage);
 
         call.setMaterial(materialId);
 
-        call.data.resize(9);
+        call.data.resize(10);
 
         call.data[0] = ui->x;
         call.data[1] = ui->y;
         call.data[2] = ui->z;
         call.data[3] = ui->width;
         call.data[4] = ui->height;
-        call.data[5] = obj->colors.x;
-        call.data[6] = obj->colors.y;
-        call.data[7] = obj->colors.z;
-        call.data[8] = obj->colors.w;
+        call.data[5] = ui->rotation;
+        call.data[6] = obj->colors.x;
+        call.data[7] = obj->colors.y;
+        call.data[8] = obj->colors.z;
+        call.data[9] = obj->colors.w;
 
         return call;
     }
@@ -248,9 +253,9 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(event.id);
-        
+
         if (not entity or not entity->has<Simple2DObject>())
-            return; 
+            return;
 
         shapeUpdateQueue.push(event.id);
 

@@ -19,7 +19,7 @@
 #include "camera.h"
 
 namespace pg
-{    
+{
     // Forwarding
     class OpenGLShaderProgram;
     class OpenGLContext;
@@ -89,7 +89,7 @@ namespace pg
 
         bool operator==(const OpenGLState& rhs) const
         {
-            return scissorEnabled == rhs.scissorEnabled and scissorBound == rhs.scissorBound; 
+            return scissorEnabled == rhs.scissorEnabled and scissorBound == rhs.scissorBound;
         }
 
         bool operator!=(const OpenGLState& rhs) const
@@ -114,22 +114,22 @@ namespace pg
     struct RenderCall
     {
         /**
-         * This key is used to sort the data for the renderer 
+         * This key is used to sort the data for the renderer
          * This key is a bit field that contains the following data:
-         * 
-         * 1 bit indicating if the texture is visible or not
+         *
+         * 1 bit indicating if the texture is visible or not (visible == 0, invisible == 1)
          * 4 bits for the targeted rendering pass
          * 3 bits for the target viewport
          * 2 bits for the translucency type (Opaque, normal, additive or substractive)
          * 24 bits for depth
          * 30 bits for material ID (VAO, shader, texture ID, uniforms)
-         * 
+         *
          * key[63]            => Visibility
          * key[62] -- key[59] => Rendering pass
          * key[58] -- key[56] => Viewport
          * key[55] -- key[54] => Translucency type
          * key[53] -- key[30] => Depth
-         * key[29] -- key[0]  => Material ID 
+         * key[29] -- key[0]  => Material ID
          */
         uint64_t key = 0;
 
@@ -185,13 +185,12 @@ namespace pg
 
         void setVisibility(bool visible)
         {
-            // Todo reverse visible in the key so that all the visible element are first
-            key = (key & ~((uint64_t)0b1 << 63)) | static_cast<uint64_t>(visible) << 63;
+            key = (key & ~((uint64_t)0b1 << 63)) | static_cast<uint64_t>(not visible) << 63;
         }
 
         bool getVisibility() const
         {
-            return (key >> 63);
+            return !(key >> 63);
         }
 
         void setRenderStage(const RenderStage& stage)
@@ -261,6 +260,7 @@ namespace pg
 
     class BaseAbstractRenderer
     {
+        friend class MasterRenderer;
     public:
         BaseAbstractRenderer(MasterRenderer* masterRenderer, const RenderStage& stage);
         virtual ~BaseAbstractRenderer() {}
@@ -269,14 +269,21 @@ namespace pg
 
         const std::vector<RenderCall>& getRenderCalls() const { return renderCallList; }
 
+        void finishChanges() { changed = false; dirty = true; }
+
+        inline void setDirty(bool dirty) { this->dirty = dirty; }
+
+        bool isDirty() const { return dirty; }
+
     protected:
         MasterRenderer *masterRenderer;
 
         std::vector<RenderCall> renderCallList;
-    
+
         RenderStage renderStage;
 
         bool changed = true;
+        bool dirty = true;
     };
 
     class AbstractRenderer : public BaseAbstractRenderer
@@ -288,7 +295,7 @@ namespace pg
         RenderStage getRenderStage() const { return renderStage; }
     };
 
-    //[TODO] Multiple FBO -> 1 for a whole screen capture and other for batch rendering on a texture 
+    //[TODO] Multiple FBO -> 1 for a whole screen capture and other for batch rendering on a texture
     // Add Particle system with instancing already done / create an alternative if needed
 
     enum class UniformType
@@ -407,11 +414,13 @@ namespace pg
         std::shared_ptr<Mesh> mesh = nullptr;
     };
 
-    struct SkipRenderPass {};
+    struct SkipRenderPass { size_t count = 1; };
+
+    struct ReRendererAll { };
 
     // Todo fix crash on renderer when failure to grab a missing texture or shader
 
-    class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>>
+    class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>>
     {
     private:
         struct MaterialHolder
@@ -426,7 +435,7 @@ namespace pg
                 index = other.index;
 
                 return *this;
-            } 
+            }
 
             std::string materialName;
             Material material;
@@ -446,7 +455,8 @@ namespace pg
         virtual std::string getSystemName() const override { return "Renderer System"; }
 
         virtual void onEvent(const OnSDLScanCode& event) override;
-        virtual void onEvent(const SkipRenderPass&) override { skipRenderPass = true; }
+        virtual void onEvent(const SkipRenderPass& event ) override { skipRenderPass += event.count; }
+        virtual void onEvent(const ReRendererAll&) override { reRenderAll = true; }
 
         virtual void execute() override;
 
@@ -467,9 +477,17 @@ namespace pg
             std::string path = texturePath;
             std::function<OpenGLTexture(size_t)> f = [name, path, this](size_t oldId) { return registerTextureHelper(name, path.c_str(), oldId, false); };
 
-            textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, f});
+            queueRegisterTexture(name, f);
         }
-        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback) { textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback}); }
+
+        void queueRegisterTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
+        {
+            if (ecsRef->isRunning())
+                textureRegisteringQueue.enqueue(TextureRegisteringQueueItem{name, callback});
+            else
+                registerTexture(name, callback);
+
+        }
 
         size_t registerMaterial(const Material& material)
         {
@@ -494,13 +512,13 @@ namespace pg
 
         bool hasMaterial(const std::string& materialName) const
         {
-            bool result = false; 
+            bool result = false;
 
             {
                 std::lock_guard<std::mutex> lock(materialRegisterMutex);
 
                 auto it = std::find_if(materialRegisterQueue.begin(), materialRegisterQueue.end(), [materialName](const MaterialHolder& holder) { return holder.materialName == materialName; });
-                
+
                 result = materialDict.find(materialName) != materialDict.end() or it != materialRegisterQueue.end();
             }
 
@@ -523,7 +541,7 @@ namespace pg
         }
 
         OpenGLTexture getTexture(const std::string& name) const
-        { 
+        {
             try
             {
                 return textureList.at(name);
@@ -531,7 +549,7 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Texture named " << name << " don't exist !");
-                
+
                 auto it = textureList.find("NoneIcon");
 
                 if (it != textureList.end())
@@ -562,7 +580,7 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
-                
+
                 static Material dummyMaterial;
 
                 return dummyMaterial;
@@ -578,7 +596,7 @@ namespace pg
             catch (const std::exception& e)
             {
                 LOG_ERROR("Renderer", "Material id " << id << " don't exist !");
-                
+
                 static Material dummyMaterial;
 
                 return dummyMaterial;
@@ -602,7 +620,7 @@ namespace pg
                 catch (const std::exception& e)
                 {
                     LOG_ERROR("Renderer", "Material named " << name << " don't exist !");
-                    
+
                     return 0;
                 }
             }
@@ -615,7 +633,7 @@ namespace pg
         MasterRenderer& operator<<(Renderable* toRender) { renderer(this, toRender); return *this; }
 
         void setWindowSize(float width, float height)
-        { 
+        {
             systemParameters["ScreenWidth"] = width;
             systemParameters["ScreenHeight"] = height;
         }
@@ -634,6 +652,16 @@ namespace pg
 
         inline size_t getNbRenderCall() const { return renderCallList[currentRenderList.load()].size(); }
 
+        void printAllDrawCalls();
+
+        inline std::vector<RenderCall> getRenderCalls(int index = -1) const
+        {
+            if (index < 0 or index >= 2)
+                return renderCallList[currentRenderList.load()];
+
+            return renderCallList[index];
+        }
+
     private:
         std::atomic<bool> inSwap {false};
         std::atomic<bool> newMaterialRegistered {false};
@@ -648,13 +676,17 @@ namespace pg
         moodycamel::ConcurrentQueue<TextureRegisteringQueueItem> textureRegisteringQueue;
 
         size_t nbRegisteredMaterials = 0;
-        
+
+        bool reRenderAll = false;
+
     private:
         void initializeParameters();
 
         void setState(const OpenGLState& state);
 
         void processRenderCall(const RenderCall& call);
+
+        void registerTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback);
 
     private:
         RefracRef systemParameters;
@@ -666,12 +698,12 @@ namespace pg
         std::vector<Material> materialListTemp;
         std::unordered_map<std::string, size_t> materialDictTemp;
 
-        size_t nbMaterials = 0;     
-   
-        /** 
+        size_t nbMaterials = 0;
+
+        /**
          * Flag to indicate that the current frame should not be recreated (RenderCallList should not be updated)
          * Usefull to avoid any jittering when loading a scene as it takes 2 execute cycle to process all the entities correctly */
-        bool skipRenderPass = false;
+        size_t skipRenderPass = 0;
 
         Camera camera;
 

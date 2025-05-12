@@ -47,7 +47,7 @@ namespace pg
     {
         LOG_THIS_MEMBER("ComponentRegistry");
 
-        systemSerializer.setFile("systems.sz");
+        systemSerializer.setFile("save/systems.sz");
     } 
 
     ComponentRegistry::~ComponentRegistry()
@@ -98,8 +98,6 @@ namespace pg
     void ComponentRegistry::processEvent(const StandardEvent& event)
     {
         LOG_THIS_MEMBER("Component Registry");
-
-        LOG_INFO("CReg", "Received standard event");
 
         for (auto& eventListener : standardEventStorageMap[event.name])
         {

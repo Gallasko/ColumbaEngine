@@ -38,6 +38,16 @@ namespace pg
         Div
     };
 
+    // AnchorType to string and string to AnchorType maps
+    extern const std::map<AnchorType, std::string> AnchorTypeToStringMap;
+    extern const std::map<std::string, AnchorType> StringToAnchorTypeMap;
+
+    // PosOpType to string and string to PosOpType maps
+    extern const std::map<PosOpType, std::string> PosOpTypeToStringMap;
+    extern const std::map<std::string, PosOpType> StringToPosOpTypeMap;
+
+    inline static std::string getType() { return "UiComponent"; }
+
     struct PosConstrain
     {
         _unique_id id = 0;
@@ -45,6 +55,8 @@ namespace pg
 
         PosOpType opType = PosOpType::None;
         float opValue = 0.0f;
+
+        inline static std::string getType() { return "PosContrain"; }
     };
 
     struct PosAnchor
@@ -52,6 +64,8 @@ namespace pg
         _unique_id id = 0;
         AnchorType type = AnchorType::None;
         float value = 0.0f;
+
+        inline static std::string getType() { return "PosAnchor"; }
     };
 
     struct ParentingEvent
@@ -72,7 +86,7 @@ namespace pg
     // Todo add a Dtor that remove any parenting
     // Be careful on edge case such as being anchored and clipped at the same time to the same entity
     // Need to count the number of time a child is parented to another entity
-    struct UiAnchor : public Ctor
+    struct UiAnchor : public Ctor, Dtor
     {
         // Current Anchor of this component
         PosAnchor top;
@@ -154,10 +168,14 @@ namespace pg
         // Todo add function to handle center, vertical and horizontal center alignment
 
         virtual void onCreation(EntityRef entity) override;
- 
+
+        virtual void onDeletion(EntityRef entity) override;
+
         void updateAnchor(bool hasAnchor, PosAnchor& anchor);
 
         bool update(CompRef<PositionComponent> positionComp);
+
+        inline static std::string getType() { return "UiAnchor"; }
 
         // Private:
 
@@ -206,6 +224,7 @@ namespace pg
         float rotation = 0.0f;
 
         bool visible = true;
+        bool observable = true;
 
         virtual void onCreation(EntityRef entity) override;
 
@@ -219,8 +238,15 @@ namespace pg
         void setRotation(float rotation);
 
         void setVisibility(bool visible);
+        void setObservable(bool observable);
+
+        bool isVisible() const { return visible; }
+        bool isObservable() const { return observable; }
+        bool isRenderable() const { return visible and observable; }
 
         bool updatefromAnchor(const UiAnchor& anchor);
+
+        inline static std::string getType() { return "PositionComponent"; }
 
         // Private:
 
@@ -229,8 +255,20 @@ namespace pg
         EntitySystem *ecsRef = nullptr;
     };
 
+    template <>
+    void serialize(Archive& archive, const PositionComponent& value);
+
+    template <>
+    void serialize(Archive& archive, const UiAnchor& value);
+
+    template <>
+    void serialize(Archive& archive, const PosAnchor& value);
+
+    template <>
+    void serialize(Archive& archive, const PosConstrain& value);
+
     // Todo add Listener<ResizeEvent>,
-    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<PositionComponentChangedEvent>>
+    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, QueuedListener<PositionComponentChangedEvent>>
     {
         virtual std::string getSystemName() const override { return "Position System"; }
 
@@ -239,20 +277,27 @@ namespace pg
             parentalMap[event.parent].insert(event.child);
         }
 
-        virtual void onEvent(const PositionComponentChangedEvent& event) override
+        virtual void onEvent(const ClearParentingEvent& event) override
         {
-            eventQueue.push(event);
+            parentalMap[event.parent].erase(event.id);
         }
 
-        void pushChildrenInChange(_unique_id parentId);
-        
+        virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
+        {
+            if (not changedIds.count(event.id))
+            {
+                changedIds.insert(event.id);
+                pushChildrenInChange(changedIds, event.id);
+            }
+        }
+
+        void pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId);
+
         virtual void execute() override;
 
         std::unordered_map<_unique_id, std::set<_unique_id>> parentalMap;
 
         std::set<_unique_id> changedIds;
-
-        std::queue<PositionComponentChangedEvent> eventQueue;
 
         bool updated = false;
     };

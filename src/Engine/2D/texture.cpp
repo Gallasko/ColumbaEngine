@@ -42,7 +42,7 @@ namespace pg
         serialize(archive, "opacity", value.opacity);
         serialize(archive, "overlappingColor", value.overlappingColor);
         serialize(archive, "overlappingRatio", value.overlappingColorRatio);
-    
+
         archive.endSerialization();
     }
 
@@ -165,7 +165,7 @@ namespace pg
             renderCallList.push_back(renderCall->call);
         }
 
-        changed = false;
+        finishChanges();
     }
 
     RenderCall Texture2DComponentSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Texture2DComponent> obj)
@@ -292,9 +292,9 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(entityId);
-        
+
         if (not entity or not entity->has<TextureRenderCall>())
-            return; 
+            return;
 
         textureUpdateQueue.push(entityId);
 

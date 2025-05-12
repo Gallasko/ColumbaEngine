@@ -8,7 +8,7 @@
 namespace pg
 {
     struct StartAudio
-    { 
+    {
         StartAudio(const std::string song, int loops = -1) : song(song), loops(loops) {}
         StartAudio(const StartAudio& other) : song(other.song), loops(other.loops) {}
         std::string song; int loops = -1;
@@ -23,7 +23,7 @@ namespace pg
 
     struct PlaySoundEffect { std::string effect; int loops = 0; int channel = -1; };
 
-    struct AudioSystem : public System<Listener<StartAudio>, Listener<StopAudio>, Listener<PauseAudio>, Listener<ResumeAudio>, Listener<PlaySoundEffect>, Listener<SetMasterVolume>, Listener<SetMusicVolume>, Listener<SetSoundEffectsVolume>, InitSys>
+    struct AudioSystem : public System<Listener<StartAudio>, Listener<StopAudio>, Listener<PauseAudio>, Listener<ResumeAudio>, QueuedListener<PlaySoundEffect>, Listener<SetMasterVolume>, Listener<SetMusicVolume>, Listener<SetSoundEffectsVolume>, InitSys>
     {
         virtual void init() override;
 
@@ -36,7 +36,7 @@ namespace pg
         virtual void onEvent(const PauseAudio& event) override;
         virtual void onEvent(const ResumeAudio& event) override;
 
-        virtual void onEvent(const PlaySoundEffect& event) override;
+        virtual void onProcessEvent(const PlaySoundEffect& event) override;
 
         virtual void onEvent(const SetMasterVolume& event) override       { masterVolume = event.volume;  updateVolume(); };
         virtual void onEvent(const SetMusicVolume& event) override        { musicVolume = event.volume;   updateVolume(); };
@@ -64,7 +64,5 @@ namespace pg
         float sEffectVolume = 0.1f;
 
         std::unordered_map<std::string, Mix_Chunk*> sfxDict;
-
-        std::queue<PlaySoundEffect> sfxQueue;
     };
 }

@@ -2,13 +2,16 @@
 
 #include "Scene/scenemanager.h"
 
+#include "UI/prefab.h"
+#include "2D/simple2dobject.h"
+
 namespace pg
 {
 
     namespace editor
     {
 
-        namespace 
+        namespace
         {
             static const char* const DOM = "Inspector";
 
@@ -19,7 +22,7 @@ namespace pg
                     if (child.className == "")
                     {
                         std::string str;
-                        
+
                         if (strcmp(ARCHIVEVERSION, "1.0.0") == 0)
                             str = ATTRIBUTECONST + " " + child.type + " {" + child.value + "}";
 
@@ -39,38 +42,125 @@ namespace pg
             }
         }
 
+        std::map<EditorKeyConfig, DefaultScancode> scancodeMap = {
+            {EditorKeyConfig::Undo,    {"Undo", SDL_SCANCODE_Z, KMOD_CTRL}},
+            {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
+            };
+
+        void DraggingCommand::execute()
+        {
+            id = inspectorSys->currentId;
+            auto ent = ecsRef->getEntity(id);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(endX);
+            pos->setY(endY);
+        }
+
+        void DraggingCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(id);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(startX);
+            pos->setY(startY);
+        }
+
+        void AttachComponentCommand::execute()
+        {
+            auto ent = ecsRef->getEntity(id);
+
+            if (ent)
+            {
+                inspectorSys->attachableComponentMap[name](ent);
+
+                // Todo only add the newly created component inspection at the end of the inspection layout,
+                // currently this reload the whole entity information to the view which may not be intuitive for the user
+                inspectorSys->eventRequested = true;
+            }
+        }
+
+        void AttachComponentCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(id);
+
+            if (ent)
+            {
+                ecsRef->detach(name, ent);
+
+                inspectorSys->eventRequested = true;
+            }
+        }
+
+        void CreateEntityCommand::execute()
+        {
+            lastFocusedId = inspectorSys->currentId;
+
+            id = callback(ecsRef);
+
+            inspectorSys->currentId = id;
+        }
+
+        void CreateEntityCommand::undo()
+        {
+            inspectorSys->currentId = lastFocusedId;
+
+            // inspectorSys->eventRequested = true;
+
+            ecsRef->removeEntity(id);
+        }
+
         void InspectorSystem::onEvent(const StandardEvent& event)
         {
-            LOG_INFO("Inspector", "Received event named: " << event.name << ", return value: " << event.values.at("return"));
+            if (event.name == "InspectorTextChanges")
+            {
+                LOG_INFO("Inspector", "Received event named: " << event.name << ", return value: " << event.values.at("return"));
 
-            auto id = event.values.at("id").get<size_t>();
+                auto id = event.values.at("id").get<size_t>();
 
-            LOG_INFO("Inspector", "Replacing text: " << *inspectorText.at(id).valuePointer << " with: " << event.values.at("return").toString());
+                LOG_INFO("Inspector", "Replacing text: " << *inspectorText.at(id).valuePointer << " with: " << event.values.at("return").toString());
 
-            *inspectorText.at(id).valuePointer = event.values.at("return").toString();
+                *inspectorText.at(id).valuePointer = event.values.at("return").toString();
 
-            needDeserialization = true;
+                needDeserialization = true;
+            }
         };
 
         void InspectorSystem::init()
         {
-            addListenerToStandardEvent("InspectorChanges");
+            addListenerToStandardEvent("InspectorTextChanges");
 
             auto windowEnt = ecsRef->getEntity("__MainWindow");
 
-            auto windowUi = windowEnt->get<UiComponent>();
+            auto windowUi = windowEnt->get<UiAnchor>();
 
-            auto listView = makeListView(ecsRef, 1, 1, 300, 1);
-            
-            ecsRef->attach<Texture2DComponent>(listView.entity, "TabTexture");
+            auto listView = makeVerticalLayout(ecsRef, 1, 1, 300, 1, true);
 
-            auto listViewUi = listView.get<UiComponent>();
+            listView.get<PositionComponent>()->setZ(1);
+            auto listViewUi = listView.get<UiAnchor>();
 
             listViewUi->setTopAnchor(windowUi->top);
             listViewUi->setBottomAnchor(windowUi->bottom);
             listViewUi->setRightAnchor(windowUi->right);
 
-            view = listView.get<ListView>();
+            auto listViewBackground = makeUiTexture(ecsRef, 0, 0, "TabTexture");
+
+            auto listViewBackgroundUi = listViewBackground.get<UiAnchor>();
+            listViewBackgroundUi->fillIn(listViewUi);
+
+            view = listView.get<VerticalLayout>();
+
+            registerAttachableComponent<PositionComponent>();
+            registerAttachableComponent<UiAnchor>();
+            registerAttachableComponent<Simple2DObject>(Shape2D::Square);
         }
 
         void InspectorSystem::addNewText(const std::string& text)
@@ -79,81 +169,93 @@ namespace pg
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeSentence(ecsRef, 1, 1, {textTemp});
+            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
 
-            auto sentUi = sentence.get<UiComponent>();
+            auto sentUi = sentence.get<PositionComponent>();
 
-            sentUi->setVisibility(false);
-            sentUi->setZ(1);
-
-            view->addEntity(sentUi);
+            view->addEntity(sentence.entity);
         }
 
-        void InspectorSystem::addNewAttribute(const std::string& text, const std::string& type, std::string& value)
+        // Todo to remove type
+        void InspectorSystem::addNewAttribute(const std::string& text, const std::string&, std::string& value)
         {
-            std::string textTemp = text;
-
-            std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
-
-            auto sentence = makeSentence(ecsRef, 1, 1, {textTemp});
-
-            auto sentUi = sentence.get<UiComponent>();
-
-            sentUi->setVisibility(false);
-            sentUi->setZ(1);
-
-            auto nbElements = inspectorText.size();
-
-            auto valueInput = makeTextInput(ecsRef, 0, 0, StandardEvent("InspectorChanges", "id", nbElements), {value});
-
-            valueInput.get<TextInputComponent>()->clearTextAfterEnter = false;
-
-            auto valueInputUi = valueInput.get<UiComponent>();
-
-            valueInputUi->setVisibility(false);
-            valueInputUi->setZ(1);
-
-            valueInputUi->setLeftAnchor(sentUi->right);
-
-            inspectorText.emplace_back(&value, valueInputUi);
-
-            view->addEntity(sentUi);
-
-            view->addEntity(valueInputUi);
+            InspectorWidgets::makeLabeledTextInput(ecsRef, view, text, value, this);
         }
 
-        void InspectorSystem::printChildren(SerializedInfoHolder& parent, size_t indentLevel)
-        {            
-            // If no class name then we got an attribute
-            if (parent.className == "" and indentLevel > 2)
+        void InspectorSystem::printChildren(SerializedInfoHolder& parent)
+        {
+            auto it = customDrawers.find(parent.className);
+
+            if (it != customDrawers.end())
             {
-                addNewAttribute(parent.name, parent.type, parent.value);
+                it->second(this, parent);
+                return;
             }
-            // We got a class name then it is a class ! So no type nor value
             else
             {
-                if (indentLevel > 1)
-                {
-                    addNewText(parent.className);
-                }
+                defaultInspectWidget(this, parent);
             }
+        }
 
-            for (auto& child : parent.children)
+
+        void InspectorSystem::processEntityChanged(const EntityChangedEvent& event)
+        {
+            if (currentId == 0 or event.id != currentId)
+                return;
+
+            auto pos = ecsRef->getComponent<PositionComponent>(currentId);
+            if (not pos) return;
+
+            // now update each field by name
+            for (const auto& f : inspectorText)
             {
-                printChildren(child, indentLevel + 1);
+                if (not (f.name == "x" or f.name == "y" or f.name == "z" or f.name == "width" or f.name == "height"))
+                    continue;
+
+                auto comp = ecsRef->getComponent<TextInputComponent>(f.id);
+
+                if (not comp)
+                {
+                    LOG_ERROR(DOM, "Component not found for id: " << f.id);
+                    continue;
+                }
+
+                // compute the new value string
+                std::string newVal;
+                if      (f.name == "x")      newVal = std::to_string(pos->x);
+                else if (f.name == "y")      newVal = std::to_string(pos->y);
+                else if (f.name == "z")      newVal = std::to_string(pos->z);
+                else if (f.name == "width")  newVal = std::to_string(pos->width);
+                else /* height */            newVal = std::to_string(pos->height);
+
+                // 1) update the visible text widget
+                comp->setText(newVal);
+
+                // 2) **also** write it back into your archive
+                *f.valuePointer = newVal;
             }
+        }
+
+        void InspectorSystem::onProcessEvent(const EntityChangedEvent& event)
+        {
+            processEntityChanged(event);
         }
 
         void InspectorSystem::onEvent(const InspectEvent& event)
         {
-            this->event = event;
-            eventRequested = true;
+            if (currentId != event.entity.id)
+            {
+                this->event = event;
+                eventRequested = true;
+            }
         }
 
         void InspectorSystem::onEvent(const NewSceneLoaded&)
         {
             currentId = 0;
             needClear = true;
+
+            ecsRef->sendEvent(ReRendererAll{});
         }
 
         void InspectorSystem::execute()
@@ -178,6 +280,8 @@ namespace pg
 
                 archive.mainNode.children.clear();
 
+                ecsRef->sendEvent(SkipRenderPass{3});
+
                 needClear = false;
             }
 
@@ -188,9 +292,54 @@ namespace pg
 
             serialize(archive, *event.entity.entity);
 
-            printChildren(archive.mainNode, 0);
+            for (auto& child : archive.mainNode.children)
+            {
+                printChildren(child);
+            }
 
             eventRequested = false;
+
+            auto row = makeHorizontalLayout(ecsRef, 0,0, 0,0);
+            row.get<HorizontalLayout>()->fitToAxis = true;
+            row.get<HorizontalLayout>()->spacing  = 8.f;
+
+            // label
+            auto label = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", "Add Component", 0.4f);
+            view->addEntity(label.entity);
+//
+            // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
+                // if (ev.button == SDL_BUTTON_LEFT) showAttachMenu = not showAttachMenu;
+            // };
+
+            // hook its click
+            // ecsRef->attach<OnEventComponent>(label.entity, f);
+
+            view->addEntity(row.entity);
+
+            // if (showAttachMenu)
+            // {
+                // clean up from last frame
+                for (auto e : attachMenuItems)
+                    ecsRef->removeEntity(e);
+
+                attachMenuItems.clear();
+
+                for (const auto& pair : attachableComponentMap)
+                {
+                    const auto& name = pair.first;
+
+                    auto item = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", name, 0.35f);
+                    // indent it a bit
+                    // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
+
+                    // clicking this line attaches that component
+
+                    ecsRef->attach<MouseLeftClickComponent>(item.entity, makeCallable<EditorAttachComponent>(name, currentId));
+
+                    view->addEntity(item.entity);
+                    attachMenuItems.push_back(item.entity);
+                }
+            // }
         }
 
         void InspectorSystem::deserializeCurrentEntity()
@@ -218,5 +367,82 @@ namespace pg
             }
         }
 
+        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent)
+        {
+            // If no class name then we got an attribute
+            if (parent.className == "")
+            {
+                sys->addNewAttribute(parent.name, parent.type, parent.value);
+            }
+            // We got a class name then it is a class ! So no type nor value
+            else
+            {
+                sys->addNewText(parent.className);
+            }
+
+            for (auto& child : parent.children)
+            {
+                sys->printChildren(child);
+            }
+        }
+
+        void InspectorWidgets::makeLabeledTextInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, std::string& boundValue, InspectorSystem* sys)
+        {
+            std::string textTemp = labelText;
+
+            std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
+
+            // Horizontal row
+            auto row = makeHorizontalLayout(ecs, 0, 0, 0, 0);
+            auto rowAnchor = row.get<UiAnchor>();
+            auto rowView = row.get<HorizontalLayout>();
+
+            rowAnchor->setWidthConstrain(PosConstrain{parentLayout->id, AnchorType::Width});
+
+            rowView->spacing = 10;
+            rowView->fitToAxis = true;
+
+            // Label
+            auto labelEnt = makeTTFText(ecs, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4f);
+            // auto labelPos = labelEnt.get<PositionComponent>();
+            rowView->addEntity(labelEnt.entity);
+
+            auto prefabEnt = makeAnchoredPrefab(ecs, 0, 0, 1);
+            // auto prefabAnchor = prefabEnt.get<UiAnchor>();
+            auto prefab = prefabEnt.get<Prefab>();
+
+            // Text input
+            auto background = makeUiSimple2DShape(ecs, Shape2D::Square, 140, 0, {55.f, 55.f, 55.f, 255.f});
+            // auto backgroundPos = background.get<PositionComponent>();
+            auto backgroundAnchor = background.get<UiAnchor>();
+
+            prefab->setMainEntity(background.entity);
+
+            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "res/font/Inter/static/Inter_28pt-Light.ttf", { boundValue }, 0.4f);
+            auto input = inputEnt.get<TextInputComponent>();
+            auto inputPos = inputEnt.get<PositionComponent>();
+            auto inputAnchor = inputEnt.get<UiAnchor>();
+
+            input->clearTextAfterEnter = false;
+
+            inputPos->setZ(2);
+
+            backgroundAnchor->setHeightConstrain(PosConstrain{inputEnt.entity.id, AnchorType::Height, PosOpType::Add, 4.f});
+
+            inputAnchor->setTopAnchor(backgroundAnchor->top);
+            inputAnchor->setTopMargin(2.f);
+            inputAnchor->setLeftAnchor(backgroundAnchor->left);
+            inputAnchor->setLeftMargin(2.f);
+            inputAnchor->setRightAnchor(backgroundAnchor->right);
+            inputAnchor->setRightMargin(2.f);
+
+            prefab->addToPrefab(inputEnt.entity);
+            rowView->addEntity(prefabEnt.entity);
+
+            sys->inspectorText.emplace_back(labelText, &boundValue, inputEnt.entity.id);
+
+            // Add the row into the parent vertical layout
+            parentLayout->addEntity(row.entity);
+        }
     }
 }

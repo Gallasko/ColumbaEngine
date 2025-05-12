@@ -24,6 +24,7 @@
 #include "UI/listview.h"
 #include "UI/prefab.h"
 #include "UI/sizer.h"
+#include "UI/animation.h"
 
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
@@ -100,7 +101,7 @@ namespace pg
                     addToList(list, token, {file.filepath, file.data});
                 }
 
-                return list; 
+                return list;
             }
         };
 
@@ -129,6 +130,8 @@ namespace pg
     // Todo better define save path
     Window::Window(const std::string &title, const std::string& savePath) : ecs(savePath), title(title)
     {
+        terminalSink = pg::Logger::registerSink<pg::TerminalSink>(true);
+
         LOG_THIS_MEMBER(DOM);
 
         LOG_INFO(DOM, "Window creation...");
@@ -144,7 +147,7 @@ namespace pg
         interpreter->addSystemFunction<DebugPrint>("debugPrint");
         interpreter->addSystemFunction<ToString>("toString");
 
-        interpreter->addSystemModule("log", LogModule{});
+        interpreter->addSystemModule("log", LogModule{terminalSink});
         interpreter->addSystemModule("ui", UiModule{&ecs});
         interpreter->addSystemModule("2Dshapes", Shape2DModule{&ecs});
         interpreter->addSystemModule("2Dtexture", Texture2DModule{&ecs});
@@ -155,7 +158,7 @@ namespace pg
         interpreter->addSystemModule("uitext", SentenceModule{&ecs});
         interpreter->addSystemModule("scene", SceneModule{&ecs});
         interpreter->addSystemModule("audio", AudioModule{&ecs});
-        
+
         // Script to configure the logger
         interpreter->interpretFromFile("logManager.pg");
         // [End] Interpreter definition
@@ -213,7 +216,7 @@ namespace pg
         {
             LOG_ERROR(DOM, "SDL initialisation failed");
             LOG_ERROR(DOM, SDL_GetError());
-            
+
             return false;
         }
 
@@ -264,7 +267,7 @@ namespace pg
         }
 
         LOG_INFO(DOM, "Creating OpenGL context...");
-                
+
         // OpenGL context
         context = SDL_GL_CreateContext(window);
 
@@ -306,7 +309,7 @@ namespace pg
         LOG_INFO(DOM, "Renderer: " << renderer);
         LOG_INFO(DOM, "OpenGL version supported " << version);
 #endif
-            
+
         LOG_INFO(DOM, "Setting gl functions...");
         // glViewport(0, 0, width, height);
         // Todo set this or not
@@ -381,6 +384,8 @@ namespace pg
 
         ecs.createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
 
+        ecs.createSystem<AnimationPositionSystem>();
+
         // Todo fix for emscripten
         audioSystem = ecs.createSystem<AudioSystem>();
 
@@ -391,7 +396,9 @@ namespace pg
         ecs.createSystem<MouseLeaveClickSystem>(inputHandler);
 
         ecs.createSystem<MouseWheelSystem>(inputHandler);
-        
+
+        ecs.createSystem<MouseHoverSystem>();
+
         ecs.createSystem<TextInputSystem>(inputHandler);
 
         ecs.createSystem<RunScriptFromTextInputSystem>();
@@ -400,8 +407,7 @@ namespace pg
 
         ecs.createSystem<PrefabSystem>();
 
-        ecs.createSystem<HorizontalLayoutSystem>();
-        ecs.createSystem<VerticalLayoutSystem>();
+        ecs.createSystem<LayoutSystem>();
 
         ecs.createSystem<ListViewSystem>();
 
@@ -416,11 +422,12 @@ namespace pg
         ecs.succeed<UiComponentSystem, PrefabSystem>();
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
 
-        ecs.succeed<PositionComponentSystem, TTFTextSystem>();
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs.succeed<PositionComponentSystem, ListViewSystem>();
-        ecs.succeed<PositionComponentSystem, HorizontalLayoutSystem>();
-        ecs.succeed<PositionComponentSystem, VerticalLayoutSystem>();
+        ecs.succeed<PositionComponentSystem, LayoutSystem>();
+        ecs.succeed<PositionComponentSystem, TextInputComponent>();
+
+        ecs.succeed<AnimationPositionSystem, PositionComponentSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
@@ -441,7 +448,7 @@ namespace pg
         ecs.dumbTaskflow();
 
         screenEntity = ecs.createEntity();
-        // Todo remove this 
+        // Todo remove this
         screenUi = ecs.attach<UiComponent>(screenEntity);
         screenUi->width = width;
         screenUi->height = height;
@@ -501,15 +508,15 @@ namespace pg
 
             case SDL_KEYUP:
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYRELEASED);
-                ecs.sendEvent(OnSDLScanCodeReleased{event.key.keysym.scancode});
+                ecs.sendEvent(OnSDLScanCodeReleased{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
 
             case SDL_KEYDOWN:
                 LOG_MILE(DOM, "Key pressed : " << event.key.keysym.scancode);
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYPRESSED);
-                ecs.sendEvent(OnSDLScanCode{event.key.keysym.scancode});
+                ecs.sendEvent(OnSDLScanCode{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
-            
+
             case SDL_MOUSEBUTTONDOWN:
                 LOG_MILE(DOM, "Button pressed : " << event.button.button);
                 inputHandler->registerMouseInput(event.button.button, Input::InputState::MOUSEPRESS);
@@ -529,7 +536,7 @@ namespace pg
                 mousePos = currentPos;
                 break;
             }
-            
+
             case SDL_CONTROLLERDEVICEADDED:
                 // Todo
                 LOG_INFO(DOM, "Gamepad added !");
@@ -572,7 +579,7 @@ namespace pg
         this->width = width;
         this->height = height;
 
-        std::lock_guard<std::mutex> lock(renderMutex);
+        // std::lock_guard<std::mutex> lock(renderMutex);
 
         glViewport(0, 0, width, height);
 
@@ -582,7 +589,7 @@ namespace pg
             auto pos = ent->get<PositionComponent>();
 
             pos->setWidth(width);
-            
+
             pos->setHeight(height);
         }
 
@@ -590,7 +597,7 @@ namespace pg
         {
             screenUi->setWidth(width);
         }
-        
+
         if (screenUi->height != height)
         {
             screenUi->setHeight(height);
@@ -604,7 +611,7 @@ namespace pg
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-        std::lock_guard<std::mutex> lock(renderMutex);
+        // std::lock_guard<std::mutex> lock(renderMutex);
 
         // SDL_GL_MakeCurrent(window, context);
 

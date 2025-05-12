@@ -1,16 +1,12 @@
 #pragma once
 
-#include <sstream>
 #include <cstdint>
-
-#include "Input/inputcomponent.h"
 
 #include "Systems/oneventcomponent.h"
 
 #include "serialization.h"
 
-// Todo to remove
-#include "UI/uisystem.h"
+#include "ECS/entitysystem.h"
 
 namespace pg
 {
@@ -37,9 +33,9 @@ namespace pg
         }
 
         virtual void onCreation(EntityRef ent) override { entity = ent; }
-        
+
         // std::string sceneName;
-        
+
         EntityRef entity;
     };
 
@@ -115,7 +111,7 @@ namespace pg
     struct SceneFile
     {
         SceneFile() {}
-        SceneFile(const SceneFile& other) : filename(other.filename), version(other.version), onEnterScript(other.onEnterScript), onLeaveScript(other.onLeaveScript), entityList(other.entityList), subScenes(other.subScenes), originCoord(other.originCoord), instancedEntities(other.instancedEntities) {}  
+        SceneFile(const SceneFile& other) : filename(other.filename), version(other.version), onEnterScript(other.onEnterScript), onLeaveScript(other.onLeaveScript), entityList(other.entityList), subScenes(other.subScenes), originCoord(other.originCoord), instancedEntities(other.instancedEntities) {}
 
         SceneFile& operator=(const SceneFile& other)
         {
@@ -131,7 +127,7 @@ namespace pg
             return *this;
         }
 
-        inline static std::string getType() { return "SaveData"; } 
+        inline static std::string getType() { return "SaveData"; }
 
         std::string filename;
         std::string version = ARCHIVEVERSION;
@@ -158,6 +154,8 @@ namespace pg
         Listener<SceneElementClicked>, Listener<SaveScene>, Listener<LoadScene>, Listener<NameScene>,
         Own<SceneElement>, InitSys>
     {
+        virtual std::string getSystemName() const override { return "Scene System"; }
+
         enum class LoadingState : uint8_t
         {
             Idle = 0,
@@ -218,7 +216,8 @@ namespace pg
 
         void deserializeData(SceneFile& sceneFile, const std::unordered_map<std::string, std::string>& serializedData);
 
-        void translateEntitiesInScene(const SceneFile& subScene, const UiFrame& originFrame);
+        // Todo
+        // void translateEntitiesInScene(const SceneFile& subScene, const UiFrame& originFrame);
 
         void runEnterScript(const SceneFile& scene);
 
@@ -226,7 +225,7 @@ namespace pg
 
         bool loadingNewScene = false;
         SceneToLoadFlag sceneToLoadFlag = SceneToLoadFlag::None;
-        SceneToLoadFlag currentLoadedScene = SceneToLoadFlag::None;        
+        SceneToLoadFlag currentLoadedScene = SceneToLoadFlag::None;
         std::string sceneToLoad;
 
         LoadingState currentState = LoadingState::Idle;

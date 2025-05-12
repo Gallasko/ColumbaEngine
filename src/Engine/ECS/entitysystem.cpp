@@ -4,9 +4,9 @@
  * @brief Definition of the entity system
  * @version 0.1
  * @date 2022-08-06
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 
 #include "entitysystem.h"
@@ -14,6 +14,16 @@
 #include "system.h"
 
 #include "Systems/coresystems.h"
+
+#include "Interpreter/interpretersystem.h"
+
+#ifdef PROFILE
+std::mutex profileMutex;
+// Profiling data
+
+std::unordered_map<std::string, long long> _systemExecutionTimes;
+std::unordered_map<std::string, size_t> _systemExecutionCounts;
+#endif
 
 namespace
 {
@@ -58,14 +68,36 @@ namespace pg
             // During the command dispatcher no other system should be running
             // So it should be safe to allow for creation and deletion of entities/components on the spot
             running = false;
-            eventDispatcher.process(); 
-                        
+
+#ifdef PROFILE
+            auto startTask = std::chrono::steady_clock::now();
+#endif
+            eventDispatcher.process();
+
             cmdDispatcher.process();
 
             if (not stopRequested)
                 running = true;
 
-            saveManager.execute();
+            saveManager._execute();
+
+#ifdef PROFILE
+            // Record end time and compute elapsed time in nanoseconds.
+            auto endTask = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTask - startTask).count();
+
+            // Log if the duration exceeds a threshold
+            if (duration >= 3000000)
+                std::cout << "System BasicTask execution time: " << duration << " ns" << std::endl;
+
+            // Update profiling data in a thread-safe manner.
+            {
+                std::lock_guard<std::mutex> lock(profileMutex);
+                std::string systemName = "BasicTask";
+                _systemExecutionTimes[systemName] += duration;
+                _systemExecutionCounts[systemName]++;
+            }
+#endif
 
             nbExecution++;
             totalNbOfExecution++;
@@ -77,7 +109,7 @@ namespace pg
                 nbExecution = 0;
                 start = end;
             }
-            
+
             }).name("Basic Task");
 
         LOG_INFO(DOM, "Ecs started !");
@@ -106,7 +138,7 @@ namespace pg
     EntityRef EntitySystem::createEntity()
     {
         LOG_THIS_MEMBER("ECS");
-        
+
         if (running)
             return cmdDispatcher.createEntity();
         else
@@ -123,7 +155,7 @@ namespace pg
         if (entity == nullptr)
         {
             LOG_ERROR("ECS", "Entity doesn't exists !");
-            
+
             return;
         }
 
@@ -131,6 +163,73 @@ namespace pg
             cmdDispatcher.deleteEntity(entity);
         else
             deleteEntityFromPool(entity);
+    }
+
+    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        // Todo: add support for system creation during runtime
+        if (running)
+        {
+            LOG_ERROR("ECS", "System creation during runtime is not supported");
+            return nullptr;
+        }
+
+        auto system = new InterpreterSystem(env, sysInstance);
+        system->_id = registry.idGenerator.generateId();
+
+        system->ecsRef = this;
+
+        systems.emplace(system->_id, system);
+
+        system->addToRegistry(&registry);
+
+        // Only add the system to the taskflow if the execution policy is set to sequential or independent !
+        if (system->executionPolicy == ExecutionPolicy::Sequential)
+        {
+            auto task = taskflow.emplace([system]()
+            {
+#ifdef PROFILE
+                // Todo time the whole exec of a run of the taskflow
+                auto start = std::chrono::steady_clock::now();
+#endif
+                system->_execute();
+
+#ifdef PROFILE
+                // Record end time and compute elapsed time in nanoseconds.
+                auto end = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+                // Log if the duration exceeds a threshold
+                if (duration >= 3000000)
+                    std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
+
+                // Update profiling data in a thread-safe manner.
+                {
+                    std::lock_guard<std::mutex> lock(profileMutex);
+                    std::string systemName = system->getSystemName();
+                    _systemExecutionTimes[systemName] += duration;
+                    _systemExecutionCounts[systemName]++;
+                }
+#endif
+            }).name(std::to_string(system->_id));
+
+            // Put the task after every other basic task
+            task.succeed(basicTask);
+
+            // Register the task in case we need to call precede and succeed
+            tasks[system->_id] = task;
+        }
+        else if (system->executionPolicy == ExecutionPolicy::Independent)
+        {
+            auto task = taskflow.emplace([system](){system->_execute();}).name(std::to_string(system->_id));
+
+            // Register the task in case we need to call precede and succeed
+            tasks[system->_id] = task;
+        }
+
+        return system;
     }
 
     void EntitySystem::deleteSystem(_unique_id id)
@@ -205,5 +304,38 @@ namespace pg
         LOG_THIS_MEMBER("ECS");
 
         return getEntity(getSystem<EntityNameSystem>()->getEntityId(name));
+    }
+    void EntitySystem::reportSystemProfiles()
+    {
+#ifdef PROFILE
+        std::lock_guard<std::mutex> lock(profileMutex);
+
+        std::string bottleneckSystem;
+        long long maxAvgTime = 0;
+
+        std::cout << "System execution times:" << _systemExecutionTimes.size() << std::endl;
+
+        for (const auto& pair : _systemExecutionTimes) {
+            std::string name = pair.first;
+            long long totalTime = pair.second;
+            size_t count = _systemExecutionCounts[name];
+            long long avgTime = (count != 0) ? totalTime / count : 0;
+
+            std::cout << "System " << name << " average execution: " << pair.second << ", " << avgTime << " ns ("
+                      << count << " iterations)" << std::endl;
+
+            if (avgTime > maxAvgTime) {
+                maxAvgTime = avgTime;
+                bottleneckSystem = name;
+            }
+        }
+
+        std::cout << "Bottleneck system: " << bottleneckSystem
+                  << " with average execution time: " << maxAvgTime << " ns" << std::endl;
+
+        // Optional: Reset the counters if you want per-interval reporting.
+        _systemExecutionTimes.clear();
+        _systemExecutionCounts.clear();
+#endif
     }
 }

@@ -38,8 +38,6 @@ void main()
         vec4(1.0, 0.0, 0.0, 0.0),
         vec4(0.0, 1.0, 0.0, 0.0),
         vec4(0.0, 0.0, 1.0, 0.0),
-//        vec4(-1.0f + 2.0f * aWorldPos.x * (1.0 / sWidth), 1.0 + 2.0f * (aWorldPos.y) * (1.0 / sHeight), aWorldPos.z / 100.0f, 1.0) );
-//        vec4(-0.5f + 2.0 * aWorldPos.x * (1.0 / sWidth), 1.7f + 2.0 * -(aWorldPos.y) * (1.0 / sHeight), aWorldPos.z / 100.0f, 1.0) );
         vec4(-1.0f + 2.0 * aWorldPos.x * (1.0 / sWidth), 1.0 + 2.0 * -(aWorldPos.y) * (1.0 / sHeight), aWorldPos.z / 100.0f, 1.0) );
 
     mat4 scaleMat = mat4(
@@ -48,29 +46,24 @@ void main()
         vec4(0.0, 0.0, 1.0, 0.0),
         vec4(0.0 , 0.0, 0.0, 1.0));
 
+    float radRotation = rad(rotation);
+
     mat4 rotateMat = mat4(
-        vec4(cos(rotation), -sin(rotation), 0.0, 0.0),
-        vec4(sin(rotation), cos(rotation), 0.0, 0.0),
+        vec4(cos(radRotation), -sin(radRotation), 0.0, 0.0),
+        vec4(sin(radRotation), cos(radRotation), 0.0, 0.0),
         vec4(0.0, 0.0, 1.0, 0.0),
-        vec4(0.0 , 0.0, 0.0, 1.0));
+        vec4(0.0, 0.0, 0.0, 1.0));
 
-    mat4 trans = mat4(
-        vec4(1.0, 0.0, 0.0, 0.0),
-        vec4(0.0, 1.0, 0.0, 0.0),
-        vec4(0.0, 0.0, 1.0, 0.0),
-        vec4(-aSize.x * (1.0 / sWidth), aSize.y * (1.0 / sHeight), 0.0, 1.0));
+    vec2 centerNDC = vec2(0.5*aSize.x, -0.5*aSize.y);
 
-    mat4 invtrans = mat4(
-        vec4(1.0, 0.0, 0.0, 0.0),
-        vec4(0.0, 1.0, 0.0, 0.0),
-        vec4(0.0, 0.0, 1.0, 0.0),
-        vec4(aSize.x * (1.0 / sWidth), -aSize.y * (1.0 / sHeight), 0.0, 1.0));
+    mat4 Tneg = mat4(1.0);
+    Tneg[3].xy = -centerNDC;
 
-    //gl_Position = projection * posMat *  view *  scaleMat * scale *  model * vec4(aPos.x, aPos.y, aPos.z, 1.0f);
-     gl_Position = projection * posMat * view * invtrans * rotateMat * trans * scale * scaleMat * model * vec4(aPos.x, aPos.y, aPos.z, 1.0f);
-    //gl_Position = projection * posMat * view *  scale * rotateMat * scaleMat * model *  trans * vec4(aPos.x, aPos.y, aPos.z, 1.0f);
-    // gl_Position = projection * posMat * view * scale * invtrans * rotateMat * trans * scaleMat * model *  vec4(aPos.x, aPos.y, aPos.z, 1.0f);
-	
+    mat4 Tpos = mat4(1.0);
+    Tpos[3].xy =  centerNDC;
+
+    gl_Position = projection * posMat * view * scale * Tpos * rotateMat * Tneg * scaleMat * model * vec4(aPos.x, aPos.y, aPos.z, 1.0f);
+
 	TexCoord = aTexCoord;
 
     opacity = aOpacity;

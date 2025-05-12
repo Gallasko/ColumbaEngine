@@ -3,16 +3,17 @@
 #include <string>
 
 #include "ECS/entitysystem.h"
-#include "UI/uisystem.h"
 #include "UI/sentencesystem.h"
 #include "UI/textinput.h"
-
-// #include "Input/inputcomponent.h"
 #include "2D/texture.h"
 #include "Renderer/renderer.h"
 #include "Scene/scenemanager.h"
 
-#include "Helpers/tinyfiledialogs.h" 
+#include "Helpers/tinyfiledialogs.h"
+
+#include "2D/simple2dobject.h"
+
+#include "inspector.h"
 
 namespace pg
 {
@@ -20,18 +21,6 @@ namespace pg
     {
         static constexpr char const * DOM = "Context Menu";
     }
-    
-    // template <>
-    // void renderer(MasterRenderer *masterRenderer, pg::editor::ContextMenu *contextMenu)
-    // {
-    //     // contextMenu->backgroundTextureC->render(masterRenderer);
-
-    //     // contextMenu->addButtonButtonC->render(masterRenderer);
-    //     // contextMenu->addTextureButtonC->render(masterRenderer);
-    //     // contextMenu->addTextButtonC->render(masterRenderer);
-    //     // contextMenu->addTextInputButtonC->render(masterRenderer);
-    //     // contextMenu->addListButtonC->render(masterRenderer);
-    // }
 
 namespace editor
 {
@@ -50,35 +39,53 @@ namespace editor
     void ContextMenu::init()
     {
         LOG_THIS_MEMBER(DOM);
- 
-        auto file = makeSentence(ecsRef, 0, 0, {"Open"});
-        file.get<UiComponent>()->setZ(12);
+
+        auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFile>());
 
-        auto save = makeSentence(ecsRef, 50, 0, {"Save"});
-        save.get<UiComponent>()->setZ(12);
+        auto save = makeTTFText(ecsRef, 70.0f, 5.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Save", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(save.entity, makeCallable<SaveFile>());
 
         parent = ecsRef->createEntity();
+        parentPos = ecsRef->attach<PositionComponent>(parent);
 
-        parentUi = ecsRef->attach<UiComponent>(parent);
+        parentPos->setX(0);
+        parentPos->setY(0);
+        parentPos->setZ(12);
+        parentPos->setWidth(200);
+        parentPos->setHeight(200);
 
-        parentUi->setZ(10);
-
+        parentUi = ecsRef->attach<UiAnchor>(parent);
         ecsRef->attach<MouseLeaveClickComponent>(parent, makeCallable<HideContextMenu>());
 
         auto backTexture = makeUiTexture(ecsRef, 1, 1, "TabTexture");
-
         auto background = backTexture.entity;
+        backgroundPos = backTexture.get<PositionComponent>();
+        backgroundPos->setZ(10);
+        backgroundC = backTexture.get<UiAnchor>();
+        backgroundC->fillIn(parentUi);
 
-        backgroundC = backTexture.get<UiComponent>();
+        auto vLayout = makeVerticalLayout(ecsRef, 1, 1, 200, 200);
+        auto layoutPos = vLayout.get<PositionComponent>();
+        layoutPos->setZ(11);
+        auto layoutAnchor = vLayout.get<UiAnchor>();
+        // layoutAnchor->fillIn(parentUi);
 
-        backgroundC->fill(parentUi);
-        
-        // Todo move this in the ctor of the Context menu cause it is the only thing preventing this class to be generic
+        layoutAnchor->setTopAnchor(parentUi->top);
+        layoutAnchor->setLeftAnchor(parentUi->left);
+        layoutAnchor->setWidthConstrain(PosConstrain{parent.id, AnchorType::Width});
+        layoutAnchor->setHeightConstrain(PosConstrain{parent.id, AnchorType::Height});
+
+        auto layoutComp = vLayout.get<VerticalLayout>();
+
+        layoutComp->spacing = 8.0f;
+
+        layout = vLayout.entity;
+
         setContextList("Add Sentence",  makeCallable<CreateElement>(UiComponentType::TEXT),
                        "Add TTF Text",  makeCallable<CreateElement>(UiComponentType::TTFTEXT),
                        "Add Texture",   makeCallable<CreateElement>(UiComponentType::TEXTURE),
+                       "Add Shape 2D",  makeCallable<CreateElement>(UiComponentType::SHAPE2D),
                        "Add Button",    makeCallable<CreateElement>(UiComponentType::BUTTON),
                        "Add TextInput", makeCallable<CreateElement>(UiComponentType::TEXTINPUT),
                        "Add List",      makeCallable<CreateElement>(UiComponentType::LIST),
@@ -94,69 +101,131 @@ namespace editor
 
     void ContextMenu::addItemInContextMenu(const std::string& text, CallablePtr callable)
     {
-        auto addItem = makeSentence(ecsRef, 0, 0, {text});
-
+        auto addItem = makeTTFText(ecsRef, 0, 0, 11.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", text, 0.5);
         auto addItemEntity = addItem.entity;
 
         ecsRef->attach<MouseLeftClickComponent>(addItemEntity, callable);
 
-        auto addItemC = addItem.get<UiComponent>();
+        LOG_ERROR("Context Menu", layout->has<VerticalLayout>());
 
-        addItemC->setZ(11);
+        auto vLayout = layout->get<VerticalLayout>();
 
-        if (components.size() > 0)
-            addItemC->setTopAnchor(components.back()->bottom);
-        else
-            addItemC->setTopAnchor(parentUi->top);
-        
-        addItemC->setLeftAnchor(parentUi->left);
-
-        if (addItemC->width > parentUi->width)
-        {
-            parentUi->setWidth(addItemC->width);
-
-            for (auto& comp : components)
-            {
-                comp->setWidth(addItemC->width);
-            }
-        }
-
-        parentUi->height += addItemC->height;
-
-        components.push_back(addItemC);
+        vLayout->addEntity(addItemEntity);
     }
 
     void ContextMenu::hide()
     {
         LOG_THIS_MEMBER(DOM);
 
-        parentUi->hide();
+        parentPos->setVisibility(false);
 
-        backgroundC->hide();
+        backgroundPos->setVisibility(false);
 
-        for (auto& comp : components)
+        layout->get<PositionComponent>()->setVisibility(false);
+    }
+
+    void ContextMenu::onProcessEvent(const ShowContextMenu& event)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        LOG_INFO(DOM, "Show context menu");
+
+        auto pos = event.inputHandler->getMousePos();
+
+        parentPos->setVisibility(true);
+
+        currentX = pos.x;
+        currentY = pos.y;
+
+        parentPos->setX(pos.x);
+        parentPos->setY(pos.y);
+
+        backgroundPos->setVisibility(true);
+
+        layout->get<PositionComponent>()->setVisibility(true);
+    }
+
+    void ContextMenu::onProcessEvent(const HideContextMenu&)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        LOG_INFO(DOM, "Hide context menu");
+
+        hide();
+    }
+
+    void ContextMenu::onProcessEvent(const CreateElement& event)
+    {
+        auto cX = currentX, cY = currentY;
+        switch(event.type)
         {
-            comp->hide();
+            case UiComponentType::TEXT:
+            {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+                break;
+            }
+
+            case UiComponentType::TTFTEXT:
+            {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+                break;
+            }
+
+            case UiComponentType::TEXTURE:
+            {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
+                    newElement.get<PositionComponent>()->setX(cX);
+                    newElement.get<PositionComponent>()->setY(cY);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+
+                break;
+            }
+
+            case UiComponentType::SHAPE2D:
+            {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
+                    newElement.get<PositionComponent>()->setX(cX);
+                    newElement.get<PositionComponent>()->setY(cY);
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+
+                break;
+            }
+
+            case UiComponentType::TEXTINPUT:
+            {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                    auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
+                    ecsRef->attach<SceneElement>(newElement.entity);
+
+                    return newElement.entity.id;
+                }});
+
+                break;
+            }
+
+            default:
+                break;
         }
-    }
 
-    void ContextMenu::onEvent(const ShowContextMenu& event)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        showEventQueue.push(event);
-    }
-
-    void ContextMenu::onEvent(const HideContextMenu& event)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        hideEventQueue.push(event);
-    }
-
-    void ContextMenu::onEvent(const CreateElement& event)
-    {
-        elementQueue.push(event);
+        hide();
     }
 
     void ContextMenu::onEvent(const OpenFile&)
@@ -204,104 +273,6 @@ namespace editor
 
     void ContextMenu::execute()
     {
-        while (not elementQueue.empty())
-        {
-            LOG_INFO("Context Menu", "Create scene element");
-
-            auto& event = elementQueue.front();
-
-            switch(event.type)
-            {
-                case UiComponentType::TEXT:
-                {
-                    auto newElement = makeSentence(ecsRef, currentX, currentY, {"New Text"});
-
-                    ecsRef->attach<SceneElement>(newElement.entity);
-                    break;
-                }
-
-                case UiComponentType::TTFTEXT:
-                {
-                    auto newElement = makeTTFText(ecsRef, currentX, currentY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
-
-                    ecsRef->attach<SceneElement>(newElement.entity);
-                    break;
-                }
-
-                case UiComponentType::TEXTURE:
-                {
-                    auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
-
-                    auto uiComp = newElement.get<UiComponent>();
-
-                    uiComp->setX(currentX);
-                    uiComp->setY(currentY);
-
-                    ecsRef->attach<SceneElement>(newElement.entity);
-
-                    break;
-                }
-
-                case UiComponentType::TEXTINPUT:
-                {
-                    auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
-
-                    auto uiComp = newElement.get<UiComponent>();
-
-                    uiComp->setX(currentX);
-                    uiComp->setY(currentY);
-
-                    ecsRef->attach<SceneElement>(newElement.entity);
-
-                    break;
-                }
-
-                default:
-                    break;
-            }
-
-            hide();
-
-            elementQueue.pop();
-        }
-
-        while (not hideEventQueue.empty())
-        {
-            LOG_INFO("Context Menu", "Hide context");
-
-            hide();
-            hideEventQueue.pop();
-        }
-
-        while (not showEventQueue.empty())
-        {
-            auto& event = showEventQueue.front();
-
-            LOG_INFO("Context Menu", "Show context");
-
-            auto pos = event.inputHandler->getMousePos();
-
-            parentUi->show();
-
-            currentX = pos.x;
-            currentY = pos.y;
-
-            // Todo check for width / height overflow 
-
-            parentUi->setX(pos.x);
-            parentUi->setY(pos.y);
-
-            LOG_INFO("Context Menu", "Parent: " << parentUi->pos.x << ", " << parentUi->pos.y << ", " << parentUi->width << ", " << parentUi->height);
-
-            backgroundC->show();
-            
-            for (auto& comp : components)
-            {
-                comp->show();
-            }
-
-            showEventQueue.pop();
-        }
     }
 
 }

@@ -1,14 +1,13 @@
 #pragma once
 
 #include <chrono>
-#include "ECS/entitysystem.h"
 
-#include "Renderer/renderer.h"
-#include "UI/sentencesystem.h"
-#include "UI/textinput.h"
+#include "ECS/entitysystem.h"
 
 #include "Interpreter/scriptcallable.h"
 #include "Interpreter/pginterpreter.h"
+
+#include "oneventcomponent.h"
 
 namespace pg
 {
@@ -20,7 +19,7 @@ namespace pg
         EntityName(const std::string& name) : name(name) {}
         EntityName(const EntityName& other) : name(other.name), entityId(other.entityId) {}
 
-        inline static std::string getType() { return "EntityName"; } 
+        inline static std::string getType() { return "EntityName"; }
 
         virtual void onCreation(EntityRef entity) override
         {
@@ -50,7 +49,7 @@ namespace pg
             {
                 if ((*it)->name == name)
                 {
-                    return (*it)->entityId; 
+                    return (*it)->entityId;
                 }
             }
 
@@ -68,9 +67,9 @@ namespace pg
     struct TickingSystem : public System<>
     {
         TickingSystem(int16_t duration = 20) : tickDuration(duration), reminder(0)
-        { 
+        {
             LOG_THIS_MEMBER("Ticking System");
-            
+
             // firstTickTime = std::chrono::high_resolution_clock::now();
             firstTickTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
             secondTickTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
@@ -127,7 +126,7 @@ namespace pg
             }
 
             auto delta = secondTickTime - firstTickTime - reminder;
-            
+
             while (delta >= tickDuration)
             {
                 triggered = true;
@@ -142,7 +141,7 @@ namespace pg
                 firstTickTime = secondTickTime;
 
                 reminder = delta;
-                
+
                 // This should never happend
                 if (reminder < 0)
                 {
@@ -154,7 +153,7 @@ namespace pg
 
         int16_t tickDuration;
 
-        int16_t firstTickTime, secondTickTime, reminder; 
+        int16_t firstTickTime, secondTickTime, reminder;
         bool paused = false;
     };
 
@@ -245,20 +244,11 @@ namespace pg
     {
         virtual std::string getSystemName() const override { return "Run Script From Text Input System"; }
 
-        virtual void onEvent(const TextInputTriggeredEvent& event) override
-        {
-            LOG_THIS_MEMBER("Run Script From Text Input System");
+        virtual void onEvent(const TextInputTriggeredEvent& event) override;
+    };
 
-            if (not event.entity.has<TextInputComponent>())
-            {
-                LOG_ERROR("Run Script From Text Input System", "Entity has no Text Input Component");
-            }
-
-            auto textComp = event.entity.get<TextInputComponent>();
-
-            LOG_INFO("Run Script From Text Input System", "Trying to execute script: " << textComp->returnText);
-
-            ecsRef->sendEvent(ExecuteFileScriptEvent{textComp->returnText});
-        }
+    struct OnEventComponentSystem : public System<Own<OnEventComponent>, Own<OnStandardEventComponent>, StoragePolicy>
+    {
+        virtual std::string getSystemName() const override { return "OnEventComponentSystem"; }
     };
 }

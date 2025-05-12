@@ -9,7 +9,7 @@ namespace pg
     {
         std::string path;
         std::string name;
-        
+
         // Todo
         // std::vector openTabs
         // EditorPreferences
@@ -18,6 +18,12 @@ namespace pg
     struct LoadProjectData
     {
         std::string projectPath;
+    };
+
+    struct NewProjectData
+    {
+        std::string projectPath;
+        std::string projectName;
     };
 
     struct ProjectManagerSystem : public System<Listener<LoadProjectData>, StoragePolicy>

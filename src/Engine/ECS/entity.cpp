@@ -59,9 +59,12 @@ namespace pg
         {
             id = rhs.id;
 
-            auto ent = rhs.ecsRef->getEntity(id);
+            Entity* ent = nullptr;
 
-            if (id != 0 and ent)
+            if (id != 0)
+                ent = rhs.ecsRef->getEntity(id);
+
+            if (ent)
             {
                 entity = ent;
                 ecsRef = rhs.ecsRef;
@@ -97,17 +100,17 @@ namespace pg
             return;
         }
 
-        // Get id and ecs 
+        // Get id and ecs
         id = ent->id;
         ecsRef = ent->world();
-        
+
         // Try to get the entity from the ecs
         auto ecsEnt = ecsRef->getEntity(id);
 
         if (id != 0 and ecsEnt)
         {
             // If the entity is in the ecs grab it's pointer from there
-            
+
             entity = ecsEnt;
             initialized = true;
         }
@@ -130,7 +133,7 @@ namespace pg
         {
             // Try to find the entity in the ecs to update this ref
             auto ent = ecsRef->getEntity(id);
-            
+
             // Entity found, updating this entity ref
             if (id != 0 and ent)
             {
@@ -152,7 +155,7 @@ namespace pg
         {
             // Try to find the entity in the ecs to update this ref
             auto ent = ecsRef->getEntity(id);
-            
+
             // Entity found, updating this entity ref
             if (id != 0 and ent)
             {

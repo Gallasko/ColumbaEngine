@@ -6,6 +6,20 @@ namespace pg
 {
     namespace
     {
+        static constexpr const char * const DOM = "Position";
+
+        constexpr float EPSILON = 1e-5f;
+
+        bool areAlmostEqual(float a, float b, float epsilon = EPSILON)
+        {
+            return std::fabs(a - b) <= epsilon * std::max({1.0f, std::fabs(a), std::fabs(b)});
+        }
+
+        bool areNotAlmostEqual(float a, float b, float epsilon = EPSILON)
+        {
+            return not areAlmostEqual(a, b, epsilon);
+        }
+
         float getValueFromType(CompRef<PositionComponent> posComp, const AnchorType& dir)
         {
             switch (dir)
@@ -17,16 +31,28 @@ namespace pg
                     return posComp->x;
                     break;
                 case AnchorType::Right:
-                    return posComp->x + posComp->width;
+                    if (posComp->visible)
+                        return posComp->x + posComp->width;
+                    else
+                        return posComp->x;
                     break;
                 case AnchorType::Bottom:
-                    return posComp->y + posComp->height;
+                    if (posComp->visible)
+                        return posComp->y + posComp->height;
+                    else
+                        return posComp->y;
                     break;
                 case AnchorType::VerticalCenter:
-                    return posComp->y + posComp->height / 2.0f;
+                    if (posComp->visible)
+                        return posComp->y + posComp->height / 2.0f;
+                    else
+                        return posComp->y;
                     break;
                 case AnchorType::HorizontalCenter:
-                    return posComp->x + posComp->width / 2.0f;
+                    if (posComp->visible)
+                        return posComp->x + posComp->width / 2.0f;
+                    else
+                        return posComp->x;
                     break;
                 default:
                     // Todo add support for width, height, center alignment ... to this getter
@@ -42,7 +68,7 @@ namespace pg
 
             if (not entity or not entity->has<PositionComponent>())
             {
-                LOG_ERROR("PosConstrain", "Entity " << constrain.id << " does not have a PositionComponent!");
+                LOG_MILE("PosConstrain", "Entity " << constrain.id << " does not have a PositionComponent!");
                 return 0.0f;
             }
 
@@ -59,7 +85,7 @@ namespace pg
             case AnchorType::Height:
                 value = pos->height;
                 break;
-            
+
             case AnchorType::X:
                 value = pos->x;
                 break;
@@ -96,7 +122,7 @@ namespace pg
                     value /= constrain.opValue;
                 else
                 {
-                    LOG_ERROR("UiAnchor", "Division by zero"); 
+                    LOG_ERROR("UiAnchor", "Division by zero");
                 }
                 break;
 
@@ -110,8 +136,250 @@ namespace pg
         }
     }
 
+    // AnchorType to string map
+    const std::map<AnchorType, std::string> AnchorTypeToStringMap = {
+        {AnchorType::None, "None"},
+        {AnchorType::Top, "Top"},
+        {AnchorType::Right, "Right"},
+        {AnchorType::Bottom, "Bottom"},
+        {AnchorType::Left, "Left"},
+        {AnchorType::X, "X"},
+        {AnchorType::Y, "Y"},
+        {AnchorType::Z, "Z"},
+        {AnchorType::Width, "Width"},
+        {AnchorType::Height, "Height"},
+        {AnchorType::TMargin, "TMargin"},
+        {AnchorType::RMargin, "RMargin"},
+        {AnchorType::BMargin, "BMargin"},
+        {AnchorType::LMargin, "LMargin"},
+        {AnchorType::VerticalCenter, "VerticalCenter"},
+        {AnchorType::HorizontalCenter, "HorizontalCenter"}
+    };
+
+    // String to AnchorType map
+    const std::map<std::string, AnchorType> StringToAnchorTypeMap = {
+        {"None", AnchorType::None},
+        {"Top", AnchorType::Top},
+        {"Right", AnchorType::Right},
+        {"Bottom", AnchorType::Bottom},
+        {"Left", AnchorType::Left},
+        {"X", AnchorType::X},
+        {"Y", AnchorType::Y},
+        {"Z", AnchorType::Z},
+        {"Width", AnchorType::Width},
+        {"Height", AnchorType::Height},
+        {"TMargin", AnchorType::TMargin},
+        {"RMargin", AnchorType::RMargin},
+        {"BMargin", AnchorType::BMargin},
+        {"LMargin", AnchorType::LMargin},
+        {"VerticalCenter", AnchorType::VerticalCenter},
+        {"HorizontalCenter", AnchorType::HorizontalCenter}
+    };
+
+    // PosOpType to string map
+    const std::map<PosOpType, std::string> PosOpTypeToStringMap = {
+        {PosOpType::None, "None"},
+        {PosOpType::Add, "Add"},
+        {PosOpType::Sub, "Sub"},
+        {PosOpType::Mul, "Mul"},
+        {PosOpType::Div, "Div"}
+    };
+
+    // String to PosOpType map
+    const std::map<std::string, PosOpType> StringToPosOpTypeMap = {
+        {"None", PosOpType::None},
+        {"Add", PosOpType::Add},
+        {"Sub", PosOpType::Sub},
+        {"Mul", PosOpType::Mul},
+        {"Div", PosOpType::Div}
+    };
+
+    // Serialize function for PositionComponent
+    template <>
+    void serialize(Archive& archive, const PositionComponent& value)
+    {
+        archive.startSerialization("PositionComponent");
+
+        serialize(archive, "x", value.x);
+        serialize(archive, "y", value.y);
+        serialize(archive, "z", value.z);
+
+        serialize(archive, "width", value.width);
+        serialize(archive, "height", value.height);
+
+        serialize(archive, "rotation", value.rotation);
+        serialize(archive, "visible", value.visible);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for PositionComponent
+    template <>
+    PositionComponent deserialize(const UnserializedObject& serializedString)
+    {
+        PositionComponent data;
+
+        defaultDeserialize(serializedString, "x", data.x);
+        defaultDeserialize(serializedString, "y", data.y);
+        defaultDeserialize(serializedString, "z", data.z);
+
+        defaultDeserialize(serializedString, "width", data.width);
+        defaultDeserialize(serializedString, "height", data.height);
+
+        defaultDeserialize(serializedString, "rotation", data.rotation);
+        defaultDeserialize(serializedString, "visible", data.visible);
+
+        return data;
+    }
+
+        // Serialize function for UiAnchor
+    template <>
+    void serialize(Archive& archive, const UiAnchor& value)
+    {
+        archive.startSerialization("UiAnchor");
+
+        serialize(archive, "topAnchor", value.topAnchor);
+        serialize(archive, "leftAnchor", value.leftAnchor);
+        serialize(archive, "rightAnchor", value.rightAnchor);
+        serialize(archive, "bottomAnchor", value.bottomAnchor);
+
+        serialize(archive, "hasTopAnchor", value.hasTopAnchor);
+        serialize(archive, "hasLeftAnchor", value.hasLeftAnchor);
+        serialize(archive, "hasRightAnchor", value.hasRightAnchor);
+        serialize(archive, "hasBottomAnchor", value.hasBottomAnchor);
+
+        serialize(archive, "verticalCenterAnchor", value.verticalCenterAnchor);
+        serialize(archive, "horizontalCenterAnchor", value.horizontalCenterAnchor);
+
+        serialize(archive, "hasVerticalCenter", value.hasVerticalCenter);
+        serialize(archive, "hasHorizontalCenter", value.hasHorizontalCenter);
+
+        serialize(archive, "topMargin", value.topMargin);
+        serialize(archive, "leftMargin", value.leftMargin);
+        serialize(archive, "rightMargin", value.rightMargin);
+        serialize(archive, "bottomMargin", value.bottomMargin);
+
+        serialize(archive, "widthConstrain", value.widthConstrain);
+        serialize(archive, "heightConstrain", value.heightConstrain);
+        serialize(archive, "zConstrain", value.zConstrain);
+
+        serialize(archive, "hasWidthConstrain", value.hasWidthConstrain);
+        serialize(archive, "hasHeightConstrain", value.hasHeightConstrain);
+        serialize(archive, "hasZConstrain", value.hasZConstrain);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for UiAnchor
+    template <>
+    UiAnchor deserialize(const UnserializedObject& serializedString)
+    {
+        UiAnchor data;
+
+        defaultDeserialize(serializedString, "topAnchor", data.topAnchor);
+        defaultDeserialize(serializedString, "leftAnchor", data.leftAnchor);
+        defaultDeserialize(serializedString, "rightAnchor", data.rightAnchor);
+        defaultDeserialize(serializedString, "bottomAnchor", data.bottomAnchor);
+
+        defaultDeserialize(serializedString, "hasTopAnchor", data.hasTopAnchor);
+        defaultDeserialize(serializedString, "hasLeftAnchor", data.hasLeftAnchor);
+        defaultDeserialize(serializedString, "hasRightAnchor", data.hasRightAnchor);
+        defaultDeserialize(serializedString, "hasBottomAnchor", data.hasBottomAnchor);
+
+        defaultDeserialize(serializedString, "verticalCenterAnchor", data.verticalCenterAnchor);
+        defaultDeserialize(serializedString, "horizontalCenterAnchor", data.horizontalCenterAnchor);
+
+        defaultDeserialize(serializedString, "hasVerticalCenter", data.hasVerticalCenter);
+        defaultDeserialize(serializedString, "hasHorizontalCenter", data.hasHorizontalCenter);
+
+        defaultDeserialize(serializedString, "topMargin", data.topMargin);
+        defaultDeserialize(serializedString, "leftMargin", data.leftMargin);
+        defaultDeserialize(serializedString, "rightMargin", data.rightMargin);
+        defaultDeserialize(serializedString, "bottomMargin", data.bottomMargin);
+
+        defaultDeserialize(serializedString, "widthConstrain", data.widthConstrain);
+        defaultDeserialize(serializedString, "heightConstrain", data.heightConstrain);
+        defaultDeserialize(serializedString, "zConstrain", data.zConstrain);
+
+        defaultDeserialize(serializedString, "hasWidthConstrain", data.hasWidthConstrain);
+        defaultDeserialize(serializedString, "hasHeightConstrain", data.hasHeightConstrain);
+        defaultDeserialize(serializedString, "hasZConstrain", data.hasZConstrain);
+
+        return data;
+    }
+
+    // Serialize function for PosAnchor
+    template <>
+    void serialize(Archive& archive, const PosAnchor& value)
+    {
+        archive.startSerialization("PosAnchor");
+
+        serialize(archive, "id", value.id);
+        serialize(archive, "type", AnchorTypeToStringMap.at(value.type)); // Use the map for conversion
+        serialize(archive, "value", value.value);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for PosAnchor
+    template <>
+    PosAnchor deserialize(const UnserializedObject& serializedString)
+    {
+        PosAnchor data;
+
+        defaultDeserialize(serializedString, "id", data.id);
+        std::string typeStr;
+        defaultDeserialize(serializedString, "type", typeStr);
+        data.type = StringToAnchorTypeMap.at(typeStr); // Use the map for conversion
+        defaultDeserialize(serializedString, "value", data.value);
+
+        return data;
+    }
+
+    // Serialize function for PosConstrain
+    template <>
+    void serialize(Archive& archive, const PosConstrain& value)
+    {
+        archive.startSerialization("PosConstrain");
+
+        serialize(archive, "id", value.id);
+        serialize(archive, "type", AnchorTypeToStringMap.at(value.type)); // Use the map for conversion
+        serialize(archive, "opType", PosOpTypeToStringMap.at(value.opType)); // Use the map for conversion
+        serialize(archive, "opValue", value.opValue);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for PosConstrain
+    template <>
+    PosConstrain deserialize(const UnserializedObject& serializedString)
+    {
+        PosConstrain data;
+
+        defaultDeserialize(serializedString, "id", data.id);
+        std::string typeStr;
+        defaultDeserialize(serializedString, "type", typeStr);
+        data.type = StringToAnchorTypeMap.at(typeStr); // Use the map for conversion
+
+        std::string opTypeStr;
+        defaultDeserialize(serializedString, "opType", opTypeStr);
+        data.opType = StringToPosOpTypeMap.at(opTypeStr); // Use the map for conversion
+
+        defaultDeserialize(serializedString, "opValue", data.opValue);
+
+        return data;
+    }
+
     void UiAnchor::setTopAnchor(const PosAnchor& anchor)
     {
+        if (hasTopAnchor and topAnchor.id == anchor.id)
+            return;
+
+        LOG_THIS(DOM);
+
+        if (hasTopAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
+
         topAnchor = anchor;
         hasTopAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -121,14 +389,26 @@ namespace pg
     void UiAnchor::clearTopAnchor()
     {
         if (hasTopAnchor)
+        {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
 
-        hasTopAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasTopAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setLeftAnchor(const PosAnchor& anchor)
     {
+        if (hasLeftAnchor and leftAnchor.id == anchor.id)
+            return;
+
+        LOG_THIS(DOM);
+
+        if (hasLeftAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
+
         leftAnchor = anchor;
         hasLeftAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -138,14 +418,26 @@ namespace pg
     void UiAnchor::clearLeftAnchor()
     {
         if (hasLeftAnchor)
+        {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
 
-        hasLeftAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasLeftAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setRightAnchor(const PosAnchor& anchor)
     {
+        if (hasRightAnchor and rightAnchor.id == anchor.id)
+            return;
+
+        LOG_THIS(DOM);
+
+        if (hasRightAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
+
         rightAnchor = anchor;
         hasRightAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -155,14 +447,26 @@ namespace pg
     void UiAnchor::clearRightAnchor()
     {
         if (hasRightAnchor)
+        {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
 
-        hasRightAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasRightAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setBottomAnchor(const PosAnchor& anchor)
     {
+        if (hasBottomAnchor and bottomAnchor.id == anchor.id)
+            return;
+
+        LOG_THIS(DOM);
+
+        if (hasBottomAnchor)
+            ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
+
         bottomAnchor = anchor;
         hasBottomAnchor = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -172,14 +476,23 @@ namespace pg
     void UiAnchor::clearBottomAnchor()
     {
         if (hasBottomAnchor)
+        {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
 
-        hasBottomAnchor = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasBottomAnchor = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setVerticalCenter(const PosAnchor& anchor)
     {
+        if (hasVerticalCenter and verticalCenterAnchor.id == anchor.id)
+            return;
+
+        LOG_THIS(DOM);
+
         verticalCenterAnchor = anchor;
         hasVerticalCenter = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -189,14 +502,23 @@ namespace pg
     void UiAnchor::clearVerticalCenter()
     {
         if (hasVerticalCenter)
+        {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{verticalCenterAnchor.id, id});
 
-        hasVerticalCenter = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasVerticalCenter = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setHorizontalCenter(const PosAnchor& anchor)
     {
+        if (hasHorizontalCenter and horizontalCenterAnchor.id == anchor.id)
+            return;
+
+        LOG_THIS(DOM);
+
         horizontalCenterAnchor = anchor;
         hasHorizontalCenter = true;
         ecsRef->sendEvent(ParentingEvent{anchor.id, id});
@@ -206,10 +528,14 @@ namespace pg
     void UiAnchor::clearHorizontalCenter()
     {
         if (hasHorizontalCenter)
+        {
+            LOG_THIS(DOM);
+
             ecsRef->sendEvent(ClearParentingEvent{horizontalCenterAnchor.id, id});
 
-        hasHorizontalCenter = false;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            hasHorizontalCenter = false;
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::fillIn(const UiAnchor& anchor)
@@ -252,31 +578,60 @@ namespace pg
 
     void UiAnchor::setTopMargin(float value)
     {
-        topMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (areNotAlmostEqual(topMargin, value))
+        {
+            LOG_THIS(DOM);
+
+            topMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setLeftMargin(float value)
     {
-        leftMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (areNotAlmostEqual(leftMargin, value))
+        {
+            LOG_THIS(DOM);
+
+            leftMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setRightMargin(float value)
     {
-        rightMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (areNotAlmostEqual(rightMargin, value))
+        {
+            LOG_THIS(DOM);
+
+            rightMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     void UiAnchor::setBottomMargin(float value)
     {
-        bottomMargin = value;
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        if (areNotAlmostEqual(bottomMargin, value))
+        {
+            LOG_THIS(DOM);
+
+            bottomMargin = value;
+
+            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
     }
 
     // Todo need to create a clear constrain method for the constrains
     void UiAnchor::setWidthConstrain(const PosConstrain& constrain)
     {
+        if (hasWidthConstrain and widthConstrain.id == constrain.id)
+            return;
+
+        LOG_THIS(DOM);
+
         widthConstrain = constrain;
         hasWidthConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -285,6 +640,11 @@ namespace pg
 
     void UiAnchor::setHeightConstrain(const PosConstrain& constrain)
     {
+        if (hasHeightConstrain and heightConstrain.id == constrain.id)
+            return;
+
+        LOG_THIS(DOM);
+
         heightConstrain = constrain;
         hasHeightConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -293,6 +653,11 @@ namespace pg
 
     void UiAnchor::setZConstrain(const PosConstrain& constrain)
     {
+        if (hasZConstrain and zConstrain.id == constrain.id)
+            return;
+
+        LOG_THIS(DOM);
+
         zConstrain = constrain;
         hasZConstrain = true;
         ecsRef->sendEvent(ParentingEvent{constrain.id, id});
@@ -314,6 +679,13 @@ namespace pg
         horizontalCenter = PosAnchor{id, AnchorType::HorizontalCenter, 0.0f};
     }
 
+    void UiAnchor::onDeletion(EntityRef)
+    {
+        clearAnchors();
+
+        // Todo clear constrains
+    }
+
     void UiAnchor::updateAnchor(bool hasAnchor, PosAnchor& anchor)
     {
         if (hasAnchor)
@@ -329,15 +701,17 @@ namespace pg
 
     bool UiAnchor::update(CompRef<PositionComponent> pos)
     {
-        bool anchorChanged = top.value != pos->y or 
-                             left.value != pos->x or
-                             right.value != pos->x + pos->width or
-                             bottom.value != pos->y + pos->height;
+        auto visible = pos->visible;
+
+        bool anchorChanged = areNotAlmostEqual(top.value, pos->y) or
+                             areNotAlmostEqual(left.value, pos->x) or
+                             areNotAlmostEqual(right.value, (visible ? (pos->x + pos->width) : pos->x)) or
+                             areNotAlmostEqual(bottom.value, (visible ? (pos->y + pos->height) : pos->y));
 
         top.value = pos->y;
         left.value = pos->x;
-        right.value = pos->x + pos->width;
-        bottom.value = pos->y + pos->height;
+        right.value = (visible ? (pos->x + pos->width) : pos->x);
+        bottom.value = (visible ? (pos->y + pos->height) : pos->y);
         verticalCenter.value = pos->y + pos->height / 2.0f;
         horizontalCenter.value = pos->x + pos->width / 2.0f;
 
@@ -383,8 +757,10 @@ namespace pg
 
     void PositionComponent::setX(float x)
     {
-        if (this->x != x)
+        if (areNotAlmostEqual(this->x, x))
         {
+            LOG_THIS(DOM);
+
             this->x = x;
 
             if (ecsRef)
@@ -394,8 +770,10 @@ namespace pg
 
     void PositionComponent::setY(float y)
     {
-        if (this->y != y)
+        if (areNotAlmostEqual(this->y, y))
         {
+            LOG_THIS(DOM);
+
             this->y = y;
 
             if (ecsRef)
@@ -405,8 +783,10 @@ namespace pg
 
     void PositionComponent::setZ(float z)
     {
-        if (this->z != z)
+        if (areNotAlmostEqual(this->z, z))
         {
+            LOG_THIS(DOM);
+
             this->z = z;
 
             if (ecsRef)
@@ -416,8 +796,10 @@ namespace pg
 
     void PositionComponent::setWidth(float width)
     {
-        if (this->width != width)
+        if (areNotAlmostEqual(this->width, width))
         {
+            LOG_THIS(DOM);
+
             this->width = width;
 
             if (ecsRef)
@@ -427,8 +809,10 @@ namespace pg
 
     void PositionComponent::setHeight(float height)
     {
-        if (this->height != height)
+        if (areNotAlmostEqual(this->height, height))
         {
+            LOG_THIS(DOM);
+
             this->height = height;
 
             if (ecsRef)
@@ -438,10 +822,12 @@ namespace pg
 
     void PositionComponent::setRotation(float rotation)
     {
-        if (this->rotation != rotation)
+        if (areNotAlmostEqual(this->rotation, rotation))
         {
+            LOG_THIS(DOM);
+
             this->rotation = rotation;
-            
+
             if (ecsRef)
                 ecsRef->sendEvent(PositionComponentChangedEvent{id});
         }
@@ -451,7 +837,22 @@ namespace pg
     {
         if (this->visible != visible)
         {
+            LOG_THIS(DOM);
+
             this->visible = visible;
+
+            if (ecsRef)
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        }
+    }
+
+    void PositionComponent::setObservable(bool observable)
+    {
+        if (this->observable != observable)
+        {
+            LOG_THIS(DOM);
+
+            this->observable = observable;
 
             if (ecsRef)
                 ecsRef->sendEvent(PositionComponentChangedEvent{id});
@@ -466,32 +867,37 @@ namespace pg
         float oldWidth = width;
         float oldHeight = height;
 
+        float topMargin = (visible ? anchor.topMargin : 0.0f);
+        float leftMargin = (visible ? anchor.leftMargin : 0.0f);
+        float rightMargin = (visible ? anchor.rightMargin : 0.0f);
+        float bottomMargin = (visible ? anchor.bottomMargin : 0.0f);
+
         if (anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
-            this->height = (anchor.bottomAnchor.value - anchor.bottomMargin) - (anchor.topAnchor.value + anchor.topMargin);
-            this->y = anchor.topAnchor.value + anchor.topMargin;
+            this->height = (anchor.bottomAnchor.value - bottomMargin) - (anchor.topAnchor.value + topMargin);
+            this->y = anchor.topAnchor.value + topMargin;
         }
         else if (anchor.hasTopAnchor and not anchor.hasBottomAnchor)
         {
-            this->y = anchor.topAnchor.value + anchor.topMargin;
+            this->y = anchor.topAnchor.value + topMargin;
         }
         else if (not anchor.hasTopAnchor and anchor.hasBottomAnchor)
         {
-            this->y = (anchor.bottomAnchor.value - anchor.bottomMargin) - this->height;
+            this->y = (anchor.bottomAnchor.value - bottomMargin) - this->height;
         }
 
         if (anchor.hasRightAnchor and anchor.hasLeftAnchor)
         {
-            this->width = (anchor.rightAnchor.value - anchor.rightMargin) - (anchor.leftAnchor.value + anchor.leftMargin);
-            this->x = anchor.leftAnchor.value + anchor.leftMargin;
+            this->width = (anchor.rightAnchor.value - rightMargin) - (anchor.leftAnchor.value + leftMargin);
+            this->x = anchor.leftAnchor.value + leftMargin;
         }
         else if (anchor.hasRightAnchor and not anchor.hasLeftAnchor)
         {
-            this->x = (anchor.rightAnchor.value - anchor.rightMargin) - this->width;
+            this->x = (anchor.rightAnchor.value - rightMargin) - this->width;
         }
         else if (not anchor.hasRightAnchor and anchor.hasLeftAnchor)
         {
-            this->x = anchor.leftAnchor.value + anchor.leftMargin;
+            this->x = anchor.leftAnchor.value + leftMargin;
         }
 
         // Todo we shouldn't be able to center vertically or horizontally if a basic cardinal anchor is set and vice versa
@@ -519,35 +925,26 @@ namespace pg
                 height = constrainCalculation(ecsRef, anchor.heightConstrain);
         }
 
-        return oldX != x or oldY != y or oldZ != z or oldWidth != width or oldHeight != height;
+        return areNotAlmostEqual(oldX, x) or areNotAlmostEqual(oldY, y) or areNotAlmostEqual(oldZ, z) or areNotAlmostEqual(oldWidth, width) or areNotAlmostEqual(oldHeight, height);
     }
 
-    void PositionComponentSystem::pushChildrenInChange(_unique_id parentId)
+    void PositionComponentSystem::pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId)
     {
         for (const auto& child : parentalMap[parentId])
         {
-            auto inserted = changedIds.insert(child);
+            auto inserted = set.insert(child);
 
             if (inserted.second)
-                pushChildrenInChange(child);
+                pushChildrenInChange(set, child);
         }
     }
-    
+
     void PositionComponentSystem::execute()
     {
-        while (not eventQueue.empty())
-        {
-            const auto& event = eventQueue.front();
-        
-            if (not changedIds.count(event.id))
-            {
-                changedIds.insert(event.id);
-                pushChildrenInChange(event.id);
-            }
-        
-            eventQueue.pop();
-        }
+        // std::set<_unique_id> modifiedIds;
+        // std::set<_unique_id> impactedIds;
 
+        // while (changedIds.size() > 0)
         if (changedIds.size() > 0)
         {
             for (const auto& id : changedIds)
@@ -563,22 +960,40 @@ namespace pg
                     auto anchor = entity->get<UiAnchor>();
 
                     auto pos = entity->get<PositionComponent>();
-                    
+
                     anchorChanged = anchor->update(pos);
 
                     // Todo check
                     // If the position component get changed by the anchor moving then we push its children to the queue for check
-                    pos->updatefromAnchor(*anchor);
+                    auto changed = pos->updatefromAnchor(*anchor);
+
+                    anchorChanged |= changed;
                 }
 
                 ecsRef->sendEvent(EntityChangedEvent{id});
 
                 if (anchorChanged)
                     ecsRef->sendEvent(PositionComponentChangedEvent{id});
+
+                // modifiedIds.insert(id);
+
+                // if (anchorChanged)
+                    // impactedIds.insert(id);
             }
 
+            // LOG_INFO("PositionComponentSystem", "Changed ids: " << changedIds.size() << ", modified ids: " << modifiedIds.size() << ", impacted ids: " << impactedIds.size());
+
             changedIds.clear();
+
+            // changedIds = impactedIds;
+
+            // impactedIds.clear();
         }
+
+        // for (const auto& id : modifiedIds)
+        // {
+            // ecsRef->sendEvent(EntityChangedEvent{id});
+        // }
     }
 
     bool inBound(EntityRef entity, float x, float y)
@@ -591,7 +1006,7 @@ namespace pg
 
         auto pos = entity->get<PositionComponent>();
 
-        if (not pos->visible)
+        if (not pos->isRenderable())
         {
             return false;
         }
@@ -601,7 +1016,7 @@ namespace pg
 
     bool inClipBound(EntityRef entity, float x, float y)
     {
-        // We first check if the pos is in the entity 
+        // We first check if the pos is in the entity
         auto inEntityBound = inBound(entity, x, y);
 
         // Early exit if the pos is not in the entity
@@ -613,7 +1028,7 @@ namespace pg
         {
             return inEntityBound;
         }
-        
+
         // If the entity is clipped to something, then we just check if the pos is also in the clipper's bound
         auto clipper = entity->world()->getEntity(entity->get<ClippedTo>()->clipperId);
 

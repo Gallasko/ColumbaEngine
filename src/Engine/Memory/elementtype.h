@@ -7,15 +7,15 @@
 namespace pg
 {
 
-    // Todo add a none type 
+    // Todo add a none type
 
     /**
      * @struct ElementType
      * @brief Variant strut to hold the element type of a configuration element.
-     * 
+     *
      * This structure can represent a configuration element which can be any of the following types:
      * float, int, string, bool.
-     * 
+     *
      * This structure can be serialized.
      */
     struct ElementType
@@ -23,14 +23,14 @@ namespace pg
     private:
         /**
          * @union U
-         * 
+         *
          * @brief Hold the data of the element type.
          */
         union U
         {
             /**
              * @brief Construct a new union U object.
-             * 
+             *
              * Need to explicitly declare ctor and dtor cause they are non POD type in the union.
              * By default the union construct itself as an int with the value of 0;
              */
@@ -65,17 +65,17 @@ namespace pg
 
         /**
          * @brief Construct a new Element Type object.
-         * 
+         *
          * By default it is a int set as 0.
          */
         ElementType() { this->setValue(0); emptyFlag = true; }
 
         /**
          * @brief Construct a new Element Type object.
-         * 
+         *
          * @tparam Type The type of the value to be constructed.
          * @param value The value to be constructed.
-         * 
+         *
          * This constructor is explicit to avoid any problems with const char* being implicitly converted to int !
          * Currently this class only support 5 types of data:
          *  -   float
@@ -146,15 +146,25 @@ namespace pg
         void setValue(float value)
         {
             clearPreviousType();
-            
+
             data.f = value;
+            this->type = UnionType::FLOAT;
+        }
+
+        void setValue(double value)
+        {
+            // Todo !
+            clearPreviousType();
+
+            data.f = value;
+            // Todo add union for double
             this->type = UnionType::FLOAT;
         }
 
         void setValue(int value)
         {
             clearPreviousType();
-            
+
             data.i = value;
             this->type = UnionType::INT;
         }
@@ -162,7 +172,7 @@ namespace pg
         void setValue(size_t value)
         {
             clearPreviousType();
-            
+
             data.l = value;
             this->type = UnionType::SIZE_T;
         }
@@ -171,7 +181,7 @@ namespace pg
         void setValue(unsigned long long value)
         {
             clearPreviousType();
-            
+
             data.l = value;
             this->type = UnionType::SIZE_T;
         }
@@ -179,7 +189,7 @@ namespace pg
         void setValue(unsigned long long value)
         {
             clearPreviousType();
-            
+
             data.l = value;
             this->type = UnionType::SIZE_T;
         }
@@ -203,7 +213,7 @@ namespace pg
         void setValue(bool value)
         {
             clearPreviousType();
-            
+
             data.b = value;
             this->type = UnionType::BOOL;
         }
@@ -243,9 +253,9 @@ namespace pg
 
         template <typename Type>
         ElementType operator==(const Type& other) const { return *this == ElementType{other}; }
-        
+
         ElementType operator-() const;
-        
+
         std::string toString() const;
 
         inline static std::string getType() { return "ElementType"; }

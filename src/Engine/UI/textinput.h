@@ -17,25 +17,44 @@ namespace pg
         NoSymbols = 2
     };
 
-    struct TextInputComponent
+    struct CurrentTextInputTextChanged
+    {
+        std::string text;
+        _unique_id id;
+    };
+
+    struct TextInputComponent : public Ctor
     {
         TextInputComponent(StandardEvent event, const std::string& defaultText = "") : event(event), text(defaultText) { LOG_THIS_MEMBER("TextInputComponent"); }
-        TextInputComponent(const TextInputComponent& rhs) : 
+        TextInputComponent(const TextInputComponent& rhs) :
             event(rhs.event),
             text(rhs.text),
             returnText(rhs.returnText),
             clearTextAfterEnter(rhs.clearTextAfterEnter),
             acceptMultilines(rhs.acceptMultilines),
             minWidth(rhs.minWidth), minHeight(rhs.minHeight),
-            acceptableInput(rhs.acceptableInput)
+            acceptableInput(rhs.acceptableInput),
+            ecsRef(rhs.ecsRef),
+            entityId(rhs.entityId)
         {
             LOG_THIS_MEMBER("TextInputComponent");
         }
-        
+
         virtual ~TextInputComponent() { LOG_THIS_MEMBER("TextInputComponent"); }
 
+        virtual void onCreation(EntityRef entity) override
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        void setText(const std::string& text)
+        {
+            ecsRef->sendEvent(CurrentTextInputTextChanged{text, entityId});
+        }
+
         StandardEvent event;
-        
+
         std::string text;
         std::string returnText;
 
@@ -47,9 +66,12 @@ namespace pg
         size_t minHeight = 10;
 
         AcceptableTextInput acceptableInput = AcceptableTextInput::AllCharacters;
+
+        EntitySystem *ecsRef = nullptr;
+        _unique_id entityId = 0;
     };
 
-    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, InitSys, StoragePolicy>
+    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, QueuedListener<CurrentTextInputTextChanged>, InitSys>
     {
         TextInputSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("Text Input System"); }
 
@@ -63,6 +85,32 @@ namespace pg
         virtual void onEvent(const OnSDLTextInput& event) override;
 
         virtual void onEvent(const OnSDLScanCode& event) override;
+
+        virtual void onProcessEvent(const CurrentTextInputTextChanged& event) override
+        {
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent)
+                return;
+
+            auto text = ent->get<TextInputComponent>();
+
+            text->text = event.text;
+
+            if (ent->has<SentenceText>())
+            {
+                ent->get<SentenceText>()->setText(text->text);
+            }
+
+            if (ent->has<TTFText>())
+            {
+                ent->get<TTFText>()->setText(text->text);
+            }
+        }
+
+        virtual void execute() override;
+
+        std::queue<CurrentTextInputTextChanged> eventQueue;
 
         Input *inputHandler;
     };

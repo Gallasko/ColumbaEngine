@@ -116,7 +116,9 @@
         "alignedvector3": "cpp",
         "fft": "cpp",
         "tensor": "cpp",
-        "ciso646": "cpp"
+        "ciso646": "cpp",
+        "matrixfunctions": "cpp",
+        "ranges": "cpp"
     },
     "files.exclude": {
         "**/*.o": true,
@@ -132,5 +134,11 @@
     ],
     "gcovViewer.buildDirectories": [
         "x:\\Document\\GitHub\\TeclaEatsDesktop"
-    ]
+    ],
+    "github.copilot.enable": {
+        "*": false,
+        "plaintext": false,
+        "markdown": false,
+        "scminput": false
+    }
 }

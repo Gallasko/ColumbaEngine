@@ -96,7 +96,12 @@ namespace pg
                 return nullptr;
             }
 
-            sink->addFilter(name.toString(), new pg::Logger::LogSink::FilterScope(scope.toString()));
+            if (sink)
+                sink->addFilter(name.toString(), new pg::Logger::LogSink::FilterScope(scope.toString()));
+            else
+            {
+                LOG_ERROR("AddFilterScopeFunction", "Trying to add a filter to a sinkless log module");
+            }
 
             return nullptr;
         }
@@ -147,7 +152,12 @@ namespace pg
                 return nullptr;
             }
 
-            sink->addFilter(name.toString(), new pg::Logger::LogSink::FilterLogLevel(logLevel));
+            if (sink)
+                sink->addFilter(name.toString(), new pg::Logger::LogSink::FilterLogLevel(logLevel));
+            else
+            {
+                LOG_ERROR("AddFilterLevelFunction", "Trying to add a filter to a sinkless log module");
+            }
 
             return nullptr;
         }
@@ -157,16 +167,12 @@ namespace pg
 
     struct LogModule : public SysModule
     {
-        LogModule()
-        {
-            terminalSink = pg::Logger::registerSink<pg::TerminalSink>(true);
-            
+        LogModule(std::shared_ptr<Logger::LogSink> terminalSink)
+        {            
             addSystemFunction<TestPrint>("log");
             addSystemFunction<DebugPrint>("debugLog");
             addSystemFunction<AddFilterScopeFunction>("addFilterScope", terminalSink);
             addSystemFunction<AddFilterLevelFunction>("addFilterLevel", terminalSink);
         }
-
-        std::shared_ptr<Logger::LogSink> terminalSink;
     };
 }

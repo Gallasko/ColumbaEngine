@@ -87,5 +87,7 @@ namespace pg
 
         float xSensitivity = 1.0f;
         float ySensitivity = 1.0f;
+
+        std::shared_ptr<Logger::LogSink> terminalSink;
     };
 }

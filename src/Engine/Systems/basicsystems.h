@@ -4,6 +4,8 @@
 
 #include "coresystems.h"
 
+#include "UI/sentencesystem.h"
+
 namespace pg
 {
     struct FpsSystem : public System<Listener<TickEvent>, InitSys, StoragePolicy>
@@ -88,6 +90,10 @@ namespace pg
                 generatedText->setText(fpsStr2.getData());
                 executionText->setText(std::to_string(ecsRef->getCurrentNbOfExecution()));
                 drawCallText->setText(std::to_string(rendererSys->getNbRenderCall()));
+
+                ecsRef->reportSystemProfiles();
+
+                // rendererSys->printAllDrawCalls();
             }
         }
 
@@ -95,7 +101,7 @@ namespace pg
         CompRef<SentenceText> generatedText;
         CompRef<SentenceText> executionText;
         CompRef<SentenceText> drawCallText;
-        
+
         size_t accumulatedTick = 0;
         size_t lastNbOfFrames = 0;
         size_t lastNbOfGeneratedFrames = 0;
@@ -184,7 +190,7 @@ namespace pg
                     {
                         move->callbackCalled = true;
                         move->callback->call(ecsRef);
-                        
+
                         continue;
                     }
 

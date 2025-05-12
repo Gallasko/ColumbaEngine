@@ -4,9 +4,9 @@
  * @brief Implementation of the valuables objects
  * @version 1.0
  * @date 2022-04-12
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 
 #include "valuable.h"
@@ -20,22 +20,22 @@ namespace pg
 
     /**
      * @brief Function used to create the message of the exception
-     * 
+     *
      * @param token   The token of the exception, it contains data about the position of the exception in the script file
      * @param message The actual message of the exception
-     * 
+     *
      * @return A string representation of the exception
      */
     std::string RuntimeException::createErrorMessage(const Token& token, const std::string& message) const noexcept
     {
         std::string errStr = "Runtime Error: " + message + " at line " + std::to_string(token.line) + ", column " + std::to_string(token.column);
-        
+
         return errStr;
     }
 
     /**
      * @brief Construct a new Function Valuable object
-     * 
+     *
      * @param env       The parent scope of the function for Valuable resolution
      * @param name      The name of the function to be constructed
      * @param token     The token of the function (for exception purposes)
@@ -43,7 +43,7 @@ namespace pg
      * @param paramList A list of the parameters of the function
      * @param body      The function body, which is a list of statements to be executed
      */
-    Function::Function(std::shared_ptr<Environment> env, const std::string& name, const Token& token, VisitorInterpreter* visitor, std::queue<ExprPtr> argsList, StatementPtr body) : 
+    Function::Function(std::shared_ptr<Environment> env, const std::string& name, const Token& token, VisitorInterpreter* visitor, std::queue<ExprPtr> argsList, StatementPtr body) :
         env(std::make_shared<Environment>(env)),
         name(ElementType{name}),
         token(token),
@@ -70,9 +70,9 @@ namespace pg
 
     /**
      * @brief Construct a standalone copy of Function object
-     * 
-     * @param visitorRef 
-     * @param base 
+     *
+     * @param visitorRef
+     * @param base
      */
     Function::Function(std::shared_ptr<VisitorReference> visitorRef, std::shared_ptr<Function> base) : env(base->env), name(base->name), token(base->token), visitor(visitorRef.get()), paramList(base->paramList), body(base->body), arity(base->arity)
     {
@@ -81,7 +81,7 @@ namespace pg
 
     /**
      * @brief Construct a copy of Function object
-     * 
+     *
      * @param other The function to copy
      */
     Function::Function(const Function& other) : env(other.env), name(other.name), token(other.token), visitor(other.visitor), paramList(other.paramList), body(other.body), arity(other.arity)
@@ -90,7 +90,7 @@ namespace pg
 
     /**
      * @brief Return a reference to the function name if it is not in a call expression
-     * 
+     *
      * @return The name of the function
      */
     std::shared_ptr<Valuable> Function::getValue() const
@@ -100,16 +100,16 @@ namespace pg
 
     /**
      * @brief Return a reference to the value obtained from the function call
-     * 
+     *
      * @param args A list of the arguments to be passed to the function
      * @return A reference to the value obtained from the function call
-     * 
+     *
      * Can throw an exception if the number of arguments doens't match number of parameters acceptable by the function
      */
     std::shared_ptr<Valuable> Function::getValue(std::queue<std::shared_ptr<Valuable>>& args)
     {
         // Check if the number of arguments of the function call matches the number of parameters acceptable
-        if((args.size() < arity.min) or (args.size() > arity.max))
+        if((arity.min != -1 and (args.size() < static_cast<unsigned int>(arity.min))) or (arity.max != -1 and (args.size() > static_cast<unsigned int>(arity.max))))
             throw RuntimeException(token, "Invalid number of arguments for function call: '" + token.text + "' expected between: " + std::to_string(arity.min) + " and " + std::to_string(arity.max) + ", provided: " + std::to_string(args.size()) + ".");
 
         // Return the value of the function call
@@ -127,10 +127,10 @@ namespace pg
 
     /**
      * @brief The piece of code to be executed when a function call is made
-     * 
+     *
      * @param args  A list of the arguments to be passed to the function
      * @return A reference to the value obtained from the function call
-     * 
+     *
      * This function create a new scope for the function call push the arguments in it and call the function body
      * This methode can be overriden to define system functions.
      */
@@ -160,7 +160,7 @@ namespace pg
         return value;
     }
 
-    Class::Class(std::shared_ptr<Environment> env, const std::string& name, const Token& token, VisitorInterpreter* visitor, const std::unordered_map<std::string, std::shared_ptr<Function>>& methods) : 
+    Class::Class(std::shared_ptr<Environment> env, const std::string& name, const Token& token, VisitorInterpreter* visitor, const std::unordered_map<std::string, std::shared_ptr<Function>>& methods) :
         env(std::make_shared<Environment>(env)),
         name(ElementType{name}),
         token(token),
@@ -207,11 +207,11 @@ namespace pg
 
         if (it != methods.end())
             return it->second;
-        
+
         return nullptr;
     }
 
-    ClassInstance::ClassInstance(const Class *klass) : 
+    ClassInstance::ClassInstance(const Class *klass) :
         klass(klass)
     {
         if (klass != nullptr)
@@ -304,7 +304,7 @@ namespace pg
 
         if (it != boundMethods.end())
             return it->second;
-        
+
         return nullptr;
     }
 
@@ -411,7 +411,7 @@ namespace pg
 
         auto selfToken = selfExpr->name;
 
-        // Create the statement: this."key" = "value" 
+        // Create the statement: this."key" = "value"
         ExprPtr expr;
 
         auto token = Token{TokenType::EXPRESSION, key.toString(), selfToken.line, selfToken.column};
@@ -521,7 +521,7 @@ namespace pg
     {
         if (instance->index >= instance->refFields.size())
             return std::make_shared<Variable>(ElementType { instance->refFields.size() });
-        
+
         std::queue<ExprPtr> emptyQueue;
 
         auto itValue = instance->refFields.at(instance->index);

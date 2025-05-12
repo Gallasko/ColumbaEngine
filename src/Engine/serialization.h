@@ -514,6 +514,8 @@ namespace pg
 
         const std::unordered_map<std::string, std::string>& getSerializedMap() const { return serializedMap; }
 
+        void save() const { registerToFile(); }
+
         inline const std::string& getVersion() { return version; }
 
     private:

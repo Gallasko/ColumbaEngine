@@ -26,6 +26,9 @@ namespace pg
     namespace
     {
         constexpr const char * const DOM = "TTFText System";
+
+        constexpr float ATLAS_WIDTH = 1024.0f;
+        constexpr float ATLAS_HEIGHT = 1024.0f;
     }
 
     template <>
@@ -92,7 +95,7 @@ namespace pg
         baseMaterialPreset.uniformMap.emplace("sWidth", "ScreenWidth");
         baseMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
-        baseMaterialPreset.setSimpleMesh({3, 2, 1, 1, 3, 1});
+        baseMaterialPreset.setSimpleMesh({3, 2, 1, 1, 3, 1, 4});
 
         auto group = registerGroup<PositionComponent, TTFText>();
 
@@ -125,83 +128,115 @@ namespace pg
 
     void TTFTextSystem::registerFont(const std::string& fontPath, int size)
     {
-        FT_Face face;
-        if (FT_New_Face(ft, fontPath.c_str(), 0, &face))
+        auto f = [fontPath, size, this](size_t oldId)
         {
-            LOG_ERROR(DOM, "Failed to load font");
-            return;
-        }
-        
-        // FT_Set_Char_Size(face, 0, size * 64, 300, 300);
-        FT_Set_Pixel_Sizes(face, 0, size);
+            // Initialize and load a font face.
+            FT_Face face;
+            if (FT_New_Face(ft, fontPath.c_str(), 0, &face)) {
+                LOG_ERROR("TTFText", "Failed to load font");
+                return OpenGLTexture{};
+            }
 
-        glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction
-  
-        for (unsigned char c = 0; c < 128; c++)
-        {
-            auto f = [fontPath, face, c, this](size_t oldId) {
-                // load character glyph 
-                if (FT_Load_Char(face, c, FT_LOAD_RENDER))
-                {
-                    LOG_ERROR(DOM, "Failed to load Glyph for: " << std::string(1, c));
-                    return OpenGLTexture{};
+            FT_Set_Pixel_Sizes(face, 0, size);
+
+            // glPixelStorei(GL_UNPACK_ALIGNMENT, 1); // disable byte-alignment restriction
+
+            // Define atlas size (for now, fixed).
+            const int atlasWidth = ATLAS_WIDTH;
+            const int atlasHeight = ATLAS_HEIGHT;
+            std::vector<unsigned char> atlasBuffer(atlasWidth * atlasHeight, 0);
+
+            // Simple rectangle packing initializations.
+            int currentX = 0;
+            int currentY = 0;
+            int rowHeight = 0;
+
+            // For each glyph in the chosen character set:
+            for (unsigned char c = 32; c < 127; c++) {
+                if (FT_Load_Char(face, c, FT_LOAD_RENDER)) {
+                    LOG_ERROR("TTFText", "Failed to load Glyph for: " << c);
+                    continue;
                 }
 
-                // generate texture
-                unsigned int texture;
-                if (oldId)
-                {
-                    texture = oldId;
-                    glBindTexture(GL_TEXTURE_2D, texture);
+                // If the glyph won't fit in the current row, move to next row.
+                if (currentX + face->glyph->bitmap.width > atlasWidth) {
+                    currentX = 0;
+                    currentY += rowHeight;
+                    rowHeight = 0;
                 }
-                else
-                {
-                    glGenTextures(1, &texture);
+
+                if (currentY + face->glyph->bitmap.rows > atlasHeight) {
+                    LOG_ERROR("TTFText", "Atlas size exceeded!");
+                    break;
                 }
+
+                // Copy glyph bitmap into the atlas buffer at position (currentX, currentY).
+                for (size_t y = 0; y < face->glyph->bitmap.rows; y++) {
+                    for (size_t x = 0; x < face->glyph->bitmap.width; x++) {
+                        int atlasIndex = (currentY + y) * atlasWidth + (currentX + x);
+                        atlasBuffer[atlasIndex] = face->glyph->bitmap.buffer[y * face->glyph->bitmap.width + x];
+                    }
+                }
+
+                // Store glyph info including UVs in charactersMap.
+                Character character;
+                character.size = glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows);
+                character.bearing = glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top);
+                character.advance = face->glyph->advance.x;
+                // Compute UV coordinates.
+                float u1 = float(currentX) / atlasWidth;
+                float v1 = float(currentY) / atlasHeight;
+                float u2 = float(currentX + face->glyph->bitmap.width) / atlasWidth;
+                float v2 = float(currentY + face->glyph->bitmap.rows) / atlasHeight;
+
+                character.uvTopLeft = glm::vec2(u1, v1);
+                character.uvBottomRight = glm::vec2(u2, v2);
+
+                charactersMap[fontPath][c] = character;
+
+                // Update currentX and rowHeight.
+                currentX += face->glyph->bitmap.width;
+                if (static_cast<int>(face->glyph->bitmap.rows) > rowHeight)
+                    rowHeight = face->glyph->bitmap.rows;
+            }
+
+            // Now upload 'atlasBuffer' to OpenGL as a texture.
+            unsigned int texture;
+            if (oldId)
+            {
+                texture = oldId;
                 glBindTexture(GL_TEXTURE_2D, texture);
-                glTexImage2D(
-                    GL_TEXTURE_2D,
-                    0,
-                    GL_RED,
-                    face->glyph->bitmap.width,
-                    face->glyph->bitmap.rows,
-                    0,
-                    GL_RED,
-                    GL_UNSIGNED_BYTE,
-                    face->glyph->bitmap.buffer
-                );
-                // set texture options
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+            }
+            else
+            {
+                glGenTextures(1, &texture);
+                glBindTexture(GL_TEXTURE_2D, texture);
+            }
 
-                // now store character for later use
-                Character character = {
-                    texture, 
-                    glm::ivec2(face->glyph->bitmap.width, face->glyph->bitmap.rows),
-                    glm::ivec2(face->glyph->bitmap_left, face->glyph->bitmap_top),
-                    static_cast<unsigned int>(face->glyph->advance.x)
-                };
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth, atlasHeight, 0, GL_RED, GL_UNSIGNED_BYTE, atlasBuffer.data());
+            // Set texture parameters.
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-                LOG_MILE(DOM, "Character : " << c << " has id " << texture << " " << character.size.x << " " << character.size.y);
+            // Save atlasTexture in your renderer/material preset.
+            // Free up the font face if necessary.
+            FT_Done_Face(face);
 
-                charactersMap[fontPath].insert(std::pair<char, Character>(c, character));
+            OpenGLTexture fontTexture;
 
-                OpenGLTexture fontTexture;
+            fontTexture.id = texture;
+            fontTexture.transparent = true;
 
-                fontTexture.id = texture;
-                fontTexture.transparent = true;
+            return fontTexture;
+        };
 
-                return fontTexture;
-            };
+        auto textureName = "TTFText_" + fontPath;
 
-            auto textureName = "TTFText_" + fontPath + "_" + std::to_string(c);
+        LOG_INFO(DOM, "Registering texture: " << textureName);
 
-            masterRenderer->queueRegisterTexture(textureName, f);
-
-            // Todo free up the lib stuff once all the texture are registered ! (ft and face)
-        }
+        masterRenderer->queueRegisterTexture(textureName, f);
     }
 
     void TTFTextSystem::onEventUpdate(_unique_id entityId)
@@ -209,9 +244,9 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         auto entity = ecsRef->getEntity(entityId);
-        
+
         if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFTextCall>())
-            return; 
+            return;
 
         textUpdateQueue.push(entityId);
 
@@ -222,6 +257,27 @@ namespace pg
     {
         if (not changed)
             return;
+
+        renderCallList.clear();
+        currentLoadedMaterialId.clear();
+
+        const auto& renderCallView = view<TTFTextCall>();
+
+        renderCallList.reserve(renderCallView.nbComponents());
+
+        for (const auto& renderCall : renderCallView)
+        {
+            renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
+        }
+
+        // LOG_INFO(DOM, "Updating " << textUpdateQueue.size() << " TTFTexts...");
+
+        if (textUpdateQueue.empty())
+        {
+            finishChanges();
+
+            return;
+        }
 
         while (not textUpdateQueue.empty())
         {
@@ -238,6 +294,8 @@ namespace pg
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<TTFText>();
 
+            LOG_MILE("TTFText", "Updating entity " << entityId << ", with text: " << obj->text);
+
             if (entity->has<TTFTextCall>())
             {
                 entity->get<TTFTextCall>()->calls = createRenderCall(ui, obj);
@@ -249,19 +307,6 @@ namespace pg
 
             textUpdateQueue.pop();
         }
-
-        renderCallList.clear();
-
-        const auto& renderCallView = view<TTFTextCall>();
-
-        renderCallList.reserve(renderCallView.nbComponents());
-
-        for (const auto& renderCall : renderCallView)
-        {
-            renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
-        }
-        
-        changed = false;
     }
 
     // Helper: Computes the maximum line height based on the font's glyph heights.
@@ -273,7 +318,7 @@ namespace pg
         {
             Character ch = charactersMap[fontPath][c];
             float chHeight = ch.size.y * scale;
-            
+
             if (chHeight > lineHeight)
                 lineHeight = chHeight;
         }
@@ -294,23 +339,22 @@ namespace pg
     float TTFTextSystem::computeWordWidth(const std::string& word, const std::string& fontPath, float scale)
     {
         float width = 0.0f;
-        
+
         for (char c : word)
         {
             width += getGlyphAdvance(c, fontPath, scale);
         }
-    
+
         return width;
     }
 
     // Helper: Creates a RenderCall for a single glyph character.
-    RenderCall TTFTextSystem::createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors)
+    RenderCall TTFTextSystem::createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors)
     {
         RenderCall call;
         call.processPositionComponent(ui);
 
         // Build a unique texture name for the glyph.
-        std::string textureName = "TTFText_" + fontPath + "_" + std::to_string(c);
         Character ch = charactersMap[fontPath][c];
 
         float xPos = currentX + ch.bearing.x * scale;
@@ -318,20 +362,14 @@ namespace pg
         float w = ch.size.x * scale;
         float h = ch.size.y * scale;
 
-        if (masterRenderer->hasMaterial(textureName))
-            call.setMaterial(masterRenderer->getMaterialID(textureName));
-        else
-        {
-            Material simpleShapeMaterial = baseMaterialPreset;
-            simpleShapeMaterial.textureId[0] = masterRenderer->getTexture(textureName).id;
-            call.setMaterial(masterRenderer->registerMaterial(textureName, simpleShapeMaterial));
-        }
+        call.setMaterial(materialId);
 
         call.setOpacity(OpacityType::Additive);
         call.setRenderStage(renderStage);
 
         // Resize data array and assign properties.
-        call.data.resize(11);
+        call.data.resize(15);
+
         call.data[0] = xPos;
         call.data[1] = yPos;
         call.data[2] = z;
@@ -344,201 +382,264 @@ namespace pg
         call.data[9] = colors.z;
         call.data[10] = 1.0f;
 
-        return call;
-    }
+        call.data[11] = ch.uvTopLeft.x;
+        call.data[12] = ch.uvTopLeft.y;
+        call.data[13] = ch.uvBottomRight.x;
+        call.data[14] = ch.uvBottomRight.y;
 
-    // Helper: Adds a space glyph RenderCall and advances the cursor.
-    void TTFTextSystem::addSpaceRenderCall(std::vector<RenderCall>& calls, CompRef<PositionComponent> ui, const std::string& fontPath, float& currentX, float& currentLineWidth, float currentY, float z, float scale, float lineHeight, const constant::Vector4D& colors)
-    {
-        char spaceChar = ' ';
-        RenderCall spaceCall = createGlyphRenderCall(ui, fontPath, spaceChar, currentX, currentY, z, scale, lineHeight, colors);
-        calls.push_back(spaceCall);
-        float spaceAdvance = getGlyphAdvance(spaceChar, fontPath, scale);
-        
-        currentX += spaceAdvance;
-        currentLineWidth += spaceAdvance;
+        return call;
     }
 
     std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
     {
-        if (obj->wrap)        
-            return createWrappedRenderCall(ui, obj);
-        else
-            return createNormalRenderCall(ui, obj);
-    }
-
-    std::vector<RenderCall> TTFTextSystem::createWrappedRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
-    {
         std::vector<RenderCall> calls;
-        
+
+        // First, parse the text into segments with formatting applied.
+        // Each segment is stored in a TTFText instance (with its text and color updated).
+        std::vector<TTFText> segments = parseFormattedText(*obj);
+
         float startX = ui->x;
         float startY = ui->y;
         float z = ui->z;
         float scale = obj->scale;
         auto colors = obj->colors;
-        
+
+        auto wrap = obj->wrap;
+
         std::string text = obj->text;
         std::string fontPath = obj->fontPath;
-        
+
+        size_t materialId = getMaterialId(fontPath);
+
         // Compute line height and determine maximum allowed width.
-        float lineHeight = computeLineHeight(text, fontPath, scale);
+        float lineHeight = computeLineHeight(text, fontPath, scale) + obj->spacing;
         float maxWidth = (ui->width > 0) ? ui->width : 10000.0f;
-        
+
         // Initialize positions and dimensions.
         float currentX = startX;
         float currentY = startY;
-        float currentLineWidth = 0.0f;
-        float maxLineWidth = 0.0f;
-        int lineCount = 1;
-        bool firstWordOfLine = true;
-        
-        // Split the text by newline characters.
-        std::istringstream textStream(text);
-        std::vector<std::string> rawLines;
-        std::string rawLine;
 
-        while (std::getline(textStream, rawLine, '\n'))
+        // Iterate over each parsed segment.
+        for (const auto &seg : segments)
         {
-            rawLines.push_back(rawLine);
-        }
-        
-        // Process each raw line separately.
-        for (size_t i = 0; i < rawLines.size(); i++)
-        {
-            const std::string& line = rawLines[i];
-            
-            // If the raw line is empty, force a newline.
-            if (line.empty())
+            // If the segment contains only "\n", treat it as a forced newline.
+            if (seg.text == "\n")
             {
                 currentY += lineHeight;
-                lineCount++;
                 currentX = startX;
-                currentLineWidth = 0.0f;
-                firstWordOfLine = true;
                 continue;
             }
-            
-            // Wrap the current raw line.
-            std::istringstream iss(line);
+
+            // Create a string stream for the segment so we can split on whitespace.
+            std::istringstream iss(seg.text);
             std::string word;
+            bool firstWordInLine = true;
+
             while (iss >> word)
             {
-                float wordWidth = computeWordWidth(word, fontPath, scale);
-                float spaceWidth = (not firstWordOfLine) ? getGlyphAdvance(' ', fontPath, scale) : 0.0f;
-        
-                // If adding this word would exceed the max width, wrap to a new line.
-                if (currentLineWidth + spaceWidth + wordWidth > maxWidth)
+                // Compute the width of the word.
+                float wordWidth = computeWordWidth(word, obj->fontPath, scale);
+                // Get the width of a space if needed.
+                float spaceWidth = firstWordInLine ? 0.0f : getGlyphAdvance(' ', obj->fontPath, scale);
+
+                // If adding this word (with a preceding space) would exceed the allowed width, wrap.
+                if (wrap and (currentX - startX + spaceWidth + wordWidth > maxWidth))
                 {
-                    if (currentLineWidth > maxLineWidth)
-                        maxLineWidth = currentLineWidth;
-                    
                     currentY += lineHeight;
                     currentX = startX;
-                    currentLineWidth = 0.0f;
-                    firstWordOfLine = true;
-                    lineCount++;
+                    firstWordInLine = true;
                 }
-        
-                // Insert a space if not the first word on the line.
-                if (not firstWordOfLine)
-                    addSpaceRenderCall(calls, ui, fontPath, currentX, currentLineWidth, currentY, z, scale, lineHeight, colors);
-        
-                // Render each character in the word.
+
+                // If not the first word, add a space glyph render call.
+                if (not firstWordInLine)
+                {
+                    currentX += spaceWidth;
+                }
+
+                // For each character in the word, create a glyph render call.
                 for (char c : word)
                 {
-                    RenderCall call = createGlyphRenderCall(ui, fontPath, c, currentX, currentY, z, scale, lineHeight, colors);
+                    RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, seg.colors);
                     calls.push_back(call);
+                    // Advance the current X position based on the glyph's advance.
                     float advance = getGlyphAdvance(c, fontPath, scale);
                     currentX += advance;
-                    currentLineWidth += advance;
                 }
-        
-                firstWordOfLine = false;
-            }
-            
-            // After processing a raw line, if there are more raw lines, force a newline.
-            if (i < rawLines.size() - 1)
-            {
-                if (currentLineWidth > maxLineWidth)
-                    maxLineWidth = currentLineWidth;
-                
-                currentY += lineHeight;
-                currentX = startX;
-                currentLineWidth = 0.0f;
-                firstWordOfLine = true;
-                lineCount++;
+
+                firstWordInLine = false;
             }
         }
-        
-        if (currentLineWidth > maxLineWidth)
-            maxLineWidth = currentLineWidth;
-        
-        float totalTextWidth = maxLineWidth;
-        float totalTextHeight = lineCount * lineHeight;
-        
-        if (obj->textWidth != totalTextWidth)
+
+        // Update the overall dimensions based on the final cursor positions.
+        float totalWidth = currentX - startX;
+        float totalHeight = (currentY - startY) + lineHeight;
+
+        if (obj->textWidth != totalWidth)
         {
-            obj->textWidth = totalTextWidth;
+            obj->textWidth = totalWidth;
+            ui->setWidth(totalWidth);
         }
-        
-        if (obj->textHeight != totalTextHeight)
+        if (obj->textHeight != totalHeight)
         {
-            obj->textHeight = totalTextHeight;
-            ui->setHeight(totalTextHeight);
+            obj->textHeight = totalHeight;
+            ui->setHeight(totalHeight);
         }
-        
+
         return calls;
     }
 
-    std::vector<RenderCall> TTFTextSystem::createNormalRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
+    // Parses inline formatting commands (such as \n for newline and \c{r,g,b,a} for color changes)
+    // and returns a vector of TTFText segments (each segment is a copy of the original, with its text and color set).
+    std::vector<TTFText> TTFTextSystem::parseFormattedText(const TTFText& original)
     {
-        // Todo fix position issue right here !
-        LOG_THIS_MEMBER(DOM);
+        std::vector<TTFText> segments;
+        std::string currentSegment;
+        // Start with the original color.
+        constant::Vector4D currentColor = original.colors;
 
-        std::vector<RenderCall> calls;
-
-        float x = ui->x;
-        float y = ui->y;
-        float z = ui->z;
-
-        float scale = obj->scale;
-
-        auto colors = obj->colors;
-
-        std::string text = obj->text;
-        std::string fontPath = obj->fontPath;
-
-        float textWidth = 0.0f;
-        float textHeight = computeLineHeight(text, fontPath, scale);
-
-        std::string::const_iterator c;
-        for (c = obj->text.begin(); c != obj->text.end(); c++)
+        size_t i = 0;
+        while (i < original.text.size())
         {
-            Character ch = charactersMap[obj->fontPath][*c];
-            // textWidth += w;
-            textWidth += (ch.advance >> 6) * scale;
+            if (original.text[i] == '\n')
+            {
+                // If we have accumulated text, flush it into a segment.
+                if (not currentSegment.empty())
+                {
+                    TTFText seg = original;
+                    seg.text = currentSegment;
+                    seg.colors = currentColor;
+                    segments.push_back(seg);
+                    currentSegment.clear();
+                }
+                // Insert a newline marker as a segment.
+                TTFText newlineSeg = original;
+                newlineSeg.text = "\n";
+                newlineSeg.colors = currentColor;
+                segments.push_back(newlineSeg);
+                i += 1;  // Skip over "\n"
+                continue;
+            }
 
-            RenderCall call = createGlyphRenderCall(ui, fontPath, *c, x, y, z, scale, textHeight, colors);
+            // Check for an escape character.
+            if (original.text[i] == '\\')
+            {
+                if (i + 1 < original.text.size())
+                {
+                    char nextChar = original.text[i + 1];
+                    // Newline tag: "\n"
+                    if (nextChar == 'n')
+                    {
+                        // If we have accumulated text, flush it into a segment.
+                        if (not currentSegment.empty())
+                        {
+                            TTFText seg = original;
+                            seg.text = currentSegment;
+                            seg.colors = currentColor;
+                            segments.push_back(seg);
+                            currentSegment.clear();
+                        }
+                        // Insert a newline marker as a segment.
+                        TTFText newlineSeg = original;
+                        newlineSeg.text = "\n";
+                        newlineSeg.colors = currentColor;
+                        segments.push_back(newlineSeg);
+                        i += 2;  // Skip over "\n"
+                        continue;
+                    }
+                    // Color change tag: "\c{r,g,b,a}"
+                    else if (nextChar == 'c' and i + 2 < original.text.size() and original.text[i + 2] == '{')
+                    {
+                        // Flush the current text.
+                        if (not currentSegment.empty())
+                        {
+                            TTFText seg = original;
+                            seg.text = currentSegment;
+                            seg.colors = currentColor;
+                            segments.push_back(seg);
+                            currentSegment.clear();
+                        }
 
-            calls.push_back(call);
+                        // Jump past "\c{"
+                        i += 3;
+                        std::string colorSpec;
+                        // Read until the closing '}'
+                        while (i < original.text.size() and original.text[i] != '}')
+                        {
+                            colorSpec.push_back(original.text[i]);
+                            i++;
+                        }
+                        if (i < original.text.size() and original.text[i] == '}')
+                        {
+                            i++; // Skip the closing '}'
+                        }
+                        // Parse the color spec (assumed CSV format)
+                        std::istringstream iss(colorSpec);
+                        std::string token;
+                        std::vector<float> rgba;
+                        while (std::getline(iss, token, ','))
+                        {
+                            try
+                            {
+                                rgba.push_back(std::stof(token));
+                            }
+                            catch (const std::exception&)
+                            {
+                                LOG_ERROR(DOM, "Failed to parse color value: " << token);
+                            }
+                        }
+                        if (rgba.size() == 4)
+                        {
+                            currentColor = constant::Vector4D(rgba[0], rgba[1], rgba[2], rgba[3]);
+                        }
+                        else
+                        {
+                            // If parsing fails, fallback to default color.
+                            currentColor = original.colors;
+                        }
+                        continue;
+                    }
+                }
+            }
+            // Regular character: add it to the current segment.
+            currentSegment.push_back(original.text[i]);
+            i++;
+        }
+        // Flush remaining text.
+        if (not currentSegment.empty()) {
+            TTFText seg = original;
+            seg.text = currentSegment;
+            seg.colors = currentColor;
+            segments.push_back(seg);
+        }
+        return segments;
+    }
 
-            // now advance cursors for next glyph (note that advance is number of 1/64 pixels)
-            x += (ch.advance >> 6) * scale; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
-            // x += 16; // bitshift by 6 to get value in pixels (2^6 = 64 (divide amount of 1/64th pixels by 64 to get amount of pixels))
+    size_t TTFTextSystem::getMaterialId(const std::string& fontPath)
+    {
+        std::string textureName = "TTFText_" + fontPath;
+
+        size_t materialId = 0;
+
+        auto it = currentLoadedMaterialId.find(textureName);
+
+        if (it != currentLoadedMaterialId.end())
+        {
+            materialId = it->second;
+        }
+        else
+        {
+            if (masterRenderer->hasMaterial(textureName))
+                materialId = masterRenderer->getMaterialID(textureName);
+            else
+            {
+                Material simpleShapeMaterial = baseMaterialPreset;
+                simpleShapeMaterial.textureId[0] = masterRenderer->getTexture(textureName).id;
+                materialId = masterRenderer->registerMaterial(textureName, simpleShapeMaterial);
+            }
+
+            currentLoadedMaterialId[textureName] = materialId;
         }
 
-        if (obj->textWidth != textWidth)
-        {
-            obj->textWidth = textWidth;
-            ui->setWidth(textWidth);
-        }
-
-        if (obj->textHeight != textHeight)
-        {
-            obj->textHeight = textHeight;
-            ui->setHeight(textHeight);
-        }
-        
-        return calls;
+        return materialId;
     }
 }

@@ -13,7 +13,34 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/release/GameOff"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
                 "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
+            // },
+            // "preLaunchTask": "build"
+        },
+        {
+            "name": "PgEngine",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}/release",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/release/PgEngine"
             },
             "osx": {
                 "MIMode": "lldb",

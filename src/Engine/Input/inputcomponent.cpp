@@ -55,7 +55,7 @@ namespace pg
 
             auto pos = entity->get<PositionComponent>();
             auto mouse = entity->get<MouseLeftClickComponent>();
-            
+
             if (mouse->trigger == MouseStateTrigger::OnPress)
             {
                 mouseLeftAreaPressHolder.emplace(entity->id, entity, pos);
@@ -96,7 +96,7 @@ namespace pg
 
             auto pos = entity->get<PositionComponent>();
             auto mouse = entity->get<MouseRightClickComponent>();
-            
+
             if (mouse->trigger == MouseStateTrigger::OnPress)
             {
                 mouseRightAreaPressHolder.emplace(entity->id, entity, pos);
@@ -156,6 +156,7 @@ namespace pg
                 ecsRef->sendEvent(OnMouseClick{mousePos, button});
             }
 
+            // Todo check if this should not be in a if (not pressedList[button]) statment
             for (const auto& mouseArea : pressAreas)
             {
                 auto pos = mouseArea.pos;
@@ -180,6 +181,8 @@ namespace pg
         {
             if (pressedList[button])
             {
+                ecsRef->sendEvent(OnMouseRelease{mousePos, button});
+
                 for (const auto& mouseArea : releaseAreas)
                 {
                     auto pos = mouseArea.pos;
@@ -199,7 +202,7 @@ namespace pg
             pressedList[button] = false;
         }
     }
-    
+
     void MouseClickSystem::callCallback(const MouseButton& button, _unique_id id)
     {
         if (button == SDL_BUTTON_LEFT)

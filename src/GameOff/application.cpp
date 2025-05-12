@@ -31,6 +31,14 @@
 #include "UI/sizer.h"
 #include "UI/prefab.h"
 
+#include "managenerator.h"
+
+#include "nexusscene.h"
+
+#include "theme.h"
+
+#include "Systems/tween.h"
+
 using namespace pg;
 
 namespace
@@ -50,6 +58,7 @@ GameApp::~GameApp()
 
 enum class SceneName
 {
+    Nexus,
     Customization,
     Inventory,
     Location
@@ -95,6 +104,11 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
     {
         switch (event.name)
         {
+        case SceneName::Nexus:
+            ecsRef->saveSystems();
+            ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
+            break;
+
         case SceneName::Customization:
             ecsRef->getSystem<SceneElementSystem>()->loadSystemScene<PlayerCustomizationScene>();
             break;
@@ -130,7 +144,7 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         auto windowAnchor = windowEnt->get<UiAnchor>();
 
         auto titleTTF0 = makeTTFText(ecsRef, 25, 0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", "Nexus", 0.4);
-        ecsRef->attach<MouseLeftClickComponent>(titleTTF0.entity, makeCallable<SceneToLoad>(SceneName::Customization));
+        ecsRef->attach<MouseLeftClickComponent>(titleTTF0.entity, makeCallable<SceneToLoad>(SceneName::Nexus));
         auto t0Anchor = titleTTF0.get<UiAnchor>();
 
         t0Anchor->setTopAnchor(windowAnchor->top);
@@ -160,6 +174,77 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         t3Anchor->setLeftMargin(8);
         t3Anchor->setBottomAnchor(t1Anchor->bottom);
 
+        auto tweenTest = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        tweenTest.get<PositionComponent>()->setX(30);
+        tweenTest.get<PositionComponent>()->setY(120);
+
+        ecsRef->attach<TweenComponent>(tweenTest.entity, TweenComponent {
+            255.0f,
+            0.0f,
+            2000.0f,
+            [tweenTest](const TweenValue& value){ tweenTest.get<Simple2DObject>()->setColors({0.0f, 196.0f, 0.0f, std::get<float>(value)}); },
+            makeCallable<StandardEvent>("gamelog", "message", "Tween complete !")
+        });
+
+        auto tweenRotationTest = makeUiTexture(ecsRef, 60, 60, "NoneIcon");
+        tweenRotationTest.get<PositionComponent>()->setX(30);
+        tweenRotationTest.get<PositionComponent>()->setY(300);
+
+        ecsRef->attach<TweenComponent>(tweenRotationTest.entity, TweenComponent {
+            0.0f,
+            360.0f,
+            4000.0f,
+            [tweenRotationTest](const TweenValue& value){ tweenRotationTest.get<PositionComponent>()->setRotation(std::get<float>(value)); },
+            makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
+            5
+        });
+
+        auto tweenRotationTest2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {192.0f, 0.0f, 0.0f, 255.0f});
+        tweenRotationTest2.get<PositionComponent>()->setX(110);
+        tweenRotationTest2.get<PositionComponent>()->setY(300);
+
+        ecsRef->attach<TweenComponent>(tweenRotationTest2.entity, TweenComponent {
+            360.0f,
+            0.0f,
+            4000.0f,
+            [tweenRotationTest2](const TweenValue& value){ tweenRotationTest2.get<PositionComponent>()->setRotation(std::get<float>(value)); },
+            makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
+            5
+        });
+
+
+        auto layout = makeVerticalLayout(ecsRef, 0, 0, 100, 100, true);
+
+        auto layoutComp = layout.get<VerticalLayout>();
+
+        layoutComp->spacing = 5;
+
+        auto boxT1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto boxT2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        auto boxT3 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto boxT4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+
+        layoutComp->addEntity(boxT1.entity);
+        layoutComp->addEntity(boxT2.entity);
+        layoutComp->addEntity(boxT3.entity);
+        layoutComp->addEntity(boxT4.entity);
+
+        auto layout2 = makeVerticalLayout(ecsRef, 0, 0, 100, 100);
+
+        auto layoutComp2 = layout2.get<VerticalLayout>();
+
+        auto boxT5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto boxT6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        auto boxT7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        auto boxT8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+
+        layoutComp2->addEntity(boxT5.entity);
+        layoutComp2->addEntity(boxT6.entity);
+        layoutComp2->addEntity(boxT7.entity);
+        layoutComp2->addEntity(boxT8.entity);
+
+        layoutComp->addEntity(layout2.entity);
+
         /* Clipped progress bar exemple:
         auto spacer = ecsRef->createEntity();
         auto spacerPos = ecsRef->attach<PositionComponent>(spacer);
@@ -184,6 +269,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
 
         */
 
+
+        /* Wrapped text and layout
         auto s0 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
         auto s1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
         auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
@@ -247,6 +334,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         buttonPrefab.get<Prefab>()->addToPrefab(buttonText.entity);
 
         hLayout.get<VerticalLayout>()->addEntity(buttonPrefab.entity);
+
+        */
 
         // barComp = progressBar.get<ProgressBarComponent>();
 
@@ -348,15 +437,36 @@ void initGame()
 {
     printf("Initializing engine ...\n");
 
+    #ifdef __EMSCRIPTEN__
+        EM_ASM(
+            console.error("Syncing... !");
+            FS.mkdir('/save');
+            console.error("Syncing... !");
+            FS.mount(IDBFS, {autoPersist: true}, '/save');
+            console.error("Syncing... !");
+            FS.syncfs(true, function (err) {
+                console.error("Synced !");
+                if (err) {
+                    console.error("Initial sync error:", err);
+                }
+            });
+            console.error("Syncing... !");
+        );
+    #endif
+
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    mainWindow->ecs.createSystem<ThemeSystem>();
 
     mainWindow->ecs.createSystem<FpsSystem>();
 
     mainWindow->ecs.createSystem<InventorySystem>();
 
     mainWindow->ecs.createSystem<MoveToSystem>();
+
+    mainWindow->ecs.createSystem<TweenSystem>();
 
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();
@@ -393,6 +503,8 @@ void initGame()
     auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
 
     worldFacts->setDefaultFact("startTuto", true);
+    worldFacts->setDefaultFact("altar_touched", false);
+    worldFacts->setDefaultFact("mage_tier", 0);
 
     auto achievementSys = mainWindow->ecs.createSystem<AchievementSys>();
 
@@ -411,9 +523,23 @@ void initGame()
 
     achievementSys->setDefaultAchievement(tutoStarted);
 
+    Achievement knowledgeFirstCap;
+
+    knowledgeFirstCap.name = "knowledgeFirstCap";
+    knowledgeFirstCap.prerequisiteFacts = { FactChecker{"knowledge", 10, FactCheckEquality::GreaterEqual} };
+    knowledgeFirstCap.rewardFacts = { StandardEvent{"gamelog", "message", "You seem to have hit a wall in your study.\nTaking some notes may help you in the future..."}, AddFact{"first_knowledge_cap", ElementType{true}} };
+
+    achievementSys->setDefaultAchievement(knowledgeFirstCap);
+
     mainWindow->ecs.createSystem<GameLog>();
 
+    mainWindow->ecs.createSystem<RessourceGeneratorSystem>();
+    mainWindow->ecs.createSystem<ConverterSystem>();
+    mainWindow->ecs.createSystem<NexusSystem>();
+
     mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
+
+    mainWindow->ecs.dumbTaskflow();
 
     mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
 
@@ -423,6 +549,8 @@ void initGame()
 
     // hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
     // hLayout.get<HorizontalLayout>()->addEntity(s5.entity);
+
+    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
 
     mainWindow->ecs.start();
 
@@ -503,25 +631,15 @@ void mainloop(void* arg)
 int GameApp::exec()
 {
 #ifdef __EMSCRIPTEN__
-    EM_ASM(
-        FS.mkdir('/save');
-        FS.mount(IDBFS, {autoPersist: true}, '/save');
-        FS.syncfs(true, function (err) {
-            if (err) {
-                console.error("Initial sync error:", err);
-            }
-        });
-    );
-
     printf("Start init thread...\n");
     initThread = new std::thread(initWindow, appName);
     printf("Detach init thread...\n");
 
     SDL_Window *pWindow =
-        SDL_CreateWindow("Hello Triangle Minimal",
-                         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                         820, 640,
-                         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+    SDL_CreateWindow("Hello Triangle Minimal",
+                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                        820, 640,
+                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
 
     emscripten_set_main_loop_arg(mainloop, pWindow, 0, 1);
 

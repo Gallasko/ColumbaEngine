@@ -8,6 +8,8 @@ namespace pg
 {
     struct ClearPrefabEvent { std::set<_unique_id> ids; };
 
+    struct SetMainEntityEvent { _unique_id prefabId; _unique_id entityId; };
+
     // Todo fix prefab runtime
     // Currently prefabs only works in events has the prefab need to be realized before adding other components to it
     struct Prefab : public Ctor, public Dtor
@@ -43,12 +45,17 @@ namespace pg
                 pos->setVisibility(visible);
             }
 
+            if (pos->observable != observable)
+            {
+                pos->setObservable(observable);
+            }
+
             if (isClippedToWindow)
             {
                 if (entity->has<ClippedTo>())
                 {
                     entity->world()->detach<ClippedTo>(entity);
-                }                
+                }
             }
             else
             {
@@ -66,7 +73,7 @@ namespace pg
                 }
                 else
                 {
-                    ecsRef->attach<ClippedTo>(entity, clip->clipperId);    
+                    ecsRef->attach<ClippedTo>(entity, clip->clipperId);
                 }
             }
         }
@@ -76,6 +83,11 @@ namespace pg
             setCompForPrefab(entity);
 
             childrenIds.insert(entity.id);
+        }
+
+        void setMainEntity(EntityRef entity)
+        {
+            ecsRef->sendEvent(SetMainEntityEvent{id, entity->id});
         }
 
         void update()
@@ -100,22 +112,33 @@ namespace pg
             }
         }
 
+        void setObservable(bool observable)
+        {
+            if (this->observable != observable)
+            {
+                this->observable = observable;
+                update();
+            }
+        }
+
         EntitySystem *ecsRef = nullptr;
 
         _unique_id id = 0;
 
+        // Todo make it simpler to find a specific child in a prefab
         std::set<_unique_id> childrenIds;
 
         // Data to keep track
 
         bool isClippedToWindow = true;
-    
+
         bool visible = true;
+        bool observable = true;
 
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, Listener<ClearPrefabEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, QueuedListener<ClearPrefabEvent>, QueuedListener<SetMainEntityEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -128,6 +151,7 @@ namespace pg
                 auto prefab = entity->get<Prefab>();
 
                 prefab->visible = ui->visible;
+                prefab->observable = ui->observable;
 
                 prefab->update();
             });
@@ -137,12 +161,8 @@ namespace pg
             clippedGroup->addOnGroup([](EntityRef entity) {
                 LOG_MILE("Prefab", "Add entity " << entity->id << " to pos - prefab - clip group !");
 
-                auto ui = entity->get<PositionComponent>();
                 auto prefab = entity->get<Prefab>();
-
                 prefab->isClippedToWindow = false;
-
-                prefab->visible = ui->visible;
 
                 prefab->update();
             });
@@ -155,7 +175,7 @@ namespace pg
                     if (not entity->has<ClippedTo>())
                     {
                         auto prefab = entity->get<Prefab>();
-                        
+
                         prefab->isClippedToWindow = true;
                         prefab->update();
                     }
@@ -181,6 +201,12 @@ namespace pg
                 modified = true;
             }
 
+            if (ui->observable != prefab->observable)
+            {
+                prefab->observable = ui->observable;
+                modified = true;
+            }
+
             if (not prefab->isClippedToWindow)
             {
                 // Todo find a way to find if the clip parent was updated and set modified flag only if it was updated
@@ -193,27 +219,44 @@ namespace pg
             }
         }
 
-        virtual void onEvent(const ClearPrefabEvent& event) override
+        virtual void onProcessEvent(const ClearPrefabEvent& event) override
         {
-            clearQueue.push(event);
+            for (const auto& id : event.ids)
+            {
+                ecsRef->removeEntity(id);
+            }
+        }
+
+        virtual void onProcessEvent(const SetMainEntityEvent& event) override
+        {
+            auto prefabEnt = ecsRef->getEntity(event.prefabId);
+            auto ent = ecsRef->getEntity(event.entityId);
+
+            // Todo support this for non anchored prefabs
+
+            if (not ent or not prefabEnt or not ent->has<UiAnchor>() or not prefabEnt->has<UiAnchor>() or not prefabEnt->has<Prefab>())
+            {
+                LOG_ERROR("Prefab System", "Failed to set main entity for prefab " << event.prefabId << " and entity " << event.entityId << " !");
+                return;
+            }
+
+            auto prefabAnchor = prefabEnt->get<UiAnchor>();
+            auto entAnchor = ent->get<UiAnchor>();
+
+            prefabAnchor->setWidthConstrain(PosConstrain{event.entityId, AnchorType::Width});
+            prefabAnchor->setHeightConstrain(PosConstrain{event.entityId, AnchorType::Height});
+
+            entAnchor->fillIn(prefabAnchor);
+            entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
+
+            auto prefab = prefabEnt->get<Prefab>();
+
+            prefab->addToPrefab(ent);
         }
 
         virtual void execute() override
         {
-            while (not clearQueue.empty())
-            {
-                const auto& event = clearQueue.front();
-
-                for (const auto& id : event.ids)
-                {
-                    ecsRef->removeEntity(id);
-                }
-
-                clearQueue.pop();
-            }
         }
-
-        std::queue<ClearPrefabEvent> clearQueue;
     };
 
     template <typename Type>
@@ -234,7 +277,7 @@ namespace pg
     }
 
     template <typename Type>
-    CompList<PositionComponent, UiAnchor, Prefab> makeAnchoredPrefab(Type *ecs, float x = 0.0f, float y = 0.0f)
+    CompList<PositionComponent, UiAnchor, Prefab> makeAnchoredPrefab(Type *ecs, float x = 0.0f, float y = 0.0f, float z = 0.0f)
     {
         LOG_THIS("Prefab System");
 
@@ -244,6 +287,7 @@ namespace pg
 
         ui->setX(x);
         ui->setY(y);
+        ui->setZ(z);
 
         auto anchor = ecs->template attach<UiAnchor>(entity);
 

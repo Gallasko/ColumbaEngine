@@ -37,7 +37,7 @@ namespace pg
         TEST(position_component_test, initialization)
         {
             PositionComponent component;
-            
+
             EXPECT_FLOAT_EQ(component.x,  0.0f);
             EXPECT_FLOAT_EQ(component.y,  0.0f);
             EXPECT_FLOAT_EQ(component.z,  0.0f);
@@ -54,7 +54,7 @@ namespace pg
         TEST(position_component_test, set_basic_value)
         {
             PositionComponent component;
-            
+
             EXPECT_FLOAT_EQ(component.x,  0.0f);
             EXPECT_FLOAT_EQ(component.y,  0.0f);
             EXPECT_FLOAT_EQ(component.z,  0.0f);
@@ -165,7 +165,7 @@ namespace pg
             EXPECT_FLOAT_EQ(pos2->x,  1.5f);
             EXPECT_FLOAT_EQ(pos2->y,  2.2f);
             EXPECT_FLOAT_EQ(pos2->z, -1.8f);
-            
+
             EXPECT_EQ(sys->nbEventReceived, 3);
         }
 
@@ -262,7 +262,7 @@ namespace pg
             EXPECT_FLOAT_EQ(pos2->x,  1.5f);
             EXPECT_FLOAT_EQ(pos2->y,  2.2f);
             EXPECT_FLOAT_EQ(pos2->z, -1.8f);
-            
+
             EXPECT_EQ(sys->nbEventReceived, 3);
             sys->reset();
 
@@ -326,7 +326,7 @@ namespace pg
             auto anchor = ecs.attach<UiAnchor>(entity);
 
             checkDefaultAnchor(anchor, entity.id);
-            
+
             pos->setX(1.5f);
             pos->setWidth(2.0f);
 
@@ -334,8 +334,8 @@ namespace pg
             EXPECT_FLOAT_EQ(anchor->right.value, 0.0f);
 
             // Position system need to execute to update the anchor values
-            posSys->execute();
-            
+            posSys->_execute();
+
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
 
@@ -354,7 +354,7 @@ namespace pg
 
             ecs.createSystem<PositionComponentSystem>();
             auto sys = ecs.createSystem<PositionTestSystem>();
-            
+
             EXPECT_EQ(sys->nbEventReceived, 0);
 
             ecs.fakeStart();
@@ -376,7 +376,7 @@ namespace pg
 
             // Position system need to execute to update the anchor values
             ecs.executeOnce();
-            
+
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
 
@@ -413,7 +413,7 @@ namespace pg
             anchor2->setLeftAnchor(anchor->right);
 
             checkDefaultAnchor(anchor2, entity2.id);
-            
+
             pos->setX(1.5f);
             pos->setWidth(2.0f);
 
@@ -427,8 +427,8 @@ namespace pg
             sys->reset();
 
             // Position system need to execute to update the anchor values
-            posSys->execute();
-            
+            posSys->_execute();
+
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
 
@@ -440,7 +440,7 @@ namespace pg
             EXPECT_EQ(sys->nbEventReceived, 2);
             sys->reset();
 
-            posSys->execute();
+            posSys->_execute();
 
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
@@ -486,7 +486,7 @@ namespace pg
             anchor2->setLeftAnchor(anchor->right);
 
             checkDefaultAnchor(anchor2, entity2.id);
-            
+
             pos->setX(1.5f);
             pos->setWidth(2.0f);
 
@@ -503,14 +503,14 @@ namespace pg
 
             EXPECT_EQ(sys->nbEventReceived, 4);
             sys->reset();
-            
+
             EXPECT_FLOAT_EQ(anchor->left.value, 1.5f);
             EXPECT_FLOAT_EQ(anchor->right.value, 3.5f);
 
             // Anchor from entity1 just changed in this execution so anchor from entity2 didn't have the chance to update
             EXPECT_FLOAT_EQ(anchor2->left.value, 0.0f);
             EXPECT_FLOAT_EQ(anchor2->right.value, 3.0f);
-            
+
             ecs.executeOnce();
 
             EXPECT_EQ(sys->nbEventReceived, 2);
@@ -523,8 +523,248 @@ namespace pg
             EXPECT_FLOAT_EQ(anchor2->right.value, 6.5f);
         }
 
-        // Todo need to create constrain test and clipped to test
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, constraints)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            auto posSys = ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto entity = ecs.createEntity();
+            auto pos = ecs.attach<PositionComponent>(entity);
+            auto anchor = ecs.attach<UiAnchor>(entity);
+
+            auto entity2 = ecs.createEntity();
+            auto pos2 = ecs.attach<PositionComponent>(entity2);
+
+            pos2->setWidth(5.0f);
+            pos2->setHeight(10.0f);
+
+            anchor->setWidthConstrain(PosConstrain{entity2.id, AnchorType::Width, PosOpType::Add, 2.0f});
+            anchor->setHeightConstrain(PosConstrain{entity2.id, AnchorType::Height, PosOpType::Sub, 3.0f});
+
+            posSys->_execute();
+
+            EXPECT_FLOAT_EQ(pos->width, 7.0f);  // 5.0 + 2.0
+            EXPECT_FLOAT_EQ(pos->height, 7.0f); // 10.0 - 3.0
+
+            EXPECT_EQ(sys->nbEventReceived, 5);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, clipping)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            auto posSys = ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto clipperEntity = ecs.createEntity();
+            auto clipperPos = ecs.attach<PositionComponent>(clipperEntity);
+            clipperPos->setX(0.0f);
+            clipperPos->setY(0.0f);
+            clipperPos->setWidth(10.0f);
+            clipperPos->setHeight(10.0f);
+
+            auto clippedEntity = ecs.createEntity();
+            auto clippedPos = ecs.attach<PositionComponent>(clippedEntity);
+            ecs.attach<ClippedTo>(clippedEntity, clipperEntity.id);
+
+            clippedPos->setX(5.0f);
+            clippedPos->setY(5.0f);
+            clippedPos->setWidth(20.0f);
+            clippedPos->setHeight(20.0f);
+
+            posSys->_execute();
+
+            EXPECT_TRUE(inClipBound(clippedEntity, 6.0f, 6.0f)); // Inside clipper bounds
+            EXPECT_FALSE(inClipBound(clippedEntity, 11.0f, 11.0f)); // Outside clipper bounds
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, advanced_anchoring)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            auto posSys = ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto parentEntity = ecs.createEntity();
+            auto parentPos = ecs.attach<PositionComponent>(parentEntity);
+            auto parentAnchor = ecs.attach<UiAnchor>(parentEntity);
+
+            parentPos->setX(10.0f);
+            parentPos->setY(20.0f);
+            parentPos->setWidth(100.0f);
+            parentPos->setHeight(200.0f);
+
+            auto childEntity = ecs.createEntity();
+            auto childPos = ecs.attach<PositionComponent>(childEntity);
+            auto childAnchor = ecs.attach<UiAnchor>(childEntity);
+
+            childAnchor->setTopAnchor(parentAnchor->top);
+            childAnchor->setLeftAnchor(parentAnchor->left);
+            childAnchor->setRightAnchor(parentAnchor->right);
+            childAnchor->setBottomAnchor(parentAnchor->bottom);
+
+            posSys->_execute();
+
+            EXPECT_FLOAT_EQ(childPos->x, 10.0f);
+            EXPECT_FLOAT_EQ(childPos->y, 20.0f);
+            EXPECT_FLOAT_EQ(childPos->width, 100.0f);
+            EXPECT_FLOAT_EQ(childPos->height, 200.0f);
+
+            EXPECT_EQ(sys->nbEventReceived, 10);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, margins)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            auto posSys = ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto parentEntity = ecs.createEntity();
+            auto parentPos = ecs.attach<PositionComponent>(parentEntity);
+            auto parentAnchor = ecs.attach<UiAnchor>(parentEntity);
+
+            parentPos->setX(10.0f);
+            parentPos->setY(20.0f);
+            parentPos->setWidth(100.0f);
+            parentPos->setHeight(200.0f);
+
+            auto childEntity = ecs.createEntity();
+            auto childPos = ecs.attach<PositionComponent>(childEntity);
+            auto childAnchor = ecs.attach<UiAnchor>(childEntity);
+
+            childAnchor->setTopAnchor(parentAnchor->top);
+            childAnchor->setLeftAnchor(parentAnchor->left);
+            childAnchor->setRightAnchor(parentAnchor->right);
+            childAnchor->setBottomAnchor(parentAnchor->bottom);
+
+            childAnchor->setTopMargin(5.0f);
+            childAnchor->setLeftMargin(10.0f);
+            childAnchor->setRightMargin(15.0f);
+            childAnchor->setBottomMargin(20.0f);
+
+            posSys->_execute();
+
+            EXPECT_FLOAT_EQ(childPos->x, 20.0f); // 10.0 + 10.0 (left margin)
+            EXPECT_FLOAT_EQ(childPos->y, 25.0f); // 20.0 + 5.0 (top margin)
+            EXPECT_FLOAT_EQ(childPos->width, 75.0f); // 100.0 - 10.0 (left margin) - 15.0 (right margin)
+            EXPECT_FLOAT_EQ(childPos->height, 175.0f); // 200.0 - 5.0 (top margin) - 20.0 (bottom margin)
+
+            EXPECT_EQ(sys->nbEventReceived, 14);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, visibility)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto entity = ecs.createEntity();
+            auto pos = ecs.attach<PositionComponent>(entity);
+
+            pos->setX(10.0f);
+            pos->setY(20.0f);
+            pos->setWidth(100.0f);
+            pos->setHeight(200.0f);
+
+            EXPECT_TRUE(pos->visible);
+
+            pos->setVisibility(false);
+
+            EXPECT_FALSE(pos->visible);
+
+            pos->setVisibility(true);
+
+            EXPECT_TRUE(pos->visible);
+
+            EXPECT_EQ(sys->nbEventReceived, 6); // Visibility changed twice
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, nested_anchoring)
+        {
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            auto posSys = ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto parentEntity = ecs.createEntity();
+            auto parentPos = ecs.attach<PositionComponent>(parentEntity);
+            auto parentAnchor = ecs.attach<UiAnchor>(parentEntity);
+
+            parentPos->setX(10.0f);
+            parentPos->setY(20.0f);
+            parentPos->setWidth(100.0f);
+            parentPos->setHeight(200.0f);
+
+            auto childEntity = ecs.createEntity();
+            ecs.attach<PositionComponent>(childEntity);
+            auto childAnchor = ecs.attach<UiAnchor>(childEntity);
+
+            childAnchor->setTopAnchor(parentAnchor->top);
+            childAnchor->setLeftAnchor(parentAnchor->left);
+
+            auto grandChildEntity = ecs.createEntity();
+            auto grandChildPos = ecs.attach<PositionComponent>(grandChildEntity);
+            auto grandChildAnchor = ecs.attach<UiAnchor>(grandChildEntity);
+
+            grandChildAnchor->setTopAnchor(childAnchor->top);
+            grandChildAnchor->setLeftAnchor(childAnchor->left);
+
+            posSys->_execute();
+
+            EXPECT_FLOAT_EQ(grandChildPos->x, 10.0f);
+            EXPECT_FLOAT_EQ(grandChildPos->y, 20.0f);
+
+            EXPECT_EQ(sys->nbEventReceived, 11); // Parent, child, and grandchild updates
+        }
+
+
 
     } // namespace test
-    
+
 } // namespace pg

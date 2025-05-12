@@ -3,12 +3,18 @@
 #include "ECS/entitysystem.h"
 
 #include "ECS/callable.h"
-namespace pg 
+
+#include "2D/position.h"
+
+#include "UI/sizer.h"
+
+namespace pg
 {
     enum class UiComponentType
     {
         BUTTON,
         TEXTURE,
+        SHAPE2D,
         TEXT,
         TTFTEXT,
         TEXTINPUT,
@@ -16,7 +22,6 @@ namespace pg
         PREFAB // Todo to implement !
     };
 
-    class UiComponent;
     class Input;
 
 namespace editor
@@ -25,7 +30,7 @@ namespace editor
 
     struct SaveFile {};
 
-    struct ShowContextMenu 
+    struct ShowContextMenu
     {
         ShowContextMenu(const Input* const inputHandler) : inputHandler(inputHandler) {}
 
@@ -37,7 +42,7 @@ namespace editor
     struct CreateElement { CreateElement(const UiComponentType& type) : type(type) {} UiComponentType type; };
 
     // Todo make the context menu a generic Ui element !
-    struct ContextMenu : System<Listener<ShowContextMenu>, Listener<HideContextMenu>, Listener<CreateElement>, Listener<OpenFile>, Listener<SaveFile>, InitSys>
+    struct ContextMenu : System<QueuedListener<HideContextMenu>, QueuedListener<ShowContextMenu>, QueuedListener<CreateElement>, Listener<OpenFile>, Listener<SaveFile>, InitSys>
     {
         ContextMenu();
         ~ContextMenu();
@@ -60,26 +65,26 @@ namespace editor
 
         void hide();
 
-        virtual void onEvent(const ShowContextMenu& event) override;
-        virtual void onEvent(const HideContextMenu& event) override;
-        virtual void onEvent(const CreateElement& event) override;
+        virtual void onProcessEvent(const HideContextMenu& event) override;
+        virtual void onProcessEvent(const ShowContextMenu& event) override;
+        virtual void onProcessEvent(const CreateElement& event) override;
         virtual void onEvent(const OpenFile& event) override;
         virtual void onEvent(const SaveFile& event) override;
 
         virtual void execute() override;
 
         EntityRef parent;
-        CompRef<UiComponent> parentUi;
+        CompRef<PositionComponent> parentPos;
+        CompRef<UiAnchor> parentUi;
 
-        CompRef<UiComponent> backgroundC;
+        CompRef<PositionComponent> backgroundPos;
+        CompRef<UiAnchor> backgroundC;
 
-        std::vector<CompRef<UiComponent>> components;
+        EntityRef layout;
+
+        std::vector<EntityRef> components;
 
         float currentX = 0.0f, currentY = 0.0f;
-
-        std::queue<ShowContextMenu> showEventQueue;
-        std::queue<HideContextMenu> hideEventQueue;
-        std::queue<CreateElement> elementQueue;
     };
 }
 }

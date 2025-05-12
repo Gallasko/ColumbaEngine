@@ -61,6 +61,8 @@ namespace pg
     {
         virtual ~AbstractSystem() { LOG_THIS_MEMBER("System"); }
 
+        virtual void onRegisterFinished() {};
+
         virtual void execute() { LOG_THIS_MEMBER("System"); }
 
         // Todo
@@ -79,6 +81,15 @@ namespace pg
         bool saveable = false;
 
         virtual std::string getSystemName() const { return "UnNamed"; }
+
+        std::vector<std::function<void()>> _executionQueue;
+        void _execute()
+        {
+            for (const auto& func : _executionQueue)
+                func();
+
+            this->execute();
+        }
 
         /**
          * @brief Remove a component from the registry
@@ -126,6 +137,29 @@ namespace pg
         LOG_INFO("System", "Registering a listener to event '" << typeid(Event).name() << "' to the system.");
 
         static_cast<Listener<Event>*>(system)->setRegistry(registry);
+        registerComponents(system, registry, comps...);
+    }
+
+    template <typename Event, typename... Comps, typename Sys>
+    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<QueuedListener<Event>>&, const Comps&... comps)
+    {
+        LOG_THIS("System");
+
+        LOG_INFO("System", "Registering a queue listener to event '" << typeid(Event).name() << "' to the system.");
+
+        system->_executionQueue.emplace_back([system]() {
+            QueuedListener<Event>* castedSystem = static_cast<QueuedListener<Event>*>(system);
+            while (not castedSystem->_eventQueue.empty())
+            {
+                const auto& event = castedSystem->_eventQueue.front();
+
+                castedSystem->onProcessEvent(event);
+
+                castedSystem->_eventQueue.pop();
+            }
+        });
+
+        static_cast<QueuedListener<Event>*>(system)->setRegistry(registry);
         registerComponents(system, registry, comps...);
     }
 
@@ -286,6 +320,17 @@ namespace pg
         unregisterComponents(system, registry, comps...);
     }
 
+    template <typename Event, typename... Comps, typename Sys>
+    void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<QueuedListener<Event>>&, const Comps&... comps)
+    {
+        LOG_THIS("System");
+
+        LOG_INFO("System", "Unregistering a listener to event '" << typeid(Event).name() << "' to the system.");
+
+        static_cast<QueuedListener<Event>*>(system)->unsetRegistry(registry);
+        unregisterComponents(system, registry, comps...);
+    }
+
     template <typename Comp, typename... Comps, typename Sys>
     void unregisterComponents(Sys *system, ComponentRegistry *registry, const tag<Comp>&, const Comps&... comps)
     {
@@ -339,6 +384,8 @@ namespace pg
             __name = getSystemName();
 
             registerComponents(this, registry, tag<Comps>{}...);
+
+            onRegisterFinished();
         }
 
         /**
