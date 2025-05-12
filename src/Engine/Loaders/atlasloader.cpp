@@ -9,7 +9,7 @@ namespace pg
         static constexpr char const * DOM = "Atlas Loader";
     }
 
-    void LoadedAtlas::AtlasTexture::setMesh(unsigned int xPos, unsigned int yPos, unsigned int atlasWidth, unsigned int atlasHeight)
+    void AtlasTexture::setMesh(unsigned int xPos, unsigned int yPos, unsigned int atlasWidth, unsigned int atlasHeight)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -25,7 +25,7 @@ namespace pg
         textureLimit.w = yMax;
     }
 
-    const LoadedAtlas::AtlasTexture& LoadedAtlas::getTexture(size_t id) const
+    const AtlasTexture& LoadedAtlas::getTexture(size_t id) const
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -44,7 +44,7 @@ namespace pg
         }
     }
 
-    const LoadedAtlas::AtlasTexture& LoadedAtlas::getTexture(const std::string& charaName) const
+    const AtlasTexture& LoadedAtlas::getTexture(const std::string& charaName) const
     {
         LOG_THIS_MEMBER(DOM);
 

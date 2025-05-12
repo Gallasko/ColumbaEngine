@@ -465,11 +465,18 @@ namespace pg
         registerTextureHelper(name, texturePath);
     }
 
-    void MasterRenderer::registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath)
+    void MasterRenderer::registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath, std::unique_ptr<LoadedAtlas> atlas)
     {
+        if (atlas == nullptr) {
+            atlasMap.emplace(name, atlasFilePath);
+        }
+        else {
+            atlasMap.emplace(name, *atlas);
+        }
+
         registerTexture(name, texturePath);
 
-        atlasMap.emplace(name, atlasFilePath);
+
     }
 
     void MasterRenderer::setState(const OpenGLState& state)

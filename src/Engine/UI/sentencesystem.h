@@ -23,7 +23,7 @@ namespace pg
 
     struct Letter
     {
-        Letter(const LoadedAtlas::AtlasTexture * const font) : font(font) { }
+        Letter(const AtlasTexture * const font) : font(font) { }
         Letter(const Letter& rhs) : font(rhs.font) { }
 
         void operator=(const Letter& rhs)
@@ -31,7 +31,7 @@ namespace pg
             font = rhs.font;
         }
 
-        const LoadedAtlas::AtlasTexture * font;
+        const AtlasTexture * font;
     };
 
     struct SentenceText : public Ctor

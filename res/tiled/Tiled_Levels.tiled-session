@@ -1,0 +1,145 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "",
+    "expandedProjectPaths": [
+        "LEVELS",
+        "EXPORTS",
+        "Templates",
+        "."
+    ],
+    "fileStates": {
+        "": {
+            "scaleInDock": 8
+        },
+        "EXPORTS/Level_Debug.json": {
+            "scale": 2.6065625,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 240.16304999400555,
+                "y": 160.1726411701235
+            }
+        },
+        "EXPORTS/Level_Debug.json#Beach": {
+            "scaleInDock": 1
+        },
+        "EXPORTS/Level_Debug.json#Dirt": {
+            "scaleInDock": 1
+        },
+        "EXPORTS/Level_Debug.json#Grass": {
+            "scaleInDock": 1
+        },
+        "EXPORTS/Level_Debug.json#Sand": {
+            "scaleInDock": 1
+        },
+        "EXPORTS/Level_Debug.json#Sewer": {
+            "scaleInDock": 1
+        },
+        "EXPORTS/Level_Debug.json#Water": {
+            "scaleInDock": 1
+        },
+        "LEVELS/Level_DEV_0001.json": {
+            "scale": 1.5,
+            "selectedLayer": 2,
+            "viewCenter": {
+                "x": 206.33333333333331,
+                "y": 152.33333333333331
+            }
+        },
+        "LEVELS/Level_DEV_0001.json#Beach": {
+            "scaleInDock": 5.5
+        },
+        "LEVELS/Level_DEV_0001.json#Deco": {
+            "scaleInDock": 5.5,
+            "scaleInEditor": 3
+        },
+        "LEVELS/Level_DEV_0001.json#Dirt": {
+            "scaleInDock": 5.5
+        },
+        "LEVELS/Level_DEV_0001.json#Grass": {
+            "scaleInDock": 5.5,
+            "scaleInEditor": 11
+        },
+        "LEVELS/Level_DEV_0001.json#Sand": {
+            "scaleInDock": 5.5
+        },
+        "LEVELS/Level_DEV_0001.json#Water": {
+            "scaleInDock": 5.5,
+            "scaleInEditor": 1
+        },
+        "Level_Debug.json": {
+            "scale": 4,
+            "selectedLayer": 1,
+            "viewCenter": {
+                "x": 121.5,
+                "y": 137.375
+            }
+        },
+        "Level_Debug.json#Beach": {
+            "scaleInDock": 1
+        },
+        "Level_Debug.json#Dirt": {
+            "scaleInDock": 1
+        },
+        "Level_Debug.json#Grass": {
+            "scaleInDock": 1,
+            "scaleInEditor": 8
+        },
+        "Level_Debug.json#Sand": {
+            "scaleInDock": 1
+        },
+        "Level_Debug.json#Water": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "Level_Debug.tmx": {
+            "scale": 2,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 225,
+                "y": 133.25
+            }
+        },
+        "Level_Debug.tmx#Beach": {
+            "scaleInDock": 5.5
+        },
+        "Level_Debug.tmx#Dirt": {
+            "scaleInDock": 1
+        },
+        "Level_Debug.tmx#Grass": {
+            "scaleInDock": 4,
+            "scaleInEditor": 8
+        },
+        "Level_Debug.tmx#Sand": {
+            "scaleInDock": 1
+        },
+        "Level_Debug.tmx#Water": {
+            "scaleInDock": 1
+        }
+    },
+    "last.exportedFilePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/Pixel_Jam_2025/Pixel_Jam_Levels/LEVELS",
+    "last.imagePath": "C:/Users/nicol/Desktop/tmp",
+    "last.objectTemplatePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/Pixel_Jam_2025/Pixel_Jam_Levels/Templates",
+    "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
+    "map.lastUsedFormat": "tmx",
+    "map.tileHeight": 16,
+    "map.tileWidth": 16,
+    "openFiles": [
+        "LEVELS/Level_DEV_0001.json"
+    ],
+    "project": "Tiled_Levels.tiled-project",
+    "property.type": "bool",
+    "recentFiles": [
+        "LEVELS/Level_DEV_0001.json",
+        "Level_Debug.json",
+        "EXPORTS/Level_Debug.json",
+        "Level_Debug.tmx"
+    ],
+    "tileset.embedInMap": true,
+    "tileset.tileSize": {
+        "height": 16,
+        "width": 16
+    }
+}
