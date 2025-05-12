@@ -47,6 +47,33 @@ namespace pg
             {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
             };
 
+        void DraggingCommand::execute()
+        {
+            id = inspectorSys->currentId;
+            auto ent = ecsRef->getEntity(id);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(endX);
+            pos->setY(endY);
+        }
+
+        void DraggingCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(id);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(startX);
+            pos->setY(startY);
+        }
+
         void AttachComponentCommand::execute()
         {
             auto ent = ecsRef->getEntity(id);
@@ -75,11 +102,19 @@ namespace pg
 
         void CreateEntityCommand::execute()
         {
+            lastFocusedId = inspectorSys->currentId;
+
             id = callback(ecsRef);
+
+            inspectorSys->currentId = id;
         }
 
         void CreateEntityCommand::undo()
         {
+            inspectorSys->currentId = lastFocusedId;
+
+            // inspectorSys->eventRequested = true;
+
             ecsRef->removeEntity(id);
         }
 

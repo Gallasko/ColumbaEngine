@@ -109,43 +109,21 @@ namespace pg
             std::vector<std::unique_ptr<InspectorCommands>> redoStack;
         };
 
+        struct InspectorSystem;
+
         struct DraggingCommand : public InspectorCommands
         {
-            DraggingCommand(EntitySystem* ecsRef, _unique_id id, float startX, float startY, float endX, float endY) :
-                ecsRef(ecsRef), id(id), startX(startX), startY(startY), endX(endX), endY(endY) {}
+            DraggingCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, float startX, float startY, float endX, float endY) :
+                inspectorSys(inspectorSys), ecsRef(ecsRef), startX(startX), startY(startY), endX(endX), endY(endY) {}
 
-            virtual void execute() override
-            {
-                auto ent = ecsRef->getEntity(id);
+            virtual void execute() override;
 
-                if (not ent or not ent->has<PositionComponent>())
-                    return;
+            virtual void undo() override;
 
-                auto pos = ent->get<PositionComponent>();
-
-                pos->setX(endX);
-                pos->setY(endY);
-            }
-
-            virtual void undo() override
-            {
-                auto ent = ecsRef->getEntity(id);
-
-                if (not ent or not ent->has<PositionComponent>())
-                    return;
-
-                auto pos = ent->get<PositionComponent>();
-
-                pos->setX(startX);
-                pos->setY(startY);
-            }
-
-            EntitySystem* ecsRef; _unique_id id;
+            InspectorSystem* inspectorSys; EntitySystem* ecsRef; _unique_id id;
             float startX, startY;
             float endX, endY;
         };
-
-        struct InspectorSystem;
 
         struct AttachComponentCommand : public InspectorCommands
         {
@@ -162,14 +140,16 @@ namespace pg
 
         struct CreateEntityCommand : public InspectorCommands
         {
-            CreateEntityCommand(EntitySystem *ecsRef, std::function<_unique_id(EntitySystem *)> callbackCreated) : ecsRef(ecsRef), callback(callbackCreated) { }
+            CreateEntityCommand(InspectorSystem *inspectorSys, EntitySystem *ecsRef, std::function<_unique_id(EntitySystem *)> callbackCreated) : inspectorSys(inspectorSys), ecsRef(ecsRef), callback(callbackCreated) { }
 
             virtual void execute() override;
             virtual void undo() override;
 
+            InspectorSystem *inspectorSys;
             EntitySystem *ecsRef;
             std::function<_unique_id(EntitySystem *)> callback;
             _unique_id id;
+            _unique_id lastFocusedId;
         };
 
         struct CreateInspectorEntityEvent
@@ -213,7 +193,7 @@ namespace pg
 
             virtual void onProcessEvent(const EndDragging& event) override
             {
-                history.execute(std::make_unique<DraggingCommand>(ecsRef, event.id, event.startX, event.startY, event.endX, event.endY));
+                history.execute(std::make_unique<DraggingCommand>(this, ecsRef, event.startX, event.startY, event.endX, event.endY));
             }
 
             virtual void onEvent(const ConfiguredKeyEvent<EditorKeyConfig>& e) override
@@ -239,7 +219,7 @@ namespace pg
 
             virtual void onEvent(const CreateInspectorEntityEvent& event) override
             {
-                history.execute(std::make_unique<CreateEntityCommand>(ecsRef, event.callback));
+                history.execute(std::make_unique<CreateEntityCommand>(this, ecsRef, event.callback));
             }
 
             template <typename Comp>
