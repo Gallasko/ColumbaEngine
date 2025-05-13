@@ -4,8 +4,20 @@
 #include "TiledLoader.h"
 
 #include "logger.h"
+#include <stdexcept>
+#include <string>
+
+#define PG_ASSERT(cond, msg)                                         \
+if (!(cond)) {                                               \
+throw std::runtime_error(std::string("Assertion failed: ") + #cond + " - " +  msg);           \
+}
+
+static const std::string TriggerRoom = "triggerRoom";
+static const std::string Event = "event";
+static const std::string RoomIndex = "roomIndex";
 
 MapData TiledLoader::loadMap(const std::string &path) {
+    std::cout << "------MAP LOADING------" << std::endl;
     std::cout << "Loading map: " << path << std::endl;
 
     tson::Tileson t;
@@ -44,18 +56,12 @@ MapData TiledLoader::loadMap(const std::string &path) {
 
 
         fs::path imagePath = tileset.getImagePath();         // relative to JSON
-        std::cout<<"A.1:" << imagePath<< std::endl;
         fs::path resolvedPath = fs::absolute(jsonDir / imagePath);  // full path
-        std::cout<<"A.2:" << resolvedPath<< std::endl;
 
         // Now you can make it relative to current working dir if needed:
         fs::path relativeToCWD = fs::relative(resolvedPath, fs::current_path());
-        std::cout<<"A.3:" << relativeToCWD<< std::endl;
 
         myTileSet.imagePath = relativeToCWD.string();
-
-        std::cout<<"A.4:" << myTileSet.imagePath << std::endl;
-
 
         result.tilesets.push_back(myTileSet);
     }
@@ -82,10 +88,6 @@ MapData TiledLoader::loadMap(const std::string &path) {
                     myTile.x = x;
                     myTile.y = y;
 
-                    // SIZE
-                    //myTile.tileWidth = map->getTileSize().x;
-                   // myTile.tileHeight = map->getTileSize().y;
-
                     // IMAGE PATH
                     auto* tileset = tile->getTileset();
 
@@ -100,6 +102,29 @@ MapData TiledLoader::loadMap(const std::string &path) {
                 break;
             }
             case tson::LayerType::ObjectGroup:
+                for (auto& obj : layer.getObjects()) {
+                    if (obj.get<bool>("isTriggerRect")) {
+                        PG_ASSERT(obj.has(Event), "a trigger must have an event")
+                        const auto& event = obj.get<std::string>(Event);
+                        if (event == TriggerRoom) {
+                            PG_ASSERT(obj.has(RoomIndex), "a room trigger must have a room index")
+                            const auto& roomIndex = obj.get<int>(RoomIndex);
+                            RoomTrigger roomTrigger;
+
+                            roomTrigger.roomIndex = roomIndex;
+
+                            TiledRect rect;
+                            rect.topLeftCornerX = obj.getPosition().x;
+                            rect.topLeftCornerY = obj.getPosition().y;
+                            rect.width = obj.getSize().x;
+                            rect.height = obj.getSize().y;
+
+                            roomTrigger.rect = rect;
+
+                            result.roomTriggers.push_back(roomTrigger);
+                        }
+                    }
+                }
                 break;
             case tson::LayerType::ImageLayer:
                 break;
@@ -107,5 +132,7 @@ MapData TiledLoader::loadMap(const std::string &path) {
                 break;
         }
     }
+
+    std::cout << "------MAP LOADING------ END" << std::endl;
     return result;
 }

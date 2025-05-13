@@ -138,7 +138,7 @@
     "openFiles": [
     ],
     "project": "Tiled_Levels.tiled-project",
-    "property.type": "int",
+    "property.type": "bool",
     "recentFiles": [
         "LEVELS/Level_DEV_0001.json",
         "Level_Debug.json",

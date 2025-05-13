@@ -10,6 +10,11 @@
              "value":"triggerRoom"
             }, 
             {
+             "name":"isTriggerRect",
+             "type":"bool",
+             "value":true
+            }, 
+            {
              "name":"roomIndex",
              "type":"int",
              "value":1

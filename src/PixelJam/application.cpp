@@ -306,9 +306,13 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
-    MapData map;
-    // TiledLoader loader;
-    // const MapData map = loader.loadMap("res/tiled/LEVELS/Level_DEV_0001.json");
+    //MapData map;
+     TiledLoader loader;
+     const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json");
+
+     for (const auto &tileset: map.roomTriggers) {
+        LOG_INFO("TILED", "Rect " << tileset.rect.width << " " << tileset.rect.height << " " << tileset.rect.topLeftCornerX << " " << tileset.rect.topLeftCornerY);
+   }
 
     // for (const auto &tileset: map.tilesets) {
     //     LOG_INFO("TILED", "B" << tileset.imagePath);

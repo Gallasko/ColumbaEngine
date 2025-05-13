@@ -794,6 +794,17 @@
                  "width":83,
                  "x":289.5,
                  "y":441.5
+                }, 
+                {
+                 "height":72,
+                 "id":28,
+                 "name":"TEST_RECT",
+                 "rotation":0,
+                 "type":"",
+                 "visible":true,
+                 "width":59,
+                 "x":359,
+                 "y":1812
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -802,7 +813,7 @@
          "y":0
         }],
  "nextlayerid":8,
- "nextobjectid":28,
+ "nextobjectid":29,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.2",

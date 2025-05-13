@@ -3821,6 +3821,9 @@ namespace tson
 
 			template <typename T>
 			inline T get(const std::string &name);
+
+			inline bool has(const std::string &name);
+
 			inline tson::Property * getProp(const std::string &name);
 
 			//v1.2.0-stuff
@@ -3864,6 +3867,17 @@ namespace tson
 	T tson::Object::get(const std::string &name)
 	{
 		return m_properties.getValue<T>(name);
+	}
+
+	/*!
+	 * A shortcut for checking a property. Alternative to getProperties().hasProperty<T>("<name>")
+	 *
+	 * @param name Name of the property
+	 * @return True if exists
+	 */
+	bool tson::Object::has(const std::string &name)
+	{
+		return m_properties.hasProperty(name);
 	}
 
 	/*!
