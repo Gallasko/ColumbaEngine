@@ -86,7 +86,7 @@ namespace pg
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
 
-            std::vector<size_t> collidableLayer = {0, 3};
+            std::vector<size_t> collidableLayer = {0, 3, 5};
 
             ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 

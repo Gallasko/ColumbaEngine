@@ -174,6 +174,11 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 posB->setX(posB->x - dx * (repulsionStrength * 0.5f));
                 posB->setY(posB->y - dy * (repulsionStrength * 0.5f));
             }
+
+            if (not entA->has<AIStateComponent>() or not entB->has<AIStateComponent>()) return;
+
+            entA->get<AIStateComponent>()->orbitDirection *= -1.0f;
+            entB->get<AIStateComponent>()->orbitDirection *= -1.0f;
         });
 
 
