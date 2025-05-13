@@ -14,9 +14,9 @@ namespace pg
 
     glm::mat4 BaseCamera2D::getViewMatrix()
     {
-        LOG_INFO(DOM, "x: " << x << ", y: " << y);
-        LOG_INFO(DOM, "width: " << width << ", height: " << height);
-        LOG_INFO(DOM, "near: " << -x / width << ", far: " << y / height);
+        //LOG_INFO(DOM, "x: " << x << ", y: " << y);
+        //LOG_INFO(DOM, "width: " << width << ", height: " << height);
+        //LOG_INFO(DOM, "near: " << -x / width << ", far: " << y / height);
         // return glm::translate(glm::mat4(1.0f), glm::vec3(x, y, 0.f));
         auto mat4 = glm::mat4(1.0f);
 

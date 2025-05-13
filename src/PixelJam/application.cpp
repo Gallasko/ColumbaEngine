@@ -408,6 +408,23 @@ void initGame() {
         mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "", std::make_unique<TileMapAtlasLoader>(tileset));
     }
 
+    for (const auto &e: map.enemyTemplates) {
+        std::cout << "Enemy : " << e << std::endl;
+    }
+
+    for (const auto &spawner : map.spawners) {
+        std::cout << spawner.roomIndex << std::endl;
+        std::cout << std::to_string(spawner.posXInSPixels) << " " << std::to_string(spawner.posYInSPixels) << std::endl;
+
+        for (const auto& spawn: spawner.spawns) {
+            std::cout << "Enemy : " << spawn.enemyId << " Proba : " << spawn.spawnProba << std::endl;
+        }
+    }
+
+    for (const auto &r: map.roomData) {
+        std::cout << "Room index : " << r.roomIndex << "spawn count : " << r.nbEnemy << std::endl;
+    }
+
     mainWindow->ecs.createSystem<TestSystem>(map);
 
     mainWindow->ecs.start();

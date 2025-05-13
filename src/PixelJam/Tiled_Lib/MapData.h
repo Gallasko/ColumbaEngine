@@ -77,6 +77,23 @@ struct RoomTrigger {
     int roomIndex;
 };
 
+struct SpawnData {
+    int enemyId;
+    float spawnProba;
+};
+
+struct Spawner {
+    std::vector<SpawnData> spawns;
+    int roomIndex;
+    float posXInSPixels;
+    float posYInSPixels;
+};
+
+struct RoomData {
+    int roomIndex;
+    int nbEnemy;
+};
+
 struct EnemyData {
     std::string name;
     float chaseSpeed = 1.5f;
@@ -123,6 +140,8 @@ struct MapData {
     std::vector<Layer> layers;
     std::vector<RoomTrigger> roomTriggers;
     std::vector<EnemyData> enemyTemplates;
+    std::vector<Spawner> spawners;
+    std::vector<RoomData> roomData;
     /*!
      *
      */

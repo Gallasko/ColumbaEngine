@@ -3432,6 +3432,8 @@ namespace tson
 		}
 		else
 		{
+			std::cout << "NOT VALID TYPE !!!!" << std::endl;
+			std::cout << "m_value holds type: " << m_value.type().name() << std::endl;
 			static T defaultValue;
 			return defaultValue;
 		}
@@ -9321,9 +9323,21 @@ void tson::Property::setValueByType(IJson &json)
 
 		case Type::Class:
 		{
-			tson::TiledClass *baseClass = (m_project != nullptr) ? m_project->getClass(m_propertyType) : nullptr;
+			std::cout << "HELLO HELLO in " << m_name << " and type " << m_propertyType <<  std::endl;
+
+
+			tson::TiledClass *baseClass;
+			if ((m_project != nullptr)) {
+				std::cout << "Project exists" << std::endl;
+				baseClass = m_project->getClass(m_propertyType);
+			}
+			else {
+				std::cout << "Project NOT FOUND" << std::endl;
+				baseClass = nullptr;
+			}
 			if (baseClass != nullptr)
 			{
+				std::cout << "WE GOT IN !!! " << m_name << std::endl;
 				tson::TiledClass c = *baseClass;
 				c.update(json);
 				m_value = c;
