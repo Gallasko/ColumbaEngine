@@ -1,0 +1,23 @@
+{ "object":
+    {
+     "height":48.5454545454545,
+     "id":15,
+     "name":"H_Room_Trigger",
+     "properties":[
+            {
+             "name":"event",
+             "type":"string",
+             "value":"triggerRoom"
+            }, 
+            {
+             "name":"roomIndex",
+             "type":"int",
+             "value":1
+            }],
+     "rotation":0,
+     "type":"",
+     "visible":true,
+     "width":80
+    },
+ "type":"template"
+}
