@@ -15,7 +15,29 @@
 
 namespace pg
 {
-    struct WallFlag {};
+    struct WallFlag : public Ctor
+    {
+        WallFlag() {}
+        WallFlag(const WallFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
+
+        WallFlag& operator=(const WallFlag& rhs)
+        {
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
+
     struct PlayerFlag {};
     struct AllyBulletFlag : public Ctor
     {

@@ -137,7 +137,7 @@ namespace pg {
                 ent.get<PositionComponent>()->setZ(5);
                 ecsRef->attach<EnemyFlag>(ent.entity, 5.f);
 
-                std::vector<size_t> collidableLayer = {0, 3};
+                std::vector<size_t> collidableLayer = {0, 3, 4};
 
                 ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
                 ecsRef->attach<AIStateComponent>(ent.entity);
@@ -323,8 +323,6 @@ namespace pg {
             {
                 p = {playerEnt->get<PositionComponent>()->x + 25.f, playerEnt->get<PositionComponent>()->y + 25.f};
             }
-
-            LOG_INFO("EnemyAISystem", "Player position: " << p.x << ", " << p.y);
 
             return p;
         }

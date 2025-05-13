@@ -97,7 +97,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         // makeCollisionHandle(ecsRef, [](Entity*, Entity*) { LOG_INFO(DOM, "Collision with a wall! "); },
         //     [](Entity* ent) { return ent->has<WallFlag>(); });
-        makeCollisionHandle(ecsRef, [](Entity *, Entity *) { LOG_INFO(DOM, "Collision ! "); });
+        // makeCollisionHandle(ecsRef, [](Entity *, Entity *) { LOG_INFO(DOM, "Collision ! "); });
 
         makeCollisionHandlePair(ecsRef, [](PlayerFlag *, CollectibleFlag *) {
             LOG_INFO(DOM, "Collectible collected! ");
@@ -119,6 +119,61 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             }
 
             ecsRef->removeEntity(bullet->entityId);
+        });
+
+        const float repulsionStrength = 2.f;
+
+        // Enemy ↔ Wall: push enemy out of the wall
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall) {
+            // get both entities’ positions
+            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+            auto enemyEnt = enemy->ecsRef->getEntity(enemy->entityId);
+            auto wpos     = wallEnt->get<PositionComponent>();
+            auto epos     = enemyEnt->get<PositionComponent>();
+
+            // compute normalized vector from wall→enemy
+            float dx = epos->x - wpos->x;
+            float dy = epos->y - wpos->y;
+            float len = std::sqrt(dx*dx + dy*dy);
+            if (len > 0.f) {
+                dx /= len;
+                dy /= len;
+                // shove enemy out
+                epos->setX(epos->x + dx * repulsionStrength);
+                epos->setY(epos->y + dy * repulsionStrength);
+            }
+        });
+
+        // Enemy ↔ Enemy: mutual separation
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* a, EnemyFlag* b) {
+            // ignore self‐collision
+            if (a->entityId == b->entityId) return;
+
+            auto entA = a->ecsRef->getEntity(a->entityId);
+            auto entB = b->ecsRef->getEntity(b->entityId);
+
+            if (not entA or not entB) return;
+            if (not entA->has<PositionComponent>() or not entB->has<PositionComponent>()) return;
+
+            auto posA = entA->get<PositionComponent>();
+            auto posB = entB->get<PositionComponent>();
+
+            // vector from B→A
+            float dx = posA->x - posB->x;
+            float dy = posA->y - posB->y;
+
+            float len = std::sqrt(dx*dx + dy*dy);
+
+            if (len > 0.f)
+            {
+                dx /= len;
+                dy /= len;
+                // push each about half the strength
+                posA->setX(posA->x + dx * (repulsionStrength * 0.5f));
+                posA->setY(posA->y + dy * (repulsionStrength * 0.5f));
+                posB->setX(posB->x - dx * (repulsionStrength * 0.5f));
+                posB->setY(posB->y - dy * (repulsionStrength * 0.5f));
+            }
         });
 
 
