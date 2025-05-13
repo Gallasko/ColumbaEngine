@@ -167,7 +167,7 @@ namespace pg
             return *this;
         }
 
-        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId, u_int8_t viewport)
+        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId, uint8_t viewport)
         {
             setVisibility(visible);
             setRenderStage(stage);

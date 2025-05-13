@@ -9,7 +9,7 @@ namespace pg
 
     glm::mat4 BaseCamera2D::getProjectionMatrix()
     {
-        return glm::ortho(0.f, width, height, 0.f, near, far);
+        return glm::ortho(0.f, width, height, 0.f, nearPlane, farPlane);
     }
 
     glm::mat4 BaseCamera2D::getViewMatrix()
