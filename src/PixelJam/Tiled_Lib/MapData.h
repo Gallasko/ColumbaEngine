@@ -62,6 +62,18 @@ struct TileSet {
     int tileHeight;
 };
 
+struct TiledRect {
+    float topLeftCornerX;
+    float topLeftCornerY;
+    float width;
+    float height;
+};
+
+struct RoomTrigger {
+    TiledRect rect;
+    int roomIndex;
+};
+
 struct MapData {
     /*!
      * Number of tiles horizontally
@@ -75,6 +87,7 @@ struct MapData {
      * The list of layers. The index 0 is renderer first, then the index 1 and so on
      */
     std::vector<Layer> layers;
+    std::vector<RoomTrigger> roomTriggers;
     /*!
      *
      */
