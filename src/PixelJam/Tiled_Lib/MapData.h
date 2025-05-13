@@ -8,6 +8,9 @@
 #include <string>
 #include <vector>
 
+// T Pixels : Tiled Pixels. So raw data from Tiled. For example a Tile size is 16x16 TPixels
+// S Pixels : Screen Pixels. We take the data from Tiled and scale it. So a 16x16 tile can take 32x32 real screen pixels, by a factor of 2
+
 struct Tile {
     /*!
      * X position of the tile. If the map width is 30 tiles, then the position is between 0 and 29
@@ -21,7 +24,7 @@ struct Tile {
     bool isWall;
     bool isHole;
 
-   std::string textureName;
+    std::string textureName;
 };
 
 /*!
@@ -53,13 +56,13 @@ struct TileSet {
     int tileCount;
     int columns;
     /*!
-         * Width in pixels of each tile
+         * Width in Tpixels of each tile
          */
-    int tileWidth;
+    int tileWidthInTPixels;
     /*!
-     * Height in pixels of each tile
+     * Height in Tpixels of each tile
      */
-    int tileHeight;
+    int tileHeightInTPixels;
 };
 
 struct TiledRect {
@@ -70,9 +73,40 @@ struct TiledRect {
 };
 
 struct RoomTrigger {
-    TiledRect rect;
+    TiledRect rectInSPixels;
     int roomIndex;
 };
+
+struct EnemyData {
+    std::string name;
+    float chaseSpeed = 1.5f;
+    float idealDistance = 250.f; // px
+    float orbitThreshold = 20.f; // px
+    float attackDistance = 200.f;
+    int cooldownTime = 1000; // ms
+    int wideUpTime = 500;
+    long aiCooldownTimer = 0;
+    float spiralRate = 0.1f;
+    float enemyBulletDamage = 1.f;
+    int objId;
+};
+
+inline std::ostream &operator<<(std::ostream &os, const EnemyData &data) {
+    os << "EnemyData {\n"
+            << "  name: " << data.name << "\n"
+            << "  Id: " << data.objId << "\n"
+            << "  chaseSpeed: " << data.chaseSpeed << "\n"
+            << "  idealDistance: " << data.idealDistance << "\n"
+            << "  orbitThreshold: " << data.orbitThreshold << "\n"
+            << "  attackDistance: " << data.attackDistance << "\n"
+            << "  cooldownTime: " << data.cooldownTime << "\n"
+            << "  wideUpTime: " << data.wideUpTime << "\n"
+            << "  aiCooldownTimer: " << data.aiCooldownTimer << "\n"
+            << "  spiralRate: " << data.spiralRate << "\n"
+            << "  enemyBulletDamage: " << data.enemyBulletDamage << "\n"
+            << "}";
+    return os;
+}
 
 struct MapData {
     /*!
@@ -88,6 +122,7 @@ struct MapData {
      */
     std::vector<Layer> layers;
     std::vector<RoomTrigger> roomTriggers;
+    std::vector<EnemyData> enemyTemplates;
     /*!
      *
      */
@@ -95,11 +130,19 @@ struct MapData {
     /*!
          * Width in pixels of each tile
          */
-    int tileWidth;
+    int tileWidthInTPixels;
     /*!
      * Height in pixels of each tile
      */
-    int tileHeight;
+    int tileHeightInTPixels;
+    /*!
+         * Width in pixels of each tile in S Pixels
+         */
+    int tileWidthInSPixels;
+    /*!
+     * Height in pixels of each tile in S Pixels
+     */
+    int tileHeightInSPixels;
 };
 
 #endif //MAPDATA_H

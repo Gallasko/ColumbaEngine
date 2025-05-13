@@ -328,6 +328,7 @@ namespace pg {
             auto p = b.get<PositionComponent>();
             p->setX(pos->x + 20.f);
             p->setY(pos->y + 20.f);
+            p->setZ(50);
 
             std::vector<size_t> collidableLayer = {0, 1};
             ecsRef->attach<CollisionComponent>(b.entity, 5, 1., collidableLayer);
