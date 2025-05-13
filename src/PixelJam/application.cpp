@@ -180,7 +180,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         printf("---------- Load Level ---------\n");
 
         // int z = 0;
-        // int factor = 3;
+        // int factor = 2;
 
         // size_t scaledTileWidth = factor * mapData.tileWidth;
         // size_t scaledTileHeight = factor * mapData.tileHeight;

@@ -61,6 +61,11 @@ MapData TiledLoader::loadMap(const std::string &path) {
     }
 
     for (auto& layer : map->getLayers()) {
+        // Skip layers annotated with "__DEV__"
+        if (layer.getName().find("__DEV__") != std::string::npos) {
+            continue;
+        }
+
         switch (layer.getType()) {
             case tson::LayerType::Undefined:
                 break;
@@ -87,7 +92,7 @@ MapData TiledLoader::loadMap(const std::string &path) {
                     myTile.textureName = tileset->getName() + "." + std::to_string(tile->getId());
 
                     myTile.isWall = tile->get<bool>("wall");
-                    LOG_INFO("TILED", myTile.isWall << " " << myTile.textureName);
+                    myTile.isHole = tile->get<bool>("hole");
 
                     l.tiles.push_back(myTile);
                 }

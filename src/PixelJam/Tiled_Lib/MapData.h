@@ -19,6 +19,7 @@ struct Tile {
     int y;
 
     bool isWall;
+    bool isHole;
 
    std::string textureName;
 };
