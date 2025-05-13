@@ -25,7 +25,7 @@ namespace pg
         Simple2DObject(const Shape2D& shape) : shape(shape) { }
         Simple2DObject(const Shape2D& shape, const constant::Vector4D& c) : shape(shape), colors(c) { }
 
-        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), id(rhs.id), ecsRef(rhs.ecsRef) { }
+        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), viewport(rhs.viewport), id(rhs.id), ecsRef(rhs.ecsRef) { }
         virtual ~Simple2DObject() {}
 
         inline static std::string getType() { return "Simple2DObject"; }
@@ -52,6 +52,19 @@ namespace pg
             }
         }
 
+        void setViewport(size_t viewport)
+        {
+            if (this->viewport != viewport)
+            {
+                this->viewport = viewport;
+
+                if (ecsRef)
+                {
+                    ecsRef->sendEvent(EntityChangedEvent{id});
+                }
+            }
+        }
+
         Shape2D shape;
 
         // Todo be specific for each shape (rect = [width, height], circle = [origin, radius], triangle = [base, height] + rotation arg)
@@ -59,6 +72,8 @@ namespace pg
 
         // Todo make the colors normalized (0.0f <-> 1.0f) to not do the division in the shader
         constant::Vector4D colors {255.0f, 255.0f, 255.0f, 255.0f};
+
+        size_t viewport = 0;
 
         _unique_id id;
 

@@ -16,6 +16,7 @@
 
 #include "2D/position.h"
 #include "2D/collisionsystem.h"
+#include "2D/camera2d.h"
 
 #include "UI/sizer.h"
 #include "UI/prefab.h"
@@ -80,9 +81,9 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
 
     virtual void init() override {
         // Navigation tabs
-        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        // auto windowEnt = ecsRef->getEntity("__MainWindow");
 
-        auto windowAnchor = windowEnt->get<UiAnchor>();
+        // auto windowAnchor = windowEnt->get<UiAnchor>();
     }
 };
 
@@ -115,7 +116,23 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
             enemy->health -= bullet->damage;
 
-            if (enemy->health <= 0) {
+            if (enemy->health <= 0)
+            {
+                auto weapon = ecsRef->getComponent<WeaponComponent>(enemy->entityId);
+                auto pos = ecsRef->getComponent<PositionComponent>(enemy->entityId);
+
+                if (weapon and pos)
+                {
+                    auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
+
+                    collectibleEnt.get<PositionComponent>()->setX(pos->x + pos->width / 2.f - 12.5f);
+                    collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
+                    collectibleEnt.get<PositionComponent>()->setZ(10.f);
+
+                    ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
+                    ecsRef->attach<CollectibleFlag>(collectibleEnt.entity, weapon->weapon);
+                }
+
                 ecsRef->removeEntity(enemy->entityId);
             }
 
@@ -125,17 +142,17 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         const float repulsionStrength = 2.f;
 
         // Enemy ↔ Wall: push enemy out of the wall
-        makeCollisionHandlePair(ecsRef, [&](EnemyFlag *enemy, WallFlag *wall) {
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall){
             // get both entities’ positions
-            auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
+            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
             auto enemyEnt = enemy->ecsRef->getEntity(enemy->entityId);
-            auto wpos = wallEnt->get<PositionComponent>();
-            auto epos = enemyEnt->get<PositionComponent>();
+            auto wpos     = wallEnt->get<PositionComponent>();
+            auto epos     = enemyEnt->get<PositionComponent>();
 
             // compute normalized vector from wall→enemy
             float dx = epos->x - wpos->x;
             float dy = epos->y - wpos->y;
-            float len = std::sqrt(dx * dx + dy * dy);
+            float len = std::sqrt(dx*dx + dy*dy);
             if (len > 0.f) {
                 dx /= len;
                 dy /= len;
@@ -146,7 +163,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         });
 
         // Enemy ↔ Enemy: mutual separation
-        makeCollisionHandlePair(ecsRef, [&](EnemyFlag *a, EnemyFlag *b) {
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* a, EnemyFlag* b) {
             // ignore self‐collision
             if (a->entityId == b->entityId) return;
 
@@ -163,9 +180,10 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             float dx = posA->x - posB->x;
             float dy = posA->y - posB->y;
 
-            float len = std::sqrt(dx * dx + dy * dy);
+            float len = std::sqrt(dx*dx + dy*dy);
 
-            if (len > 0.f) {
+            if (len > 0.f)
+            {
                 dx /= len;
                 dy /= len;
                 // push each about half the strength
@@ -174,38 +192,46 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 posB->setX(posB->x - dx * (repulsionStrength * 0.5f));
                 posB->setY(posB->y - dy * (repulsionStrength * 0.5f));
             }
+
+            if (not entA->has<AIStateComponent>() or not entB->has<AIStateComponent>()) return;
+
+            entA->get<AIStateComponent>()->orbitDirection *= -1.0f;
+            entB->get<AIStateComponent>()->orbitDirection *= -1.0f;
         });
 
 
         printf("---------- Load Level ---------\n");
 
-        // int z = 0;
-        // int factor = 2;
+        int z = 0;
 
-        // size_t scaledTileWidth = factor * mapData.tileWidth;
-        // size_t scaledTileHeight = factor * mapData.tileHeight;
+        size_t scaledTileWidth = mapData.tileWidthInSPixels;
+        size_t scaledTileHeight = mapData.tileHeightInSPixels;
 
-        // int count = 0;
+        int count = 0;
 
-        // for (const auto &layer: mapData.layers) {
+        for (const auto &layer: mapData.layers)
+        {
+            for (const auto &tile : layer.tiles)
+            {
+                auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
+                auto texComp = tex.get<Texture2DComponent>();
+                texComp->setViewport(1);
 
-        //     for (const auto &tile : layer.tiles) {
-        //         auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
-        //         auto posComp = tex.get<PositionComponent>();
-        //         posComp->setX(tile.x * scaledTileWidth);
-        //         posComp->setY(tile.y * scaledTileHeight);
-        //         posComp->setZ(z);
+                auto posComp = tex.get<PositionComponent>();
+                posComp->setX(tile.x * scaledTileWidth);
+                posComp->setY(tile.y * scaledTileHeight);
+                posComp->setZ(z);
 
-        //         if (tile.isWall) {
-        //             LOG_INFO("TILED", std::to_string(count++));
-        //             ecsRef->attach<CollisionComponent>(tex.entity, 0);
-        //             ecsRef->attach<WallFlag>(tex.entity);
-        //         }
-        //     }
+                if (tile.isWall)
+                {
+                    LOG_INFO("TILED", std::to_string(count++));
+                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
+                    ecsRef->attach<WallFlag>(tex.entity);
+                }
+            }
 
-        //     z++;
-        // }
-
+            z++;
+        }
 
         printf("Loaded Map\n");
     }
@@ -215,8 +241,11 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             if (testVar == 0) {
                 auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
 
+                wallEnt.get<Simple2DObject>()->setViewport(1);
+
                 wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
                 wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
+                wallEnt.get<PositionComponent>()->setZ(10);
 
                 ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
                 ecsRef->attach<WallFlag>(wallEnt.entity);
@@ -260,7 +289,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 };
 
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<
-            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag> > {
+            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>> {
 };
 
 std::thread *initThread;
@@ -306,35 +335,7 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
-    //MapData map;
-    TiledLoader loader;
-    constexpr int tiledPixelsToScreenPixelsFactor = 2;
-    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json", tiledPixelsToScreenPixelsFactor);
-
-    for (const auto &e: map.enemyTemplates) {
-        std::cout << "Enemy : " << e << std::endl;
-    }
-
-    for (const auto &spawner : map.spawners) {
-        std::cout << spawner.roomIndex << std::endl;
-        std::cout << std::to_string(spawner.posXInSPixels) << " " << std::to_string(spawner.posYInSPixels) << std::endl;
-
-        for (const auto& spawn: spawner.spawns) {
-            std::cout << "Enemy : " << spawn.enemyId << " Proba : " << spawn.spawnProba << std::endl;
-        }
-    }
-
-    for (const auto &r: map.roomData) {
-        std::cout << "Room index : " << r.roomIndex << "spawn count : " << r.nbEnemy << std::endl;
-    }
-
-    // for (const auto &tileset: map.tilesets) {
-    //     LOG_INFO("TILED", "B" << tileset.imagePath);
-
-    //     mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "",
-    //                                                      std::make_unique<TileMapAtlasLoader>(tileset));
-    // }
-
+    mainWindow->ecs.createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
 
     mainWindow->ecs.createSystem<FlagSystem>();
 
@@ -353,8 +354,6 @@ void initGame() {
     mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
 
     mainWindow->ecs.createSystem<PlayerSystem>();
-
-    mainWindow->ecs.createSystem<TestSystem>(map);
 
     mainWindow->ecs.createSystem<EnemyAISystem>();
     mainWindow->ecs.createSystem<EnemySpawnSystem>();
@@ -393,6 +392,40 @@ void initGame() {
     mainWindow->ecs.dumbTaskflow();
 
     // mainWindow->interpreter->interpretFromFile("main.pg");
+
+    //MapData map;
+    TiledLoader loader;
+    int factor = 2;
+    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json", factor);
+
+    for (const auto &tileset: map.roomTriggers) {
+        LOG_INFO("TILED", "Rect " << tileset.rectInSPixels.width << " " << tileset.rectInSPixels.height << " " << tileset.rectInSPixels.topLeftCornerX << " " << tileset.rectInSPixels.topLeftCornerY);
+    }
+
+    for (const auto &tileset: map.tilesets) {
+        LOG_INFO("TILED", "B" << tileset.imagePath);
+
+        mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "", std::make_unique<TileMapAtlasLoader>(tileset));
+    }
+
+    for (const auto &e: map.enemyTemplates) {
+        std::cout << "Enemy : " << e << std::endl;
+    }
+
+    for (const auto &spawner : map.spawners) {
+        std::cout << spawner.roomIndex << std::endl;
+        std::cout << std::to_string(spawner.posXInSPixels) << " " << std::to_string(spawner.posYInSPixels) << std::endl;
+
+        for (const auto& spawn: spawner.spawns) {
+            std::cout << "Enemy : " << spawn.enemyId << " Proba : " << spawn.spawnProba << std::endl;
+        }
+    }
+
+    for (const auto &r: map.roomData) {
+        std::cout << "Room index : " << r.roomIndex << "spawn count : " << r.nbEnemy << std::endl;
+    }
+
+    mainWindow->ecs.createSystem<TestSystem>(map);
 
     mainWindow->ecs.start();
 
