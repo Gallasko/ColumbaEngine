@@ -167,7 +167,7 @@ namespace pg
             return *this;
         }
 
-        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId, u_int8_t viewport)
+        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId, uint8_t viewport)
         {
             setVisibility(visible);
             setRenderStage(stage);
@@ -183,22 +183,6 @@ namespace pg
         void processUiComponent(UiComponent *component);
 
         void processPositionComponent(CompRef<PositionComponent> component);
-
-        void setViewport(uint8_t viewport)
-        {
-            if (viewport > 0b111) // Ensure the viewport value fits in 3 bits
-            {
-                LOG_ERROR("RenderCall", "Viewport value is too large [" << viewport << "], should be less than or equal to 7.");
-                return;
-            }
-
-            key = (key & ~((uint64_t)0b111 << 56)) | (static_cast<uint64_t>(viewport) << 56);
-        }
-
-        uint8_t getViewport() const
-        {
-            return static_cast<uint8_t>((key >> 56) & 0b111);
-        }
 
         void setVisibility(bool visible)
         {
@@ -220,6 +204,22 @@ namespace pg
             uint64_t stageValue = (key >> 59) & 0b1111;
 
             return static_cast<RenderStage>(stageValue);
+        }
+
+        void setViewport(uint8_t viewport)
+        {
+            if (viewport > 0b111) // Ensure the viewport value fits in 3 bits
+            {
+                LOG_ERROR("RenderCall", "Viewport value is too large [" << viewport << "], should be less than or equal to 7.");
+                return;
+            }
+
+            key = (key & ~((uint64_t)0b111 << 56)) | (static_cast<uint64_t>(viewport) << 56);
+        }
+
+        uint8_t getViewport() const
+        {
+            return static_cast<uint8_t>((key >> 56) & 0b111);
         }
 
         void setOpacity(const OpacityType& opacity)

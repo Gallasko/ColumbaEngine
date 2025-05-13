@@ -15,6 +15,18 @@ namespace pg
     struct FollowCamera2D : public Ctor
     {
         FollowCamera2D() {}
+        FollowCamera2D(const FollowCamera2D& other) : viewportWidth(other.viewportWidth), viewportHeight(other.viewportHeight), near(other.near), far(other.far) {}
+
+        FollowCamera2D& operator=(const FollowCamera2D& other)
+        {
+            viewportWidth = other.viewportWidth;
+            viewportHeight = other.viewportHeight;
+            near = other.near;
+            far = other.far;
+
+            return *this;
+        }
+
         virtual ~FollowCamera2D() {}
 
         virtual void onCreation(EntityRef entity)
@@ -67,8 +79,8 @@ namespace pg
             }
         }
 
-        float viewportWidth = 800.0f;
-        float viewportHeight = 600.0f;
+        float viewportWidth = 820.0f;
+        float viewportHeight = 640.0f;
         
         float near = -1.0f;
         float far = 1.0f;
@@ -116,8 +128,8 @@ namespace pg
 
         void updateCamera(BaseCamera2D* cam, PositionComponent* pos, FollowCamera2D* followCam)
         {
-            cam->x = pos->x + pos->width * 0.5f - followCam->viewportWidth  * 0.5f;
-            cam->y = pos->y + pos->height * 0.5f - followCam->viewportHeight * 0.5f;
+            cam->x = pos->x - pos->width * 0.5f - followCam->viewportWidth  * 0.5f;
+            cam->y = pos->y - pos->height * 0.5f - followCam->viewportHeight * 0.5f;
 
             cam->width = followCam->viewportWidth;
             cam->height = followCam->viewportHeight;
