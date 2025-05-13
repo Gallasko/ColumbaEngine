@@ -245,6 +245,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
                 wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
+                wallEnt.get<PositionComponent>()->setZ(10);
 
                 ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
                 ecsRef->attach<WallFlag>(wallEnt.entity);
