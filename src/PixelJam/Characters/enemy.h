@@ -68,15 +68,21 @@ namespace pg {
     {
         AIStateComponent() : state(AIState::Patrol) {}
         AIStateComponent(AIState state) : state(state) {}
-        AIStateComponent(const AIStateComponent& rhs) : state(rhs.state) {}
+        AIStateComponent(const AIStateComponent& rhs) : state(rhs.state), elapsedTime(rhs.elapsedTime), orbitDirection(rhs.orbitDirection) {}
 
         AIStateComponent& operator=(const AIStateComponent& rhs)
         {
             state = rhs.state;
+            elapsedTime = rhs.elapsedTime;
+            orbitDirection = rhs.orbitDirection;
             return *this;
         }
 
         AIState state = AIState::Patrol;
+
+        float elapsedTime = 0.f;
+
+        float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;
     };
 
     // Defines a bullet pattern to use
@@ -181,14 +187,14 @@ namespace pg {
                         chasePlayer(pos, ai);
                         break;
                     case AIState::Chase:
-                        moveTowardPlayer(pos, ai);
+                        chaseAndOrbit(pos, ai, deltaTime);
                         break;
                     case AIState::Attack:
                         shootPattern(enemy, pos, pat);
                         ai->state = AIState::Cooldown;
                         break;
                     case AIState::Cooldown:
-                        cooldownBehavior(ai, deltaTime);
+                        cooldownBehavior(ai);
                         break;
                 }
             }
@@ -199,6 +205,51 @@ namespace pg {
         void chasePlayer(PositionComponent* pos, AIStateComponent* ai) {
             // immediately go to chase
             ai->state = AIState::Chase;
+        }
+
+        void chaseAndOrbit(PositionComponent* pos, AIStateComponent* ai, float dt)
+        {
+            ai->elapsedTime += dt;
+            auto playerPos = findPlayerPosition();
+
+            constant::Vector2D toPlayer{ playerPos.x - pos->x, playerPos.y - pos->y };
+
+            float dist = toPlayer.length();
+
+            toPlayer.normalize();
+
+            // Decide behavior
+            float diff = dist - idealDistance;
+
+            constant::Vector2D moveDir;
+            if (std::fabs(diff) < orbitThreshold)
+            {
+                // Orbit: perpendicular
+                if (ai->orbitDirection == -1.0f)
+                    moveDir = { -toPlayer.y,  toPlayer.x };
+                else
+                    moveDir = {  toPlayer.y, -toPlayer.x };
+            }
+            else if (diff > 0)
+            {
+                // Too far: move in
+                moveDir = toPlayer;
+            } else
+            {
+                // Too close: kite out
+                moveDir = { -toPlayer.x, -toPlayer.y };
+            }
+
+            // Apply movement
+            pos->setX(pos->x + moveDir.x * chaseSpeed);
+            pos->setY(pos->y + moveDir.y * chaseSpeed);
+
+            auto checkDist = std::max(attackDistance, idealDistance);
+
+            // Switch to attack if within range
+            // Todo replace 65 by the actual size of the enemy (+ a small margin)
+            if (dist + 65 <= checkDist and ai->elapsedTime > cooldownTime)
+                ai->state = AIState::Attack;
         }
 
         void moveTowardPlayer(PositionComponent* pos, AIStateComponent* ai)
@@ -230,15 +281,11 @@ namespace pg {
             }
         }
 
-        void cooldownBehavior(AIStateComponent* ai, float dt)
+        void cooldownBehavior(AIStateComponent* ai)
         {
-            aiCooldownTimer += dt;
+            ai->elapsedTime = 0.0f;
 
-            if (aiCooldownTimer >= cooldownTime)
-            {
-                aiCooldownTimer = 0;
-                ai->state = AIState::Patrol;
-            }
+            ai->state = AIState::Patrol;
         }
 
         constant::Vector2D findPlayerPosition()
@@ -305,6 +352,8 @@ namespace pg {
 
         // Configurable parameters
         float chaseSpeed = 1.5f;
+        float idealDistance = 250.f;      // px
+        float orbitThreshold = 20.f;      // px
         float attackDistance = 200.f;
         int cooldownTime = 1000; // ms
         long aiCooldownTimer = 0;
