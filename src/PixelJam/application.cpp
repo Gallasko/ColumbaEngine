@@ -315,6 +315,19 @@ void initGame() {
         std::cout << "Enemy : " << e << std::endl;
     }
 
+    for (const auto &spawner : map.spawners) {
+        std::cout << spawner.roomIndex << std::endl;
+        std::cout << std::to_string(spawner.posXInSPixels) << " " << std::to_string(spawner.posYInSPixels) << std::endl;
+
+        for (const auto& spawn: spawner.spawns) {
+            std::cout << "Enemy : " << spawn.enemyId << " Proba : " << spawn.spawnProba << std::endl;
+        }
+    }
+
+    for (const auto &r: map.roomData) {
+        std::cout << "Room index : " << r.roomIndex << "spawn count : " << r.nbEnemy << std::endl;
+    }
+
     // for (const auto &tileset: map.tilesets) {
     //     LOG_INFO("TILED", "B" << tileset.imagePath);
 

@@ -20,7 +20,10 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
     std::cout << "------MAP LOADING------" << std::endl;
     std::cout << "Loading map: " << path << std::endl;
 
-    tson::Tileson t;
+    fs::path pathToUse = fs::path("res/tiled/Tiled_Levels.tiled-project");
+    tson::Project project{pathToUse};
+
+    tson::Tileson t{&project};
     const auto map = t.parse(path);
     if (map->getStatus() != tson::ParseStatus::OK) {
         std::ostringstream oss;
@@ -145,6 +148,8 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         result.enemyTemplates.push_back(enemy);
                     }
                     else if (obj.get<bool>("spawner")) {
+                        Spawner spawner;
+
                         const auto& props = obj.getProperties().getProperties();
                         for (const auto& [key, prop] : props) {
                             // key is a std::string
@@ -155,16 +160,35 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                                 continue;
                             }
                             PG_ASSERT(prop.getPropertyType() == "SpawnData", "in a spawner, if a property name contains enemy, it must of type SpawnData")
-                            std::cout << "Prop :" << prop.getName() << std::endl;
-                            std::cout << prop.getPropertyType() << std::endl;
+                            //std::cout << "Prop :" << prop.getName() << std::endl;
+                            //::cout << prop.getPropertyType() << std::endl;
 
                             auto value = prop.getValue<tson::TiledClass>();
-                            std::cout << std::to_string(value.get<float>("spawnProba")) << std::endl;
+                            auto proba = value.get<float>("spawnProba");
+                            auto enemyId = value.get<uint32_t>("enemyData");
 
-                            for (const auto & [k, v] : value.getMembers().getProperties()) {
-                                std::cout << k << std::endl;
-                            }
+                            SpawnData data;
+                            data.spawnProba =proba;
+                            data.enemyId = enemyId;
+
+                            spawner.spawns.push_back(data);
                         }
+
+                        spawner.roomIndex = obj.get<int>(RoomIndex);
+                        spawner.posXInSPixels = obj.getPosition().x * scaleFactor;
+                        spawner.posYInSPixels = obj.getPosition().y * scaleFactor;
+
+                        result.spawners.push_back(spawner);
+                    }
+                    else if (obj.get<bool>("room")) {
+                        PG_ASSERT(obj.has(RoomIndex), "room needs a room index")
+                        PG_ASSERT(obj.has("nbEnemy"), "room needs a number of enemies")
+
+                        RoomData room;
+                        room.roomIndex = obj.get<int>(RoomIndex);
+                        room.nbEnemy = obj.get<int>("nbEnemy");
+
+                        result.roomData.push_back(room);
                     }
                 }
                 break;
