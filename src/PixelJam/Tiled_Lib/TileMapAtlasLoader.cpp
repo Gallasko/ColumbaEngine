@@ -19,14 +19,14 @@ namespace pg {
             const int col = localId % tileset.columns;
             const int row = localId / tileset.columns;
 
-            const int pixelX = col * tileset.tileWidth;
-            const int pixelY = (row + 1) * (tileset.tileHeight) - 1;
+            const int pixelX = col * tileset.tileWidthInTPixels;
+            const int pixelY = (row + 1) * (tileset.tileHeightInTPixels) - 1;
 
             const auto name = std::to_string(id);
 
             AtlasTexture atlasTex;
-            atlasTex.setHeight(tileset.tileHeight);
-            atlasTex.setWidth(tileset.tileWidth);
+            atlasTex.setHeight(tileset.tileHeightInTPixels);
+            atlasTex.setWidth(tileset.tileWidthInTPixels);
             atlasTex.setId(id);
             atlasTex.setName(name);
             atlasTex.setMesh(pixelX, pixelY, tileset.width, tileset.height);

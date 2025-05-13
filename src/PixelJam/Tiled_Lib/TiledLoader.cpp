@@ -16,7 +16,7 @@ static const std::string TriggerRoom = "triggerRoom";
 static const std::string Event = "event";
 static const std::string RoomIndex = "roomIndex";
 
-MapData TiledLoader::loadMap(const std::string &path) {
+MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
     std::cout << "------MAP LOADING------" << std::endl;
     std::cout << "Loading map: " << path << std::endl;
 
@@ -36,8 +36,10 @@ MapData TiledLoader::loadMap(const std::string &path) {
     MapData result;
     result.width = map->getSize().x;
     result.height = map->getSize().y;
-    result.tileWidth = map->getTileSize().x;
-    result.tileHeight = map->getTileSize().y;
+    result.tileWidthInTPixels = map->getTileSize().x;
+    result.tileHeightInTPixels = map->getTileSize().y;
+    result.tileWidthInSPixels = map->getTileSize().x * scaleFactor;
+    result.tileHeightInSPixels = map->getTileSize().y * scaleFactor;
 
     for (auto& tileset : map->getTilesets()) {
         TileSet myTileSet;
@@ -51,8 +53,8 @@ MapData TiledLoader::loadMap(const std::string &path) {
 
         myTileSet.columns = tileset.getColumns();
 
-        myTileSet.tileWidth = map->getTileSize().x;
-        myTileSet.tileHeight = map->getTileSize().y;
+        myTileSet.tileWidthInTPixels = map->getTileSize().x;
+        myTileSet.tileHeightInTPixels = map->getTileSize().y;
 
 
         fs::path imagePath = tileset.getImagePath();         // relative to JSON
@@ -114,14 +116,54 @@ MapData TiledLoader::loadMap(const std::string &path) {
                             roomTrigger.roomIndex = roomIndex;
 
                             TiledRect rect;
-                            rect.topLeftCornerX = obj.getPosition().x;
-                            rect.topLeftCornerY = obj.getPosition().y;
-                            rect.width = obj.getSize().x;
-                            rect.height = obj.getSize().y;
+                            rect.topLeftCornerX = obj.getPosition().x * scaleFactor;
+                            rect.topLeftCornerY = obj.getPosition().y * scaleFactor;
+                            rect.width = obj.getSize().x * scaleFactor;
+                            rect.height = obj.getSize().y * scaleFactor;
 
-                            roomTrigger.rect = rect;
+                            roomTrigger.rectInSPixels = rect;
 
                             result.roomTriggers.push_back(roomTrigger);
+                        }
+                    }
+                    else if (obj.get<bool>("enemy")) {
+                        EnemyData enemy;
+
+                        enemy.name = obj.get<std::string>("name");
+                        enemy.aiCooldownTimer = obj.get<int>("aiCooldownTimer");
+                        enemy.attackDistance = obj.get<float>("attackDistance");
+                        enemy.chaseSpeed = obj.get<float>("chaseSpeed");
+                        enemy.cooldownTime = obj.get<int>("cooldownTime");
+                        enemy.enemyBulletDamage = obj.get<float>("enemyBulletDamage");
+                        enemy.idealDistance = obj.get<float>("idealDistance");
+                        enemy.orbitThreshold = obj.get<float>("orbitThreshold");
+                        enemy.spiralRate = obj.get<float>("spiralRate");
+                        enemy.wideUpTime = obj.get<float>("windUpTime");
+
+                        enemy.objId = obj.getId();
+
+                        result.enemyTemplates.push_back(enemy);
+                    }
+                    else if (obj.get<bool>("spawner")) {
+                        const auto& props = obj.getProperties().getProperties();
+                        for (const auto& [key, prop] : props) {
+                            // key is a std::string
+                            // prop is a tson::Property
+                            // use key and value as needed
+
+                            if (prop.getName().find("enemy") == std::string::npos) {
+                                continue;
+                            }
+                            PG_ASSERT(prop.getPropertyType() == "SpawnData", "in a spawner, if a property name contains enemy, it must of type SpawnData")
+                            std::cout << "Prop :" << prop.getName() << std::endl;
+                            std::cout << prop.getPropertyType() << std::endl;
+
+                            auto value = prop.getValue<tson::TiledClass>();
+                            std::cout << std::to_string(value.get<float>("spawnProba")) << std::endl;
+
+                            for (const auto & [k, v] : value.getMembers().getProperties()) {
+                                std::cout << k << std::endl;
+                            }
                         }
                     }
                 }

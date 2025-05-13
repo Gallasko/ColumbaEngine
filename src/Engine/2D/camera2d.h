@@ -57,22 +57,22 @@ namespace pg
             }
         }
 
-        void setNear(float near)
+        void setNear(float nearPlane)
         {
-            if (near != this->near)
+            if (nearPlane != this->nearPlane)
             {
-                this->near = near;
+                this->nearPlane = nearPlane;
 
                 if (ecsRef)
                     ecsRef->sendEvent(FollowCamera2DChangedEvent{id});
             }
         }
 
-        void setFar(float far)
+        void setFar(float farPlane)
         {
-            if (far != this->far)
+            if (farPlane != this->farPlane)
             {
-                this->far = far;
+                this->farPlane = farPlane;
 
                 if (ecsRef)
                     ecsRef->sendEvent(FollowCamera2DChangedEvent{id});
@@ -82,8 +82,8 @@ namespace pg
         float viewportWidth = 820.0f;
         float viewportHeight = 640.0f;
         
-        float near = -1.0f;
-        float far = 1.0f;
+        float nearPlane = -1.0f;
+        float farPlane = 1.0f;
 
         _unique_id id = 0;
 
@@ -134,8 +134,8 @@ namespace pg
             cam->width = followCam->viewportWidth;
             cam->height = followCam->viewportHeight;
 
-            cam->near = followCam->near;
-            cam->far = followCam->far;
+            cam->nearPlane = followCam->nearPlane;
+            cam->farPlane= followCam->farPlane;
         }
 
         virtual void onEvent(const EntityChangedEvent& e) override

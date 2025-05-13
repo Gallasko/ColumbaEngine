@@ -91,7 +91,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     int testVar = 0;
     MapData mapData;
 
-    TestSystem(const MapData& mapData) : mapData(mapData) {}
+    TestSystem(const MapData &mapData) : mapData(mapData) {
+    }
 
     virtual void init() override {
         testVar = 0;
@@ -202,10 +203,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         printf("---------- Load Level ---------\n");
 
         int z = 0;
-        int factor = 2;
 
-        size_t scaledTileWidth = factor * mapData.tileWidth;
-        size_t scaledTileHeight = factor * mapData.tileHeight;
+        size_t scaledTileWidth = mapData.tileWidthInSPixels;
+        size_t scaledTileHeight = mapData.tileHeightInSPixels;
 
         int count = 0;
 
@@ -216,7 +216,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
                 auto texComp = tex.get<Texture2DComponent>();
                 texComp->setViewport(1);
-                
+
                 auto posComp = tex.get<PositionComponent>();
                 posComp->setX(tile.x * scaledTileWidth);
                 posComp->setY(tile.y * scaledTileHeight);
@@ -394,10 +394,11 @@ void initGame() {
 
     //MapData map;
     TiledLoader loader;
-    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json");
+    int factor = 2;
+    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json", factor);
 
     for (const auto &tileset: map.roomTriggers) {
-        LOG_INFO("TILED", "Rect " << tileset.rect.width << " " << tileset.rect.height << " " << tileset.rect.topLeftCornerX << " " << tileset.rect.topLeftCornerY);
+        LOG_INFO("TILED", "Rect " << tileset.rectInSPixels.width << " " << tileset.rectInSPixels.height << " " << tileset.rectInSPixels.topLeftCornerX << " " << tileset.rectInSPixels.topLeftCornerY);
     }
 
     for (const auto &tileset: map.tilesets) {

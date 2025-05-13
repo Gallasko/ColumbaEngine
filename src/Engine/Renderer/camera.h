@@ -32,8 +32,8 @@ namespace pg
 
         float width = 0.0f;
         float height = 0.0f;
-        float near = -1.0f;
-        float far = 1.0f;
+        float nearPlane = -1.0f;
+        float farPlane = 1.0f;
 
         float x = 0.0f;
         float y = 0.0f;
