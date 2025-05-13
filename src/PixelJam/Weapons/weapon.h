@@ -15,7 +15,7 @@ namespace pg
 
     struct Weapon
     {
-        std::string name;
+        std::string name = "Unknown";
 
         float damage = 1.0f;
 
@@ -24,7 +24,7 @@ namespace pg
 
         float projectileSize = 10.0f;
 
-        BulletPattern pattern;
+        BulletPattern pattern = BulletPattern::AtPlayer;
 
         size_t bulletCount = 1;
         float bulletSpreadAngle = 0.0f;

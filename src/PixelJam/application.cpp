@@ -127,7 +127,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                     collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
 
                     ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
-                    ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
+                    ecsRef->attach<CollectibleFlag>(collectibleEnt.entity, weapon->weapon);
                 }
 
                 ecsRef->removeEntity(enemy->entityId);

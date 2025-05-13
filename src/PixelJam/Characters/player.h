@@ -11,6 +11,8 @@
 
 #include "Systems/basicsystems.h"
 
+#include "Weapons/weapon.h"
+
 #include "../config.h"
 
 namespace pg
@@ -65,7 +67,24 @@ namespace pg
         _unique_id entityId;
     };
 
-    struct CollectibleFlag {};
+    enum class CollectibleType { Gold, Weapon };
+    struct CollectibleFlag
+    {
+        CollectibleFlag() : type(CollectibleType::Gold) {}
+        CollectibleFlag(Weapon weapon) : type(CollectibleType::Weapon), weapon(weapon) {}
+        CollectibleFlag(const CollectibleFlag& rhs) : type(rhs.type), weapon(rhs.weapon) {}
+
+        CollectibleFlag& operator=(const CollectibleFlag& rhs)
+        {
+            type = rhs.type;
+            weapon = rhs.weapon;
+
+            return *this;
+        }
+
+        CollectibleType type;
+        Weapon weapon;
+    };
 
     struct PlayerMoveUp {};
     struct PlayerMoveDown {};
@@ -89,6 +108,10 @@ namespace pg
             std::vector<size_t> collidableLayer = {0, 3, 5};
 
             ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
+
+            Weapon baseWeapon;
+
+            ecsRef->attach<WeaponComponent>(playerEnt.entity, baseWeapon);
 
             player = playerEnt.entity;
 
@@ -123,17 +146,26 @@ namespace pg
             if (event.button == SDL_BUTTON_LEFT)
             {
                 auto pos = player->get<PositionComponent>();
+                auto weaponEnt = player->get<WeaponComponent>();
 
-                auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, 10.f, 10.f, {125.f, 125.f, 0.f, 255.f});
-                bullet.get<PositionComponent>()->setX(pos->x + 25.f);
-                bullet.get<PositionComponent>()->setY(pos->y + 25.f);
-                bullet.get<PositionComponent>()->setZ(50);
+                if (not pos or not weaponEnt)
+                    return;
 
-                std::vector<size_t> collidableLayer = {0, 4};
+                const auto& weapon = weaponEnt->weapon;
 
-                ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
-                ecsRef->attach<AllyBulletFlag>(bullet.entity);
-                ecsRef->attach<MoveToComponent>(bullet.entity, constant::Vector2D{event.pos.x, event.pos.y}, 500.f, 1000.0f);
+                for (const auto& dir : weapon.fireDirections({event.pos.x - pos->x, event.pos.y - pos->y}))
+                {
+                    auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
+                    bullet.get<PositionComponent>()->setX(pos->x + 25.f);
+                    bullet.get<PositionComponent>()->setY(pos->y + 25.f);
+                    bullet.get<PositionComponent>()->setZ(50);
+
+                    std::vector<size_t> collidableLayer = {0, 4};
+
+                    ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
+                    ecsRef->attach<AllyBulletFlag>(bullet.entity);
+                    ecsRef->attach<MoveDirComponent>(bullet.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
+                }
             }
         }
 
@@ -160,10 +192,13 @@ namespace pg
                     bottomTimer->start();
                 break;
 
+            case GameKeyConfig::Interact:
+                tryCollect();
+                break;
+
             default:
                 break;
             }
-
         }
 
         virtual void onEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
@@ -188,6 +223,70 @@ namespace pg
             default:
                 break;
             }
+        }
+
+        void tryCollect()
+        {
+            constexpr float collectRadius = 40.f;
+            constexpr float collectRadius2 = collectRadius * collectRadius;
+
+            // get player pos
+            auto pos = player->get<PositionComponent>();
+            constant::Vector2D playerCenter{ pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f };
+
+            // search all collectibles
+
+            bool found = false;
+            CollectibleFlag *collectible = nullptr;
+            _unique_id cId;
+
+            float minDist = std::numeric_limits<float>::max();
+
+            // Find nearest collectible
+            for (const auto& obj : viewGroup<CollectibleFlag, PositionComponent>())
+            {
+                auto cf = obj->get<CollectibleFlag>();
+                auto cpos = obj->get<PositionComponent>();
+
+                constant::Vector2D colCenter{ cpos->x + 0.5f * 25.f, cpos->y + 0.5f * 25.f };
+
+                float dx = colCenter.x - playerCenter.x;
+                float dy = colCenter.y - playerCenter.y;
+
+                float dist2 = dx*dx + dy*dy;
+
+                if (dist2 <= collectRadius2)
+                {
+                    if (dist2 < minDist)
+                    {
+                        minDist = dist2;
+                        collectible = cf;
+                        found = true;
+                        cId = obj->entity.id;
+                    }
+                }
+            }
+
+            if (found)
+            {
+                // it's in range!
+                switch (collectible->type)
+                {
+                    case CollectibleType::Gold:
+                        LOG_ERROR("Player System", "Todo !");
+                        break;
+                    case CollectibleType::Weapon:
+                    // // give the weapon to player
+                    // if (player->has<WeaponComponent>()) {
+                    //     // swap or store old in inventory…
+                    // }
+                        ecsRef->attach<WeaponComponent>(player.entity, collectible->weapon);
+                    break;
+                }
+
+                ecsRef->removeEntity(cId);  // remove collectible
+            }
+
         }
 
         virtual void onEvent(const PlayerMoveUp&) override
