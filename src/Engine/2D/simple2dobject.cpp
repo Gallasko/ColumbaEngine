@@ -232,6 +232,8 @@ namespace pg
 
         call.setMaterial(materialId);
 
+        call.setViewport(obj->viewport);
+
         call.data.resize(10);
 
         call.data[0] = ui->x;

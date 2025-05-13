@@ -13,6 +13,8 @@
 
 #include "Weapons/weapon.h"
 
+#include "2D/camera2d.h"
+
 #include "../config.h"
 
 namespace pg
@@ -91,6 +93,8 @@ namespace pg
     struct PlayerMoveLeft {};
     struct PlayerMoveRight {};
 
+    // Todo bug bullet can stay stuck in a wall if fired from within the wall
+
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>>
     {
@@ -100,10 +104,13 @@ namespace pg
         {
             auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
+            playerEnt.get<Simple2DObject>()->setViewport(1);
+
             playerEnt.get<PositionComponent>()->setZ(10);
 
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
+            ecsRef->attach<FollowCamera2D>(playerEnt.entity);
 
             std::vector<size_t> collidableLayer = {0, 3, 5};
 

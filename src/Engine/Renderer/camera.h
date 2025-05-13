@@ -15,6 +15,31 @@
 
 namespace pg
 {
+    struct AbstractCamera
+    {
+        virtual glm::mat4 getProjectionMatrix() = 0;
+        virtual glm::mat4 getViewMatrix() = 0;
+
+        virtual ~AbstractCamera() {}
+    };
+
+    struct BaseCamera2D : public AbstractCamera
+    {
+        virtual glm::mat4 getProjectionMatrix() override;
+        virtual glm::mat4 getViewMatrix() override;
+
+        virtual ~BaseCamera2D() {}
+
+        float width = 0.0f;
+        float height = 0.0f;
+        float near = -1.0f;
+        float far = 1.0f;
+
+        float x = 0.0f;
+        float y = 0.0f;
+    };
+
+
     class Camera
     {
     public:

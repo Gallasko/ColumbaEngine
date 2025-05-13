@@ -81,6 +81,19 @@ namespace pg
             }
         }
 
+        void setViewport(size_t viewport)
+        {
+            if (this->viewport != viewport)
+            {
+                this->viewport = viewport;
+
+                if (ecsRef)
+                {
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
+            }
+        }
+
         // Todo make those private
         std::string textureName;
 
@@ -92,6 +105,8 @@ namespace pg
 
         constant::Vector3D overlappingColor = {0.0f, 0.0f, 0.0f};
         float overlappingColorRatio = 0.0f;
+
+        size_t viewport = 0;
     };
 
     template <>

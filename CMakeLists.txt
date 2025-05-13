@@ -121,6 +121,7 @@ set(ENGINESOURCE
     src/Engine/configuration.cpp
     src/Engine/logger.cpp
     src/Engine/serialization.cpp
+    src/Engine/2D/camera2d.cpp
     src/Engine/2D/collisionsystem.cpp
     src/Engine/2D/position.cpp
     src/Engine/2D/simple2dobject.cpp

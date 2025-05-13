@@ -172,6 +172,11 @@ namespace pg
             return;
         }
 
+        if (newCameraRegistered)
+        {
+            return;
+        }
+
         if (materialRegisterQueue.size() > 0)
         {
             materialListTemp.clear();
@@ -196,6 +201,11 @@ namespace pg
             materialRegisterQueue.clear();
 
             return;
+        }
+
+        if (cameraRegisterQueue.size() > 0)
+        {
+            processCameraRegister();
         }
 
         // If the skip flag is set we unset it and we pass the current render update
@@ -354,6 +364,11 @@ namespace pg
 
             newMaterialRegistered = false;
         }
+
+        if (newCameraRegistered)
+        {
+            newCameraRegistered = false;
+        }
     }
 
     void MasterRenderer::registerShader(const std::string& name, OpenGLShaderProgram *shaderProgram)
@@ -475,8 +490,6 @@ namespace pg
         }
 
         registerTexture(name, texturePath);
-
-
     }
 
     void MasterRenderer::setState(const OpenGLState& state)
@@ -561,6 +574,33 @@ namespace pg
             return;
         }
 
+        // Todo only grab the camera when the viewport changes from last time
+        glm::mat4 projection = glm::mat4(1.0f);
+        glm::mat4 view = glm::mat4(1.0f);
+
+        auto viewport = call.getViewport();
+
+        if (viewport == 0)
+        {
+            view = camera.getViewMatrix();
+        }
+        else
+        {
+            int cameraIndex = viewport - 1;
+
+            if (cameraIndex < 0 or static_cast<size_t>(cameraIndex) >= cameraList.size())
+            {
+                LOG_ERROR(DOM, "Unknown viewport: " << viewport);
+            }
+            else
+            {
+                view = cameraList[cameraIndex]->getViewMatrix();
+                
+                // Todo fix this
+                // projection = cameraList[cameraIndex]->getProjectionMatrix();
+            }            
+        }
+
         shaderProgram->bind();
 
         if (call.state != currentState)
@@ -579,9 +619,6 @@ namespace pg
         const int screenWidth = rTable["ScreenWidth"].get<int>();
         const int screenHeight = rTable["ScreenHeight"].get<int>();
 
-        glm::mat4 projection = glm::mat4(1.0f);
-        // glm::mat4 view = glm::mat4(1.0f);
-        glm::mat4 view = camera.getViewMatrix();
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 scale = glm::mat4(1.0f);
 

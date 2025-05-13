@@ -16,6 +16,7 @@
 
 #include "2D/position.h"
 #include "2D/collisionsystem.h"
+#include "2D/camera2d.h"
 
 #include "UI/sizer.h"
 #include "UI/prefab.h"
@@ -125,6 +126,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                     collectibleEnt.get<PositionComponent>()->setX(pos->x + pos->width / 2.f - 12.5f);
                     collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
+                    collectibleEnt.get<PositionComponent>()->setZ(10.f);
 
                     ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
                     ecsRef->attach<CollectibleFlag>(collectibleEnt.entity, weapon->weapon);
@@ -139,7 +141,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         const float repulsionStrength = 2.f;
 
         // Enemy ↔ Wall: push enemy out of the wall
-        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall) {
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall){
             // get both entities’ positions
             auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
             auto enemyEnt = enemy->ecsRef->getEntity(enemy->entityId);
@@ -199,33 +201,37 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         printf("---------- Load Level ---------\n");
 
-        // int z = 0;
-        // int factor = 2;
+        int z = 0;
+        int factor = 2;
 
-        // size_t scaledTileWidth = factor * mapData.tileWidth;
-        // size_t scaledTileHeight = factor * mapData.tileHeight;
+        size_t scaledTileWidth = factor * mapData.tileWidth;
+        size_t scaledTileHeight = factor * mapData.tileHeight;
 
-        // int count = 0;
+        int count = 0;
 
-        // for (const auto &layer: mapData.layers) {
+        for (const auto &layer: mapData.layers)
+        {
+            for (const auto &tile : layer.tiles)
+            {
+                auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
+                auto texComp = tex.get<Texture2DComponent>();
+                texComp->setViewport(1);
+                
+                auto posComp = tex.get<PositionComponent>();
+                posComp->setX(tile.x * scaledTileWidth);
+                posComp->setY(tile.y * scaledTileHeight);
+                posComp->setZ(z);
 
-        //     for (const auto &tile : layer.tiles) {
-        //         auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
-        //         auto posComp = tex.get<PositionComponent>();
-        //         posComp->setX(tile.x * scaledTileWidth);
-        //         posComp->setY(tile.y * scaledTileHeight);
-        //         posComp->setZ(z);
+                if (tile.isWall)
+                {
+                    LOG_INFO("TILED", std::to_string(count++));
+                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
+                    ecsRef->attach<WallFlag>(tex.entity);
+                }
+            }
 
-        //         if (tile.isWall) {
-        //             LOG_INFO("TILED", std::to_string(count++));
-        //             ecsRef->attach<CollisionComponent>(tex.entity, 0);
-        //             ecsRef->attach<WallFlag>(tex.entity);
-        //         }
-        //     }
-
-        //     z++;
-        // }
-
+            z++;
+        }
 
         printf("Loaded Map\n");
     }
@@ -326,21 +332,7 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
-    //MapData map;
-     TiledLoader loader;
-     const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json");
-
-     for (const auto &tileset: map.roomTriggers) {
-        LOG_INFO("TILED", "Rect " << tileset.rect.width << " " << tileset.rect.height << " " << tileset.rect.topLeftCornerX << " " << tileset.rect.topLeftCornerY);
-   }
-
-    // for (const auto &tileset: map.tilesets) {
-    //     LOG_INFO("TILED", "B" << tileset.imagePath);
-
-    //     mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "",
-    //                                                      std::make_unique<TileMapAtlasLoader>(tileset));
-    // }
-
+    mainWindow->ecs.createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
 
     mainWindow->ecs.createSystem<FlagSystem>();
 
@@ -359,8 +351,6 @@ void initGame() {
     mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
 
     mainWindow->ecs.createSystem<PlayerSystem>();
-
-    mainWindow->ecs.createSystem<TestSystem>(map);
 
     mainWindow->ecs.createSystem<EnemyAISystem>();
     mainWindow->ecs.createSystem<EnemySpawnSystem>();
@@ -399,6 +389,22 @@ void initGame() {
     mainWindow->ecs.dumbTaskflow();
 
     // mainWindow->interpreter->interpretFromFile("main.pg");
+
+    //MapData map;
+    TiledLoader loader;
+    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json");
+
+    for (const auto &tileset: map.roomTriggers) {
+        LOG_INFO("TILED", "Rect " << tileset.rect.width << " " << tileset.rect.height << " " << tileset.rect.topLeftCornerX << " " << tileset.rect.topLeftCornerY);
+    }
+
+    for (const auto &tileset: map.tilesets) {
+        LOG_INFO("TILED", "B" << tileset.imagePath);
+
+        mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "", std::make_unique<TileMapAtlasLoader>(tileset));
+    }
+
+    mainWindow->ecs.createSystem<TestSystem>(map);
 
     mainWindow->ecs.start();
 

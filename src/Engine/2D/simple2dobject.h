@@ -52,6 +52,19 @@ namespace pg
             }
         }
 
+        void setViewport(size_t viewport)
+        {
+            if (this->viewport != viewport)
+            {
+                this->viewport = viewport;
+
+                if (ecsRef)
+                {
+                    ecsRef->sendEvent(EntityChangedEvent{id});
+                }
+            }
+        }
+
         Shape2D shape;
 
         // Todo be specific for each shape (rect = [width, height], circle = [origin, radius], triangle = [base, height] + rotation arg)
@@ -59,6 +72,8 @@ namespace pg
 
         // Todo make the colors normalized (0.0f <-> 1.0f) to not do the division in the shader
         constant::Vector4D colors {255.0f, 255.0f, 255.0f, 255.0f};
+
+        size_t viewport = 0;
 
         _unique_id id;
 
