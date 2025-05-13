@@ -293,11 +293,11 @@ namespace pg
 
                 move->distanceTraveled += std::sqrt(dx * dx + dy * dy);
 
-                bool shouldDestroy = move->maxDistance > 0.0f && move->distanceTraveled >= move->maxDistance;
+                bool shouldDestroy = move->maxDistance > 0.0f and move->distanceTraveled >= move->maxDistance;
 
                 if (shouldDestroy)
                 {
-                    if (move->callback && !move->callbackCalled)
+                    if (move->callback and not move->callbackCalled)
                     {
                         move->callbackCalled = true;
                         move->callback->call(ecsRef);

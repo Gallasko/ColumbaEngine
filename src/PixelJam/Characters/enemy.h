@@ -63,7 +63,7 @@ namespace pg {
     };
 
     // Holds current AI state
-    enum class AIState { Patrol, Chase, Attack, Cooldown };
+    enum class AIState { Patrol, Chase, ShotWideUp, Attack, Cooldown };
     struct AIStateComponent
     {
         AIStateComponent() : state(AIState::Patrol) {}
@@ -86,7 +86,7 @@ namespace pg {
     };
 
     // Defines a bullet pattern to use
-    enum class BulletPattern { Radial, Spiral, Cone };
+    enum class BulletPattern { Radial, AtPlayer, Cone };
     struct PatternComponent
     {
         PatternComponent(BulletPattern pattern) : pattern(pattern) {}
@@ -133,7 +133,7 @@ namespace pg {
             // create 5 enemies in random positions
             for (int i = 0; i < 5; ++i)
             {
-                auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255,0,0,255});
+                auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
                 ent.get<PositionComponent>()->setZ(5);
                 ecsRef->attach<EnemyFlag>(ent.entity, 5.f);
 
@@ -188,6 +188,9 @@ namespace pg {
                         break;
                     case AIState::Chase:
                         chaseAndOrbit(pos, ai, deltaTime);
+                        break;
+                    case AIState::ShotWideUp:
+                        wideUp(pos, ai, deltaTime);
                         break;
                     case AIState::Attack:
                         shootPattern(enemy, pos, pat);
@@ -247,22 +250,43 @@ namespace pg {
             auto checkDist = std::max(attackDistance, idealDistance);
 
             // Switch to attack if within range
-            // Todo replace 65 by the actual size of the enemy (+ a small margin)
-            if (dist + 65 <= checkDist and ai->elapsedTime > cooldownTime)
-                ai->state = AIState::Attack;
+            // Todo replace 45 by the actual size of the enemy (+ a small margin)
+            if (dist - 45 <= checkDist and ai->elapsedTime > cooldownTime)
+            {
+                ai->elapsedTime = 0.0f;
+                ai->state = AIState::ShotWideUp;
+            }
         }
 
-        void moveTowardPlayer(PositionComponent* pos, AIStateComponent* ai)
+        void wideUp(PositionComponent* pos, AIStateComponent* ai, float dt)
         {
-            auto playerPos = findPlayerPosition();
-            auto dir = (playerPos - constant::Vector2D{pos->x, pos->y}).normalized();
+            ai->elapsedTime += dt;
 
-            pos->setX(pos->x + dir.x * chaseSpeed);
-            pos->setY(pos->y + dir.y * chaseSpeed);
+            if (ai->elapsedTime > 150.0f and ai->elapsedTime < 300.0f)
+            {
+                auto shape = ecsRef->getComponent<Simple2DObject>(pos->id);
 
-            // once close enough
-            if ((playerPos - constant::Vector2D{pos->x, pos->y}).length() < attackDistance)
+                if (shape)
+                {
+                    shape->setColors({255, 255, 0, 255});
+                }
+            }
+
+            if (ai->elapsedTime > 300.0f)
+            {
+                auto shape = ecsRef->getComponent<Simple2DObject>(pos->id);
+
+                if (shape)
+                {
+                    shape->setColors({255, 0, 0, 255});
+                }
+            }
+
+            if (ai->elapsedTime > wideUpTime)
+            {
+                ai->elapsedTime = 0.0f;
                 ai->state = AIState::Attack;
+            }
         }
 
         void shootPattern(EnemyFlag* enemy, PositionComponent* pos, PatternComponent* pat)
@@ -272,8 +296,8 @@ namespace pg {
                 case BulletPattern::Radial:
                     fireRadial(pos, 8, 200.f);
                     break;
-                case BulletPattern::Spiral:
-                    fireSpiral(pos, pat, 300.f);
+                case BulletPattern::AtPlayer:
+                    fireAtPlayer(pos, pat, 300.f);
                     break;
                 case BulletPattern::Cone:
                     fireCone(pos, 5, 45.f, 250.f);
@@ -315,11 +339,13 @@ namespace pg {
             }
         }
 
-        void fireSpiral(PositionComponent* pos, PatternComponent* pat, float speed)
+        void fireAtPlayer(PositionComponent* pos, PatternComponent*, float speed)
         {
-            pat->angle += spiralRate;
+            auto playerPos = findPlayerPosition();
 
-            spawnEnemyBullet(pos, pat->angle, speed);
+            float base = atan2(playerPos.y - pos->y, playerPos.x - pos->x);
+
+            spawnEnemyBullet(pos, base, speed);
         }
 
         void fireCone(PositionComponent* pos, int count, float spreadDeg, float speed)
@@ -346,7 +372,7 @@ namespace pg {
             std::vector<size_t> collidableLayer = {0, 1};
             ecsRef->attach<CollisionComponent>(b.entity, 5, 1., collidableLayer);
 
-            ecsRef->attach<MoveDirComponent>(b.entity, constant::Vector2D{cos(angle), sin(angle)}, speed);
+            ecsRef->attach<MoveDirComponent>(b.entity, constant::Vector2D{cos(angle), sin(angle)}, speed, 1500.f, true);
             ecsRef->attach<EnemyBulletFlag>(b.entity, enemyBulletDamage);
         }
 
@@ -356,6 +382,7 @@ namespace pg {
         float orbitThreshold = 20.f;      // px
         float attackDistance = 200.f;
         int cooldownTime = 1000; // ms
+        int wideUpTime = 500;
         long aiCooldownTimer = 0;
         float spiralRate = 0.1f;
         float enemyBulletDamage = 1.f;
