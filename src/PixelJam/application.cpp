@@ -23,6 +23,7 @@
 #include "config.h"
 
 #include "Characters/player.h"
+#include "Characters/enemy.h"
 
 #include "Tiled_Lib/TiledLoader.h"
 #include "Tiled_Lib/TileMapAtlasLoader.h"
@@ -123,32 +124,32 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         printf("---------- Load Level ---------\n");
 
-        int z = 0;
-        int factor = 3;
+        // int z = 0;
+        // int factor = 3;
 
-        size_t scaledTileWidth = factor * mapData.tileWidth;
-        size_t scaledTileHeight = factor * mapData.tileHeight;
+        // size_t scaledTileWidth = factor * mapData.tileWidth;
+        // size_t scaledTileHeight = factor * mapData.tileHeight;
 
-        int count = 0;
+        // int count = 0;
 
-        for (const auto &layer: mapData.layers) {
+        // for (const auto &layer: mapData.layers) {
 
-            for (const auto &tile : layer.tiles) {
-                auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
-                auto posComp = tex.get<PositionComponent>();
-                posComp->setX(tile.x * scaledTileWidth);
-                posComp->setY(tile.y * scaledTileHeight);
-                posComp->setZ(z);
+        //     for (const auto &tile : layer.tiles) {
+        //         auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
+        //         auto posComp = tex.get<PositionComponent>();
+        //         posComp->setX(tile.x * scaledTileWidth);
+        //         posComp->setY(tile.y * scaledTileHeight);
+        //         posComp->setZ(z);
 
-                if (tile.isWall) {
-                    LOG_INFO("TILED", std::to_string(count++));
-                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
-                    ecsRef->attach<WallFlag>(tex.entity);
-                }
-            }
+        //         if (tile.isWall) {
+        //             LOG_INFO("TILED", std::to_string(count++));
+        //             ecsRef->attach<CollisionComponent>(tex.entity, 0);
+        //             ecsRef->attach<WallFlag>(tex.entity);
+        //         }
+        //     }
 
-            z++;
-        }
+        //     z++;
+        // }
 
 
         printf("Loaded Map\n");
@@ -196,12 +197,15 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         } else if (event.key == SDL_SCANCODE_3) {
             LOG_INFO(DOM, "TestSystem: 3 pressed");
             testVar = 2;
+        } else if (event.key == SDL_SCANCODE_4) {
+            LOG_INFO(DOM, "TestSystem: 4 pressed");
+            ecsRef->sendEvent(StartSpawnWaveEvent{});
         }
     }
 };
 
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<
-            CollectibleFlag>, Own<EnemyFlag> > {
+            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag>> {
 };
 
 std::thread *initThread;
@@ -247,15 +251,16 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
-    TiledLoader loader;
-    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_DEV_0001.json");
+    MapData map;
+    // TiledLoader loader;
+    // const MapData map = loader.loadMap("res/tiled/LEVELS/Level_DEV_0001.json");
 
-    for (const auto &tileset: map.tilesets) {
-        LOG_INFO("TILED", "B" << tileset.imagePath);
+    // for (const auto &tileset: map.tilesets) {
+    //     LOG_INFO("TILED", "B" << tileset.imagePath);
 
-        mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "",
-                                                         std::make_unique<TileMapAtlasLoader>(tileset));
-    }
+    //     mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "",
+    //                                                      std::make_unique<TileMapAtlasLoader>(tileset));
+    // }
 
 
     mainWindow->ecs.createSystem<FlagSystem>();
@@ -263,6 +268,8 @@ void initGame() {
     mainWindow->ecs.createSystem<FpsSystem>();
 
     mainWindow->ecs.createSystem<MoveToSystem>();
+
+    mainWindow->ecs.createSystem<MoveDirSystem>();
 
     mainWindow->ecs.createSystem<ConfiguredKeySystem<GameKeyConfig> >(scancodeMap);
 
@@ -275,6 +282,9 @@ void initGame() {
     mainWindow->ecs.createSystem<PlayerSystem>();
 
     mainWindow->ecs.createSystem<TestSystem>(map);
+
+    mainWindow->ecs.createSystem<EnemyAISystem>();
+    mainWindow->ecs.createSystem<EnemySpawnSystem>();
 
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();

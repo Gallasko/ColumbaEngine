@@ -44,31 +44,6 @@ namespace pg
     };
 
     struct CollectibleFlag {};
-    struct EnemyFlag : public Ctor
-    {
-        EnemyFlag(float health = 3) : health(health) {}
-        EnemyFlag(const EnemyFlag& rhs) : health(rhs.health), ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
-
-        EnemyFlag& operator=(const EnemyFlag& rhs)
-        {
-            health = rhs.health;
-            ecsRef = rhs.ecsRef;
-            entityId = rhs.entityId;
-
-            return *this;
-        }
-
-        virtual void onCreation(EntityRef entity)
-        {
-            ecsRef = entity->world();
-            entityId = entity->id;
-        }
-
-        float health = 3;
-
-        EntitySystem* ecsRef;
-        _unique_id entityId;
-    };
 
     struct PlayerMoveUp {};
     struct PlayerMoveDown {};
@@ -155,11 +130,11 @@ namespace pg
                     rightTimer->start();
                 break;
             case GameKeyConfig::MoveUp:
-                if (not upTimer->running)    
+                if (not upTimer->running)
                     upTimer->start();
                 break;
             case GameKeyConfig::MoveDown:
-                if (not bottomTimer->running)    
+                if (not bottomTimer->running)
                     bottomTimer->start();
                 break;
 
