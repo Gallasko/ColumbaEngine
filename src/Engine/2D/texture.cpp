@@ -178,6 +178,8 @@ namespace pg
 
         call.setRenderStage(renderStage);
 
+        call.setViewport(obj->viewport);
+
         auto textureName = split(obj->textureName, '.');
 
         // No '.' detected in the texture name so it is not an atlas texture, proceed to generate a simple texture
