@@ -1,11 +1,17 @@
 #pragma once
 
 #include "ECS/system.h"
+
 #include "2D/simple2dobject.h"
 #include "2D/collisionsystem.h"
+
 #include "Input/inputcomponent.h"
+
 #include "Systems/coresystems.h"
 #include "Systems/basicsystems.h"
+
+#include "Weapons/weapon.h"
+
 #include "../config.h"
 
 namespace pg {
@@ -85,24 +91,6 @@ namespace pg {
         float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;
     };
 
-    // Defines a bullet pattern to use
-    enum class BulletPattern { Radial, AtPlayer, Cone };
-    struct PatternComponent
-    {
-        PatternComponent(BulletPattern pattern) : pattern(pattern) {}
-        PatternComponent(const PatternComponent& rhs) : pattern(rhs.pattern) {}
-
-        PatternComponent& operator=(const PatternComponent& rhs)
-        {
-            pattern = rhs.pattern;
-            return *this;
-        }
-
-        BulletPattern pattern;
-
-        float angle = 0.0f;
-    };
-
     struct StartSpawnWaveEvent {};
     struct SpawnWaveEvent {};
 
@@ -141,7 +129,14 @@ namespace pg {
 
                 ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
                 ecsRef->attach<AIStateComponent>(ent.entity);
-                ecsRef->attach<PatternComponent>(ent.entity, static_cast<BulletPattern>(rand() % 3));
+
+                Weapon weapon;
+
+                weapon.pattern = static_cast<BulletPattern>(rand() % 3);
+                weapon.bulletCount = 6;
+                weapon.bulletSpreadAngle = 50.0f;
+
+                ecsRef->attach<WeaponComponent>(ent.entity, weapon);
 
                 // random start offset
                 auto pos = ent.get<PositionComponent>();
@@ -155,13 +150,13 @@ namespace pg {
     };
 
     // System responsible for enemy AI and shooting
-    struct EnemyAISystem : public System<Own<PatternComponent>, Own<AIStateComponent>, InitSys, Listener<TickEvent>>
+    struct EnemyAISystem : public System<Ref<WeaponComponent>, Own<AIStateComponent>, InitSys, Listener<TickEvent>>
     {
         virtual std::string getSystemName() const override { return "EnemyAISystem"; }
 
         void init() override
         {
-            registerGroup<EnemyFlag, AIStateComponent, PositionComponent, PatternComponent>();
+            registerGroup<EnemyFlag, AIStateComponent, PositionComponent, WeaponComponent>();
         }
 
         virtual void onEvent(const TickEvent& event) override
@@ -174,12 +169,12 @@ namespace pg {
             if (deltaTime == 0.f)
                 return;
 
-            for (const auto& group : viewGroup<EnemyFlag, AIStateComponent, PositionComponent, PatternComponent>())
+            for (const auto& group : viewGroup<EnemyFlag, AIStateComponent, PositionComponent, WeaponComponent>())
             {
                 auto enemy = group->get<EnemyFlag>();
                 auto ai = group->get<AIStateComponent>();
                 auto pos = group->get<PositionComponent>();
-                auto pat = group->get<PatternComponent>();
+                auto pat = group->get<WeaponComponent>();
 
                 switch (ai->state)
                 {
@@ -205,7 +200,7 @@ namespace pg {
             deltaTime = 0.f;
         }
 
-        void chasePlayer(PositionComponent* pos, AIStateComponent* ai) {
+        void chasePlayer(PositionComponent*, AIStateComponent* ai) {
             // immediately go to chase
             ai->state = AIState::Chase;
         }
@@ -289,29 +284,6 @@ namespace pg {
             }
         }
 
-        void shootPattern(EnemyFlag* enemy, PositionComponent* pos, PatternComponent* pat)
-        {
-            switch (pat->pattern)
-            {
-                case BulletPattern::Radial:
-                    fireRadial(pos, 8, 200.f);
-                    break;
-                case BulletPattern::AtPlayer:
-                    fireAtPlayer(pos, pat, 300.f);
-                    break;
-                case BulletPattern::Cone:
-                    fireCone(pos, 5, 45.f, 250.f);
-                    break;
-            }
-        }
-
-        void cooldownBehavior(AIStateComponent* ai)
-        {
-            ai->elapsedTime = 0.0f;
-
-            ai->state = AIState::Patrol;
-        }
-
         constant::Vector2D findPlayerPosition()
         {
             // Assume single player
@@ -327,42 +299,32 @@ namespace pg {
             return p;
         }
 
-        // ------- Bullet pattern helpers -------
-        void fireRadial(PositionComponent* pos, int count, float speed)
-        {
-            for (int i = 0; i < count; ++i)
-            {
-                float angle = i * 2 * M_PI / count;
-                spawnEnemyBullet(pos, angle, speed);
-            }
-        }
-
-        void fireAtPlayer(PositionComponent* pos, PatternComponent*, float speed)
+        void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp)
         {
             auto playerPos = findPlayerPosition();
 
-            float base = atan2(playerPos.y - pos->y, playerPos.x - pos->x);
+            constant::Vector2D toPlayer{ playerPos.x - pos->x, playerPos.y - pos->y };
 
-            spawnEnemyBullet(pos, base, speed);
-        }
+            const auto& weapon = weaponComp->weapon;
 
-        void fireCone(PositionComponent* pos, int count, float spreadDeg, float speed)
-        {
-            auto playerPos = findPlayerPosition();
+            auto fireDir = weapon.fireDirections(toPlayer);
 
-            float base = atan2(playerPos.y - pos->y, playerPos.x - pos->x);
-            float half = spreadDeg * M_PI/180.f / 2;
-
-            for (int i = 0; i < count; ++i)
+            for (auto& dir : fireDir)
             {
-                float a = base - half + (2 * half * i / (count - 1));
-                spawnEnemyBullet(pos, a, speed);
+                spawnEnemyBullet(pos, dir, weapon);
             }
         }
 
-        void spawnEnemyBullet(PositionComponent* pos, float angle, float speed)
+        void cooldownBehavior(AIStateComponent* ai)
         {
-            auto b = makeSimple2DShape(ecsRef, Shape2D::Square, 8.f, 8.f, {255, 255, 0, 255});
+            ai->elapsedTime = 0.0f;
+
+            ai->state = AIState::Patrol;
+        }
+
+        void spawnEnemyBullet(PositionComponent* pos, constant::Vector2D dir, const Weapon& weapon)
+        {
+            auto b = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {255, 255, 0, 255});
             auto p = b.get<PositionComponent>();
             p->setX(pos->x + 20.f);
             p->setY(pos->y + 20.f);
@@ -370,8 +332,8 @@ namespace pg {
             std::vector<size_t> collidableLayer = {0, 1};
             ecsRef->attach<CollisionComponent>(b.entity, 5, 1., collidableLayer);
 
-            ecsRef->attach<MoveDirComponent>(b.entity, constant::Vector2D{cos(angle), sin(angle)}, speed, 1500.f, true);
-            ecsRef->attach<EnemyBulletFlag>(b.entity, enemyBulletDamage);
+            ecsRef->attach<MoveDirComponent>(b.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
+            ecsRef->attach<EnemyBulletFlag>(b.entity, weapon.damage);
         }
 
         // Configurable parameters
@@ -381,9 +343,6 @@ namespace pg {
         float attackDistance = 200.f;
         int cooldownTime = 1000; // ms
         int wideUpTime = 500;
-        long aiCooldownTimer = 0;
-        float spiralRate = 0.1f;
-        float enemyBulletDamage = 1.f;
 
         float deltaTime = 0.f;
     };
