@@ -147,7 +147,7 @@ namespace pg
         auto group = registerGroup<PositionComponent, Simple2DObject>();
 
         group->addOnGroup([this](EntityRef entity) {
-            LOG_INFO("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
+            LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
 
             shapeUpdateQueue.push(entity->id);
 
@@ -155,7 +155,7 @@ namespace pg
         });
 
         group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_INFO("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
+            LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
 
             auto entity = ecsRef->getEntity(id);
 
