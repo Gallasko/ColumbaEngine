@@ -200,7 +200,7 @@ namespace pg {
             deltaTime = 0.f;
         }
 
-        void chasePlayer(PositionComponent* pos, AIStateComponent* ai) {
+        void chasePlayer(PositionComponent*, AIStateComponent* ai) {
             // immediately go to chase
             ai->state = AIState::Chase;
         }
@@ -299,7 +299,7 @@ namespace pg {
             return p;
         }
 
-        void shootPattern(EnemyFlag* enemy, PositionComponent* pos, WeaponComponent* weaponComp)
+        void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp)
         {
             auto playerPos = findPlayerPosition();
 

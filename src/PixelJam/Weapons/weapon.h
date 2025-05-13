@@ -65,7 +65,7 @@ namespace pg
                     float base = atan2(aimDir.y, aimDir.x);
                     float half = bulletSpreadAngle * M_PI/180.f / 2;
 
-                    for (int i = 0; i < bulletCount; ++i)
+                    for (size_t i = 0; i < bulletCount; ++i)
                     {
                         float a = base - half + (2 * half * i / (bulletCount - 1));
 

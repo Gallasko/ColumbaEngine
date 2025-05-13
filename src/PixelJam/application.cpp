@@ -80,9 +80,9 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
 
     virtual void init() override {
         // Navigation tabs
-        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        // auto windowEnt = ecsRef->getEntity("__MainWindow");
 
-        auto windowAnchor = windowEnt->get<UiAnchor>();
+        // auto windowAnchor = windowEnt->get<UiAnchor>();
     }
 };
 
@@ -114,7 +114,22 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
             enemy->health -= bullet->damage;
 
-            if (enemy->health <= 0) {
+            if (enemy->health <= 0)
+            {
+                auto weapon = ecsRef->getComponent<WeaponComponent>(enemy->entityId);
+                auto pos = ecsRef->getComponent<PositionComponent>(enemy->entityId);
+
+                if (weapon and pos)
+                {
+                    auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
+
+                    collectibleEnt.get<PositionComponent>()->setX(pos->x + pos->width / 2.f - 12.5f);
+                    collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
+
+                    ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
+                    ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
+                }
+
                 ecsRef->removeEntity(enemy->entityId);
             }
 
