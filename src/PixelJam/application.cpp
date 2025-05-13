@@ -90,7 +90,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     int testVar = 0;
     MapData mapData;
 
-    TestSystem(const MapData& mapData) : mapData(mapData) {}
+    TestSystem(const MapData &mapData) : mapData(mapData) {
+    }
 
     virtual void init() override {
         testVar = 0;
@@ -124,17 +125,17 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         const float repulsionStrength = 2.f;
 
         // Enemy ↔ Wall: push enemy out of the wall
-        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall) {
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag *enemy, WallFlag *wall) {
             // get both entities’ positions
-            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+            auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
             auto enemyEnt = enemy->ecsRef->getEntity(enemy->entityId);
-            auto wpos     = wallEnt->get<PositionComponent>();
-            auto epos     = enemyEnt->get<PositionComponent>();
+            auto wpos = wallEnt->get<PositionComponent>();
+            auto epos = enemyEnt->get<PositionComponent>();
 
             // compute normalized vector from wall→enemy
             float dx = epos->x - wpos->x;
             float dy = epos->y - wpos->y;
-            float len = std::sqrt(dx*dx + dy*dy);
+            float len = std::sqrt(dx * dx + dy * dy);
             if (len > 0.f) {
                 dx /= len;
                 dy /= len;
@@ -145,7 +146,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         });
 
         // Enemy ↔ Enemy: mutual separation
-        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* a, EnemyFlag* b) {
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag *a, EnemyFlag *b) {
             // ignore self‐collision
             if (a->entityId == b->entityId) return;
 
@@ -162,10 +163,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             float dx = posA->x - posB->x;
             float dy = posA->y - posB->y;
 
-            float len = std::sqrt(dx*dx + dy*dy);
+            float len = std::sqrt(dx * dx + dy * dy);
 
-            if (len > 0.f)
-            {
+            if (len > 0.f) {
                 dx /= len;
                 dy /= len;
                 // push each about half the strength
@@ -260,7 +260,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 };
 
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<
-            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag>> {
+            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag> > {
 };
 
 std::thread *initThread;
@@ -307,12 +307,13 @@ void initGame() {
     printf("Engine initialized ...\n");
 
     //MapData map;
-     TiledLoader loader;
-     const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json");
+    TiledLoader loader;
+    constexpr int tiledPixelsToScreenPixelsFactor = 2;
+    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json", tiledPixelsToScreenPixelsFactor);
 
-     for (const auto &tileset: map.roomTriggers) {
-        LOG_INFO("TILED", "Rect " << tileset.rect.width << " " << tileset.rect.height << " " << tileset.rect.topLeftCornerX << " " << tileset.rect.topLeftCornerY);
-   }
+    for (const auto &e: map.enemyTemplates) {
+        std::cout << "Enemy : " << e << std::endl;
+    }
 
     // for (const auto &tileset: map.tilesets) {
     //     LOG_INFO("TILED", "B" << tileset.imagePath);
