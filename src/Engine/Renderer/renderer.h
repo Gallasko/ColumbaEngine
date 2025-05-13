@@ -510,7 +510,6 @@ namespace pg
 
         size_t queueRegisterCamera(_unique_id camera)
         { 
-            std::lock_guard<std::mutex> lock(cameraRegisterMutex);
             cameraRegisterQueue.push_back(camera);
 
             return cameraList.size() + cameraRegisterQueue.size(); // Return the index of the new camera
@@ -518,8 +517,6 @@ namespace pg
 
         void processCameraRegister()
         {
-            std::lock_guard<std::mutex> lock(cameraRegisterMutex);
-
             for (auto id : cameraRegisterQueue)
             {
                 auto* camera = ecsRef->getComponent<BaseCamera2D>(id);
@@ -535,7 +532,6 @@ namespace pg
             }
 
             cameraRegisterQueue.clear();
-            newCameraRegistered = true;
         }
 
         size_t registerMaterial(const Material& material)
@@ -714,7 +710,6 @@ namespace pg
     private:
         std::atomic<bool> inSwap {false};
         std::atomic<bool> newMaterialRegistered {false};
-        std::atomic<bool> newCameraRegistered {false};
         // std::atomic<bool> inBetweenRender {true};
 
         // std::condition_variable execCv;
@@ -723,7 +718,6 @@ namespace pg
         mutable std::mutex materialRegisterMutex;
         std::vector<MaterialHolder> materialRegisterQueue;
 
-        mutable std::mutex cameraRegisterMutex;
         std::vector<_unique_id> cameraRegisterQueue;
 
         moodycamel::ConcurrentQueue<TextureRegisteringQueueItem> textureRegisteringQueue;

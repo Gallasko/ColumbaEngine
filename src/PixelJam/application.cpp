@@ -241,6 +241,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             if (testVar == 0) {
                 auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
 
+                wallEnt.get<Simple2DObject>()->setViewport(1);
+
                 wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
                 wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
 

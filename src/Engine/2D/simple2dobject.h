@@ -25,7 +25,7 @@ namespace pg
         Simple2DObject(const Shape2D& shape) : shape(shape) { }
         Simple2DObject(const Shape2D& shape, const constant::Vector4D& c) : shape(shape), colors(c) { }
 
-        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), id(rhs.id), ecsRef(rhs.ecsRef) { }
+        Simple2DObject(const Simple2DObject &rhs) : shape(rhs.shape), colors(rhs.colors), viewport(rhs.viewport), id(rhs.id), ecsRef(rhs.ecsRef) { }
         virtual ~Simple2DObject() {}
 
         inline static std::string getType() { return "Simple2DObject"; }

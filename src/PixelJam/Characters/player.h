@@ -104,13 +104,13 @@ namespace pg
         {
             auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
-            playerEnt.get<Simple2DObject>()->setViewport(1);
-
             playerEnt.get<PositionComponent>()->setZ(10);
-
+            
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
             ecsRef->attach<FollowCamera2D>(playerEnt.entity);
+            
+            playerEnt.get<Simple2DObject>()->setViewport(1);
 
             std::vector<size_t> collidableLayer = {0, 3, 5};
 

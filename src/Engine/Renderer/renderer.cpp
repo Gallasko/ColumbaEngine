@@ -172,11 +172,6 @@ namespace pg
             return;
         }
 
-        if (newCameraRegistered)
-        {
-            return;
-        }
-
         if (materialRegisterQueue.size() > 0)
         {
             materialListTemp.clear();
@@ -363,11 +358,6 @@ namespace pg
             std::swap(materialDictTemp, materialDict);
 
             newMaterialRegistered = false;
-        }
-
-        if (newCameraRegistered)
-        {
-            newCameraRegistered = false;
         }
     }
 

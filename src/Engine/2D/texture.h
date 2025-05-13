@@ -12,7 +12,7 @@ namespace pg
     struct Texture2DComponent : public Ctor
     {
         Texture2DComponent(const std::string& textureName) : textureName(textureName) { }
-        Texture2DComponent(const Texture2DComponent &rhs) : textureName(rhs.textureName), entityId(rhs.entityId), ecsRef(rhs.ecsRef), opacity(rhs.opacity), overlappingColor(rhs.overlappingColor), overlappingColorRatio(rhs.overlappingColorRatio) { }
+        Texture2DComponent(const Texture2DComponent &rhs) : textureName(rhs.textureName), entityId(rhs.entityId), ecsRef(rhs.ecsRef), opacity(rhs.opacity), overlappingColor(rhs.overlappingColor), overlappingColorRatio(rhs.overlappingColorRatio), viewport(rhs.viewport) { }
         virtual ~Texture2DComponent() {}
 
         Texture2DComponent& operator=(const Texture2DComponent& other)
@@ -23,6 +23,7 @@ namespace pg
 
             overlappingColor = other.overlappingColor;
             overlappingColorRatio = other.overlappingColorRatio;
+            viewport = other.viewport;
 
             if (ecsRef)
             {
