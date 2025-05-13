@@ -5,14 +5,18 @@
     },
     "activeFile": "",
     "expandedProjectPaths": [
-        "LEVELS",
+        ".",
         "EXPORTS",
         "Templates",
-        "."
+        "LEVELS"
     ],
+    "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "": {
             "scaleInDock": 8
+        },
+        ":/automap-tiles.tsx": {
+            "scaleInDock": 1
         },
         "EXPORTS/Level_Debug.json": {
             "scale": 2.6065625,
@@ -40,12 +44,15 @@
         "EXPORTS/Level_Debug.json#Water": {
             "scaleInDock": 1
         },
+        "LEVELS/Level_0001.json#PROTO_BASE": {
+            "scaleInEditor": 4
+        },
         "LEVELS/Level_DEV_0001.json": {
             "scale": 1.5,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 206.33333333333331,
-                "y": 152.33333333333331
+                "x": 299.66666666666663,
+                "y": 221
             }
         },
         "LEVELS/Level_DEV_0001.json#Beach": {
@@ -120,14 +127,15 @@
         }
     },
     "last.exportedFilePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/Pixel_Jam_2025/Pixel_Jam_Levels/LEVELS",
-    "last.imagePath": "C:/Users/nicol/Desktop/tmp",
+    "last.imagePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/release/res/tiled/SOURCES/PROTO",
     "last.objectTemplatePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/Pixel_Jam_2025/Pixel_Jam_Levels/Templates",
+    "map.height": 50,
     "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
-    "map.lastUsedFormat": "tmx",
+    "map.lastUsedFormat": "json",
     "map.tileHeight": 16,
     "map.tileWidth": 16,
+    "map.width": 50,
     "openFiles": [
-        "LEVELS/Level_DEV_0001.json"
     ],
     "project": "Tiled_Levels.tiled-project",
     "property.type": "bool",

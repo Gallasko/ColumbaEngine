@@ -124,7 +124,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         printf("---------- Load Level ---------\n");
 
         int z = 0;
-        int factor = 3;
+        int factor = 2;
 
         size_t scaledTileWidth = factor * mapData.tileWidth;
         size_t scaledTileHeight = factor * mapData.tileHeight;
@@ -248,7 +248,7 @@ void initGame() {
     printf("Engine initialized ...\n");
 
     TiledLoader loader;
-    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_DEV_0001.json");
+    const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json");
 
     for (const auto &tileset: map.tilesets) {
         LOG_INFO("TILED", "B" << tileset.imagePath);
