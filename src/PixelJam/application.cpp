@@ -265,7 +265,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 };
 
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<
-            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag>> {
+            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>> {
 };
 
 std::thread *initThread;
