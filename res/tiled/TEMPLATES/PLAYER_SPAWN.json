@@ -1,0 +1,19 @@
+{ "object":
+    {
+     "height":0,
+     "id":73,
+     "name":"PLAYER_SPAWN",
+     "point":true,
+     "properties":[
+            {
+             "name":"playerSpawn",
+             "type":"bool",
+             "value":true
+            }],
+     "rotation":0,
+     "type":"",
+     "visible":true,
+     "width":0
+    },
+ "type":"template"
+}

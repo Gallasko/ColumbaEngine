@@ -67,6 +67,10 @@ struct TileSet {
     int tileHeightInTPixels;
 };
 
+struct SpawnPoint {
+    pg::constant::Vector2D positionSPixels;
+};
+
 /*!
  * Same as TiledRect but works in tile space. So if the tile map size is 30x20 tiles, the coordinates are grid, int tile positions
  */
@@ -305,6 +309,7 @@ inline std::ostream &operator<<(std::ostream &os, const EnemyData &data) {
 }
 
 struct MapData {
+    SpawnPoint playerSpawn;
     /*!
      * Number of tiles horizontally
      */

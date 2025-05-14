@@ -622,7 +622,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":false,
+         "visible":true,
          "x":0,
          "y":0
         }, 
@@ -867,7 +867,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":false,
+         "visible":true,
          "x":0,
          "y":0
         }, 
@@ -959,7 +959,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":false,
+         "visible":true,
          "x":0,
          "y":0
         }, 
@@ -1118,6 +1118,23 @@
         }, 
         {
          "draworder":"topdown",
+         "id":14,
+         "name":"Other_Data",
+         "objects":[
+                {
+                 "id":73,
+                 "template":"..\/TEMPLATES\/PLAYER_SPAWN.json",
+                 "x":920.25,
+                 "y":2313.125
+                }],
+         "opacity":1,
+         "type":"objectgroup",
+         "visible":true,
+         "x":0,
+         "y":0
+        }, 
+        {
+         "draworder":"topdown",
          "id":11,
          "name":"Weapon_Data",
          "objects":[
@@ -1182,8 +1199,8 @@
          "x":0,
          "y":0
         }],
- "nextlayerid":14,
- "nextobjectid":73,
+ "nextlayerid":15,
+ "nextobjectid":74,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.2",

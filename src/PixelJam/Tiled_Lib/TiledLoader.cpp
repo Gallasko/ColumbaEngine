@@ -263,6 +263,16 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
 
                         result.weaponDatas.push_back(data);
                     }
+                    else if (obj.get<bool>("playerSpawn")) {
+                        SpawnPoint point;
+                        pg::constant::Vector2D positionSPixels;
+
+                        positionSPixels.x = obj.getPosition().x * scaleFactor;
+                        positionSPixels.y = obj.getPosition().y * scaleFactor;
+
+                        point.positionSPixels = positionSPixels;
+                        result.playerSpawn = point;
+                    }
                 }
                 break;
             case tson::LayerType::ImageLayer:
