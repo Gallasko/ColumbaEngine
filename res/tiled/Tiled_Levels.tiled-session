@@ -6,9 +6,9 @@
     "activeFile": "",
     "expandedProjectPaths": [
         ".",
-        "EXPORTS",
         "Templates",
-        "LEVELS"
+        "LEVELS",
+        "EXPORTS"
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
@@ -138,7 +138,7 @@
     "openFiles": [
     ],
     "project": "Tiled_Levels.tiled-project",
-    "property.type": "SpawnData",
+    "property.type": "float",
     "recentFiles": [
         "LEVELS/Level_DEV_0001.json",
         "Level_Debug.json",

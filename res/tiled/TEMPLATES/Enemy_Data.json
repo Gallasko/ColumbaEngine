@@ -8,7 +8,7 @@
             {
              "name":"attackDistance",
              "type":"float",
-             "value":48
+             "value":5
             }, 
             {
              "name":"chaseSpeed",
@@ -16,9 +16,9 @@
              "value":1
             }, 
             {
-             "name":"cooldDownTimer",
-             "type":"int",
-             "value":1000
+             "name":"cooldownTimer",
+             "type":"float",
+             "value":1
             }, 
             {
              "name":"enemy",
@@ -33,7 +33,7 @@
             {
              "name":"idealDistance",
              "type":"float",
-             "value":64
+             "value":6
             }, 
             {
              "name":"isBoss",
@@ -48,7 +48,7 @@
             {
              "name":"orbitThreshold",
              "type":"float",
-             "value":5
+             "value":0.15
             }, 
             {
              "name":"weapon",
@@ -57,8 +57,8 @@
             }, 
             {
              "name":"windUpTime",
-             "type":"int",
-             "value":500
+             "type":"float",
+             "value":0.5
             }],
      "rotation":0,
      "type":"",

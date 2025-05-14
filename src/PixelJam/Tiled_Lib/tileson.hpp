@@ -3594,6 +3594,9 @@ namespace tson
 template<typename T>
 T tson::PropertyCollection::getValue(const std::string &name)
 {
+	if(m_properties.count(name) <= 0) {
+		//std::cout << "Property " << name << " NOT FOUND" << std::endl;
+	}
 	static T defaultT;
 	return (m_properties.count(name) > 0) ? m_properties[name].getValue<T>() : defaultT;
 }

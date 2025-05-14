@@ -969,7 +969,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":true,
+         "visible":false,
          "x":0,
          "y":0
         }, 
@@ -982,6 +982,11 @@
                  "id":30,
                  "name":"Enemy_Raider",
                  "properties":[
+                        {
+                         "name":"attackDistance",
+                         "type":"float",
+                         "value":7
+                        }, 
                         {
                          "name":"weapon",
                          "type":"object",
@@ -998,7 +1003,7 @@
                         {
                          "name":"idealDistance",
                          "type":"float",
-                         "value":32
+                         "value":3
                         }, 
                         {
                          "name":"name",
@@ -1019,9 +1024,19 @@
                  "name":"Enemy_Sniper",
                  "properties":[
                         {
+                         "name":"attackDistance",
+                         "type":"float",
+                         "value":40
+                        }, 
+                        {
+                         "name":"cooldownTimer",
+                         "type":"float",
+                         "value":3
+                        }, 
+                        {
                          "name":"idealDistance",
                          "type":"float",
-                         "value":128
+                         "value":10
                         }, 
                         {
                          "name":"name",
@@ -1032,6 +1047,11 @@
                          "name":"weapon",
                          "type":"object",
                          "value":45
+                        }, 
+                        {
+                         "name":"windUpTime",
+                         "type":"float",
+                         "value":0.25
                         }],
                  "template":"..\/TEMPLATES\/Enemy_Data.json",
                  "x":1644,
@@ -1058,6 +1078,11 @@
                          "name":"isBoss",
                          "type":"bool",
                          "value":true
+                        }, 
+                        {
+                         "name":"name",
+                         "type":"string",
+                         "value":"raiderBoss"
                         }],
                  "template":"..\/TEMPLATES\/Enemy_Data.json",
                  "x":1790.66666666667,
@@ -1067,6 +1092,21 @@
                  "id":81,
                  "name":"Enemy_First",
                  "properties":[
+                        {
+                         "name":"attackDistance",
+                         "type":"float",
+                         "value":10
+                        }, 
+                        {
+                         "name":"chaseSpeed",
+                         "type":"float",
+                         "value":0
+                        }, 
+                        {
+                         "name":"hp",
+                         "type":"int",
+                         "value":3
+                        }, 
                         {
                          "name":"name",
                          "type":"string",
@@ -1680,7 +1720,9 @@
                             {
                              "barrelSize":4,
                              "name":"shotgun",
-                             "pattern":2
+                             "pattern":2,
+                             "projectileLifeTime":1,
+                             "reloadTimeMs":1
                             }
                         }],
                  "template":"..\/TEMPLATES\/WEAPON.json",
@@ -1697,7 +1739,9 @@
                          "type":"class",
                          "value":
                             {
-                             "name":"pistol"
+                             "name":"pistol",
+                             "projectileLifeTime":1,
+                             "reloadTimeMs":1
                             }
                         }],
                  "template":"..\/TEMPLATES\/WEAPON.json",
@@ -1717,7 +1761,9 @@
                             {
                              "name":"sniper",
                              "pattern":1,
-                             "projectileSpeed":300
+                             "projectileLifeTime":1,
+                             "projectileSpeed":20,
+                             "reloadTimeMs":1
                             }
                         }],
                  "template":"..\/TEMPLATES\/WEAPON.json",
@@ -1737,7 +1783,11 @@
                              "ammo":6,
                              "damage":2,
                              "name":"pistolWeak",
-                             "pattern":1
+                             "pattern":1,
+                             "projectileLifeTime":1,
+                             "projectileSize":0.5,
+                             "projectileSpeed":10,
+                             "reloadTimeMs":1
                             }
                         }],
                  "template":"..\/TEMPLATES\/WEAPON.json",

@@ -10,6 +10,8 @@ namespace pg
     {
         void addWeapon(const WeaponData& weaponData)
         {
+            //std::cout << "Add weapon : " << weaponData << std::endl;
+
             Weapon weapon;
 
             weapon.name = weaponData.name;

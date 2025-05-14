@@ -110,8 +110,8 @@ namespace pg {
         float idealDistance = 250.f;      // px
         float orbitThreshold = 20.f;      // px
         float attackDistance = 200.f;
-        int cooldownTime = 1000; // ms
-        int wideUpTime = 500;
+        float cooldownTime = 1000.0f; // ms
+        float wideUpTime = 500.0f;
         bool isBoss;
 
         float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;

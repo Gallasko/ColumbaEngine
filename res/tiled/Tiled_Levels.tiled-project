@@ -96,22 +96,22 @@
                 {
                     "name": "projectileLifeTime",
                     "type": "float",
-                    "value": 1000
+                    "value": 1
                 },
                 {
                     "name": "projectileSize",
                     "type": "float",
-                    "value": 10
+                    "value": 0.5
                 },
                 {
                     "name": "projectileSpeed",
                     "type": "float",
-                    "value": 150
+                    "value": 10
                 },
                 {
                     "name": "reloadTimeMs",
                     "type": "float",
-                    "value": 1000
+                    "value": 1
                 }
             ],
             "name": "WeaponData",
