@@ -141,6 +141,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 {
                     auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
 
+                    collectibleEnt.get<Simple2DObject>()->setViewport(1);
+
                     collectibleEnt.get<PositionComponent>()->setX(pos->x + pos->width / 2.f - 12.5f);
                     collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
                     collectibleEnt.get<PositionComponent>()->setZ(10.f);
