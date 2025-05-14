@@ -7,6 +7,8 @@
 #include <stdexcept>
 #include <string>
 
+#include "Systems/coresystems.h"
+
 #define PG_ASSERT(cond, msg)                                         \
 if (!(cond)) {                                               \
 throw std::runtime_error(std::string("Assertion failed: ") + #cond + " - " +  msg);           \
@@ -17,6 +19,8 @@ static const std::string Event = "event";
 static const std::string RoomIndex = "roomIndex";
 
 MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
+    constexpr float secondToMs = 1000.0f;
+
     std::cout << "------MAP LOADING------" << std::endl;
     std::cout << "Loading map: " << path << std::endl;
 
@@ -174,19 +178,26 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                     else if (obj.get<bool>("enemy")) {
                         EnemyData enemy;
 
+
+
+                        auto chaseSpeed = obj.get<float>("chaseSpeed"); // tile per second
+                        chaseSpeed = tileDistanceToSPixels(chaseSpeed, scaleFactor, result.tileWidthInTPixels); // screen pixels per second
+                        auto factor = secondToMs / pg::TickRateMilliseconds; // how many times is there 20 ms in 1 s (1000 ms)
+                        chaseSpeed /= factor;
+
                         enemy.name = obj.get<std::string>("name");
-                        enemy.attackDistance = obj.get<float>("attackDistance");
-                        enemy.chaseSpeed = obj.get<float>("chaseSpeed");
-                        enemy.cooldownTime = obj.get<int>("cooldownTimer");
-                        enemy.idealDistance = obj.get<float>("idealDistance");
-                        enemy.orbitThreshold = obj.get<float>("orbitThreshold");
-                        enemy.wideUpTime = obj.get<float>("windUpTime");
+                        enemy.attackDistance =  tileDistanceToSPixels(obj.get<float>("attackDistance"), scaleFactor, result.tileWidthInTPixels);
+                        enemy.chaseSpeed = chaseSpeed; // tile / s to Spixels / (20 ms)
+                        enemy.cooldownTime = obj.get<float>("cooldownTimer") * secondToMs;
+                        enemy.idealDistance = tileDistanceToSPixels(obj.get<float>("idealDistance"), scaleFactor, result.tileWidthInTPixels);;
+                        enemy.orbitThreshold = tileDistanceToSPixels(obj.get<float>("orbitThreshold"), scaleFactor, result.tileWidthInTPixels);
+                        enemy.wideUpTime = obj.get<float>("windUpTime") * secondToMs;
 
                         enemy.objId = obj.getId();
                         enemy.weaponId = obj.get<uint32_t>("weapon");
                         enemy.canSpawn = enemy.name != "noEnemy";
                         enemy.isBoss = obj.get<bool>("isBoss");
-                        enemy.hp = obj.get<bool>("hp");
+                        enemy.hp = obj.get<int>("hp");
 
                         result.enemyTemplates.push_back(enemy);
                     }
@@ -253,10 +264,10 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         data.damage = objClass.get<float>("damage");
                         data.name = objClass.get<std::string>("name");
                         data.pattern = pattern;
-                        data.projectileLifeTime = objClass.get<float>("projectileLifeTime");
-                        data.projectileSize = objClass.get<float>("projectileSize");
-                        data.projectileSpeed = objClass.get<float>("projectileSpeed");
-                        data.reloadTimeMs = objClass.get<float>("reloadTimeMs");
+                        data.projectileLifeTime = objClass.get<float>("projectileLifeTime") * secondToMs;
+                        data.projectileSize = tileDistanceToSPixels(objClass.get<float>("projectileSize"), scaleFactor, result.tileWidthInTPixels);;
+                        data.projectileSpeed = tileDistanceToSPixels(objClass.get<float>("projectileSpeed"), scaleFactor, result.tileWidthInTPixels);
+                        data.reloadTimeMs = objClass.get<float>("reloadTimeMs") * secondToMs;
 
                         data.id = obj.getId();
 
@@ -283,4 +294,8 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
 
     std::cout << "------MAP LOADING------ END" << std::endl;
     return result;
+}
+
+float TiledLoader::tileDistanceToSPixels(float tileDistance, float scaleFactor, int tileSize) {
+    return tileDistance * scaleFactor * tileSize;
 }

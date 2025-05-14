@@ -14,7 +14,8 @@ namespace pg
         {
             EnemyComponentsData enemy;
 
-            // Missing
+           // std::cout << "Add enemy : " << enemyData << std::endl;
+
             enemy.flag.health = enemyData.hp;
 
             enemy.canSpawn = enemyData.canSpawn;

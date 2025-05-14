@@ -18,6 +18,16 @@ public:
      * @return All the data of the map
      */
     MapData loadMap(const std::string& path, int scaleFactor);
+private:
+    /*!
+     * Converts a tile distance to Spixels.
+     * Let's say the tile distance is 3, factor is 2 and tile size is 16, then distance in SPixels is 3 * 2 * 16
+     * @param tileDistance Distance in tiles
+     * @param scaleFactor the factor to go from TPixels to SPixels
+     * @param tileSize tile size in TPixels
+     * @return the distance it SPixels
+     */
+    float tileDistanceToSPixels(float tileDistance, float scaleFactor, int tileSize);
 };
 
 #endif //TILEDLOADER_H
