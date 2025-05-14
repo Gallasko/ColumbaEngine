@@ -8,6 +8,8 @@
 
 #include "2D/position.h"
 
+#include "Systems/coresystems.h"
+
 namespace pg
 {
     struct FollowCamera2DChangedEvent { _unique_id id; };
@@ -15,7 +17,7 @@ namespace pg
     struct FollowCamera2D : public Ctor
     {
         FollowCamera2D() {}
-        FollowCamera2D(const FollowCamera2D& other) : viewportWidth(other.viewportWidth), viewportHeight(other.viewportHeight), nearPlane(other.nearPlane), farPlane(other.farPlane) {}
+        FollowCamera2D(const FollowCamera2D& other) : viewportWidth(other.viewportWidth), viewportHeight(other.viewportHeight), nearPlane(other.nearPlane), farPlane(other.farPlane), smoothFactor(other.smoothFactor), targetX(other.targetX), targetY(other.targetY), useWindowViewport(other.useWindowViewport) {}
 
         FollowCamera2D& operator=(const FollowCamera2D& other)
         {
@@ -23,6 +25,12 @@ namespace pg
             viewportHeight = other.viewportHeight;
             nearPlane = other.nearPlane;
             farPlane = other.farPlane;
+
+            smoothFactor = other.smoothFactor;
+            targetX = other.targetX;
+            targetY = other.targetY;
+
+            useWindowViewport = other.useWindowViewport;
 
             return *this;
         }
@@ -79,18 +87,48 @@ namespace pg
             }
         }
 
+        void setSmoothFactor(float smoothFactor)
+        {
+            if (smoothFactor != this->smoothFactor)
+            {
+                this->smoothFactor = smoothFactor;
+
+                if (ecsRef)
+                    ecsRef->sendEvent(FollowCamera2DChangedEvent{id});
+            }
+        }
+
+        void setTarget(float targetX, float targetY)
+        {
+            if (targetX != this->targetX or targetY != this->targetY)
+            {
+                this->targetX = targetX;
+                this->targetY = targetY;
+
+                if (ecsRef)
+                    ecsRef->sendEvent(FollowCamera2DChangedEvent{id});
+            }
+        }
+
         float viewportWidth = 820.0f;
         float viewportHeight = 640.0f;
         
         float nearPlane = -1000.0f;
         float farPlane = 1000.0f;
 
+        float smoothFactor = 0.1f;
+
+        float targetX = 0.0f;
+        float targetY = 0.0f;
+
+        bool useWindowViewport = true;
+
         _unique_id id = 0;
 
         EntitySystem *ecsRef = nullptr;
     };
 
-    struct FollowCamera2DSystem : public System<Listener<EntityChangedEvent>, Listener<FollowCamera2DChangedEvent>, Own<FollowCamera2D>, Own<PositionComponent>, InitSys>
+    struct FollowCamera2DSystem : public System<Listener<ResizeEvent>, Listener<TickEvent>, Listener<EntityChangedEvent>, Listener<FollowCamera2DChangedEvent>, Own<FollowCamera2D>, Own<PositionComponent>, InitSys>
     {
         virtual std::string getSystemName() const override { return "CameraSystem"; }
 
@@ -126,16 +164,36 @@ namespace pg
             });
         }
 
+        virtual void onEvent(const ResizeEvent& event) override
+        {
+            for (auto cam : view<FollowCamera2D>())
+            {
+                if (cam->useWindowViewport)
+                {
+                    cam->setViewportWidth(event.width);
+                    cam->setViewportHeight(event.height);
+                }
+            }
+        }
+
         void updateCamera(BaseCamera2D* cam, PositionComponent* pos, FollowCamera2D* followCam)
         {
-            cam->x = pos->x + pos->width * 0.5f - followCam->viewportWidth  * 0.5f;
-            cam->y = pos->y + pos->height * 0.5f - followCam->viewportHeight * 0.5f;
+            // compute the “ideal” camera X/Y in world‐space:
+            followCam->targetX = pos->x + pos->width * 0.5f - followCam->viewportWidth  * 0.5f;
+            followCam->targetY = pos->y + pos->height * 0.5f - followCam->viewportHeight * 0.5f;
 
             cam->width = followCam->viewportWidth;
             cam->height = followCam->viewportHeight;
 
             cam->nearPlane = followCam->nearPlane;
-            cam->farPlane= followCam->farPlane;
+            cam->farPlane = followCam->farPlane;
+
+            cam->constructMatrices();
+        }
+
+        virtual void onEvent(const TickEvent& event) override
+        {
+            deltaTime += event.tick;
         }
 
         virtual void onEvent(const EntityChangedEvent& e) override
@@ -151,6 +209,27 @@ namespace pg
 
         virtual void execute() override
         {
+            if (deltaTime > 0.0f)
+            {
+                for (auto* elem : viewGroup<FollowCamera2D, BaseCamera2D>())
+                {
+                    auto cam = elem->get<BaseCamera2D>();
+                    auto followCam = elem->get<FollowCamera2D>();
+
+                    // lerp from current to target:
+                    auto oldX = cam->x;
+                    auto oldY = cam->y;
+
+                    cam->x += (followCam->targetX - cam->x) * followCam->smoothFactor;
+                    cam->y += (followCam->targetY - cam->y) * followCam->smoothFactor;
+
+                    if (oldX != cam->x or oldY != cam->y)
+                        cam->constructMatrices();
+                }
+
+                deltaTime = 0;
+            }
+
             if (dirtyCameras.empty()) return;
 
             for (auto cam : dirtyCameras)
@@ -172,6 +251,8 @@ namespace pg
         std::set<_unique_id> dirtyCameras;
 
         MasterRenderer *masterRenderer = nullptr;
+
+        float deltaTime = 0.0f;
     };
 
 } // namespace pg

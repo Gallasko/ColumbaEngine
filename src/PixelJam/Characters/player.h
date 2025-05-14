@@ -105,14 +105,14 @@ namespace pg
             auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
             playerEnt.get<PositionComponent>()->setZ(10);
-            
+
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
             ecsRef->attach<FollowCamera2D>(playerEnt.entity);
-            
+
             playerEnt.get<Simple2DObject>()->setViewport(1);
 
-            std::vector<size_t> collidableLayer = {0, 3, 5};
+            std::vector<size_t> collidableLayer = {0, 3, 5, 6};
 
             ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 
@@ -154,15 +154,35 @@ namespace pg
             {
                 auto pos = player->get<PositionComponent>();
                 auto weaponEnt = player->get<WeaponComponent>();
+                auto camera = player->get<BaseCamera2D>();
 
-                if (not pos or not weaponEnt)
+                if (not pos or not weaponEnt or not camera)
                     return;
+
+                auto window = ecsRef->getEntity("__MainWindow");
+
+                if (not window)
+                    return;
+
+                // Todo I should only need to get the main camera and use mousePosToWorldPos of the main camera instead !
+                // auto windowWidth = window->get<PositionComponent>()->width;
+                // auto windowHeight = window->get<PositionComponent>()->height;
+
+                // auto normalizedX = 2 * (event.pos.x / windowWidth) - 1.0;
+                // auto normalizedY = 2 * (event.pos.y / windowHeight) - 1.0;
+
+                auto mousePosInGame = camera->screenToWorld(event.pos.x, event.pos.y);
+
+                LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
 
                 const auto& weapon = weaponEnt->weapon;
 
-                for (const auto& dir : weapon.fireDirections({event.pos.x - pos->x, event.pos.y - pos->y}))
+                for (const auto& dir : weapon.fireDirections({mousePosInGame.x - pos->x, mousePosInGame.y - pos->y}))
                 {
                     auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
+
+                    bullet.get<Simple2DObject>()->setViewport(1);
+
                     bullet.get<PositionComponent>()->setX(pos->x + 25.f);
                     bullet.get<PositionComponent>()->setY(pos->y + 25.f);
                     bullet.get<PositionComponent>()->setZ(50);
@@ -330,7 +350,7 @@ namespace pg
         CompRef<Timer> bottomTimer;
         CompRef<Timer> rightTimer;
 
-        float movespeed = 2.f;
+        float movespeed = 10.f;
     };
 
 } // namespace pg

@@ -29,6 +29,10 @@
 #include "Tiled_Lib/TiledLoader.h"
 #include "Tiled_Lib/TileMapAtlasLoader.h"
 
+#include "Database/weapondatabase.h"
+#include "Database/enemydatabase.h"
+#include "Room/room.h"
+
 using namespace pg;
 
 namespace {
@@ -105,7 +109,19 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             LOG_INFO(DOM, "Collectible collected! ");
         });
 
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, RoomTriggerFlag* room) {
+            LOG_INFO(DOM, "Player hit a room trigger! ");
+
+            ecsRef->sendEvent(EnterRoomEvent{room->roomIndex});
+        });
+
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, WallFlag *) {
+            LOG_INFO(DOM, "Bullet hit a wall! ");
+
+            ecsRef->removeEntity(bullet->entityId);
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](EnemyBulletFlag *bullet, WallFlag *) {
             LOG_INFO(DOM, "Bullet hit a wall! ");
 
             ecsRef->removeEntity(bullet->entityId);
@@ -133,6 +149,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                     ecsRef->attach<CollectibleFlag>(collectibleEnt.entity, weapon->weapon);
                 }
 
+                ecsRef->sendEvent(EnemyDeathEvent{enemy->entityId});
                 ecsRef->removeEntity(enemy->entityId);
             }
 
@@ -141,7 +158,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         const float repulsionStrength = 2.f;
 
-        // Enemy ↔ Wall: push enemy out of the wall
+        // Enemy <-> Wall: push enemy out of the wall
         makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall){
             // get both entities’ positions
             auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
@@ -162,7 +179,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             }
         });
 
-        // Enemy ↔ Enemy: mutual separation
+        // Enemy <-> Enemy: mutual separation
         makeCollisionHandlePair(ecsRef, [&](EnemyFlag* a, EnemyFlag* b) {
             // ignore self‐collision
             if (a->entityId == b->entityId) return;
@@ -236,9 +253,12 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         printf("Loaded Map\n");
     }
 
-    virtual void onProcessEvent(const OnMouseClick &event) override {
-        if (event.button == SDL_BUTTON_RIGHT) {
-            if (testVar == 0) {
+    virtual void onProcessEvent(const OnMouseClick &event) override
+    {
+        if (event.button == SDL_BUTTON_RIGHT)
+        {
+            if (testVar == 0)
+            {
                 auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
 
                 wallEnt.get<Simple2DObject>()->setViewport(1);
@@ -249,7 +269,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
                 ecsRef->attach<WallFlag>(wallEnt.entity);
-            } else if (testVar == 1) {
+            }
+            else if (testVar == 1)
+            {
                 auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f,
                                                           {125.f, 0.f, 125.f, 255.f});
 
@@ -258,7 +280,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
                 ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
-            } else if (testVar == 2) {
+            }
+            else if (testVar == 2)
+            {
                 auto enemyEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {255.f, 0.f, 0.f, 255.f});
 
                 enemyEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
@@ -393,48 +417,45 @@ void initGame() {
 
     // mainWindow->interpreter->interpretFromFile("main.pg");
 
+    auto weaponDb = mainWindow->ecs.createSystem<WeaponDatabase>();
+    auto enemyDb = mainWindow->ecs.createSystem<EnemyDatabase>();
+
+    auto roomSystem = mainWindow->ecs.createSystem<RoomSystem>(weaponDb, enemyDb);
+
     //MapData map;
     TiledLoader loader;
     int factor = 2;
     const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json", factor);
 
-    std::cout << "---PRINT TILESETS---" << std::endl;
-    for (const auto &tileset: map.tilesets) {
-        std::cout << "Path " << tileset.imagePath << std::endl;
-
+    for (const auto &tileset: map.tilesets)
+    {
         mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "", std::make_unique<TileMapAtlasLoader>(tileset));
     }
-    std::cout << "---PRINT TILESETS--- END" << std::endl;
 
-    std::cout << "---PRINT Weapons---" << std::endl;
-    for (const auto &w: map.weaponDatas) {
-        std::cout << "Weapon : " << w << std::endl;
+    for (const auto &w: map.weaponDatas)
+    {
+        weaponDb->addWeapon(w);
     }
-    std::cout << "---PRINT Weapons--- END" << std::endl;
 
-    std::cout << "---PRINT Enemies---" << std::endl;
-    for (const auto &e: map.enemyTemplates) {
-        std::cout << "Enemy : " << e << std::endl;
+    for (const auto &e: map.enemyTemplates)
+    {
+        enemyDb->addEnemy(e);
     }
-    std::cout << "---PRINT Enemies--- END" << std::endl;
 
-    std::cout << "---PRINT Rooms---" << std::endl;
-    for (const auto &r: map.roomDatas) {
-        std::cout << "Room : " << r << std::endl;
+    for (const auto &r: map.roomDatas)
+    {
+        roomSystem->addRoom(r);
     }
-    std::cout << "---PRINT Rooms--- END" << std::endl;
 
-    std::cout << "---PRINT ROOM TRIGGERS---" << std::endl;
-    for (const auto &trigger : map.roomTriggers) {
-        std::cout << "Room trigger: " << trigger << std::endl;
+    for (const auto &trigger : map.roomTriggers)
+    {
+        roomSystem->addRoomTrigger(trigger);
     }
-    std::cout << "---PRINT ROOM TRIGGERS--- END" << std::endl;
 
-    std::cout << "---PRINT ROOM DOORS---" << std::endl;
-    for (const auto &door : map.doors) {
-        std::cout << "Door: " << door << std::endl;
+    for (const auto &door : map.doors)
+    {
+        roomSystem->addDoor(door);
     }
-    std::cout << "---PRINT ROOM DOORS--- END" << std::endl;
 
     std::cout << "---PRINT SPIKES---" << std::endl;
     for (const auto &spike : map.spikes) {
@@ -442,12 +463,12 @@ void initGame() {
     }
     std::cout << "---PRINT SPIKES--- END" << std::endl;
 
-    std::cout << "---PRINT ROOM SPAWNERS---" << std::endl;
-    for (const auto &spawner : map.spawners) {
-        std::cout << "Spawner: " << spawner << std::endl;
+    for (const auto &spawner : map.spawners)
+    {
+        roomSystem->addSpawner(spawner);
     }
-    std::cout << "---PRINT ROOM SPAWNERS--- END" << std::endl;
 
+    roomSystem->checkRoomsIntegrity();
 
     mainWindow->ecs.createSystem<TestSystem>(map);
 
