@@ -406,7 +406,7 @@ void initGame() {
     auto weaponDb = mainWindow->ecs.createSystem<WeaponDatabase>();
     auto enemyDb = mainWindow->ecs.createSystem<EnemyDatabase>();
 
-    auto roomSystem = mainWindow->ecs.createSystem<RoomSystem>();
+    auto roomSystem = mainWindow->ecs.createSystem<RoomSystem>(weaponDb, enemyDb);
 
     //MapData map;
     TiledLoader loader;

@@ -114,11 +114,35 @@ namespace pg {
         float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;
     };
 
+    struct EnemyComponentsData
+    {
+        bool canSpawn = true;
+
+        int weaponId = 0;
+        Weapon weapon;
+
+        EnemyFlag flag;
+        AIStateComponent ai;
+    };
+
+    struct EnemySpawnData
+    {
+        EnemyComponentsData enemy;
+
+        float x = 0.0f;
+        float y = 0.0f;
+    };
+
+    struct SpawnEnemiesEvent
+    {
+        std::vector<EnemySpawnData> enemies;
+    };
+
     struct StartSpawnWaveEvent {};
     struct SpawnWaveEvent {};
 
     // System responsible for spawning waves of enemies
-    struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>>
+    struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>, Listener<SpawnEnemiesEvent>>
     {
         virtual std::string getSystemName() const override { return "EnemySpawnSystem"; }
 
@@ -132,11 +156,42 @@ namespace pg {
         }
 
         void onEvent(const StartSpawnWaveEvent&) override {
-            spawnTimer->start();
+            // spawnTimer->start();
         }
 
         void onEvent(const SpawnWaveEvent&) override {
-            spawnWave();
+            // spawnWave();
+        }
+
+        void onEvent(const SpawnEnemiesEvent& event) override
+        {
+            for (auto& spawnData : event.enemies)
+            {
+                auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
+                ent.get<PositionComponent>()->setZ(5);
+                ecsRef->attach<EnemyFlag>(ent.entity, spawnData.enemy.flag);
+
+                ent.get<Simple2DObject>()->setViewport(1);
+
+                std::vector<size_t> collidableLayer = {0, 3, 4};
+
+                ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
+                ecsRef->attach<AIStateComponent>(ent.entity, spawnData.enemy.ai);
+
+                Weapon weapon;
+
+                weapon.pattern = static_cast<BulletPattern>(rand() % 3);
+                weapon.bulletCount = 6;
+                weapon.bulletSpreadAngle = 50.0f;
+
+                ecsRef->attach<WeaponComponent>(ent.entity, weapon);
+
+                // random start offset
+                auto pos = ent.get<PositionComponent>();
+
+                pos->setX(spawnData.x);
+                pos->setY(spawnData.y);
+            }
         }
 
         void spawnWave()

@@ -8,15 +8,6 @@
 
 namespace pg
 {
-    struct EnemyComponentsData
-    {
-        bool canSpawn = true;
-        int weaponId = 0;
-
-        EnemyFlag flag;
-        AIStateComponent ai;
-    };
-
     struct EnemyDatabase : public System<StoragePolicy>
     {
         void addEnemy(const EnemyData& enemyData)

@@ -9,6 +9,9 @@
 // Todo remove this it is only for debug of the room triggers
 #include "2D/simple2dobject.h"
 
+#include "Database/weapondatabase.h"
+#include "Database/enemydatabase.h"
+
 namespace pg
 {
     struct RoomTriggerFlag
@@ -74,8 +77,96 @@ namespace pg
         int roomIndex;
     };
 
-    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnterRoomEvent>, StoragePolicy>
+    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, StoragePolicy>
     {
+        RoomSystem(WeaponDatabase* weaponDb, EnemyDatabase* enemyDb) : weaponDb(weaponDb), enemyDb(enemyDb)
+        {
+        }
+
+        virtual void init() override
+        {
+            auto ent = ecsRef->createEntity();
+
+            spawnTimer = ecsRef->attach<Timer>(ent);
+
+            spawnTimer->interval = 1000;
+            spawnTimer->oneShot = true;
+            spawnTimer->callback = makeCallable<SpawnWaveEvent>();
+        }
+
+        const SpawnData& selectRandomSpawn(const std::vector<SpawnData>& spawns)
+        {
+            // Calculate the total weight (sum of spawn probabilities)
+            float totalWeight = 0.0f;
+            for (const auto& spawn : spawns)
+            {
+                totalWeight += spawn.spawnProba;
+            }
+
+            // Generate a random number in the range [0, totalWeight)
+            float randomWeight = static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * totalWeight;
+
+            // Select the spawn based on the random weight
+            float cumulativeWeight = 0.0f;
+            for (const auto& spawn : spawns)
+            {
+                cumulativeWeight += spawn.spawnProba;
+                if (randomWeight <= cumulativeWeight)
+                {
+                    return spawn;
+                }
+            }
+
+            // Fallback in case of rounding errors (shouldn't happen)
+            return spawns.back();
+        }
+
+        virtual void onEvent(const SpawnWaveEvent&) override
+        {
+            auto it = rooms.find(currentRoom);
+
+            if (it == rooms.end())
+            {
+                LOG_ERROR("RoomSystem", "Room not found");
+                return;
+            }
+
+            std::vector<EnemySpawnData> enemiesToSpawn;
+
+            for (const auto& spawner : it->second.spawners)
+            {
+                if (nbSpawnedEnemies >= static_cast<size_t>(it->second.data.nbEnemy))
+                {
+                    LOG_INFO("RoomSystem", "Max number of enemies spawned");
+                    break;
+                }
+
+                auto spawnData = selectRandomSpawn(spawner.spawns);
+
+                auto enemyData = enemyDb->getEnemy(spawnData.enemyId);
+
+                if (not enemyData.canSpawn)
+                {
+                    LOG_ERROR("RoomSystem", "Enemy cannot spawn");
+                    continue;
+                }
+
+                enemyData.weapon = weaponDb->getWeapon(enemyData.weaponId);
+
+                EnemySpawnData enemySpawnData;
+
+                enemySpawnData.enemy = enemyData;
+                enemySpawnData.x = spawner.posXInSPixels;
+                enemySpawnData.y = spawner.posYInSPixels;
+
+                enemiesToSpawn.push_back(enemySpawnData);
+
+                nbSpawnedEnemies++;
+            }
+
+            ecsRef->sendEvent(SpawnEnemiesEvent{enemiesToSpawn});
+        }
+
         virtual void onEvent(const EnterRoomEvent& event) override
         {
             auto it = rooms.find(event.roomIndex);
@@ -96,6 +187,13 @@ namespace pg
             {
                 it->second.state = RoomState::Active;
             }
+
+            currentRoom = event.roomIndex;
+
+            nbSlayedEnemies = 0;
+            nbSpawnedEnemies = 0;
+
+            spawnTimer->start();
         }
 
         void addRoom(const RoomData& data)
@@ -191,6 +289,16 @@ namespace pg
             rooms.clear();
         }
 
+        WeaponDatabase* weaponDb;
+        EnemyDatabase* enemyDb;
+
         std::unordered_map<int, Room> rooms;
+
+        int currentRoom = -1;
+
+        CompRef<Timer> spawnTimer;
+
+        size_t nbSlayedEnemies = 0;
+        size_t nbSpawnedEnemies = 0;
     };
 }
