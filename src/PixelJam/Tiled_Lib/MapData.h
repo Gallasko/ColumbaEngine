@@ -277,6 +277,9 @@ struct EnemyData {
     int cooldownTime = 1000; // ms
     int wideUpTime = 500;
 
+    bool isBoss;
+    int hp;
+
     /*!
      * Enemy template i. SpawnData references it.
      */
@@ -291,6 +294,7 @@ inline std::ostream &operator<<(std::ostream &os, const EnemyData &data) {
     os << "EnemyData {\n"
             << "  name: " << data.name << "\n"
             << "  Id: " << data.objId << "\n"
+    << "  isBoss: " << data.isBoss << "\n"
             << "  chaseSpeed: " << data.chaseSpeed << "\n"
             << "  idealDistance: " << data.idealDistance << "\n"
             << "  orbitThreshold: " << data.orbitThreshold << "\n"

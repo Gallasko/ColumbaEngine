@@ -25,6 +25,9 @@ namespace pg
             enemy.ai.attackDistance = enemyData.attackDistance;
             enemy.ai.cooldownTime = enemyData.cooldownTime;
             enemy.ai.wideUpTime = enemyData.wideUpTime;
+            enemy.ai.hp = enemyData.hp;
+            enemy.ai.isBoss = enemyData.isBoss;
+
 
             enemy.weaponId = enemyData.weaponId;
 

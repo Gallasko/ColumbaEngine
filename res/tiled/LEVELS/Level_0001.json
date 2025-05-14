@@ -907,7 +907,7 @@
                         {
                          "name":"nbEnemy",
                          "type":"int",
-                         "value":5
+                         "value":8
                         }, 
                         {
                          "name":"roomIndex",
@@ -923,6 +923,11 @@
                  "name":"#3",
                  "properties":[
                         {
+                         "name":"nbEnemy",
+                         "type":"int",
+                         "value":7
+                        }, 
+                        {
                          "name":"roomIndex",
                          "type":"int",
                          "value":3
@@ -935,6 +940,11 @@
                  "id":41,
                  "name":"#4",
                  "properties":[
+                        {
+                         "name":"nbEnemy",
+                         "type":"int",
+                         "value":8
+                        }, 
                         {
                          "name":"roomIndex",
                          "type":"int",
@@ -959,14 +969,13 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":false,
+         "visible":true,
          "x":0,
          "y":0
         }, 
         {
          "draworder":"topdown",
          "id":9,
-         "locked":true,
          "name":"Enemies_Data",
          "objects":[
                 {
@@ -1010,11 +1019,6 @@
                  "name":"Enemy_Sniper",
                  "properties":[
                         {
-                         "name":"enemyBulletDamage",
-                         "type":"float",
-                         "value":5
-                        }, 
-                        {
                          "name":"idealDistance",
                          "type":"float",
                          "value":128
@@ -1045,6 +1049,37 @@
                  "template":"..\/TEMPLATES\/Enemy_Data.json",
                  "x":1326,
                  "y":310
+                }, 
+                {
+                 "id":74,
+                 "name":"Enemy_BOSS",
+                 "properties":[
+                        {
+                         "name":"isBoss",
+                         "type":"bool",
+                         "value":true
+                        }],
+                 "template":"..\/TEMPLATES\/Enemy_Data.json",
+                 "x":1790.66666666667,
+                 "y":396
+                }, 
+                {
+                 "id":81,
+                 "name":"Enemy_First",
+                 "properties":[
+                        {
+                         "name":"name",
+                         "type":"string",
+                         "value":"firstEnemy"
+                        }, 
+                        {
+                         "name":"weapon",
+                         "type":"object",
+                         "value":79
+                        }],
+                 "template":"..\/TEMPLATES\/Enemy_Data.json",
+                 "x":1741.33333333333,
+                 "y":612.666666666667
                 }],
          "opacity":1,
          "type":"objectgroup",
@@ -1058,10 +1093,127 @@
          "name":"Spawners",
          "objects":[
                 {
-                 "height":0,
                  "id":34,
-                 "name":"SPAWNER",
-                 "point":true,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":5
+                            }
+                        }, 
+                        {
+                         "name":"enemy2",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":31,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"enemy3",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":35,
+                             "spawnProba":1
+                            }
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":224,
+                 "y":2064
+                }, 
+                {
+                 "id":75,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":5
+                            }
+                        }, 
+                        {
+                         "name":"enemy2",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":31,
+                             "spawnProba":5
+                            }
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":222.5,
+                 "y":2285
+                }, 
+                {
+                 "id":76,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":31,
+                             "spawnProba":1
+                            }
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":512,
+                 "y":2256
+                }, 
+                {
+                 "id":77,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":31,
+                             "spawnProba":1
+                            }
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":512,
+                 "y":2080
+                }, 
+                {
+                 "id":78,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":81,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":0
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":920,
+                 "y":2064.5
+                }, 
+                {
+                 "id":82,
                  "properties":[
                         {
                          "name":"enemy1",
@@ -1074,45 +1226,423 @@
                             }
                         }, 
                         {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":2
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":320.5,
+                 "y":1767.5
+                }, 
+                {
+                 "id":83,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":2
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":321.5,
+                 "y":1865.5
+                }, 
+                {
+                 "id":84,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":2
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":573.5,
+                 "y":1588.5
+                }, 
+                {
+                 "id":85,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":2
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":649,
+                 "y":1713
+                }, 
+                {
+                 "id":86,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":3
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":208,
+                 "y":880
+                }, 
+                {
+                 "id":87,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":3
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":208,
+                 "y":1184
+                }, 
+                {
+                 "id":88,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":3
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":208,
+                 "y":1008
+                }, 
+                {
+                 "id":89,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":30,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":3
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":368,
+                 "y":880
+                }, 
+                {
+                 "id":90,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":30,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":3
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":384,
+                 "y":1184
+                }, 
+                {
+                 "id":91,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":31,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":3
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":504.666666666667,
+                 "y":878
+                }, 
+                {
+                 "id":92,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":31,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":3
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":504.666666666667,
+                 "y":1171.33333333333
+                }, 
+                {
+                 "id":93,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":30,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":4
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":736,
+                 "y":928
+                }, 
+                {
+                 "id":94,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":30,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":4
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":1072,
+                 "y":928
+                }, 
+                {
+                 "id":95,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":30,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":4
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":1072,
+                 "y":1248
+                }, 
+                {
+                 "id":96,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":30,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":4
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":736,
+                 "y":1248
+                }, 
+                {
+                 "id":97,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":30,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
                          "name":"enemy2",
                          "propertytype":"SpawnData",
                          "type":"class",
                          "value":
                             {
                              "enemyData":31,
-                             "spawnProba":0.5
-                            }
-                        }, 
-                        {
-                         "name":"enemy3",
-                         "propertytype":"SpawnData",
-                         "type":"class",
-                         "value":
-                            {
-                             "enemyData":35,
-                             "spawnProba":0.3
+                             "spawnProba":3
                             }
                         }, 
                         {
                          "name":"roomIndex",
                          "type":"int",
-                         "value":1
+                         "value":4
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":912,
+                 "y":1104
+                }, 
+                {
+                 "id":98,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":74,
+                             "spawnProba":1
+                            }
                         }, 
                         {
-                         "name":"spawner",
-                         "type":"bool",
-                         "value":true
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":5
                         }],
-                 "rotation":0,
-                 "type":"",
-                 "visible":true,
-                 "width":0,
-                 "x":224,
-                 "y":2064
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":352,
+                 "y":320
+                }, 
+                {
+                 "id":99,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":5
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":80,
+                 "y":96
+                }, 
+                {
+                 "id":100,
+                 "properties":[
+                        {
+                         "name":"enemy1",
+                         "propertytype":"SpawnData",
+                         "type":"class",
+                         "value":
+                            {
+                             "enemyData":32,
+                             "spawnProba":1
+                            }
+                        }, 
+                        {
+                         "name":"roomIndex",
+                         "type":"int",
+                         "value":5
+                        }],
+                 "template":"..\/TEMPLATES\/SPAWNER.json",
+                 "x":640,
+                 "y":96
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":false,
+         "visible":true,
          "x":0,
          "y":0
         }, 
@@ -1154,8 +1684,8 @@
                             }
                         }],
                  "template":"..\/TEMPLATES\/WEAPON.json",
-                 "x":1339,
-                 "y":601
+                 "x":1453,
+                 "y":553.666666666667
                 }, 
                 {
                  "id":44,
@@ -1171,8 +1701,9 @@
                             }
                         }],
                  "template":"..\/TEMPLATES\/WEAPON.json",
-                 "x":1454,
-                 "y":591
+                 "visible":true,
+                 "x":1240.66666666667,
+                 "y":545.666666666667
                 }, 
                 {
                  "id":45,
@@ -1190,17 +1721,38 @@
                             }
                         }],
                  "template":"..\/TEMPLATES\/WEAPON.json",
-                 "x":1632,
-                 "y":593
+                 "x":1640,
+                 "y":567
+                }, 
+                {
+                 "id":79,
+                 "name":"WEAPON_pistol_weak",
+                 "properties":[
+                        {
+                         "name":"data",
+                         "propertytype":"WeaponData",
+                         "type":"class",
+                         "value":
+                            {
+                             "ammo":6,
+                             "damage":2,
+                             "name":"pistolWeak",
+                             "pattern":1
+                            }
+                        }],
+                 "template":"..\/TEMPLATES\/WEAPON.json",
+                 "visible":true,
+                 "x":1527.33333333333,
+                 "y":697.333333333333
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":false,
+         "visible":true,
          "x":0,
          "y":0
         }],
  "nextlayerid":15,
- "nextobjectid":74,
+ "nextobjectid":101,
  "orientation":"orthogonal",
  "renderorder":"right-down",
  "tiledversion":"1.11.2",

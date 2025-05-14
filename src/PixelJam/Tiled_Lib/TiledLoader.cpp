@@ -185,6 +185,8 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         enemy.objId = obj.getId();
                         enemy.weaponId = obj.get<uint32_t>("weapon");
                         enemy.canSpawn = enemy.name != "noEnemy";
+                        enemy.isBoss = obj.get<bool>("isBoss");
+                        enemy.hp = obj.get<bool>("hp");
 
                         result.enemyTemplates.push_back(enemy);
                     }

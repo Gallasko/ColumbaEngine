@@ -26,9 +26,19 @@
              "value":true
             }, 
             {
+             "name":"hp",
+             "type":"int",
+             "value":5
+            }, 
+            {
              "name":"idealDistance",
              "type":"float",
              "value":64
+            }, 
+            {
+             "name":"isBoss",
+             "type":"bool",
+             "value":false
             }, 
             {
              "name":"name",
