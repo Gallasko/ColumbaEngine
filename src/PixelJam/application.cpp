@@ -158,6 +158,26 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         const float repulsionStrength = 2.f;
 
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
+            // get both entities’ positions
+            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+            auto playerEnt = player->ecsRef->getEntity(player->entityId);
+            auto wpos     = wallEnt->get<PositionComponent>();
+            auto epos     = playerEnt->get<PositionComponent>();
+
+            // compute normalized vector from wall→enemy
+            float dx = epos->x - wpos->x;
+            float dy = epos->y - wpos->y;
+            float len = std::sqrt(dx*dx + dy*dy);
+            if (len > 0.f) {
+                dx /= len;
+                dy /= len;
+                // shove enemy out
+                epos->setX(epos->x + dx * repulsionStrength);
+                epos->setY(epos->y + dy * repulsionStrength);
+            }
+        });
+
         // Enemy <-> Wall: push enemy out of the wall
         makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall){
             // get both entities’ positions
@@ -442,6 +462,8 @@ void initGame() {
         enemyDb->addEnemy(e);
     }
 
+    roomSystem->addPlayerSpawn(map.playerSpawn);
+
     for (const auto &r: map.roomDatas)
     {
         roomSystem->addRoom(r);
@@ -469,6 +491,8 @@ void initGame() {
     }
 
     roomSystem->checkRoomsIntegrity();
+
+    roomSystem->startLevel();
 
     mainWindow->ecs.createSystem<TestSystem>(map);
 

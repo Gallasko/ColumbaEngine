@@ -42,7 +42,29 @@ namespace pg
         _unique_id entityId;
     };
 
-    struct PlayerFlag {};
+    struct PlayerFlag : public Ctor
+    {
+        PlayerFlag() {}
+        PlayerFlag(const PlayerFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
+
+        PlayerFlag& operator=(const PlayerFlag& rhs)
+        {
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
+
     struct AllyBulletFlag : public Ctor
     {
         AllyBulletFlag(float dmg = 1) : damage(dmg) {}
@@ -93,10 +115,12 @@ namespace pg
     struct PlayerMoveLeft {};
     struct PlayerMoveRight {};
 
+    struct SpawnPlayerEvent { float x; float y; };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
-        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>>
+        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
 
@@ -105,7 +129,8 @@ namespace pg
             auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
             playerEnt.get<PositionComponent>()->setZ(10);
-
+            playerEnt.get<PositionComponent>()->setVisibility(false);
+            
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
             ecsRef->attach<FollowCamera2D>(playerEnt.entity);
@@ -146,6 +171,14 @@ namespace pg
             leftTimer->running = false;
             bottomTimer->running = false;
             rightTimer->running = false;
+        }
+
+        virtual void onEvent(const SpawnPlayerEvent& event) override
+        {
+            player->get<PositionComponent>()->setX(event.x);
+            player->get<PositionComponent>()->setY(event.y);
+
+            player->get<PositionComponent>()->setVisibility(true);
         }
 
         virtual void onProcessEvent(const OnMouseClick& event) override
@@ -350,7 +383,7 @@ namespace pg
         CompRef<Timer> bottomTimer;
         CompRef<Timer> rightTimer;
 
-        float movespeed = 10.f;
+        float movespeed = 4.f;
     };
 
 } // namespace pg

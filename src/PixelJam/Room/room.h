@@ -89,6 +89,12 @@ namespace pg
         {
         }
 
+        void startLevel()
+        {
+            auto pos = playerSpawn.positionSPixels;
+            ecsRef->sendEvent(SpawnPlayerEvent{pos.x, pos.y});
+        }
+
         virtual void init() override
         {
             auto ent = ecsRef->createEntity();
@@ -268,7 +274,6 @@ namespace pg
                 door.entity.get<Simple2DObject>()->setColors({125.f, 0.f, 0.f, 80.f});
 
                 ecsRef->attach<WallFlag>(door.entity);
-                ecsRef->attach<CollisionComponent>(door.entity, 0);
             }
 
             currentRoom = event.roomIndex;
@@ -277,6 +282,11 @@ namespace pg
             nbSpawnedEnemies = 0;
 
             spawnTimer->start();
+        }
+
+        void addPlayerSpawn(const SpawnPoint& spawn)
+        {
+            playerSpawn = spawn;
         }
 
         void addRoom(const RoomData& data)
@@ -327,6 +337,8 @@ namespace pg
             doorEnt.get<PositionComponent>()->setX(rect.topLeftCornerX);
             doorEnt.get<PositionComponent>()->setY(rect.topLeftCornerY);
             doorEnt.get<PositionComponent>()->setZ(10);
+
+            ecsRef->attach<CollisionComponent>(doorEnt.entity, 0);
 
             doorEnt.get<Simple2DObject>()->setViewport(1);
 
@@ -406,6 +418,8 @@ namespace pg
         EnemyDatabase* enemyDb;
 
         std::unordered_map<int, Room> rooms;
+
+        SpawnPoint playerSpawn;
 
         int currentRoom = -1;
 
