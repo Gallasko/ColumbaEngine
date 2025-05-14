@@ -31,7 +31,7 @@ namespace pg
 
         // Convert normalized coordinates to world space
         float worldX = x + normalizedX * width;
-        float worldY = y + (1.0f - normalizedY) * height; // Flip Y-axis
+        float worldY = y + normalizedY * height;
 
         return {worldX, worldY};
     }

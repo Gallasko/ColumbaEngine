@@ -436,6 +436,7 @@ void initGame() {
     {
         weaponDb->addWeapon(w);
     }
+
     for (const auto &e: map.enemyTemplates)
     {
         enemyDb->addEnemy(e);

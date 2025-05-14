@@ -154,8 +154,9 @@ namespace pg
             {
                 auto pos = player->get<PositionComponent>();
                 auto weaponEnt = player->get<WeaponComponent>();
+                auto camera = player->get<BaseCamera2D>();
 
-                if (not pos or not weaponEnt)
+                if (not pos or not weaponEnt or not camera)
                     return;
 
                 auto window = ecsRef->getEntity("__MainWindow");
@@ -164,15 +165,19 @@ namespace pg
                     return;
 
                 // Todo I should only need to get the main camera and use mousePosToWorldPos of the main camera instead !
-                auto windowWidth = window->get<PositionComponent>()->width;
-                auto windowHeight = window->get<PositionComponent>()->height;
+                // auto windowWidth = window->get<PositionComponent>()->width;
+                // auto windowHeight = window->get<PositionComponent>()->height;
 
-                auto normalizedX = 2 * (event.pos.x / windowWidth) - 1.0;
-                auto normalizedY = 2 * (event.pos.y / windowHeight) - 1.0;
+                // auto normalizedX = 2 * (event.pos.x / windowWidth) - 1.0;
+                // auto normalizedY = 2 * (event.pos.y / windowHeight) - 1.0;
+
+                auto mousePosInGame = camera->screenToWorld(event.pos.x, event.pos.y);
+
+                LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
 
                 const auto& weapon = weaponEnt->weapon;
 
-                for (const auto& dir : weapon.fireDirections({normalizedX, normalizedY}))
+                for (const auto& dir : weapon.fireDirections({mousePosInGame.x - pos->x, mousePosInGame.y - pos->y}))
                 {
                     auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
 
