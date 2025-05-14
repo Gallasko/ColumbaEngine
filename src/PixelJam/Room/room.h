@@ -42,6 +42,12 @@ namespace pg
         Completed,
     };
 
+    struct RoomDoorHolder
+    {
+        EntityRef entity;
+        Door door;
+    };
+
     struct Room
     {
         Room(const RoomData& data) : data(data) {}
@@ -67,7 +73,7 @@ namespace pg
         RoomState state = RoomState::Unexplored;
 
         std::vector<RoomTriggerHolder> triggers;
-        std::vector<Door> doors;
+        std::vector<RoomDoorHolder> doors;
         std::vector<Spawner> spawners;
     };
 
@@ -77,7 +83,7 @@ namespace pg
         int roomIndex;
     };
 
-    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, StoragePolicy>
+    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, StoragePolicy>
     {
         RoomSystem(WeaponDatabase* weaponDb, EnemyDatabase* enemyDb) : weaponDb(weaponDb), enemyDb(enemyDb)
         {
@@ -133,38 +139,101 @@ namespace pg
 
             std::vector<EnemySpawnData> enemiesToSpawn;
 
-            for (const auto& spawner : it->second.spawners)
+            size_t nbSpawnedEnemiesInLoop = 0;
+            bool fastBreak = false;
+
+            do
             {
-                if (nbSpawnedEnemies >= static_cast<size_t>(it->second.data.nbEnemy))
+                for (const auto& spawner : it->second.spawners)
                 {
-                    LOG_INFO("RoomSystem", "Max number of enemies spawned");
-                    break;
+                    if (nbSpawnedEnemies + nbSpawnedEnemiesInLoop >= static_cast<size_t>(it->second.data.nbEnemy))
+                    {
+                        LOG_INFO("RoomSystem", "Max number of enemies spawned");
+                        fastBreak = true;
+                        break;
+                    }
+
+                    auto spawnData = selectRandomSpawn(spawner.spawns);
+
+                    auto enemyData = enemyDb->getEnemy(spawnData.enemyId);
+
+                    if (not enemyData.canSpawn)
+                    {
+                        LOG_ERROR("RoomSystem", "Enemy cannot spawn");
+                        continue;
+                    }
+
+                    enemyData.weapon = weaponDb->getWeapon(enemyData.weaponId);
+
+                    EnemySpawnData enemySpawnData;
+
+                    enemySpawnData.enemy = enemyData;
+                    enemySpawnData.x = spawner.posXInSPixels;
+                    enemySpawnData.y = spawner.posYInSPixels;
+
+                    enemiesToSpawn.push_back(enemySpawnData);
+
+                    nbSpawnedEnemiesInLoop++;
                 }
 
-                auto spawnData = selectRandomSpawn(spawner.spawns);
-
-                auto enemyData = enemyDb->getEnemy(spawnData.enemyId);
-
-                if (not enemyData.canSpawn)
-                {
-                    LOG_ERROR("RoomSystem", "Enemy cannot spawn");
-                    continue;
-                }
-
-                enemyData.weapon = weaponDb->getWeapon(enemyData.weaponId);
-
-                EnemySpawnData enemySpawnData;
-
-                enemySpawnData.enemy = enemyData;
-                enemySpawnData.x = spawner.posXInSPixels;
-                enemySpawnData.y = spawner.posYInSPixels;
-
-                enemiesToSpawn.push_back(enemySpawnData);
-
-                nbSpawnedEnemies++;
-            }
+            } while (nbSpawnedEnemiesInLoop == 0 or fastBreak);
+            
+            nbSpawnedEnemies += nbSpawnedEnemiesInLoop;
 
             ecsRef->sendEvent(SpawnEnemiesEvent{enemiesToSpawn});
+        }
+
+        virtual void onEvent(const EnemyDeathEvent& event) override
+        {
+            nbSlayedEnemies++;
+
+            auto it = rooms.find(currentRoom);
+
+            if (it == rooms.end())
+            {
+                LOG_ERROR("RoomSystem", "Room not found");
+                return;
+            }
+
+            if (nbSlayedEnemies >= static_cast<size_t>(it->second.data.nbEnemy))
+            {
+                it->second.state = RoomState::Completed;
+
+                for (auto& door : it->second.doors)
+                {
+                    door.entity.get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
+
+                    ecsRef->detach<WallFlag>(door.entity);
+                    ecsRef->detach<CollisionComponent>(door.entity);
+                }
+            }
+            else if (nbSlayedEnemies == nbSpawnedEnemies)
+            {
+                spawnTimer->start();
+            }
+        }
+
+        bool roomHasValidSpawners(const std::vector<Spawner>& spawners) const
+        {
+            if (spawners.empty())
+            {
+                return false;
+            }
+
+            for (const auto& spawner : spawners)
+            {
+                for (const auto& spawn : spawner.spawns)
+                {
+                    auto enemy = enemyDb->getEnemy(spawn.enemyId);
+
+                    if (enemy.canSpawn)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
         }
 
         virtual void onEvent(const EnterRoomEvent& event) override
@@ -183,9 +252,23 @@ namespace pg
                 return;
             }
 
+            if (not roomHasValidSpawners(it->second.spawners))
+            {
+                LOG_ERROR("RoomSystem", "Room has no valid spawners");
+                return;
+            }
+
             if (it->second.state == RoomState::Unexplored)
             {
                 it->second.state = RoomState::Active;
+            }
+
+            for (const auto& door : it->second.doors)
+            {
+                door.entity.get<Simple2DObject>()->setColors({125.f, 0.f, 0.f, 80.f});
+
+                ecsRef->attach<WallFlag>(door.entity);
+                ecsRef->attach<CollisionComponent>(door.entity, 0);
             }
 
             currentRoom = event.roomIndex;
@@ -237,7 +320,17 @@ namespace pg
                 return;
             }
 
-            it->second.doors.push_back(door);
+            auto rect = door.rectInSPixels;
+
+            auto doorEnt = makeSimple2DShape(ecsRef, Shape2D::Square, rect.width, rect.height, {0.f, 125.f, 0.f, 80.f});
+
+            doorEnt.get<PositionComponent>()->setX(rect.topLeftCornerX);
+            doorEnt.get<PositionComponent>()->setY(rect.topLeftCornerY);
+            doorEnt.get<PositionComponent>()->setZ(10);
+
+            doorEnt.get<Simple2DObject>()->setViewport(1);
+
+            it->second.doors.push_back(RoomDoorHolder{doorEnt.entity, door});
         }
 
         void addSpawner(const Spawner& spawner)

@@ -143,6 +143,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                     ecsRef->attach<CollectibleFlag>(collectibleEnt.entity, weapon->weapon);
                 }
 
+                ecsRef->sendEvent(EnemyDeathEvent{enemy->entityId});
                 ecsRef->removeEntity(enemy->entityId);
             }
 
@@ -246,9 +247,12 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         printf("Loaded Map\n");
     }
 
-    virtual void onProcessEvent(const OnMouseClick &event) override {
-        if (event.button == SDL_BUTTON_RIGHT) {
-            if (testVar == 0) {
+    virtual void onProcessEvent(const OnMouseClick &event) override
+    {
+        if (event.button == SDL_BUTTON_RIGHT)
+        {
+            if (testVar == 0)
+            {
                 auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
 
                 wallEnt.get<Simple2DObject>()->setViewport(1);
@@ -259,7 +263,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
                 ecsRef->attach<WallFlag>(wallEnt.entity);
-            } else if (testVar == 1) {
+            }
+            else if (testVar == 1)
+            {
                 auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f,
                                                           {125.f, 0.f, 125.f, 255.f});
 
@@ -268,7 +274,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
                 ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
-            } else if (testVar == 2) {
+            }
+            else if (testVar == 2)
+            {
                 auto enemyEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {255.f, 0.f, 0.f, 255.f});
 
                 enemyEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);

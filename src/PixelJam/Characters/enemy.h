@@ -138,6 +138,8 @@ namespace pg {
         std::vector<EnemySpawnData> enemies;
     };
 
+    struct EnemyDeathEvent { _unique_id entityId; };
+
     struct StartSpawnWaveEvent {};
     struct SpawnWaveEvent {};
 
@@ -407,6 +409,8 @@ namespace pg {
             p->setX(pos->x + 20.f);
             p->setY(pos->y + 20.f);
             p->setZ(50);
+
+            b.get<Simple2DObject>()->setViewport(1);
 
             std::vector<size_t> collidableLayer = {0, 1};
             ecsRef->attach<CollisionComponent>(b.entity, 5, 1., collidableLayer);
