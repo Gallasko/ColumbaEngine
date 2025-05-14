@@ -67,11 +67,30 @@ struct TileSet {
     int tileHeightInTPixels;
 };
 
+/*!
+ * Same as TiledRect but works in tile space. So if the tile map size is 30x20 tiles, the coordinates are grid, int tile positions
+ */
+struct TileRectTilesSpace {
+    int topLeftCornerX;
+    int topLeftCornerY;
+    int widthInTiles;
+    int heightInTiles;
+};
+
 struct TiledRect {
     float topLeftCornerX;
     float topLeftCornerY;
     float width;
     float height;
+
+    TileRectTilesSpace toTileRectTilesSpace(int tileSizeX, int tileSizeY) const {
+        TileRectTilesSpace result;
+        result.topLeftCornerX = static_cast<int>(topLeftCornerX / tileSizeX);
+        result.topLeftCornerY = static_cast<int>(topLeftCornerY / tileSizeY);
+        result.widthInTiles   = static_cast<int>(width / tileSizeX);
+        result.heightInTiles  = static_cast<int>(height / tileSizeY);
+        return result;
+    }
 };
 inline std::ostream& operator<<(std::ostream& os, const TiledRect& rect) {
     os << "TiledRect {\n"
@@ -79,6 +98,18 @@ inline std::ostream& operator<<(std::ostream& os, const TiledRect& rect) {
        << "  topLeftCornerY: " << rect.topLeftCornerY << "\n"
        << "  width: " << rect.width << "\n"
        << "  height: " << rect.height << "\n"
+       << "}";
+    return os;
+}
+
+
+
+inline std::ostream& operator<<(std::ostream& os, const TileRectTilesSpace& rect) {
+    os << "TileRectTilesSpace {\n"
+       << "  topLeftCornerX (tile space): " << rect.topLeftCornerX << "\n"
+       << "  topLeftCornerY (tile space): " << rect.topLeftCornerY << "\n"
+       << "  width in tiles: " << rect.widthInTiles << "\n"
+       << "  height in tiles: " << rect.heightInTiles << "\n"
        << "}";
     return os;
 }
@@ -92,6 +123,42 @@ inline std::ostream& operator<<(std::ostream& os, const RoomTrigger& trigger) {
     os << "RoomTrigger {\n"
        << "  rectInSPixels: " << trigger.rectInSPixels << "\n"
        << "  roomIndex: " << trigger.roomIndex << "\n"
+       << "}";
+    return os;
+}
+
+struct Door {
+    TiledRect rectInSPixels;
+    TileRectTilesSpace rectTilesSpace;
+    int roomIndex;
+};
+
+inline std::ostream& operator<<(std::ostream& os, const Door& trigger) {
+    os << "Door {\n"
+       << "  rectInSPixels: " << trigger.rectInSPixels << "\n"
+    << "  rectIn Tile: " << trigger.rectTilesSpace << "\n"
+       << "  roomIndex: " << trigger.roomIndex << "\n"
+       << "}";
+    return os;
+}
+
+struct Spike {
+    TiledRect rectInSPixels;
+    TileRectTilesSpace rectTilesSpace;
+    float inDuration;
+    float showingDuration;
+    float outDuration;
+    float timerOffset;
+};
+
+inline std::ostream& operator<<(std::ostream& os, const Spike& trigger) {
+    os << "Spike {\n"
+       << "  rectInSPixels: " << trigger.rectInSPixels << "\n"
+    << "  rectIn Tile: " << trigger.rectTilesSpace << "\n"
+    << "  inDuration: " << trigger.inDuration << "\n"
+    << "  showingDuration: " << trigger.showingDuration << "\n"
+    << "  outDuration: " << trigger.outDuration << "\n"
+    << "  timerOffset: " << trigger.timerOffset << "\n"
        << "}";
     return os;
 }
@@ -270,6 +337,14 @@ struct MapData {
      * All the weapon types. an enemy can have a weapon, referencing it by id.
      */
     std::vector<WeaponData> weaponDatas;
+    /*!
+     * All the doors. You can filter per room with the roomIndex.
+     */
+    std::vector<Door> doors;
+    /*!
+     * All the spikes.
+     */
+    std::vector<Spike> spikes;
     /*!
      *
      */

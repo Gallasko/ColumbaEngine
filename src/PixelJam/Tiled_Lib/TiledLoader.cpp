@@ -129,6 +129,48 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                             result.roomTriggers.push_back(roomTrigger);
                         }
                     }
+                    else if (obj.get<bool>("door")) {
+                        PG_ASSERT(obj.has(RoomIndex), "a door must have room index")
+                        const auto& roomIndex = obj.get<int>(RoomIndex);
+                        Door door;
+
+                        door.roomIndex = roomIndex;
+
+                        TiledRect rect;
+                        rect.topLeftCornerX = obj.getPosition().x * scaleFactor;
+                        rect.topLeftCornerY = obj.getPosition().y * scaleFactor;
+                        rect.width = obj.getSize().x * scaleFactor;
+                        rect.height = obj.getSize().y * scaleFactor;
+
+                        door.rectInSPixels = rect;
+                        door.rectTilesSpace = rect.toTileRectTilesSpace(result.tileWidthInSPixels, result.tileHeightInSPixels);
+
+                        result.doors.push_back(door);
+                    }
+                    else if (obj.get<bool>("spikes")) {
+                        PG_ASSERT(obj.has("inDuration"), "a spike must have inDuration")
+                        PG_ASSERT(obj.has("outDuration"), "a spike must have outDuration")
+                        PG_ASSERT(obj.has("showingDuration"), "a spike must have showingDuration")
+                        PG_ASSERT(obj.has("timerOffset"), "a spike must have timerOffset")
+
+                        Spike spike;
+
+                        spike.inDuration = obj.get<float>("inDuration");
+                        spike.outDuration = obj.get<float>("outDuration");
+                        spike.showingDuration = obj.get<float>("showingDuration");
+                        spike.timerOffset = obj.get<float>("timerOffset");
+
+                        TiledRect rect;
+                        rect.topLeftCornerX = obj.getPosition().x * scaleFactor;
+                        rect.topLeftCornerY = obj.getPosition().y * scaleFactor;
+                        rect.width = obj.getSize().x * scaleFactor;
+                        rect.height = obj.getSize().y * scaleFactor;
+
+                        spike.rectInSPixels = rect;
+                        spike.rectTilesSpace = rect.toTileRectTilesSpace(result.tileWidthInSPixels, result.tileHeightInSPixels);
+
+                        result.spikes.push_back(spike);
+                    }
                     else if (obj.get<bool>("enemy")) {
                         EnemyData enemy;
 

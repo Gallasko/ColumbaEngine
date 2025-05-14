@@ -428,7 +428,19 @@ void initGame() {
     for (const auto &trigger : map.roomTriggers) {
         std::cout << "Room trigger: " << trigger << std::endl;
     }
-    std::cout << "---PRINT TRIGGERS--- END" << std::endl;
+    std::cout << "---PRINT ROOM TRIGGERS--- END" << std::endl;
+
+    std::cout << "---PRINT ROOM DOORS---" << std::endl;
+    for (const auto &door : map.doors) {
+        std::cout << "Door: " << door << std::endl;
+    }
+    std::cout << "---PRINT ROOM DOORS--- END" << std::endl;
+
+    std::cout << "---PRINT SPIKES---" << std::endl;
+    for (const auto &spike : map.spikes) {
+        std::cout << "Spike: " << spike << std::endl;
+    }
+    std::cout << "---PRINT SPIKES--- END" << std::endl;
 
     std::cout << "---PRINT ROOM SPAWNERS---" << std::endl;
     for (const auto &spawner : map.spawners) {
