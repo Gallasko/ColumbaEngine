@@ -29,6 +29,8 @@
 #include "Tiled_Lib/TiledLoader.h"
 #include "Tiled_Lib/TileMapAtlasLoader.h"
 
+#include "Room/room.h"
+
 using namespace pg;
 
 namespace {
@@ -393,6 +395,8 @@ void initGame() {
 
     // mainWindow->interpreter->interpretFromFile("main.pg");
 
+    auto roomSystem = mainWindow->ecs.createSystem<RoomSystem>();
+
     //MapData map;
     TiledLoader loader;
     int factor = 2;
@@ -419,20 +423,26 @@ void initGame() {
     std::cout << "---PRINT Enemies--- END" << std::endl;
 
     std::cout << "---PRINT Rooms---" << std::endl;
-    for (const auto &r: map.roomDatas) {
+    for (const auto &r: map.roomDatas)
+    {
         std::cout << "Room : " << r << std::endl;
+        roomSystem->addRoom(r);
     }
     std::cout << "---PRINT Rooms--- END" << std::endl;
 
     std::cout << "---PRINT ROOM TRIGGERS---" << std::endl;
-    for (const auto &trigger : map.roomTriggers) {
+    for (const auto &trigger : map.roomTriggers)
+    {
         std::cout << "Room trigger: " << trigger << std::endl;
+        roomSystem->addRoomTrigger(trigger);
     }
     std::cout << "---PRINT ROOM TRIGGERS--- END" << std::endl;
 
     std::cout << "---PRINT ROOM DOORS---" << std::endl;
-    for (const auto &door : map.doors) {
+    for (const auto &door : map.doors)
+    {
         std::cout << "Door: " << door << std::endl;
+        roomSystem->addDoor(door);
     }
     std::cout << "---PRINT ROOM DOORS--- END" << std::endl;
 
@@ -443,8 +453,10 @@ void initGame() {
     std::cout << "---PRINT SPIKES--- END" << std::endl;
 
     std::cout << "---PRINT ROOM SPAWNERS---" << std::endl;
-    for (const auto &spawner : map.spawners) {
+    for (const auto &spawner : map.spawners)
+    {
         std::cout << "Spawner: " << spawner << std::endl;
+        roomSystem->addSpawner(spawner);
     }
     std::cout << "---PRINT ROOM SPAWNERS--- END" << std::endl;
 
