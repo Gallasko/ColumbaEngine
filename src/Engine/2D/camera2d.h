@@ -17,7 +17,7 @@ namespace pg
     struct FollowCamera2D : public Ctor
     {
         FollowCamera2D() {}
-        FollowCamera2D(const FollowCamera2D& other) : viewportWidth(other.viewportWidth), viewportHeight(other.viewportHeight), nearPlane(other.nearPlane), farPlane(other.farPlane), smoothFactor(other.smoothFactor), targetX(other.targetX), targetY(other.targetY) {}
+        FollowCamera2D(const FollowCamera2D& other) : viewportWidth(other.viewportWidth), viewportHeight(other.viewportHeight), nearPlane(other.nearPlane), farPlane(other.farPlane), smoothFactor(other.smoothFactor), targetX(other.targetX), targetY(other.targetY), useWindowViewport(other.useWindowViewport) {}
 
         FollowCamera2D& operator=(const FollowCamera2D& other)
         {
@@ -29,6 +29,8 @@ namespace pg
             smoothFactor = other.smoothFactor;
             targetX = other.targetX;
             targetY = other.targetY;
+
+            useWindowViewport = other.useWindowViewport;
 
             return *this;
         }
@@ -119,12 +121,14 @@ namespace pg
         float targetX = 0.0f;
         float targetY = 0.0f;
 
+        bool useWindowViewport = true;
+
         _unique_id id = 0;
 
         EntitySystem *ecsRef = nullptr;
     };
 
-    struct FollowCamera2DSystem : public System<Listener<TickEvent>, Listener<EntityChangedEvent>, Listener<FollowCamera2DChangedEvent>, Own<FollowCamera2D>, Own<PositionComponent>, InitSys>
+    struct FollowCamera2DSystem : public System<Listener<ResizeEvent>, Listener<TickEvent>, Listener<EntityChangedEvent>, Listener<FollowCamera2DChangedEvent>, Own<FollowCamera2D>, Own<PositionComponent>, InitSys>
     {
         virtual std::string getSystemName() const override { return "CameraSystem"; }
 
@@ -158,6 +162,18 @@ namespace pg
                 if (ent)
                     ecsRef->detach<BaseCamera2D>(ent);
             });
+        }
+
+        virtual void onEvent(const ResizeEvent& event) override
+        {
+            for (auto cam : view<FollowCamera2D>())
+            {
+                if (cam->useWindowViewport)
+                {
+                    cam->setViewportWidth(event.width);
+                    cam->setViewportHeight(event.height);
+                }
+            }
         }
 
         void updateCamera(BaseCamera2D* cam, PositionComponent* pos, FollowCamera2D* followCam)
