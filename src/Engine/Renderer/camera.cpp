@@ -6,6 +6,47 @@ namespace pg
 {
     static constexpr const char * const DOM = "Camera";    
 
+    const glm::mat4& BaseCamera2D::getProjectionMatrix()
+    {
+        return projectionMatrix;
+    }
+
+    const glm::mat4& BaseCamera2D::getViewMatrix()
+    {
+        return viewMatrix;
+    }
+
+    constant::Vector2D BaseCamera2D::screenToWorld(float mouseX, float mouseY) const
+    {
+        // Ensure the viewport dimensions are valid
+        if (width <= 0.0f || height <= 0.0f)
+        {
+            LOG_ERROR("FollowCamera2D", "Invalid viewport dimensions: width = " << width << ", height = " << height);
+            return {0.0f, 0.0f};
+        }
+
+        // Normalize screen coordinates to range [0, 1]
+        float normalizedX = mouseX / width;
+        float normalizedY = mouseY / height;
+
+        // Convert normalized coordinates to world space
+        float worldX = x + normalizedX * width;
+        float worldY = y + normalizedY * height;
+
+        return {worldX, worldY};
+    }
+
+    void BaseCamera2D::constructMatrices()
+    {
+        viewMatrix = glm::mat4(1.0f);
+
+        viewMatrix[3][0] = -x * 2.0f / width;
+        viewMatrix[3][1] =  y * 2.0f / height;
+        viewMatrix[3][2] = -2;
+
+        projectionMatrix = getProjectionMatrix();
+    }
+
     Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
         movementSpeed(0.5f), mouseSensitivity(0.005f), zoom(0.5f) // Todo make this configurable
     {

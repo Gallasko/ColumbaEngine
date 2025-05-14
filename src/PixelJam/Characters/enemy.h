@@ -74,12 +74,27 @@ namespace pg {
     {
         AIStateComponent() : state(AIState::Patrol) {}
         AIStateComponent(AIState state) : state(state) {}
-        AIStateComponent(const AIStateComponent& rhs) : state(rhs.state), elapsedTime(rhs.elapsedTime), orbitDirection(rhs.orbitDirection) {}
+        AIStateComponent(const AIStateComponent& rhs) :
+            state(rhs.state),
+            elapsedTime(rhs.elapsedTime),
+            chaseSpeed(rhs.chaseSpeed),
+            idealDistance(rhs.idealDistance),
+            orbitThreshold(rhs.orbitThreshold),
+            attackDistance(rhs.attackDistance),
+            cooldownTime(rhs.cooldownTime),
+            wideUpTime(rhs.wideUpTime),
+            orbitDirection(rhs.orbitDirection) {}
 
         AIStateComponent& operator=(const AIStateComponent& rhs)
         {
             state = rhs.state;
             elapsedTime = rhs.elapsedTime;
+            chaseSpeed = rhs.chaseSpeed;
+            idealDistance = rhs.idealDistance;
+            orbitThreshold = rhs.orbitThreshold;
+            attackDistance = rhs.attackDistance;
+            cooldownTime = rhs.cooldownTime;
+            wideUpTime = rhs.wideUpTime;
             orbitDirection = rhs.orbitDirection;
             return *this;
         }
@@ -88,14 +103,48 @@ namespace pg {
 
         float elapsedTime = 0.f;
 
+        // Configurable parameters
+        float chaseSpeed = 1.5f;
+        float idealDistance = 250.f;      // px
+        float orbitThreshold = 20.f;      // px
+        float attackDistance = 200.f;
+        int cooldownTime = 1000; // ms
+        int wideUpTime = 500;
+
         float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;
     };
+
+    struct EnemyComponentsData
+    {
+        bool canSpawn = true;
+
+        int weaponId = 0;
+        Weapon weapon;
+
+        EnemyFlag flag;
+        AIStateComponent ai;
+    };
+
+    struct EnemySpawnData
+    {
+        EnemyComponentsData enemy;
+
+        float x = 0.0f;
+        float y = 0.0f;
+    };
+
+    struct SpawnEnemiesEvent
+    {
+        std::vector<EnemySpawnData> enemies;
+    };
+
+    struct EnemyDeathEvent { _unique_id entityId; };
 
     struct StartSpawnWaveEvent {};
     struct SpawnWaveEvent {};
 
     // System responsible for spawning waves of enemies
-    struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>>
+    struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>, Listener<SpawnEnemiesEvent>>
     {
         virtual std::string getSystemName() const override { return "EnemySpawnSystem"; }
 
@@ -109,11 +158,42 @@ namespace pg {
         }
 
         void onEvent(const StartSpawnWaveEvent&) override {
-            spawnTimer->start();
+            // spawnTimer->start();
         }
 
         void onEvent(const SpawnWaveEvent&) override {
-            spawnWave();
+            // spawnWave();
+        }
+
+        void onEvent(const SpawnEnemiesEvent& event) override
+        {
+            for (auto& spawnData : event.enemies)
+            {
+                auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
+                ent.get<PositionComponent>()->setZ(5);
+                ecsRef->attach<EnemyFlag>(ent.entity, spawnData.enemy.flag);
+
+                ent.get<Simple2DObject>()->setViewport(1);
+
+                std::vector<size_t> collidableLayer = {0, 3, 4};
+
+                ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
+                ecsRef->attach<AIStateComponent>(ent.entity, spawnData.enemy.ai);
+
+                Weapon weapon;
+
+                weapon.pattern = static_cast<BulletPattern>(rand() % 3);
+                weapon.bulletCount = 6;
+                weapon.bulletSpreadAngle = 50.0f;
+
+                ecsRef->attach<WeaponComponent>(ent.entity, weapon);
+
+                // random start offset
+                auto pos = ent.get<PositionComponent>();
+
+                pos->setX(spawnData.x);
+                pos->setY(spawnData.y);
+            }
         }
 
         void spawnWave()
@@ -217,10 +297,10 @@ namespace pg {
             toPlayer.normalize();
 
             // Decide behavior
-            float diff = dist - idealDistance;
+            float diff = dist - ai->idealDistance;
 
             constant::Vector2D moveDir;
-            if (std::fabs(diff) < orbitThreshold)
+            if (std::fabs(diff) < ai->orbitThreshold)
             {
                 // Orbit: perpendicular
                 if (ai->orbitDirection == -1.0f)
@@ -239,14 +319,14 @@ namespace pg {
             }
 
             // Apply movement
-            pos->setX(pos->x + moveDir.x * chaseSpeed);
-            pos->setY(pos->y + moveDir.y * chaseSpeed);
+            pos->setX(pos->x + moveDir.x * ai->chaseSpeed);
+            pos->setY(pos->y + moveDir.y * ai->chaseSpeed);
 
-            auto checkDist = std::max(attackDistance, idealDistance);
+            auto checkDist = std::max(ai->attackDistance, ai->idealDistance);
 
             // Switch to attack if within range
             // Todo replace 45 by the actual size of the enemy (+ a small margin)
-            if (dist - 45 <= checkDist and ai->elapsedTime > cooldownTime)
+            if (dist - 45 <= checkDist and ai->elapsedTime > ai->cooldownTime)
             {
                 ai->elapsedTime = 0.0f;
                 ai->state = AIState::ShotWideUp;
@@ -277,7 +357,7 @@ namespace pg {
                 }
             }
 
-            if (ai->elapsedTime > wideUpTime)
+            if (ai->elapsedTime > ai->wideUpTime)
             {
                 ai->elapsedTime = 0.0f;
                 ai->state = AIState::Attack;
@@ -330,20 +410,14 @@ namespace pg {
             p->setY(pos->y + 20.f);
             p->setZ(50);
 
+            b.get<Simple2DObject>()->setViewport(1);
+
             std::vector<size_t> collidableLayer = {0, 1};
             ecsRef->attach<CollisionComponent>(b.entity, 5, 1., collidableLayer);
 
             ecsRef->attach<MoveDirComponent>(b.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
             ecsRef->attach<EnemyBulletFlag>(b.entity, weapon.damage);
         }
-
-        // Configurable parameters
-        float chaseSpeed = 1.5f;
-        float idealDistance = 250.f;      // px
-        float orbitThreshold = 20.f;      // px
-        float attackDistance = 200.f;
-        int cooldownTime = 1000; // ms
-        int wideUpTime = 500;
 
         float deltaTime = 0.f;
     };

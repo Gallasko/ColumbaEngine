@@ -17,16 +17,25 @@ namespace pg
 {
     struct AbstractCamera
     {
-        virtual glm::mat4 getProjectionMatrix() = 0;
-        virtual glm::mat4 getViewMatrix() = 0;
+        virtual const glm::mat4& getProjectionMatrix() = 0;
+        virtual const glm::mat4& getViewMatrix() = 0;
+
+        virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const = 0;
 
         virtual ~AbstractCamera() {}
+
+        glm::mat4 projectionMatrix = glm::mat4(1.0f);
+        glm::mat4 viewMatrix = glm::mat4(1.0f);
     };
 
     struct BaseCamera2D : public AbstractCamera
     {
-        virtual glm::mat4 getProjectionMatrix() override;
-        virtual glm::mat4 getViewMatrix() override;
+        virtual const glm::mat4& getProjectionMatrix() override;
+        virtual const glm::mat4& getViewMatrix() override;
+
+        virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const override;
+
+        void constructMatrices();
 
         virtual ~BaseCamera2D() {}
 
@@ -38,7 +47,6 @@ namespace pg
         float x = 0.0f;
         float y = 0.0f;
     };
-
 
     class Camera
     {
