@@ -74,12 +74,27 @@ namespace pg {
     {
         AIStateComponent() : state(AIState::Patrol) {}
         AIStateComponent(AIState state) : state(state) {}
-        AIStateComponent(const AIStateComponent& rhs) : state(rhs.state), elapsedTime(rhs.elapsedTime), orbitDirection(rhs.orbitDirection) {}
+        AIStateComponent(const AIStateComponent& rhs) :
+            state(rhs.state),
+            elapsedTime(rhs.elapsedTime),
+            chaseSpeed(rhs.chaseSpeed),
+            idealDistance(rhs.idealDistance),
+            orbitThreshold(rhs.orbitThreshold),
+            attackDistance(rhs.attackDistance),
+            cooldownTime(rhs.cooldownTime),
+            wideUpTime(rhs.wideUpTime),
+            orbitDirection(rhs.orbitDirection) {}
 
         AIStateComponent& operator=(const AIStateComponent& rhs)
         {
             state = rhs.state;
             elapsedTime = rhs.elapsedTime;
+            chaseSpeed = rhs.chaseSpeed;
+            idealDistance = rhs.idealDistance;
+            orbitThreshold = rhs.orbitThreshold;
+            attackDistance = rhs.attackDistance;
+            cooldownTime = rhs.cooldownTime;
+            wideUpTime = rhs.wideUpTime;
             orbitDirection = rhs.orbitDirection;
             return *this;
         }
@@ -87,6 +102,14 @@ namespace pg {
         AIState state = AIState::Patrol;
 
         float elapsedTime = 0.f;
+
+        // Configurable parameters
+        float chaseSpeed = 1.5f;
+        float idealDistance = 250.f;      // px
+        float orbitThreshold = 20.f;      // px
+        float attackDistance = 200.f;
+        int cooldownTime = 1000; // ms
+        int wideUpTime = 500;
 
         float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;
     };
@@ -217,10 +240,10 @@ namespace pg {
             toPlayer.normalize();
 
             // Decide behavior
-            float diff = dist - idealDistance;
+            float diff = dist - ai->idealDistance;
 
             constant::Vector2D moveDir;
-            if (std::fabs(diff) < orbitThreshold)
+            if (std::fabs(diff) < ai->orbitThreshold)
             {
                 // Orbit: perpendicular
                 if (ai->orbitDirection == -1.0f)
@@ -239,14 +262,14 @@ namespace pg {
             }
 
             // Apply movement
-            pos->setX(pos->x + moveDir.x * chaseSpeed);
-            pos->setY(pos->y + moveDir.y * chaseSpeed);
+            pos->setX(pos->x + moveDir.x * ai->chaseSpeed);
+            pos->setY(pos->y + moveDir.y * ai->chaseSpeed);
 
-            auto checkDist = std::max(attackDistance, idealDistance);
+            auto checkDist = std::max(ai->attackDistance, ai->idealDistance);
 
             // Switch to attack if within range
             // Todo replace 45 by the actual size of the enemy (+ a small margin)
-            if (dist - 45 <= checkDist and ai->elapsedTime > cooldownTime)
+            if (dist - 45 <= checkDist and ai->elapsedTime > ai->cooldownTime)
             {
                 ai->elapsedTime = 0.0f;
                 ai->state = AIState::ShotWideUp;
@@ -277,7 +300,7 @@ namespace pg {
                 }
             }
 
-            if (ai->elapsedTime > wideUpTime)
+            if (ai->elapsedTime > ai->wideUpTime)
             {
                 ai->elapsedTime = 0.0f;
                 ai->state = AIState::Attack;
@@ -336,14 +359,6 @@ namespace pg {
             ecsRef->attach<MoveDirComponent>(b.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
             ecsRef->attach<EnemyBulletFlag>(b.entity, weapon.damage);
         }
-
-        // Configurable parameters
-        float chaseSpeed = 1.5f;
-        float idealDistance = 250.f;      // px
-        float orbitThreshold = 20.f;      // px
-        float attackDistance = 200.f;
-        int cooldownTime = 1000; // ms
-        int wideUpTime = 500;
 
         float deltaTime = 0.f;
     };

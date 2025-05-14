@@ -32,10 +32,18 @@ namespace pg
         RoomTrigger trigger;
     };
 
+    enum class RoomState : uint8_t
+    {
+        Unexplored = 0,
+        Active,
+        Completed,
+    };
+
     struct Room
     {
         Room(const RoomData& data) : data(data) {}
         Room(const Room& rhs) : data(rhs.data),
+            state(rhs.state),
             triggers(rhs.triggers),
             doors(rhs.doors),
             spawners(rhs.spawners) {}
@@ -43,6 +51,7 @@ namespace pg
         Room& operator=(const Room& rhs)
         {
             data = rhs.data;
+            state = rhs.state;
             triggers = rhs.triggers;
             doors = rhs.doors;
             spawners = rhs.spawners;
@@ -52,14 +61,43 @@ namespace pg
 
         RoomData data;
 
+        RoomState state = RoomState::Unexplored;
+
         std::vector<RoomTriggerHolder> triggers;
         std::vector<Door> doors;
         std::vector<Spawner> spawners;
     };
 
 
-    struct RoomSystem : public System<>
+    struct EnterRoomEvent
     {
+        int roomIndex;
+    };
+
+    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnterRoomEvent>, StoragePolicy>
+    {
+        virtual void onEvent(const EnterRoomEvent& event) override
+        {
+            auto it = rooms.find(event.roomIndex);
+
+            if (it == rooms.end())
+            {
+                LOG_ERROR("RoomSystem", "Room not found");
+                return;
+            }
+
+            if (it->second.state == RoomState::Completed or it->second.state == RoomState::Active)
+            {
+                LOG_INFO("RoomSystem", "No need to trigger the room again");
+                return;
+            }
+
+            if (it->second.state == RoomState::Unexplored)
+            {
+                it->second.state = RoomState::Active;
+            }
+        }
+
         void addRoom(const RoomData& data)
         {
             rooms.emplace(data.roomIndex, data);
@@ -113,6 +151,14 @@ namespace pg
                 LOG_ERROR("RoomSystem", "Room not found for spawner");
                 return;
             }
+
+            auto spawnerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {125.f, 0.f, 125.f, 80.f});
+
+            spawnerEnt.get<PositionComponent>()->setX(spawner.posXInSPixels);
+            spawnerEnt.get<PositionComponent>()->setY(spawner.posYInSPixels);
+            spawnerEnt.get<PositionComponent>()->setZ(10);
+
+            spawnerEnt.get<Simple2DObject>()->setViewport(1);
 
             it->second.spawners.push_back(spawner);
         }

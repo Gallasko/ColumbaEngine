@@ -29,6 +29,8 @@
 #include "Tiled_Lib/TiledLoader.h"
 #include "Tiled_Lib/TileMapAtlasLoader.h"
 
+#include "Database/weapondatabase.h"
+#include "Database/enemydatabase.h"
 #include "Room/room.h"
 
 using namespace pg;
@@ -105,6 +107,12 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         makeCollisionHandlePair(ecsRef, [](PlayerFlag *, CollectibleFlag *) {
             LOG_INFO(DOM, "Collectible collected! ");
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, RoomTriggerFlag* room) {
+            LOG_INFO(DOM, "Player hit a room trigger! ");
+
+            ecsRef->sendEvent(EnterRoomEvent{room->roomIndex});
         });
 
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, WallFlag *) {
@@ -395,6 +403,9 @@ void initGame() {
 
     // mainWindow->interpreter->interpretFromFile("main.pg");
 
+    auto weaponDb = mainWindow->ecs.createSystem<WeaponDatabase>();
+    auto enemyDb = mainWindow->ecs.createSystem<EnemyDatabase>();
+
     auto roomSystem = mainWindow->ecs.createSystem<RoomSystem>();
 
     //MapData map;
@@ -413,12 +424,16 @@ void initGame() {
     std::cout << "---PRINT Weapons---" << std::endl;
     for (const auto &w: map.weaponDatas) {
         std::cout << "Weapon : " << w << std::endl;
+
+        weaponDb->addWeapon(w);
     }
     std::cout << "---PRINT Weapons--- END" << std::endl;
 
     std::cout << "---PRINT Enemies---" << std::endl;
     for (const auto &e: map.enemyTemplates) {
         std::cout << "Enemy : " << e << std::endl;
+
+        enemyDb->addEnemy(e);
     }
     std::cout << "---PRINT Enemies--- END" << std::endl;
 
