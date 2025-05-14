@@ -15,7 +15,7 @@ namespace pg
             EnemyComponentsData enemy;
 
             // Missing
-            // enemy.flag.health = enemyData.health;
+            /enemy.flag.health = enemyData.hp;
 
             enemy.canSpawn = enemyData.canSpawn;
 
@@ -25,7 +25,7 @@ namespace pg
             enemy.ai.attackDistance = enemyData.attackDistance;
             enemy.ai.cooldownTime = enemyData.cooldownTime;
             enemy.ai.wideUpTime = enemyData.wideUpTime;
-            enemy.ai.hp = enemyData.hp;
+
             enemy.ai.isBoss = enemyData.isBoss;
 
 
