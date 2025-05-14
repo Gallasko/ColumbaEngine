@@ -13,7 +13,7 @@
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "": {
-            "scaleInDock": 8
+            "scaleInDock": 3
         },
         ":/automap-tiles.tsx": {
             "scaleInDock": 1
@@ -138,7 +138,7 @@
     "openFiles": [
     ],
     "project": "Tiled_Levels.tiled-project",
-    "property.type": "bool",
+    "property.type": "float",
     "recentFiles": [
         "LEVELS/Level_DEV_0001.json",
         "Level_Debug.json",

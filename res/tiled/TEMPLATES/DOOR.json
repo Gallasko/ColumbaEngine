@@ -1,0 +1,23 @@
+{ "object":
+    {
+     "height":48,
+     "id":46,
+     "name":"DOOR",
+     "properties":[
+            {
+             "name":"door",
+             "type":"bool",
+             "value":true
+            }, 
+            {
+             "name":"roomIndex",
+             "type":"int",
+             "value":1
+            }],
+     "rotation":0,
+     "type":"",
+     "visible":true,
+     "width":16
+    },
+ "type":"template"
+}

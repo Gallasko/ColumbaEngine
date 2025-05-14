@@ -1,0 +1,19 @@
+{ "object":
+    {
+     "height":0,
+     "id":43,
+     "name":"WEAPON",
+     "point":true,
+     "properties":[
+            {
+             "name":"weapon",
+             "type":"bool",
+             "value":true
+            }],
+     "rotation":0,
+     "type":"",
+     "visible":true,
+     "width":0
+    },
+ "type":"template"
+}

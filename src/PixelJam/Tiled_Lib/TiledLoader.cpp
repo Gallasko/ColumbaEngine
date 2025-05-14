@@ -129,6 +129,48 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                             result.roomTriggers.push_back(roomTrigger);
                         }
                     }
+                    else if (obj.get<bool>("door")) {
+                        PG_ASSERT(obj.has(RoomIndex), "a door must have room index")
+                        const auto& roomIndex = obj.get<int>(RoomIndex);
+                        Door door;
+
+                        door.roomIndex = roomIndex;
+
+                        TiledRect rect;
+                        rect.topLeftCornerX = obj.getPosition().x * scaleFactor;
+                        rect.topLeftCornerY = obj.getPosition().y * scaleFactor;
+                        rect.width = obj.getSize().x * scaleFactor;
+                        rect.height = obj.getSize().y * scaleFactor;
+
+                        door.rectInSPixels = rect;
+                        door.rectTilesSpace = rect.toTileRectTilesSpace(result.tileWidthInSPixels, result.tileHeightInSPixels);
+
+                        result.doors.push_back(door);
+                    }
+                    else if (obj.get<bool>("spikes")) {
+                        PG_ASSERT(obj.has("inDuration"), "a spike must have inDuration")
+                        PG_ASSERT(obj.has("outDuration"), "a spike must have outDuration")
+                        PG_ASSERT(obj.has("showingDuration"), "a spike must have showingDuration")
+                        PG_ASSERT(obj.has("timerOffset"), "a spike must have timerOffset")
+
+                        Spike spike;
+
+                        spike.inDuration = obj.get<float>("inDuration");
+                        spike.outDuration = obj.get<float>("outDuration");
+                        spike.showingDuration = obj.get<float>("showingDuration");
+                        spike.timerOffset = obj.get<float>("timerOffset");
+
+                        TiledRect rect;
+                        rect.topLeftCornerX = obj.getPosition().x * scaleFactor;
+                        rect.topLeftCornerY = obj.getPosition().y * scaleFactor;
+                        rect.width = obj.getSize().x * scaleFactor;
+                        rect.height = obj.getSize().y * scaleFactor;
+
+                        spike.rectInSPixels = rect;
+                        spike.rectTilesSpace = rect.toTileRectTilesSpace(result.tileWidthInSPixels, result.tileHeightInSPixels);
+
+                        result.spikes.push_back(spike);
+                    }
                     else if (obj.get<bool>("enemy")) {
                         EnemyData enemy;
 
@@ -144,6 +186,8 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         enemy.wideUpTime = obj.get<float>("windUpTime");
 
                         enemy.objId = obj.getId();
+                        enemy.weaponId = obj.get<uint32_t>("weapon");
+                        enemy.canSpawn = enemy.name != "noEnemy";
 
                         result.enemyTemplates.push_back(enemy);
                     }
@@ -188,7 +232,36 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         room.roomIndex = obj.get<int>(RoomIndex);
                         room.nbEnemy = obj.get<int>("nbEnemy");
 
-                        result.roomData.push_back(room);
+                        result.roomDatas.push_back(room);
+                    }
+                    else if (obj.get<bool>("weapon")) {
+                        PG_ASSERT(obj.has("data"), "a weapon must have a data")
+                        auto objClass = obj.get<tson::TiledClass>("data");
+
+                        //auto val = objClass.get<tson::EnumValue>("pattern");
+                        //std::cout << "ENUM " << val.getValueName() << std::endl;
+
+                        auto val = objClass.get<uint32_t>("pattern");
+                        //std::cout << "ENUM " << val << std::endl;
+
+                        auto pattern = static_cast<pg::BulletPattern>(val);
+
+                        WeaponData data;
+                        data.ammo = objClass.get<int>("ammo");
+                        data.barrelSize = objClass.get<int>("barrelSize");
+                        data.bulletCount = objClass.get<int>("bulletCount");
+                        data.bulletSpreadAngle = objClass.get<float>("bulletSpreadAngle");
+                        data.damage = objClass.get<float>("damage");
+                        data.name = objClass.get<std::string>("name");
+                        data.pattern = pattern;
+                        data.projectileLifeTime = objClass.get<float>("projectileLifeTime");
+                        data.projectileSize = objClass.get<float>("projectileSize");
+                        data.projectileSpeed = objClass.get<float>("projectileSpeed");
+                        data.reloadTimeMs = objClass.get<float>("reloadTimeMs");
+
+                        data.id = obj.getId();
+
+                        result.weaponDatas.push_back(data);
                     }
                 }
                 break;
