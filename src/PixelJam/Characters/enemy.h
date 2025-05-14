@@ -83,6 +83,7 @@ namespace pg {
             attackDistance(rhs.attackDistance),
             cooldownTime(rhs.cooldownTime),
             wideUpTime(rhs.wideUpTime),
+            isBoss(rhs.isBoss),
             orbitDirection(rhs.orbitDirection) {}
 
         AIStateComponent& operator=(const AIStateComponent& rhs)
@@ -96,6 +97,7 @@ namespace pg {
             cooldownTime = rhs.cooldownTime;
             wideUpTime = rhs.wideUpTime;
             orbitDirection = rhs.orbitDirection;
+            isBoss = rhs.isBoss;
             return *this;
         }
 
@@ -110,6 +112,7 @@ namespace pg {
         float attackDistance = 200.f;
         int cooldownTime = 1000; // ms
         int wideUpTime = 500;
+        bool isBoss;
 
         float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;
     };

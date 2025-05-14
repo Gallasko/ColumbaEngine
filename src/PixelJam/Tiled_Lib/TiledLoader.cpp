@@ -175,19 +175,18 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         EnemyData enemy;
 
                         enemy.name = obj.get<std::string>("name");
-                        enemy.aiCooldownTimer = obj.get<int>("aiCooldownTimer");
                         enemy.attackDistance = obj.get<float>("attackDistance");
                         enemy.chaseSpeed = obj.get<float>("chaseSpeed");
-                        enemy.cooldownTime = obj.get<int>("cooldownTime");
-                        enemy.enemyBulletDamage = obj.get<float>("enemyBulletDamage");
+                        enemy.cooldownTime = obj.get<int>("cooldownTimer");
                         enemy.idealDistance = obj.get<float>("idealDistance");
                         enemy.orbitThreshold = obj.get<float>("orbitThreshold");
-                        enemy.spiralRate = obj.get<float>("spiralRate");
                         enemy.wideUpTime = obj.get<float>("windUpTime");
 
                         enemy.objId = obj.getId();
                         enemy.weaponId = obj.get<uint32_t>("weapon");
                         enemy.canSpawn = enemy.name != "noEnemy";
+                        enemy.isBoss = obj.get<bool>("isBoss");
+                        enemy.hp = obj.get<bool>("hp");
 
                         result.enemyTemplates.push_back(enemy);
                     }

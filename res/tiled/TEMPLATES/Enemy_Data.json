@@ -6,11 +6,6 @@
      "point":true,
      "properties":[
             {
-             "name":"aiCoolDownTimer",
-             "type":"int",
-             "value":0
-            }, 
-            {
              "name":"attackDistance",
              "type":"float",
              "value":48
@@ -31,14 +26,19 @@
              "value":true
             }, 
             {
-             "name":"enemyBulletDamage",
-             "type":"float",
-             "value":1
+             "name":"hp",
+             "type":"int",
+             "value":5
             }, 
             {
              "name":"idealDistance",
              "type":"float",
              "value":64
+            }, 
+            {
+             "name":"isBoss",
+             "type":"bool",
+             "value":false
             }, 
             {
              "name":"name",
@@ -49,11 +49,6 @@
              "name":"orbitThreshold",
              "type":"float",
              "value":5
-            }, 
-            {
-             "name":"spiralRate",
-             "type":"float",
-             "value":0.1
             }, 
             {
              "name":"weapon",
