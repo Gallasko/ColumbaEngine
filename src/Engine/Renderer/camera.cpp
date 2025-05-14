@@ -6,6 +6,27 @@ namespace pg
 {
     static constexpr const char * const DOM = "Camera";    
 
+    const glm::mat4& BaseCamera2D::getProjectionMatrix()
+    {
+        return projectionMatrix;
+    }
+
+    const glm::mat4& BaseCamera2D::getViewMatrix()
+    {
+        return viewMatrix;
+    }
+
+    void BaseCamera2D::constructMatrices()
+    {
+        viewMatrix = glm::mat4(1.0f);
+
+        viewMatrix[3][0] = -x * 2.0f / width;
+        viewMatrix[3][1] =  y * 2.0f / height;
+        viewMatrix[3][2] = -2;
+
+        projectionMatrix = getProjectionMatrix();
+    }
+
     Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
         movementSpeed(0.5f), mouseSensitivity(0.005f), zoom(0.5f) // Todo make this configurable
     {

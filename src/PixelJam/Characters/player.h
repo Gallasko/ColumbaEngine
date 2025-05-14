@@ -330,7 +330,7 @@ namespace pg
         CompRef<Timer> bottomTimer;
         CompRef<Timer> rightTimer;
 
-        float movespeed = 2.f;
+        float movespeed = 10.f;
     };
 
 } // namespace pg
