@@ -397,6 +397,10 @@ void initGame() {
 
     mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
 
+    // mainWindow->ecs.succeed<CollisionSystem, PositionComponent>();
+    mainWindow->ecs.succeed<PositionComponent, CollisionSystem>();
+    mainWindow->ecs.succeed<MasterRenderer, CollisionSystem>();
+
     mainWindow->ecs.createSystem<PlayerSystem>();
 
     mainWindow->ecs.createSystem<EnemyAISystem>();

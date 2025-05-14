@@ -169,7 +169,14 @@ namespace pg
                         continue;
                     }
 
-                    enemyData.weapon = weaponDb->getWeapon(enemyData.weaponId);
+                    try
+                    {
+                        enemyData.weapon = weaponDb->getWeapon(enemyData.weaponId);
+                    }
+                    catch (const std::exception& e)
+                    {
+                        LOG_ERROR("RoomSystem", "Weapon not found: " << enemyData.weaponId << ": " << e.what());
+                    }
 
                     EnemySpawnData enemySpawnData;
 
@@ -182,7 +189,7 @@ namespace pg
                     nbSpawnedEnemiesInLoop++;
                 }
 
-            } while (nbSpawnedEnemiesInLoop == 0 or fastBreak);
+            } while (nbSpawnedEnemiesInLoop == 0 and not fastBreak);
             
             nbSpawnedEnemies += nbSpawnedEnemiesInLoop;
 
