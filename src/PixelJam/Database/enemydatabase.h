@@ -15,7 +15,7 @@ namespace pg
             EnemyComponentsData enemy;
 
             // Missing
-            /enemy.flag.health = enemyData.hp;
+            enemy.flag.health = enemyData.hp;
 
             enemy.canSpawn = enemyData.canSpawn;
 
