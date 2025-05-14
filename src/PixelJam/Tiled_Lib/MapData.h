@@ -276,9 +276,7 @@ struct EnemyData {
     float attackDistance = 200.f;
     int cooldownTime = 1000; // ms
     int wideUpTime = 500;
-    long aiCooldownTimer = 0;
-    float spiralRate = 0.1f;
-    float enemyBulletDamage = 1.f;
+
     /*!
      * Enemy template i. SpawnData references it.
      */
@@ -299,9 +297,6 @@ inline std::ostream &operator<<(std::ostream &os, const EnemyData &data) {
             << "  attackDistance: " << data.attackDistance << "\n"
             << "  cooldownTime: " << data.cooldownTime << "\n"
             << "  wideUpTime: " << data.wideUpTime << "\n"
-            << "  aiCooldownTimer: " << data.aiCooldownTimer << "\n"
-            << "  spiralRate: " << data.spiralRate << "\n"
-            << "  enemyBulletDamage: " << data.enemyBulletDamage << "\n"
             << "  weapon id: " << data.weaponId << "\n"
             << "  can spawn: " << data.canSpawn << "\n"
             << "}";
