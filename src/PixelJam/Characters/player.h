@@ -143,6 +143,8 @@ namespace pg
 
             Weapon baseWeapon;
 
+            baseWeapon.ammo = -1;
+
             ecsRef->attach<WeaponComponent>(playerEnt.entity, baseWeapon);
 
             player = playerEnt.entity;
@@ -208,23 +210,53 @@ namespace pg
 
                 LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
 
-                const auto& weapon = weaponEnt->weapon;
+                auto& weapon = weaponEnt->weapon;
+
+                // If no ammo, automatically switch back to base weapon
+                if (weapon.ammo == 0)
+                {
+                    Weapon baseWeapon;
+
+                    baseWeapon.ammo = -1;
+
+                    weaponEnt->weapon = baseWeapon;
+                }
 
                 for (const auto& dir : weapon.fireDirections({mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f}))
                 {
-                    auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
+                    if (weapon.ammo != 0)
+                    {
+                        auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
 
-                    bullet.get<Simple2DObject>()->setViewport(1);
+                        bullet.get<Simple2DObject>()->setViewport(1);
 
-                    bullet.get<PositionComponent>()->setX(pos->x + 25.f);
-                    bullet.get<PositionComponent>()->setY(pos->y + 25.f);
-                    bullet.get<PositionComponent>()->setZ(50);
+                        bullet.get<PositionComponent>()->setX(pos->x + 25.f);
+                        bullet.get<PositionComponent>()->setY(pos->y + 25.f);
+                        bullet.get<PositionComponent>()->setZ(50);
 
-                    std::vector<size_t> collidableLayer = {0, 4};
+                        std::vector<size_t> collidableLayer = {0, 4};
 
-                    ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
-                    ecsRef->attach<AllyBulletFlag>(bullet.entity);
-                    ecsRef->attach<MoveDirComponent>(bullet.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
+                        ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
+                        ecsRef->attach<AllyBulletFlag>(bullet.entity);
+                        ecsRef->attach<MoveDirComponent>(bullet.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
+
+                        if (weapon.ammo != -1)
+                            weapon.ammo--;
+                    }
+                    else
+                    {
+                        LOG_ERROR("Player", "Out of ammo - Todo make a visual about this (a ttf text for exemple)");
+                    }
+                }
+
+                // If no ammo, automatically switch back to base weapon
+                if (weapon.ammo == 0)
+                {
+                    Weapon baseWeapon;
+
+                    baseWeapon.ammo = -1;
+
+                    weaponEnt->weapon = baseWeapon;
                 }
             }
         }

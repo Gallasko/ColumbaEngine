@@ -388,13 +388,23 @@ namespace pg {
 
             constant::Vector2D toPlayer{ playerPos.x - pos->x, playerPos.y - pos->y };
 
-            const auto& weapon = weaponComp->weapon;
+            auto& weapon = weaponComp->weapon;
 
             auto fireDir = weapon.fireDirections(toPlayer);
 
-            for (auto& dir : fireDir)
+            for (const auto& dir : fireDir)
             {
-                spawnEnemyBullet(pos, dir, weapon);
+                if (weapon.ammo != 0)
+                {
+                    spawnEnemyBullet(pos, dir, weapon);
+
+                    if (weapon.ammo != -1)
+                        weapon.ammo--;
+                }
+                else
+                {
+                    LOG_ERROR("Enemy", "Out of ammo - Todo make a visual about this (a ttf text for exemple)");
+                }
             }
         }
 

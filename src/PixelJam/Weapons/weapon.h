@@ -32,7 +32,7 @@ namespace pg
         float reloadTimeMs = 1000.0f;
         size_t barrelSize = 6;
 
-        size_t ammo = 18;
+        int ammo = 18;
 
         std::vector<constant::Vector2D> fireDirections(const constant::Vector2D& aimDir) const
         {
