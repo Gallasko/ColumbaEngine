@@ -16,6 +16,26 @@ namespace pg
         return viewMatrix;
     }
 
+    constant::Vector2D BaseCamera2D::screenToWorld(float mouseX, float mouseY) const
+    {
+        // Ensure the viewport dimensions are valid
+        if (width <= 0.0f || height <= 0.0f)
+        {
+            LOG_ERROR("FollowCamera2D", "Invalid viewport dimensions: width = " << width << ", height = " << height);
+            return {0.0f, 0.0f};
+        }
+
+        // Normalize screen coordinates to range [0, 1]
+        float normalizedX = mouseX / width;
+        float normalizedY = mouseY / height;
+
+        // Convert normalized coordinates to world space
+        float worldX = x + normalizedX * width;
+        float worldY = y + (1.0f - normalizedY) * height; // Flip Y-axis
+
+        return {worldX, worldY};
+    }
+
     void BaseCamera2D::constructMatrices()
     {
         viewMatrix = glm::mat4(1.0f);

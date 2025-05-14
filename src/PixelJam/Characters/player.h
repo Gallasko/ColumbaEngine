@@ -158,9 +158,21 @@ namespace pg
                 if (not pos or not weaponEnt)
                     return;
 
+                auto window = ecsRef->getEntity("__MainWindow");
+
+                if (not window)
+                    return;
+
+                // Todo I should only need to get the main camera and use mousePosToWorldPos of the main camera instead !
+                auto windowWidth = window->get<PositionComponent>()->width;
+                auto windowHeight = window->get<PositionComponent>()->height;
+
+                auto normalizedX = 2 * (event.pos.x / windowWidth) - 1.0;
+                auto normalizedY = 2 * (event.pos.y / windowHeight) - 1.0;
+
                 const auto& weapon = weaponEnt->weapon;
 
-                for (const auto& dir : weapon.fireDirections({event.pos.x - pos->x, event.pos.y - pos->y}))
+                for (const auto& dir : weapon.fireDirections({normalizedX, normalizedY}))
                 {
                     auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
 

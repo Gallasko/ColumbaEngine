@@ -121,6 +121,12 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->removeEntity(bullet->entityId);
         });
 
+        makeCollisionHandlePair(ecsRef, [&](EnemyBulletFlag *bullet, WallFlag *) {
+            LOG_INFO(DOM, "Bullet hit a wall! ");
+
+            ecsRef->removeEntity(bullet->entityId);
+        });
+
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, EnemyFlag *enemy) {
             LOG_INFO(DOM, "Bullet hit an enemy! ");
 
@@ -152,7 +158,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         const float repulsionStrength = 2.f;
 
-        // Enemy ↔ Wall: push enemy out of the wall
+        // Enemy <-> Wall: push enemy out of the wall
         makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall){
             // get both entities’ positions
             auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
@@ -173,7 +179,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             }
         });
 
-        // Enemy ↔ Enemy: mutual separation
+        // Enemy <-> Enemy: mutual separation
         makeCollisionHandlePair(ecsRef, [&](EnemyFlag* a, EnemyFlag* b) {
             // ignore self‐collision
             if (a->entityId == b->entityId) return;

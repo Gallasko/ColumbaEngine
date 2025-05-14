@@ -20,6 +20,8 @@ namespace pg
         virtual const glm::mat4& getProjectionMatrix() = 0;
         virtual const glm::mat4& getViewMatrix() = 0;
 
+        virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const = 0;
+
         virtual ~AbstractCamera() {}
 
         glm::mat4 projectionMatrix = glm::mat4(1.0f);
@@ -30,6 +32,8 @@ namespace pg
     {
         virtual const glm::mat4& getProjectionMatrix() override;
         virtual const glm::mat4& getViewMatrix() override;
+
+        virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const override;
 
         void constructMatrices();
 
