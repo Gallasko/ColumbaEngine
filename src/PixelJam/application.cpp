@@ -156,7 +156,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->removeEntity(bullet->entityId);
         });
 
-        const float repulsionStrength = 2.f;
+        const float repulsionStrength = 1.f;
 
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
             // get both entities’ positions

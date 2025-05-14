@@ -210,7 +210,7 @@ namespace pg
 
                 const auto& weapon = weaponEnt->weapon;
 
-                for (const auto& dir : weapon.fireDirections({mousePosInGame.x - pos->x, mousePosInGame.y - pos->y}))
+                for (const auto& dir : weapon.fireDirections({mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f}))
                 {
                     auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
 
