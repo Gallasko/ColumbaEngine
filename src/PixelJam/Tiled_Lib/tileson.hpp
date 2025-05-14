@@ -9280,15 +9280,31 @@ void tson::Property::setValueByType(IJson &json)
 		case Type::Int:
 			if(!m_propertyType.empty())
 			{
-				m_type = Type::Enum;
-				tson::EnumDefinition *def = (m_project != nullptr) ? m_project->getEnumDefinition(m_propertyType) : nullptr;
+				//std::cout << "HELLO HELLO in " << m_name << " and type " << m_propertyType <<  std::endl;
+				//m_type = Type::Enum;
+				tson::EnumDefinition *def;
+				if ((m_project != nullptr)) {
+					//std::cout << "Project exists" << std::endl;
+					def = m_project->getEnumDefinition(m_propertyType);
+				}
+
+				else {
+					def = nullptr;
+					//std::cout << "Project NOT FOUND" << std::endl;
+				}
 				if(def != nullptr)
 				{
+					//std::cout << "WE GOT IN !!! " << m_name << std::endl;
 					uint32_t v = json.get<uint32_t>();
-					m_value = tson::EnumValue(v, def);
+					//m_value = tson::EnumValue(v, def);
+					m_value = v;
 				}
 				else
-					m_value = tson::EnumValue();
+				{
+					//m_value = tson::EnumValue();
+					m_value = 0;
+				}
+
 			}
 			else
 				m_value = json.get<int>();
@@ -9306,29 +9322,48 @@ void tson::Property::setValueByType(IJson &json)
 		case Type::String:
 			if(!m_propertyType.empty())
 			{
-				m_type = Type::Enum;
-				tson::EnumDefinition *def = (m_project != nullptr) ? m_project->getEnumDefinition(m_propertyType) : nullptr;
+				//std::cout << "HELLO HELLO in " << m_name << " and type " << m_propertyType <<  std::endl;
+
+				//m_type = Type::Enum;
+				tson::EnumDefinition *def;
+				if ((m_project != nullptr)) {
+					def = m_project->getEnumDefinition(m_propertyType);
+					//std::cout << "Project exists" << std::endl;
+				}
+				else {
+					def = nullptr;
+					//std::cout << "Project NOT FOUND" << std::endl;
+				}
+
 				if(def != nullptr)
 				{
+					//std::cout << "WE GOT IN !!! " << m_name << std::endl;
 					std::string v = json.get<std::string>();
-					m_value = tson::EnumValue(v, def);
+					//std::cout << "val " << v << std::endl;
+					//m_value = tson::EnumValue(v, def);
+					m_value = v;
 				}
-				else
-					m_value = tson::EnumValue();
+				else {
+					//m_value = tson::EnumValue();
+					m_value = "NONE";
+				}
 			}
-			else
+			else {
+				//std::cout << "Not ??HELLO HELLO in " << m_name << " and type " << m_propertyType <<  std::endl;
 				setStrValue(json.get<std::string>());
+			}
+
 
 			break;
 
 		case Type::Class:
 		{
-			std::cout << "HELLO HELLO in " << m_name << " and type " << m_propertyType <<  std::endl;
+			//std::cout << "HELLO HELLO in " << m_name << " and type " << m_propertyType <<  std::endl;
 
 
 			tson::TiledClass *baseClass;
 			if ((m_project != nullptr)) {
-				std::cout << "Project exists" << std::endl;
+				//std::cout << "Project exists" << std::endl;
 				baseClass = m_project->getClass(m_propertyType);
 			}
 			else {
@@ -9337,7 +9372,7 @@ void tson::Property::setValueByType(IJson &json)
 			}
 			if (baseClass != nullptr)
 			{
-				std::cout << "WE GOT IN !!! " << m_name << std::endl;
+				//std::cout << "WE GOT IN !!! " << m_name << std::endl;
 				tson::TiledClass c = *baseClass;
 				c.update(json);
 				m_value = c;

@@ -224,7 +224,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 if (tile.isWall)
                 {
-                    LOG_INFO("TILED", std::to_string(count++));
+                    //LOG_INFO("TILED", std::to_string(count++));
                     ecsRef->attach<CollisionComponent>(tex.entity, 0);
                     ecsRef->attach<WallFlag>(tex.entity);
                 }
@@ -398,32 +398,44 @@ void initGame() {
     int factor = 2;
     const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json", factor);
 
-    for (const auto &tileset: map.roomTriggers) {
-        LOG_INFO("TILED", "Rect " << tileset.rectInSPixels.width << " " << tileset.rectInSPixels.height << " " << tileset.rectInSPixels.topLeftCornerX << " " << tileset.rectInSPixels.topLeftCornerY);
-    }
-
+    std::cout << "---PRINT TILESETS---" << std::endl;
     for (const auto &tileset: map.tilesets) {
-        LOG_INFO("TILED", "B" << tileset.imagePath);
+        std::cout << "Path " << tileset.imagePath << std::endl;
 
         mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "", std::make_unique<TileMapAtlasLoader>(tileset));
     }
+    std::cout << "---PRINT TILESETS--- END" << std::endl;
 
+    std::cout << "---PRINT Weapons---" << std::endl;
+    for (const auto &w: map.weaponDatas) {
+        std::cout << "Weapon : " << w << std::endl;
+    }
+    std::cout << "---PRINT Weapons--- END" << std::endl;
+
+    std::cout << "---PRINT Enemies---" << std::endl;
     for (const auto &e: map.enemyTemplates) {
         std::cout << "Enemy : " << e << std::endl;
     }
+    std::cout << "---PRINT Enemies--- END" << std::endl;
 
+    std::cout << "---PRINT Rooms---" << std::endl;
+    for (const auto &r: map.roomDatas) {
+        std::cout << "Room : " << r << std::endl;
+    }
+    std::cout << "---PRINT Rooms--- END" << std::endl;
+
+    std::cout << "---PRINT ROOM TRIGGERS---" << std::endl;
+    for (const auto &trigger : map.roomTriggers) {
+        std::cout << "Room trigger: " << trigger << std::endl;
+    }
+    std::cout << "---PRINT TRIGGERS--- END" << std::endl;
+
+    std::cout << "---PRINT ROOM SPAWNERS---" << std::endl;
     for (const auto &spawner : map.spawners) {
-        std::cout << spawner.roomIndex << std::endl;
-        std::cout << std::to_string(spawner.posXInSPixels) << " " << std::to_string(spawner.posYInSPixels) << std::endl;
-
-        for (const auto& spawn: spawner.spawns) {
-            std::cout << "Enemy : " << spawn.enemyId << " Proba : " << spawn.spawnProba << std::endl;
-        }
+        std::cout << "Spawner: " << spawner << std::endl;
     }
+    std::cout << "---PRINT ROOM SPAWNERS--- END" << std::endl;
 
-    for (const auto &r: map.roomData) {
-        std::cout << "Room index : " << r.roomIndex << "spawn count : " << r.nbEnemy << std::endl;
-    }
 
     mainWindow->ecs.createSystem<TestSystem>(map);
 
