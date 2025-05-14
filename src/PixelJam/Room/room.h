@@ -382,6 +382,26 @@ namespace pg
             rooms.clear();
         }
 
+        /**
+         * Check if all rooms have valid triggers and spawners
+         * Used for debugging purposes
+         */
+        void checkRoomsIntegrity()
+        {
+            for (const auto& room : rooms)
+            {
+                if (room.second.triggers.size() != room.second.doors.size())
+                {
+                    LOG_WARNING("RoomSystem", "Room " << room.first << " has different number of triggers and doors");
+                }
+
+                if (not roomHasValidSpawners(room.second.spawners))
+                {
+                    LOG_WARNING("RoomSystem", "Room " << room.first << " has no valid spawners");
+                }
+            }
+        }
+
         WeaponDatabase* weaponDb;
         EnemyDatabase* enemyDb;
 

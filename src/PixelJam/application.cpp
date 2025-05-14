@@ -421,53 +421,34 @@ void initGame() {
     int factor = 2;
     const MapData map = loader.loadMap("res/tiled/LEVELS/Level_0001.json", factor);
 
-    std::cout << "---PRINT TILESETS---" << std::endl;
-    for (const auto &tileset: map.tilesets) {
-        std::cout << "Path " << tileset.imagePath << std::endl;
-
+    for (const auto &tileset: map.tilesets)
+    {
         mainWindow->masterRenderer->registerAtlasTexture(tileset.name, tileset.imagePath.c_str(), "", std::make_unique<TileMapAtlasLoader>(tileset));
     }
-    std::cout << "---PRINT TILESETS--- END" << std::endl;
 
-    std::cout << "---PRINT Weapons---" << std::endl;
-    for (const auto &w: map.weaponDatas) {
-        std::cout << "Weapon : " << w << std::endl;
-
+    for (const auto &w: map.weaponDatas)
+    {
         weaponDb->addWeapon(w);
     }
-    std::cout << "---PRINT Weapons--- END" << std::endl;
-
-    std::cout << "---PRINT Enemies---" << std::endl;
-    for (const auto &e: map.enemyTemplates) {
-        std::cout << "Enemy : " << e << std::endl;
-
+    for (const auto &e: map.enemyTemplates)
+    {
         enemyDb->addEnemy(e);
     }
-    std::cout << "---PRINT Enemies--- END" << std::endl;
 
-    std::cout << "---PRINT Rooms---" << std::endl;
     for (const auto &r: map.roomDatas)
     {
-        std::cout << "Room : " << r << std::endl;
         roomSystem->addRoom(r);
     }
-    std::cout << "---PRINT Rooms--- END" << std::endl;
 
-    std::cout << "---PRINT ROOM TRIGGERS---" << std::endl;
     for (const auto &trigger : map.roomTriggers)
     {
-        std::cout << "Room trigger: " << trigger << std::endl;
         roomSystem->addRoomTrigger(trigger);
     }
-    std::cout << "---PRINT ROOM TRIGGERS--- END" << std::endl;
 
-    std::cout << "---PRINT ROOM DOORS---" << std::endl;
     for (const auto &door : map.doors)
     {
-        std::cout << "Door: " << door << std::endl;
         roomSystem->addDoor(door);
     }
-    std::cout << "---PRINT ROOM DOORS--- END" << std::endl;
 
     std::cout << "---PRINT SPIKES---" << std::endl;
     for (const auto &spike : map.spikes) {
@@ -475,14 +456,12 @@ void initGame() {
     }
     std::cout << "---PRINT SPIKES--- END" << std::endl;
 
-    std::cout << "---PRINT ROOM SPAWNERS---" << std::endl;
     for (const auto &spawner : map.spawners)
     {
-        std::cout << "Spawner: " << spawner << std::endl;
         roomSystem->addSpawner(spawner);
     }
-    std::cout << "---PRINT ROOM SPAWNERS--- END" << std::endl;
 
+    roomSystem->checkRoomsIntegrity();
 
     mainWindow->ecs.createSystem<TestSystem>(map);
 
