@@ -283,8 +283,6 @@ namespace pg
 
         virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
         {
-            LOG_INFO("Player System", "Received game key input");
-
             switch (event.value)
             {
             case GameKeyConfig::MoveLeft:
@@ -315,8 +313,6 @@ namespace pg
 
         virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
         {
-            LOG_INFO("Player System", "Received game key release");
-
             switch (event.value)
             {
             case GameKeyConfig::MoveLeft:
@@ -421,31 +417,7 @@ namespace pg
             movePlayer(movespeed, 0.f);
         }
 
-        void movePlayer(float x, float y)
-        {
-            auto pos = player->get<PositionComponent>();
-
-            auto collisionSys = ecsRef->getSystem<CollisionSystem>();
-
-            constant::Vector2D posVec = {pos->x, pos->y};
-            constant::Vector2D size = {pos->width, pos->height};
-
-            bool hitX, hitY;
-
-            // 1) sweep X only
-            auto applX = sweepMove(collisionSys, {pos->x, pos->y}, size, {x, 0.0f}, {0}, hitX);
-            pos->setX(pos->x + applX.x);
-
-            // 2) sweep Y only (using the **new** X position!)
-            auto applY = sweepMove(collisionSys, {pos->x, pos->y}, size, {0.0f, y}, {0}, hitY);
-            pos->setY(pos->y + applY.y);
-
-            // optional: detect if either axis was blocked
-            if (hitX or hitY)
-            {
-                LOG_INFO("Player","Hit wall on " << (hitX ? "X":"") << (hitY?"Y":""));
-            }
-        }
+        void movePlayer(float x, float y);
 
         EntityRef player;
 

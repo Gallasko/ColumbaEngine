@@ -12,6 +12,8 @@
 #include "Database/weapondatabase.h"
 #include "Database/enemydatabase.h"
 
+#include "Characters/player.h"
+
 namespace pg
 {
     struct RoomTriggerFlag
@@ -435,4 +437,33 @@ namespace pg
         size_t nbSlayedEnemies = 0;
         size_t nbSpawnedEnemies = 0;
     };
+
+    struct TestGridFlag : public Ctor
+    {
+        TestGridFlag(const constant::Vector4D& color) : color(color) {}
+        TestGridFlag(const TestGridFlag& other) : color(other.color), ecsRef(other.ecsRef), entityId(other.entityId) {}
+
+        TestGridFlag& operator=(const TestGridFlag& other)
+        {
+            color = other.color;
+
+            ecsRef = other.ecsRef;
+            entityId = other.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        constant::Vector4D color;
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
+
+    void drawDebugGrid(EntitySystem* ecs, int worldW, int worldH);
 }

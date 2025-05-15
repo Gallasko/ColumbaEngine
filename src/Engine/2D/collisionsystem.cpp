@@ -13,8 +13,10 @@ namespace pg
 
     struct AABB
     {
-        float minX, maxX;
-        float minY, maxY;
+        float minX;
+        float minY;
+        float maxX;
+        float maxY;
     };
 
     /// Returns one of the four cardinal normals (+/–X or +/–Y)
@@ -100,8 +102,8 @@ namespace pg
         int startX = startPos.x / cellSize.x;
         int startY = startPos.y / cellSize.y;
 
-        int endX = startPos.x + objSize.x < cellSize.x * size.x ? startX + (objSize.x / cellSize.x) + 1 : size.x;
-        int endY = startPos.y + objSize.y < cellSize.y * size.y ? startY + (objSize.y / cellSize.y) + 1 : size.y;
+        int endX = (startPos.x + objSize.x < cellSize.x * size.x) ? (startX + (objSize.x / cellSize.x) + 1) : size.x;
+        int endY = (startPos.y + objSize.y < cellSize.y * size.y) ? (startY + (objSize.y / cellSize.y) + 1) : size.y;
 
         for (int y = startY; y < endY; y++)
         {
@@ -114,8 +116,8 @@ namespace pg
     }
 
     // Todo issue here when cellsize != pagesize
+    // CollisionSystem::CollisionSystem() : pageSize(40, 40), cellSize(40, 40)
     CollisionSystem::CollisionSystem() : pageSize(10, 10), cellSize(20, 20)
-    // CollisionSystem::CollisionSystem() : pageSize(5, 5), cellSize(5, 5)
     {
         LOG_THIS_MEMBER(DOM);
     }
@@ -161,9 +163,9 @@ namespace pg
 
         float x = pos->x;
         float y = pos->y;
-
-        x += (width * (comp->scale - 1)) / 2.0f;
-        y += (height * (comp->scale - 1)) / 2.0f;
+        
+        x -= (width * (comp->scale - 1)) / 2.0f;
+        y -= (height * (comp->scale - 1)) / 2.0f;
 
         auto pWidth = (pageSize.x * cellSize.x);
         auto pHeight = (pageSize.y * cellSize.y);
@@ -179,11 +181,11 @@ namespace pg
 
         comp->firstCell = {x / cellSize.x, y / cellSize.y};
 
-        for (int remainingHeight = height * comp->scale; remainingHeight > 0; remainingHeight -= usedHeight)
+        for (float remainingHeight = height * comp->scale; remainingHeight > 0; remainingHeight -= usedHeight)
         {
             int startX = x > 0 ? x - xPagePos * pWidth : xPagePos * pWidth - x;
 
-            for (int remainingWidth = width * comp->scale; remainingWidth > 0; remainingWidth -= usedWidth)
+            for (float remainingWidth = width * comp->scale; remainingWidth > 0; remainingWidth -= usedWidth)
             {
                 PagePos key = {xPagePos, yPagePos};
 
@@ -356,7 +358,7 @@ namespace pg
         float y2 = obj2->y - (h2 - obj2->height) * 0.5f;
 
         // now do the standard AABB check
-        return (x1 + w1) > x2 and x1 < (x2 + w2) and (y1 + h1) > y2 and y1 < (y2 + h2);
+        return (x1 + w1) >= x2 and x1 <= (x2 + w2) and (y1 + h1) >= y2 and y1 <= (y2 + h2);
     }
 
     // Todo
@@ -387,7 +389,7 @@ namespace pg
 
         float bestT = maxDist;
 
-        for (auto const& cellPos : cellsToCheck)
+        for (const auto& cellPos : cellsToCheck)
         {
             // lookup page, then cell index
             PagePos pageKey = { static_cast<int>(cellPos.x / pageSize.x),
@@ -399,9 +401,23 @@ namespace pg
                 continue;
 
             auto& page = pageIt->second;
-            int localX = cellPos.x % int(pageSize.x);
-            int localY = cellPos.y % int(pageSize.y);
-            auto& ids  = page.cells[ localX + localY * pageSize.x ].ids;
+
+            // 3) Compute local cell indices, wrapping negatives if needed
+            int localX = int(cellPos.x) % int(pageSize.x);
+            int localY = int(cellPos.y) % int(pageSize.y);
+
+            if (localX < 0)
+                localX += pageSize.x;
+
+            if (localY < 0)
+                localY += pageSize.y;
+
+            int idx = localX + localY * int(pageSize.x);
+            // guard against stray out‐of‐range
+            if (idx < 0 or idx >= int(page.cells.size()))
+                continue;
+
+            const auto& ids = page.cells[idx].ids;
 
             // test each entity in the cell
             for (auto entId : ids)
@@ -417,8 +433,8 @@ namespace pg
                 auto width = pos->width;
                 auto height = pos->height;
 
-                auto startX = pos->x + (width * (col->scale - 1)) / 2.0f;
-                auto startY = pos->y + (height* (col->scale - 1)) / 2.0f;
+                auto startX = pos->x - (width  * (col->scale - 1)) / 2.0f;
+                auto startY = pos->y - (height * (col->scale - 1)) / 2.0f;
 
                 AABB box {
                     startX,
@@ -461,11 +477,11 @@ namespace pg
         int stepX = dir.x > 0 ? +1 : (dir.x < 0 ? -1 : 0);
         int stepY = dir.y > 0 ? +1 : (dir.y < 0 ? -1 : 0);
         float tMaxX = (stepX != 0) ?
-            ((cellX + (stepX>0)) * cellSize.x - origin.x) / dir.x :
+            ((cellX + (stepX > 0)) * cellSize.x - origin.x) / dir.x :
             std::numeric_limits<float>::infinity();
 
         float tMaxY = (stepY != 0) ?
-            ((cellY + (stepY>0)) * cellSize.y - origin.y) / dir.y :
+            ((cellY + (stepY > 0)) * cellSize.y - origin.y) / dir.y :
             std::numeric_limits<float>::infinity();
 
         float tDeltaX = (stepX != 0 ? cellSize.x / std::abs(dir.x) : std::numeric_limits<float>::infinity());
@@ -524,7 +540,7 @@ namespace pg
 
         int idx = localX + localY * pageSize.x;
 
-        if (idx < 0 || idx >= (int)page.cells.size())
+        if (idx < 0 or idx >= (int)page.cells.size())
             return emptySet;
 
         // 3) return the set of IDs
@@ -597,7 +613,7 @@ namespace pg
         float moveLen = sqrt(delta.x * delta.x + delta.y * delta.y);
 
         if (moveLen < EPSILON)
-            return {0,0};
+            return {0, 0};
 
         constant::Vector2D dir = { delta.x / moveLen, delta.y / moveLen };
         auto cells = collision->traverseGridCells(center, dir, moveLen);
@@ -624,24 +640,21 @@ namespace pg
                     auto wallWidth = wpos->width;
                     auto wallHeight = wpos->height;
 
-                    auto startWallX = wpos->x + (wallWidth * (wcol->scale - 1)) / 2.0f;
-                    auto startWallY = wpos->y + (wallHeight * (wcol->scale - 1)) / 2.0f;
+                    auto startWallX = wpos->x - (wallWidth * (wcol->scale - 1)) / 2.0f;
+                    auto startWallY = wpos->y - (wallHeight * (wcol->scale - 1)) / 2.0f;
 
                     // Build wall AABB
-                    AABB wallBox {
-                        startWallX,
-                        startWallY,
-                        startWallX + wallWidth * wcol->scale,
-                        startWallY + wallHeight * wcol->scale
-                    };
-
                     // Inflate by our half extents
                     AABB infBox {
-                        wallBox.minX - half.x, wallBox.minY - half.y,
-                        wallBox.maxX + half.x, wallBox.maxY + half.y
+                        startWallX - half.x,
+                        startWallY - half.y,
+                        startWallX + wallWidth * wcol->scale + half.x,
+                        startWallY + wallHeight * wcol->scale + half.y
                     };
 
-                    if (auto tOpt = rayAABB(center, dir, moveLen, infBox))
+                    auto tOpt = rayAABB(center, dir, moveLen, infBox);
+
+                    if (tOpt)
                     {
                         float t = *tOpt / moveLen;           // normalize to [0..1]
                         bestT = std::min(bestT, t);

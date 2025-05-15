@@ -160,24 +160,38 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         const float repulsionStrength = 1.f;
 
-        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
-            // get both entities’ positions
-            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
-            auto playerEnt = player->ecsRef->getEntity(player->entityId);
-            auto wpos     = wallEnt->get<PositionComponent>();
-            auto epos     = playerEnt->get<PositionComponent>();
+        // makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
+        //     // get both entities’ positions
+        //     auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+        //     auto playerEnt = player->ecsRef->getEntity(player->entityId);
+        //     auto wpos     = wallEnt->get<PositionComponent>();
+        //     auto epos     = playerEnt->get<PositionComponent>();
 
-            // compute normalized vector from wall→enemy
-            float dx = epos->x - wpos->x;
-            float dy = epos->y - wpos->y;
-            float len = std::sqrt(dx*dx + dy*dy);
-            if (len > 0.f) {
-                dx /= len;
-                dy /= len;
-                // shove enemy out
-                epos->setX(epos->x + dx * repulsionStrength);
-                epos->setY(epos->y + dy * repulsionStrength);
-            }
+        //     // compute normalized vector from wall→enemy
+        //     float dx = epos->x - wpos->x;
+        //     float dy = epos->y - wpos->y;
+        //     float len = std::sqrt(dx*dx + dy*dy);
+        //     if (len > 0.f) {
+        //         dx /= len;
+        //         dy /= len;
+        //         // shove enemy out
+        //         epos->setX(epos->x + dx * repulsionStrength);
+        //         epos->setY(epos->y + dy * repulsionStrength);
+        //     }
+        // });
+
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall){
+            // get both entities’ positions
+            auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
+
+            wallEnt->get<Simple2DObject>()->setColors({255.f, 0.f, 0.f, 255.f});
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag*, TestGridFlag* wall){
+            // get both entities’ positions
+            auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
+
+            wallEnt->get<Simple2DObject>()->setColors({0.f, 0.f, 125.f, 255.f});
         });
 
         // Enemy <-> Wall: push enemy out of the wall
@@ -272,6 +286,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             z++;
         }
 
+        // drawDebugGrid(ecsRef, 2500, 5000);
+
         printf("Loaded Map\n");
     }
 
@@ -334,8 +350,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     }
 };
 
-struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<
-            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>> {
+struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>,
+    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>>
+{
 };
 
 std::thread *initThread;
