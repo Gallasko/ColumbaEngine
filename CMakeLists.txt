@@ -321,6 +321,7 @@ else()
         src/PixelJam/config.cpp
             src/PixelJam/Tiled_Lib/TiledLoader.cpp
             src/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
+            src/PixelJam/Aseprite_Lib/AsepriteLoader.cpp
     )
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)

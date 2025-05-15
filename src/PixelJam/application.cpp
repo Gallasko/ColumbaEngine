@@ -22,6 +22,7 @@
 #include "UI/prefab.h"
 
 #include "config.h"
+#include "Aseprite_Lib/AsepriteLoader.h"
 
 #include "Characters/player.h"
 #include "Characters/enemy.h"
@@ -469,6 +470,10 @@ void initGame() {
     }
 
     roomSystem->checkRoomsIntegrity();
+
+    AsepriteLoader aseprite_loader;
+    const AsepriteFile anim = aseprite_loader.loadAnim("res/sprites/main-char.json");
+    std::cout << "Anim " << anim << std::endl;
 
     mainWindow->ecs.createSystem<TestSystem>(map);
 
