@@ -191,6 +191,15 @@ namespace pg
         }
     };
 
+    struct RaycastHit
+    {
+        _unique_id entityId;  // id of the object we hit
+        bool hit;             // true if there is a hit
+        constant::Vector2D hitPoint; // point where we hit
+        float t;              // distance along ray where we hit
+        constant::Vector2D normal;      // collision normal
+    };
+
     struct CollisionSystem : public System<Own<CollisionComponent>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         // Todo make a ctor that load properties (pageSize, cellSi) from serialization
@@ -207,6 +216,11 @@ namespace pg
         bool testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2) const;
 
         _unique_id findNeareastId(constant::Vector2D pos, size_t layerId, size_t radius);
+
+        // Performs a raycast in world‐space:
+        RaycastHit raycast(const constant::Vector2D& origin, const constant::Vector2D& dir, float maxDist, size_t layerId);
+
+        std::vector<PagePos> traverseGridCells(constant::Vector2D origin, constant::Vector2D dir, float maxDist);
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 

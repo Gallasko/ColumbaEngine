@@ -7,6 +7,82 @@ namespace pg
         constexpr const char * const DOM = "Collision System";
     }
 
+    // Todo fix scaling !
+
+    struct AABB
+    {
+        float minX, maxX;
+        float minY, maxY;
+    };
+
+    /// Returns one of the four cardinal normals (+/–X or +/–Y)
+    inline constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint)
+    {
+        // distance to each face
+        float dLeft   =  hitPoint.x - box.minX;
+        float dRight  =  box.maxX  - hitPoint.x;
+        float dBottom =  hitPoint.y - box.minY;
+        float dTop    =  box.maxY  - hitPoint.y;
+
+        // find minimum penetration
+        float minDist = std::min({ dLeft, dRight, dBottom, dTop });
+
+        if (minDist == dLeft) {
+            return { -1.f,  0.f };     // hit left face
+        }
+        else if (minDist == dRight) {
+            return {  1.f,  0.f };     // hit right face
+        }
+        else if (minDist == dBottom) {
+            return {  0.f, -1.f };     // hit bottom face
+        }
+        else {
+            return {  0.f,  1.f };     // hit top face
+        }
+    }
+
+    // returns t in [0,1] where ray(origin→end) first hits box,
+    // or std::nullopt if no intersection.
+    std::optional<float> rayAABB(const constant::Vector2D& origin, const constant::Vector2D& dir, float length, const AABB& box)
+    {
+        float tmin = 0.0f, tmax = length;
+
+        // for each axis X and Y
+        for (int axis = 0; axis < 2; ++axis)
+        {
+            float o = axis==0 ? origin.x : origin.y;
+            float d = axis==0 ? dir.x    : dir.y;
+            float minB = axis==0 ? box.minX : box.minY;
+            float maxB = axis==0 ? box.maxX : box.maxY;
+
+            if (std::abs(d) < 1e-6f)
+            {
+                // Ray parallel to this axis—miss if outside slab
+                if (o < minB || o > maxB)
+                return std::nullopt;
+            } 
+            else 
+            {
+                // Compute intersection t’s of the ray with the box planes
+                float invD = 1.0f / d;
+                float t1 = (minB - o) * invD;
+                float t2 = (maxB - o) * invD;
+
+                // sort so t1 is entry, t2 exit
+                if (t1 > t2) std::swap(t1, t2);
+
+                tmin = std::max(tmin, t1);
+                tmax = std::min(tmax, t2);
+
+                if (tmin > tmax) 
+                    return std::nullopt;
+            }
+        }
+
+        // tmin is intersection point along [0,length]
+        return tmin <= length ? std::optional<float>(tmin) : std::nullopt;
+    }
+
     void CollisionComponent::onDeletion(EntityRef)
     {
         LOG_THIS_MEMBER("Collision Component");
@@ -303,6 +379,106 @@ namespace pg
         // }
 
         return 0;
+    }
+
+    RaycastHit CollisionSystem::raycast(const constant::Vector2D& origin, const constant::Vector2D& dir, float maxDist, size_t layerId)
+    {
+        auto cellsToCheck = traverseGridCells(origin, dir, maxDist);
+    
+        RaycastHit bestHit;
+        bestHit.hit = false;
+
+        float bestT = maxDist;
+    
+        for (auto const& cellPos : cellsToCheck)
+        {
+            // lookup page, then cell index
+            PagePos pageKey = { static_cast<int>(cellPos.x / pageSize.x),
+                                static_cast<int>(cellPos.y / pageSize.y) };
+
+            auto pageIt = loadedPages[layerId].find(pageKey);
+
+            if (pageIt == loadedPages[layerId].end())
+                continue;
+    
+            auto& page = pageIt->second;
+            int localX = cellPos.x % int(pageSize.x);
+            int localY = cellPos.y % int(pageSize.y);
+            auto& ids  = page.cells[ localX + localY * pageSize.x ].ids;
+    
+            // test each entity in the cell
+            for (auto entId : ids)
+            {
+                auto ent = ecsRef->getEntity(entId);
+                if (not ent or not ent->has<PositionComponent>() or not ent->has<CollisionComponent>())
+                    continue;
+    
+                // build that entity’s AABB in world‐space
+                auto pos = ent->get<PositionComponent>();
+                auto col = ent->get<CollisionComponent>();
+
+                AABB box {
+                    pos->x,
+                    pos->y,
+                    pos->x + pos->width * col->scale,
+                    pos->y + pos->height * col->scale
+                };
+    
+                // do the slab test we discussed
+                if (auto tOpt = rayAABB(origin, dir, maxDist, box))
+                {
+                    float t = *tOpt;
+
+                    if (t < bestT)
+                    {
+                        bestT = t;
+                        constant::Vector2D hitPoint = origin + dir * t;
+                        constant::Vector2D normal   = computeBoxNormal(box, hitPoint);
+                        bestHit = RaycastHit{entId, true, hitPoint, t, normal};
+                    }
+                }
+            }
+        }
+    
+        return bestHit;
+    }
+
+    std::vector<PagePos> CollisionSystem::traverseGridCells(constant::Vector2D origin, constant::Vector2D dir, float maxDist)
+    {
+        std::vector<PagePos> cells;
+        // convert world‐pos → cell‐coords
+        int cellX = int(origin.x / cellSize.x);
+        int cellY = int(origin.y / cellSize.y);
+    
+        // determine stepping direction & tDelta
+        int stepX = dir.x > 0 ? +1 : -1;
+        int stepY = dir.y > 0 ? +1 : -1;
+        float tMaxX = ((cellX + (stepX > 0)) * cellSize.x - origin.x) / dir.x;
+        float tMaxY = ((cellY + (stepY > 0)) * cellSize.y - origin.y) / dir.y;
+        float tDeltaX = cellSize.x / std::abs(dir.x);
+        float tDeltaY = cellSize.y / std::abs(dir.y);
+    
+        float t = 0;
+
+        while (t < maxDist)
+        {
+            cells.push_back(PagePos{cellX, cellY});
+    
+            if (tMaxX < tMaxY)
+            {
+                cellX  += stepX;
+                t       = tMaxX;
+                tMaxX  += tDeltaX;
+            }
+            else
+            {
+                cellY  += stepY;
+                t       = tMaxY;
+                tMaxY  += tDeltaY;
+            }
+        }
+
+        return cells;
     }
 
     void CollisionSystem::onEvent(const EntityChangedEvent& event)

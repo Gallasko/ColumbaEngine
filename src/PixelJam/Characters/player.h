@@ -208,6 +208,26 @@ namespace pg
 
                 auto mousePosInGame = camera->screenToWorld(event.pos.x, event.pos.y);
 
+                auto fireDir = constant::Vector2D{mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f};
+
+                auto collisionSys = ecsRef->getSystem<CollisionSystem>();
+
+                auto ray =  collisionSys->raycast({pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f}, fireDir.normalized(), 1000, 0);
+
+                if (ray.hit)
+                {
+                    LOG_INFO("Player", "Ray hit entity: " << ray.entityId << " at position: " << ray.hitPoint.x << " " << ray.hitPoint.y);
+
+                    auto ent = ecsRef->getEntity(ray.entityId);
+
+                    if (ent and ent->has<PositionComponent>())
+                    {
+                        auto pos = ent->get<PositionComponent>();
+
+                        // pos->setVisibility(false);
+                    }
+                }
+
                 LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
 
                 auto& weapon = weaponEnt->weapon;
@@ -222,7 +242,7 @@ namespace pg
                     weaponEnt->weapon = baseWeapon;
                 }
 
-                for (const auto& dir : weapon.fireDirections({mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f}))
+                for (const auto& dir : weapon.fireDirections(fireDir))
                 {
                     if (weapon.ammo != 0)
                     {
