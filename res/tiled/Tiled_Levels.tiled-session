@@ -3,9 +3,10 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "",
+    "activeFile": "LEVELS/Level_0001.json",
     "expandedProjectPaths": [
         ".",
+        "TEMPLATES",
         "Templates",
         "LEVELS",
         "EXPORTS"
@@ -44,7 +45,16 @@
         "EXPORTS/Level_Debug.json#Water": {
             "scaleInDock": 1
         },
+        "LEVELS/Level_0001.json": {
+            "scale": 0.125,
+            "selectedLayer": 10,
+            "viewCenter": {
+                "x": 1452,
+                "y": 552
+            }
+        },
         "LEVELS/Level_0001.json#PROTO_BASE": {
+            "scaleInDock": 1,
             "scaleInEditor": 4
         },
         "LEVELS/Level_DEV_0001.json": {
@@ -136,10 +146,12 @@
     "map.tileWidth": 16,
     "map.width": 50,
     "openFiles": [
+        "LEVELS/Level_0001.json"
     ],
     "project": "Tiled_Levels.tiled-project",
     "property.type": "float",
     "recentFiles": [
+        "LEVELS/Level_0001.json",
         "LEVELS/Level_DEV_0001.json",
         "Level_Debug.json",
         "EXPORTS/Level_Debug.json",
