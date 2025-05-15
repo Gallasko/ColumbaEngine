@@ -105,7 +105,7 @@ namespace pg
             }
         }
 
-        CollisionComponent(const CollisionComponent& other) : layerId(other.layerId), scale(other.scale), checkSpecificLayerFlag(other.checkSpecificLayerFlag), checkLayerId(other.checkLayerId), ecsRef(other.ecsRef), entityId(other.entityId), cells(other.cells), firstCell(other.firstCell), inserted(other.inserted) {}
+        CollisionComponent(const CollisionComponent& other) : layerId(other.layerId), scale(other.scale), checkSpecificLayerFlag(other.checkSpecificLayerFlag), checkLayerId(other.checkLayerId), ecsRef(other.ecsRef), entityId(other.entityId), cells(other.cells), firstCellX(other.firstCellX), firstCellY(other.firstCellY), inserted(other.inserted) {}
 
         virtual void onCreation(EntityRef entity) override
         {
@@ -131,7 +131,9 @@ namespace pg
 
         std::map<PagePos, std::vector<CollisionCell*>> cells;
 
-        constant::Vector2D firstCell = {0, 0};
+        int firstCellX = 0;
+        int firstCellY = 0;
+
         bool inserted = false;
     };
 
@@ -238,12 +240,20 @@ namespace pg
         std::set<CollisionEvent> detectedCollisions;
     };
 
+    struct SweepMoveResult
+    {
+        bool hit = false;
+        constant::Vector2D delta = {0, 0};
+
+        Entity *entity = nullptr;
+    };
+
     /// Tries to move `pos` by `delta`.  Returns the actual movement applied (≤ delta),
     /// and writes `hit` if we ran into something.
     /// - originPos: the top‑left or center of your entity (consistent convention)
     /// - size: width/height of your entity’s AABB
     /// - layer: which collision layer ID to test against (e.g. walls)
-    constant::Vector2D sweepMove(CollisionSystem*  collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers, bool& hit);
+    SweepMoveResult sweepMove(CollisionSystem*  collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers);
 
     struct CollisionHandleBase
     {

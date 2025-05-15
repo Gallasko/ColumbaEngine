@@ -46,7 +46,7 @@ namespace pg
 
     struct RoomDoorHolder
     {
-        EntityRef entity;
+        _unique_id entityId;
         Door door;
     };
 
@@ -216,10 +216,12 @@ namespace pg
 
                 for (auto& door : it->second.doors)
                 {
-                    door.entity.get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
+                    auto doorEnt = ecsRef->getEntity(door.entityId);
+                    
+                    doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
 
-                    ecsRef->detach<WallFlag>(door.entity);
-                    ecsRef->detach<CollisionComponent>(door.entity);
+                    ecsRef->detach<WallFlag>(doorEnt);
+                    ecsRef->detach<CollisionComponent>(doorEnt);
                 }
             }
             else if (nbSlayedEnemies == nbSpawnedEnemies)
@@ -280,9 +282,14 @@ namespace pg
 
             for (const auto& door : it->second.doors)
             {
-                door.entity.get<Simple2DObject>()->setColors({125.f, 0.f, 0.f, 80.f});
+                auto doorEnt = ecsRef->getEntity(door.entityId);
 
-                ecsRef->attach<WallFlag>(door.entity);
+                doorEnt->get<Simple2DObject>()->setColors({125.f, 0.f, 0.f, 80.f});
+
+                // Todo attching it here doesn't work for some reason (no collision)
+                // ecsRef->attach<CollisionComponent>(doorEnt, 0);
+
+                ecsRef->attach<WallFlag>(doorEnt);
             }
 
             currentRoom = event.roomIndex;
@@ -347,11 +354,11 @@ namespace pg
             doorEnt.get<PositionComponent>()->setY(rect.topLeftCornerY);
             doorEnt.get<PositionComponent>()->setZ(10);
 
-            ecsRef->attach<CollisionComponent>(doorEnt.entity, 0);
-
             doorEnt.get<Simple2DObject>()->setViewport(1);
 
-            it->second.doors.push_back(RoomDoorHolder{doorEnt.entity, door});
+            ecsRef->attach<CollisionComponent>(doorEnt.entity, 0);
+
+            it->second.doors.push_back(RoomDoorHolder{doorEnt.entity.id, door});
         }
 
         void addSpawner(const Spawner& spawner)

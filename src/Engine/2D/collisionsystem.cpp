@@ -49,43 +49,67 @@ namespace pg
     // or std::nullopt if no intersection.
     std::optional<float> rayAABB(const constant::Vector2D& origin, const constant::Vector2D& dir, float length, const AABB& box)
     {
-        float tmin = 0.0f, tmax = length + EPSILON;
+        // t_enter/t_exit track the overlapping interval of the ray on all axes
+        float tEnter = 0.0f;
+        float tExit  = length;
 
-        // for each axis X and Y
-        for (int axis = 0; axis < 2; ++axis)
+        // === X axis slab ===
+        if (std::abs(dir.x) < 1e-6f)
         {
-            float o    = axis == 0 ? origin.x : origin.y;
-            float d    = axis == 0 ? dir.x    : dir.y;
-            float minB = axis == 0 ? box.minX : box.minY;
-            float maxB = axis == 0 ? box.maxX : box.maxY;
+            // Ray is parallel to X planes: if origin.x is outside box, no hit
+            if (origin.x < box.minX or origin.x > box.maxX)
+                return std::nullopt;
+        }
+        else
+        {
+            // Compute intersection distances with the two X planes
+            float invDx = 1.0f / dir.x;
+            float t1    = (box.minX - origin.x) * invDx;
+            float t2    = (box.maxX - origin.x) * invDx;
 
-            if (std::abs(d) < EPSILON)
-            {
-                // Ray parallel to this axis—miss if outside slab
-                if (o < minB or o > maxB)
-                    return std::nullopt;
-            }
-            else
-            {
-                // Compute intersection t’s of the ray with the box planes
-                float invD = 1.0f / d;
-                float t1 = (minB - o) * invD;
-                float t2 = (maxB - o) * invD;
+            // Order them so t1 = entering, t2 = exiting
+            if (t1 > t2)
+                std::swap(t1, t2);
 
-                // sort so t1 is entry, t2 exit
-                if (t1 > t2)
-                    std::swap(t1, t2);
+            // Narrow our valid interval
+            tEnter = std::max(tEnter, t1);
+            tExit  = std::min(tExit,  t2);
 
-                tmin = std::max(tmin, t1);
-                tmax = std::min(tmax, t2);
-
-                if (tmin > tmax)
-                    return std::nullopt;
-            }
+            // If interval is empty, ray misses
+            if (tEnter > tExit) 
+                return std::nullopt;
         }
 
-        // tmin is intersection point along [0,length]
-        return tmin <= length ? std::optional<float>(tmin) : std::nullopt;
+        // === Y axis slab ===
+        if (std::abs(dir.y) < 1e-6f)
+        {
+            if (origin.y < box.minY or origin.y > box.maxY)
+                return std::nullopt;
+        }
+        else
+        {
+            float invDy = 1.0f / dir.y;
+            float t1    = (box.minY - origin.y) * invDy;
+            float t2    = (box.maxY - origin.y) * invDy;
+
+            if (t1 > t2)
+                std::swap(t1, t2);
+
+            tEnter = std::max(tEnter, t1);
+            tExit  = std::min(tExit,  t2);
+
+            if (tEnter > tExit) 
+                return std::nullopt;
+        }
+
+        // If the first valid intersection (tEnter) is within [0..length], we hit
+        if (tEnter >= 0.0f and tEnter <= length)
+        {
+            return tEnter;
+        }
+
+        // Otherwise we missed (or maybe the box is “behind” us)
+        return std::nullopt;
     }
 
     void CollisionComponent::onDeletion(EntityRef)
@@ -129,7 +153,7 @@ namespace pg
         auto group = registerGroup<PositionComponent, CollisionComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE(DOM, "Add entity " << entity->id << " to ui - collision group !");
+            LOG_INFO(DOM, "Add entity " << entity->id << " to ui - collision group !");
 
             auto ui = entity->get<PositionComponent>();
             auto collision = entity->get<CollisionComponent>();
@@ -179,7 +203,8 @@ namespace pg
 
         int startingXPos = xPagePos;
 
-        comp->firstCell = {x / cellSize.x, y / cellSize.y};
+        comp->firstCellX = x / cellSize.x;
+        comp->firstCellY = y / cellSize.y;
 
         for (float remainingHeight = height * comp->scale; remainingHeight > 0; remainingHeight -= usedHeight)
         {
@@ -562,8 +587,8 @@ namespace pg
         auto ui = entity->get<PositionComponent>();
         auto comp = entity->get<CollisionComponent>();
 
-        // float x = ui->pos.x;
-        // float y = ui->pos.y;
+        // float x = ui->x;
+        // float y = ui->y;
 
         // int xPagePos = x / cellSize.x;
         // int yPagePos = y / cellSize.y;
@@ -574,7 +599,7 @@ namespace pg
         addComponentInGrid(ui, comp);
 
         // Todo fix this to avoid moving an comp even when it doesn't change cell
-        // if (not comp->inserted and comp->firstCell != constant::Vector2D{xPagePos, yPagePos})
+        // if (not comp->inserted or comp->firstCellX != xPagePos or comp->firstCellY != yPagePos)
         // {
         //     removeComponentFromGrid(comp);
         //     addComponentInGrid(ui, comp);
@@ -601,9 +626,10 @@ namespace pg
     /// - originPos: the top‑left or center of your entity (consistent convention)
     /// - size: width/height of your entity’s AABB
     /// - layer: which collision layer ID to test against (e.g. walls)
-    constant::Vector2D sweepMove(CollisionSystem* collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers, bool& hit)
+    SweepMoveResult sweepMove(CollisionSystem* collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers)
     {
-        hit = false;
+        SweepMoveResult res;
+        res.hit = false;
 
         // 1) compute center and half‑extents
         constant::Vector2D half = { size.x * 0.5f, size.y * 0.5f };
@@ -613,7 +639,7 @@ namespace pg
         float moveLen = sqrt(delta.x * delta.x + delta.y * delta.y);
 
         if (moveLen < EPSILON)
-            return {0, 0};
+            return res;
 
         constant::Vector2D dir = { delta.x / moveLen, delta.y / moveLen };
         auto cells = collision->traverseGridCells(center, dir, moveLen);
@@ -630,6 +656,8 @@ namespace pg
                 for (auto wallId : collision->getCellEntities(cellPos, layer))
                 {
                     auto wallEntity = ecsRef->getEntity(wallId);
+
+                    LOG_INFO(DOM, "Checking wall: " << wallId);
 
                     if (not wallEntity or not wallEntity->has<PositionComponent>() or not wallEntity->has<CollisionComponent>())
                         continue;
@@ -657,7 +685,13 @@ namespace pg
                     if (tOpt)
                     {
                         float t = *tOpt / moveLen;           // normalize to [0..1]
-                        bestT = std::min(bestT, t);
+                        // bestT = std::min(bestT, t);
+
+                        if (t < bestT)
+                        {
+                            bestT = t;
+                            res.entity = wallEntity;
+                        }
                     }
                 }
             }
@@ -668,10 +702,10 @@ namespace pg
 
         if (safeT < 0) safeT = 0;
 
-        constant::Vector2D applied = delta * safeT;
-        hit = (bestT < 1.0f);
+        res.delta = delta * safeT;
+        res.hit = (bestT < 1.0f);
 
         // 5) update the originPos *outside* this helper
-        return applied;
+        return res;
     }
 }
