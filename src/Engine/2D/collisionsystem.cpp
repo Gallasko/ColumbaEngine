@@ -314,12 +314,13 @@ namespace pg
         {
             auto ent = ecsRef->getEntity(id);
 
-            if (ent and ent->has<PositionComponent>())
+            if (ent and ent->has<PositionComponent>() and ent->has<CollisionComponent>())
             {
                 auto ui = ent->get<PositionComponent>();
+                auto c2 = ent->get<CollisionComponent>();
 
                 // Todo have different type of collision (AABB to AABB, circle to AABB, etc)
-                auto test = testCollision(pos, ui);
+                auto test = testCollision(pos, ui, comp->scale, c2->scale);
 
                 if (test)
                 {
@@ -337,24 +338,25 @@ namespace pg
     }
 
     // TODO this only test collision for AABB to AABB for now, need to expend on it !
-    bool CollisionSystem::testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2) const
+    bool CollisionSystem::testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2, float scale1, float scale2) const
     {
         LOG_THIS_MEMBER(DOM);
 
-        float obj1Xmin = obj1->x;
-        float obj1XMax = obj1->x + obj1->width;
-        float obj1YMin = obj1->y;
-        float obj1YMax = obj1->y + obj1->height;
+        // compute scaled AABB for obj1
+        float w1 = obj1->width  * scale1;
+        float h1 = obj1->height * scale1;
+        // center the scaled box around the original pos
+        float x1 = obj1->x - (w1 - obj1->width ) * 0.5f;
+        float y1 = obj1->y - (h1 - obj1->height) * 0.5f;
 
-        float obj2XMin = obj2->x;
-        float obj2XMax = obj2->x + obj2->width;
-        float obj2YMin = obj2->y;
-        float obj2YMax = obj2->y + obj2->height;
+        // and for obj2
+        float w2 = obj2->width  * scale2;
+        float h2 = obj2->height * scale2;
+        float x2 = obj2->x - (w2 - obj2->width ) * 0.5f;
+        float y2 = obj2->y - (h2 - obj2->height) * 0.5f;
 
-        return obj1XMax > obj2XMin and
-               obj1Xmin < obj2XMax and
-               obj1YMax > obj2YMin and
-               obj1YMin < obj2YMax;
+        // now do the standard AABB check
+        return (x1 + w1) > x2 and x1 < (x2 + w2) and (y1 + h1) > y2 and y1 < (y2 + h2);
     }
 
     // Todo

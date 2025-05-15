@@ -425,24 +425,26 @@ namespace pg
         {
             auto pos = player->get<PositionComponent>();
 
-            bool hit;
-
             auto collisionSys = ecsRef->getSystem<CollisionSystem>();
 
-            auto applied = sweepMove(collisionSys,
-                                    {pos->x, pos->y},
-                                    {pos->width, pos->height},
-                                    {x, y},
-                                    {0},
-                                    hit);
+            constant::Vector2D posVec = {pos->x, pos->y};
+            constant::Vector2D size = {pos->width, pos->height};
 
-            if (hit)
+            bool hitX, hitY;
+
+            // 1) sweep X only
+            auto applX = sweepMove(collisionSys, {pos->x, pos->y}, size, {x, 0.0f}, {0}, hitX);
+            pos->setX(pos->x + applX.x);
+
+            // 2) sweep Y only (using the **new** X position!)
+            auto applY = sweepMove(collisionSys, {pos->x, pos->y}, size, {0.0f, y}, {0}, hitY);
+            pos->setY(pos->y + applY.y);
+
+            // optional: detect if either axis was blocked
+            if (hitX or hitY)
             {
-                LOG_INFO("Player", "Wall hit");
+                LOG_INFO("Player","Hit wall on " << (hitX ? "X":"") << (hitY?"Y":""));
             }
-
-            pos->setX(pos->x + applied.x);
-            pos->setY(pos->y + applied.y);
         }
 
         EntityRef player;

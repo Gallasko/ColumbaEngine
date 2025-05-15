@@ -213,7 +213,7 @@ namespace pg
 
         std::set<_unique_id> resolveCollisionList(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp);
 
-        bool testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2) const;
+        bool testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2, float scale1, float scale2) const;
 
         _unique_id findNeareastId(constant::Vector2D pos, size_t layerId, size_t radius);
 
