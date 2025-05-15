@@ -222,6 +222,10 @@ namespace pg
 
         std::vector<PagePos> traverseGridCells(constant::Vector2D origin, constant::Vector2D dir, float maxDist);
 
+        // returns a reference to the set of entity‐IDs in (cellPos, layerId).
+        // If the page or cell doesn't exist, returns an empty static set.
+        const std::set<_unique_id>& getCellEntities(const PagePos& cellPos, size_t layerId) const;
+
         virtual void onEvent(const EntityChangedEvent& event) override;
 
         virtual void execute() override;
@@ -233,6 +237,13 @@ namespace pg
 
         std::set<CollisionEvent> detectedCollisions;
     };
+
+    /// Tries to move `pos` by `delta`.  Returns the actual movement applied (≤ delta),
+    /// and writes `hit` if we ran into something.
+    /// - originPos: the top‑left or center of your entity (consistent convention)
+    /// - size: width/height of your entity’s AABB
+    /// - layer: which collision layer ID to test against (e.g. walls)
+    constant::Vector2D sweepMove(CollisionSystem*  collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers, bool& hit);
 
     struct CollisionHandleBase
     {

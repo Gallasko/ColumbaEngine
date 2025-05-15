@@ -119,7 +119,7 @@ namespace pg
 
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
-    struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
+    struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
@@ -130,7 +130,7 @@ namespace pg
 
             playerEnt.get<PositionComponent>()->setZ(10);
             playerEnt.get<PositionComponent>()->setVisibility(false);
-            
+
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
             ecsRef->attach<FollowCamera2D>(playerEnt.entity);
@@ -281,7 +281,7 @@ namespace pg
             }
         }
 
-        virtual void onEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
+        virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
         {
             LOG_INFO("Player System", "Received game key input");
 
@@ -313,7 +313,7 @@ namespace pg
             }
         }
 
-        virtual void onEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
+        virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
         {
             LOG_INFO("Player System", "Received game key release");
 
@@ -424,8 +424,25 @@ namespace pg
         void movePlayer(float x, float y)
         {
             auto pos = player->get<PositionComponent>();
-            pos->setX(pos->x + x);
-            pos->setY(pos->y + y);
+
+            bool hit;
+
+            auto collisionSys = ecsRef->getSystem<CollisionSystem>();
+
+            auto applied = sweepMove(collisionSys,
+                                    {pos->x, pos->y},
+                                    {pos->width, pos->height},
+                                    {x, y},
+                                    {0},
+                                    hit);
+
+            if (hit)
+            {
+                LOG_INFO("Player", "Wall hit");
+            }
+
+            pos->setX(pos->x + applied.x);
+            pos->setY(pos->y + applied.y);
         }
 
         EntityRef player;
