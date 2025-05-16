@@ -83,6 +83,9 @@ namespace pg {
             attackDistance(rhs.attackDistance),
             cooldownTime(rhs.cooldownTime),
             wideUpTime(rhs.wideUpTime),
+            feelersLength(rhs.feelersLength),
+            feelerAngle(rhs.feelerAngle),
+            avoidanceStrength(rhs.avoidanceStrength),
             isBoss(rhs.isBoss),
             orbitDirection(rhs.orbitDirection) {}
 
@@ -97,6 +100,9 @@ namespace pg {
             cooldownTime = rhs.cooldownTime;
             wideUpTime = rhs.wideUpTime;
             orbitDirection = rhs.orbitDirection;
+            feelersLength = rhs.feelersLength;
+            feelerAngle = rhs.feelerAngle;
+            avoidanceStrength = rhs.avoidanceStrength;
             isBoss = rhs.isBoss;
             return *this;
         }
@@ -112,6 +118,9 @@ namespace pg {
         float attackDistance = 200.f;
         int cooldownTime = 1000; // ms
         int wideUpTime = 500;
+        float feelersLength = 30;
+        float feelerAngle = 15;
+        float avoidanceStrength = 0.5;
         bool isBoss;
 
         float orbitDirection = (rand() % 2 == 0) ? -1.0f : 1.0f;
@@ -288,53 +297,7 @@ namespace pg {
             ai->state = AIState::Chase;
         }
 
-        void chaseAndOrbit(PositionComponent* pos, AIStateComponent* ai, float dt)
-        {
-            ai->elapsedTime += dt;
-            auto playerPos = findPlayerPosition();
-
-            constant::Vector2D toPlayer{ playerPos.x - pos->x, playerPos.y - pos->y };
-
-            float dist = toPlayer.length();
-
-            toPlayer.normalize();
-
-            // Decide behavior
-            float diff = dist - ai->idealDistance;
-
-            constant::Vector2D moveDir;
-            if (std::fabs(diff) < ai->orbitThreshold)
-            {
-                // Orbit: perpendicular
-                if (ai->orbitDirection == -1.0f)
-                    moveDir = { -toPlayer.y,  toPlayer.x };
-                else
-                    moveDir = {  toPlayer.y, -toPlayer.x };
-            }
-            else if (diff > 0)
-            {
-                // Too far: move in
-                moveDir = toPlayer;
-            } else
-            {
-                // Too close: kite out
-                moveDir = { -toPlayer.x, -toPlayer.y };
-            }
-
-            // Apply movement
-            pos->setX(pos->x + moveDir.x * ai->chaseSpeed);
-            pos->setY(pos->y + moveDir.y * ai->chaseSpeed);
-
-            auto checkDist = std::max(ai->attackDistance, ai->idealDistance);
-
-            // Switch to attack if within range
-            // Todo replace 45 by the actual size of the enemy (+ a small margin)
-            if (dist - 45 <= checkDist and ai->elapsedTime > ai->cooldownTime)
-            {
-                ai->elapsedTime = 0.0f;
-                ai->state = AIState::ShotWideUp;
-            }
-        }
+        void chaseAndOrbit(PositionComponent* pos, AIStateComponent* ai, float dt);
 
         void wideUp(PositionComponent* pos, AIStateComponent* ai, float dt)
         {

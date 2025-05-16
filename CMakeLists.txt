@@ -317,6 +317,7 @@ else()
 
     target_sources(PixelJam PRIVATE
         src/PixelJam/application.cpp
+        src/PixelJam/Characters/enemy.cpp
         src/PixelJam/Characters/player.cpp
         src/PixelJam/config.cpp
         src/PixelJam/Tiled_Lib/TiledLoader.cpp
