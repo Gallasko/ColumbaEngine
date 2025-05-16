@@ -64,6 +64,13 @@ namespace pg
         invicibilityTimer->interval = 1000;
         invicibilityTimer->callback = makeCallable<PlayerInvincibilityEndEvent>();
 
+        auto entity7 = ecsRef->createEntity();
+
+        dodgeTimer = ecsRef->attach<Timer>(entity7);
+        dodgeTimer->oneShot = true;
+        dodgeTimer->interval = 1000;
+        dodgeTimer->callback = makeCallable<PlayerDodgeEndEvent>();
+
         auto playerHealthUi = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Health: " + std::to_string(static_cast<int>(health)), 0.4);
         playerHealthUi.get<TTFText>()->setViewport(2);
 

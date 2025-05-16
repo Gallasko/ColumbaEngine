@@ -195,7 +195,10 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             wallEnt->get<Simple2DObject>()->setColors({0.f, 0.f, 125.f, 255.f});
         });
 
-        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, EnemyBulletFlag* bullet) {
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, EnemyBulletFlag* bullet) {
+            if (player->inDodge)
+                return;
+            
             ecsRef->sendEvent(PlayerHitEvent{bullet->damage});
 
             ecsRef->removeEntity(bullet->entityId);

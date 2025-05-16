@@ -65,6 +65,8 @@ namespace pg
 
         EntitySystem* ecsRef;
         _unique_id entityId;
+
+        bool inDodge = false;
     };
 
     struct AllyBulletFlag : public Ctor
@@ -121,13 +123,15 @@ namespace pg
 
     struct PlayerInvincibilityEndEvent {};
 
+    struct PlayerDodgeEndEvent {};
+
     struct PlayerHitEvent { float damage; };
 
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
-        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>>
+        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
 
@@ -146,6 +150,11 @@ namespace pg
             player->get<PositionComponent>()->setY(event.y);
 
             player->get<PositionComponent>()->setVisibility(true);
+        }
+
+        virtual void onEvent(const PlayerDodgeEndEvent& event) override
+        {
+            player->get<PlayerFlag>()->inDodge = false;
         }
 
         virtual void onProcessEvent(const OnMouseClick& event) override
@@ -271,6 +280,10 @@ namespace pg
                 tryCollect();
                 break;
 
+            case GameKeyConfig::Dodge:
+                tryDodge();
+                break;
+
             default:
                 break;
             }
@@ -362,6 +375,16 @@ namespace pg
 
         }
 
+        void tryDodge()
+        {
+            if (player->get<PlayerFlag>()->inDodge)
+                return;
+
+            player->get<PlayerFlag>()->inDodge = true;
+            
+            dodgeTimer->start();
+        }
+
         virtual void onEvent(const PlayerMoveUp&) override
         {
             movePlayer(0.f, -movespeed);
@@ -394,7 +417,8 @@ namespace pg
         bool invincibility = false;
 
         CompRef<Timer> invicibilityTimer;
-
+        CompRef<Timer> dodgeTimer;
+        
         AsepriteFile playerAnimation; // anim
 
         std::unordered_map<std::string, EntityRef> uiElements;
