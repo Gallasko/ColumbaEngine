@@ -262,18 +262,26 @@ namespace pg
             case GameKeyConfig::MoveLeft:
                 if (not leftTimer->running)
                     leftTimer->start();
+                // if (rightTimer->running)
+                //     rightTimer->stop();
                 break;
             case GameKeyConfig::MoveRight:
                 if (not rightTimer->running)
                     rightTimer->start();
+                // if (leftTimer->running)
+                //     leftTimer->stop();
                 break;
             case GameKeyConfig::MoveUp:
                 if (not upTimer->running)
                     upTimer->start();
+                // if (bottomTimer->running)
+                //     bottomTimer->stop();
                 break;
             case GameKeyConfig::MoveDown:
                 if (not bottomTimer->running)
                     bottomTimer->start();
+                // if (upTimer->running)
+                //     upTimer->stop();
                 break;
 
             case GameKeyConfig::Interact:

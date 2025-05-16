@@ -131,7 +131,14 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, EnemyFlag *enemy) {
             LOG_INFO(DOM, "Bullet hit an enemy! ");
 
+            if (enemy->invicibilityTimeLeft > 0)
+            {
+                ecsRef->removeEntity(bullet->entityId);
+                return;
+            }
+
             enemy->health -= bullet->damage;
+            enemy->invicibilityTimeLeft = ENEMYINVICIBILITYTIMEMS;
 
             if (enemy->health <= 0)
             {
@@ -161,25 +168,26 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         const float repulsionStrength = 1.f;
 
-        // makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
-        //     // get both entities’ positions
-        //     auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
-        //     auto playerEnt = player->ecsRef->getEntity(player->entityId);
-        //     auto wpos     = wallEnt->get<PositionComponent>();
-        //     auto epos     = playerEnt->get<PositionComponent>();
+        // Todo we need this because sweep move is bugged
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
+            // get both entities’ positions
+            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+            auto playerEnt = player->ecsRef->getEntity(player->entityId);
+            auto wpos     = wallEnt->get<PositionComponent>();
+            auto epos     = playerEnt->get<PositionComponent>();
 
-        //     // compute normalized vector from wall→enemy
-        //     float dx = epos->x - wpos->x;
-        //     float dy = epos->y - wpos->y;
-        //     float len = std::sqrt(dx*dx + dy*dy);
-        //     if (len > 0.f) {
-        //         dx /= len;
-        //         dy /= len;
-        //         // shove enemy out
-        //         epos->setX(epos->x + dx * repulsionStrength);
-        //         epos->setY(epos->y + dy * repulsionStrength);
-        //     }
-        // });
+            // compute normalized vector from wall→enemy
+            float dx = epos->x - wpos->x;
+            float dy = epos->y - wpos->y;
+            float len = std::sqrt(dx*dx + dy*dy);
+            if (len > 0.f) {
+                dx /= len;
+                dy /= len;
+                // shove enemy out
+                epos->setX(epos->x + dx * repulsionStrength);
+                epos->setY(epos->y + dy * repulsionStrength);
+            }
+        });
 
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall) {
             // get both entities’ positions
