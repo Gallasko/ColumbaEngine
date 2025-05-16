@@ -5,16 +5,17 @@
     },
     "activeFile": "LEVELS/Level_0001.json",
     "expandedProjectPaths": [
+        "EXPORTS",
         ".",
         "TEMPLATES",
-        "Templates",
         "LEVELS",
-        "EXPORTS"
+        "Templates"
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
         "": {
-            "scaleInDock": 3
+            "scaleInDock": 3,
+            "scaleInEditor": 3
         },
         ":/automap-tiles.tsx": {
             "scaleInDock": 1
@@ -46,15 +47,15 @@
             "scaleInDock": 1
         },
         "LEVELS/Level_0001.json": {
-            "scale": 0.125,
+            "scale": 0.33,
             "selectedLayer": 10,
             "viewCenter": {
-                "x": 1452,
-                "y": 552
+                "x": 668.1818181818182,
+                "y": 2243.939393939394
             }
         },
         "LEVELS/Level_0001.json#PROTO_BASE": {
-            "scaleInDock": 1,
+            "scaleInDock": 2,
             "scaleInEditor": 3
         },
         "LEVELS/Level_DEV_0001.json": {
