@@ -12,6 +12,8 @@
 #include "Database/weapondatabase.h"
 #include "Database/enemydatabase.h"
 
+#include "Characters/player.h"
+
 namespace pg
 {
     struct RoomTriggerFlag
@@ -44,7 +46,7 @@ namespace pg
 
     struct RoomDoorHolder
     {
-        EntityRef entity;
+        _unique_id entityId;
         Door door;
     };
 
@@ -87,6 +89,12 @@ namespace pg
     {
         RoomSystem(WeaponDatabase* weaponDb, EnemyDatabase* enemyDb) : weaponDb(weaponDb), enemyDb(enemyDb)
         {
+        }
+
+        void startLevel()
+        {
+            auto pos = playerSpawn.positionSPixels;
+            ecsRef->sendEvent(SpawnPlayerEvent{pos.x, pos.y});
         }
 
         virtual void init() override
@@ -163,7 +171,14 @@ namespace pg
                         continue;
                     }
 
-                    enemyData.weapon = weaponDb->getWeapon(enemyData.weaponId);
+                    try
+                    {
+                        enemyData.weapon = weaponDb->getWeapon(enemyData.weaponId);
+                    }
+                    catch (const std::exception& e)
+                    {
+                        LOG_ERROR("RoomSystem", "Weapon not found: " << enemyData.weaponId << ": " << e.what());
+                    }
 
                     EnemySpawnData enemySpawnData;
 
@@ -176,7 +191,7 @@ namespace pg
                     nbSpawnedEnemiesInLoop++;
                 }
 
-            } while (nbSpawnedEnemiesInLoop == 0 or fastBreak);
+            } while (nbSpawnedEnemiesInLoop == 0 and not fastBreak);
             
             nbSpawnedEnemies += nbSpawnedEnemiesInLoop;
 
@@ -201,10 +216,12 @@ namespace pg
 
                 for (auto& door : it->second.doors)
                 {
-                    door.entity.get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
+                    auto doorEnt = ecsRef->getEntity(door.entityId);
+                    
+                    doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
 
-                    ecsRef->detach<WallFlag>(door.entity);
-                    ecsRef->detach<CollisionComponent>(door.entity);
+                    ecsRef->detach<WallFlag>(doorEnt);
+                    ecsRef->detach<CollisionComponent>(doorEnt);
                 }
             }
             else if (nbSlayedEnemies == nbSpawnedEnemies)
@@ -265,10 +282,14 @@ namespace pg
 
             for (const auto& door : it->second.doors)
             {
-                door.entity.get<Simple2DObject>()->setColors({125.f, 0.f, 0.f, 80.f});
+                auto doorEnt = ecsRef->getEntity(door.entityId);
 
-                ecsRef->attach<WallFlag>(door.entity);
-                ecsRef->attach<CollisionComponent>(door.entity, 0);
+                doorEnt->get<Simple2DObject>()->setColors({125.f, 0.f, 0.f, 80.f});
+
+                // Todo attching it here doesn't work for some reason (no collision)
+                // ecsRef->attach<CollisionComponent>(doorEnt, 0);
+
+                ecsRef->attach<WallFlag>(doorEnt);
             }
 
             currentRoom = event.roomIndex;
@@ -277,6 +298,11 @@ namespace pg
             nbSpawnedEnemies = 0;
 
             spawnTimer->start();
+        }
+
+        void addPlayerSpawn(const SpawnPoint& spawn)
+        {
+            playerSpawn = spawn;
         }
 
         void addRoom(const RoomData& data)
@@ -330,7 +356,9 @@ namespace pg
 
             doorEnt.get<Simple2DObject>()->setViewport(1);
 
-            it->second.doors.push_back(RoomDoorHolder{doorEnt.entity, door});
+            ecsRef->attach<CollisionComponent>(doorEnt.entity, 0);
+
+            it->second.doors.push_back(RoomDoorHolder{doorEnt.entity.id, door});
         }
 
         void addSpawner(const Spawner& spawner)
@@ -407,6 +435,8 @@ namespace pg
 
         std::unordered_map<int, Room> rooms;
 
+        SpawnPoint playerSpawn;
+
         int currentRoom = -1;
 
         CompRef<Timer> spawnTimer;
@@ -414,4 +444,33 @@ namespace pg
         size_t nbSlayedEnemies = 0;
         size_t nbSpawnedEnemies = 0;
     };
+
+    struct TestGridFlag : public Ctor
+    {
+        TestGridFlag(const constant::Vector4D& color) : color(color) {}
+        TestGridFlag(const TestGridFlag& other) : color(other.color), ecsRef(other.ecsRef), entityId(other.entityId) {}
+
+        TestGridFlag& operator=(const TestGridFlag& other)
+        {
+            color = other.color;
+
+            ecsRef = other.ecsRef;
+            entityId = other.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        constant::Vector4D color;
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
+
+    void drawDebugGrid(EntitySystem* ecs, int worldW, int worldH);
 }

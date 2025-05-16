@@ -142,6 +142,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 {
                     auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
 
+                    collectibleEnt.get<Simple2DObject>()->setViewport(1);
+
                     collectibleEnt.get<PositionComponent>()->setX(pos->x + pos->width / 2.f - 12.5f);
                     collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
                     collectibleEnt.get<PositionComponent>()->setZ(10.f);
@@ -157,7 +159,41 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->removeEntity(bullet->entityId);
         });
 
-        const float repulsionStrength = 2.f;
+        const float repulsionStrength = 1.f;
+
+        // makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
+        //     // get both entities’ positions
+        //     auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+        //     auto playerEnt = player->ecsRef->getEntity(player->entityId);
+        //     auto wpos     = wallEnt->get<PositionComponent>();
+        //     auto epos     = playerEnt->get<PositionComponent>();
+
+        //     // compute normalized vector from wall→enemy
+        //     float dx = epos->x - wpos->x;
+        //     float dy = epos->y - wpos->y;
+        //     float len = std::sqrt(dx*dx + dy*dy);
+        //     if (len > 0.f) {
+        //         dx /= len;
+        //         dy /= len;
+        //         // shove enemy out
+        //         epos->setX(epos->x + dx * repulsionStrength);
+        //         epos->setY(epos->y + dy * repulsionStrength);
+        //     }
+        // });
+
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall){
+            // get both entities’ positions
+            auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
+
+            wallEnt->get<Simple2DObject>()->setColors({255.f, 0.f, 0.f, 255.f});
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag*, TestGridFlag* wall){
+            // get both entities’ positions
+            auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
+
+            wallEnt->get<Simple2DObject>()->setColors({0.f, 0.f, 125.f, 255.f});
+        });
 
         // Enemy <-> Wall: push enemy out of the wall
         makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall){
@@ -231,25 +267,42 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         {
             for (const auto &tile : layer.tiles)
             {
-                auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
-                auto texComp = tex.get<Texture2DComponent>();
-                texComp->setViewport(1);
-
-                auto posComp = tex.get<PositionComponent>();
-                posComp->setX(tile.x * scaledTileWidth);
-                posComp->setY(tile.y * scaledTileHeight);
-                posComp->setZ(z);
-
                 if (tile.isWall)
                 {
+                // auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
+                // auto texComp = tex.get<Texture2DComponent>();
+                // texComp->setViewport(1);
+
+                    auto tex = makeSimple2DShape(ecsRef, Shape2D::Square, scaledTileWidth, scaledTileHeight, {255.f, 0.f, 0.f, 255.f});
+                    tex.get<Simple2DObject>()->setViewport(1);
+
+                    auto posComp = tex.get<PositionComponent>();
+                    posComp->setX(tile.x * scaledTileWidth);
+                    posComp->setY(tile.y * scaledTileHeight);
+                    posComp->setZ(z);
+
+                
                     //LOG_INFO("TILED", std::to_string(count++));
                     ecsRef->attach<CollisionComponent>(tex.entity, 0);
                     ecsRef->attach<WallFlag>(tex.entity);
+                }
+                else
+                {
+                    auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
+                    auto texComp = tex.get<Texture2DComponent>();
+                    texComp->setViewport(1);
+
+                    auto posComp = tex.get<PositionComponent>();
+                    posComp->setX(tile.x * scaledTileWidth);
+                    posComp->setY(tile.y * scaledTileHeight);
+                    posComp->setZ(z);
                 }
             }
 
             z++;
         }
+
+        // drawDebugGrid(ecsRef, 2500, 5000);
 
         printf("Loaded Map\n");
     }
@@ -313,8 +366,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     }
 };
 
-struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<
-            CollectibleFlag>, Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>> {
+struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>,
+    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>>
+{
 };
 
 std::thread *initThread;
@@ -377,6 +431,10 @@ void initGame() {
     mainWindow->ecs.createSystem<CollisionHandlerSystem>();
 
     mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
+
+    // mainWindow->ecs.succeed<CollisionSystem, PositionComponent>();
+    mainWindow->ecs.succeed<PositionComponent, CollisionSystem>();
+    mainWindow->ecs.succeed<MasterRenderer, CollisionSystem>();
 
     mainWindow->ecs.createSystem<PlayerSystem>();
 
@@ -443,6 +501,8 @@ void initGame() {
         enemyDb->addEnemy(e);
     }
 
+    roomSystem->addPlayerSpawn(map.playerSpawn);
+
     for (const auto &r: map.roomDatas)
     {
         roomSystem->addRoom(r);
@@ -474,6 +534,8 @@ void initGame() {
     AsepriteLoader aseprite_loader;
     const AsepriteFile anim = aseprite_loader.loadAnim("res/sprites/main-char.json");
     std::cout << "Anim " << anim << std::endl;
+
+    roomSystem->startLevel();
 
     mainWindow->ecs.createSystem<TestSystem>(map);
 

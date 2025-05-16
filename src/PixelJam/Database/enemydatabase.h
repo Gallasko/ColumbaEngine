@@ -29,7 +29,6 @@ namespace pg
 
             enemy.ai.isBoss = enemyData.isBoss;
 
-
             enemy.weaponId = enemyData.weaponId;
 
             enemies[enemyData.objId] = enemy;

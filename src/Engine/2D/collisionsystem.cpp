@@ -5,6 +5,111 @@ namespace pg
     namespace
     {
         constexpr const char * const DOM = "Collision System";
+
+        static constexpr float EPSILON = 1e-5f;
+    }
+
+    // Todo fix scaling !
+
+    struct AABB
+    {
+        float minX;
+        float minY;
+        float maxX;
+        float maxY;
+    };
+
+    /// Returns one of the four cardinal normals (+/–X or +/–Y)
+    inline constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint)
+    {
+        // distance to each face
+        float dLeft   =  hitPoint.x - box.minX;
+        float dRight  =  box.maxX  - hitPoint.x;
+        float dBottom =  hitPoint.y - box.minY;
+        float dTop    =  box.maxY  - hitPoint.y;
+
+        // find minimum penetration
+        float minDist = std::min({ dLeft, dRight, dBottom, dTop });
+
+        if (minDist == dLeft) {
+            return { -1.f,  0.f };     // hit left face
+        }
+        else if (minDist == dRight) {
+            return {  1.f,  0.f };     // hit right face
+        }
+        else if (minDist == dBottom) {
+            return {  0.f, -1.f };     // hit bottom face
+        }
+        else {
+            return {  0.f,  1.f };     // hit top face
+        }
+    }
+
+    // returns t in [0,1] where ray(origin→end) first hits box,
+    // or std::nullopt if no intersection.
+    std::optional<float> rayAABB(const constant::Vector2D& origin, const constant::Vector2D& dir, float length, const AABB& box)
+    {
+        // t_enter/t_exit track the overlapping interval of the ray on all axes
+        float tEnter = 0.0f;
+        float tExit  = length;
+
+        // === X axis slab ===
+        if (std::abs(dir.x) < 1e-6f)
+        {
+            // Ray is parallel to X planes: if origin.x is outside box, no hit
+            if (origin.x < box.minX or origin.x > box.maxX)
+                return std::nullopt;
+        }
+        else
+        {
+            // Compute intersection distances with the two X planes
+            float invDx = 1.0f / dir.x;
+            float t1    = (box.minX - origin.x) * invDx;
+            float t2    = (box.maxX - origin.x) * invDx;
+
+            // Order them so t1 = entering, t2 = exiting
+            if (t1 > t2)
+                std::swap(t1, t2);
+
+            // Narrow our valid interval
+            tEnter = std::max(tEnter, t1);
+            tExit  = std::min(tExit,  t2);
+
+            // If interval is empty, ray misses
+            if (tEnter > tExit) 
+                return std::nullopt;
+        }
+
+        // === Y axis slab ===
+        if (std::abs(dir.y) < 1e-6f)
+        {
+            if (origin.y < box.minY or origin.y > box.maxY)
+                return std::nullopt;
+        }
+        else
+        {
+            float invDy = 1.0f / dir.y;
+            float t1    = (box.minY - origin.y) * invDy;
+            float t2    = (box.maxY - origin.y) * invDy;
+
+            if (t1 > t2)
+                std::swap(t1, t2);
+
+            tEnter = std::max(tEnter, t1);
+            tExit  = std::min(tExit,  t2);
+
+            if (tEnter > tExit) 
+                return std::nullopt;
+        }
+
+        // If the first valid intersection (tEnter) is within [0..length], we hit
+        if (tEnter >= 0.0f and tEnter <= length)
+        {
+            return tEnter;
+        }
+
+        // Otherwise we missed (or maybe the box is “behind” us)
+        return std::nullopt;
     }
 
     void CollisionComponent::onDeletion(EntityRef)
@@ -21,8 +126,8 @@ namespace pg
         int startX = startPos.x / cellSize.x;
         int startY = startPos.y / cellSize.y;
 
-        int endX = startPos.x + objSize.x < cellSize.x * size.x ? startX + (objSize.x / cellSize.x) + 1 : size.x;
-        int endY = startPos.y + objSize.y < cellSize.y * size.y ? startY + (objSize.y / cellSize.y) + 1 : size.y;
+        int endX = (startPos.x + objSize.x < cellSize.x * size.x) ? (startX + (objSize.x / cellSize.x) + 1) : size.x;
+        int endY = (startPos.y + objSize.y < cellSize.y * size.y) ? (startY + (objSize.y / cellSize.y) + 1) : size.y;
 
         for (int y = startY; y < endY; y++)
         {
@@ -35,8 +140,8 @@ namespace pg
     }
 
     // Todo issue here when cellsize != pagesize
+    // CollisionSystem::CollisionSystem() : pageSize(40, 40), cellSize(40, 40)
     CollisionSystem::CollisionSystem() : pageSize(10, 10), cellSize(20, 20)
-    // CollisionSystem::CollisionSystem() : pageSize(5, 5), cellSize(5, 5)
     {
         LOG_THIS_MEMBER(DOM);
     }
@@ -48,7 +153,7 @@ namespace pg
         auto group = registerGroup<PositionComponent, CollisionComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE(DOM, "Add entity " << entity->id << " to ui - collision group !");
+            LOG_INFO(DOM, "Add entity " << entity->id << " to ui - collision group !");
 
             auto ui = entity->get<PositionComponent>();
             auto collision = entity->get<CollisionComponent>();
@@ -82,17 +187,9 @@ namespace pg
 
         float x = pos->x;
         float y = pos->y;
-
-        if (comp->scale < 1)
-        {
-            x += (width * comp->scale) / 2.0f;
-            y += (height * comp->scale) / 2.0f;
-        }
-        else if (comp->scale > 1)
-        {
-            x -= (width * comp->scale) / 2.0f;
-            y -= (height * comp->scale) / 2.0f;
-        }
+        
+        x -= (width * (comp->scale - 1)) / 2.0f;
+        y -= (height * (comp->scale - 1)) / 2.0f;
 
         auto pWidth = (pageSize.x * cellSize.x);
         auto pHeight = (pageSize.y * cellSize.y);
@@ -106,13 +203,14 @@ namespace pg
 
         int startingXPos = xPagePos;
 
-        comp->firstCell = {x / cellSize.x, y / cellSize.y};
+        comp->firstCellX = x / cellSize.x;
+        comp->firstCellY = y / cellSize.y;
 
-        for (int remainingHeight = height * comp->scale; remainingHeight > 0; remainingHeight -= usedHeight)
+        for (float remainingHeight = height * comp->scale; remainingHeight > 0; remainingHeight -= usedHeight)
         {
             int startX = x > 0 ? x - xPagePos * pWidth : xPagePos * pWidth - x;
 
-            for (int remainingWidth = width * comp->scale; remainingWidth > 0; remainingWidth -= usedWidth)
+            for (float remainingWidth = width * comp->scale; remainingWidth > 0; remainingWidth -= usedWidth)
             {
                 PagePos key = {xPagePos, yPagePos};
 
@@ -243,12 +341,13 @@ namespace pg
         {
             auto ent = ecsRef->getEntity(id);
 
-            if (ent and ent->has<PositionComponent>())
+            if (ent and ent->has<PositionComponent>() and ent->has<CollisionComponent>())
             {
                 auto ui = ent->get<PositionComponent>();
+                auto c2 = ent->get<CollisionComponent>();
 
                 // Todo have different type of collision (AABB to AABB, circle to AABB, etc)
-                auto test = testCollision(pos, ui);
+                auto test = testCollision(pos, ui, comp->scale, c2->scale);
 
                 if (test)
                 {
@@ -266,24 +365,25 @@ namespace pg
     }
 
     // TODO this only test collision for AABB to AABB for now, need to expend on it !
-    bool CollisionSystem::testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2) const
+    bool CollisionSystem::testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2, float scale1, float scale2) const
     {
         LOG_THIS_MEMBER(DOM);
 
-        float obj1Xmin = obj1->x;
-        float obj1XMax = obj1->x + obj1->width;
-        float obj1YMin = obj1->y;
-        float obj1YMax = obj1->y + obj1->height;
+        // compute scaled AABB for obj1
+        float w1 = obj1->width  * scale1;
+        float h1 = obj1->height * scale1;
+        // center the scaled box around the original pos
+        float x1 = obj1->x - (w1 - obj1->width ) * 0.5f;
+        float y1 = obj1->y - (h1 - obj1->height) * 0.5f;
 
-        float obj2XMin = obj2->x;
-        float obj2XMax = obj2->x + obj2->width;
-        float obj2YMin = obj2->y;
-        float obj2YMax = obj2->y + obj2->height;
+        // and for obj2
+        float w2 = obj2->width  * scale2;
+        float h2 = obj2->height * scale2;
+        float x2 = obj2->x - (w2 - obj2->width ) * 0.5f;
+        float y2 = obj2->y - (h2 - obj2->height) * 0.5f;
 
-        return obj1XMax > obj2XMin and
-               obj1Xmin < obj2XMax and
-               obj1YMax > obj2YMin and
-               obj1YMin < obj2YMax;
+        // now do the standard AABB check
+        return (x1 + w1) >= x2 and x1 <= (x2 + w2) and (y1 + h1) >= y2 and y1 <= (y2 + h2);
     }
 
     // Todo
@@ -305,6 +405,174 @@ namespace pg
         return 0;
     }
 
+    RaycastHit CollisionSystem::raycast(const constant::Vector2D& origin, const constant::Vector2D& dir, float maxDist, size_t layerId)
+    {
+        auto cellsToCheck = traverseGridCells(origin, dir, maxDist);
+
+        RaycastHit bestHit;
+        bestHit.hit = false;
+
+        float bestT = maxDist;
+
+        for (const auto& cellPos : cellsToCheck)
+        {
+            // lookup page, then cell index
+            PagePos pageKey = { static_cast<int>(cellPos.x / pageSize.x),
+                                static_cast<int>(cellPos.y / pageSize.y) };
+
+            auto pageIt = loadedPages[layerId].find(pageKey);
+
+            if (pageIt == loadedPages[layerId].end())
+                continue;
+
+            auto& page = pageIt->second;
+
+            // 3) Compute local cell indices, wrapping negatives if needed
+            int localX = int(cellPos.x) % int(pageSize.x);
+            int localY = int(cellPos.y) % int(pageSize.y);
+
+            if (localX < 0)
+                localX += pageSize.x;
+
+            if (localY < 0)
+                localY += pageSize.y;
+
+            int idx = localX + localY * int(pageSize.x);
+            // guard against stray out‐of‐range
+            if (idx < 0 or idx >= int(page.cells.size()))
+                continue;
+
+            const auto& ids = page.cells[idx].ids;
+
+            // test each entity in the cell
+            for (auto entId : ids)
+            {
+                auto ent = ecsRef->getEntity(entId);
+                if (not ent or not ent->has<PositionComponent>() or not ent->has<CollisionComponent>())
+                    continue;
+
+                // build that entity’s AABB in world‐space
+                auto pos = ent->get<PositionComponent>();
+                auto col = ent->get<CollisionComponent>();
+
+                auto width = pos->width;
+                auto height = pos->height;
+
+                auto startX = pos->x - (width  * (col->scale - 1)) / 2.0f;
+                auto startY = pos->y - (height * (col->scale - 1)) / 2.0f;
+
+                AABB box {
+                    startX,
+                    startY,
+                    startX + width * col->scale,
+                    startY + height * col->scale
+                };
+
+                // do the slab test we discussed
+                if (auto tOpt = rayAABB(origin, dir, maxDist, box))
+                {
+                    float t = *tOpt;
+
+                    if (t < bestT)
+                    {
+                        bestT = t;
+                        constant::Vector2D hitPoint = origin + dir * t;
+                        constant::Vector2D normal   = computeBoxNormal(box, hitPoint);
+                        bestHit = RaycastHit{entId, true, hitPoint, t, normal};
+                    }
+                }
+            }
+        }
+
+        return bestHit;
+    }
+
+    std::vector<PagePos> CollisionSystem::traverseGridCells(constant::Vector2D origin, constant::Vector2D dir, float maxDist)
+    {
+        std::vector<PagePos> cells;
+
+        if (maxDist <= 0)
+            return cells;
+
+        // convert world‐pos → cell‐coords
+        int cellX = int(origin.x / cellSize.x);
+        int cellY = int(origin.y / cellSize.y);
+
+        // determine stepping direction & tDelta
+        int stepX = dir.x > 0 ? +1 : (dir.x < 0 ? -1 : 0);
+        int stepY = dir.y > 0 ? +1 : (dir.y < 0 ? -1 : 0);
+        float tMaxX = (stepX != 0) ?
+            ((cellX + (stepX > 0)) * cellSize.x - origin.x) / dir.x :
+            std::numeric_limits<float>::infinity();
+
+        float tMaxY = (stepY != 0) ?
+            ((cellY + (stepY > 0)) * cellSize.y - origin.y) / dir.y :
+            std::numeric_limits<float>::infinity();
+
+        float tDeltaX = (stepX != 0 ? cellSize.x / std::abs(dir.x) : std::numeric_limits<float>::infinity());
+        float tDeltaY = (stepY != 0 ? cellSize.y / std::abs(dir.y) : std::numeric_limits<float>::infinity());
+
+
+        float t = 0;
+
+        while (t < maxDist)
+        {
+            cells.push_back(PagePos{cellX, cellY});
+
+            if (tMaxX < tMaxY)
+            {
+                cellX  += stepX;
+                t       = tMaxX;
+                tMaxX  += tDeltaX;
+            }
+            else
+            {
+                cellY  += stepY;
+                t       = tMaxY;
+                tMaxY  += tDeltaY;
+            }
+        }
+
+        return cells;
+    }
+
+    // a shared empty set we return when out of bounds
+    static const std::set<_unique_id> emptySet;
+
+    const std::set<_unique_id>& CollisionSystem::getCellEntities(const PagePos& cellPos, size_t layerId) const
+    {
+        // 1) find the page this cell lives in
+        // integer‐divide by pageSize to get the page coords
+        PagePos pageKey { static_cast<int>(cellPos.x / pageSize.x), static_cast<int>(cellPos.y / pageSize.y) };
+
+        auto layerIt = loadedPages.find(layerId);
+        if (layerIt == loadedPages.end())
+            return emptySet;
+
+        auto pageIt = layerIt->second.find(pageKey);
+        if (pageIt == layerIt->second.end())
+            return emptySet;
+
+        const CollisionPage& page = pageIt->second;
+
+        // 2) compute local cell index within that page
+        int localX = cellPos.x % static_cast<int>(pageSize.x);
+        int localY = cellPos.y % static_cast<int>(pageSize.y);
+
+        // guard against negative modulo if you support negative world coords
+        if (localX < 0) localX += pageSize.x;
+        if (localY < 0) localY += pageSize.y;
+
+        int idx = localX + localY * pageSize.x;
+
+        if (idx < 0 or idx >= (int)page.cells.size())
+            return emptySet;
+
+        // 3) return the set of IDs
+        return page.cells[idx].ids;
+    }
+
+
     void CollisionSystem::onEvent(const EntityChangedEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
@@ -319,8 +587,8 @@ namespace pg
         auto ui = entity->get<PositionComponent>();
         auto comp = entity->get<CollisionComponent>();
 
-        // float x = ui->pos.x;
-        // float y = ui->pos.y;
+        // float x = ui->x;
+        // float y = ui->y;
 
         // int xPagePos = x / cellSize.x;
         // int yPagePos = y / cellSize.y;
@@ -331,7 +599,7 @@ namespace pg
         addComponentInGrid(ui, comp);
 
         // Todo fix this to avoid moving an comp even when it doesn't change cell
-        // if (not comp->inserted and comp->firstCell != constant::Vector2D{xPagePos, yPagePos})
+        // if (not comp->inserted or comp->firstCellX != xPagePos or comp->firstCellY != yPagePos)
         // {
         //     removeComponentFromGrid(comp);
         //     addComponentInGrid(ui, comp);
@@ -351,5 +619,138 @@ namespace pg
         }
 
         detectedCollisions.clear();
+    }
+
+    /// Tries to move `pos` by `delta`.  Returns the actual movement applied (≤ delta),
+    /// and writes `hit` if we ran into something.
+    /// - originPos: the top‑left or center of your entity (consistent convention)
+    /// - size: width/height of your entity’s AABB
+    /// - layer: which collision layer ID to test against (e.g. walls)
+    SweepMoveResult sweepMove(CollisionSystem* collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers)
+    {
+        SweepMoveResult res;
+        res.hit = false;
+
+        // 1) compute center and half‑extents
+        constant::Vector2D half = { size.x * 0.5f, size.y * 0.5f };
+        constant::Vector2D center = originPos + half;
+
+        // 2) traverse only the cells your ray crosses
+        float moveLen = sqrt(delta.x * delta.x + delta.y * delta.y);
+
+        if (moveLen < EPSILON)
+            return res;
+
+        constant::Vector2D dir = { delta.x / moveLen, delta.y / moveLen };
+
+        // 1) decide which X offsets to use
+        bool xZero = fabs(dir.x) < EPSILON;
+        bool yZero = fabs(dir.y) < EPSILON;
+
+        // build lists of candidate offsets
+        std::vector<float> offsX, offsY;
+
+        // if non‑zero, pick a single side; else emit both
+        if (not xZero)
+            offsX.push_back(dir.x > 0 ? +half.x : -half.x);
+        else
+        {
+            offsX.push_back(+half.x);
+            offsX.push_back(-half.x);
+        }
+
+        if (not yZero)
+            offsY.push_back(dir.y > 0 ? +half.y : -half.y);
+        else
+        { 
+            offsY.push_back(+half.y);
+            offsY.push_back(-half.y);
+        }
+
+        // now build a unique set of ray origins
+        std::set<std::pair<float,float>> origins;
+
+        for (float ox : offsX)
+        {
+            for (float oy : offsY)
+            {
+                origins.emplace(center.x + ox, center.y + oy);
+            }
+        }
+
+        // traverse from *each* origin, collecting cells
+        std::unordered_set<PagePos> cells;
+        for (auto [rx, ry] : origins)
+        {
+            auto partial = collision->traverseGridCells({rx, ry}, dir, moveLen);
+
+            cells.insert(partial.begin(), partial.end());
+        }
+
+        // 3) for each wall in those cells, do a ray vs. inflated‐AABB test
+        float bestT = 1.0f;  // fraction of delta
+
+        auto ecsRef = collision->world();
+
+        for (auto& cellPos : cells)
+        {
+            for (auto layer : targetLayers)
+            {
+                for (auto wallId : collision->getCellEntities(cellPos, layer))
+                {
+                    auto wallEntity = ecsRef->getEntity(wallId);
+
+                    LOG_INFO(DOM, "Checking wall: " << wallId);
+
+                    if (not wallEntity or not wallEntity->has<PositionComponent>() or not wallEntity->has<CollisionComponent>())
+                        continue;
+
+                    auto wpos = wallEntity->get<PositionComponent>();
+                    auto wcol = wallEntity->get<CollisionComponent>();
+
+                    auto wallWidth = wpos->width;
+                    auto wallHeight = wpos->height;
+
+                    auto startWallX = wpos->x - (wallWidth * (wcol->scale - 1)) / 2.0f;
+                    auto startWallY = wpos->y - (wallHeight * (wcol->scale - 1)) / 2.0f;
+
+                    // Build wall AABB
+                    // Inflate by our half extents
+                    AABB infBox {
+                        startWallX - half.x,
+                        startWallY - half.y,
+                        startWallX + wallWidth * wcol->scale + half.x,
+                        startWallY + wallHeight * wcol->scale + half.y
+                    };
+
+                    auto tOpt = rayAABB(center, dir, moveLen, infBox);
+
+                    if (tOpt)
+                    {
+                        float t = *tOpt / moveLen;           // normalize to [0..1]
+                        // bestT = std::min(bestT, t);
+
+                        if (t < bestT)
+                        {
+                            bestT = t;
+                            res.entity = wallEntity;
+                        }
+                    }
+                }
+            }
+        }
+
+        LOG_INFO(DOM, "BestT: " << bestT);
+
+        // 4) apply movement up to just before contact
+        float safeT = bestT > 0 ? bestT - 1e-3f : 0.f;
+
+        if (safeT < 0) safeT = 0;
+
+        res.delta = delta * safeT;
+        res.hit = (bestT < 1.0f);
+
+        // 5) update the originPos *outside* this helper
+        return res;
     }
 }
