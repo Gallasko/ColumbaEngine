@@ -188,7 +188,7 @@ namespace pg
             cam->nearPlane = followCam->nearPlane;
             cam->farPlane = followCam->farPlane;
 
-            cam->constructMatrices();
+            cam->dirty = true;
         }
 
         virtual void onEvent(const TickEvent& event) override
@@ -224,7 +224,7 @@ namespace pg
                     cam->y += (followCam->targetY - cam->y) * followCam->smoothFactor;
 
                     if (oldX != cam->x or oldY != cam->y)
-                        cam->constructMatrices();
+                        cam->dirty = true;
                 }
 
                 deltaTime = 0;

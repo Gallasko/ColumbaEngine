@@ -410,6 +410,9 @@ void initGame() {
 
     mainWindow->ecs.createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
 
+    mainWindow->ecs.succeed<FollowCamera2DSystem, PositionComponent>();
+    mainWindow->ecs.succeed<MasterRenderer, FollowCamera2DSystem>();
+
     mainWindow->ecs.createSystem<FlagSystem>();
 
     mainWindow->ecs.createSystem<FpsSystem>();

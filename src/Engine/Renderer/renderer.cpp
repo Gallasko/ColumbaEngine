@@ -225,6 +225,28 @@ namespace pg
             renderer->setDirty(false);
         }
 
+        bool isCameraDirty = false;
+
+        // for (auto* camera : cameraList)
+        // {
+        //     if (camera->dirty)
+        //     {
+        //         isCameraDirty = true;
+        //         camera->constructMatrices();
+        //     }
+        // }
+
+        // Todo not fully functional yet
+        // isDirty |= isCameraDirty;
+
+        // if (isCameraDirty)
+        // {
+        //     for (auto renderer : renderers)
+        //     {
+        //         renderer->setDirty(true);
+        //     }
+        // }
+
         // Nothing changed since last time we can skip the render pass
         if (not isDirty)
         {
@@ -337,6 +359,15 @@ namespace pg
         // Todo Clear screen here
 
         processTextureRegister();
+
+        for (auto* camera : cameraList)
+        {
+            if (camera->dirty)
+            {
+                // isCameraDirty = true;
+                camera->constructMatrices();
+            }
+        }
 
         for (const auto& call : renderCallList[currentRenderList])
         {
