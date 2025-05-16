@@ -42,7 +42,29 @@ namespace pg
         _unique_id entityId;
     };
 
-    struct PlayerFlag {};
+    struct PlayerFlag : public Ctor
+    {
+        PlayerFlag() {}
+        PlayerFlag(const PlayerFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
+
+        PlayerFlag& operator=(const PlayerFlag& rhs)
+        {
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
+
     struct AllyBulletFlag : public Ctor
     {
         AllyBulletFlag(float dmg = 1) : damage(dmg) {}
@@ -93,10 +115,12 @@ namespace pg
     struct PlayerMoveLeft {};
     struct PlayerMoveRight {};
 
+    struct SpawnPlayerEvent { float x; float y; };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
-    struct PlayerSystem : public System<QueuedListener<OnMouseClick>, Listener<ConfiguredKeyEvent<GameKeyConfig>>, Listener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
-        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>>
+    struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
+        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
 
@@ -105,6 +129,7 @@ namespace pg
             auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
             playerEnt.get<PositionComponent>()->setZ(10);
+            playerEnt.get<PositionComponent>()->setVisibility(false);
 
             ecsRef->attach<EntityName>(playerEnt.entity, "Player");
             ecsRef->attach<PlayerFlag>(playerEnt.entity);
@@ -117,6 +142,8 @@ namespace pg
             ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 
             Weapon baseWeapon;
+
+            baseWeapon.ammo = -1;
 
             ecsRef->attach<WeaponComponent>(playerEnt.entity, baseWeapon);
 
@@ -148,6 +175,14 @@ namespace pg
             rightTimer->running = false;
         }
 
+        virtual void onEvent(const SpawnPlayerEvent& event) override
+        {
+            player->get<PositionComponent>()->setX(event.x);
+            player->get<PositionComponent>()->setY(event.y);
+
+            player->get<PositionComponent>()->setVisibility(true);
+        }
+
         virtual void onProcessEvent(const OnMouseClick& event) override
         {
             if (event.button == SDL_BUTTON_LEFT)
@@ -173,33 +208,81 @@ namespace pg
 
                 auto mousePosInGame = camera->screenToWorld(event.pos.x, event.pos.y);
 
+                auto fireDir = constant::Vector2D{mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f};
+
+                auto collisionSys = ecsRef->getSystem<CollisionSystem>();
+
+                auto ray =  collisionSys->raycast({pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f}, fireDir.normalized(), 1000, 0);
+
+                if (ray.hit)
+                {
+                    LOG_INFO("Player", "Ray hit entity: " << ray.entityId << " at position: " << ray.hitPoint.x << " " << ray.hitPoint.y);
+
+                    auto ent = ecsRef->getEntity(ray.entityId);
+
+                    if (ent and ent->has<PositionComponent>())
+                    {
+                        auto pos = ent->get<PositionComponent>();
+
+                        // pos->setVisibility(false);
+                    }
+                }
+
                 LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
 
-                const auto& weapon = weaponEnt->weapon;
+                auto& weapon = weaponEnt->weapon;
 
-                for (const auto& dir : weapon.fireDirections({mousePosInGame.x - pos->x, mousePosInGame.y - pos->y}))
+                // If no ammo, automatically switch back to base weapon
+                if (weapon.ammo == 0)
                 {
-                    auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
+                    Weapon baseWeapon;
 
-                    bullet.get<Simple2DObject>()->setViewport(1);
+                    baseWeapon.ammo = -1;
 
-                    bullet.get<PositionComponent>()->setX(pos->x + 25.f);
-                    bullet.get<PositionComponent>()->setY(pos->y + 25.f);
-                    bullet.get<PositionComponent>()->setZ(50);
+                    weaponEnt->weapon = baseWeapon;
+                }
 
-                    std::vector<size_t> collidableLayer = {0, 4};
+                for (const auto& dir : weapon.fireDirections(fireDir))
+                {
+                    if (weapon.ammo != 0)
+                    {
+                        auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
 
-                    ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
-                    ecsRef->attach<AllyBulletFlag>(bullet.entity);
-                    ecsRef->attach<MoveDirComponent>(bullet.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
+                        bullet.get<Simple2DObject>()->setViewport(1);
+
+                        bullet.get<PositionComponent>()->setX(pos->x + 25.f);
+                        bullet.get<PositionComponent>()->setY(pos->y + 25.f);
+                        bullet.get<PositionComponent>()->setZ(50);
+
+                        std::vector<size_t> collidableLayer = {0, 4};
+
+                        ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
+                        ecsRef->attach<AllyBulletFlag>(bullet.entity);
+                        ecsRef->attach<MoveDirComponent>(bullet.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
+
+                        if (weapon.ammo != -1)
+                            weapon.ammo--;
+                    }
+                    else
+                    {
+                        LOG_ERROR("Player", "Out of ammo - Todo make a visual about this (a ttf text for exemple)");
+                    }
+                }
+
+                // If no ammo, automatically switch back to base weapon
+                if (weapon.ammo == 0)
+                {
+                    Weapon baseWeapon;
+
+                    baseWeapon.ammo = -1;
+
+                    weaponEnt->weapon = baseWeapon;
                 }
             }
         }
 
-        virtual void onEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
+        virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
         {
-            LOG_INFO("Player System", "Received game key input");
-
             switch (event.value)
             {
             case GameKeyConfig::MoveLeft:
@@ -228,10 +311,8 @@ namespace pg
             }
         }
 
-        virtual void onEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
+        virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
         {
-            LOG_INFO("Player System", "Received game key release");
-
             switch (event.value)
             {
             case GameKeyConfig::MoveLeft:
@@ -336,12 +417,7 @@ namespace pg
             movePlayer(movespeed, 0.f);
         }
 
-        void movePlayer(float x, float y)
-        {
-            auto pos = player->get<PositionComponent>();
-            pos->setX(pos->x + x);
-            pos->setY(pos->y + y);
-        }
+        void movePlayer(float x, float y);
 
         EntityRef player;
 
@@ -350,7 +426,7 @@ namespace pg
         CompRef<Timer> bottomTimer;
         CompRef<Timer> rightTimer;
 
-        float movespeed = 10.f;
+        float movespeed = 4.f;
     };
 
 } // namespace pg

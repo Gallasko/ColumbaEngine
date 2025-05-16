@@ -105,7 +105,7 @@ namespace pg
             }
         }
 
-        CollisionComponent(const CollisionComponent& other) : layerId(other.layerId), scale(other.scale), checkSpecificLayerFlag(other.checkSpecificLayerFlag), checkLayerId(other.checkLayerId), ecsRef(other.ecsRef), entityId(other.entityId), cells(other.cells), firstCell(other.firstCell), inserted(other.inserted) {}
+        CollisionComponent(const CollisionComponent& other) : layerId(other.layerId), scale(other.scale), checkSpecificLayerFlag(other.checkSpecificLayerFlag), checkLayerId(other.checkLayerId), ecsRef(other.ecsRef), entityId(other.entityId), cells(other.cells), firstCellX(other.firstCellX), firstCellY(other.firstCellY), inserted(other.inserted) {}
 
         virtual void onCreation(EntityRef entity) override
         {
@@ -131,7 +131,9 @@ namespace pg
 
         std::map<PagePos, std::vector<CollisionCell*>> cells;
 
-        constant::Vector2D firstCell = {0, 0};
+        int firstCellX = 0;
+        int firstCellY = 0;
+
         bool inserted = false;
     };
 
@@ -191,6 +193,15 @@ namespace pg
         }
     };
 
+    struct RaycastHit
+    {
+        _unique_id entityId;  // id of the object we hit
+        bool hit;             // true if there is a hit
+        constant::Vector2D hitPoint; // point where we hit
+        float t;              // distance along ray where we hit
+        constant::Vector2D normal;      // collision normal
+    };
+
     struct CollisionSystem : public System<Own<CollisionComponent>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         // Todo make a ctor that load properties (pageSize, cellSi) from serialization
@@ -204,9 +215,18 @@ namespace pg
 
         std::set<_unique_id> resolveCollisionList(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp);
 
-        bool testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2) const;
+        bool testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2, float scale1, float scale2) const;
 
         _unique_id findNeareastId(constant::Vector2D pos, size_t layerId, size_t radius);
+
+        // Performs a raycast in world‐space:
+        RaycastHit raycast(const constant::Vector2D& origin, const constant::Vector2D& dir, float maxDist, size_t layerId);
+
+        std::vector<PagePos> traverseGridCells(constant::Vector2D origin, constant::Vector2D dir, float maxDist);
+
+        // returns a reference to the set of entity‐IDs in (cellPos, layerId).
+        // If the page or cell doesn't exist, returns an empty static set.
+        const std::set<_unique_id>& getCellEntities(const PagePos& cellPos, size_t layerId) const;
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 
@@ -219,6 +239,21 @@ namespace pg
 
         std::set<CollisionEvent> detectedCollisions;
     };
+
+    struct SweepMoveResult
+    {
+        bool hit = false;
+        constant::Vector2D delta = {0, 0};
+
+        Entity *entity = nullptr;
+    };
+
+    /// Tries to move `pos` by `delta`.  Returns the actual movement applied (≤ delta),
+    /// and writes `hit` if we ran into something.
+    /// - originPos: the top‑left or center of your entity (consistent convention)
+    /// - size: width/height of your entity’s AABB
+    /// - layer: which collision layer ID to test against (e.g. walls)
+    SweepMoveResult sweepMove(CollisionSystem*  collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers);
 
     struct CollisionHandleBase
     {
