@@ -267,35 +267,20 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         {
             for (const auto &tile : layer.tiles)
             {
+                auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
+                auto texComp = tex.get<Texture2DComponent>();
+                texComp->setViewport(1);
+
+                auto posComp = tex.get<PositionComponent>();
+                posComp->setX(tile.x * scaledTileWidth);
+                posComp->setY(tile.y * scaledTileHeight);
+                posComp->setZ(z);
+
                 if (tile.isWall)
                 {
-                // auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
-                // auto texComp = tex.get<Texture2DComponent>();
-                // texComp->setViewport(1);
-
-                    auto tex = makeSimple2DShape(ecsRef, Shape2D::Square, scaledTileWidth, scaledTileHeight, {255.f, 0.f, 0.f, 255.f});
-                    tex.get<Simple2DObject>()->setViewport(1);
-
-                    auto posComp = tex.get<PositionComponent>();
-                    posComp->setX(tile.x * scaledTileWidth);
-                    posComp->setY(tile.y * scaledTileHeight);
-                    posComp->setZ(z);
-
-                
                     //LOG_INFO("TILED", std::to_string(count++));
                     ecsRef->attach<CollisionComponent>(tex.entity, 0);
                     ecsRef->attach<WallFlag>(tex.entity);
-                }
-                else
-                {
-                    auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, tile.textureName);
-                    auto texComp = tex.get<Texture2DComponent>();
-                    texComp->setViewport(1);
-
-                    auto posComp = tex.get<PositionComponent>();
-                    posComp->setX(tile.x * scaledTileWidth);
-                    posComp->setY(tile.y * scaledTileHeight);
-                    posComp->setZ(z);
                 }
             }
 
