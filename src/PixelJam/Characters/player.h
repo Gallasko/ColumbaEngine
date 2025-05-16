@@ -17,6 +17,8 @@
 
 #include "../config.h"
 
+#include "Aseprite_Lib/AsepriteLoader.h"
+
 namespace pg
 {
     struct WallFlag : public Ctor
@@ -392,6 +394,8 @@ namespace pg
         bool invincibility = false;
 
         CompRef<Timer> invicibilityTimer;
+
+        AsepriteFile playerAnimation; // anim
 
         std::unordered_map<std::string, EntityRef> uiElements;
         float health = 5.0f;

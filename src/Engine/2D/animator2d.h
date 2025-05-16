@@ -26,12 +26,33 @@ namespace pg
         CallablePtr callback = nullptr;
     };
 
-    struct Texture2DAnimationComponent
+    struct ChangeTexture2DAnimationEvent
+    {
+        _unique_id id = 0;
+        std::vector<Animation2DKeyPoint> keypoints;
+    };
+
+    struct Texture2DAnimationComponent : public Ctor
     {
         Texture2DAnimationComponent(const std::vector<Animation2DKeyPoint>& keypoints, bool runningOnStartup = true, bool loop = false) : running(runningOnStartup), keypoints(keypoints), looping(loop) {}
-        Texture2DAnimationComponent(const Texture2DAnimationComponent& other) : running(other.running), elapsedTime(other.elapsedTime), startId(other.startId), keypoints(other.keypoints), looping(other.looping) {}
+        Texture2DAnimationComponent(const Texture2DAnimationComponent& other) : id(other.id), ecsRef(other.ecsRef), running(other.running), elapsedTime(other.elapsedTime), startId(other.startId), keypoints(other.keypoints), looping(other.looping) {}
 
         void start() { startId = -1; elapsedTime = 0; running = true; }
+        void stop() { running = false; }
+
+        virtual void onCreation(EntityRef entity) override
+        {
+            id = entity.id;
+            ecsRef = entity.ecsRef;
+        }
+
+        void changeAnimation(const std::vector<Animation2DKeyPoint>& keypoints)
+        {
+            ecsRef->sendEvent(ChangeTexture2DAnimationEvent{id, keypoints});
+        }
+
+        _unique_id id = 0;
+        EntitySystem *ecsRef = nullptr;
 
         bool running = true;
 
@@ -43,7 +64,7 @@ namespace pg
         bool looping = false;
     };
 
-    struct Texture2DAnimatorSystem : public System<Own<Texture2DAnimationComponent>, Listener<TickEvent>, InitSys>
+    struct Texture2DAnimatorSystem : public System<Own<Texture2DAnimationComponent>, Listener<TickEvent>, QueuedListener<ChangeTexture2DAnimationEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -53,6 +74,20 @@ namespace pg
         virtual void onEvent(const TickEvent& event) override
         {
             deltaTime += event.tick;
+        }
+
+        virtual void onProcessEvent(const ChangeTexture2DAnimationEvent& event) override
+        {
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent or not ent->has<Texture2DAnimationComponent>())
+                return;
+
+            auto anim = ent->get<Texture2DAnimationComponent>();
+            
+            anim->keypoints = event.keypoints;
+            anim->startId = -1;
+            anim->elapsedTime = 0;
         }
 
         virtual void execute() override

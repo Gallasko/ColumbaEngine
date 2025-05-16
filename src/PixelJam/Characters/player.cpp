@@ -6,6 +6,9 @@ namespace pg
 {
     void PlayerSystem::init()
     {
+        AsepriteLoader aseprite_loader;
+        playerAnimation = aseprite_loader.loadAnim("res/sprites/main-char.json");
+
         auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
         playerEnt.get<PositionComponent>()->setZ(10);
