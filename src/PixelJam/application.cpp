@@ -181,18 +181,22 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         //     }
         // });
 
-        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall){
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall) {
             // get both entities’ positions
             auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
 
             wallEnt->get<Simple2DObject>()->setColors({255.f, 0.f, 0.f, 255.f});
         });
 
-        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag*, TestGridFlag* wall){
+        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag*, TestGridFlag* wall) {
             // get both entities’ positions
             auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
 
             wallEnt->get<Simple2DObject>()->setColors({0.f, 0.f, 125.f, 255.f});
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, EnemyBulletFlag* bullet) {
+            ecsRef->sendEvent(PlayerHitEvent{bullet->damage});
         });
 
         // Enemy <-> Wall: push enemy out of the wall
@@ -421,11 +425,6 @@ void initGame() {
     mainWindow->ecs.succeed<PositionComponent, CollisionSystem>();
     mainWindow->ecs.succeed<MasterRenderer, CollisionSystem>();
 
-    mainWindow->ecs.createSystem<PlayerSystem>();
-
-    mainWindow->ecs.createSystem<EnemyAISystem>();
-    mainWindow->ecs.createSystem<EnemySpawnSystem>();
-
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();
     auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
@@ -440,6 +439,10 @@ void initGame() {
 
     mainWindow->ecs.createSystem<SceneLoader>();
 
+    mainWindow->ecs.createSystem<PlayerSystem>();
+
+    mainWindow->ecs.createSystem<EnemyAISystem>();
+    mainWindow->ecs.createSystem<EnemySpawnSystem>();
 
     // auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
 

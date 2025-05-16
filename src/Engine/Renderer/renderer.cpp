@@ -580,7 +580,7 @@ namespace pg
 
             if (cameraIndex < 0 or static_cast<size_t>(cameraIndex) >= cameraList.size())
             {
-                LOG_ERROR(DOM, "Unknown viewport: " << viewport);
+                LOG_MILE(DOM, "Unknown viewport: " << viewport << ", defaulting to 0");
             }
             else
             {

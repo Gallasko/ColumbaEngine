@@ -349,7 +349,7 @@ namespace pg
     }
 
     // Helper: Creates a RenderCall for a single glyph character.
-    RenderCall TTFTextSystem::createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors)
+    RenderCall TTFTextSystem::createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors, size_t viewport)
     {
         RenderCall call;
         call.processPositionComponent(ui);
@@ -366,6 +366,8 @@ namespace pg
 
         call.setOpacity(OpacityType::Additive);
         call.setRenderStage(renderStage);
+
+        call.setViewport(viewport);
 
         // Resize data array and assign properties.
         call.data.resize(15);
@@ -403,6 +405,7 @@ namespace pg
         float z = ui->z;
         float scale = obj->scale;
         auto colors = obj->colors;
+        size_t viewport = obj->viewport;
 
         auto wrap = obj->wrap;
 
@@ -459,7 +462,7 @@ namespace pg
                 // For each character in the word, create a glyph render call.
                 for (char c : word)
                 {
-                    RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, seg.colors);
+                    RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, seg.colors, viewport);
                     calls.push_back(call);
                     // Advance the current X position based on the glyph's advance.
                     float advance = getGlyphAdvance(c, fontPath, scale);

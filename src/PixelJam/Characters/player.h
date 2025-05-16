@@ -117,63 +117,19 @@ namespace pg
 
     struct SpawnPlayerEvent { float x; float y; };
 
+    struct PlayerHitEvent { float damage; };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
-        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>>
+        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
+        Listener<PlayerHitEvent>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
 
-        virtual void init() override
-        {
-            auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
+        virtual void init() override;
 
-            playerEnt.get<PositionComponent>()->setZ(10);
-            playerEnt.get<PositionComponent>()->setVisibility(false);
-
-            ecsRef->attach<EntityName>(playerEnt.entity, "Player");
-            ecsRef->attach<PlayerFlag>(playerEnt.entity);
-            ecsRef->attach<FollowCamera2D>(playerEnt.entity);
-
-            playerEnt.get<Simple2DObject>()->setViewport(1);
-
-            std::vector<size_t> collidableLayer = {0, 3, 5, 6};
-
-            ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
-
-            Weapon baseWeapon;
-
-            baseWeapon.ammo = -1;
-
-            ecsRef->attach<WeaponComponent>(playerEnt.entity, baseWeapon);
-
-            player = playerEnt.entity;
-
-            auto entity2 = ecsRef->createEntity();
-            auto entity3 = ecsRef->createEntity();
-            auto entity4 = ecsRef->createEntity();
-            auto entity5 = ecsRef->createEntity();
-
-            upTimer = ecsRef->attach<Timer>(entity2);
-            leftTimer = ecsRef->attach<Timer>(entity3);
-            bottomTimer = ecsRef->attach<Timer>(entity4);
-            rightTimer = ecsRef->attach<Timer>(entity5);
-
-            upTimer->interval = 10;
-            leftTimer->interval = 10;
-            bottomTimer->interval = 10;
-            rightTimer->interval = 10;
-
-            upTimer->callback = makeCallable<PlayerMoveUp>();
-            leftTimer->callback = makeCallable<PlayerMoveLeft>();
-            bottomTimer->callback = makeCallable<PlayerMoveDown>();
-            rightTimer->callback = makeCallable<PlayerMoveRight>();
-
-            upTimer->running = false;
-            leftTimer->running = false;
-            bottomTimer->running = false;
-            rightTimer->running = false;
-        }
+        virtual void onEvent(const PlayerHitEvent& event) override;
 
         virtual void onEvent(const SpawnPlayerEvent& event) override
         {
@@ -425,6 +381,9 @@ namespace pg
         CompRef<Timer> leftTimer;
         CompRef<Timer> bottomTimer;
         CompRef<Timer> rightTimer;
+
+        std::unordered_map<std::string, EntityRef> uiElements;
+        float health = 5.0f;
 
         float movespeed = 4.f;
     };
