@@ -55,7 +55,7 @@
         },
         "LEVELS/Level_0001.json#PROTO_BASE": {
             "scaleInDock": 1,
-            "scaleInEditor": 4
+            "scaleInEditor": 3
         },
         "LEVELS/Level_DEV_0001.json": {
             "scale": 1.5,
@@ -149,7 +149,7 @@
         "LEVELS/Level_0001.json"
     ],
     "project": "Tiled_Levels.tiled-project",
-    "property.type": "float",
+    "property.type": "bool",
     "recentFiles": [
         "LEVELS/Level_0001.json",
         "LEVELS/Level_DEV_0001.json",

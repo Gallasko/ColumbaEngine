@@ -1123,7 +1123,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":true,
+         "visible":false,
          "x":0,
          "y":0
         }, 
@@ -1682,7 +1682,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":true,
+         "visible":false,
          "x":0,
          "y":0
         }, 
@@ -1797,7 +1797,7 @@
                 }],
          "opacity":1,
          "type":"objectgroup",
-         "visible":true,
+         "visible":false,
          "x":0,
          "y":0
         }],
@@ -1902,6 +1902,24 @@
                         }]
                 }, 
                 {
+                 "id":48,
+                 "properties":[
+                        {
+                         "name":"wall",
+                         "type":"bool",
+                         "value":true
+                        }]
+                }, 
+                {
+                 "id":49,
+                 "properties":[
+                        {
+                         "name":"wall",
+                         "type":"bool",
+                         "value":true
+                        }]
+                }, 
+                {
                  "id":50,
                  "properties":[
                         {
@@ -1921,6 +1939,24 @@
                 }, 
                 {
                  "id":52,
+                 "properties":[
+                        {
+                         "name":"wall",
+                         "type":"bool",
+                         "value":true
+                        }]
+                }, 
+                {
+                 "id":64,
+                 "properties":[
+                        {
+                         "name":"wall",
+                         "type":"bool",
+                         "value":true
+                        }]
+                }, 
+                {
+                 "id":65,
                  "properties":[
                         {
                          "name":"wall",
