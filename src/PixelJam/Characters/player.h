@@ -117,19 +117,26 @@ namespace pg
 
     struct SpawnPlayerEvent { float x; float y; };
 
+    struct PlayerInvincibilityEndEvent {};
+
     struct PlayerHitEvent { float damage; };
 
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
-        Listener<PlayerHitEvent>>
+        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
 
         virtual void init() override;
 
         virtual void onEvent(const PlayerHitEvent& event) override;
+
+        virtual void onEvent(const PlayerInvincibilityEndEvent& event) override
+        {
+            invincibility = false;
+        }
 
         virtual void onEvent(const SpawnPlayerEvent& event) override
         {
@@ -381,6 +388,10 @@ namespace pg
         CompRef<Timer> leftTimer;
         CompRef<Timer> bottomTimer;
         CompRef<Timer> rightTimer;
+
+        bool invincibility = false;
+
+        CompRef<Timer> invicibilityTimer;
 
         std::unordered_map<std::string, EntityRef> uiElements;
         float health = 5.0f;

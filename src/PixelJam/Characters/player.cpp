@@ -54,7 +54,12 @@ namespace pg
         bottomTimer->running = false;
         rightTimer->running = false;
 
-        
+        auto entity6 = ecsRef->createEntity();
+
+        invicibilityTimer = ecsRef->attach<Timer>(entity6);
+        invicibilityTimer->oneShot = true;
+        invicibilityTimer->interval = 1000;
+        invicibilityTimer->callback = makeCallable<PlayerInvincibilityEndEvent>();
 
         auto playerHealthUi = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Health: " + std::to_string(static_cast<int>(health)), 0.4);
         playerHealthUi.get<TTFText>()->setViewport(2);
@@ -64,12 +69,18 @@ namespace pg
 
     void PlayerSystem::onEvent(const PlayerHitEvent& event)
     {
+        if (invincibility)
+            return;
+
         health -= event.damage;
 
         if (uiElements["HealthUI"]->has<TTFText>())
         {
             uiElements["HealthUI"]->get<TTFText>()->setText("Health: " + std::to_string(static_cast<int>(health)));
         }
+
+        invincibility = true;
+        invicibilityTimer->start();
     }
 
     void PlayerSystem::movePlayer(float x, float y)

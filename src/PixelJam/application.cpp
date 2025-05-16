@@ -197,6 +197,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, EnemyBulletFlag* bullet) {
             ecsRef->sendEvent(PlayerHitEvent{bullet->damage});
+
+            ecsRef->removeEntity(bullet->entityId);
         });
 
         // Enemy <-> Wall: push enemy out of the wall
