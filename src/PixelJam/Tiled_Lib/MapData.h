@@ -48,14 +48,8 @@ struct TileSet {
      * The path the texture atlas. Local to the std::filesystem::current_path().
      */
     std::string imagePath;
-    /*!
-     * Number of tiles horizontally
-     */
-    int width;
-    /*!
-     * Number of tiles vertically
-     */
-    int height;
+    int imageWidthInPixels;
+    int imageHeightInPixels;
     int tileCount;
     int columns;
     /*!

@@ -25,6 +25,14 @@ AsepriteFile AsepriteLoader::loadAnim(const std::string &path) {
     json j;
     in >> j;
 
+    // Parse metadata
+    const auto& meta = j["meta"];
+    std::string filenameWithoutExtension = std::filesystem::path(meta["image"]).stem().string();
+
+    result.filename = filenameWithoutExtension;
+
+    int i;
+
     // Parse frames
     for (const auto& frameEntry : j["frames"]) {
         const auto& frame = frameEntry["frame"];
@@ -37,11 +45,14 @@ AsepriteFile AsepriteLoader::loadAnim(const std::string &path) {
         f.heightInSPixels = frame["h"];
         f.durationInMilliseconds = duration;
 
+        f.textureName = filenameWithoutExtension + "." + std::to_string(i);
+
         result.frames.push_back(f);
+
+        i++;
     }
 
-    // Parse metadata
-    const auto& meta = j["meta"];
+
 
     fs::path imagePath = meta["image"];       // relative to JSON
     fs::path resolvedPath = fs::absolute(jsonDir / imagePath);  // full path

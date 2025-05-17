@@ -51,8 +51,8 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
     for (auto& tileset : map->getTilesets()) {
         TileSet myTileSet;
 
-        myTileSet.width = tileset.getImageSize().x;
-        myTileSet.height = tileset.getImageSize().y;
+        myTileSet.imageWidthInPixels = tileset.getImageSize().x;
+        myTileSet.imageHeightInPixels = tileset.getImageSize().y;
 
         myTileSet.name = tileset.getName();
 

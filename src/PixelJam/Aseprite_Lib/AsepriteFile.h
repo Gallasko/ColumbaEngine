@@ -32,6 +32,7 @@ struct AsepriteFrame {
     int widthInSPixels;
     int heightInSPixels;
     float durationInMilliseconds;
+    std::string textureName;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const AsepriteFrame &data) {
@@ -77,6 +78,10 @@ struct AsepriteFile {
      * Use it to know the anims and the image to load with its size
      */
     AsepriteMetadata metadata;
+    /*!
+     * Used for texture atlas;
+     */
+    std::string filename;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const AsepriteFile &data) {

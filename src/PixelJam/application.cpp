@@ -22,6 +22,7 @@
 #include "UI/prefab.h"
 
 #include "config.h"
+#include "Aseprite_Lib/AsepriteFileAtlasLoader.h"
 #include "Aseprite_Lib/AsepriteLoader.h"
 
 #include "Characters/player.h"
@@ -95,8 +96,9 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
 struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode> > {
     int testVar = 0;
     MapData mapData;
+    AsepriteFile testAnim;
 
-    TestSystem(const MapData &mapData) : mapData(mapData) {
+    TestSystem(const MapData &mapData, const AsepriteFile& testAnim) : mapData(mapData), testAnim(testAnim) {
     }
 
     virtual void init() override {
@@ -261,7 +263,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         size_t scaledTileWidth = mapData.tileWidthInSPixels;
         size_t scaledTileHeight = mapData.tileHeightInSPixels;
 
-        int count = 0;
+
 
         for (const auto &layer: mapData.layers)
         {
@@ -286,6 +288,22 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
             z++;
         }
+
+        int count = 0;
+        for (const auto& frame : testAnim.frames) {
+            auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, frame.textureName);
+            auto texComp = tex.get<Texture2DComponent>();
+            texComp->setViewport(1);
+
+            auto posComp = tex.get<PositionComponent>();
+            posComp->setX(frame.topLeftCornerInSPixelsX);
+            posComp->setY(frame.topLeftCornerInSPixelsY);
+            posComp->setZ(z+5);
+
+            count++;
+        }
+
+
 
         // drawDebugGrid(ecsRef, 2500, 5000);
 
@@ -518,11 +536,14 @@ void initGame() {
 
     AsepriteLoader aseprite_loader;
     const AsepriteFile anim = aseprite_loader.loadAnim("res/sprites/main-char.json");
+
+    mainWindow->masterRenderer->registerAtlasTexture(anim.filename, anim.metadata.imagePath.c_str(), "", std::make_unique<AsepriteFileAtlasLoader>(anim));
+
     std::cout << "Anim " << anim << std::endl;
 
     roomSystem->startLevel();
 
-    mainWindow->ecs.createSystem<TestSystem>(map);
+    mainWindow->ecs.createSystem<TestSystem>(map, anim);
 
     mainWindow->ecs.start();
 
