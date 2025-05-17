@@ -17,6 +17,8 @@
 
 #include "../config.h"
 
+#include "Aseprite_Lib/AsepriteLoader.h"
+
 namespace pg
 {
     struct WallFlag : public Ctor
@@ -63,6 +65,8 @@ namespace pg
 
         EntitySystem* ecsRef;
         _unique_id entityId;
+
+        bool inDodge = false;
     };
 
     struct AllyBulletFlag : public Ctor
@@ -117,62 +121,27 @@ namespace pg
 
     struct SpawnPlayerEvent { float x; float y; };
 
+    struct PlayerInvincibilityEndEvent {};
+
+    struct PlayerDodgeEndEvent {};
+
+    struct PlayerHitEvent { float damage; };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
-        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>>
+        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
+        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>>
     {
         virtual std::string getSystemName() const override { return "Player System"; }
 
-        virtual void init() override
+        virtual void init() override;
+
+        virtual void onEvent(const PlayerHitEvent& event) override;
+
+        virtual void onEvent(const PlayerInvincibilityEndEvent& event) override
         {
-            auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
-
-            playerEnt.get<PositionComponent>()->setZ(10);
-            playerEnt.get<PositionComponent>()->setVisibility(false);
-
-            ecsRef->attach<EntityName>(playerEnt.entity, "Player");
-            ecsRef->attach<PlayerFlag>(playerEnt.entity);
-            ecsRef->attach<FollowCamera2D>(playerEnt.entity);
-
-            playerEnt.get<Simple2DObject>()->setViewport(1);
-
-            std::vector<size_t> collidableLayer = {0, 3, 5, 6};
-
-            ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
-
-            Weapon baseWeapon;
-
-            baseWeapon.ammo = -1;
-
-            ecsRef->attach<WeaponComponent>(playerEnt.entity, baseWeapon);
-
-            player = playerEnt.entity;
-
-            auto entity2 = ecsRef->createEntity();
-            auto entity3 = ecsRef->createEntity();
-            auto entity4 = ecsRef->createEntity();
-            auto entity5 = ecsRef->createEntity();
-
-            upTimer = ecsRef->attach<Timer>(entity2);
-            leftTimer = ecsRef->attach<Timer>(entity3);
-            bottomTimer = ecsRef->attach<Timer>(entity4);
-            rightTimer = ecsRef->attach<Timer>(entity5);
-
-            upTimer->interval = 10;
-            leftTimer->interval = 10;
-            bottomTimer->interval = 10;
-            rightTimer->interval = 10;
-
-            upTimer->callback = makeCallable<PlayerMoveUp>();
-            leftTimer->callback = makeCallable<PlayerMoveLeft>();
-            bottomTimer->callback = makeCallable<PlayerMoveDown>();
-            rightTimer->callback = makeCallable<PlayerMoveRight>();
-
-            upTimer->running = false;
-            leftTimer->running = false;
-            bottomTimer->running = false;
-            rightTimer->running = false;
+            invincibility = false;
         }
 
         virtual void onEvent(const SpawnPlayerEvent& event) override
@@ -183,103 +152,12 @@ namespace pg
             player->get<PositionComponent>()->setVisibility(true);
         }
 
-        virtual void onProcessEvent(const OnMouseClick& event) override
+        virtual void onEvent(const PlayerDodgeEndEvent& event) override
         {
-            if (event.button == SDL_BUTTON_LEFT)
-            {
-                auto pos = player->get<PositionComponent>();
-                auto weaponEnt = player->get<WeaponComponent>();
-                auto camera = player->get<BaseCamera2D>();
-
-                if (not pos or not weaponEnt or not camera)
-                    return;
-
-                auto window = ecsRef->getEntity("__MainWindow");
-
-                if (not window)
-                    return;
-
-                // Todo I should only need to get the main camera and use mousePosToWorldPos of the main camera instead !
-                // auto windowWidth = window->get<PositionComponent>()->width;
-                // auto windowHeight = window->get<PositionComponent>()->height;
-
-                // auto normalizedX = 2 * (event.pos.x / windowWidth) - 1.0;
-                // auto normalizedY = 2 * (event.pos.y / windowHeight) - 1.0;
-
-                auto mousePosInGame = camera->screenToWorld(event.pos.x, event.pos.y);
-
-                auto fireDir = constant::Vector2D{mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f};
-
-                auto collisionSys = ecsRef->getSystem<CollisionSystem>();
-
-                auto ray =  collisionSys->raycast({pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f}, fireDir.normalized(), 1000, 0);
-
-                if (ray.hit)
-                {
-                    LOG_INFO("Player", "Ray hit entity: " << ray.entityId << " at position: " << ray.hitPoint.x << " " << ray.hitPoint.y);
-
-                    auto ent = ecsRef->getEntity(ray.entityId);
-
-                    if (ent and ent->has<PositionComponent>())
-                    {
-                        auto pos = ent->get<PositionComponent>();
-
-                        // pos->setVisibility(false);
-                    }
-                }
-
-                LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
-
-                auto& weapon = weaponEnt->weapon;
-
-                // If no ammo, automatically switch back to base weapon
-                if (weapon.ammo == 0)
-                {
-                    Weapon baseWeapon;
-
-                    baseWeapon.ammo = -1;
-
-                    weaponEnt->weapon = baseWeapon;
-                }
-
-                for (const auto& dir : weapon.fireDirections(fireDir))
-                {
-                    if (weapon.ammo != 0)
-                    {
-                        auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
-
-                        bullet.get<Simple2DObject>()->setViewport(1);
-
-                        bullet.get<PositionComponent>()->setX(pos->x + 25.f);
-                        bullet.get<PositionComponent>()->setY(pos->y + 25.f);
-                        bullet.get<PositionComponent>()->setZ(50);
-
-                        std::vector<size_t> collidableLayer = {0, 4};
-
-                        ecsRef->attach<CollisionComponent>(bullet.entity, 2, 1.0, collidableLayer);
-                        ecsRef->attach<AllyBulletFlag>(bullet.entity);
-                        ecsRef->attach<MoveDirComponent>(bullet.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
-
-                        if (weapon.ammo != -1)
-                            weapon.ammo--;
-                    }
-                    else
-                    {
-                        LOG_ERROR("Player", "Out of ammo - Todo make a visual about this (a ttf text for exemple)");
-                    }
-                }
-
-                // If no ammo, automatically switch back to base weapon
-                if (weapon.ammo == 0)
-                {
-                    Weapon baseWeapon;
-
-                    baseWeapon.ammo = -1;
-
-                    weaponEnt->weapon = baseWeapon;
-                }
-            }
+            player->get<PlayerFlag>()->inDodge = false;
         }
+
+        virtual void onProcessEvent(const OnMouseClick& event) override;
 
         virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
         {
@@ -288,22 +166,34 @@ namespace pg
             case GameKeyConfig::MoveLeft:
                 if (not leftTimer->running)
                     leftTimer->start();
+                // if (rightTimer->running)
+                //     rightTimer->stop();
                 break;
             case GameKeyConfig::MoveRight:
                 if (not rightTimer->running)
                     rightTimer->start();
+                // if (leftTimer->running)
+                //     leftTimer->stop();
                 break;
             case GameKeyConfig::MoveUp:
                 if (not upTimer->running)
                     upTimer->start();
+                // if (bottomTimer->running)
+                //     bottomTimer->stop();
                 break;
             case GameKeyConfig::MoveDown:
                 if (not bottomTimer->running)
                     bottomTimer->start();
+                // if (upTimer->running)
+                //     upTimer->stop();
                 break;
 
             case GameKeyConfig::Interact:
                 tryCollect();
+                break;
+
+            case GameKeyConfig::Dodge:
+                tryDodge();
                 break;
 
             default:
@@ -333,69 +223,19 @@ namespace pg
             }
         }
 
-        void tryCollect()
+        void tryCollect();
+
+        void tryDodge()
         {
-            constexpr float collectRadius = 40.f;
-            constexpr float collectRadius2 = collectRadius * collectRadius;
+            if (player->get<PlayerFlag>()->inDodge)
+                return;
 
-            // get player pos
-            auto pos = player->get<PositionComponent>();
-            constant::Vector2D playerCenter{ pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f };
-
-            // search all collectibles
-
-            bool found = false;
-            CollectibleFlag *collectible = nullptr;
-            _unique_id cId;
-
-            float minDist = std::numeric_limits<float>::max();
-
-            // Find nearest collectible
-            for (const auto& obj : viewGroup<CollectibleFlag, PositionComponent>())
-            {
-                auto cf = obj->get<CollectibleFlag>();
-                auto cpos = obj->get<PositionComponent>();
-
-                constant::Vector2D colCenter{ cpos->x + 0.5f * 25.f, cpos->y + 0.5f * 25.f };
-
-                float dx = colCenter.x - playerCenter.x;
-                float dy = colCenter.y - playerCenter.y;
-
-                float dist2 = dx*dx + dy*dy;
-
-                if (dist2 <= collectRadius2)
-                {
-                    if (dist2 < minDist)
-                    {
-                        minDist = dist2;
-                        collectible = cf;
-                        found = true;
-                        cId = obj->entity.id;
-                    }
-                }
-            }
-
-            if (found)
-            {
-                // it's in range!
-                switch (collectible->type)
-                {
-                    case CollectibleType::Gold:
-                        LOG_ERROR("Player System", "Todo !");
-                        break;
-                    case CollectibleType::Weapon:
-                    // // give the weapon to player
-                    // if (player->has<WeaponComponent>()) {
-                    //     // swap or store old in inventory…
-                    // }
-                        ecsRef->attach<WeaponComponent>(player.entity, collectible->weapon);
-                    break;
-                }
-
-                ecsRef->removeEntity(cId);  // remove collectible
-            }
-
+            player->get<PlayerFlag>()->inDodge = true;
+            
+            dodgeTimer->start();
         }
+
+        void printWeapon(const Weapon& weapon);
 
         virtual void onEvent(const PlayerMoveUp&) override
         {
@@ -425,6 +265,16 @@ namespace pg
         CompRef<Timer> leftTimer;
         CompRef<Timer> bottomTimer;
         CompRef<Timer> rightTimer;
+
+        bool invincibility = false;
+
+        CompRef<Timer> invicibilityTimer;
+        CompRef<Timer> dodgeTimer;
+        
+        AsepriteFile playerAnimation; // anim
+
+        std::unordered_map<std::string, EntityRef> uiElements;
+        float health = 5.0f;
 
         float movespeed = 4.f;
     };

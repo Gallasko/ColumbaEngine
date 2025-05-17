@@ -12,6 +12,7 @@ namespace pg
         MoveDown,
         Interact,
         Pause,
+        Dodge,
     };
 
     extern std::map<GameKeyConfig, DefaultScancode> scancodeMap;

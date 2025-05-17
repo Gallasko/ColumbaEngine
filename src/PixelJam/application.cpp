@@ -133,7 +133,14 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, EnemyFlag *enemy) {
             LOG_INFO(DOM, "Bullet hit an enemy! ");
 
+            if (enemy->invicibilityTimeLeft > 0)
+            {
+                ecsRef->removeEntity(bullet->entityId);
+                return;
+            }
+
             enemy->health -= bullet->damage;
+            enemy->invicibilityTimeLeft = ENEMYINVICIBILITYTIMEMS;
 
             if (enemy->health <= 0)
             {
@@ -163,38 +170,48 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         const float repulsionStrength = 1.f;
 
-        // makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
-        //     // get both entities’ positions
-        //     auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
-        //     auto playerEnt = player->ecsRef->getEntity(player->entityId);
-        //     auto wpos     = wallEnt->get<PositionComponent>();
-        //     auto epos     = playerEnt->get<PositionComponent>();
+        // Todo we need this because sweep move is bugged
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
+            // get both entities’ positions
+            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+            auto playerEnt = player->ecsRef->getEntity(player->entityId);
+            auto wpos     = wallEnt->get<PositionComponent>();
+            auto epos     = playerEnt->get<PositionComponent>();
 
-        //     // compute normalized vector from wall→enemy
-        //     float dx = epos->x - wpos->x;
-        //     float dy = epos->y - wpos->y;
-        //     float len = std::sqrt(dx*dx + dy*dy);
-        //     if (len > 0.f) {
-        //         dx /= len;
-        //         dy /= len;
-        //         // shove enemy out
-        //         epos->setX(epos->x + dx * repulsionStrength);
-        //         epos->setY(epos->y + dy * repulsionStrength);
-        //     }
-        // });
+            // compute normalized vector from wall→enemy
+            float dx = epos->x - wpos->x;
+            float dy = epos->y - wpos->y;
+            float len = std::sqrt(dx*dx + dy*dy);
+            if (len > 0.f) {
+                dx /= len;
+                dy /= len;
+                // shove enemy out
+                epos->setX(epos->x + dx * repulsionStrength);
+                epos->setY(epos->y + dy * repulsionStrength);
+            }
+        });
 
-        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall){
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall) {
             // get both entities’ positions
             auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
 
             wallEnt->get<Simple2DObject>()->setColors({255.f, 0.f, 0.f, 255.f});
         });
 
-        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag*, TestGridFlag* wall){
+        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag*, TestGridFlag* wall) {
             // get both entities’ positions
             auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
 
             wallEnt->get<Simple2DObject>()->setColors({0.f, 0.f, 125.f, 255.f});
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, EnemyBulletFlag* bullet) {
+            if (player->inDodge)
+                return;
+            
+            ecsRef->sendEvent(PlayerHitEvent{bullet->damage});
+
+            ecsRef->removeEntity(bullet->entityId);
         });
 
         // Enemy <-> Wall: push enemy out of the wall
@@ -419,6 +436,9 @@ void initGame() {
 
     mainWindow->ecs.createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
 
+    mainWindow->ecs.succeed<FollowCamera2DSystem, PositionComponent>();
+    mainWindow->ecs.succeed<MasterRenderer, FollowCamera2DSystem>();
+
     mainWindow->ecs.createSystem<FlagSystem>();
 
     mainWindow->ecs.createSystem<FpsSystem>();
@@ -439,11 +459,6 @@ void initGame() {
     mainWindow->ecs.succeed<PositionComponent, CollisionSystem>();
     mainWindow->ecs.succeed<MasterRenderer, CollisionSystem>();
 
-    mainWindow->ecs.createSystem<PlayerSystem>();
-
-    mainWindow->ecs.createSystem<EnemyAISystem>();
-    mainWindow->ecs.createSystem<EnemySpawnSystem>();
-
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();
     auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
@@ -458,6 +473,10 @@ void initGame() {
 
     mainWindow->ecs.createSystem<SceneLoader>();
 
+    mainWindow->ecs.createSystem<PlayerSystem>();
+
+    mainWindow->ecs.createSystem<EnemyAISystem>();
+    mainWindow->ecs.createSystem<EnemySpawnSystem>();
 
     // auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
 

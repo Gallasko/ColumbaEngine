@@ -14,7 +14,10 @@
 
 #include "../config.h"
 
-namespace pg {
+namespace pg
+{
+    constexpr float ENEMYINVICIBILITYTIMEMS = 200.f;
+
 
     struct EnemyFlag : public Ctor
     {
@@ -40,6 +43,8 @@ namespace pg {
 
         EntitySystem* ecsRef;
         _unique_id entityId;
+
+        float invicibilityTimeLeft = 0;
     };
 
     struct EnemyBulletFlag : public Ctor
@@ -268,6 +273,30 @@ namespace pg {
                 auto pos = group->get<PositionComponent>();
                 auto pat = group->get<WeaponComponent>();
 
+                if (enemy->invicibilityTimeLeft > 0.f)
+                {
+                    auto ent = group->entity;
+
+                    auto sprite = ent->get<Simple2DObject>();
+
+                    if (ent->has<Simple2DObject>())
+                    {
+                        sprite->setColors({255, 255, 255, 255});
+                    }
+
+                    enemy->invicibilityTimeLeft -= deltaTime;
+
+                    if (enemy->invicibilityTimeLeft <= 0.f)
+                    {
+                        if (ent->has<Simple2DObject>())
+                        {
+                            sprite->setColors({255, 0, 0, 255});
+                        }
+
+                        enemy->invicibilityTimeLeft = 0.f;
+                    }
+                }
+                
                 switch (ai->state)
                 {
                     case AIState::Patrol:
