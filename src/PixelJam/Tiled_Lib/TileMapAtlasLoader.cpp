@@ -7,8 +7,8 @@
 namespace pg {
     TileMapAtlasLoader::TileMapAtlasLoader(const TileSet &tileset) {
         this->imagePath = tileset.imagePath;
-        this->atlasWidth = tileset.width;
-        this->atlasHeight = tileset.height;
+        this->atlasWidth = tileset.imageWidthInPixels;
+        this->atlasHeight = tileset.imageHeightInPixels;
 
         for (int i = 0; i < tileset.tileCount; ++i) {
             const int id = i + 1;
@@ -29,7 +29,7 @@ namespace pg {
             atlasTex.setWidth(tileset.tileWidthInTPixels);
             atlasTex.setId(id);
             atlasTex.setName(name);
-            atlasTex.setMesh(pixelX, pixelY, tileset.width, tileset.height);
+            atlasTex.setMesh(pixelX, pixelY, tileset.imageWidthInPixels, tileset.imageHeightInPixels);
 
             this->textureList.push_back(atlasTex);
             this->textureDict[name] = this->nbTextureId++;
