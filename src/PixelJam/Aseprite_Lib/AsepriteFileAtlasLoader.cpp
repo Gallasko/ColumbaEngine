@@ -28,31 +28,4 @@ pg::AsepriteFileAtlasLoader::AsepriteFileAtlasLoader(const AsepriteFile &aseprit
 
         i++;
     }
-
-    /*for (int i = 0; i < aseprite.frames; ++i) {
-        const int id = i + 1;
-
-        // Position in tileset
-        const int localId = id - 1;
-
-        const int col = localId % tileset.columns;
-        const int row = localId / tileset.columns;
-
-        const int pixelX = col * tileset.tileWidthInTPixels;
-        const int pixelY = (row + 1) * (tileset.tileHeightInTPixels) - 1;
-
-        const int pixelX =
-
-        const auto name = std::to_string(id);
-
-        AtlasTexture atlasTex;
-        atlasTex.setHeight(tileset.tileHeightInTPixels);
-        atlasTex.setWidth(tileset.tileWidthInTPixels);
-        atlasTex.setId(id);
-        atlasTex.setName(name);
-        atlasTex.setMesh(pixelX, pixelY, tileset.width, tileset.height);
-
-        this->textureList.push_back(atlasTex);
-        this->textureDict[name] = this->nbTextureId++;
-    }*/
 }
