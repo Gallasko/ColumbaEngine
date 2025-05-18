@@ -19,9 +19,10 @@ namespace pg
 
     void PlayerSystem::init()
     {
-        auto frame = animFile.frames[7];
+        // auto frame = animFile.frames[7];
+        auto idleAnim = animFile["Idle_Front"];
 
-        auto playerEnt = makeUiTexture(ecsRef, 48, 48, frame.textureName);
+        auto playerEnt = makeUiTexture(ecsRef, 44, 64, idleAnim[0].textureName);
         // auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
         playerEnt.get<PositionComponent>()->setZ(10);
@@ -30,11 +31,21 @@ namespace pg
         ecsRef->attach<EntityName>(playerEnt.entity, "Player");
         ecsRef->attach<PlayerFlag>(playerEnt.entity);
         ecsRef->attach<FollowCamera2D>(playerEnt.entity);
-        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, std::vector<Animation2DKeyPoint>{
-            {0, {animFile.frames[7].textureName, 1}},
-            {400, {animFile.frames[12].textureName, 1}},
-            {1000, {animFile.frames[7].textureName, 1}},
-        }, true, true);
+
+        std::vector<Animation2DKeyPoint> keypoints;
+
+        size_t cumulativeAnimationDuration = 0;
+
+        for (const auto& anim : idleAnim)
+        {
+            keypoints.push_back({cumulativeAnimationDuration, {anim.textureName, 1}});
+        
+            cumulativeAnimationDuration += anim.durationInMilliseconds;
+        }
+
+        keypoints.push_back({cumulativeAnimationDuration, {idleAnim.back().textureName, 1}});
+
+        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, keypoints, true, true);
 
         playerEnt.get<Texture2DComponent>()->setViewport(1);
 
@@ -82,7 +93,7 @@ namespace pg
 
         dodgeTimer = ecsRef->attach<Timer>(entity7);
         dodgeTimer->oneShot = true;
-        dodgeTimer->interval = 1000;
+        dodgeTimer->interval = dashDuration;
         dodgeTimer->callback = makeCallable<PlayerDodgeEndEvent>();
 
         auto playerHealthUi = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Health: " + std::to_string(static_cast<int>(health)), 0.4);
@@ -301,6 +312,28 @@ namespace pg
         }
     }
 
+    void PlayerSystem::tryDodge()
+    {
+        if (player->get<PlayerFlag>()->inDodge)
+            return;
+
+        if (lastMoveDir.x == 0.f and lastMoveDir.y == 0.f)
+            return;
+
+        player->get<PlayerFlag>()->inDodge = true;
+        
+        dodgeTimer->start();
+
+        dashElapsed = 0.0f;
+        dashDir = lastMoveDir.normalized();
+
+        float dashDistance = 30.f;  // tweak to taste
+        constant::Vector2D dashDelta = lastMoveDir * dashDistance;
+
+        // Perform the movement
+        movePlayer(dashDelta.x, dashDelta.y);
+    }
+
     void PlayerSystem::tryHeal()
     {
         LOG_INFO("Player", "Try healing");
@@ -345,8 +378,38 @@ namespace pg
         }
     }
 
-    void PlayerSystem::movePlayer(float x, float y)
+    void PlayerSystem::onEvent(const PlayerMoveUp&)
     {
+        lastMoveDir.y = -1.f;
+        movePlayer(0.f, -1.f);
+    }
+
+    void PlayerSystem::onEvent(const PlayerMoveDown&)
+    {
+        lastMoveDir.y = 1.f;
+        movePlayer(0.f, 1.f);
+    }
+
+    void PlayerSystem::onEvent(const PlayerMoveLeft&)
+    {
+        lastMoveDir.x = -1.f;
+        movePlayer(-1.f, 0.f);
+    }
+
+    void PlayerSystem::onEvent(const PlayerMoveRight&)
+    {
+        lastMoveDir.x = 1.f;
+        movePlayer(1.f, 0.f);
+    }
+
+    void PlayerSystem::movePlayer(float x, float y, bool scaleToMoveSpeed)
+    {
+        if (scaleToMoveSpeed)
+        {
+            x *= movespeed;
+            y *= movespeed;
+        }
+
         auto pos = player->get<PositionComponent>();
 
         auto collisionSys = ecsRef->getSystem<CollisionSystem>();

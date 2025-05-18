@@ -184,19 +184,17 @@ namespace pg
             default:
                 break;
             }
+
+            if (leftTimer->running == false and rightTimer->running == false)
+                lastMoveDir.x = 0.f;
+
+            if (upTimer->running == false and bottomTimer->running == false)
+                lastMoveDir.y = 0.f;
         }
 
         void tryCollect();
 
-        void tryDodge()
-        {
-            if (player->get<PlayerFlag>()->inDodge)
-                return;
-
-            player->get<PlayerFlag>()->inDodge = true;
-            
-            dodgeTimer->start();
-        }
+        void tryDodge();
 
         void tryHeal();
 
@@ -205,27 +203,15 @@ namespace pg
         void updateHealthUi();
         void updateWeaponUi();
 
-        virtual void onEvent(const PlayerMoveUp&) override
-        {
-            movePlayer(0.f, -movespeed);
-        }
+        virtual void onEvent(const PlayerMoveUp&) override;
 
-        virtual void onEvent(const PlayerMoveDown&) override
-        {
-            movePlayer(0.f, movespeed);
-        }
+        virtual void onEvent(const PlayerMoveDown&) override;
 
-        virtual void onEvent(const PlayerMoveLeft&) override
-        {
-            movePlayer(-movespeed, 0.f);
-        }
+        virtual void onEvent(const PlayerMoveLeft&) override;
 
-        virtual void onEvent(const PlayerMoveRight&) override
-        {
-            movePlayer(movespeed, 0.f);
-        }
+        virtual void onEvent(const PlayerMoveRight&) override;
 
-        void movePlayer(float x, float y);
+        void movePlayer(float x, float y, bool scaleToMovespeed = true);
 
         EntityRef player;
 
@@ -241,6 +227,13 @@ namespace pg
 
         std::unordered_map<std::string, EntityRef> uiElements;
         float health = 5.0f;
+
+        float dashDuration = 200.f;
+        float dashElapsed = 0.f;
+        float dashDistance = 30.f;
+        constant::Vector2D dashDir = {0.f, 0.f};
+
+        constant::Vector2D lastMoveDir{0.f, 0.f};
 
         float movespeed = 4.f;
     };
