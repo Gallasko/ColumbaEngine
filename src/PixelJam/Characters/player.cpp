@@ -103,10 +103,7 @@ namespace pg
 
         health -= event.damage;
 
-        if (uiElements["HealthUI"]->has<TTFText>())
-        {
-            uiElements["HealthUI"]->get<TTFText>()->setText("Health: " + std::to_string(static_cast<int>(health)));
-        }
+        updateHealthUi();
 
         invincibility = true;
         invicibilityTimer->start();
@@ -139,23 +136,24 @@ namespace pg
 
             auto fireDir = constant::Vector2D{mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f};
 
-            auto collisionSys = ecsRef->getSystem<CollisionSystem>();
+            // Raycast test
+            // auto collisionSys = ecsRef->getSystem<CollisionSystem>();
 
-            auto ray =  collisionSys->raycast({pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f}, fireDir.normalized(), 1000, 0);
+            // auto ray =  collisionSys->raycast({pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f}, fireDir.normalized(), 1000, 0);
 
-            if (ray.hit)
-            {
-                LOG_INFO("Player", "Ray hit entity: " << ray.entityId << " at position: " << ray.hitPoint.x << " " << ray.hitPoint.y);
+            // if (ray.hit)
+            // {
+            //     LOG_INFO("Player", "Ray hit entity: " << ray.entityId << " at position: " << ray.hitPoint.x << " " << ray.hitPoint.y);
 
-                auto ent = ecsRef->getEntity(ray.entityId);
+            //     auto ent = ecsRef->getEntity(ray.entityId);
 
-                if (ent and ent->has<PositionComponent>())
-                {
-                    auto pos = ent->get<PositionComponent>();
+            //     if (ent and ent->has<PositionComponent>())
+            //     {
+            //         auto pos = ent->get<PositionComponent>();
 
-                    // pos->setVisibility(false);
-                }
-            }
+            //         // pos->setVisibility(false);
+            //     }
+            // }
 
             LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
 
@@ -317,6 +315,24 @@ namespace pg
         health += 1;
 
         weapon = getBaseWeapon();
+
+        updateHealthUi();
+        updateWeaponUi();
+    }
+
+    void PlayerSystem::updateHealthUi()
+    {
+        if (uiElements["HealthUI"]->has<TTFText>())
+        {
+            uiElements["HealthUI"]->get<TTFText>()->setText("Health: " + std::to_string(static_cast<int>(health)));
+        }
+    }
+
+    void PlayerSystem::updateWeaponUi()
+    {
+        const auto& weapon = player->get<WeaponComponent>()->weapon;
+
+        printWeapon(weapon);
     }
 
     void PlayerSystem::printWeapon(const Weapon& weapon)
