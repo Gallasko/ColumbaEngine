@@ -6,8 +6,10 @@
 #define ASEPRITEANIMDATA_H
 
 #include <vector>
+#include <unordered_map>
 #include <string>
 #include <ostream>
+#include <iostream>
 
 struct AsepriteAnimation {
     std::string name;
@@ -82,17 +84,34 @@ struct AsepriteFile {
      * Used for texture atlas;
      */
     std::string filename;
+
+    std::unordered_map<std::string, std::vector<AsepriteFrame>> animations;
+
+    std::vector<AsepriteFrame> operator[](const std::string &name) {
+        if (animations.find(name) == animations.end()) {
+            std::cout << "Not found anim " << name << std::endl;
+            return {};
+        }
+        return animations[name];
+    }
 };
 
 inline std::ostream &operator<<(std::ostream &os, const AsepriteFile &data) {
     os << "Aseprite File {\n"
-            << "  metadatah: " << data.metadata << "\n"
+            << "  metadata: " << data.metadata << "\n"
             << "}";
 
-    for (const auto &frame: data.frames) {
+    /*for (const auto &frame: data.frames) {
         os << "    " << frame << "\n";
     }
-    os << "  ]\n}";
+    os << "  ]\n}";*/
+
+    for (const auto &[key, val] : data.animations) {
+        os << key  << "\n";
+        for (const auto &frame: val) {
+            os << "    " << frame << "\n";
+        }
+    }
 
     return os;
 }

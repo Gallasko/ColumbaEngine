@@ -12,7 +12,6 @@ pg::AsepriteFileAtlasLoader::AsepriteFileAtlasLoader(const AsepriteFile &aseprit
     int i = 0;
 
     for (const auto &frame: aseprite.frames) {
-
         const auto name = std::to_string(i);
 
         AtlasTexture atlasTex;
@@ -20,7 +19,8 @@ pg::AsepriteFileAtlasLoader::AsepriteFileAtlasLoader(const AsepriteFile &aseprit
         atlasTex.setWidth(frame.widthInSPixels);
         atlasTex.setId(i);
         atlasTex.setName(name);
-        atlasTex.setMesh(frame.topLeftCornerInSPixelsX, frame.topLeftCornerInSPixelsY, aseprite.metadata.imageWidthInSPixels, aseprite.metadata.imageHeightInSPixels);
+        atlasTex.setMesh(frame.topLeftCornerInSPixelsX, frame.topLeftCornerInSPixelsY + frame.heightInSPixels - 1,
+                         aseprite.metadata.imageWidthInSPixels, aseprite.metadata.imageHeightInSPixels);
 
 
         this->textureList.push_back(atlasTex);
