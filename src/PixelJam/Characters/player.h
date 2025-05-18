@@ -133,6 +133,9 @@ namespace pg
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
         Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>>
     {
+        AsepriteFile animFile;
+        PlayerSystem(const AsepriteFile& animFile) : animFile(animFile) {}
+
         virtual std::string getSystemName() const override { return "Player System"; }
 
         virtual void init() override;
@@ -270,8 +273,6 @@ namespace pg
 
         CompRef<Timer> invicibilityTimer;
         CompRef<Timer> dodgeTimer;
-        
-        AsepriteFile playerAnimation; // anim
 
         std::unordered_map<std::string, EntityRef> uiElements;
         float health = 5.0f;

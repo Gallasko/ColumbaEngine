@@ -8,6 +8,7 @@
 #include "Scene/scenemanager.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/animator2d.h"
 
 #include "UI/ttftext.h"
 #include "UI/progressbar.h"
@@ -434,6 +435,8 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
+    mainWindow->ecs.createSystem<Texture2DAnimatorSystem>();
+
     mainWindow->ecs.createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
 
     mainWindow->ecs.succeed<FollowCamera2DSystem, PositionComponent>();
@@ -473,7 +476,14 @@ void initGame() {
 
     mainWindow->ecs.createSystem<SceneLoader>();
 
-    mainWindow->ecs.createSystem<PlayerSystem>();
+    AsepriteLoader aseprite_loader;
+    const AsepriteFile anim = aseprite_loader.loadAnim("res/sprites/main-char.json");
+
+    mainWindow->masterRenderer->registerAtlasTexture(anim.filename, anim.metadata.imagePath.c_str(), "", std::make_unique<AsepriteFileAtlasLoader>(anim));
+
+    std::cout << "Anim " << anim << std::endl;
+
+    mainWindow->ecs.createSystem<PlayerSystem>(anim);
 
     mainWindow->ecs.createSystem<EnemyAISystem>();
     mainWindow->ecs.createSystem<EnemySpawnSystem>();
@@ -552,13 +562,6 @@ void initGame() {
     }
 
     roomSystem->checkRoomsIntegrity();
-
-    AsepriteLoader aseprite_loader;
-    const AsepriteFile anim = aseprite_loader.loadAnim("res/sprites/main-char.json");
-
-    mainWindow->masterRenderer->registerAtlasTexture(anim.filename, anim.metadata.imagePath.c_str(), "", std::make_unique<AsepriteFileAtlasLoader>(anim));
-
-    std::cout << "Anim " << anim << std::endl;
 
     roomSystem->startLevel();
 

@@ -11,7 +11,7 @@ namespace pg
 {
     struct Texture2DComponent : public Ctor
     {
-        Texture2DComponent(const std::string& textureName) : textureName(textureName) { }
+        Texture2DComponent(const std::string& textureName, size_t viewport = 0) : textureName(textureName), viewport(viewport) { }
         Texture2DComponent(const Texture2DComponent &rhs) : textureName(rhs.textureName), entityId(rhs.entityId), ecsRef(rhs.ecsRef), opacity(rhs.opacity), overlappingColor(rhs.overlappingColor), overlappingColorRatio(rhs.overlappingColorRatio), viewport(rhs.viewport) { }
         virtual ~Texture2DComponent() {}
 

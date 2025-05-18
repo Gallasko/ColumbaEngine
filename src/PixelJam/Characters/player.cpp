@@ -1,15 +1,17 @@
 #include "player.h"
 
 #include "UI/ttftext.h"
+#include "2D/texture.h"
+#include "2D/animator2d.h"
 
 namespace pg
 {
     void PlayerSystem::init()
     {
-        AsepriteLoader aseprite_loader;
-        playerAnimation = aseprite_loader.loadAnim("res/sprites/main-char.json");
+        auto frame = animFile.frames[7];
 
-        auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
+        auto playerEnt = makeUiTexture(ecsRef, 48, 48, frame.textureName);
+        // auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
         playerEnt.get<PositionComponent>()->setZ(10);
         playerEnt.get<PositionComponent>()->setVisibility(false);
@@ -17,8 +19,13 @@ namespace pg
         ecsRef->attach<EntityName>(playerEnt.entity, "Player");
         ecsRef->attach<PlayerFlag>(playerEnt.entity);
         ecsRef->attach<FollowCamera2D>(playerEnt.entity);
+        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, std::vector<Animation2DKeyPoint>{
+            {0, {animFile.frames[7].textureName, 1}},
+            {400, {animFile.frames[12].textureName, 1}},
+            {1000, {animFile.frames[7].textureName, 1}},
+        }, true, true);
 
-        playerEnt.get<Simple2DObject>()->setViewport(1);
+        playerEnt.get<Texture2DComponent>()->setViewport(1);
 
         std::vector<size_t> collidableLayer = {0, 3, 5, 6};
 
