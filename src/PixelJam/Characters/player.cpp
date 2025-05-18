@@ -6,6 +6,17 @@
 
 namespace pg
 {
+    Weapon getBaseWeapon()
+    {
+        Weapon weapon;
+
+        weapon.name = "BaseWeapon";
+        weapon.damage = 1;
+        weapon.ammo = -1;
+
+        return weapon;
+    }
+
     void PlayerSystem::init()
     {
         auto frame = animFile.frames[7];
@@ -31,11 +42,7 @@ namespace pg
 
         ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 
-        Weapon baseWeapon;
-
-        baseWeapon.ammo = -1;
-
-        ecsRef->attach<WeaponComponent>(playerEnt.entity, baseWeapon);
+        ecsRef->attach<WeaponComponent>(playerEnt.entity, getBaseWeapon());
 
         player = playerEnt.entity;
 
@@ -157,11 +164,7 @@ namespace pg
             // If no ammo, automatically switch back to base weapon
             if (weapon.ammo == 0)
             {
-                Weapon baseWeapon;
-
-                baseWeapon.ammo = -1;
-
-                weaponEnt->weapon = baseWeapon;
+                weaponEnt->weapon = getBaseWeapon();
             }
 
             for (const auto& dir : weapon.fireDirections(fireDir))
@@ -194,14 +197,48 @@ namespace pg
             // If no ammo, automatically switch back to base weapon
             if (weapon.ammo == 0)
             {
-                Weapon baseWeapon;
-
-                baseWeapon.ammo = -1;
-
-                weaponEnt->weapon = baseWeapon;
+                weaponEnt->weapon = getBaseWeapon();
             }
 
             printWeapon(weapon);
+        }
+    }
+
+    void PlayerSystem::onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event)
+    {
+        switch (event.value)
+        {
+        case GameKeyConfig::MoveLeft:
+            if (not leftTimer->running)
+                leftTimer->start();
+            break;
+        case GameKeyConfig::MoveRight:
+            if (not rightTimer->running)
+                rightTimer->start();
+            break;
+        case GameKeyConfig::MoveUp:
+            if (not upTimer->running)
+                upTimer->start();
+            break;
+        case GameKeyConfig::MoveDown:
+            if (not bottomTimer->running)
+                bottomTimer->start();
+            break;
+
+        case GameKeyConfig::Interact:
+            tryCollect();
+            break;
+
+        case GameKeyConfig::Dodge:
+            tryDodge();
+            break;
+
+        case GameKeyConfig::Heal:
+            tryHeal();
+            break;
+
+        default:
+            break;
         }
     }
 
@@ -264,6 +301,22 @@ namespace pg
 
             ecsRef->removeEntity(cId);  // remove collectible
         }
+    }
+
+    void PlayerSystem::tryHeal()
+    {
+        LOG_INFO("Player", "Try healing");
+        auto& weapon = player->get<WeaponComponent>()->weapon;
+
+        if (weapon.name == "BaseWeapon")
+            return;
+
+        if (weapon.ammo == 0)
+            return;
+
+        health += 1;
+
+        weapon = getBaseWeapon();
     }
 
     void PlayerSystem::printWeapon(const Weapon& weapon)

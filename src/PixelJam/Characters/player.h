@@ -162,47 +162,7 @@ namespace pg
 
         virtual void onProcessEvent(const OnMouseClick& event) override;
 
-        virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
-        {
-            switch (event.value)
-            {
-            case GameKeyConfig::MoveLeft:
-                if (not leftTimer->running)
-                    leftTimer->start();
-                // if (rightTimer->running)
-                //     rightTimer->stop();
-                break;
-            case GameKeyConfig::MoveRight:
-                if (not rightTimer->running)
-                    rightTimer->start();
-                // if (leftTimer->running)
-                //     leftTimer->stop();
-                break;
-            case GameKeyConfig::MoveUp:
-                if (not upTimer->running)
-                    upTimer->start();
-                // if (bottomTimer->running)
-                //     bottomTimer->stop();
-                break;
-            case GameKeyConfig::MoveDown:
-                if (not bottomTimer->running)
-                    bottomTimer->start();
-                // if (upTimer->running)
-                //     upTimer->stop();
-                break;
-
-            case GameKeyConfig::Interact:
-                tryCollect();
-                break;
-
-            case GameKeyConfig::Dodge:
-                tryDodge();
-                break;
-
-            default:
-                break;
-            }
-        }
+        virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override;
 
         virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
         {
@@ -238,7 +198,12 @@ namespace pg
             dodgeTimer->start();
         }
 
+        void tryHeal();
+
         void printWeapon(const Weapon& weapon);
+
+        void updateHealthUi();
+        void updateWeaponUi();
 
         virtual void onEvent(const PlayerMoveUp&) override
         {
