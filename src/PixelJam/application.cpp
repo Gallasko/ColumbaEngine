@@ -296,12 +296,21 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             texComp->setViewport(1);
 
             auto posComp = tex.get<PositionComponent>();
-            posComp->setX(frame.topLeftCornerInSPixelsX);
-            posComp->setY(frame.topLeftCornerInSPixelsY);
+            posComp->setX(mapData.playerSpawn.positionSPixels.x + frame.topLeftCornerInSPixelsX);
+            posComp->setY(mapData.playerSpawn.positionSPixels.y + frame.topLeftCornerInSPixelsY);
             posComp->setZ(z+5);
 
             count++;
         }
+
+        /*auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, testAnim.frames[7].textureName);
+        auto texComp = tex.get<Texture2DComponent>();
+        texComp->setViewport(1);
+
+        auto posComp = tex.get<PositionComponent>();
+        posComp->setX(mapData.playerSpawn.positionSPixels.x);
+        posComp->setY(mapData.playerSpawn.positionSPixels.y);
+        posComp->setZ(z+5);*/
 
 
 
@@ -526,6 +535,12 @@ void initGame() {
         std::cout << "Spike: " << spike << std::endl;
     }
     std::cout << "---PRINT SPIKES--- END" << std::endl;
+
+    std::cout << "---PRINT SPIKES IMAGES---" << std::endl;
+    for (const auto &spike : map.spike_images) {
+        std::cout << "Spike Image: " << spike << std::endl;
+    }
+    std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;
 
     for (const auto &spawner : map.spawners)
     {

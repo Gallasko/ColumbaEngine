@@ -166,6 +166,19 @@ inline std::ostream &operator<<(std::ostream &os, const Spike &trigger) {
     return os;
 }
 
+struct SpikeImage {
+    std::string textureName;
+    int spikeStep;
+};
+
+inline std::ostream &operator<<(std::ostream &os, const SpikeImage &spike) {
+    os << "SpikeImage {\n"
+            << "  Texture name: " << spike.textureName << "\n"
+            << "  Step : " << spike.spikeStep << "\n"
+            << "}";
+    return os;
+}
+
 struct SpawnData {
     /*!
      * which enemy to spawn
@@ -349,6 +362,10 @@ struct MapData {
      * All the spikes.
      */
     std::vector<Spike> spikes;
+    /*!
+     * All the spikes images
+     */
+    std::vector<SpikeImage> spike_images;
     /*!
      *
      */

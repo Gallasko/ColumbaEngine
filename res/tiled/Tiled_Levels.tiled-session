@@ -60,7 +60,8 @@
             "scaleInEditor": 3
         },
         "LEVELS/Level_0001.json#Prod": {
-            "scaleInDock": 3
+            "scaleInDock": 3,
+            "scaleInEditor": 5.5
         },
         "LEVELS/Level_DEV_0001.json": {
             "scale": 1.5,
