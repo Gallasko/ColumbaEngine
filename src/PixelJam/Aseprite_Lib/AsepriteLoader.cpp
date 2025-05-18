@@ -31,7 +31,7 @@ AsepriteFile AsepriteLoader::loadAnim(const std::string &path) {
 
     result.filename = filenameWithoutExtension;
 
-    int i;
+    int i = 0;
 
     // Parse frames
     for (const auto& frameEntry : j["frames"]) {
@@ -73,6 +73,14 @@ AsepriteFile AsepriteLoader::loadAnim(const std::string &path) {
             anim.customData = tag["data"];
         }
         result.metadata.anims.push_back(anim);
+    }
+
+    for (const auto& anim : result.metadata.anims) {
+        std::vector<AsepriteFrame> frames;
+        for (int i = anim.frameStart; i <= anim.frameEnd; ++i) {
+                frames.push_back(result.frames[i]);
+        }
+        result.animations[anim.name] = frames;
     }
 
     return result;

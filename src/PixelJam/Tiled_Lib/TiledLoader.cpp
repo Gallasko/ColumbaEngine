@@ -54,6 +54,8 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
         myTileSet.imageWidthInPixels = tileset.getImageSize().x;
         myTileSet.imageHeightInPixels = tileset.getImageSize().y;
 
+        std::cout << tileset.getName() + " " << std::endl;
+
         myTileSet.name = tileset.getName();
 
         myTileSet.tileCount = tileset.getTileCount();
@@ -64,6 +66,8 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
         myTileSet.tileHeightInTPixels = map->getTileSize().y;
 
 
+
+
         fs::path imagePath = tileset.getImagePath();         // relative to JSON
         fs::path resolvedPath = fs::absolute(jsonDir / imagePath);  // full path
 
@@ -71,6 +75,16 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
         fs::path relativeToCWD = fs::relative(resolvedPath, fs::current_path());
 
         myTileSet.imagePath = relativeToCWD.string();
+
+        for (auto& tile : tileset.getTiles()) {
+            auto isSpike = tile.get<bool>("spike");
+            if (isSpike) {
+                SpikeImage spike;
+                spike.textureName = tileset.getName() + "." + std::to_string(tile.getId());
+                spike.spikeStep = tile.get<int>("spikeStep");
+                result.spike_images.push_back(spike);
+            }
+        }
 
         result.tilesets.push_back(myTileSet);
     }
