@@ -89,6 +89,19 @@ namespace pg
             }
         }
 
+        void setViewport(size_t viewport)
+        {
+            if (this->viewport != viewport)
+            {
+                this->viewport = viewport;
+
+                if (ecsRef)
+                {
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
+            }
+        }
+
         std::string text;
 
         float textWidth, textHeight;
@@ -102,6 +115,8 @@ namespace pg
         bool wrap = false;
 
         float spacing = 0.0f;
+
+        size_t viewport = 0;
 
         EntitySystem * ecsRef = nullptr;
 
@@ -171,7 +186,7 @@ namespace pg
         float computeLineHeight(const std::string& text, const std::string& fontPath, float scale);
         float getGlyphAdvance(char c, const std::string& fontPath, float scale);
         float computeWordWidth(const std::string& word, const std::string& fontPath, float scale);
-        RenderCall createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors);
+        RenderCall createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors, size_t viewport);
 
         std::vector<TTFText> parseFormattedText(const TTFText &original);
 

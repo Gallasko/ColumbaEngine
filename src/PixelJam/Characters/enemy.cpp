@@ -31,7 +31,8 @@ namespace pg
         {
             // Too far: move in
             moveDir = toPlayer;
-        } else
+        }
+        else
         {
             // Too close: kite out
             moveDir = { -toPlayer.x, -toPlayer.y };
@@ -60,7 +61,8 @@ namespace pg
 
         // sample angles: center, left, right
         std::array<float, 3> angles = { 0.f, +ai->feelerAngle, -ai->feelerAngle };
-        for (float ang : angles) {
+        for (float ang : angles)
+        {
             constant::Vector2D fdir = rotated(dirNorm, ang);
             auto sweep = sweepMove(
                 collisionSys,
@@ -70,7 +72,8 @@ namespace pg
                 { 0 }
             );
 
-            if (sweep.hit) {
+            if (sweep.hit)
+            {
                 // steer away: push in the opposite direction of that feeler
                 avoid.x += -fdir.x * (feelerLen - sweep.delta.length());
                 avoid.y += -fdir.y * (feelerLen - sweep.delta.length());
@@ -79,13 +82,16 @@ namespace pg
 
         // blend avoidance into moveDir
         const float avoidWeight = ai->avoidanceStrength; // e.g. 0.5
+
         constant::Vector2D finalDir = {
             moveDir.x + avoid.x * avoidWeight,
             moveDir.y + avoid.y * avoidWeight
         };
+
         // re‑normalize
         float lenFD = sqrt(finalDir.x * finalDir.x + finalDir.y * finalDir.y);
-        if (lenFD > EPSILON) {
+        if (lenFD > EPSILON)
+        {
             finalDir.x /= lenFD;
             finalDir.y /= lenFD;
         }
@@ -108,10 +114,10 @@ namespace pg
             {0}
         );
 
-        bool blockedX = applX.hit && fabs(applX.delta.x) < EPSILON;
-        bool blockedY = applY.hit && fabs(applY.delta.y) < EPSILON;
+        bool blockedX = applX.hit and fabs(applX.delta.x) < EPSILON;
+        bool blockedY = applY.hit and fabs(applY.delta.y) < EPSILON;
 
-        if (blockedX && blockedY)
+        if (blockedX and blockedY)
         {
             // Fully blocked: flip orbit and slide along one axis
             ai->orbitDirection *= -1.0f;

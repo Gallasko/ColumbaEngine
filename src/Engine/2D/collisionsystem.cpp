@@ -700,8 +700,6 @@ namespace pg
                 {
                     auto wallEntity = ecsRef->getEntity(wallId);
 
-                    LOG_INFO(DOM, "Checking wall: " << wallId);
-
                     if (not wallEntity or not wallEntity->has<PositionComponent>() or not wallEntity->has<CollisionComponent>())
                         continue;
 
@@ -740,10 +738,9 @@ namespace pg
             }
         }
 
-        LOG_INFO(DOM, "BestT: " << bestT);
-
         // 4) apply movement up to just before contact
         float safeT = bestT > 0 ? bestT - 1e-3f : 0.f;
+        // float safeT = bestT > 0 ? bestT - 0.2 : 0.f;
 
         if (safeT < 0) safeT = 0;
 

@@ -9,6 +9,7 @@ namespace pg
         {GameKeyConfig::MoveDown,    {"MoveDown", SDL_SCANCODE_S}},
         {GameKeyConfig::Interact,    {"Interact", SDL_SCANCODE_E}},
         {GameKeyConfig::Pause,       {"Pause", SDL_SCANCODE_ESCAPE}},
+        {GameKeyConfig::Dodge,       {"Dodge", SDL_SCANCODE_SPACE}},
         };
 
 
