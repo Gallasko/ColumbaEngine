@@ -127,6 +127,79 @@ namespace pg
 
     struct PlayerHitEvent { float damage; };
 
+    struct CameraShakeComponent : public Ctor
+    {
+        CameraShakeComponent(float duration = 0.0f, float magnitude = 0.0f) : duration(duration), magnitude(magnitude), elapsed(0.0f), active(false) {}
+
+        float duration;
+        float magnitude;
+        float elapsed;
+        bool active = false;
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef = nullptr;
+        _unique_id entityId = 0;
+    };
+
+    // Todo make an update sys that get the current delta time of the ecs
+
+    struct CameraShakeSystem : public System<InitSys, Own<CameraShakeComponent>, Listener<TickEvent>>
+    {
+        virtual std::string getSystemName() const override { return "Camera Shake"; }
+
+        float deltaTime = 0.0f;
+
+        virtual void init() override
+        {
+            registerGroup<CameraShakeComponent, BaseCamera2D>();
+        }
+
+        virtual void onEvent(const TickEvent& event) override
+        {
+            deltaTime += event.tick;
+        }
+
+        // Called every frame:
+        virtual void execute() override
+        {
+            if (deltaTime == 0.0f)
+                return;
+
+            for (const auto& e : viewGroup<CameraShakeComponent, BaseCamera2D>())
+            {
+                auto shake = e->get<CameraShakeComponent>();
+                auto cam   = e->get<BaseCamera2D>();
+
+                if (not shake->active) continue;
+
+                shake->elapsed += deltaTime;
+
+                if (shake->elapsed >= shake->duration)
+                {
+                    // done shaking
+                    cam->setOffset({0.f, 0.f});
+                    shake->active = false;
+                    continue;
+                }
+
+                // fall‑off: stronger at start, taper off
+                float t = 1.0f - (shake->elapsed / shake->duration);
+                float currentMag = shake->magnitude * t;
+
+                // generate a random offset in [-currentMag, +currentMag]
+                float ox = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.f - 1.f) * currentMag;
+                float oy = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.f - 1.f) * currentMag;
+
+                cam->setOffset({ox, oy});
+            }
+        }
+    };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
