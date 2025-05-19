@@ -42,6 +42,7 @@ namespace pg
         cursorEnt.get<PositionComponent>()->setZ(10);
 
         ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+        ecsRef->attach<CameraShakeComponent>(cursorEnt.entity);
 
         cursor = cursorEnt.entity;
 
@@ -123,6 +124,9 @@ namespace pg
     {
         if (invincibility)
             return;
+
+
+        cursor->get<CameraShakeComponent>()->shake(150.f, 25.f);
 
         health -= event.damage;
 

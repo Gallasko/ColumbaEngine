@@ -142,13 +142,17 @@ namespace pg
             entityId = entity->id;
         }
 
+        void shake(float duration, float magnitude) { active = true; this->duration = duration; this->magnitude = magnitude; }
+
         EntitySystem* ecsRef = nullptr;
         _unique_id entityId = 0;
     };
 
     // Todo make an update sys that get the current delta time of the ecs
 
-    struct CameraShakeSystem : public System<InitSys, Own<CameraShakeComponent>, Listener<TickEvent>>
+    // Todo Init sys should be defined after all the own if you want to register a group in init
+
+    struct CameraShakeSystem : public System<Own<CameraShakeComponent>, InitSys, Listener<TickEvent>>
     {
         virtual std::string getSystemName() const override { return "Camera Shake"; }
 
