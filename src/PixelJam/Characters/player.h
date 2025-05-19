@@ -127,11 +127,95 @@ namespace pg
 
     struct PlayerHitEvent { float damage; };
 
+    struct CameraShakeComponent : public Ctor
+    {
+        CameraShakeComponent(float duration = 0.0f, float magnitude = 0.0f) : duration(duration), magnitude(magnitude), elapsed(0.0f), active(false) {}
+
+        float duration;
+        float magnitude;
+        float elapsed;
+        bool active = false;
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef = nullptr;
+        _unique_id entityId = 0;
+    };
+
+    // Todo make an update sys that get the current delta time of the ecs
+
+    struct CameraShakeSystem : public System<InitSys, Own<CameraShakeComponent>, Listener<TickEvent>>
+    {
+        virtual std::string getSystemName() const override { return "Camera Shake"; }
+
+        float deltaTime = 0.0f;
+
+        virtual void init() override
+        {
+            registerGroup<CameraShakeComponent, BaseCamera2D>();
+        }
+
+        virtual void onEvent(const TickEvent& event) override
+        {
+            deltaTime += event.tick;
+        }
+
+        // Called every frame:
+        virtual void execute() override
+        {
+            if (deltaTime == 0.0f)
+                return;
+
+            for (const auto& e : viewGroup<CameraShakeComponent, BaseCamera2D>())
+            {
+                auto shake = e->get<CameraShakeComponent>();
+                auto cam   = e->get<BaseCamera2D>();
+
+                if (not shake->active) continue;
+
+                shake->elapsed += deltaTime;
+
+                if (shake->elapsed >= shake->duration)
+                {
+                    // done shaking
+                    cam->setOffset({0.f, 0.f});
+                    shake->active = false;
+                    continue;
+                }
+
+                // fall‑off: stronger at start, taper off
+                float t = 1.0f - (shake->elapsed / shake->duration);
+                float currentMag = shake->magnitude * t;
+
+                // generate a random offset in [-currentMag, +currentMag]
+                float ox = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.f - 1.f) * currentMag;
+                float oy = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.f - 1.f) * currentMag;
+
+                cam->setOffset({ox, oy});
+            }
+        }
+    };
+
+    struct GameStart
+    {
+
+    };
+
+    struct GameEnd
+    {
+        bool win = false;
+    };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
-        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>>
+        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
+        Listener<TickEvent>, QueuedListener<OnMouseMove>>
     {
         AsepriteFile animFile;
         PlayerSystem(const AsepriteFile& animFile) : animFile(animFile) {}
@@ -155,54 +239,20 @@ namespace pg
             player->get<PositionComponent>()->setVisibility(true);
         }
 
-        virtual void onEvent(const PlayerDodgeEndEvent& event) override
+        virtual void onEvent(const PlayerDodgeEndEvent& event) override;
+
+        virtual void onEvent(const TickEvent& event) override
         {
-            player->get<PlayerFlag>()->inDodge = false;
+            deltaTime += event.tick;
         }
+
+        void updateCamera();
+
+        virtual void onProcessEvent(const OnMouseMove& event) override;
 
         virtual void onProcessEvent(const OnMouseClick& event) override;
 
-        virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override
-        {
-            switch (event.value)
-            {
-            case GameKeyConfig::MoveLeft:
-                if (not leftTimer->running)
-                    leftTimer->start();
-                // if (rightTimer->running)
-                //     rightTimer->stop();
-                break;
-            case GameKeyConfig::MoveRight:
-                if (not rightTimer->running)
-                    rightTimer->start();
-                // if (leftTimer->running)
-                //     leftTimer->stop();
-                break;
-            case GameKeyConfig::MoveUp:
-                if (not upTimer->running)
-                    upTimer->start();
-                // if (bottomTimer->running)
-                //     bottomTimer->stop();
-                break;
-            case GameKeyConfig::MoveDown:
-                if (not bottomTimer->running)
-                    bottomTimer->start();
-                // if (upTimer->running)
-                //     upTimer->stop();
-                break;
-
-            case GameKeyConfig::Interact:
-                tryCollect();
-                break;
-
-            case GameKeyConfig::Dodge:
-                tryDodge();
-                break;
-
-            default:
-                break;
-            }
-        }
+        virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override;
 
         virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
         {
@@ -224,43 +274,40 @@ namespace pg
             default:
                 break;
             }
+
+            if (leftTimer->running == false and rightTimer->running == false)
+                lastMoveDir.x = 0.f;
+
+            if (upTimer->running == false and bottomTimer->running == false)
+                lastMoveDir.y = 0.f;
         }
 
         void tryCollect();
 
-        void tryDodge()
-        {
-            if (player->get<PlayerFlag>()->inDodge)
-                return;
+        void tryDodge();
 
-            player->get<PlayerFlag>()->inDodge = true;
-            
-            dodgeTimer->start();
-        }
+        void tryHeal();
 
         void printWeapon(const Weapon& weapon);
 
-        virtual void onEvent(const PlayerMoveUp&) override
-        {
-            movePlayer(0.f, -movespeed);
-        }
+        void updateHealthUi();
+        void updateWeaponUi();
 
-        virtual void onEvent(const PlayerMoveDown&) override
-        {
-            movePlayer(0.f, movespeed);
-        }
+        virtual void onEvent(const PlayerMoveUp&) override;
 
-        virtual void onEvent(const PlayerMoveLeft&) override
-        {
-            movePlayer(-movespeed, 0.f);
-        }
+        virtual void onEvent(const PlayerMoveDown&) override;
 
-        virtual void onEvent(const PlayerMoveRight&) override
-        {
-            movePlayer(movespeed, 0.f);
-        }
+        virtual void onEvent(const PlayerMoveLeft&) override;
 
-        void movePlayer(float x, float y);
+        virtual void onEvent(const PlayerMoveRight&) override;
+
+        virtual void execute() override;
+
+        void movePlayer(float x, float y, bool scaleToMovespeed = true);
+
+        EntityRef cursor;
+
+        constant::Vector2D lastCameraPos {0.f, 0.f};
 
         EntityRef player;
 
@@ -276,6 +323,17 @@ namespace pg
 
         std::unordered_map<std::string, EntityRef> uiElements;
         float health = 5.0f;
+        float maxHealth = 5.0f;
+
+        float deltaTime = 0.0f;
+
+        bool tryingToDash = false;
+        float dashDuration = 200.f;
+        float dashElapsed = 0.f;
+        float dashDistance = 85.f;
+        constant::Vector2D dashDir = {0.f, 0.f};
+
+        constant::Vector2D lastMoveDir{0.f, 0.f};
 
         float movespeed = 4.f;
     };

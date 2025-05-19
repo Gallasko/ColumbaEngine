@@ -278,24 +278,24 @@ namespace pg
 
         virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) const override
         {
-            auto* ca = ecs->getComponent<Comp1>(id1);
-            auto* cb = ecs->getComponent<Comp2>(id2);
+            auto ent1 = ecs->getEntity(id1);
+            auto ent2 = ecs->getEntity(id2);
 
-            if (ca and cb)
+            if (not ent1 or not ent2)
             {
-                fn(ca, cb);
+                LOG_ERROR("CollisionHandlePair", "Entity not found: " << id1 << ", " << id2);
+                return;
+            }
+
+            if (ent1->has<Comp1>() and ent2->has<Comp2>()) // if (ca and cb)
+            {
+                fn(ent1->get<Comp1>(), ent2->get<Comp2>());
             }
 
             // and swap:
-            if constexpr (not std::is_same_v<Comp1, Comp2>)
+            if (ent2->has<Comp1>() and ent1->has<Comp2>()) // if (ca and cb)
             {
-                ca = ecs->getComponent<Comp1>(id2);
-                cb = ecs->getComponent<Comp2>(id1);
-
-                if (ca and cb)
-                {
-                    fn(ca, cb);
-                }
+                fn(ent2->get<Comp1>(), ent1->get<Comp2>());
             }
         }
 
@@ -379,12 +379,18 @@ namespace pg
         std::unique_ptr<CollisionHandleBase> handler;
     };
 
-    struct CollisionHandlerSystem : public System<Listener<CollisionEvent>, Own<CollisionHandleComponent>, StoragePolicy>
+    struct CollisionHandlerSystem : public System<QueuedListener<CollisionEvent>, Own<CollisionHandleComponent>>
     {
-        virtual void onEvent(const CollisionEvent& event) override
+        virtual void onProcessEvent(const CollisionEvent& event) override
         {
             for (const auto& comp : view<CollisionHandleComponent>())
             {
+                if (not comp->handler)
+                {
+                    LOG_ERROR("CollisionHandlerSystem", "Collision handler is null");
+                    continue;
+                }
+
                 comp->handler->tryInvoke(ecsRef, event.id1, event.id2);
             }
         }

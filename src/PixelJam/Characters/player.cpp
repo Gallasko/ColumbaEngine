@@ -6,11 +6,49 @@
 
 namespace pg
 {
+    Weapon getBaseWeapon()
+    {
+        Weapon weapon;
+
+        weapon.name = "BaseWeapon";
+        weapon.damage = 1;
+        weapon.ammo = -1;
+
+        return weapon;
+    }
+
+    std::vector<Animation2DKeyPoint> getAnimationKeypoint(const std::vector<AsepriteFrame>& frames)
+    {
+        std::vector<Animation2DKeyPoint> keypoints;
+
+        size_t cumulativeAnimationDuration = 0;
+
+        for (const auto& anim : frames)
+        {
+            keypoints.push_back({cumulativeAnimationDuration, {anim.textureName, 1}});
+
+            cumulativeAnimationDuration += anim.durationInMilliseconds;
+        }
+
+        keypoints.push_back({cumulativeAnimationDuration, {frames.back().textureName, 1}});
+
+        return keypoints;
+    }
+
     void PlayerSystem::init()
     {
-        auto frame = animFile.frames[7];
+        auto cursorEnt = makeAnchoredPosition(ecsRef);
 
-        auto playerEnt = makeUiTexture(ecsRef, 48, 48, frame.textureName);
+        cursorEnt.get<PositionComponent>()->setZ(10);
+
+        ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+
+        cursor = cursorEnt.entity;
+
+        // auto frame = animFile.frames[7];
+        auto idleAnim = animFile["Idle_Front"];
+
+        auto playerEnt = makeUiTexture(ecsRef, 44, 64, idleAnim[0].textureName);
         // auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
 
         playerEnt.get<PositionComponent>()->setZ(10);
@@ -18,12 +56,8 @@ namespace pg
 
         ecsRef->attach<EntityName>(playerEnt.entity, "Player");
         ecsRef->attach<PlayerFlag>(playerEnt.entity);
-        ecsRef->attach<FollowCamera2D>(playerEnt.entity);
-        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, std::vector<Animation2DKeyPoint>{
-            {0, {animFile.frames[7].textureName, 1}},
-            {400, {animFile.frames[12].textureName, 1}},
-            {1000, {animFile.frames[7].textureName, 1}},
-        }, true, true);
+
+        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, getAnimationKeypoint(idleAnim), true, true);
 
         playerEnt.get<Texture2DComponent>()->setViewport(1);
 
@@ -31,11 +65,7 @@ namespace pg
 
         ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 
-        Weapon baseWeapon;
-
-        baseWeapon.ammo = -1;
-
-        ecsRef->attach<WeaponComponent>(playerEnt.entity, baseWeapon);
+        ecsRef->attach<WeaponComponent>(playerEnt.entity, getBaseWeapon());
 
         player = playerEnt.entity;
 
@@ -75,7 +105,7 @@ namespace pg
 
         dodgeTimer = ecsRef->attach<Timer>(entity7);
         dodgeTimer->oneShot = true;
-        dodgeTimer->interval = 1000;
+        dodgeTimer->interval = dashDuration;
         dodgeTimer->callback = makeCallable<PlayerDodgeEndEvent>();
 
         auto playerHealthUi = makeTTFText(ecsRef, 0, 0, 0, "res/font/Inter/static/Inter_28pt-Light.ttf", "Health: " + std::to_string(static_cast<int>(health)), 0.4);
@@ -96,13 +126,47 @@ namespace pg
 
         health -= event.damage;
 
-        if (uiElements["HealthUI"]->has<TTFText>())
-        {
-            uiElements["HealthUI"]->get<TTFText>()->setText("Health: " + std::to_string(static_cast<int>(health)));
-        }
+        updateHealthUi();
 
         invincibility = true;
         invicibilityTimer->start();
+    }
+
+    void PlayerSystem::updateCamera()
+    {
+        auto cursorPos = cursor->get<PositionComponent>();
+
+        if (not cursorPos)
+            return;
+
+        auto window = ecsRef->getEntity("__MainWindow");
+
+        if (not window)
+            return;
+
+        auto playerPos = player->get<PositionComponent>();
+
+        if (not playerPos)
+            return;
+
+        auto windowWidth = window->get<PositionComponent>()->width / 2.0f;
+        auto windowHeight = window->get<PositionComponent>()->height / 2.0f;
+
+        auto playerWidth = playerPos->width / 2.0f;
+        auto playerHeight = playerPos->height / 2.0f;
+
+        cursorPos->setX(lastCameraPos.x - windowWidth + playerPos->x + playerWidth);
+        cursorPos->setY(lastCameraPos.y - windowHeight + playerPos->y + playerHeight);
+    }
+
+    void PlayerSystem::onProcessEvent(const OnMouseMove& event)
+    {
+        // constant::Vector2D{mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f};
+
+        lastCameraPos.x = event.pos.x;
+        lastCameraPos.y = event.pos.y;
+
+        updateCamera();
     }
 
     void PlayerSystem::onProcessEvent(const OnMouseClick& event)
@@ -111,7 +175,7 @@ namespace pg
         {
             auto pos = player->get<PositionComponent>();
             auto weaponEnt = player->get<WeaponComponent>();
-            auto camera = player->get<BaseCamera2D>();
+            auto camera = cursor->get<BaseCamera2D>();
 
             if (not pos or not weaponEnt or not camera)
                 return;
@@ -132,23 +196,24 @@ namespace pg
 
             auto fireDir = constant::Vector2D{mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f};
 
-            auto collisionSys = ecsRef->getSystem<CollisionSystem>();
+            // Raycast test
+            // auto collisionSys = ecsRef->getSystem<CollisionSystem>();
 
-            auto ray =  collisionSys->raycast({pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f}, fireDir.normalized(), 1000, 0);
+            // auto ray =  collisionSys->raycast({pos->x + pos->width / 2.0f, pos->y + pos->height / 2.0f}, fireDir.normalized(), 1000, 0);
 
-            if (ray.hit)
-            {
-                LOG_INFO("Player", "Ray hit entity: " << ray.entityId << " at position: " << ray.hitPoint.x << " " << ray.hitPoint.y);
+            // if (ray.hit)
+            // {
+            //     LOG_INFO("Player", "Ray hit entity: " << ray.entityId << " at position: " << ray.hitPoint.x << " " << ray.hitPoint.y);
 
-                auto ent = ecsRef->getEntity(ray.entityId);
+            //     auto ent = ecsRef->getEntity(ray.entityId);
 
-                if (ent and ent->has<PositionComponent>())
-                {
-                    auto pos = ent->get<PositionComponent>();
+            //     if (ent and ent->has<PositionComponent>())
+            //     {
+            //         auto pos = ent->get<PositionComponent>();
 
-                    // pos->setVisibility(false);
-                }
-            }
+            //         // pos->setVisibility(false);
+            //     }
+            // }
 
             LOG_INFO("Player","Mouse pos in game: " << mousePosInGame.x << " " << mousePosInGame.y);
 
@@ -157,11 +222,7 @@ namespace pg
             // If no ammo, automatically switch back to base weapon
             if (weapon.ammo == 0)
             {
-                Weapon baseWeapon;
-
-                baseWeapon.ammo = -1;
-
-                weaponEnt->weapon = baseWeapon;
+                weaponEnt->weapon = getBaseWeapon();
             }
 
             for (const auto& dir : weapon.fireDirections(fireDir))
@@ -194,14 +255,60 @@ namespace pg
             // If no ammo, automatically switch back to base weapon
             if (weapon.ammo == 0)
             {
-                Weapon baseWeapon;
-
-                baseWeapon.ammo = -1;
-
-                weaponEnt->weapon = baseWeapon;
+                weaponEnt->weapon = getBaseWeapon();
             }
 
             printWeapon(weapon);
+        }
+    }
+
+    void PlayerSystem::onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event)
+    {
+        switch (event.value)
+        {
+        case GameKeyConfig::MoveLeft:
+            if (not leftTimer->running)
+            {
+                lastMoveDir.x = -1.f;
+                leftTimer->start();
+            }
+            break;
+        case GameKeyConfig::MoveRight:
+            if (not rightTimer->running)
+            {
+                lastMoveDir.x = 1.f;
+                rightTimer->start();
+            }
+            break;
+        case GameKeyConfig::MoveUp:
+            if (not upTimer->running)
+            {
+                lastMoveDir.y = -1.f;
+                upTimer->start();
+            }
+            break;
+        case GameKeyConfig::MoveDown:
+            if (not bottomTimer->running)
+            {
+                lastMoveDir.y = 1.f;
+                bottomTimer->start();
+            }
+            break;
+
+        case GameKeyConfig::Interact:
+            tryCollect();
+            break;
+
+        case GameKeyConfig::Dodge:
+            tryingToDash = true;
+            break;
+
+        case GameKeyConfig::Heal:
+            tryHeal();
+            break;
+
+        default:
+            break;
         }
     }
 
@@ -266,6 +373,93 @@ namespace pg
         }
     }
 
+    void PlayerSystem::tryDodge()
+    {
+        if (player->get<PlayerFlag>()->inDodge)
+            return;
+
+        if (lastMoveDir.x == 0.f and lastMoveDir.y == 0.f)
+            return;
+
+        player->get<PlayerFlag>()->inDodge = true;
+
+        dodgeTimer->start();
+
+        if (lastMoveDir.x == 1.f)
+        {
+            auto playingAnim = animFile["Dodge_Profile"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir.x == -1.f)
+        {
+            auto playingAnim = animFile["Dodgle_Profile_L"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir.y == -1.f)
+        {
+            auto playingAnim = animFile["Dodge_Back"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir.y == 1.f)
+        {
+            auto playingAnim = animFile["Dodge_Front"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        // // Todo need mirror
+        //
+
+
+        dashElapsed = 0.0f;
+        dashDir = lastMoveDir.normalized();
+    }
+
+    void PlayerSystem::onEvent(const PlayerDodgeEndEvent& event)
+    {
+        player->get<PlayerFlag>()->inDodge = false;
+
+        auto playingAnim = animFile["Idle_Front"];
+
+        player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+    }
+
+    void PlayerSystem::tryHeal()
+    {
+        LOG_INFO("Player", "Try healing");
+        auto& weapon = player->get<WeaponComponent>()->weapon;
+
+        if (weapon.name == "BaseWeapon")
+            return;
+
+        if (weapon.ammo == 0)
+            return;
+
+        health += 1;
+
+        weapon = getBaseWeapon();
+
+        updateHealthUi();
+        updateWeaponUi();
+    }
+
+    void PlayerSystem::updateHealthUi()
+    {
+        if (uiElements["HealthUI"]->has<TTFText>())
+        {
+            uiElements["HealthUI"]->get<TTFText>()->setText("Health: " + std::to_string(static_cast<int>(health)));
+        }
+    }
+
+    void PlayerSystem::updateWeaponUi()
+    {
+        const auto& weapon = player->get<WeaponComponent>()->weapon;
+
+        printWeapon(weapon);
+    }
+
     void PlayerSystem::printWeapon(const Weapon& weapon)
     {
         if (uiElements["BulletUi"]->has<TTFText>())
@@ -276,8 +470,70 @@ namespace pg
         }
     }
 
-    void PlayerSystem::movePlayer(float x, float y)
+    void PlayerSystem::onEvent(const PlayerMoveUp&)
     {
+        movePlayer(0.f, -1.f);
+    }
+
+    void PlayerSystem::onEvent(const PlayerMoveDown&)
+    {
+        movePlayer(0.f, 1.f);
+    }
+
+    void PlayerSystem::onEvent(const PlayerMoveLeft&)
+    {
+        movePlayer(-1.f, 0.f);
+    }
+
+    void PlayerSystem::onEvent(const PlayerMoveRight&)
+    {
+        movePlayer(1.f, 0.f);
+    }
+
+    void PlayerSystem::execute()
+    {
+        if (tryingToDash)
+        {
+            tryingToDash = false;
+            tryDodge();
+        }
+
+        if (deltaTime == 0.0f)
+            return;
+
+        auto delta = deltaTime;
+        deltaTime = 0.0f;
+
+        // auto playerFlag = player->get<PlayerFlag>();
+
+        // LOG_INFO("Player", "tick");
+
+        if (not player->get<PlayerFlag>()->inDodge)
+            return;
+
+        // float step = ((delta / 1000.0f) * dashDistance) / dashDuration;
+        float step = ((delta / 1000.0f) * dashDistance);
+
+        LOG_INFO("Player", "Dashing " << step);
+        // float step = ((delta) * dashDistance) / dashDuration;
+        // float step = ((delta) * dashDistance);// / dashDuration;
+        movePlayer(dashDir.x * step, dashDir.y * step);
+
+        dashElapsed += delta;
+        // if (dashElapsed >= dashDuration)
+        // {
+        //     playerFlag->inDodge = false;
+        // }
+    }
+
+    void PlayerSystem::movePlayer(float x, float y, bool scaleToMoveSpeed)
+    {
+        if (scaleToMoveSpeed)
+        {
+            x *= movespeed;
+            y *= movespeed;
+        }
+
         auto pos = player->get<PositionComponent>();
 
         auto collisionSys = ecsRef->getSystem<CollisionSystem>();
@@ -315,6 +571,8 @@ namespace pg
             // pos->setX(pos->x + x);
             pos->setY(pos->y + y);
         }
+
+        updateCamera();
 
         // // 1) sweep X only
         // auto applX = sweepMove(collisionSys, {pos->x, pos->y}, size, {x, 0.0f}, {0});

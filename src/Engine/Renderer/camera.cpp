@@ -4,7 +4,7 @@
 
 namespace pg
 {
-    static constexpr const char * const DOM = "Camera";    
+    static constexpr const char * const DOM = "Camera";
 
     const glm::mat4& BaseCamera2D::getProjectionMatrix()
     {
@@ -30,8 +30,8 @@ namespace pg
         float normalizedY = mouseY / height;
 
         // Convert normalized coordinates to world space
-        float worldX = x + normalizedX * width;
-        float worldY = y + normalizedY * height;
+        float worldX = x + xOffset + normalizedX * width;
+        float worldY = y + yOffset + normalizedY * height;
 
         return {worldX, worldY};
     }
@@ -40,8 +40,11 @@ namespace pg
     {
         viewMatrix = glm::mat4(1.0f);
 
-        viewMatrix[3][0] = -x * 2.0f / width;
-        viewMatrix[3][1] =  y * 2.0f / height;
+        auto realX = x + xOffset;
+        auto realY = y + yOffset;
+
+        viewMatrix[3][0] = -realX * 2.0f / width;
+        viewMatrix[3][1] =  realY * 2.0f / height;
         viewMatrix[3][2] = -2;
 
         projectionMatrix = getProjectionMatrix();
@@ -54,7 +57,7 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        init(position, up, yaw, pitch); 
+        init(position, up, yaw, pitch);
     }
 
     Camera::Camera(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
@@ -65,7 +68,7 @@ namespace pg
         glm::vec3 position = glm::vec3(posX, posY, posZ);
         glm::vec3 up = glm::vec3(upX, upY, upZ);
 
-        init(position, up, yaw, pitch); 
+        init(position, up, yaw, pitch);
     }
 
     void Camera::init(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
@@ -129,7 +132,7 @@ namespace pg
 
     //     if(inputHandler->isButtonPressed(Qt::RightButton))
     //     {
-    //         //TODO check this value and correct them 
+    //         //TODO check this value and correct them
     //         Position += Up * yoffset / 2.0f;
     //         Position += Right * xoffset / 2.0f;
     //     }
@@ -145,7 +148,7 @@ namespace pg
     //     if (Zoom < 10.0f)
     //         Zoom = 10.0f;
     //     if (Zoom > 45.0f)
-    //         Zoom = 45.0f; 
+    //         Zoom = 45.0f;
     // }
 
     void Camera::updateCameraVectors()

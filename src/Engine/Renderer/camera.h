@@ -35,6 +35,14 @@ namespace pg
 
         virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const override;
 
+        void setOffset(const constant::Vector2D& offset)
+        {
+            xOffset = offset.x;
+            yOffset = offset.y;
+
+            dirty = true;
+        }
+
         void constructMatrices();
 
         virtual ~BaseCamera2D() {}
@@ -46,6 +54,9 @@ namespace pg
 
         float x = 0.0f;
         float y = 0.0f;
+
+        float xOffset = 0.0f;
+        float yOffset = 0.0f;
 
         bool dirty = false;
     };
@@ -64,7 +75,7 @@ namespace pg
         // euler Angles
         float yaw;
         float pitch;
-        
+
         // camera options
         float movementSpeed;
         float mouseSensitivity;

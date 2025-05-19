@@ -10,6 +10,7 @@ namespace pg
         {GameKeyConfig::Interact,    {"Interact", SDL_SCANCODE_E}},
         {GameKeyConfig::Pause,       {"Pause", SDL_SCANCODE_ESCAPE}},
         {GameKeyConfig::Dodge,       {"Dodge", SDL_SCANCODE_SPACE}},
+        {GameKeyConfig::Heal,        {"Heal", SDL_SCANCODE_Q}}
         };
 
 
