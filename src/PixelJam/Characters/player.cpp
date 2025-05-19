@@ -26,7 +26,7 @@ namespace pg
         for (const auto& anim : frames)
         {
             keypoints.push_back({cumulativeAnimationDuration, {anim.textureName, 1}});
-        
+
             cumulativeAnimationDuration += anim.durationInMilliseconds;
         }
 
@@ -37,6 +37,14 @@ namespace pg
 
     void PlayerSystem::init()
     {
+        auto cursorEnt = makeAnchoredPosition(ecsRef);
+
+        cursorEnt.get<PositionComponent>()->setZ(10);
+
+        ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+
+        cursor = cursorEnt.entity;
+
         // auto frame = animFile.frames[7];
         auto idleAnim = animFile["Idle_Front"];
 
@@ -48,7 +56,6 @@ namespace pg
 
         ecsRef->attach<EntityName>(playerEnt.entity, "Player");
         ecsRef->attach<PlayerFlag>(playerEnt.entity);
-        ecsRef->attach<FollowCamera2D>(playerEnt.entity);
 
         ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, getAnimationKeypoint(idleAnim), true, true);
 
@@ -125,13 +132,50 @@ namespace pg
         invicibilityTimer->start();
     }
 
+    void PlayerSystem::updateCamera()
+    {
+        auto cursorPos = cursor->get<PositionComponent>();
+
+        if (not cursorPos)
+            return;
+
+        auto window = ecsRef->getEntity("__MainWindow");
+
+        if (not window)
+            return;
+
+        auto playerPos = player->get<PositionComponent>();
+
+        if (not playerPos)
+            return;
+
+        auto windowWidth = window->get<PositionComponent>()->width / 2.0f;
+        auto windowHeight = window->get<PositionComponent>()->height / 2.0f;
+
+        auto playerWidth = playerPos->width / 2.0f;
+        auto playerHeight = playerPos->height / 2.0f;
+
+        cursorPos->setX(lastCameraPos.x - windowWidth + playerPos->x + playerWidth);
+        cursorPos->setY(lastCameraPos.y - windowHeight + playerPos->y + playerHeight);
+    }
+
+    void PlayerSystem::onProcessEvent(const OnMouseMove& event)
+    {
+        // constant::Vector2D{mousePosInGame.x - pos->x - pos->width / 2.0f, mousePosInGame.y - pos->y - pos->height / 2.0f};
+
+        lastCameraPos.x = event.pos.x;
+        lastCameraPos.y = event.pos.y;
+
+        updateCamera();
+    }
+
     void PlayerSystem::onProcessEvent(const OnMouseClick& event)
     {
         if (event.button == SDL_BUTTON_LEFT)
         {
             auto pos = player->get<PositionComponent>();
             auto weaponEnt = player->get<WeaponComponent>();
-            auto camera = player->get<BaseCamera2D>();
+            auto camera = cursor->get<BaseCamera2D>();
 
             if (not pos or not weaponEnt or not camera)
                 return;
@@ -246,7 +290,7 @@ namespace pg
         case GameKeyConfig::MoveDown:
             if (not bottomTimer->running)
             {
-                lastMoveDir.y = 1.f;                
+                lastMoveDir.y = 1.f;
                 bottomTimer->start();
             }
             break;
@@ -338,7 +382,7 @@ namespace pg
             return;
 
         player->get<PlayerFlag>()->inDodge = true;
-        
+
         dodgeTimer->start();
 
         if (lastMoveDir.x == 1.f)
@@ -366,7 +410,7 @@ namespace pg
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
         // // Todo need mirror
-        // 
+        //
 
 
         dashElapsed = 0.0f;
@@ -432,7 +476,7 @@ namespace pg
     }
 
     void PlayerSystem::onEvent(const PlayerMoveDown&)
-    {   
+    {
         movePlayer(0.f, 1.f);
     }
 
@@ -527,6 +571,8 @@ namespace pg
             // pos->setX(pos->x + x);
             pos->setY(pos->y + y);
         }
+
+        updateCamera();
 
         // // 1) sweep X only
         // auto applX = sweepMove(collisionSys, {pos->x, pos->y}, size, {x, 0.0f}, {0});

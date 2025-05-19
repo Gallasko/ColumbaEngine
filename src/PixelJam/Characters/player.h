@@ -132,7 +132,7 @@ namespace pg
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
         Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
-        Listener<TickEvent>>
+        Listener<TickEvent>, QueuedListener<OnMouseMove>>
     {
         AsepriteFile animFile;
         PlayerSystem(const AsepriteFile& animFile) : animFile(animFile) {}
@@ -162,6 +162,10 @@ namespace pg
         {
             deltaTime += event.tick;
         }
+
+        void updateCamera();
+
+        virtual void onProcessEvent(const OnMouseMove& event) override;
 
         virtual void onProcessEvent(const OnMouseClick& event) override;
 
@@ -217,6 +221,10 @@ namespace pg
         virtual void execute() override;
 
         void movePlayer(float x, float y, bool scaleToMovespeed = true);
+
+        EntityRef cursor;
+
+        constant::Vector2D lastCameraPos {0.f, 0.f};
 
         EntityRef player;
 
