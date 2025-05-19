@@ -242,7 +242,7 @@
   "size": { "w": 110, "h": 160 },
   "scale": "1",
   "frameTags": [
-   { "name": "Idle_Front", "from": 0, "to": 1, "direction": "forward", "color": "#000000ff", "data": "test" },
+   { "name": "Idle_Front", "from": 0, "to": 1, "direction": "forward", "color": "#000000ff" },
    { "name": "Idle_Profile", "from": 2, "to": 3, "direction": "forward", "color": "#000000ff" },
    { "name": "Idle_Back", "from": 4, "to": 5, "direction": "forward", "color": "#000000ff" },
    { "name": "Run_Profile", "from": 6, "to": 9, "direction": "forward", "color": "#000000ff" },
