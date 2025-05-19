@@ -281,8 +281,6 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         size_t scaledTileWidth = mapData.tileWidthInSPixels;
         size_t scaledTileHeight = mapData.tileHeightInSPixels;
 
-
-
         for (const auto &layer: mapData.layers)
         {
             for (const auto &tile : layer.tiles)
@@ -437,7 +435,9 @@ void initGame() {
     mainWindow->ecs.createSystem<Texture2DAnimatorSystem>();
 
     mainWindow->ecs.createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
+    mainWindow->ecs.createSystem<CameraShakeSystem>();
 
+    mainWindow->ecs.succeed<FollowCamera2DSystem, CameraShakeSystem>();
     mainWindow->ecs.succeed<FollowCamera2DSystem, PositionComponent>();
     mainWindow->ecs.succeed<MasterRenderer, FollowCamera2DSystem>();
 

@@ -385,6 +385,11 @@ namespace pg
 
             registerComponents(this, registry, tag<Comps>{}...);
 
+            if ((executionPolicy == ExecutionPolicy::Manual or executionPolicy == ExecutionPolicy::Storage) and _executionQueue.size() > 0)
+            {
+                LOG_WARNING("System", "Trying to add a QueuedListener to a system that will not have an execute call. (Remove the Manual/Storage policy or call execute())");
+            } 
+
             onRegisterFinished();
         }
 

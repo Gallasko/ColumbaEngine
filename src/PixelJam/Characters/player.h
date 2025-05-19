@@ -142,13 +142,17 @@ namespace pg
             entityId = entity->id;
         }
 
+        void shake(float duration, float magnitude) { active = true; this->duration = duration; this->magnitude = magnitude; }
+
         EntitySystem* ecsRef = nullptr;
         _unique_id entityId = 0;
     };
 
     // Todo make an update sys that get the current delta time of the ecs
 
-    struct CameraShakeSystem : public System<InitSys, Own<CameraShakeComponent>, Listener<TickEvent>>
+    // Todo Init sys should be defined after all the own if you want to register a group in init
+
+    struct CameraShakeSystem : public System<Own<CameraShakeComponent>, InitSys, Listener<TickEvent>>
     {
         virtual std::string getSystemName() const override { return "Camera Shake"; }
 
@@ -252,35 +256,11 @@ namespace pg
 
         virtual void onProcessEvent(const OnMouseClick& event) override;
 
+        void selectedRunningAnimation();
+
         virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override;
 
-        virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
-        {
-            switch (event.value)
-            {
-            case GameKeyConfig::MoveLeft:
-                leftTimer->stop();
-                break;
-            case GameKeyConfig::MoveRight:
-                rightTimer->stop();
-                break;
-            case GameKeyConfig::MoveUp:
-                upTimer->stop();
-                break;
-            case GameKeyConfig::MoveDown:
-                bottomTimer->stop();
-                break;
-
-            default:
-                break;
-            }
-
-            if (leftTimer->running == false and rightTimer->running == false)
-                lastMoveDir.x = 0.f;
-
-            if (upTimer->running == false and bottomTimer->running == false)
-                lastMoveDir.y = 0.f;
-        }
+        virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override;
 
         void tryCollect();
 

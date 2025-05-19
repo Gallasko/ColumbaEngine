@@ -42,6 +42,7 @@ namespace pg
         cursorEnt.get<PositionComponent>()->setZ(10);
 
         ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+        ecsRef->attach<CameraShakeComponent>(cursorEnt.entity);
 
         cursor = cursorEnt.entity;
 
@@ -123,6 +124,9 @@ namespace pg
     {
         if (invincibility)
             return;
+
+
+        cursor->get<CameraShakeComponent>()->shake(150.f, 25.f);
 
         health -= event.damage;
 
@@ -262,6 +266,40 @@ namespace pg
         }
     }
 
+    void PlayerSystem::selectedRunningAnimation()
+    {
+        if (lastMoveDir.x == 1.f)
+        {
+            auto playingAnim = animFile["Run_Profile"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir.x)
+        {
+            auto playingAnim = animFile["Run_Profile_L"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir == constant::Vector2D{0.f, -1.f})
+        {
+            auto playingAnim = animFile["Run_Back"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir == constant::Vector2D{0.f, 1.f})
+        {
+            auto playingAnim = animFile["Run_Front"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else
+        {
+            auto playingAnim = animFile["Idle_Front"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+    }
+
     void PlayerSystem::onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event)
     {
         switch (event.value)
@@ -271,6 +309,8 @@ namespace pg
             {
                 lastMoveDir.x = -1.f;
                 leftTimer->start();
+
+                selectedRunningAnimation();
             }
             break;
         case GameKeyConfig::MoveRight:
@@ -278,6 +318,8 @@ namespace pg
             {
                 lastMoveDir.x = 1.f;
                 rightTimer->start();
+
+                selectedRunningAnimation();
             }
             break;
         case GameKeyConfig::MoveUp:
@@ -285,6 +327,8 @@ namespace pg
             {
                 lastMoveDir.y = -1.f;
                 upTimer->start();
+
+                selectedRunningAnimation();
             }
             break;
         case GameKeyConfig::MoveDown:
@@ -292,6 +336,8 @@ namespace pg
             {
                 lastMoveDir.y = 1.f;
                 bottomTimer->start();
+                
+                selectedRunningAnimation();
             }
             break;
 
@@ -310,6 +356,45 @@ namespace pg
         default:
             break;
         }
+    }
+
+    void PlayerSystem::onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event)
+    {
+        bool movementKeyPress = false;
+        switch (event.value)
+        {
+        case GameKeyConfig::MoveLeft:
+            leftTimer->stop();
+            movementKeyPress = true;
+            break;
+        case GameKeyConfig::MoveRight:
+            rightTimer->stop();
+            movementKeyPress = true;
+            break;
+        case GameKeyConfig::MoveUp:
+            upTimer->stop();
+            movementKeyPress = true;
+            break;
+        case GameKeyConfig::MoveDown:
+            bottomTimer->stop();
+            movementKeyPress = true;
+            break;
+
+        default:
+            break;
+        }
+
+        bool xAxisNotRunning = leftTimer->running == false and rightTimer->running == false;
+        bool yAxisNotRunning = upTimer->running == false and bottomTimer->running == false;
+
+        if (xAxisNotRunning)
+            lastMoveDir.x = 0.f;
+
+        if (yAxisNotRunning)
+            lastMoveDir.y = 0.f;
+
+        if (movementKeyPress)
+            selectedRunningAnimation();
     }
 
     void PlayerSystem::tryCollect()
@@ -381,6 +466,8 @@ namespace pg
         if (lastMoveDir.x == 0.f and lastMoveDir.y == 0.f)
             return;
 
+        LOG_INFO("Player System", "Trying to dodge");
+
         player->get<PlayerFlag>()->inDodge = true;
 
         dodgeTimer->start();
@@ -409,9 +496,6 @@ namespace pg
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
-        // // Todo need mirror
-        //
-
 
         dashElapsed = 0.0f;
         dashDir = lastMoveDir.normalized();
@@ -421,9 +505,7 @@ namespace pg
     {
         player->get<PlayerFlag>()->inDodge = false;
 
-        auto playingAnim = animFile["Idle_Front"];
-
-        player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        selectedRunningAnimation();
     }
 
     void PlayerSystem::tryHeal()
