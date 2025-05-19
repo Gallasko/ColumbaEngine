@@ -53,7 +53,6 @@ AsepriteFile AsepriteLoader::loadAnim(const std::string &path) {
     }
 
 
-
     fs::path imagePath = meta["image"];       // relative to JSON
     fs::path resolvedPath = fs::absolute(jsonDir / imagePath);  // full path
 
@@ -65,20 +64,30 @@ AsepriteFile AsepriteLoader::loadAnim(const std::string &path) {
     result.metadata.imageHeightInSPixels = meta["size"]["h"];
 
     for (const auto& tag : meta["frameTags"]) {
+        if (tag.contains("data")) {
+            result.customData[tag["name"]] = tag["data"];
+            continue;
+        }
+
         AsepriteAnimation anim;
         anim.name = tag["name"];
         anim.frameStart = tag["from"];
         anim.frameEnd = tag["to"];
-        if (tag.contains("data")) {
-            anim.customData = tag["data"];
-        }
+        anim.reversed = tag["direction"] == "forward";
+
         result.metadata.anims.push_back(anim);
     }
 
     for (const auto& anim : result.metadata.anims) {
         std::vector<AsepriteFrame> frames;
-        for (int i = anim.frameStart; i <= anim.frameEnd; ++i) {
-                frames.push_back(result.frames[i]);
+        if (anim.reversed) {
+            for (int k = anim.frameEnd; k >= anim.frameStart; --k) {
+                frames.push_back(result.frames[k]);
+            }
+        } else {
+            for (int k = anim.frameStart; k <= anim.frameEnd; ++k) {
+                frames.push_back(result.frames[k]);
+            }
         }
         result.animations[anim.name] = frames;
     }

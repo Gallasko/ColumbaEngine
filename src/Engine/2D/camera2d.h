@@ -142,7 +142,7 @@ namespace pg
             auto group = registerGroup<FollowCamera2D, PositionComponent>();
 
             group->addOnGroup([this](EntityRef entity) {
-                LOG_MILE(DOM, "Add entity " << entity->id << " to ui - camera group !");
+                LOG_MILE("FollowCamera2DSystem", "Add entity " << entity->id << " to ui - camera group !");
 
                 auto followCam = entity->get<FollowCamera2D>();
                 auto pos = entity->get<PositionComponent>();
@@ -155,7 +155,7 @@ namespace pg
             });
 
             group->removeOfGroup([](EntitySystem* ecsRef, _unique_id id) {
-                LOG_MILE(DOM, "Remove entity " << id << " of ui - camera group !");
+                LOG_MILE("FollowCamera2DSystem", "Remove entity " << id << " of ui - camera group !");
 
                 auto ent = ecsRef->getEntity(id);
 

@@ -94,6 +94,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
     }
 };
 
+constexpr float repulsionStrength = 1.f;
+
 struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode> > {
     int testVar = 0;
     MapData mapData;
@@ -169,7 +171,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->removeEntity(bullet->entityId);
         });
 
-        const float repulsionStrength = 1.f;
+        // Todo make a macro for LOG_INFO and LOG_ERROR with a single argument that use a default DOM
 
         // Todo we need this because sweep move is bugged
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
@@ -180,15 +182,24 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             auto epos     = playerEnt->get<PositionComponent>();
 
             // compute normalized vector from wall→enemy
-            float dx = epos->x - wpos->x;
-            float dy = epos->y - wpos->y;
-            float len = std::sqrt(dx*dx + dy*dy);
-            if (len > 0.f) {
+
+            float x = epos->x;
+            float y = epos->y;
+
+            float wx = wpos->x;
+            float wy = wpos->y;
+
+            float dx = x - wx;
+            float dy = y - wy;
+            float len = std::sqrt(dx * dx + dy * dy);
+
+            if (len > 1e-5f)
+            {
                 dx /= len;
                 dy /= len;
                 // shove enemy out
-                epos->setX(epos->x + dx * repulsionStrength);
-                epos->setY(epos->y + dy * repulsionStrength);
+                epos->setX(x + dx * repulsionStrength);
+                epos->setY(y + dy * repulsionStrength);
             }
         });
 
@@ -318,16 +329,6 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
             count++;
         }
-
-        /*auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, testAnim.frames[7].textureName);
-        auto texComp = tex.get<Texture2DComponent>();
-        texComp->setViewport(1);
-
-        auto posComp = tex.get<PositionComponent>();
-        posComp->setX(mapData.playerSpawn.positionSPixels.x);
-        posComp->setY(mapData.playerSpawn.positionSPixels.y);
-        posComp->setZ(z+5);*/
-
 
 
         // drawDebugGrid(ecsRef, 2500, 5000);
@@ -572,6 +573,12 @@ void initGame() {
         std::cout << "Spike Image: " << spike << std::endl;
     }
     std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;
+
+    std::cout << "---PRINT GOLDS---" << std::endl;
+    for (const auto &g : map.golds) {
+        std::cout << "gold: " << g << std::endl;
+    }
+    std::cout << "---PRINT GOLDS--- END" << std::endl;
 
     for (const auto &spawner : map.spawners)
     {

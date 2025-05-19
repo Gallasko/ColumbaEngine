@@ -149,10 +149,13 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                     }
                     else if (obj.get<bool>("door")) {
                         PG_ASSERT(obj.has(RoomIndex), "a door must have room index")
+                        PG_ASSERT(obj.has("vertical"), "a door must have vertical flag")
                         const auto& roomIndex = obj.get<int>(RoomIndex);
                         Door door;
 
                         door.roomIndex = roomIndex;
+
+                        door.vertical = obj.get<bool>("vertical");
 
                         TiledRect rect;
                         rect.topLeftCornerX = obj.getPosition().x * scaleFactor;
@@ -296,6 +299,12 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
 
                         point.positionSPixels = positionSPixels;
                         result.playerSpawn = point;
+                    }
+                    else if (obj.get<bool>("gold")) {
+                        Gold g;
+                        g.posXInSPixels = obj.getPosition().x * scaleFactor;
+                        g.posYInSPixels = obj.getPosition().y * scaleFactor;
+                        result.golds.push_back(g);
                     }
                 }
                 break;

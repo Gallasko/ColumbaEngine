@@ -10,12 +10,13 @@
 #include <string>
 #include <ostream>
 #include <iostream>
+#include <map>
 
 struct AsepriteAnimation {
     std::string name;
     int frameStart;
     int frameEnd;
-    std::string customData;
+    bool reversed;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const AsepriteAnimation &data) {
@@ -23,7 +24,7 @@ inline std::ostream &operator<<(std::ostream &os, const AsepriteAnimation &data)
             << "  name: " << data.name << "\n"
             << "  frame start: " << data.frameStart << "\n"
             << "  frame end: " << data.frameEnd << "\n"
-            << "  custom data: " << data.customData << "\n"
+    << " reversed : " << data.reversed << "\n"
             << "}";
     return os;
 }
@@ -85,6 +86,8 @@ struct AsepriteFile {
      */
     std::string filename;
 
+    std::map<std::string, std::string> customData;
+
     std::unordered_map<std::string, std::vector<AsepriteFrame>> animations;
 
     std::vector<AsepriteFrame> operator[](const std::string &name) {
@@ -111,6 +114,12 @@ inline std::ostream &operator<<(std::ostream &os, const AsepriteFile &data) {
         for (const auto &frame: val) {
             os << "    " << frame << "\n";
         }
+    }
+
+    os << "  CUSTOM DATA \n";
+
+    for (const auto &[key, val] : data.customData) {
+        os << key  << " : " << val << "\n";
     }
 
     return os;
