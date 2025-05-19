@@ -13,6 +13,11 @@
              "name":"roomIndex",
              "type":"int",
              "value":1
+            }, 
+            {
+             "name":"vertical",
+             "type":"bool",
+             "value":true
             }],
      "rotation":0,
      "type":"",

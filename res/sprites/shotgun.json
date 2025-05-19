@@ -1,0 +1,25 @@
+{ "frames": [
+   {
+    "filename": "0",
+    "frame": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "rotated": false,
+    "trimmed": false,
+    "spriteSourceSize": { "x": 0, "y": 0, "w": 64, "h": 64 },
+    "sourceSize": { "w": 64, "h": 64 },
+    "duration": 100
+   }
+ ],
+ "meta": {
+  "app": "https://www.aseprite.org/",
+  "version": "1.3.13-x64",
+  "image": "shotgun.png",
+  "format": "RGBA8888",
+  "size": { "w": 64, "h": 64 },
+  "scale": "1",
+  "frameTags": [
+   { "name": "Pistol", "from": 0, "to": 0, "direction": "forward", "color": "#000000ff" },
+   { "name": "Pivot_Offset", "from": 1, "to": 1, "direction": "forward", "color": "#fe5b59ff", "data": "6 37" },
+   { "name": "Shoot_Spawn", "from": 2, "to": 2, "direction": "forward", "color": "#fe5b59ff", "data": "64 28" }
+  ]
+ }
+}
