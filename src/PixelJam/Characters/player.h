@@ -200,6 +200,16 @@ namespace pg
         }
     };
 
+    struct GameStart
+    {
+
+    };
+
+    struct GameEnd
+    {
+        bool win = false;
+    };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
@@ -313,6 +323,7 @@ namespace pg
 
         std::unordered_map<std::string, EntityRef> uiElements;
         float health = 5.0f;
+        float maxHealth = 5.0f;
 
         float deltaTime = 0.0f;
 
