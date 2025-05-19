@@ -347,6 +347,12 @@ namespace pg
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
+        else if (lastMoveDir.x == -1.f)
+        {
+            auto playingAnim = animFile["Dodgle_Profile_L"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
         else if (lastMoveDir.y == -1.f)
         {
             auto playingAnim = animFile["Dodge_Back"];
@@ -360,11 +366,7 @@ namespace pg
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
         // // Todo need mirror
-        // else if (lastMoveDir.x == -1.f)
-        // {
-        //     //
-        //     auto playingAnim = animFile["Dodge_Profile"];
-        // }
+        // 
 
 
         dashElapsed = 0.0f;

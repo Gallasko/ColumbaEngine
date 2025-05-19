@@ -418,7 +418,7 @@ namespace pg
             b.get<Simple2DObject>()->setViewport(1);
 
             std::vector<size_t> collidableLayer = {0, 1};
-            ecsRef->attach<CollisionComponent>(b.entity, 5, 1., collidableLayer);
+            ecsRef->attach<CollisionComponent>(b.entity, 5, 0.6, collidableLayer);
 
             ecsRef->attach<MoveDirComponent>(b.entity, dir, weapon.projectileSpeed, weapon.projectileLifeTime, true);
             ecsRef->attach<EnemyBulletFlag>(b.entity, weapon.damage);
