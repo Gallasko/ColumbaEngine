@@ -300,6 +300,12 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         point.positionSPixels = positionSPixels;
                         result.playerSpawn = point;
                     }
+                    else if (obj.get<bool>("gold")) {
+                        Gold g;
+                        g.posXInSPixels = obj.getPosition().x * scaleFactor;
+                        g.posYInSPixels = obj.getPosition().y * scaleFactor;
+                        result.golds.push_back(g);
+                    }
                 }
                 break;
             case tson::LayerType::ImageLayer:

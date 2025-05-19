@@ -3,14 +3,14 @@
         "height": 4300,
         "width": 2
     },
-    "activeFile": "",
+    "activeFile": "LEVELS/Level_0001.json",
     "automapping.whileDrawing": false,
     "expandedProjectPaths": [
-        "EXPORTS",
         "TEMPLATES",
-        "LEVELS",
         "Templates",
-        "."
+        ".",
+        "LEVELS",
+        "EXPORTS"
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
@@ -48,11 +48,14 @@
             "scaleInDock": 1
         },
         "LEVELS/Level_0001.json": {
-            "scale": 0.5,
-            "selectedLayer": 0,
+            "expandedObjectLayers": [
+                16
+            ],
+            "scale": 3,
+            "selectedLayer": 4,
             "viewCenter": {
-                "x": 315,
-                "y": 1440
+                "x": 560.1666666666666,
+                "y": 1200
             }
         },
         "LEVELS/Level_0001.json#PROTO_BASE": {
@@ -60,15 +63,15 @@
             "scaleInEditor": 3
         },
         "LEVELS/Level_0001.json#Prod": {
-            "scaleInDock": 3,
+            "scaleInDock": 4,
             "scaleInEditor": 5.5
         },
         "LEVELS/Level_DEV_0001.json": {
             "scale": 1.5,
             "selectedLayer": 2,
             "viewCenter": {
-                "x": 299.66666666666663,
-                "y": 221
+                "x": 206,
+                "y": 159.99999999999997
             }
         },
         "LEVELS/Level_DEV_0001.json#Beach": {
@@ -153,7 +156,7 @@
     "last.exportedFilePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/Pixel_Jam_2025/Pixel_Jam_Levels/LEVELS",
     "last.externalTilesetPath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/res/tiled/SOURCES/Prod",
     "last.imagePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/res/tiled/SOURCES/Prod",
-    "last.objectTemplatePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/release/res/tiled/TEMPLATES",
+    "last.objectTemplatePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/res/tiled/TEMPLATES",
     "map.height": 50,
     "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "json",
@@ -161,13 +164,15 @@
     "map.tileWidth": 16,
     "map.width": 50,
     "openFiles": [
+        "LEVELS/Level_0001.json",
+        "LEVELS/Level_DEV_0001.json"
     ],
     "project": "Tiled_Levels.tiled-project",
     "property.type": "bool",
     "recentFiles": [
-        "LEVELS/RULES/Rules.tmj",
-        "LEVELS/Level_0001.json",
         "LEVELS/Level_DEV_0001.json",
+        "LEVELS/Level_0001.json",
+        "LEVELS/RULES/Rules.tmj",
         "Level_Debug.json",
         "EXPORTS/Level_Debug.json",
         "Level_Debug.tmx"

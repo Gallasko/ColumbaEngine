@@ -561,6 +561,12 @@ void initGame() {
     }
     std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;
 
+    std::cout << "---PRINT GOLDS---" << std::endl;
+    for (const auto &g : map.golds) {
+        std::cout << "gold: " << g << std::endl;
+    }
+    std::cout << "---PRINT GOLDS--- END" << std::endl;
+
     for (const auto &spawner : map.spawners)
     {
         roomSystem->addSpawner(spawner);

@@ -138,6 +138,7 @@ inline std::ostream &operator<<(std::ostream &os, const Door &trigger) {
             << "  rectInSPixels: " << trigger.rectInSPixels << "\n"
             << "  rectIn Tile: " << trigger.rectTilesSpace << "\n"
             << "  roomIndex: " << trigger.roomIndex << "\n"
+    << "  vertical: " << trigger.vertical << "\n"
             << "}";
     return os;
 }
@@ -219,6 +220,19 @@ inline std::ostream &operator<<(std::ostream &os, const Spawner &spawner) {
         os << "    " << spawn << "\n";
     }
     os << "  ]\n}";
+    return os;
+}
+
+struct Gold {
+    float posXInSPixels;
+    float posYInSPixels;
+};
+
+inline std::ostream &operator<<(std::ostream &os, const Gold &spawner) {
+    os << "Gold {\n"
+
+            << "  posXInSPixels: " << spawner.posXInSPixels << "\n"
+            << "  posYInSPixels: " << spawner.posYInSPixels << "\n";
     return os;
 }
 
@@ -367,6 +381,7 @@ struct MapData {
      * All the spikes images
      */
     std::vector<SpikeImage> spike_images;
+    std::vector<Gold> golds;
     /*!
      *
      */
