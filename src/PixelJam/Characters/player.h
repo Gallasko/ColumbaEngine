@@ -252,35 +252,11 @@ namespace pg
 
         virtual void onProcessEvent(const OnMouseClick& event) override;
 
+        void selectedRunningAnimation();
+
         virtual void onProcessEvent(const ConfiguredKeyEvent<GameKeyConfig>& event) override;
 
-        virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override
-        {
-            switch (event.value)
-            {
-            case GameKeyConfig::MoveLeft:
-                leftTimer->stop();
-                break;
-            case GameKeyConfig::MoveRight:
-                rightTimer->stop();
-                break;
-            case GameKeyConfig::MoveUp:
-                upTimer->stop();
-                break;
-            case GameKeyConfig::MoveDown:
-                bottomTimer->stop();
-                break;
-
-            default:
-                break;
-            }
-
-            if (leftTimer->running == false and rightTimer->running == false)
-                lastMoveDir.x = 0.f;
-
-            if (upTimer->running == false and bottomTimer->running == false)
-                lastMoveDir.y = 0.f;
-        }
+        virtual void onProcessEvent(const ConfiguredKeyEventReleased<GameKeyConfig>& event) override;
 
         void tryCollect();
 
