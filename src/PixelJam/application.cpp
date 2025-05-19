@@ -321,16 +321,6 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             count++;
         }
 
-        /*auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, testAnim.frames[7].textureName);
-        auto texComp = tex.get<Texture2DComponent>();
-        texComp->setViewport(1);
-
-        auto posComp = tex.get<PositionComponent>();
-        posComp->setX(mapData.playerSpawn.positionSPixels.x);
-        posComp->setY(mapData.playerSpawn.positionSPixels.y);
-        posComp->setZ(z+5);*/
-
-
 
         // drawDebugGrid(ecsRef, 2500, 5000);
 

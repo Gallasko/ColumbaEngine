@@ -163,7 +163,7 @@
     "openFiles": [
     ],
     "project": "Tiled_Levels.tiled-project",
-    "property.type": "int",
+    "property.type": "bool",
     "recentFiles": [
         "LEVELS/RULES/Rules.tmj",
         "LEVELS/Level_0001.json",

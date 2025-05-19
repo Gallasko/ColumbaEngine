@@ -130,6 +130,7 @@ struct Door {
     TiledRect rectInSPixels;
     TileRectTilesSpace rectTilesSpace;
     int roomIndex;
+    bool vertical;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Door &trigger) {
