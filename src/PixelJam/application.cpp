@@ -465,6 +465,8 @@ void initGame() {
 
     mainWindow->ecs.createSystem<CollisionHandlerSystem>();
 
+    mainWindow->ecs.succeed<CollisionHandlerSystem, CollisionSystem>();
+
     mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
 
     // mainWindow->ecs.succeed<CollisionSystem, PositionComponent>();
