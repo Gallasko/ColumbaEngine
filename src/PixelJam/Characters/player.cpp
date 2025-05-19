@@ -17,6 +17,24 @@ namespace pg
         return weapon;
     }
 
+    std::vector<Animation2DKeyPoint> getAnimationKeypoint(const std::vector<AsepriteFrame>& frames)
+    {
+        std::vector<Animation2DKeyPoint> keypoints;
+
+        size_t cumulativeAnimationDuration = 0;
+
+        for (const auto& anim : frames)
+        {
+            keypoints.push_back({cumulativeAnimationDuration, {anim.textureName, 1}});
+        
+            cumulativeAnimationDuration += anim.durationInMilliseconds;
+        }
+
+        keypoints.push_back({cumulativeAnimationDuration, {frames.back().textureName, 1}});
+
+        return keypoints;
+    }
+
     void PlayerSystem::init()
     {
         // auto frame = animFile.frames[7];
@@ -32,20 +50,7 @@ namespace pg
         ecsRef->attach<PlayerFlag>(playerEnt.entity);
         ecsRef->attach<FollowCamera2D>(playerEnt.entity);
 
-        std::vector<Animation2DKeyPoint> keypoints;
-
-        size_t cumulativeAnimationDuration = 0;
-
-        for (const auto& anim : idleAnim)
-        {
-            keypoints.push_back({cumulativeAnimationDuration, {anim.textureName, 1}});
-        
-            cumulativeAnimationDuration += anim.durationInMilliseconds;
-        }
-
-        keypoints.push_back({cumulativeAnimationDuration, {idleAnim.back().textureName, 1}});
-
-        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, keypoints, true, true);
+        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, getAnimationKeypoint(idleAnim), true, true);
 
         playerEnt.get<Texture2DComponent>()->setViewport(1);
 
@@ -219,19 +224,31 @@ namespace pg
         {
         case GameKeyConfig::MoveLeft:
             if (not leftTimer->running)
+            {
+                lastMoveDir.x = -1.f;
                 leftTimer->start();
+            }
             break;
         case GameKeyConfig::MoveRight:
             if (not rightTimer->running)
+            {
+                lastMoveDir.x = 1.f;
                 rightTimer->start();
+            }
             break;
         case GameKeyConfig::MoveUp:
             if (not upTimer->running)
+            {
+                lastMoveDir.y = -1.f;
                 upTimer->start();
+            }
             break;
         case GameKeyConfig::MoveDown:
             if (not bottomTimer->running)
+            {
+                lastMoveDir.y = 1.f;                
                 bottomTimer->start();
+            }
             break;
 
         case GameKeyConfig::Interact:
@@ -239,7 +256,7 @@ namespace pg
             break;
 
         case GameKeyConfig::Dodge:
-            tryDodge();
+            tryingToDash = true;
             break;
 
         case GameKeyConfig::Heal:
@@ -324,14 +341,43 @@ namespace pg
         
         dodgeTimer->start();
 
+        if (lastMoveDir.x == 1.f)
+        {
+            auto playingAnim = animFile["Dodge_Profile"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir.y == -1.f)
+        {
+            auto playingAnim = animFile["Dodge_Back"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        else if (lastMoveDir.y == 1.f)
+        {
+            auto playingAnim = animFile["Dodge_Front"];
+
+            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+        }
+        // // Todo need mirror
+        // else if (lastMoveDir.x == -1.f)
+        // {
+        //     //
+        //     auto playingAnim = animFile["Dodge_Profile"];
+        // }
+
+
         dashElapsed = 0.0f;
         dashDir = lastMoveDir.normalized();
+    }
 
-        float dashDistance = 30.f;  // tweak to taste
-        constant::Vector2D dashDelta = lastMoveDir * dashDistance;
+    void PlayerSystem::onEvent(const PlayerDodgeEndEvent& event)
+    {
+        player->get<PlayerFlag>()->inDodge = false;
 
-        // Perform the movement
-        movePlayer(dashDelta.x, dashDelta.y);
+        auto playingAnim = animFile["Idle_Front"];
+
+        player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
     }
 
     void PlayerSystem::tryHeal()
@@ -380,26 +426,58 @@ namespace pg
 
     void PlayerSystem::onEvent(const PlayerMoveUp&)
     {
-        lastMoveDir.y = -1.f;
         movePlayer(0.f, -1.f);
     }
 
     void PlayerSystem::onEvent(const PlayerMoveDown&)
-    {
-        lastMoveDir.y = 1.f;
+    {   
         movePlayer(0.f, 1.f);
     }
 
     void PlayerSystem::onEvent(const PlayerMoveLeft&)
     {
-        lastMoveDir.x = -1.f;
         movePlayer(-1.f, 0.f);
     }
 
     void PlayerSystem::onEvent(const PlayerMoveRight&)
     {
-        lastMoveDir.x = 1.f;
         movePlayer(1.f, 0.f);
+    }
+
+    void PlayerSystem::execute()
+    {
+        if (tryingToDash)
+        {
+            tryingToDash = false;
+            tryDodge();
+        }
+
+        if (deltaTime == 0.0f)
+            return;
+
+        auto delta = deltaTime;
+        deltaTime = 0.0f;
+
+        // auto playerFlag = player->get<PlayerFlag>();
+
+        // LOG_INFO("Player", "tick");
+
+        if (not player->get<PlayerFlag>()->inDodge)
+            return;
+
+        // float step = ((delta / 1000.0f) * dashDistance) / dashDuration;
+        float step = ((delta / 1000.0f) * dashDistance);
+
+        LOG_INFO("Player", "Dashing " << step);
+        // float step = ((delta) * dashDistance) / dashDuration;
+        // float step = ((delta) * dashDistance);// / dashDuration;
+        movePlayer(dashDir.x * step, dashDir.y * step);
+
+        dashElapsed += delta;
+        // if (dashElapsed >= dashDuration)
+        // {
+        //     playerFlag->inDodge = false;
+        // }
     }
 
     void PlayerSystem::movePlayer(float x, float y, bool scaleToMoveSpeed)

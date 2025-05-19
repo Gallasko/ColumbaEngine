@@ -148,7 +148,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 auto weapon = ecsRef->getComponent<WeaponComponent>(enemy->entityId);
                 auto pos = ecsRef->getComponent<PositionComponent>(enemy->entityId);
 
-                if (weapon and pos)
+                if (weapon and pos and (not (weapon->weapon.ammo == 0)))
                 {
                     auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
 

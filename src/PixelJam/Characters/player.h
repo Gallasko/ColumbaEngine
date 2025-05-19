@@ -131,7 +131,8 @@ namespace pg
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
-        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>>
+        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
+        Listener<TickEvent>>
     {
         AsepriteFile animFile;
         PlayerSystem(const AsepriteFile& animFile) : animFile(animFile) {}
@@ -155,9 +156,11 @@ namespace pg
             player->get<PositionComponent>()->setVisibility(true);
         }
 
-        virtual void onEvent(const PlayerDodgeEndEvent& event) override
+        virtual void onEvent(const PlayerDodgeEndEvent& event) override;
+
+        virtual void onEvent(const TickEvent& event) override
         {
-            player->get<PlayerFlag>()->inDodge = false;
+            deltaTime += event.tick;
         }
 
         virtual void onProcessEvent(const OnMouseClick& event) override;
@@ -211,6 +214,8 @@ namespace pg
 
         virtual void onEvent(const PlayerMoveRight&) override;
 
+        virtual void execute() override;
+
         void movePlayer(float x, float y, bool scaleToMovespeed = true);
 
         EntityRef player;
@@ -228,9 +233,12 @@ namespace pg
         std::unordered_map<std::string, EntityRef> uiElements;
         float health = 5.0f;
 
+        float deltaTime = 0.0f;
+
+        bool tryingToDash = false;
         float dashDuration = 200.f;
         float dashElapsed = 0.f;
-        float dashDistance = 30.f;
+        float dashDistance = 85.f;
         constant::Vector2D dashDir = {0.f, 0.f};
 
         constant::Vector2D lastMoveDir{0.f, 0.f};
