@@ -94,6 +94,8 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
     }
 };
 
+constexpr float repulsionStrength = 1.f;
+
 struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode> > {
     int testVar = 0;
     MapData mapData;
@@ -169,7 +171,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->removeEntity(bullet->entityId);
         });
 
-        const float repulsionStrength = 1.f;
+        // Todo make a macro for LOG_INFO and LOG_ERROR with a single argument that use a default DOM
 
         // Todo we need this because sweep move is bugged
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
@@ -180,15 +182,24 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             auto epos     = playerEnt->get<PositionComponent>();
 
             // compute normalized vector from wall→enemy
-            float dx = epos->x - wpos->x;
-            float dy = epos->y - wpos->y;
-            float len = std::sqrt(dx*dx + dy*dy);
-            if (len > 0.f) {
+
+            float x = epos->x;
+            float y = epos->y;
+
+            float wx = wpos->x;
+            float wy = wpos->y;
+
+            float dx = x - wx;
+            float dy = y - wy;
+            float len = std::sqrt(dx * dx + dy * dy);
+
+            if (len > 1e-5f)
+            {
                 dx /= len;
                 dy /= len;
                 // shove enemy out
-                epos->setX(epos->x + dx * repulsionStrength);
-                epos->setY(epos->y + dy * repulsionStrength);
+                epos->setX(x + dx * repulsionStrength);
+                epos->setY(y + dy * repulsionStrength);
             }
         });
 
