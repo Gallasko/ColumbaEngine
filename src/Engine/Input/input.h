@@ -12,7 +12,7 @@ namespace pg
 
 	struct MousePos
 	{
-		float x, y;
+		float x = 0.0f, y = 0.0f;
 	
 		MousePos& operator+=(const MousePos& rhs) { x += rhs.x; y += rhs.y; return *this; }
 	};
