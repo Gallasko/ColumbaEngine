@@ -14,6 +14,10 @@
 
 #include "../config.h"
 
+// Todo remove this
+// This is to import outlinedTTFText
+#include "player.h"
+
 namespace pg
 {
     constexpr float ENEMYINVICIBILITYTIMEMS = 200.f;
@@ -196,6 +200,9 @@ namespace pg
 
                 ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
                 ecsRef->attach<AIStateComponent>(ent.entity, spawnData.enemy.ai);
+
+                // Todo fix ttf may be off by one when loading the atlas
+                makeOutlinedTTFText(ecsRef, spawnData.x, spawnData.y, 6, "res/font/Inter/static/Inter_28pt-Light.ttf", "Out of ammo", 0.3, {255, 176, 176, 255}, {0, 0, 0, 255}, 7, 1);
 
                 Weapon weapon;
 

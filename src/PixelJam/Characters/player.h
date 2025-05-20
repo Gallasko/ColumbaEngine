@@ -19,8 +19,69 @@
 
 #include "Aseprite_Lib/AsepriteLoader.h"
 
+#include "UI/prefab.h"
+#include "UI/ttftext.h"
+
 namespace pg
 {
+    template<typename EcsType>
+    EntityRef makeOutlinedTTFText(
+        EcsType* ecs,
+        float x, float y, float z,
+        const std::string& fontPath,
+        const std::string& text,
+        float scale = 1.0f,
+        constant::Vector4D fillColor    = {255,255,255,255},
+        constant::Vector4D outlineColor = {0,0,0,255},
+        int thickness                   = 2,
+        size_t viewport                 = 0
+    ) {
+        // 1) Create the prefab root
+        auto anchorEnt = makeAnchoredPrefab(ecs, x, y, z);
+
+        auto pfEnt = anchorEnt.template get<Prefab>();
+        auto anchor = anchorEnt.template get<UiAnchor>();
+
+        // Helper to make one TTF child at an offset
+        auto createChild = [&](float dx, float dy, const constant::Vector4D& color) {
+            auto outlineTTF = makeTTFText(ecs, 0, 0, z, fontPath, text, scale, color);
+
+            outlineTTF.template get<TTFText>()->setViewport(viewport);
+
+            auto canchor = outlineTTF.template get<UiAnchor>();
+
+            canchor->setTopAnchor(anchor->top);
+            canchor->setTopMargin(dy);
+            canchor->setLeftAnchor(anchor->left);
+            canchor->setLeftMargin(dx);
+            canchor->setZConstrain(PosConstrain{anchorEnt.entity.id, AnchorType::Z, PosOpType::Sub, 1});
+
+            // add into prefab
+            pfEnt->addToPrefab(outlineTTF.entity);
+            return outlineTTF.entity;
+        };
+
+        // 2) Four outline copies
+        createChild(+thickness,  0.f, outlineColor);
+        createChild(-thickness,  0.f, outlineColor);
+        createChild( 0.f,        +thickness, outlineColor);
+        createChild( 0.f,       -thickness, outlineColor);
+
+        // 3) The center (fill) copy, and mark as main
+        auto mainTTF = makeTTFText(ecs, x, y, z + 1, fontPath, text, scale, fillColor);
+
+        mainTTF.template get<TTFText>()->setViewport(viewport);
+
+        // auto manchor = mainTTF.template get<UiAnchor>();
+        // manchor->setTopAnchor(anchor->top);
+        // manchor->setLeftAnchor(anchor->left);
+        // manchor->setZConstrain(PosConstrain{pfEnt.entity.id, AnchorType::Z, PosOpType::Add, 1});
+
+        pfEnt->setMainEntity(mainTTF.entity);
+
+        return anchorEnt.entity;
+    }
+
     struct HoleFlag : public Ctor {
         HoleFlag() {}
         HoleFlag(const HoleFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
