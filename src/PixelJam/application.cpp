@@ -36,6 +36,8 @@
 #include "Database/enemydatabase.h"
 #include "Room/room.h"
 
+#include "Audio/audiosystem.h"
+
 using namespace pg;
 
 namespace {
@@ -114,6 +116,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     }
 
     virtual void init() override {
+        ecsRef->sendEvent(StartAudio{"res/audio/OST/Normal.mp3", -1});
+
         testVar = 0;
 
         auto window = ecsRef->getEntity("__MainWindow");
