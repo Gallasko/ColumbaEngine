@@ -19,8 +19,71 @@
 
 #include "Aseprite_Lib/AsepriteLoader.h"
 
+#include "UI/prefab.h"
+#include "UI/ttftext.h"
+
 namespace pg
 {
+    template<typename EcsType>
+    CompList<PositionComponent, UiAnchor, Prefab> makeOutlinedTTFText(
+        EcsType* ecs,
+        float x, float y, float z,
+        const std::string& fontPath,
+        const std::string& text,
+        float scale = 1.0f,
+        constant::Vector4D fillColor    = {255,255,255,255},
+        constant::Vector4D outlineColor = {0,0,0,255},
+        int thickness                   = 2,
+        size_t viewport                 = 0
+    )
+    {
+        // 1) Create the prefab root
+        auto anchorEnt = makeAnchoredPrefab(ecs, x, y, z);
+
+        auto ui = anchorEnt.template get<PositionComponent>();
+        auto pfEnt = anchorEnt.template get<Prefab>();
+        auto anchor = anchorEnt.template get<UiAnchor>();
+
+        // Helper to make one TTF child at an offset
+        auto createChild = [&](float dx, float dy, const constant::Vector4D& color) {
+            auto outlineTTF = makeTTFText(ecs, 0, 0, z, fontPath, text, scale, color);
+
+            outlineTTF.template get<TTFText>()->setViewport(viewport);
+
+            auto canchor = outlineTTF.template get<UiAnchor>();
+
+            canchor->setTopAnchor(anchor->top);
+            canchor->setTopMargin(dy);
+            canchor->setLeftAnchor(anchor->left);
+            canchor->setLeftMargin(dx);
+            canchor->setZConstrain(PosConstrain{anchorEnt.entity.id, AnchorType::Z, PosOpType::Sub, 1});
+
+            // add into prefab
+            pfEnt->addToPrefab(outlineTTF.entity);
+            return outlineTTF.entity;
+        };
+
+        // 2) Four outline copies
+        createChild(+thickness,  0.f, outlineColor);
+        createChild(-thickness,  0.f, outlineColor);
+        createChild( 0.f,        +thickness, outlineColor);
+        createChild( 0.f,       -thickness, outlineColor);
+
+        // 3) The center (fill) copy, and mark as main
+        auto mainTTF = makeTTFText(ecs, x, y, z + 1, fontPath, text, scale, fillColor);
+
+        mainTTF.template get<TTFText>()->setViewport(viewport);
+
+        // auto manchor = mainTTF.template get<UiAnchor>();
+        // manchor->setTopAnchor(anchor->top);
+        // manchor->setLeftAnchor(anchor->left);
+        // manchor->setZConstrain(PosConstrain{pfEnt.entity.id, AnchorType::Z, PosOpType::Add, 1});
+
+        pfEnt->setMainEntity(mainTTF.entity);
+
+        return CompList<PositionComponent, UiAnchor, Prefab>(anchorEnt.entity, ui, anchor, pfEnt);
+    }
+
     struct HoleFlag : public Ctor {
         HoleFlag() {}
         HoleFlag(const HoleFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
@@ -164,7 +227,13 @@ namespace pg
             entityId = entity->id;
         }
 
-        void shake(float duration, float magnitude) { active = true; this->duration = duration; this->magnitude = magnitude; }
+        void shake(float duration, float magnitude)
+        { 
+            active = true;
+            this->duration = duration;
+            this->magnitude = magnitude; 
+            elapsed = 0.0f;
+        }
 
         EntitySystem* ecsRef = nullptr;
         _unique_id entityId = 0;
@@ -223,6 +292,8 @@ namespace pg
 
                 cam->setOffset({ox, oy});
             }
+
+            deltaTime = 0.0f;
         }
     };
 
@@ -236,12 +307,17 @@ namespace pg
         bool win = false;
     };
 
+    struct SnapCamera
+    {
+        float smoothFactor = 0.1f;
+    };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
-        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
-        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
-        Listener<TickEvent>, QueuedListener<OnMouseMove>>
+        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, QueuedListener<SpawnPlayerEvent>,
+        QueuedListener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
+        Listener<TickEvent>, QueuedListener<OnMouseMove>, QueuedListener<SnapCamera>>
     {
         AsepriteFile animFile;
         PlayerSystem(const AsepriteFile& animFile) : animFile(animFile) {}
@@ -250,20 +326,13 @@ namespace pg
 
         virtual void init() override;
 
-        virtual void onEvent(const PlayerHitEvent& event) override;
+        virtual void onProcessEvent(const PlayerHitEvent& event) override;
 
-        virtual void onEvent(const PlayerInvincibilityEndEvent& event) override
-        {
-            invincibility = false;
-        }
+        virtual void onEvent(const PlayerInvincibilityEndEvent& event) override;
 
-        virtual void onEvent(const SpawnPlayerEvent& event) override
-        {
-            player->get<PositionComponent>()->setX(event.x);
-            player->get<PositionComponent>()->setY(event.y);
+        virtual void onProcessEvent(const SpawnPlayerEvent& event) override;
 
-            player->get<PositionComponent>()->setVisibility(true);
-        }
+        virtual void onProcessEvent(const SnapCamera& event) override;
 
         virtual void onEvent(const PlayerDodgeEndEvent& event) override;
 

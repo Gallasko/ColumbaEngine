@@ -90,8 +90,10 @@ namespace pg
     {
         int roomIndex;
     };
+    
+    struct ResetRoomEvent {};
 
-    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, Listener<TickEvent>>
+    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, Listener<TickEvent>, Listener<ResetRoomEvent>>
     {
         RoomSystem(WeaponDatabase* weaponDb, EnemyDatabase* enemyDb) : weaponDb(weaponDb), enemyDb(enemyDb)
         {
@@ -112,6 +114,14 @@ namespace pg
             spawnTimer->interval = 1000;
             spawnTimer->oneShot = true;
             spawnTimer->callback = makeCallable<SpawnWaveEvent>();
+        }
+
+        virtual void onEvent(const ResetRoomEvent&) override
+        {
+            for (auto& room : rooms)
+            {
+                room.second.state = RoomState::Unexplored;
+            }
         }
 
         const SpawnData& selectRandomSpawn(const std::vector<SpawnData>& spawns)
@@ -469,7 +479,7 @@ namespace pg
         WeaponDatabase* weaponDb;
         EnemyDatabase* enemyDb;
 
-        std::unordered_map<int, Room> rooms;
+        std::map<int, Room> rooms;
 
         SpawnPoint playerSpawn;
 
