@@ -4,6 +4,8 @@
 #include "2D/texture.h"
 #include "2D/animator2d.h"
 
+#include "Audio/audiosystem.h"
+
 namespace pg
 {
     Weapon getBaseWeapon()
@@ -128,6 +130,8 @@ namespace pg
         if (invincibility)
             return;
 
+        ecsRef->sendEvent(PlaySoundEffect{"res/audio/SFX/Player_Hurt.mp3", 0});
+
         cursor->get<CameraShakeComponent>()->shake(150.f, 25.f);
 
         player->get<Texture2DAnimationComponent>()->overrideColor({255, 0, 0}, 0.4f);
@@ -204,6 +208,8 @@ namespace pg
 
             if (not window)
                 return;
+
+            ecsRef->sendEvent(PlaySoundEffect{"res/audio/SFX/Shot1.mp3", 0});
 
             // Todo I should only need to get the main camera and use mousePosToWorldPos of the main camera instead !
             // auto windowWidth = window->get<PositionComponent>()->width;
@@ -489,6 +495,8 @@ namespace pg
         cursor->get<CameraShakeComponent>()->shake(55.f, 5.f);
 
         dodgeTimer->start();
+
+        ecsRef->sendEvent(PlaySoundEffect{"res/audio/SFX/Dodge.mp3", 0}); // PlaySoundEffect
 
         // Zoom for dodging
 
