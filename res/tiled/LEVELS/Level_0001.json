@@ -1766,7 +1766,10 @@
                          "type":"class",
                          "value":
                             {
+                             "ammo":36,
                              "barrelSize":4,
+                             "bulletCount":6,
+                             "bulletSpreadAngle":35,
                              "name":"shotgun",
                              "pattern":2,
                              "projectileLifeTime":1,
@@ -1787,6 +1790,8 @@
                          "type":"class",
                          "value":
                             {
+                             "ammo":72,
+                             "bulletCount":12,
                              "name":"pistol",
                              "projectileLifeTime":1,
                              "reloadTimeMs":1

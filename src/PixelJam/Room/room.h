@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "ECS/system.h"
 
 #include "Tiled_Lib/MapData.h"
@@ -17,7 +19,7 @@
 namespace pg
 {
     struct RoomSpike {
-
+        Spike spike;
     };
 
     struct RoomTriggerFlag
@@ -89,7 +91,7 @@ namespace pg
         int roomIndex;
     };
 
-    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, StoragePolicy, Listener<Tick>>
+    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, Listener<TickEvent>>
     {
         RoomSystem(WeaponDatabase* weaponDb, EnemyDatabase* enemyDb) : weaponDb(weaponDb), enemyDb(enemyDb)
         {
@@ -414,6 +416,21 @@ namespace pg
             rooms.clear();
         }
 
+        virtual void onEvent(const TickEvent& event) override
+        {
+            deltaTime += event.tick;
+        }
+
+        // Todo try detect if a user defines an execute and StoragePolicy at the same time and warn them
+        virtual void execute() override {
+            if (deltaTime == 0.f)
+                return;
+
+            std::cout << "Update room " << deltaTime << std::endl;
+
+            deltaTime = 0.f;
+        }
+
         /**
          * Check if all rooms have valid triggers and spawners
          * Used for debugging purposes
@@ -434,6 +451,21 @@ namespace pg
             }
         }
 
+        std::vector<RoomSpike> spikes;
+
+        void addSpike(const RoomSpike & room_spike) {
+
+            auto spawnerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {125.f, 0.f, 125.f, 80.f});
+
+            spawnerEnt.get<PositionComponent>()->setX(room_spike.spike.rectInSPixels.topLeftCornerX);
+            spawnerEnt.get<PositionComponent>()->setY(room_spike.spike.rectInSPixels.topLeftCornerX);
+            spawnerEnt.get<PositionComponent>()->setZ(10);
+
+            spawnerEnt.get<Simple2DObject>()->setViewport(1);
+
+            spikes.push_back(room_spike);
+        }
+
         WeaponDatabase* weaponDb;
         EnemyDatabase* enemyDb;
 
@@ -447,6 +479,8 @@ namespace pg
 
         size_t nbSlayedEnemies = 0;
         size_t nbSpawnedEnemies = 0;
+
+        float deltaTime = 0.f;
     };
 
     struct TestGridFlag : public Ctor
