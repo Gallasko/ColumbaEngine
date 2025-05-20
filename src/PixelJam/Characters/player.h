@@ -142,7 +142,13 @@ namespace pg
             entityId = entity->id;
         }
 
-        void shake(float duration, float magnitude) { active = true; this->duration = duration; this->magnitude = magnitude; }
+        void shake(float duration, float magnitude)
+        { 
+            active = true;
+            this->duration = duration;
+            this->magnitude = magnitude; 
+            elapsed = 0.0f;
+        }
 
         EntitySystem* ecsRef = nullptr;
         _unique_id entityId = 0;
@@ -181,6 +187,8 @@ namespace pg
 
                 if (not shake->active) continue;
 
+                LOG_INFO("Camera Shake", "Shaking camera");
+
                 shake->elapsed += deltaTime;
 
                 if (shake->elapsed >= shake->duration)
@@ -201,6 +209,8 @@ namespace pg
 
                 cam->setOffset({ox, oy});
             }
+
+            deltaTime = 0.0f;
         }
     };
 

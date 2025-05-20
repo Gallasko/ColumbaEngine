@@ -125,7 +125,6 @@ namespace pg
         if (invincibility)
             return;
 
-
         cursor->get<CameraShakeComponent>()->shake(150.f, 25.f);
 
         health -= event.damage;
