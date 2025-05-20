@@ -300,7 +300,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, SpikeFlag* spike){
             if (player->inDodge)
                 return;
-            
+
             ecsRef->sendEvent(PlayerHitEvent{1});
         });
 
@@ -652,7 +652,7 @@ void initGame() {
 
     AsepriteLoader aseprite_loader;
 
-    std::vector<std::string> animToLoad = {"main-char", "pistol", "shotgun", "bazooka", "sniper", "raider", "raider-variant-001", "raider-variant-002", "bullet_hit"};
+    std::vector<std::string> animToLoad = {"main-char", "pistol", "shotgun", "bazooka", "sniper", "raider", "raider-variant-001", "raider-variant-002", "bullet_hit", "Gold_Pile"};
 
     std::unordered_map<std::string, AsepriteFile> anims;
 
@@ -732,25 +732,17 @@ void initGame() {
         roomSystem->addDoor(door);
     }
 
-   // std::cout << "---PRINT SPIKES---" << std::endl;
+
     for (const auto &spike : map.spikes) {
-        //std::cout << "Spike: " << spike << std::endl;
         RoomSpike room_spike {spike, map.spike_images};
         roomSystem->addSpike(room_spike);
     }
-    //std::cout << "---PRINT SPIKES--- END" << std::endl;
 
-    /*std::cout << "---PRINT SPIKES IMAGES---" << std::endl;
-    for (const auto &spike : map.spike_images) {
-        std::cout << "Spike Image: " << spike << std::endl;
-    }
-    std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;*/
 
-    std::cout << "---PRINT GOLDS---" << std::endl;
     for (const auto &g : map.golds) {
-        std::cout << "gold: " << g << std::endl;
+        roomSystem->addGold(g);
     }
-    std::cout << "---PRINT GOLDS--- END" << std::endl;
+
 
     for (const auto &spawner : map.spawners)
     {
