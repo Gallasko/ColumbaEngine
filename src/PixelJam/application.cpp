@@ -111,6 +111,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         //     [](Entity* ent) { return ent->has<WallFlag>(); });
         // makeCollisionHandle(ecsRef, [](Entity *, Entity *) { LOG_INFO(DOM, "Collision ! "); });
 
+        // Todo possibility to add multiple colliders on an entity : for example player feet only for the walls and the whole body for the bullets
+
         makeCollisionHandlePair(ecsRef, [](PlayerFlag *, CollectibleFlag *) {
             LOG_INFO(DOM, "Collectible collected! ");
         });
@@ -203,6 +205,35 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             }
         });
 
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, HoleFlag* hole){
+            // get both entities’ positions
+            auto wallEnt  = hole->ecsRef->getEntity(hole->entityId);
+            auto playerEnt = player->ecsRef->getEntity(player->entityId);
+            auto wpos     = wallEnt->get<PositionComponent>();
+            auto epos     = playerEnt->get<PositionComponent>();
+
+            // compute normalized vector from wall→enemy
+
+            float x = epos->x;
+            float y = epos->y;
+
+            float wx = wpos->x;
+            float wy = wpos->y;
+
+            float dx = x - wx;
+            float dy = y - wy;
+            float len = std::sqrt(dx * dx + dy * dy);
+
+            if (len > 1e-5f)
+            {
+                dx /= len;
+                dy /= len;
+                // shove enemy out
+                epos->setX(x + dx * repulsionStrength);
+                epos->setY(y + dy * repulsionStrength);
+            }
+        });
+
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall) {
             // get both entities’ positions
             auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
@@ -230,6 +261,26 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, WallFlag* wall){
             // get both entities’ positions
             auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
+            auto enemyEnt = enemy->ecsRef->getEntity(enemy->entityId);
+            auto wpos     = wallEnt->get<PositionComponent>();
+            auto epos     = enemyEnt->get<PositionComponent>();
+
+            // compute normalized vector from wall→enemy
+            float dx = epos->x - wpos->x;
+            float dy = epos->y - wpos->y;
+            float len = std::sqrt(dx*dx + dy*dy);
+            if (len > 0.f) {
+                dx /= len;
+                dy /= len;
+                // shove enemy out
+                epos->setX(epos->x + dx * repulsionStrength);
+                epos->setY(epos->y + dy * repulsionStrength);
+            }
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](EnemyFlag* enemy, HoleFlag* hole){
+            // get both entities’ positions
+            auto wallEnt  = hole->ecsRef->getEntity(hole->entityId);
             auto enemyEnt = enemy->ecsRef->getEntity(enemy->entityId);
             auto wpos     = wallEnt->get<PositionComponent>();
             auto epos     = enemyEnt->get<PositionComponent>();
@@ -292,6 +343,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         size_t scaledTileWidth = mapData.tileWidthInSPixels;
         size_t scaledTileHeight = mapData.tileHeightInSPixels;
 
+        int holeCount = 0;
+
         for (const auto &layer: mapData.layers)
         {
             for (const auto &tile : layer.tiles)
@@ -310,6 +363,13 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                     //LOG_INFO("TILED", std::to_string(count++));
                     ecsRef->attach<CollisionComponent>(tex.entity, 0);
                     ecsRef->attach<WallFlag>(tex.entity);
+                }
+
+                if (tile.isHole)
+                {
+                    LOG_INFO("TILED", "Is Hole " << std::to_string(++holeCount));
+                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
+                    ecsRef->attach<HoleFlag>(tex.entity);
                 }
             }
 
@@ -396,7 +456,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 };
 
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>,
-    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>>
+    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>, Own<HoleFlag>>
 {
 };
 
@@ -564,7 +624,9 @@ void initGame() {
 
     std::cout << "---PRINT SPIKES---" << std::endl;
     for (const auto &spike : map.spikes) {
-        std::cout << "Spike: " << spike << std::endl;
+        //std::cout << "Spike: " << spike << std::endl;
+        RoomSpike room_spike;
+
     }
     std::cout << "---PRINT SPIKES--- END" << std::endl;
 
