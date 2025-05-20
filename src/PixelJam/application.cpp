@@ -99,11 +99,10 @@ constexpr float repulsionStrength = 1.f;
 struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode> > {
     int testVar = 0;
     MapData mapData;
-    AsepriteFile testAnim;
 
     std::unordered_map<std::string, AsepriteFile> anims;
 
-    TestSystem(const MapData &mapData, const AsepriteFile& testAnim, const std::unordered_map<std::string, AsepriteFile>& anims) : mapData(mapData), testAnim(testAnim), anims(anims) {
+    TestSystem(const MapData &mapData, const std::unordered_map<std::string, AsepriteFile>& anims) : mapData(mapData), anims(anims) {
     }
 
     virtual void init() override {
@@ -197,7 +196,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         // Todo make a macro for LOG_INFO and LOG_ERROR with a single argument that use a default DOM
 
         // Todo we need this because sweep move is bugged
-        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall){
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall) {
             // get both entities’ positions
             auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
             auto playerEnt = player->ecsRef->getEntity(player->entityId);
@@ -397,21 +396,6 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             z++;
         }
 
-        int count = 0;
-        for (const auto& frame : testAnim.frames) {
-            auto tex = makeUiTexture(ecsRef, scaledTileWidth, scaledTileHeight, frame.textureName);
-            auto texComp = tex.get<Texture2DComponent>();
-            texComp->setViewport(1);
-
-            auto posComp = tex.get<PositionComponent>();
-            posComp->setX(mapData.playerSpawn.positionSPixels.x + frame.topLeftCornerInSPixelsX);
-            posComp->setY(mapData.playerSpawn.positionSPixels.y + frame.topLeftCornerInSPixelsY);
-            posComp->setZ(z+5);
-
-            count++;
-        }
-
-
         // drawDebugGrid(ecsRef, 2500, 5000);
 
         printf("Loaded Map\n");
@@ -572,16 +556,8 @@ void initGame() {
     mainWindow->ecs.createSystem<SceneLoader>();
 
     AsepriteLoader aseprite_loader;
-    const AsepriteFile anim = aseprite_loader.loadAnim("res/sprites/main-char.json");
 
-    mainWindow->masterRenderer->registerAtlasTexture(anim.filename, anim.metadata.imagePath.c_str(), "", std::make_unique<AsepriteFileAtlasLoader>(anim));
-
-    std::cout << "Anim " << anim << std::endl;
-
-    mainWindow->ecs.createSystem<PlayerSystem>(anim);
-
-
-    std::vector<std::string> animToLoad = {"pistol", "shotgun", "bazooka", "sniper", "raider", "bullet_hit"};
+    std::vector<std::string> animToLoad = {"main-char", "pistol", "shotgun", "bazooka", "sniper", "raider", "raider-variant-001", "raider-variant-002", "bullet_hit"};
 
     std::unordered_map<std::string, AsepriteFile> anims;
 
@@ -594,8 +570,10 @@ void initGame() {
         anims[animName] = anim;
     }
 
+    mainWindow->ecs.createSystem<PlayerSystem>(anims["main-char"]);
+
     mainWindow->ecs.createSystem<EnemyAISystem>();
-    mainWindow->ecs.createSystem<EnemySpawnSystem>();
+    mainWindow->ecs.createSystem<EnemySpawnSystem>(anims);
 
     // auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
 
@@ -688,7 +666,7 @@ void initGame() {
 
     roomSystem->startLevel();
 
-    mainWindow->ecs.createSystem<TestSystem>(map, anim, anims);
+    mainWindow->ecs.createSystem<TestSystem>(map, anims);
 
     mainWindow->ecs.start();
 

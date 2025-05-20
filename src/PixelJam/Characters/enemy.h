@@ -3,6 +3,7 @@
 #include "ECS/system.h"
 
 #include "2D/simple2dobject.h"
+#include "2D/texture.h"
 #include "2D/collisionsystem.h"
 
 #include "Input/inputcomponent.h"
@@ -184,6 +185,10 @@ namespace pg
     // System responsible for spawning waves of enemies
     struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>, Listener<SpawnEnemiesEvent>, QueuedListener<RemoveEntityEvent>>
     {
+        std::unordered_map<std::string, AsepriteFile> anims;
+
+        EnemySpawnSystem(const std::unordered_map<std::string, AsepriteFile>& anims) : anims(anims) {}
+
         virtual std::string getSystemName() const override { return "EnemySpawnSystem"; }
 
         void onProcessEvent(const RemoveEntityEvent& event) override {
@@ -211,23 +216,49 @@ namespace pg
         {
             for (auto& spawnData : event.enemies)
             {
-                auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
+                Weapon weapon = spawnData.enemy.weapon;
+
+                LOG_INFO("Enemy", "Spawning enemy at (" << spawnData.x << ", " << spawnData.y << ")");
+                LOG_INFO("Enemy", "Weapon: " << weapon.name);
+                LOG_INFO("Enemy", "Weapon damage: " << weapon.damage);
+                LOG_INFO("Enemy", "Weapon ammo: " << weapon.ammo);
+                LOG_INFO("Enemy", "Weapon projectileSpeed: " << weapon.projectileSpeed);
+                LOG_INFO("Enemy", "Weapon projectileLifeTime: " << weapon.projectileLifeTime);
+                LOG_INFO("Enemy", "Weapon projectileSize: " << weapon.projectileSize);
+                LOG_INFO("Enemy", "Weapon bulletCount: " << weapon.bulletCount);
+                LOG_INFO("Enemy", "Weapon barrelSize: " << weapon.barrelSize);
+                LOG_INFO("Enemy", "Weapon reloadTimeMs: " << weapon.reloadTimeMs);
+                LOG_INFO("Enemy", "Weapon bulletSpreadAngle: " << weapon.bulletSpreadAngle);
+                
+                std::string textureName;
+
+                switch (weapon.pattern)
+                {
+                    case BulletPattern::Radial:
+                        textureName = anims["raider-variant-002"].frames[0].textureName;
+                        break;
+
+                    case BulletPattern::Cone:
+                        textureName = anims["raider-variant-001"].frames[0].textureName;
+                        break;
+
+                    case BulletPattern::AtPlayer:
+                    default:
+                        textureName = anims["raider"].frames[0].textureName;
+                        break;
+                }
+
+                // auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
+                auto ent = makeUiTexture(ecsRef, 64.f, 64.f, textureName);
                 ent.get<PositionComponent>()->setZ(5);
                 ecsRef->attach<EnemyFlag>(ent.entity, spawnData.enemy.flag);
-                ecsRef->attach<UiAnchor>(ent.entity);
 
-                ent.get<Simple2DObject>()->setViewport(1);
+                ent.get<Texture2DComponent>()->setViewport(1);
 
                 std::vector<size_t> collidableLayer = {0, 3, 4};
 
                 ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
                 ecsRef->attach<AIStateComponent>(ent.entity, spawnData.enemy.ai);
-
-                Weapon weapon;
-
-                weapon.pattern = static_cast<BulletPattern>(rand() % 3);
-                weapon.bulletCount = 6;
-                weapon.bulletSpreadAngle = 50.0f;
 
                 ecsRef->attach<WeaponComponent>(ent.entity, weapon);
 
@@ -239,34 +270,35 @@ namespace pg
             }
         }
 
+        // Todo remove this obselete
         void spawnWave()
         {
             // create 5 enemies in random positions
-            for (int i = 0; i < 5; ++i)
-            {
-                auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
-                ent.get<PositionComponent>()->setZ(5);
-                ecsRef->attach<EnemyFlag>(ent.entity, 5.f);
+            // for (int i = 0; i < 5; ++i)
+            // {
+            //     auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
+            //     ent.get<PositionComponent>()->setZ(5);
+            //     ecsRef->attach<EnemyFlag>(ent.entity, 5.f);
 
-                std::vector<size_t> collidableLayer = {0, 3, 4};
+            //     std::vector<size_t> collidableLayer = {0, 3, 4};
 
-                ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
-                ecsRef->attach<AIStateComponent>(ent.entity);
+            //     ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
+            //     ecsRef->attach<AIStateComponent>(ent.entity);
 
-                Weapon weapon;
+            //     Weapon weapon;
 
-                weapon.pattern = static_cast<BulletPattern>(rand() % 3);
-                weapon.bulletCount = 6;
-                weapon.bulletSpreadAngle = 50.0f;
+            //     weapon.pattern = static_cast<BulletPattern>(rand() % 3);
+            //     weapon.bulletCount = 6;
+            //     weapon.bulletSpreadAngle = 50.0f;
 
-                ecsRef->attach<WeaponComponent>(ent.entity, weapon);
+            //     ecsRef->attach<WeaponComponent>(ent.entity, weapon);
 
-                // random start offset
-                auto pos = ent.get<PositionComponent>();
+            //     // random start offset
+            //     auto pos = ent.get<PositionComponent>();
 
-                pos->setX(rand() % 800);
-                pos->setY(rand() % 600);
-            }
+            //     pos->setX(rand() % 800);
+            //     pos->setY(rand() % 600);
+            // }
         }
 
         CompRef<Timer> spawnTimer;
@@ -304,21 +336,21 @@ namespace pg
                 {
                     auto ent = group->entity;
 
-                    auto sprite = ent->get<Simple2DObject>();
+                    // auto sprite = ent->get<Simple2DObject>();
 
-                    if (ent->has<Simple2DObject>())
-                    {
-                        sprite->setColors({255, 255, 255, 255});
-                    }
+                    // if (ent->has<Simple2DObject>())
+                    // {
+                    //     sprite->setColors({255, 255, 255, 255});
+                    // }
 
                     enemy->invicibilityTimeLeft -= deltaTime;
 
                     if (enemy->invicibilityTimeLeft <= 0.f)
                     {
-                        if (ent->has<Simple2DObject>())
-                        {
-                            sprite->setColors({255, 0, 0, 255});
-                        }
+                        // if (ent->has<Simple2DObject>())
+                        // {
+                        //     sprite->setColors({255, 0, 0, 255});
+                        // }
 
                         enemy->invicibilityTimeLeft = 0.f;
                     }
@@ -359,25 +391,25 @@ namespace pg
         {
             ai->elapsedTime += dt;
 
-            if (ai->elapsedTime > 150.0f and ai->elapsedTime < 300.0f)
-            {
-                auto shape = ecsRef->getComponent<Simple2DObject>(pos->id);
+            // if (ai->elapsedTime > 150.0f and ai->elapsedTime < 300.0f)
+            // {
+            //     auto shape = ecsRef->getComponent<Simple2DObject>(pos->id);
 
-                if (shape)
-                {
-                    shape->setColors({255, 255, 0, 255});
-                }
-            }
+            //     if (shape)
+            //     {
+            //         shape->setColors({255, 255, 0, 255});
+            //     }
+            // }
 
-            if (ai->elapsedTime > 300.0f)
-            {
-                auto shape = ecsRef->getComponent<Simple2DObject>(pos->id);
+            // if (ai->elapsedTime > 300.0f)
+            // {
+            //     auto shape = ecsRef->getComponent<Simple2DObject>(pos->id);
 
-                if (shape)
-                {
-                    shape->setColors({255, 0, 0, 255});
-                }
-            }
+            //     if (shape)
+            //     {
+            //         shape->setColors({255, 0, 0, 255});
+            //     }
+            // }
 
             if (ai->elapsedTime > ai->wideUpTime)
             {
@@ -403,14 +435,17 @@ namespace pg
 
         void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp)
         {
+            LOG_INFO("Enemy", "Shooting 1");
             auto playerPos = findPlayerPosition();
 
             constant::Vector2D toPlayer{ playerPos.x - pos->x, playerPos.y - pos->y };
 
             auto& weapon = weaponComp->weapon;
 
+            LOG_INFO("Enemy", "Shooting 2");
             auto fireDir = weapon.fireDirections(toPlayer);
 
+            LOG_INFO("Enemy", "Shooting 3");
             bool fired = true;
 
             for (const auto& dir : fireDir)
@@ -427,6 +462,8 @@ namespace pg
                     fired = false;
                 }
             }
+
+            LOG_INFO("Enemy", "Shooting 4");
 
             if (fired == false)
             {
@@ -445,6 +482,8 @@ namespace pg
                 // Todo fix prefab vertical center here doesn't work
                 // ent.get<UiAnchor>()->setVerticalCenter(anchor->verticalCenter);
             }
+
+            LOG_INFO("Enemy", "Shooting 5");
         }
 
         void cooldownBehavior(AIStateComponent* ai)
