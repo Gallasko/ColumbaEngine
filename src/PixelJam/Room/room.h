@@ -121,7 +121,23 @@ namespace pg
             for (auto& room : rooms)
             {
                 room.second.state = RoomState::Unexplored;
+
+                for (auto& door : room.second.doors)
+                {
+                    auto doorEnt = ecsRef->getEntity(door.entityId);
+                    
+                    doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
+
+                    ecsRef->detach<WallFlag>(doorEnt);
+                    // ecsRef->detach<CollisionComponent>(doorEnt);
+                }
             }
+
+            currentRoom = -1;
+
+            spawnTimer->stop();
+
+            startLevel();
         }
 
         const SpawnData& selectRandomSpawn(const std::vector<SpawnData>& spawns)
@@ -237,7 +253,7 @@ namespace pg
                     doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
 
                     ecsRef->detach<WallFlag>(doorEnt);
-                    ecsRef->detach<CollisionComponent>(doorEnt);
+                    // ecsRef->detach<CollisionComponent>(doorEnt);
                 }
             }
             else if (nbSlayedEnemies == nbSpawnedEnemies)

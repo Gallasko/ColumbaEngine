@@ -98,7 +98,8 @@ constexpr float repulsionStrength = 1.f;
 
 struct ReloadGame {};
 
-struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode>, Listener<GameEnd>, Listener<ReloadGame>>
+struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode>, Listener<GameEnd>, QueuedListener<ReloadGame>,
+    Ref<EnemyFlag>, Ref<EnemyBulletFlag>, Ref<AllyBulletFlag>, Ref<CollectibleFlag>>
 {
     int testVar = 0;
     MapData mapData;
@@ -449,9 +450,34 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         obscureScreen->get<PositionComponent>()->setVisibility(true);
     }
 
-    virtual void onEvent(const ReloadGame &event) override
+    virtual void onProcessEvent(const ReloadGame &event) override
     {
         LOG_INFO("TILED", "Trying to reloading Game");
+
+        for (auto* enemy : view<EnemyFlag>())
+        {
+            ecsRef->removeEntity(enemy->entityId);
+        }
+
+        for (auto* enemyBullet : view<EnemyBulletFlag>())
+        {
+            ecsRef->removeEntity(enemyBullet->entityId);
+        }
+
+        for (auto* playerBullet : view<AllyBulletFlag>())
+        {
+            ecsRef->removeEntity(playerBullet->entityId);
+        }
+
+        for (auto* collectible : view<CollectibleFlag>())
+        {
+            ecsRef->removeEntity(collectible->entityId);
+        }
+
+        endText->get<PositionComponent>()->setVisibility(false);
+        obscureScreen->get<PositionComponent>()->setVisibility(false);
+
+        ecsRef->sendEvent(ResetRoomEvent{}); //ResetRoomEvent
     }
 
     virtual void onProcessEvent(const OnMouseClick &event) override

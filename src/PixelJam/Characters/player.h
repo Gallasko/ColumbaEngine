@@ -181,19 +181,30 @@ namespace pg
     };
 
     enum class CollectibleType { Gold, Weapon };
-    struct CollectibleFlag
+    struct CollectibleFlag : public Ctor
     {
         CollectibleFlag() : type(CollectibleType::Gold) {}
         CollectibleFlag(Weapon weapon) : type(CollectibleType::Weapon), weapon(weapon) {}
-        CollectibleFlag(const CollectibleFlag& rhs) : type(rhs.type), weapon(rhs.weapon) {}
+        CollectibleFlag(const CollectibleFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId), type(rhs.type), weapon(rhs.weapon) {}
 
         CollectibleFlag& operator=(const CollectibleFlag& rhs)
         {
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
             type = rhs.type;
             weapon = rhs.weapon;
 
             return *this;
         }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
 
         CollectibleType type;
         Weapon weapon;

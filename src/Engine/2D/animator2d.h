@@ -160,16 +160,26 @@ namespace pg
                 return;
 
             auto anim = ent->get<Texture2DAnimationComponent>();
+            
+            if (anim->startId < 0 or static_cast<size_t>(anim->startId) >= anim->keypoints.size())
+                return;
+
             auto tex = ent->get<Texture2DComponent>();
 
             if (anim->overrideViewportFlag)
                 tex->setViewport(anim->overrideViewportIndex);
+            else
+                tex->setViewport(anim->keypoints.at(anim->startId).component.viewport);
 
             if (anim->overrideColorFlag)
                 tex->setOverlappingColor(anim->overrideColorValue, anim->colorRatio);
+            else
+                tex->setOverlappingColor(anim->keypoints.at(anim->startId).component.overlappingColor, anim->keypoints.at(anim->startId).component.overlappingColorRatio);
 
             if (anim->overrideOpacityFlag)
                 tex->setOpacity(anim->overrideOpacityValue);
+            else
+                tex->setOpacity(anim->keypoints.at(anim->startId).component.opacity);
         }
 
         virtual void execute() override
