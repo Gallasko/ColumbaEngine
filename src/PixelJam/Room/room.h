@@ -76,10 +76,10 @@ namespace pg
         }
 
         SpikeImage getTextureName() const{
-            std::cout << static_cast<int>(state) << std::endl;
+            //std::cout << static_cast<int>(state) << std::endl;
             int index = (static_cast<int>(state) - 1) % spike_images_.size();
 
-            std::cout << index << std::endl;
+           // std::cout << index << std::endl;
 
             return spike_images_[index];
         }
