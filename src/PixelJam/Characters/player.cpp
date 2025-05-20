@@ -590,6 +590,8 @@ namespace pg
 
         // LOG_INFO("Player", "tick");
 
+        //std::cout << player.get<PositionComponent>()->x << " " << player.get<PositionComponent>()->y << std::endl;
+
         if (not player->get<PlayerFlag>()->inDodge)
             return;
 

@@ -367,7 +367,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 if (tile.isHole)
                 {
-                    LOG_INFO("TILED", "Is Hole " << std::to_string(++holeCount));
+                    //LOG_INFO("TILED", "Is Hole " << std::to_string(++holeCount));
                     ecsRef->attach<CollisionComponent>(tex.entity, 0);
                     ecsRef->attach<HoleFlag>(tex.entity);
                 }
@@ -553,7 +553,7 @@ void initGame() {
 
     mainWindow->masterRenderer->registerAtlasTexture(anim.filename, anim.metadata.imagePath.c_str(), "", std::make_unique<AsepriteFileAtlasLoader>(anim));
 
-    std::cout << "Anim " << anim << std::endl;
+   // std::cout << "Anim " << anim << std::endl;
 
     mainWindow->ecs.createSystem<PlayerSystem>(anim);
 
@@ -622,20 +622,19 @@ void initGame() {
         roomSystem->addDoor(door);
     }
 
-    std::cout << "---PRINT SPIKES---" << std::endl;
+   // std::cout << "---PRINT SPIKES---" << std::endl;
     for (const auto &spike : map.spikes) {
         //std::cout << "Spike: " << spike << std::endl;
-        RoomSpike room_spike{};
-        room_spike.spike = spike;
+        RoomSpike room_spike {spike, map.spike_images};
         roomSystem->addSpike(room_spike);
     }
-    std::cout << "---PRINT SPIKES--- END" << std::endl;
+    //std::cout << "---PRINT SPIKES--- END" << std::endl;
 
-    std::cout << "---PRINT SPIKES IMAGES---" << std::endl;
+    /*std::cout << "---PRINT SPIKES IMAGES---" << std::endl;
     for (const auto &spike : map.spike_images) {
         std::cout << "Spike Image: " << spike << std::endl;
     }
-    std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;
+    std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;*/
 
     std::cout << "---PRINT GOLDS---" << std::endl;
     for (const auto &g : map.golds) {

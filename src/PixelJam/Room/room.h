@@ -8,6 +8,8 @@
 
 #include "2D/position.h"
 #include "2D/collisionsystem.h"
+#include "2D/texture.h"
+
 // Todo remove this it is only for debug of the room triggers
 #include "2D/simple2dobject.h"
 
@@ -18,8 +20,139 @@
 
 namespace pg
 {
+    /**
+     * @brief Represents a spike trap that cycles through three states:
+     *        In → Showing → Out → (loops).
+     *
+     * States:
+     * - In:     Spikes are hidden; safe to walk on.
+     * - Showing:Spikes are starting to emerge; visual warning only.
+     * - Out:    Spikes are fully out; dangerous.
+     */
     struct RoomSpike {
+
+        /**
+         * @brief The state of the spike trap.
+         */
+        enum class State {
+            None,
+            In,
+            Showing,
+            Out
+        };
+
+        /**
+         * @brief The spike data from tiled
+         */
         Spike spike;
+        float inDuration;
+        float showingDuration;
+        float outDuration;
+
+        float timer; // Time elapsed in the current state
+        State state;
+        std::vector<SpikeImage> spike_images_;
+        std::vector<CompList<PositionComponent, UiAnchor, Texture2DComponent>> textures;
+
+        void changeState(State newState) {
+            state = newState;
+            //std::cout << "Change state to " << static_cast<int>(state) << std::endl;
+
+            for (const auto & tex : textures) {
+                auto texComp = tex.get<Texture2DComponent>();
+                texComp->setTexture(getTextureName().textureName);
+            }
+        }
+
+        SpikeImage getTextureName() const{
+            std::cout << static_cast<int>(state) << std::endl;
+            int index = (static_cast<int>(state) - 1) % spike_images_.size();
+
+            std::cout << index << std::endl;
+
+            return spike_images_[index];
+        }
+
+        void addTexture(const CompList<PositionComponent, UiAnchor, Texture2DComponent> & tex) {
+            textures.push_back(tex);
+        }
+
+        RoomSpike(const Spike &s, const std::vector<SpikeImage> &spikeImages) : spike(s), inDuration(s.inDuration), showingDuration(s.showingDuration), outDuration(s.outDuration), timer(0), state(State::None),
+                                                                         spike_images_(spikeImages) {
+            // Apply cycle offset
+            float timeLeft = s.timerOffset;
+
+            while (timeLeft >= 0.0f) {
+                switch (state) {
+                    case State::In:
+                        if (timeLeft < inDuration) {
+                            timer = timeLeft;
+                            return;
+                        }
+                        timeLeft -= inDuration;
+                        changeState(State::Showing);
+                        break;
+
+                    case State::Showing:
+                        if (timeLeft < showingDuration) {
+                            timer = timeLeft;
+                            return;
+                        }
+                        timeLeft -= showingDuration;
+                        changeState(State::Out);
+                        break;
+
+                    case State::Out:
+                        if (timeLeft < outDuration) {
+                            timer = timeLeft;
+                            return;
+                        }
+                        timeLeft -= outDuration;
+                        changeState(State::In);
+                        break;
+                    case State::None:
+                        changeState(State::In);
+                        break;
+                }
+            }
+        }
+
+        /**
+       * @brief Updates the spike state machine based on elapsed time.
+       *
+       * @param dt Delta time in seconds since the last update.
+       */
+        void update(const float dt) {
+            timer += dt;
+
+            switch (state) {
+                case State::In:
+                    if (timer >= inDuration) {
+                        timer -= inDuration;
+                        changeState(State::Showing);
+                    }
+                    break;
+
+                case State::Showing:
+                    if (timer >= showingDuration) {
+                        timer -= showingDuration;
+                        changeState(State::Out);
+                    }
+                    break;
+
+                case State::Out:
+                    if (timer >= outDuration) {
+                        timer -= outDuration;
+                        changeState(State::In);
+                    }
+                    break;
+                case State::None:
+                    changeState(State::In);
+                    break;
+            }
+
+            //std::cout << "Update spike " << std::to_string(static_cast<int>(state)) << std::endl;
+        }
     };
 
     struct RoomTriggerFlag
@@ -198,7 +331,7 @@ namespace pg
                 }
 
             } while (nbSpawnedEnemiesInLoop == 0 and not fastBreak);
-            
+
             nbSpawnedEnemies += nbSpawnedEnemiesInLoop;
 
             ecsRef->sendEvent(SpawnEnemiesEvent{enemiesToSpawn});
@@ -223,7 +356,7 @@ namespace pg
                 for (auto& door : it->second.doors)
                 {
                     auto doorEnt = ecsRef->getEntity(door.entityId);
-                    
+
                     doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
 
                     ecsRef->detach<WallFlag>(doorEnt);
@@ -426,7 +559,13 @@ namespace pg
             if (deltaTime == 0.f)
                 return;
 
-            std::cout << "Update room " << deltaTime << std::endl;
+           //std::cout << "Update spikes  " << std::endl;
+
+            for (auto& spike : spikes) {
+                spike.update(deltaTime / 1000.0f);
+            }
+
+            //std::cout << "Update spikes END " << std::endl;
 
             deltaTime = 0.f;
         }
@@ -453,15 +592,31 @@ namespace pg
 
         std::vector<RoomSpike> spikes;
 
-        void addSpike(const RoomSpike & room_spike) {
+        void addSpike(RoomSpike & room_spike) {
 
-            auto spawnerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {125.f, 0.f, 125.f, 80.f});
+            for (int iWidth = 0; iWidth < room_spike.spike.rectTilesSpace.widthInTiles; ++iWidth) {
+                for (int iHeight = 0; iHeight < room_spike.spike.rectTilesSpace.heightInTiles; ++iHeight) {
+                   // std::cout << iWidth << " " << iHeight << std::endl;
+                   // std::cout << room_spike.spike.scaledTileWidth << " " <<  room_spike.spike.scaledTileHeight << std::endl;
+                   // std::cout << room_spike.getTextureName().textureName << std::endl;
 
-            spawnerEnt.get<PositionComponent>()->setX(room_spike.spike.rectInSPixels.topLeftCornerX);
-            spawnerEnt.get<PositionComponent>()->setY(room_spike.spike.rectInSPixels.topLeftCornerX);
-            spawnerEnt.get<PositionComponent>()->setZ(10);
+                    auto posX = room_spike.spike.rectInSPixels.topLeftCornerX + room_spike.spike.scaledTileWidth * iWidth;
+                    auto posY = room_spike.spike.rectInSPixels.topLeftCornerY + room_spike.spike.scaledTileHeight * iHeight;
+                    //std::cout << posX << std::endl;
+                    //std::cout << posY << std::endl;
 
-            spawnerEnt.get<Simple2DObject>()->setViewport(1);
+                    auto tex = makeUiTexture(ecsRef, room_spike.spike.scaledTileWidth, room_spike.spike.scaledTileHeight, room_spike.getTextureName().textureName);
+                    auto texComp = tex.get<Texture2DComponent>();
+                    texComp->setViewport(1);
+
+                    auto posComp = tex.get<PositionComponent>();
+                    posComp->setX(posX);
+                    posComp->setY(posY);
+                    posComp->setZ(9);
+
+                    room_spike.addTexture(tex);
+                }
+            }
 
             spikes.push_back(room_spike);
         }
