@@ -16,6 +16,10 @@
 
 namespace pg
 {
+    struct RoomSpike {
+
+    };
+
     struct RoomTriggerFlag
     {
         RoomTriggerFlag(int roomIndex) : roomIndex(roomIndex) {}
@@ -85,7 +89,7 @@ namespace pg
         int roomIndex;
     };
 
-    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, StoragePolicy>
+    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, StoragePolicy, Listener<Tick>>
     {
         RoomSystem(WeaponDatabase* weaponDb, EnemyDatabase* enemyDb) : weaponDb(weaponDb), enemyDb(enemyDb)
         {

@@ -21,6 +21,28 @@
 
 namespace pg
 {
+    struct HoleFlag : public Ctor {
+        HoleFlag() {}
+        HoleFlag(const HoleFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
+
+        HoleFlag& operator=(const HoleFlag& rhs)
+        {
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
+
     struct WallFlag : public Ctor
     {
         WallFlag() {}
