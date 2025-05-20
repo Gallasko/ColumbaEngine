@@ -309,12 +309,17 @@ namespace pg
         bool win = false;
     };
 
+    struct SnapCamera
+    {
+        float smoothFactor = 0.1f;
+    };
+
     // Todo bug bullet can stay stuck in a wall if fired from within the wall
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
-        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, Listener<SpawnPlayerEvent>,
+        Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, QueuedListener<SpawnPlayerEvent>,
         Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
-        Listener<TickEvent>, QueuedListener<OnMouseMove>>
+        Listener<TickEvent>, QueuedListener<OnMouseMove>, QueuedListener<SnapCamera>>
     {
         AsepriteFile animFile;
         PlayerSystem(const AsepriteFile& animFile) : animFile(animFile) {}
@@ -327,13 +332,9 @@ namespace pg
 
         virtual void onEvent(const PlayerInvincibilityEndEvent& event) override;
 
-        virtual void onEvent(const SpawnPlayerEvent& event) override
-        {
-            player->get<PositionComponent>()->setX(event.x);
-            player->get<PositionComponent>()->setY(event.y);
+        virtual void onProcessEvent(const SpawnPlayerEvent& event) override;
 
-            player->get<PositionComponent>()->setVisibility(true);
-        }
+        virtual void onProcessEvent(const SnapCamera& event) override;
 
         virtual void onEvent(const PlayerDodgeEndEvent& event) override;
 

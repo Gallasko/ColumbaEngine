@@ -41,7 +41,8 @@ namespace pg
 
         cursorEnt.get<PositionComponent>()->setZ(10);
 
-        ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+        auto followCam = ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+        followCam->setSmoothFactor(1.f);
         ecsRef->attach<CameraShakeComponent>(cursorEnt.entity);
 
         cursor = cursorEnt.entity;
@@ -166,6 +167,8 @@ namespace pg
 
         auto playerWidth = playerPos->width / 2.0f;
         auto playerHeight = playerPos->height / 2.0f;
+
+        LOG_INFO("Player", "PlayerPos: " << lastCameraPos.x << ", " << lastCameraPos.y);
 
         cursorPos->setX(lastCameraPos.x - windowWidth + playerPos->x + playerWidth);
         cursorPos->setY(lastCameraPos.y - windowHeight + playerPos->y + playerHeight);
@@ -518,6 +521,35 @@ namespace pg
 
         dashElapsed = 0.0f;
         dashDir = lastMoveDir.normalized();
+    }
+
+    void PlayerSystem::onProcessEvent(const SpawnPlayerEvent& event)
+    {
+        player->get<PositionComponent>()->setX(event.x);
+        player->get<PositionComponent>()->setY(event.y);
+
+        player->get<PositionComponent>()->setVisibility(true);
+
+        auto window = ecsRef->getEntity("__MainWindow");
+
+        if (not window)
+            return;
+
+        auto windowWidth = window->get<PositionComponent>()->width / 2.0f;
+        auto windowHeight = window->get<PositionComponent>()->height / 2.0f;
+
+        lastCameraPos = {windowWidth, windowHeight};
+
+        updateCamera();
+
+        ecsRef->sendEvent(SnapCamera{0.1f});;
+    }
+
+    void PlayerSystem::onProcessEvent(const SnapCamera& event)
+    {
+        // updateCamera();
+
+        cursor->get<FollowCamera2D>()->setSmoothFactor(event.smoothFactor);
     }
 
     void PlayerSystem::onEvent(const PlayerDodgeEndEvent& event)
