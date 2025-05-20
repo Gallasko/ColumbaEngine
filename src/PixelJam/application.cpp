@@ -624,7 +624,9 @@ void initGame() {
 
     std::cout << "---PRINT SPIKES---" << std::endl;
     for (const auto &spike : map.spikes) {
-        std::cout << "Spike: " << spike << std::endl;
+        //std::cout << "Spike: " << spike << std::endl;
+        RoomSpike room_spike;
+
     }
     std::cout << "---PRINT SPIKES--- END" << std::endl;
 

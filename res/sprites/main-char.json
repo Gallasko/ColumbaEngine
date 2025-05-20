@@ -249,8 +249,8 @@
    { "name": "Run_Profile_L", "from": 10, "to": 13, "direction": "forward", "color": "#000000ff" },
    { "name": "Run_Front", "from": 14, "to": 17, "direction": "forward", "color": "#000000ff" },
    { "name": "Run_Back", "from": 18, "to": 21, "direction": "forward", "color": "#000000ff" },
-   { "name": "Dodge_Profile", "from": 22, "to": 23, "direction": "forward", "color": "#000000ff" },
-   { "name": "Dodgle_Profile_L", "from": 23, "to": 23, "direction": "forward", "color": "#000000ff" },
+   { "name": "Dodge_Profile", "from": 22, "to": 22, "direction": "forward", "color": "#000000ff" },
+   { "name": "Dodge_Profile_L", "from": 23, "to": 23, "direction": "forward", "color": "#000000ff" },
    { "name": "Dodge_Back", "from": 24, "to": 24, "direction": "forward", "color": "#000000ff" },
    { "name": "Dodge_Front", "from": 25, "to": 25, "direction": "forward", "color": "#000000ff" }
   ]

@@ -480,7 +480,7 @@ namespace pg
         }
         else if (lastMoveDir.x == -1.f)
         {
-            auto playingAnim = animFile["Dodgle_Profile_L"];
+            auto playingAnim = animFile["Dodge_Profile_L"];
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
