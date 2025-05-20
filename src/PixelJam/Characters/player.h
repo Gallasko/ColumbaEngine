@@ -25,7 +25,7 @@
 namespace pg
 {
     template<typename EcsType>
-    EntityRef makeOutlinedTTFText(
+    CompList<PositionComponent, UiAnchor, Prefab> makeOutlinedTTFText(
         EcsType* ecs,
         float x, float y, float z,
         const std::string& fontPath,
@@ -35,10 +35,12 @@ namespace pg
         constant::Vector4D outlineColor = {0,0,0,255},
         int thickness                   = 2,
         size_t viewport                 = 0
-    ) {
+    )
+    {
         // 1) Create the prefab root
         auto anchorEnt = makeAnchoredPrefab(ecs, x, y, z);
 
+        auto ui = anchorEnt.template get<PositionComponent>();
         auto pfEnt = anchorEnt.template get<Prefab>();
         auto anchor = anchorEnt.template get<UiAnchor>();
 
@@ -79,7 +81,7 @@ namespace pg
 
         pfEnt->setMainEntity(mainTTF.entity);
 
-        return anchorEnt.entity;
+        return CompList<PositionComponent, UiAnchor, Prefab>(anchorEnt.entity, ui, anchor, pfEnt);
     }
 
     struct HoleFlag : public Ctor {

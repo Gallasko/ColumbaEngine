@@ -520,6 +520,8 @@ void initGame() {
 
     mainWindow->ecs.createSystem<MoveDirSystem>();
 
+    mainWindow->ecs.createSystem<TweenSystem>();
+
     mainWindow->ecs.createSystem<ConfiguredKeySystem<GameKeyConfig> >(scancodeMap);
 
     mainWindow->ecs.createSystem<CollisionSystem>();

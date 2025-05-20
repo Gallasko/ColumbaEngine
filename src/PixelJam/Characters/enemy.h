@@ -18,6 +18,8 @@
 // This is to import outlinedTTFText
 #include "player.h"
 
+#include "Systems/tween.h"
+
 namespace pg
 {
     constexpr float ENEMYINVICIBILITYTIMEMS = 200.f;
@@ -164,10 +166,29 @@ namespace pg
     struct StartSpawnWaveEvent {};
     struct SpawnWaveEvent {};
 
+    // Todo add this event in the main ecs
+    struct RemoveEntityEvent
+    {
+        RemoveEntityEvent(_unique_id prefabId) : prefabId(prefabId) {}
+        RemoveEntityEvent(const RemoveEntityEvent& rhs) : prefabId(rhs.prefabId) {}
+
+        RemoveEntityEvent& operator=(const RemoveEntityEvent& rhs)
+        {
+            prefabId = rhs.prefabId;
+            return *this;
+        }
+
+        _unique_id prefabId; 
+    };
+
     // System responsible for spawning waves of enemies
-    struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>, Listener<SpawnEnemiesEvent>>
+    struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>, Listener<SpawnEnemiesEvent>, QueuedListener<RemoveEntityEvent>>
     {
         virtual std::string getSystemName() const override { return "EnemySpawnSystem"; }
+
+        void onProcessEvent(const RemoveEntityEvent& event) override {
+            ecsRef->removeEntity(event.prefabId);
+        }
 
         void init() override {
             // create a timer entity to spawn enemies every few seconds
@@ -193,6 +214,7 @@ namespace pg
                 auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
                 ent.get<PositionComponent>()->setZ(5);
                 ecsRef->attach<EnemyFlag>(ent.entity, spawnData.enemy.flag);
+                ecsRef->attach<UiAnchor>(ent.entity);
 
                 ent.get<Simple2DObject>()->setViewport(1);
 
@@ -200,9 +222,6 @@ namespace pg
 
                 ecsRef->attach<CollisionComponent>(ent.entity, 4, 1.0, collidableLayer);
                 ecsRef->attach<AIStateComponent>(ent.entity, spawnData.enemy.ai);
-
-                // Todo fix ttf may be off by one when loading the atlas
-                makeOutlinedTTFText(ecsRef, spawnData.x, spawnData.y, 6, "res/font/Inter/static/Inter_28pt-Light.ttf", "Out of ammo", 0.3, {255, 176, 176, 255}, {0, 0, 0, 255}, 7, 1);
 
                 Weapon weapon;
 
@@ -228,6 +247,7 @@ namespace pg
                 auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
                 ent.get<PositionComponent>()->setZ(5);
                 ecsRef->attach<EnemyFlag>(ent.entity, 5.f);
+                ecsRef->attach<UiAnchor>(ent.entity);
 
                 std::vector<size_t> collidableLayer = {0, 3, 4};
 
@@ -275,10 +295,24 @@ namespace pg
 
             for (const auto& group : viewGroup<EnemyFlag, AIStateComponent, PositionComponent, WeaponComponent>())
             {
+                LOG_INFO("Enemy", "AI");
                 auto enemy = group->get<EnemyFlag>();
                 auto ai = group->get<AIStateComponent>();
                 auto pos = group->get<PositionComponent>();
                 auto pat = group->get<WeaponComponent>();
+
+                auto ent = group->entity;
+
+                UiAnchor *anchor = nullptr;
+
+                if (ent and ent->has<UiAnchor>())
+                {
+                    anchor = ent->get<UiAnchor>();
+                }
+                else
+                {
+                    LOG_ERROR("Enemy", "No ui anchor");	
+                }
 
                 if (enemy->invicibilityTimeLeft > 0.f)
                 {
@@ -316,7 +350,7 @@ namespace pg
                         wideUp(pos, ai, deltaTime);
                         break;
                     case AIState::Attack:
-                        shootPattern(enemy, pos, pat);
+                        shootPattern(enemy, pos, pat, anchor);
                         ai->state = AIState::Cooldown;
                         break;
                     case AIState::Cooldown:
@@ -381,7 +415,7 @@ namespace pg
             return p;
         }
 
-        void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp)
+        void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp, UiAnchor* anchor)
         {
             auto playerPos = findPlayerPosition();
 
@@ -390,6 +424,8 @@ namespace pg
             auto& weapon = weaponComp->weapon;
 
             auto fireDir = weapon.fireDirections(toPlayer);
+
+            bool fired = true;
 
             for (const auto& dir : fireDir)
             {
@@ -402,8 +438,26 @@ namespace pg
                 }
                 else
                 {
-                    LOG_ERROR("Enemy", "Out of ammo - Todo make a visual about this (a ttf text for exemple)");
+                    fired = false;
                 }
+            }
+
+            if (anchor and fired == false)
+            {
+                // Todo fix ttf may be off by one when loading the atlas
+                auto ent = makeOutlinedTTFText(ecsRef, pos->x - pos->width / 2.0f, pos->y - 10, 6, "res/font/Inter/static/Inter_28pt-Light.ttf", "Out of ammo", 0.3, {255, 176, 176, 255}, {0, 0, 0, 255}, 2, 1);
+                
+                // Todo add the possibility to make composed tween (here I want to fade out the text AND move it up)
+                ecsRef->attach<TweenComponent>(ent.entity, TweenComponent {
+                    pos->y - 10,
+                    pos->y - 25,
+                    400.0f,
+                    [ent](const TweenValue& value){ ent.get<PositionComponent>()->setY(std::get<float>(value)); },
+                    makeCallable<RemoveEntityEvent>(ent.entity.id)
+                });
+
+                // Todo fix prefab vertical center here doesn't work
+                // ent.get<UiAnchor>()->setVerticalCenter(anchor->verticalCenter);
             }
         }
 
