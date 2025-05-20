@@ -99,7 +99,7 @@ namespace pg
 
         invicibilityTimer = ecsRef->attach<Timer>(entity6);
         invicibilityTimer->oneShot = true;
-        invicibilityTimer->interval = 400;
+        invicibilityTimer->interval = 350;
         invicibilityTimer->callback = makeCallable<PlayerInvincibilityEndEvent>();
 
         auto entity7 = ecsRef->createEntity();
@@ -282,7 +282,7 @@ namespace pg
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
-        else if (lastMoveDir.x)
+        else if (lastMoveDir.x == -1.f)
         {
             auto playingAnim = animFile["Run_Profile_L"];
 
@@ -478,8 +478,19 @@ namespace pg
 
         player->get<PlayerFlag>()->inDodge = true;
 
+        cursor->get<CameraShakeComponent>()->shake(55.f, 5.f);
+
         dodgeTimer->start();
 
+        // Zoom for dodging
+
+        // auto camera = cursor->get<FollowCamera2D>();
+
+        // camera->setViewportWidth(camera->viewportWidth * 0.95f);
+        // camera->setViewportHeight(camera->viewportHeight * 0.95f);
+
+        // Select dodge animation
+        
         if (lastMoveDir.x == 1.f)
         {
             auto playingAnim = animFile["Dodge_Profile"];
@@ -514,10 +525,25 @@ namespace pg
         player->get<PlayerFlag>()->inDodge = false;
 
         selectedRunningAnimation();
+
+        // Dezoom out of dash
+
+        // auto window = ecsRef->getEntity("__MainWindow");
+
+        // auto windowWidth = window->get<PositionComponent>()->width;
+        // auto windowHeight = window->get<PositionComponent>()->height;
+
+        // auto camera = cursor->get<FollowCamera2D>();
+
+        // camera->setViewportWidth(windowWidth);
+        // camera->setViewportHeight(windowHeight);
     }
 
     void PlayerSystem::tryHeal()
     {
+        if (health >= maxHealth)
+            return;
+
         LOG_INFO("Player", "Try healing");
         auto& weapon = player->get<WeaponComponent>()->weapon;
 
