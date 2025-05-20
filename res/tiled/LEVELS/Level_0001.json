@@ -1036,6 +1036,11 @@
                          "value":7
                         }, 
                         {
+                         "name":"chaseSpeed",
+                         "type":"float",
+                         "value":3
+                        }, 
+                        {
                          "name":"weapon",
                          "type":"object",
                          "value":44
@@ -1048,6 +1053,11 @@
                  "id":31,
                  "name":"Enemy_Pirate",
                  "properties":[
+                        {
+                         "name":"chaseSpeed",
+                         "type":"float",
+                         "value":5
+                        }, 
                         {
                          "name":"idealDistance",
                          "type":"float",
@@ -1123,6 +1133,26 @@
                  "name":"Enemy_BOSS",
                  "properties":[
                         {
+                         "name":"attackDistance",
+                         "type":"float",
+                         "value":5
+                        }, 
+                        {
+                         "name":"chaseSpeed",
+                         "type":"float",
+                         "value":12
+                        }, 
+                        {
+                         "name":"hp",
+                         "type":"int",
+                         "value":100
+                        }, 
+                        {
+                         "name":"idealDistance",
+                         "type":"float",
+                         "value":1
+                        }, 
+                        {
                          "name":"isBoss",
                          "type":"bool",
                          "value":true
@@ -1131,6 +1161,11 @@
                          "name":"name",
                          "type":"string",
                          "value":"raiderBoss"
+                        }, 
+                        {
+                         "name":"weapon",
+                         "type":"object",
+                         "value":43
                         }],
                  "template":"..\/TEMPLATES\/Enemy_Data.json",
                  "x":1790.66666666667,
