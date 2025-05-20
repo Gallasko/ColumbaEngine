@@ -184,6 +184,11 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
             if (enemy->health <= 0)
             {
+                auto ai = ecsRef->getComponent<AIStateComponent>(enemy->entityId);
+
+                if (ai->isBoss)
+                    ecsRef->sendEvent(GameEnd{true});
+
                 auto weapon = ecsRef->getComponent<WeaponComponent>(enemy->entityId);
                 auto pos = ecsRef->getComponent<PositionComponent>(enemy->entityId);
 

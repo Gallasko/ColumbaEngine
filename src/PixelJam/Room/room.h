@@ -452,7 +452,7 @@ namespace pg
             if (deltaTime == 0.f)
                 return;
 
-            std::cout << "Update room " << deltaTime << std::endl;
+            // std::cout << "Update room " << deltaTime << std::endl;
 
             deltaTime = 0.f;
         }
