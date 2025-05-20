@@ -27,7 +27,7 @@ namespace pg
         BulletPattern pattern = BulletPattern::AtPlayer;
 
         size_t bulletCount = 1;
-        float bulletSpreadAngle = 0.0f;
+        float bulletSpreadAngle = 1.0f;
 
         float reloadTimeMs = 1000.0f;
         size_t barrelSize = 6;
@@ -63,11 +63,27 @@ namespace pg
                 case BulletPattern::Cone:
                 {
                     float base = atan2(aimDir.y, aimDir.x);
-                    float half = bulletSpreadAngle * M_PI/180.f / 2;
+                    float angle = bulletSpreadAngle;
+                    float bCount = bulletCount;
 
-                    for (size_t i = 0; i < bulletCount; ++i)
+                    if (angle == 0.0f)
                     {
-                        float a = base - half + (2 * half * i / (bulletCount - 1));
+                        LOG_WARNING("Weapon", "Weapon has a 0 bullet spread angle, while shooting in a cone");
+                        angle = 1.0f;
+                    }
+
+                    if (bCount < 2)
+                    {
+                        LOG_WARNING("Weapon", "Weapon has less than 2 bullets, while shooting in a cone");
+                        bCount = 2;
+                    }
+
+                    float half = angle * M_PI/180.f / 2;
+
+                    for (size_t i = 0; i < bCount; ++i)
+                    {
+                        // Todo divide by 0 error are not catched and make the whole application stall
+                        float a = base - half + (2 * half * i / (bCount - 1));
 
                         dirs.emplace_back(cos(a), sin(a));
                     }

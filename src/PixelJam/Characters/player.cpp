@@ -41,7 +41,8 @@ namespace pg
 
         cursorEnt.get<PositionComponent>()->setZ(10);
 
-        ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+        auto followCam = ecsRef->attach<FollowCamera2D>(cursorEnt.entity);
+        followCam->setSmoothFactor(1.f);
         ecsRef->attach<CameraShakeComponent>(cursorEnt.entity);
 
         cursor = cursorEnt.entity;
@@ -99,7 +100,7 @@ namespace pg
 
         invicibilityTimer = ecsRef->attach<Timer>(entity6);
         invicibilityTimer->oneShot = true;
-        invicibilityTimer->interval = 1000;
+        invicibilityTimer->interval = 350;
         invicibilityTimer->callback = makeCallable<PlayerInvincibilityEndEvent>();
 
         auto entity7 = ecsRef->createEntity();
@@ -120,13 +121,14 @@ namespace pg
         uiElements["BulletUi"] = playerRemainingBulletUi.entity;
     }
 
-    void PlayerSystem::onEvent(const PlayerHitEvent& event)
+    void PlayerSystem::onProcessEvent(const PlayerHitEvent& event)
     {
         if (invincibility)
             return;
 
-
         cursor->get<CameraShakeComponent>()->shake(150.f, 25.f);
+
+        player->get<Texture2DAnimationComponent>()->overrideColor({255, 0, 0}, 0.4f);
 
         health -= event.damage;
 
@@ -134,6 +136,18 @@ namespace pg
 
         invincibility = true;
         invicibilityTimer->start();
+
+        if (health <= 0)
+        {
+            ecsRef->sendEvent(GameEnd{false});
+        }
+    }
+
+    void PlayerSystem::onEvent(const PlayerInvincibilityEndEvent& event)
+    {
+        invincibility = false;
+
+        player->get<Texture2DAnimationComponent>()->clearOverrideColor();
     }
 
     void PlayerSystem::updateCamera()
@@ -274,7 +288,7 @@ namespace pg
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
-        else if (lastMoveDir.x)
+        else if (lastMoveDir.x == -1.f)
         {
             auto playingAnim = animFile["Run_Profile_L"];
 
@@ -470,8 +484,19 @@ namespace pg
 
         player->get<PlayerFlag>()->inDodge = true;
 
+        cursor->get<CameraShakeComponent>()->shake(55.f, 5.f);
+
         dodgeTimer->start();
 
+        // Zoom for dodging
+
+        // auto camera = cursor->get<FollowCamera2D>();
+
+        // camera->setViewportWidth(camera->viewportWidth * 0.95f);
+        // camera->setViewportHeight(camera->viewportHeight * 0.95f);
+
+        // Select dodge animation
+        
         if (lastMoveDir.x == 1.f)
         {
             auto playingAnim = animFile["Dodge_Profile"];
@@ -501,15 +526,59 @@ namespace pg
         dashDir = lastMoveDir.normalized();
     }
 
+    void PlayerSystem::onProcessEvent(const SpawnPlayerEvent& event)
+    {
+        player->get<PositionComponent>()->setX(event.x);
+        player->get<PositionComponent>()->setY(event.y);
+
+        player->get<PositionComponent>()->setVisibility(true);
+
+        auto window = ecsRef->getEntity("__MainWindow");
+
+        if (not window)
+            return;
+
+        auto windowWidth = window->get<PositionComponent>()->width / 2.0f;
+        auto windowHeight = window->get<PositionComponent>()->height / 2.0f;
+
+        lastCameraPos = {windowWidth, windowHeight};
+
+        updateCamera();
+
+        ecsRef->sendEvent(SnapCamera{0.1f});;
+    }
+
+    void PlayerSystem::onProcessEvent(const SnapCamera& event)
+    {
+        // updateCamera();
+
+        cursor->get<FollowCamera2D>()->setSmoothFactor(event.smoothFactor);
+    }
+
     void PlayerSystem::onEvent(const PlayerDodgeEndEvent& event)
     {
         player->get<PlayerFlag>()->inDodge = false;
 
         selectedRunningAnimation();
+
+        // Dezoom out of dash
+
+        // auto window = ecsRef->getEntity("__MainWindow");
+
+        // auto windowWidth = window->get<PositionComponent>()->width;
+        // auto windowHeight = window->get<PositionComponent>()->height;
+
+        // auto camera = cursor->get<FollowCamera2D>();
+
+        // camera->setViewportWidth(windowWidth);
+        // camera->setViewportHeight(windowHeight);
     }
 
     void PlayerSystem::tryHeal()
     {
+        if (health >= maxHealth)
+            return;
+
         LOG_INFO("Player", "Try healing");
         auto& weapon = player->get<WeaponComponent>()->weapon;
 

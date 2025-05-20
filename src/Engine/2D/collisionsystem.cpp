@@ -153,7 +153,7 @@ namespace pg
         auto group = registerGroup<PositionComponent, CollisionComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
-            LOG_INFO(DOM, "Add entity " << entity->id << " to ui - collision group !");
+            LOG_MILE(DOM, "Add entity " << entity->id << " to ui - collision group !");
 
             auto ui = entity->get<PositionComponent>();
             auto collision = entity->get<CollisionComponent>();

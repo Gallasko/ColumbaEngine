@@ -223,8 +223,10 @@ namespace pg
     {
         int roomIndex;
     };
+    
+    struct ResetRoomEvent {};
 
-    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, Listener<TickEvent>>
+    struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, Listener<TickEvent>, Listener<ResetRoomEvent>>
     {
         RoomSystem(WeaponDatabase* weaponDb, EnemyDatabase* enemyDb) : weaponDb(weaponDb), enemyDb(enemyDb)
         {
@@ -245,6 +247,30 @@ namespace pg
             spawnTimer->interval = 1000;
             spawnTimer->oneShot = true;
             spawnTimer->callback = makeCallable<SpawnWaveEvent>();
+        }
+
+        virtual void onEvent(const ResetRoomEvent&) override
+        {
+            for (auto& room : rooms)
+            {
+                room.second.state = RoomState::Unexplored;
+
+                for (auto& door : room.second.doors)
+                {
+                    auto doorEnt = ecsRef->getEntity(door.entityId);
+                    
+                    doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
+
+                    ecsRef->detach<WallFlag>(doorEnt);
+                    // ecsRef->detach<CollisionComponent>(doorEnt);
+                }
+            }
+
+            currentRoom = -1;
+
+            spawnTimer->stop();
+
+            startLevel();
         }
 
         const SpawnData& selectRandomSpawn(const std::vector<SpawnData>& spawns)
@@ -360,7 +386,7 @@ namespace pg
                     doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
 
                     ecsRef->detach<WallFlag>(doorEnt);
-                    ecsRef->detach<CollisionComponent>(doorEnt);
+                    // ecsRef->detach<CollisionComponent>(doorEnt);
                 }
             }
             else if (nbSlayedEnemies == nbSpawnedEnemies)
@@ -624,7 +650,7 @@ namespace pg
         WeaponDatabase* weaponDb;
         EnemyDatabase* enemyDb;
 
-        std::unordered_map<int, Room> rooms;
+        std::map<int, Room> rooms;
 
         SpawnPoint playerSpawn;
 
