@@ -190,6 +190,9 @@ MapData TiledLoader::loadMap(const std::string &path, int scaleFactor) {
                         spike.rectInSPixels = rect;
                         spike.rectTilesSpace = rect.toTileRectTilesSpace(result.tileWidthInSPixels, result.tileHeightInSPixels);
 
+                        spike.scaledTileWidth = result.tileWidthInSPixels;
+                        spike.scaledTileHeight = result.tileHeightInSPixels;
+
                         result.spikes.push_back(spike);
                     }
                     else if (obj.get<bool>("enemy")) {

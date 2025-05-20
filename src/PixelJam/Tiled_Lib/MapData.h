@@ -154,6 +154,8 @@ struct Spike {
     float outDuration;
     // in seconds
     float timerOffset;
+    float scaledTileWidth;
+    float scaledTileHeight;
 };
 
 inline std::ostream &operator<<(std::ostream &os, const Spike &trigger) {
