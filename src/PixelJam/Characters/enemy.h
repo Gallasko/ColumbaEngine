@@ -326,7 +326,6 @@ namespace pg
 
             for (const auto& group : viewGroup<EnemyFlag, AIStateComponent, PositionComponent, WeaponComponent>())
             {
-                LOG_INFO("Enemy", "AI");
                 auto enemy = group->get<EnemyFlag>();
                 auto ai = group->get<AIStateComponent>();
                 auto pos = group->get<PositionComponent>();
@@ -421,13 +420,14 @@ namespace pg
         constant::Vector2D findPlayerPosition()
         {
             // Assume single player
-            constant::Vector2D p{0,0};
+            constant::Vector2D p{0, 0};
 
             auto playerEnt = ecsRef->getEntity("Player");
 
             if (playerEnt and playerEnt->has<PositionComponent>())
             {
-                p = {playerEnt->get<PositionComponent>()->x + 25.f, playerEnt->get<PositionComponent>()->y + 25.f};
+                // Todo replace 32 by player width/height
+                p = {playerEnt->get<PositionComponent>()->x + 32.f, playerEnt->get<PositionComponent>()->y + 32.f};
             }
 
             return p;
@@ -435,17 +435,15 @@ namespace pg
 
         void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp)
         {
-            LOG_INFO("Enemy", "Shooting 1");
             auto playerPos = findPlayerPosition();
 
-            constant::Vector2D toPlayer{ playerPos.x - pos->x, playerPos.y - pos->y };
+            // Todo replace 32 by enemy width/height
+            constant::Vector2D toPlayer{ playerPos.x - (pos->x + 32.f), playerPos.y - (pos->y + 32.f) };
 
             auto& weapon = weaponComp->weapon;
 
-            LOG_INFO("Enemy", "Shooting 2");
             auto fireDir = weapon.fireDirections(toPlayer);
 
-            LOG_INFO("Enemy", "Shooting 3");
             bool fired = true;
 
             for (const auto& dir : fireDir)
@@ -462,8 +460,6 @@ namespace pg
                     fired = false;
                 }
             }
-
-            LOG_INFO("Enemy", "Shooting 4");
 
             if (fired == false)
             {
@@ -482,8 +478,6 @@ namespace pg
                 // Todo fix prefab vertical center here doesn't work
                 // ent.get<UiAnchor>()->setVerticalCenter(anchor->verticalCenter);
             }
-
-            LOG_INFO("Enemy", "Shooting 5");
         }
 
         void cooldownBehavior(AIStateComponent* ai)

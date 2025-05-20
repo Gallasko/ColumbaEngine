@@ -121,7 +121,7 @@ namespace pg
         uiElements["BulletUi"] = playerRemainingBulletUi.entity;
     }
 
-    void PlayerSystem::onEvent(const PlayerHitEvent& event)
+    void PlayerSystem::onProcessEvent(const PlayerHitEvent& event)
     {
         if (invincibility)
             return;
@@ -136,6 +136,11 @@ namespace pg
 
         invincibility = true;
         invicibilityTimer->start();
+
+        if (health <= 0)
+        {
+            ecsRef->sendEvent(GameEnd{false});
+        }
     }
 
     void PlayerSystem::onEvent(const PlayerInvincibilityEndEvent& event)
@@ -167,8 +172,6 @@ namespace pg
 
         auto playerWidth = playerPos->width / 2.0f;
         auto playerHeight = playerPos->height / 2.0f;
-
-        LOG_INFO("Player", "PlayerPos: " << lastCameraPos.x << ", " << lastCameraPos.y);
 
         cursorPos->setX(lastCameraPos.x - windowWidth + playerPos->x + playerWidth);
         cursorPos->setY(lastCameraPos.y - windowHeight + playerPos->y + playerHeight);

@@ -272,8 +272,6 @@ namespace pg
 
                 if (not shake->active) continue;
 
-                LOG_INFO("Camera Shake", "Shaking camera");
-
                 shake->elapsed += deltaTime;
 
                 if (shake->elapsed >= shake->duration)
@@ -318,7 +316,7 @@ namespace pg
 
     struct PlayerSystem : public System<QueuedListener<OnMouseClick>, QueuedListener<ConfiguredKeyEvent<GameKeyConfig>>, QueuedListener<ConfiguredKeyEventReleased<GameKeyConfig>>, InitSys,
         Listener<PlayerMoveUp>, Listener<PlayerMoveDown>, Listener<PlayerMoveLeft>, Listener<PlayerMoveRight>, QueuedListener<SpawnPlayerEvent>,
-        Listener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
+        QueuedListener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
         Listener<TickEvent>, QueuedListener<OnMouseMove>, QueuedListener<SnapCamera>>
     {
         AsepriteFile animFile;
@@ -328,7 +326,7 @@ namespace pg
 
         virtual void init() override;
 
-        virtual void onEvent(const PlayerHitEvent& event) override;
+        virtual void onProcessEvent(const PlayerHitEvent& event) override;
 
         virtual void onEvent(const PlayerInvincibilityEndEvent& event) override;
 

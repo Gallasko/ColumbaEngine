@@ -96,17 +96,50 @@ struct SceneLoader : public System<Listener<SceneToLoad>, StoragePolicy, InitSys
 
 constexpr float repulsionStrength = 1.f;
 
-struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode> > {
+struct ReloadGame {};
+
+struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnSDLScanCode>, Listener<GameEnd>, Listener<ReloadGame>>
+{
     int testVar = 0;
     MapData mapData;
 
     std::unordered_map<std::string, AsepriteFile> anims;
+
+    EntityRef endText;
+    EntityRef obscureScreen;
+    EntityRef pressAnyKeyText;
 
     TestSystem(const MapData &mapData, const std::unordered_map<std::string, AsepriteFile>& anims) : mapData(mapData), anims(anims) {
     }
 
     virtual void init() override {
         testVar = 0;
+
+        auto window = ecsRef->getEntity("__MainWindow");
+        auto windowAnchor = window->get<UiAnchor>();
+
+        // Todo why does z > 0 doesn't work ?
+        auto endTextEnt = makeTTFText(ecsRef, 50.f, 50.f, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Game Over", 0.8f);
+
+        endTextEnt.get<PositionComponent>()->setVisibility(false);
+
+        endTextEnt.get<TTFText>()->setViewport(2);
+
+        endTextEnt.get<UiAnchor>()->centeredIn(windowAnchor);
+
+        endText = endTextEnt.entity;
+
+        auto obscureScreenEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1000.f, 1000.f, {0.f, 0.f, 0.f, 128.f});
+
+        ecsRef->attach<MouseLeftClickComponent>(obscureScreenEnt.entity, makeCallable<ReloadGame>());
+
+        obscureScreenEnt.get<PositionComponent>()->setVisibility(false);
+
+        obscureScreenEnt.get<Simple2DObject>()->setViewport(2);
+
+        obscureScreenEnt.get<UiAnchor>()->fillIn(windowAnchor);
+
+        obscureScreen = obscureScreenEnt.entity;
 
         // makeCollisionHandle(ecsRef, [](Entity*, Entity*) { LOG_INFO(DOM, "Collision with a wall! "); },
         //     [](Entity* ent) { return ent->has<WallFlag>(); });
@@ -401,62 +434,82 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         printf("Loaded Map\n");
     }
 
+    virtual void onEvent(const GameEnd &event) override
+    {
+        if (event.win)
+        {
+            endText->get<TTFText>()->setText("You win !");
+        }    
+        else
+        {
+            endText->get<TTFText>()->setText("Game Over !");
+        }
+
+        endText->get<PositionComponent>()->setVisibility(true);
+        obscureScreen->get<PositionComponent>()->setVisibility(true);
+    }
+
+    virtual void onEvent(const ReloadGame &event) override
+    {
+        LOG_INFO("TILED", "Trying to reloading Game");
+    }
+
     virtual void onProcessEvent(const OnMouseClick &event) override
     {
-        if (event.button == SDL_BUTTON_RIGHT)
-        {
-            if (testVar == 0)
-            {
-                auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
+        // if (event.button == SDL_BUTTON_RIGHT)
+        // {
+        //     if (testVar == 0)
+        //     {
+        //         auto wallEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 0.f, 255.f, 255.f});
 
-                wallEnt.get<Simple2DObject>()->setViewport(1);
+        //         wallEnt.get<Simple2DObject>()->setViewport(1);
 
-                wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
-                wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
-                wallEnt.get<PositionComponent>()->setZ(10);
+        //         wallEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
+        //         wallEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
+        //         wallEnt.get<PositionComponent>()->setZ(10);
 
-                ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
-                ecsRef->attach<WallFlag>(wallEnt.entity);
-            }
-            else if (testVar == 1)
-            {
-                auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f,
-                                                          {125.f, 0.f, 125.f, 255.f});
+        //         ecsRef->attach<CollisionComponent>(wallEnt.entity, 0);
+        //         ecsRef->attach<WallFlag>(wallEnt.entity);
+        //     }
+        //     else if (testVar == 1)
+        //     {
+        //         auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f,
+        //                                                   {125.f, 0.f, 125.f, 255.f});
 
-                collectibleEnt.get<PositionComponent>()->setX(event.pos.x - 12.5f);
-                collectibleEnt.get<PositionComponent>()->setY(event.pos.y - 12.5f);
+        //         collectibleEnt.get<PositionComponent>()->setX(event.pos.x - 12.5f);
+        //         collectibleEnt.get<PositionComponent>()->setY(event.pos.y - 12.5f);
 
-                ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
-                ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
-            }
-            else if (testVar == 2)
-            {
-                auto enemyEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {255.f, 0.f, 0.f, 255.f});
+        //         ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
+        //         ecsRef->attach<CollectibleFlag>(collectibleEnt.entity);
+        //     }
+        //     else if (testVar == 2)
+        //     {
+        //         auto enemyEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {255.f, 0.f, 0.f, 255.f});
 
-                enemyEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
-                enemyEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
-                enemyEnt.get<PositionComponent>()->setZ(10.f);
+        //         enemyEnt.get<PositionComponent>()->setX(event.pos.x - 25.f);
+        //         enemyEnt.get<PositionComponent>()->setY(event.pos.y - 25.f);
+        //         enemyEnt.get<PositionComponent>()->setZ(10.f);
 
-                ecsRef->attach<CollisionComponent>(enemyEnt.entity, 4);
-                ecsRef->attach<EnemyFlag>(enemyEnt.entity);
-            }
-        }
+        //         ecsRef->attach<CollisionComponent>(enemyEnt.entity, 4);
+        //         ecsRef->attach<EnemyFlag>(enemyEnt.entity);
+        //     }
+        // }
     }
 
     virtual void onEvent(const OnSDLScanCode &event) override {
-        if (event.key == SDL_SCANCODE_1) {
-            LOG_INFO(DOM, "TestSystem: 1 pressed");
-            testVar = 0;
-        } else if (event.key == SDL_SCANCODE_2) {
-            LOG_INFO(DOM, "TestSystem: 2 pressed");
-            testVar = 1;
-        } else if (event.key == SDL_SCANCODE_3) {
-            LOG_INFO(DOM, "TestSystem: 3 pressed");
-            testVar = 2;
-        } else if (event.key == SDL_SCANCODE_4) {
-            LOG_INFO(DOM, "TestSystem: 4 pressed");
-            ecsRef->sendEvent(StartSpawnWaveEvent{});
-        }
+        // if (event.key == SDL_SCANCODE_1) {
+        //     LOG_INFO(DOM, "TestSystem: 1 pressed");
+        //     testVar = 0;
+        // } else if (event.key == SDL_SCANCODE_2) {
+        //     LOG_INFO(DOM, "TestSystem: 2 pressed");
+        //     testVar = 1;
+        // } else if (event.key == SDL_SCANCODE_3) {
+        //     LOG_INFO(DOM, "TestSystem: 3 pressed");
+        //     testVar = 2;
+        // } else if (event.key == SDL_SCANCODE_4) {
+        //     LOG_INFO(DOM, "TestSystem: 4 pressed");
+        //     ecsRef->sendEvent(StartSpawnWaveEvent{});
+        // }
     }
 };
 
@@ -527,7 +580,7 @@ void initGame() {
 
     mainWindow->ecs.createSystem<TweenSystem>();
 
-    mainWindow->ecs.createSystem<ConfiguredKeySystem<GameKeyConfig> >(scancodeMap);
+    mainWindow->ecs.createSystem<ConfiguredKeySystem<GameKeyConfig>>(scancodeMap);
 
     mainWindow->ecs.createSystem<CollisionSystem>();
 
