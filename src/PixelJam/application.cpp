@@ -101,7 +101,9 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     MapData mapData;
     AsepriteFile testAnim;
 
-    TestSystem(const MapData &mapData, const AsepriteFile& testAnim) : mapData(mapData), testAnim(testAnim) {
+    std::unordered_map<std::string, AsepriteFile> anims;
+
+    TestSystem(const MapData &mapData, const AsepriteFile& testAnim, const std::unordered_map<std::string, AsepriteFile>& anims) : mapData(mapData), testAnim(testAnim), anims(anims) {
     }
 
     virtual void init() override {
@@ -154,9 +156,28 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 if (weapon and pos and (not (weapon->weapon.ammo == 0)))
                 {
-                    auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
+                    std::string textureName = "";
 
-                    collectibleEnt.get<Simple2DObject>()->setViewport(1);
+                    switch (weapon->weapon.pattern)
+                    {
+                        case BulletPattern::Radial:
+                            textureName = anims["pistol"].frames[0].textureName;
+                            break;
+
+                        case BulletPattern::Cone:
+                            textureName = anims["shotgun"].frames[0].textureName;
+                            break;
+
+                        case BulletPattern::AtPlayer:
+                        default:
+                            textureName = anims["sniper"].frames[0].textureName;
+                            break;
+                    }
+
+                    // auto collectibleEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25.f, 25.f, {125.f, 0.f, 125.f, 255.f});
+                    auto collectibleEnt = makeUiTexture(ecsRef, 64.0f, 64.0f, textureName);
+
+                    collectibleEnt.get<Texture2DComponent>()->setViewport(1);
 
                     collectibleEnt.get<PositionComponent>()->setX(pos->x + pos->width / 2.f - 12.5f);
                     collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
@@ -559,6 +580,20 @@ void initGame() {
 
     mainWindow->ecs.createSystem<PlayerSystem>(anim);
 
+
+    std::vector<std::string> animToLoad = {"pistol", "shotgun", "bazooka", "sniper", "raider", "bullet_hit"};
+
+    std::unordered_map<std::string, AsepriteFile> anims;
+
+    for (const auto &animName : animToLoad)
+    {
+        const auto anim = aseprite_loader.loadAnim("res/sprites/" + animName + ".json");
+
+        mainWindow->masterRenderer->registerAtlasTexture(anim.filename, anim.metadata.imagePath.c_str(), "", std::make_unique<AsepriteFileAtlasLoader>(anim));
+
+        anims[animName] = anim;
+    }
+
     mainWindow->ecs.createSystem<EnemyAISystem>();
     mainWindow->ecs.createSystem<EnemySpawnSystem>();
 
@@ -653,7 +688,7 @@ void initGame() {
 
     roomSystem->startLevel();
 
-    mainWindow->ecs.createSystem<TestSystem>(map, anim);
+    mainWindow->ecs.createSystem<TestSystem>(map, anim, anims);
 
     mainWindow->ecs.start();
 

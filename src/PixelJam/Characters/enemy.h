@@ -247,7 +247,6 @@ namespace pg
                 auto ent = makeSimple2DShape(ecsRef, Shape2D::Square, 40.f, 40.f, {255, 0, 0, 255});
                 ent.get<PositionComponent>()->setZ(5);
                 ecsRef->attach<EnemyFlag>(ent.entity, 5.f);
-                ecsRef->attach<UiAnchor>(ent.entity);
 
                 std::vector<size_t> collidableLayer = {0, 3, 4};
 
@@ -301,19 +300,6 @@ namespace pg
                 auto pos = group->get<PositionComponent>();
                 auto pat = group->get<WeaponComponent>();
 
-                auto ent = group->entity;
-
-                UiAnchor *anchor = nullptr;
-
-                if (ent and ent->has<UiAnchor>())
-                {
-                    anchor = ent->get<UiAnchor>();
-                }
-                else
-                {
-                    LOG_ERROR("Enemy", "No ui anchor");	
-                }
-
                 if (enemy->invicibilityTimeLeft > 0.f)
                 {
                     auto ent = group->entity;
@@ -350,7 +336,7 @@ namespace pg
                         wideUp(pos, ai, deltaTime);
                         break;
                     case AIState::Attack:
-                        shootPattern(enemy, pos, pat, anchor);
+                        shootPattern(enemy, pos, pat);
                         ai->state = AIState::Cooldown;
                         break;
                     case AIState::Cooldown:
@@ -415,7 +401,7 @@ namespace pg
             return p;
         }
 
-        void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp, UiAnchor* anchor)
+        void shootPattern(EnemyFlag*, PositionComponent* pos, WeaponComponent* weaponComp)
         {
             auto playerPos = findPlayerPosition();
 
@@ -442,7 +428,7 @@ namespace pg
                 }
             }
 
-            if (anchor and fired == false)
+            if (fired == false)
             {
                 // Todo fix ttf may be off by one when loading the atlas
                 auto ent = makeOutlinedTTFText(ecsRef, pos->x - pos->width / 2.0f, pos->y - 10, 6, "res/font/Inter/static/Inter_28pt-Light.ttf", "Out of ammo", 0.3, {255, 176, 176, 255}, {0, 0, 0, 255}, 2, 1);
