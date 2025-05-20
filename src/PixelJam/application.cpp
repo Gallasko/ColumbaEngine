@@ -288,6 +288,13 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             }
         });
 
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, SpikeFlag* spike){
+            if (player->inDodge)
+                return;
+            
+            ecsRef->sendEvent(PlayerHitEvent{1});
+        });
+
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall) {
             // get both entities’ positions
             auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
@@ -421,7 +428,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
                 if (tile.isHole)
                 {
-                    LOG_INFO("TILED", "Is Hole " << std::to_string(++holeCount));
+                    //LOG_INFO("TILED", "Is Hole " << std::to_string(++holeCount));
                     ecsRef->attach<CollisionComponent>(tex.entity, 0);
                     ecsRef->attach<HoleFlag>(tex.entity);
                 }
@@ -440,7 +447,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         if (event.win)
         {
             endText->get<TTFText>()->setText("You win !");
-        }    
+        }
         else
         {
             endText->get<TTFText>()->setText("Game Over !");
@@ -540,7 +547,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 };
 
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>,
-    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>, Own<HoleFlag>>
+    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>, Own<HoleFlag>, Own<SpikeFlag>>
 {
 };
 
@@ -716,20 +723,19 @@ void initGame() {
         roomSystem->addDoor(door);
     }
 
-    std::cout << "---PRINT SPIKES---" << std::endl;
+   // std::cout << "---PRINT SPIKES---" << std::endl;
     for (const auto &spike : map.spikes) {
         //std::cout << "Spike: " << spike << std::endl;
-        RoomSpike room_spike{};
-        room_spike.spike = spike;
+        RoomSpike room_spike {spike, map.spike_images};
         roomSystem->addSpike(room_spike);
     }
-    std::cout << "---PRINT SPIKES--- END" << std::endl;
+    //std::cout << "---PRINT SPIKES--- END" << std::endl;
 
-    std::cout << "---PRINT SPIKES IMAGES---" << std::endl;
+    /*std::cout << "---PRINT SPIKES IMAGES---" << std::endl;
     for (const auto &spike : map.spike_images) {
         std::cout << "Spike Image: " << spike << std::endl;
     }
-    std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;
+    std::cout << "---PRINT SPIKES IMAGES--- END" << std::endl;*/
 
     std::cout << "---PRINT GOLDS---" << std::endl;
     for (const auto &g : map.golds) {
