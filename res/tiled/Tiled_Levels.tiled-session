@@ -6,11 +6,11 @@
     "activeFile": "LEVELS/Level_0001.json",
     "automapping.whileDrawing": false,
     "expandedProjectPaths": [
-        "TEMPLATES",
-        "Templates",
-        ".",
         "LEVELS",
-        "EXPORTS"
+        "EXPORTS",
+        "Templates",
+        "TEMPLATES",
+        "."
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
