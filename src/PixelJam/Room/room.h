@@ -596,6 +596,7 @@ namespace pg
             if (deltaTime == 0.f)
                 return;
 
+            // std::cout << "Update room " << deltaTime << std::endl;
            //std::cout << "Update spikes  " << std::endl;
 
             for (auto& spike : spikes) {

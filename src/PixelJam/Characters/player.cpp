@@ -530,6 +530,14 @@ namespace pg
 
     void PlayerSystem::onProcessEvent(const SpawnPlayerEvent& event)
     {
+        health = 5.0f;
+        auto weaponEnt = player->get<WeaponComponent>();
+        
+        if (weaponEnt) weaponEnt->weapon = getBaseWeapon();
+
+        updateHealthUi();
+        updateWeaponUi();
+
         player->get<PositionComponent>()->setX(event.x);
         player->get<PositionComponent>()->setY(event.y);
 
