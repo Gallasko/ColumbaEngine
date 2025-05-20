@@ -240,10 +240,7 @@ namespace pg
 
         virtual void onEvent(const PlayerHitEvent& event) override;
 
-        virtual void onEvent(const PlayerInvincibilityEndEvent& event) override
-        {
-            invincibility = false;
-        }
+        virtual void onEvent(const PlayerInvincibilityEndEvent& event) override;
 
         virtual void onEvent(const SpawnPlayerEvent& event) override
         {

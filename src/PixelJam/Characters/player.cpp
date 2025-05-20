@@ -99,7 +99,7 @@ namespace pg
 
         invicibilityTimer = ecsRef->attach<Timer>(entity6);
         invicibilityTimer->oneShot = true;
-        invicibilityTimer->interval = 1000;
+        invicibilityTimer->interval = 400;
         invicibilityTimer->callback = makeCallable<PlayerInvincibilityEndEvent>();
 
         auto entity7 = ecsRef->createEntity();
@@ -127,12 +127,21 @@ namespace pg
 
         cursor->get<CameraShakeComponent>()->shake(150.f, 25.f);
 
+        player->get<Texture2DAnimationComponent>()->overrideColor({255, 0, 0}, 0.4f);
+
         health -= event.damage;
 
         updateHealthUi();
 
         invincibility = true;
         invicibilityTimer->start();
+    }
+
+    void PlayerSystem::onEvent(const PlayerInvincibilityEndEvent& event)
+    {
+        invincibility = false;
+
+        player->get<Texture2DAnimationComponent>()->clearOverrideColor();
     }
 
     void PlayerSystem::updateCamera()
