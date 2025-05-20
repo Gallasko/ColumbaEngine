@@ -84,6 +84,28 @@ namespace pg
         return CompList<PositionComponent, UiAnchor, Prefab>(anchorEnt.entity, ui, anchor, pfEnt);
     }
 
+    struct SpikeFlag : public Ctor {
+        SpikeFlag() {}
+        SpikeFlag(const SpikeFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}
+
+        SpikeFlag& operator=(const SpikeFlag& rhs)
+        {
+            ecsRef = rhs.ecsRef;
+            entityId = rhs.entityId;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+    };
+
     struct HoleFlag : public Ctor {
         HoleFlag() {}
         HoleFlag(const HoleFlag& rhs) : ecsRef(rhs.ecsRef), entityId(rhs.entityId) {}

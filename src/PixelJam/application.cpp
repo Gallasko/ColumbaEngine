@@ -288,6 +288,13 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             }
         });
 
+        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, SpikeFlag* spike){
+            if (player->inDodge)
+                return;
+            
+            ecsRef->sendEvent(PlayerHitEvent{1});
+        });
+
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag*, TestGridFlag* wall) {
             // get both entities’ positions
             auto wallEnt = wall->ecsRef->getEntity(wall->entityId);
@@ -540,7 +547,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 };
 
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>,
-    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>, Own<HoleFlag>>
+    Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>, Own<HoleFlag>, Own<SpikeFlag>>
 {
 };
 

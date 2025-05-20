@@ -63,7 +63,9 @@ namespace pg
 
         playerEnt.get<Texture2DComponent>()->setViewport(1);
 
-        std::vector<size_t> collidableLayer = {0, 3, 5, 6};
+        constexpr size_t spikeLayer = 12;
+
+        std::vector<size_t> collidableLayer = {0, 3, 5, 6, spikeLayer};
 
         ecsRef->attach<CollisionComponent>(playerEnt.entity, 1, 1.0, collidableLayer);
 

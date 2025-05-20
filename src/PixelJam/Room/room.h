@@ -29,7 +29,8 @@ namespace pg
      * - Showing:Spikes are starting to emerge; visual warning only.
      * - Out:    Spikes are fully out; dangerous.
      */
-    struct RoomSpike {
+    struct RoomSpike
+    {
 
         /**
          * @brief The state of the spike trap.
@@ -53,6 +54,7 @@ namespace pg
         State state;
         std::vector<SpikeImage> spike_images_;
         std::vector<CompList<PositionComponent, UiAnchor, Texture2DComponent>> textures;
+        EntitySystem * ecsRef;
 
         void changeState(State newState) {
             state = newState;
@@ -61,7 +63,16 @@ namespace pg
             for (const auto & tex : textures) {
                 auto texComp = tex.get<Texture2DComponent>();
                 texComp->setTexture(getTextureName().textureName);
+
+                if (state == State::Out) {
+                    ecsRef->attach<SpikeFlag>(tex.entity.entity);
+                }
+                else {
+                    ecsRef->detach<SpikeFlag>(tex.entity.entity);
+                }
             }
+
+
         }
 
         SpikeImage getTextureName() const{
@@ -620,6 +631,8 @@ namespace pg
 
         void addSpike(RoomSpike & room_spike) {
 
+            room_spike.ecsRef = ecsRef;
+
             for (int iWidth = 0; iWidth < room_spike.spike.rectTilesSpace.widthInTiles; ++iWidth) {
                 for (int iHeight = 0; iHeight < room_spike.spike.rectTilesSpace.heightInTiles; ++iHeight) {
                    // std::cout << iWidth << " " << iHeight << std::endl;
@@ -639,6 +652,8 @@ namespace pg
                     posComp->setX(posX);
                     posComp->setY(posY);
                     posComp->setZ(9);
+
+                    ecsRef->attach<CollisionComponent>(tex.entity, 12);
 
                     room_spike.addTexture(tex);
                 }
