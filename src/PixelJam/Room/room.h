@@ -627,6 +627,19 @@ namespace pg
             }
         }
 
+        void addGold(Gold gold) {
+            AsepriteLoader aseprite_loader;
+            const auto anim = aseprite_loader.loadAnim("res/sprites/Gold_Pile.json");
+            auto tex = makeUiTexture(ecsRef, anim.frames[0].widthInSPixels * 3, anim.frames[0].heightInSPixels * 3, anim.frames[0].textureName);
+            auto texComp = tex.get<Texture2DComponent>();
+            texComp->setViewport(1);
+
+            auto posComp = tex.get<PositionComponent>();
+            posComp->setX(gold.posXInSPixels - anim.frames[0].widthInSPixels * 1.5f);
+            posComp->setY(gold.posYInSPixels- anim.frames[0].heightInSPixels * 1.5f);
+            posComp->setZ(9);
+        }
+
         std::vector<RoomSpike> spikes;
 
         void addSpike(RoomSpike & room_spike) {
@@ -635,14 +648,9 @@ namespace pg
 
             for (int iWidth = 0; iWidth < room_spike.spike.rectTilesSpace.widthInTiles; ++iWidth) {
                 for (int iHeight = 0; iHeight < room_spike.spike.rectTilesSpace.heightInTiles; ++iHeight) {
-                   // std::cout << iWidth << " " << iHeight << std::endl;
-                   // std::cout << room_spike.spike.scaledTileWidth << " " <<  room_spike.spike.scaledTileHeight << std::endl;
-                   // std::cout << room_spike.getTextureName().textureName << std::endl;
 
                     auto posX = room_spike.spike.rectInSPixels.topLeftCornerX + room_spike.spike.scaledTileWidth * iWidth;
                     auto posY = room_spike.spike.rectInSPixels.topLeftCornerY + room_spike.spike.scaledTileHeight * iHeight;
-                    //std::cout << posX << std::endl;
-                    //std::cout << posY << std::endl;
 
                     auto tex = makeUiTexture(ecsRef, room_spike.spike.scaledTileWidth, room_spike.spike.scaledTileHeight, room_spike.getTextureName().textureName);
                     auto texComp = tex.get<Texture2DComponent>();
