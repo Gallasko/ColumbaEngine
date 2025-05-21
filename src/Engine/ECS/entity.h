@@ -119,6 +119,9 @@ namespace pg
 
         inline EntitySystem* world() const noexcept { return ecsRef; }
 
+        template <typename Comp, typename... Args>
+        CompRef<Comp> attach(Args&&... args);
+
         _unique_id id;
 
         // Todo make this mutable because it is only used for memoisation purposes
@@ -167,6 +170,9 @@ namespace pg
 
         template <typename Comp>
         CompRef<Comp> get() const;
+
+        template <typename Comp, typename... Args>
+        CompRef<Comp> attach(Args&&... args);
 
         Entity* operator->();
 

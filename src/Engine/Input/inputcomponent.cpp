@@ -267,7 +267,7 @@ namespace pg
         const auto& z = lhs.pos->z;
         const auto& rhsZ = rhs.pos->z;
 
-        if (z == rhsZ)
+        if (areAlmostEqual(z, rhsZ))
             return lhs.id > rhs.id;
         else
             return z > rhsZ;

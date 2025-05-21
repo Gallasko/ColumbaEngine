@@ -877,6 +877,42 @@ namespace pg
         return CompRef<Comp>();
     }
 
+    template <typename Comp, typename... Args>
+    CompRef<Comp> EntityRef::attach(Args&&... args)
+    {
+        if (initialized)
+            return entity->template attach<Comp>(std::forward<Args>(args)...);
+        else
+        {
+            // Try to find the entity in the ecs to update this ref
+            auto ent = ecsRef->getEntity(id);
+
+            // Entity found, updating this entity ref
+            if (id != 0 and ent)
+            {
+                entity = ent;
+                initialized = true;
+            }
+
+            return entity->template attach<Comp>(std::forward<Args>(args)...);
+        }
+    }
+
+    template <typename Comp, typename... Args>
+    CompRef<Comp> Entity::attach(Args&&... args)
+    {
+        LOG_THIS_MEMBER("Entity");
+
+        if (not ecsRef)
+        {
+            LOG_ERROR("Entity", "Entity is not referenced in any ECS");
+
+            return CompRef<Comp>();
+        }
+
+        return ecsRef->template attach<Comp>(EntityRef(this, false), std::forward<Args>(args)...);
+    }
+
     template <typename Type>
     void ComponentRegistry::store(Own<Type>* owner) noexcept
     {

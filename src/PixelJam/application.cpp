@@ -136,7 +136,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         auto obscureScreenEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1000.f, 1000.f, {0.f, 0.f, 0.f, 128.f});
 
-        ecsRef->attach<MouseLeftClickComponent>(obscureScreenEnt.entity, makeCallable<ReloadGame>());
+        obscureScreenEnt.entity.attach<MouseLeftClickComponent>(makeCallable<ReloadGame>());
 
         obscureScreenEnt.get<PositionComponent>()->setVisibility(false);
 
@@ -225,7 +225,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                     collectibleEnt.get<PositionComponent>()->setY(pos->y + pos->height / 2.f - 12.5f);
                     collectibleEnt.get<PositionComponent>()->setZ(10.f);
 
-                    ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
+                    // ecsRef->attach<CollisionComponent>(collectibleEnt.entity, 3);
+                    collectibleEnt.entity->attach<CollisionComponent>(3);
                     ecsRef->attach<CollectibleFlag>(collectibleEnt.entity, weapon->weapon);
                 }
 

@@ -477,12 +477,13 @@ namespace pg
         float totalWidth = currentX - startX;
         float totalHeight = (currentY - startY) + lineHeight;
 
-        if (obj->textWidth != totalWidth)
+        if (areNotAlmostEqual(obj->textWidth, totalWidth))
         {
             obj->textWidth = totalWidth;
             ui->setWidth(totalWidth);
         }
-        if (obj->textHeight != totalHeight)
+
+        if (areNotAlmostEqual(obj->textHeight, totalHeight))
         {
             obj->textHeight = totalHeight;
             ui->setHeight(totalHeight);
