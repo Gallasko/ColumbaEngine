@@ -28,7 +28,7 @@ namespace pg
             if (ecsRef)
             {
                 ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }   
+            }
 
             return *this;
         }
@@ -40,7 +40,7 @@ namespace pg
             entityId = entity->id;
         }
 
-        inline static std::string getType() { return "Texture2DComponent"; } 
+        inline static std::string getType() { return "Texture2DComponent"; }
 
         void setTexture(const std::string& textureName)
         {
@@ -51,13 +51,13 @@ namespace pg
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
             }
         }
 
         void setOverlappingColor(const constant::Vector3D& color, float ratio)
         {
-            if (ratio != overlappingColorRatio or overlappingColor != color)
+            if (areNotAlmostEqual(ratio, overlappingColorRatio) or overlappingColor != color)
             {
                 this->overlappingColor = color;
                 this->overlappingColorRatio = ratio;
@@ -65,20 +65,20 @@ namespace pg
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
             }
         }
 
         void setOpacity(float opacity)
         {
-            if (this->opacity != opacity)
+            if (areNotAlmostEqual(this->opacity, opacity))
             {
                 this->opacity = opacity;
 
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
             }
         }
 

@@ -31,6 +31,8 @@ namespace pg
 
     struct ParallelPolicy
     {
+        virtual ~ParallelPolicy() {}
+
         virtual void parallelExecute(tf::Taskflow&) = 0;
     };
 
@@ -40,11 +42,15 @@ namespace pg
 
     struct InitSys
     {
+        virtual ~InitSys() {}
+
         virtual void init() = 0;
     };
 
     struct SaveSys
     {
+        virtual ~SaveSys() {}
+
         // Pure virtual function to save any data from the system
         virtual void save(Archive& archive) = 0;
 
@@ -388,7 +394,7 @@ namespace pg
             if ((executionPolicy == ExecutionPolicy::Manual or executionPolicy == ExecutionPolicy::Storage) and _executionQueue.size() > 0)
             {
                 LOG_WARNING("System", "Trying to add a QueuedListener to a system that will not have an execute call. (Remove the Manual/Storage policy or call execute())");
-            } 
+            }
 
             onRegisterFinished();
         }

@@ -101,7 +101,7 @@ namespace pg
 
         CollisionComponent(size_t layerId) : layerId(layerId)
         {
-            if (scale == 0)
+            if (areAlmostEqual(scale, 0.0f))
             {
                 LOG_ERROR("CollisionComponent", "scale must be a positive number");
                 scale = 1;
@@ -110,7 +110,7 @@ namespace pg
 
         CollisionComponent(size_t layerId, float scale, const std::vector<size_t>& checkLayerId = {0}) : layerId(layerId), scale(scale), checkSpecificLayerFlag(true), checkLayerId(checkLayerId)
         {
-            if (scale == 0)
+            if (areAlmostEqual(scale, 0.0f))
             {
                 LOG_ERROR("CollisionComponent", "scale must be a positive number");
                 scale = 1;

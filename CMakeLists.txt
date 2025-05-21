@@ -61,7 +61,8 @@ else()
         if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
         # set(CMAKE_CXX_FLAGS "-flto -Wall -Wextra -pthread -O3 -DNDEBUG")
         # set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
-            set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG")
+        # -Wdouble-promotion
+            set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -ftime-trace -pthread -O0 -ggdb -DDEBUG")
         endif()
 
         if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")

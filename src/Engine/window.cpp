@@ -593,12 +593,12 @@ namespace pg
             pos->setHeight(height);
         }
 
-        if (screenUi->width != width)
+        if (areNotAlmostEqual(screenUi->width, width))
         {
             screenUi->setWidth(width);
         }
 
-        if (screenUi->height != height)
+        if (areNotAlmostEqual(screenUi->height, height))
         {
             screenUi->setHeight(height);
         }

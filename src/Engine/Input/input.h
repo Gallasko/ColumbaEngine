@@ -13,7 +13,7 @@ namespace pg
 	struct MousePos
 	{
 		float x = 0.0f, y = 0.0f;
-	
+
 		MousePos& operator+=(const MousePos& rhs) { x += rhs.x; y += rhs.y; return *this; }
 	};
 
@@ -61,7 +61,7 @@ namespace pg
 		Input() {}
 
 		Input::InputState registerKeyInput(const SDL_Scancode& key, const Input::InputState& state);
-		Input::InputState registerMouseInput(const MouseButton& button, const Input::InputState& state);		
+		Input::InputState registerMouseInput(const MouseButton& button, const Input::InputState& state);
 		Input::InputState registerMouseMove(const MousePos& mousePos, const MousePos& mouseDelta);
 		Input::InputState registerGamepadInput(const SDL_GameControllerButton& button, const Input::InputState& state);
 		Input::InputState registerGamepadAxisMove(const MouseButton& button, const Input::InputState& state);
@@ -99,7 +99,7 @@ namespace pg
 		void reset();
 
 	public:
-		double updateTime = 1.0f;
+		float updateTime = 1.0f;
 
 	private:
 		std::vector<Input::KeyInstance> keyContainer;

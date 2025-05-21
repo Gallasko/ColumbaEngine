@@ -23,15 +23,15 @@ namespace pg
         // find minimum penetration
         float minDist = std::min({ dLeft, dRight, dBottom, dTop });
 
-        if (minDist == dLeft)
+        if (areAlmostEqual(minDist, dLeft))
         {
             return { -1.f,  0.f };     // hit left face
         }
-        else if (minDist == dRight)
+        else if (areAlmostEqual(minDist, dRight))
         {
             return {  1.f,  0.f };     // hit right face
         }
-        else if (minDist == dBottom)
+        else if (areAlmostEqual(minDist, dBottom))
         {
             return {  0.f, -1.f };     // hit bottom face
         }
@@ -212,7 +212,7 @@ namespace pg
         float height = pos->height;
         float width = pos->width;
 
-        if (height == 0 or width == 0)
+        if (areAlmostEqual(height, 0) or areAlmostEqual(width, 0))
         {
             LOG_INFO(DOM, "Object has no area so no collision needed");
             return;
@@ -577,8 +577,8 @@ namespace pg
     {
         // 1) find the page this cell lives in
         // integer‐divide by pageSize to get the page coords
-        PagePos pageKey { static_cast<int>(std::floor(cellPos.x) / pageSize.x),
-                          static_cast<int>(std::floor(cellPos.y) / pageSize.y) };
+        PagePos pageKey { static_cast<int>(static_cast<float>(std::floor(cellPos.x)) / pageSize.x),
+                          static_cast<int>(static_cast<float>(std::floor(cellPos.y)) / pageSize.y) };
 
         auto layerIt = loadedPages.find(layerId);
         if (layerIt == loadedPages.end())

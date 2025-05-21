@@ -33,7 +33,7 @@ namespace pg
             if (ecsRef)
             {
                 ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }   
+            }
 
             return *this;
         }
@@ -45,18 +45,18 @@ namespace pg
             entityId = entity->id;
         }
 
-        inline static std::string getType() { return "ProgressBarComponent"; } 
+        inline static std::string getType() { return "ProgressBarComponent"; }
 
         void setFillPercent(float percent)
         {
-            if (this->percent != percent)
+            if (areNotAlmostEqual(this->percent, percent))
             {
                 this->percent = percent;
 
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
             }
         }
 
@@ -69,7 +69,7 @@ namespace pg
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
             }
         }
 

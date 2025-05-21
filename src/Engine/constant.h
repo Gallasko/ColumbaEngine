@@ -13,6 +13,16 @@
 
 namespace pg
 {
+    inline bool areAlmostEqual(float a, float b, float epsilon = 1e-5f)
+    {
+        return std::fabs(a - b) <= epsilon * std::max({1.0f, std::fabs(a), std::fabs(b)});
+    }
+
+    inline bool areNotAlmostEqual(float a, float b, float epsilon = 1e-5f)
+    {
+        return not areAlmostEqual(a, b, epsilon);
+    }
+
     namespace constant
     {
         //Screen Const
@@ -97,7 +107,7 @@ namespace pg
 
             inline bool operator==(const Vector2D &rhs) const
             {
-                return (this->x == rhs.x) && (this->y == rhs.y);
+                return areAlmostEqual(this->x, rhs.x) and areAlmostEqual(this->y, rhs.y);
             }
 
             inline bool operator!=(const Vector2D &rhs) const
@@ -202,7 +212,7 @@ namespace pg
 
             inline bool operator==(const Vector3D &rhs) const
             {
-                return (this->x == rhs.x) && (this->y == rhs.y) && (this->z == rhs.z);
+                return areAlmostEqual(this->x, rhs.x) and areAlmostEqual(this->y, rhs.y) and areAlmostEqual(this->z, rhs.z);
             }
 
             inline bool operator!=(const Vector3D &rhs) const
@@ -282,7 +292,7 @@ namespace pg
 
             inline bool operator==(const Vector4D &rhs) const
             {
-                return (this->x == rhs.x) and (this->y == rhs.y) and (this->z == rhs.z) and (this->w == rhs.w);
+                return areAlmostEqual(this->x, rhs.x) and areAlmostEqual(this->y, rhs.y) and areAlmostEqual(this->z, rhs.z) and areAlmostEqual(this->w, rhs.w);
             }
 
             inline bool operator!=(const Vector4D &rhs) const

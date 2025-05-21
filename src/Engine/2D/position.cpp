@@ -8,18 +8,6 @@ namespace pg
     {
         static constexpr const char * const DOM = "Position";
 
-        constexpr float EPSILON = 1e-5f;
-
-        bool areAlmostEqual(float a, float b, float epsilon = EPSILON)
-        {
-            return std::fabs(a - b) <= epsilon * std::max({1.0f, std::fabs(a), std::fabs(b)});
-        }
-
-        bool areNotAlmostEqual(float a, float b, float epsilon = EPSILON)
-        {
-            return not areAlmostEqual(a, b, epsilon);
-        }
-
         float getValueFromType(CompRef<PositionComponent> posComp, const AnchorType& dir)
         {
             switch (dir)

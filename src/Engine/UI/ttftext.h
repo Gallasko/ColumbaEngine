@@ -75,7 +75,7 @@ namespace pg
 
         void setSpacing(float spacing)
         {
-            if (this->spacing != spacing)
+            if (areNotAlmostEqual(this->spacing, spacing))
             {
                 LOG_THIS("TTF Text");
 

@@ -142,7 +142,7 @@ namespace pg
         int highestZ = INT_MIN;
         const auto& mousePos = inputHandler->getMousePos();
 
-        if (oldMousePos.x != mousePos.x or oldMousePos.y != mousePos.y)
+        if (areNotAlmostEqual(oldMousePos.x, mousePos.x) or areNotAlmostEqual(oldMousePos.y, mousePos.y))
         {
             ecsRef->sendEvent(OnMouseMove{mousePos, inputHandler});
         }
@@ -256,7 +256,7 @@ namespace pg
         const auto& z = lhs.pos->z;
         const auto& rhsZ = rhs.pos->z;
 
-        if (z == rhsZ)
+        if (areAlmostEqual(z, rhsZ))
             return lhs.id < rhs.id;
         else
             return z < rhsZ;

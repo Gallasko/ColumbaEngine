@@ -45,7 +45,7 @@ namespace pg
 
         void setViewportWidth(float width)
         {
-            if (width != viewportWidth)
+            if (areNotAlmostEqual(width, viewportWidth))
             {
                 viewportWidth = width;
 
@@ -56,7 +56,7 @@ namespace pg
 
         void setViewportHeight(float height)
         {
-            if (height != viewportHeight)
+            if (areNotAlmostEqual(height, viewportHeight))
             {
                 viewportHeight = height;
 
@@ -67,7 +67,7 @@ namespace pg
 
         void setNear(float nearPlane)
         {
-            if (nearPlane != this->nearPlane)
+            if (areNotAlmostEqual(nearPlane, this->nearPlane))
             {
                 this->nearPlane = nearPlane;
 
@@ -78,7 +78,7 @@ namespace pg
 
         void setFar(float farPlane)
         {
-            if (farPlane != this->farPlane)
+            if (areNotAlmostEqual(farPlane, this->farPlane))
             {
                 this->farPlane = farPlane;
 
@@ -89,7 +89,7 @@ namespace pg
 
         void setSmoothFactor(float smoothFactor)
         {
-            if (smoothFactor != this->smoothFactor)
+            if (areNotAlmostEqual(smoothFactor, this->smoothFactor))
             {
                 this->smoothFactor = smoothFactor;
 
@@ -100,7 +100,7 @@ namespace pg
 
         void setTarget(float targetX, float targetY)
         {
-            if (targetX != this->targetX or targetY != this->targetY)
+            if (areNotAlmostEqual(targetX, this->targetX) or areNotAlmostEqual(targetY, this->targetY))
             {
                 this->targetX = targetX;
                 this->targetY = targetY;
@@ -112,7 +112,7 @@ namespace pg
 
         float viewportWidth = 820.0f;
         float viewportHeight = 640.0f;
-        
+
         float nearPlane = -1000.0f;
         float farPlane = 1000.0f;
 
@@ -223,7 +223,7 @@ namespace pg
                     cam->x += (followCam->targetX - cam->x) * followCam->smoothFactor;
                     cam->y += (followCam->targetY - cam->y) * followCam->smoothFactor;
 
-                    if (oldX != cam->x or oldY != cam->y)
+                    if (areNotAlmostEqual(oldX, cam->x) or areNotAlmostEqual(oldY, cam->y))
                         cam->dirty = true;
                 }
 
