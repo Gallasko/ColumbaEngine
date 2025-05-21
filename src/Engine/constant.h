@@ -121,6 +121,11 @@ namespace pg
                 return std::sqrt(x * x + y * y);
             }
 
+            inline float dot(const Vector2D &rhs) const
+            {
+                return this->x * rhs.x + this->y * rhs.y;
+            }
+
             // Returns a normalized copy of this vector (unit length).
             // If the vector is zero-length, returns the original (0,0).
             inline Vector2D normalized() const

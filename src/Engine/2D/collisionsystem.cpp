@@ -451,8 +451,8 @@ namespace pg
         for (const auto& cellPos : cellsToCheck)
         {
             // lookup page, then cell index
-            PagePos pageKey = { static_cast<int>(cellPos.x / pageSize.x),
-                                static_cast<int>(cellPos.y / pageSize.y) };
+            PagePos pageKey = { static_cast<int>(std::floor(cellPos.x / pageSize.x)),
+                                static_cast<int>(std::floor(cellPos.y / pageSize.y)) };
 
             auto pageIt = loadedPages[layerId].find(pageKey);
 
@@ -462,8 +462,8 @@ namespace pg
             auto& page = pageIt->second;
 
             // 3) Compute local cell indices, wrapping negatives if needed
-            int localX = int(cellPos.x) % int(pageSize.x);
-            int localY = int(cellPos.y) % int(pageSize.y);
+            int localX = cellPos.x - pageKey.x * pageSize.x;
+            int localY = cellPos.y - pageKey.y * pageSize.y;
 
             if (localX < 0)
                 localX += pageSize.x;
@@ -577,8 +577,8 @@ namespace pg
     {
         // 1) find the page this cell lives in
         // integer‐divide by pageSize to get the page coords
-        PagePos pageKey { static_cast<int>(static_cast<float>(std::floor(cellPos.x)) / pageSize.x),
-                          static_cast<int>(static_cast<float>(std::floor(cellPos.y)) / pageSize.y) };
+        PagePos pageKey { static_cast<int>(std::floor(cellPos.x / pageSize.x)),
+                          static_cast<int>(std::floor(cellPos.y / pageSize.y)) };
 
         auto layerIt = loadedPages.find(layerId);
         if (layerIt == loadedPages.end())

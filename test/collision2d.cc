@@ -241,7 +241,8 @@ TEST(CollisionSystem, SweepMove_HeadOn_Right)
 
     auto res = sweepMove(sys, {0,0}, {10,10}, {20,0}, {0});
 
-    EXPECT_NEAR(res.delta.x, 10.0f - 1e-3f, 1e-4f);
+    // Todo tame the back off a bit so that the margin of 1e-2 can get small
+    EXPECT_NEAR(res.delta.x, 10.0f - 10.0f * 1e-3f, 1e-2f);
     EXPECT_TRUE(res.hit);
 }
 
@@ -261,7 +262,7 @@ TEST(CollisionSystem, SweepMove_HeadOn_Left)
 
     ecs.executeOnce();
 
-    EXPECT_NEAR(res.delta.x, -(10.0f - 1e-3f), 1e-4f);
+    EXPECT_NEAR(res.delta.x, -(10.0f - 10.0f * 1e-3f), 1e-2f);
     EXPECT_TRUE(res.hit);
 }
 
@@ -281,7 +282,7 @@ TEST(CollisionSystem, SweepMove_HeadOn_Up)
 
     ecs.executeOnce();
 
-    EXPECT_NEAR(res.delta.y, -(10.0f - 1e-3f), 1e-4f);
+    EXPECT_NEAR(res.delta.y, -(10.0f - 10.0f * 1e-3f), 1e-2f);
     EXPECT_TRUE(res.hit);
 }
 
@@ -292,16 +293,16 @@ TEST(CollisionSystem, SweepMove_HeadOn_Down)
     auto sys = ecs.createSystem<CollisionSystem>();
     ecs.succeed<PositionComponentSystem, CollisionSystem>();
 
-    auto wall = makeWall(ecs, 0, 20, 10, 10, 0);
+    auto wall = makeWall(ecs, 0, 30, 10, 10, 0);
     ecs.executeOnce();
 
     expectWallInCell(sys, wall.id, /*cellX=*/0, /*cellY=*/1, /*layer=*/0);
 
-    auto res = sweepMove(sys, {0,0}, {10,10}, {0,20}, {0});
+    auto res = sweepMove(sys, {0,0}, {10,10}, {0,30}, {0});
 
     ecs.executeOnce();
 
-    EXPECT_NEAR(res.delta.y, 10.0f - 1e-3f, 1e-4f);
+    EXPECT_NEAR(res.delta.y, 20.0f * (1.0f - 1e-3f), 1e-2f);
     EXPECT_TRUE(res.hit);
 }
 

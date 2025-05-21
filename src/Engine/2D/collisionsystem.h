@@ -260,6 +260,8 @@ namespace pg
     /// - originPos: the top‑left or center of your entity (consistent convention)
     /// - size: width/height of your entity’s AABB
     /// - layer: which collision layer ID to test against (e.g. walls)
+    // Careful the backoff is actuall a ratio of the movement length instead of an absolute value
+    // (if you hit a wall you back off the wall by 1e-3 of the movement length)
     SweepMoveResult sweepMove(CollisionSystem*  collision, const constant::Vector2D& originPos, const constant::Vector2D& size, const constant::Vector2D& delta, const std::vector<size_t>& targetLayers);
 
     struct CollisionHandleBase
