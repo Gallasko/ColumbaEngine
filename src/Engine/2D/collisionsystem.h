@@ -14,6 +14,18 @@
 
 namespace pg
 {
+    struct AABB
+    {
+        float minX;
+        float minY;
+        float maxX;
+        float maxY;
+    };
+
+    inline constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint);
+
+    std::optional<float> rayAABB(const constant::Vector2D& origin, const constant::Vector2D& dir, float length, const AABB& box);
+
     struct PagePos
     {
         PagePos() : x(0), y(0) {}
@@ -215,7 +227,7 @@ namespace pg
 
         std::set<_unique_id> resolveCollisionList(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp);
 
-        bool testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2, float scale1, float scale2) const;
+        bool testCollision(PositionComponent* obj1, PositionComponent* obj2, float scale1, float scale2) const;
 
         _unique_id findNeareastId(constant::Vector2D pos, size_t layerId, size_t radius);
 

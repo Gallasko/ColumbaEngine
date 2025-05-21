@@ -493,6 +493,8 @@ namespace pg
     template<>
     void ComponentRegistry::processEvent(const StandardEvent& event);
 
+    // Todo setting a ref to a component that is not own by another system raises an exception std::map ::at: out of range
+    // Todo add a function to check if the component is already in the registry and log an error if it is not
     template <class Type>
     struct Ref
     {

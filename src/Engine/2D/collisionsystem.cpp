@@ -11,14 +11,6 @@ namespace pg
 
     // Todo fix scaling !
 
-    struct AABB
-    {
-        float minX;
-        float minY;
-        float maxX;
-        float maxY;
-    };
-
     /// Returns one of the four cardinal normals (+/–X or +/–Y)
     inline constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint)
     {
@@ -76,7 +68,7 @@ namespace pg
             tExit  = std::min(tExit,  t2);
 
             // If interval is empty, ray misses
-            if (tEnter > tExit) 
+            if (tEnter > tExit)
                 return std::nullopt;
         }
 
@@ -98,7 +90,7 @@ namespace pg
             tEnter = std::max(tEnter, t1);
             tExit  = std::min(tExit,  t2);
 
-            if (tEnter > tExit) 
+            if (tEnter > tExit)
                 return std::nullopt;
         }
 
@@ -187,7 +179,7 @@ namespace pg
 
         float x = pos->x;
         float y = pos->y;
-        
+
         x -= (width * (comp->scale - 1)) / 2.0f;
         y -= (height * (comp->scale - 1)) / 2.0f;
 
@@ -365,7 +357,7 @@ namespace pg
     }
 
     // TODO this only test collision for AABB to AABB for now, need to expend on it !
-    bool CollisionSystem::testCollision(CompRef<PositionComponent> obj1, CompRef<PositionComponent> obj2, float scale1, float scale2) const
+    bool CollisionSystem::testCollision(PositionComponent* obj1, PositionComponent* obj2, float scale1, float scale2) const
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -662,7 +654,7 @@ namespace pg
         if (not yZero)
             offsY.push_back(dir.y > 0 ? +half.y : -half.y);
         else
-        { 
+        {
             offsY.push_back(+half.y);
             offsY.push_back(-half.y);
         }

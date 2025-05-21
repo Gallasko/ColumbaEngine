@@ -167,7 +167,7 @@ namespace pg
             return *this;
         }
 
-        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId, uint8_t viewport)
+        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId, uint8_t viewport = 0)
         {
             setVisibility(visible);
             setRenderStage(stage);
@@ -509,7 +509,7 @@ namespace pg
         // Todo change default camera
 
         size_t queueRegisterCamera(_unique_id camera)
-        { 
+        {
             cameraRegisterQueue.push_back(camera);
 
             return cameraList.size() + cameraRegisterQueue.size(); // Return the index of the new camera
