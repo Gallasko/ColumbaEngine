@@ -416,6 +416,9 @@ namespace pg
         float x2 = obj2->x - (w2 - obj2->width ) * 0.5f;
         float y2 = obj2->y - (h2 - obj2->height) * 0.5f;
 
+        if (areAlmostEqual(w1, 0.0f) or areAlmostEqual(h1, 0.0f) or areAlmostEqual(w2, 0.0f) or areAlmostEqual(h2, 0.0f))
+            return false;
+
         // now do the standard AABB check
         return (x1 + w1) >= x2 and x1 <= (x2 + w2) and (y1 + h1) >= y2 and y1 <= (y2 + h2);
     }
@@ -767,6 +770,19 @@ namespace pg
                         {
                             bestT = t;
                             res.entity = wallEntity;
+
+                            // compute the world‐space hitPoint
+                            constant::Vector2D hitPoint = center + dir * (*tOpt);
+
+                            // compute the normal on the non‑inflated box:
+                            AABB box {
+                                startWallX,
+                                startWallY,
+                                startWallX + wallWidth * wcol->scale,
+                                startWallY + wallHeight * wcol->scale
+                            };
+
+                            res.normal = computeBoxNormal(box, hitPoint);
                         }
                     }
                 }
@@ -788,6 +804,8 @@ namespace pg
           // no hit: full movement
           safeT = 1.0f;
         }
+
+        res.t = safeT;
 
         res.delta = delta * safeT;
 

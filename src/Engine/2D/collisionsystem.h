@@ -253,6 +253,9 @@ namespace pg
         constant::Vector2D delta = {0, 0};
 
         Entity *entity = nullptr;
+
+        constant::Vector2D normal = {0, 0};
+        float t = 1.0f;  // fraction along delta where we hit
     };
 
     /// Tries to move `pos` by `delta`.  Returns the actual movement applied (≤ delta),

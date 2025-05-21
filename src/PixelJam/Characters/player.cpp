@@ -707,46 +707,46 @@ namespace pg
     }
 
     // Todo test
-    // constant::Vector2D doSweepAndSlide(CollisionSystem* cs,
-    //     constant::Vector2D startPos,
-    //     constant::Vector2D size,
-    //     constant::Vector2D delta,
-    //     const std::vector<size_t>&   layers)
-    // {
-    //     constexpr float EPS = 1e-3f;
-    //     constant::Vector2D remaining = delta;
-    //     constant::Vector2D pos = startPos;
+    constant::Vector2D moveWithSlide(
+        CollisionSystem*    cs,
+        constant::Vector2D  startPos,
+        constant::Vector2D  size,
+        constant::Vector2D  delta,
+        const std::vector<size_t>& layers)
+    {
+        constexpr float EPS = 1e-3f;
+        constant::Vector2D pos       = startPos;
+        constant::Vector2D remaining = delta;
 
-    //     // Up to N iterations to gather multiple collisions:
-    //     for (int iter = 0; iter < 2; ++iter)
-    //     {
-    //         // 1) sweep with the current remaining vector
-    //         auto res = sweepMove(cs, pos, size, remaining, layers);
+        // We allow up to two iterations (for hitting two walls)
+        for (int iter = 0; iter < 2; ++iter)
+        {
+            // sweepMove must now fill res.hit, res.delta, res.normal, res.t
+            auto res = sweepMove(cs, pos, size, remaining, layers);
+            if (not res.hit)
+            {
+                // no collision: move the rest
+                pos += remaining;
+                break;
+            }
 
-    //         if (not res.hit)
-    //         {
-    //             // no hit: move the rest and break
-    //             pos += remaining;
-    //             break;
-    //         }
+            // 2a) move up to just before the hit
+            float travelT = std::max(0.0f, res.t - EPS);
+            pos += remaining * travelT;
 
-    //         // 2) move to just before contact
-    //         float t1 = std::max(0.f, res.t - EPS);
-    //         pos += remaining * t1;
+            // 2b) subtract the traveled portion
+            constant::Vector2D traveled = remaining * travelT;
+            remaining = remaining - traveled;
 
-    //         // 3) subtract the moved part
-    //         constant::Vector2D moved = remaining * t1;
-    //         remaining -= moved;
+            // 2c) remove the component into the wall
+            //    remaining' = remaining - (remaining·normal) * normal
+            float into = remaining.dot(res.normal);
+            remaining = remaining - res.normal * into;
+            // now `remaining` is tangential to the hit surface
+        }
 
-    //         // 4) remove the component **into** the wall
-    //         float into = dot(remaining, res.normal);
-    //         remaining = remaining - res.normal * into;
-
-    //         // loop again to handle any perpendicular wall
-    //     }
-
-    //     return pos;
-    // }
+        return pos;
+    }
 
     void PlayerSystem::movePlayer(float x, float y, bool scaleToMoveSpeed)
     {
@@ -763,56 +763,15 @@ namespace pg
         constant::Vector2D posVec = {pos->x, pos->y};
         constant::Vector2D size = {pos->width, pos->height};
 
-        // pos->setX(pos->x + x);
-        // pos->setY(pos->y + y);
+        constant::Vector2D delta = { x, y };
 
-        // Todo fix this
-        // This is a randabouty way to do it because attach CollisionComponent is buggy
-        auto applX = sweepMove(collisionSys, {pos->x, pos->y}, size, {x, 0.0f}, {0});
+        // run the slide solver
+        constant::Vector2D endPos = moveWithSlide(collisionSys, posVec, size, delta, {0});
 
-        if (applX.hit and applX.entity and applX.entity->has<WallFlag>())
-        {
-            pos->setX(pos->x + applX.delta.x);
-            // pos->setY(pos->y + appl.delta.y);
-        }
-        else
-        {
-            pos->setX(pos->x + x);
-            // pos->setY(pos->y + y);
-        }
-
-        auto applY = sweepMove(collisionSys, {pos->x, pos->y}, size, {0.0f, y}, {0});
-
-        if (applY.hit and applY.entity and applY.entity->has<WallFlag>())
-        {
-            // pos->setX(pos->x + appl.delta.x);
-            pos->setY(pos->y + applY.delta.y);
-        }
-        else
-        {
-            // pos->setX(pos->x + x);
-            pos->setY(pos->y + y);
-        }
+        // finally set your new position
+        pos->setX(endPos.x);
+        pos->setY(endPos.y);
 
         updateCamera();
-
-        // // 1) sweep X only
-        // auto applX = sweepMove(collisionSys, {pos->x, pos->y}, size, {x, 0.0f}, {0});
-        // pos->setX(pos->x + applX.delta.x);
-        // // pos->setY(pos->y + applX.delta.y);
-
-        // // 2) sweep Y only (using the **new** X position!)
-        // auto applY = sweepMove(collisionSys, {pos->x, pos->y}, size, {0.0f, y}, {0});
-        // // pos->setX(pos->x + applY.delta.x);
-        // pos->setY(pos->y + applY.delta.y);
-
-
-        // LOG_INFO("Player", "Hit X: " << applX.delta.x << ", hit Y: " << applY.delta.y);
-
-        // // optional: detect if either axis was blocked
-        // if (hitX or hitY)
-        // {
-        //     LOG_INFO("Player", "Hit wall on " << (hitX ? "X" : "") << (hitY ? "Y" : ""));
-        // }
     }
 } // namespace pg

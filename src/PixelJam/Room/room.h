@@ -234,7 +234,7 @@ namespace pg
     {
         int roomIndex;
     };
-    
+
     struct ResetRoomEvent {};
 
     struct RoomSystem : public System<Own<RoomTriggerFlag>, Listener<EnemyDeathEvent>, Listener<SpawnWaveEvent>, Listener<EnterRoomEvent>, InitSys, Listener<TickEvent>, Listener<ResetRoomEvent>>
@@ -269,11 +269,13 @@ namespace pg
                 for (auto& door : room.second.doors)
                 {
                     auto doorEnt = ecsRef->getEntity(door.entityId);
-                    
+
                     doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
 
                     ecsRef->detach<WallFlag>(doorEnt);
-                    // ecsRef->detach<CollisionComponent>(doorEnt);
+
+                    if (doorEnt->has<CollisionComponent>())
+                        ecsRef->detach<CollisionComponent>(doorEnt);
                 }
             }
 
@@ -397,7 +399,10 @@ namespace pg
                     doorEnt->get<Simple2DObject>()->setColors({0.f, 125.f, 0.f, 80.f});
 
                     ecsRef->detach<WallFlag>(doorEnt);
-                    // ecsRef->detach<CollisionComponent>(doorEnt);
+
+                    // Todo add the has check in the detach !
+                    if (doorEnt->has<CollisionComponent>())
+                        ecsRef->detach<CollisionComponent>(doorEnt);
                 }
             }
             else if (nbSlayedEnemies == nbSpawnedEnemies)
@@ -466,6 +471,7 @@ namespace pg
                 // ecsRef->attach<CollisionComponent>(doorEnt, 0);
 
                 ecsRef->attach<WallFlag>(doorEnt);
+                ecsRef->attach<CollisionComponent>(doorEnt, 0);
             }
 
             currentRoom = event.roomIndex;
@@ -532,7 +538,7 @@ namespace pg
 
             doorEnt.get<Simple2DObject>()->setViewport(1);
 
-            ecsRef->attach<CollisionComponent>(doorEnt.entity, 0);
+            // ecsRef->attach<CollisionComponent>(doorEnt.entity, 0);
 
             it->second.doors.push_back(RoomDoorHolder{doorEnt.entity.id, door});
         }
