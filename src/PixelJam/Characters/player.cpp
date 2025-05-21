@@ -705,6 +705,48 @@ namespace pg
         // }
     }
 
+    // Todo test
+    // constant::Vector2D doSweepAndSlide(CollisionSystem* cs,
+    //     constant::Vector2D startPos,
+    //     constant::Vector2D size,
+    //     constant::Vector2D delta,
+    //     const std::vector<size_t>&   layers)
+    // {
+    //     constexpr float EPS = 1e-3f;
+    //     constant::Vector2D remaining = delta;
+    //     constant::Vector2D pos = startPos;
+
+    //     // Up to N iterations to gather multiple collisions:
+    //     for (int iter = 0; iter < 2; ++iter)
+    //     {
+    //         // 1) sweep with the current remaining vector
+    //         auto res = sweepMove(cs, pos, size, remaining, layers);
+
+    //         if (not res.hit)
+    //         {
+    //             // no hit: move the rest and break
+    //             pos += remaining;
+    //             break;
+    //         }
+
+    //         // 2) move to just before contact
+    //         float t1 = std::max(0.f, res.t - EPS);
+    //         pos += remaining * t1;
+
+    //         // 3) subtract the moved part
+    //         constant::Vector2D moved = remaining * t1;
+    //         remaining -= moved;
+
+    //         // 4) remove the component **into** the wall
+    //         float into = dot(remaining, res.normal);
+    //         remaining = remaining - res.normal * into;
+
+    //         // loop again to handle any perpendicular wall
+    //     }
+
+    //     return pos;
+    // }
+
     void PlayerSystem::movePlayer(float x, float y, bool scaleToMoveSpeed)
     {
         if (scaleToMoveSpeed)
@@ -727,7 +769,7 @@ namespace pg
         // This is a randabouty way to do it because attach CollisionComponent is buggy
         auto applX = sweepMove(collisionSys, {pos->x, pos->y}, size, {x, 0.0f}, {0});
 
-        if (applX.entity and applX.entity->has<WallFlag>())
+        if (applX.hit and applX.entity and applX.entity->has<WallFlag>())
         {
             pos->setX(pos->x + applX.delta.x);
             // pos->setY(pos->y + appl.delta.y);
@@ -740,7 +782,7 @@ namespace pg
 
         auto applY = sweepMove(collisionSys, {pos->x, pos->y}, size, {0.0f, y}, {0});
 
-        if (applY.entity and applY.entity->has<WallFlag>())
+        if (applY.hit and applY.entity and applY.entity->has<WallFlag>())
         {
             // pos->setX(pos->x + appl.delta.x);
             pos->setY(pos->y + applY.delta.y);

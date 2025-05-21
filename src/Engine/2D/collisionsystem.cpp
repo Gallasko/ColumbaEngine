@@ -12,7 +12,7 @@ namespace pg
     // Todo fix scaling !
 
     /// Returns one of the four cardinal normals (+/–X or +/–Y)
-    inline constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint)
+    constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint)
     {
         // distance to each face
         float dLeft   =  hitPoint.x - box.minX;
@@ -23,16 +23,20 @@ namespace pg
         // find minimum penetration
         float minDist = std::min({ dLeft, dRight, dBottom, dTop });
 
-        if (minDist == dLeft) {
+        if (minDist == dLeft)
+        {
             return { -1.f,  0.f };     // hit left face
         }
-        else if (minDist == dRight) {
+        else if (minDist == dRight)
+        {
             return {  1.f,  0.f };     // hit right face
         }
-        else if (minDist == dBottom) {
+        else if (minDist == dBottom)
+        {
             return {  0.f, -1.f };     // hit bottom face
         }
-        else {
+        else
+        {
             return {  0.f,  1.f };     // hit top face
         }
     }
@@ -775,7 +779,7 @@ namespace pg
         if (res.hit)
         {
           // we hit, so back off by a small epsilon to avoid overlap
-          safeT = bestT - EPSILON;
+          safeT = bestT - 1e-3f;
 
           if (safeT < 0) safeT = 0;
         }

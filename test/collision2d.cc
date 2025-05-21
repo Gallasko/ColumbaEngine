@@ -234,12 +234,13 @@ TEST(CollisionSystem, SweepMove_HeadOn_Right)
     auto sys = ecs.createSystem<CollisionSystem>();
     ecs.succeed<PositionComponentSystem, CollisionSystem>();
 
-    auto wall = makeWall(ecs, 10, 0, 10, 10, 0);
+    auto wall = makeWall(ecs, 20, 0, 10, 10, 0);
     ecs.executeOnce();
 
-    expectWallInCell(sys, wall.id, /*cellX=*/0, /*cellY=*/0, /*layer=*/0);
+    expectWallInCell(sys, wall.id, /*cellX=*/1, /*cellY=*/0, /*layer=*/0);
 
     auto res = sweepMove(sys, {0,0}, {10,10}, {20,0}, {0});
+
     EXPECT_NEAR(res.delta.x, 10.0f - 1e-3f, 1e-4f);
     EXPECT_TRUE(res.hit);
 }
@@ -257,6 +258,9 @@ TEST(CollisionSystem, SweepMove_HeadOn_Left)
     expectWallInCell(sys, wall.id, /*cellX=*/-1, /*cellY=*/0, /*layer=*/0);
 
     auto res = sweepMove(sys, {0,0}, {10,10}, {-20,0}, {0});
+
+    ecs.executeOnce();
+
     EXPECT_NEAR(res.delta.x, -(10.0f - 1e-3f), 1e-4f);
     EXPECT_TRUE(res.hit);
 }
@@ -274,6 +278,9 @@ TEST(CollisionSystem, SweepMove_HeadOn_Up)
     expectWallInCell(sys, wall.id, /*cellX=*/0, /*cellY=*/-1, /*layer=*/0);
 
     auto res = sweepMove(sys, {0,0}, {10,10}, {0,-20}, {0});
+
+    ecs.executeOnce();
+
     EXPECT_NEAR(res.delta.y, -(10.0f - 1e-3f), 1e-4f);
     EXPECT_TRUE(res.hit);
 }
@@ -285,12 +292,15 @@ TEST(CollisionSystem, SweepMove_HeadOn_Down)
     auto sys = ecs.createSystem<CollisionSystem>();
     ecs.succeed<PositionComponentSystem, CollisionSystem>();
 
-    auto wall = makeWall(ecs, 0, 10, 10, 10, 0);
+    auto wall = makeWall(ecs, 0, 20, 10, 10, 0);
     ecs.executeOnce();
 
     expectWallInCell(sys, wall.id, /*cellX=*/0, /*cellY=*/1, /*layer=*/0);
 
     auto res = sweepMove(sys, {0,0}, {10,10}, {0,20}, {0});
+
+    ecs.executeOnce();
+
     EXPECT_NEAR(res.delta.y, 10.0f - 1e-3f, 1e-4f);
     EXPECT_TRUE(res.hit);
 }
@@ -323,7 +333,7 @@ TEST(CollisionSystem, Raycast_MultiplePicksClosest)
     ecs.succeed<PositionComponentSystem, CollisionSystem>();
 
     auto w1 = makeWall(ecs, 10, 0, 10, 10, 1);
-    auto w2 = makeWall(ecs, 20, 0, 10, 10, 1);
+    makeWall(ecs, 20, 0, 10, 10, 1);
     ecs.executeOnce();
 
     auto hit = rs->raycast({0,5}, {1,0}, 100, 1);

@@ -22,7 +22,7 @@ namespace pg
         float maxY;
     };
 
-    inline constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint);
+    constant::Vector2D computeBoxNormal(const AABB& box, const constant::Vector2D& hitPoint);
 
     std::optional<float> rayAABB(const constant::Vector2D& origin, const constant::Vector2D& dir, float length, const AABB& box);
 
