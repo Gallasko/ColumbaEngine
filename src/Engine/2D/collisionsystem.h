@@ -119,12 +119,7 @@ namespace pg
 
         CollisionComponent(const CollisionComponent& other) : layerId(other.layerId), scale(other.scale), checkSpecificLayerFlag(other.checkSpecificLayerFlag), checkLayerId(other.checkLayerId), ecsRef(other.ecsRef), entityId(other.entityId), cells(other.cells), firstCellX(other.firstCellX), firstCellY(other.firstCellY), inserted(other.inserted) {}
 
-        virtual void onCreation(EntityRef entity) override
-        {
-            ecsRef = entity->world();
-
-            entityId = entity->id;
-        }
+        virtual void onCreation(EntityRef entity) override;
 
         virtual void onDeletion(EntityRef entity) override;
 
@@ -221,11 +216,11 @@ namespace pg
 
         virtual void init() override;
 
-        void addComponentInGrid(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp);
+        void addComponentInGrid(PositionComponent* pos, CollisionComponent* comp);
 
         void removeComponentFromGrid(CollisionComponent* comp);
 
-        std::set<_unique_id> resolveCollisionList(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp);
+        std::set<_unique_id> resolveCollisionList(PositionComponent* pos, CollisionComponent* comp);
 
         bool testCollision(PositionComponent* obj1, PositionComponent* obj2, float scale1, float scale2) const;
 

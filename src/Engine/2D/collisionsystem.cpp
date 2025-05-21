@@ -104,6 +104,24 @@ namespace pg
         return std::nullopt;
     }
 
+    void CollisionComponent::onCreation(EntityRef entity)
+    {
+        ecsRef = entity->world();
+
+        entityId = entity->id;
+
+        // Immediately insert into the grid if we already have a PositionComponent
+        if (entity->has<PositionComponent>())
+        {
+            auto pos = entity->get<PositionComponent>();
+
+            if (auto sys = ecsRef->getSystem<CollisionSystem>())
+            {
+                sys->addComponentInGrid(pos, this);
+            }
+        }
+    }
+
     void CollisionComponent::onDeletion(EntityRef)
     {
         LOG_THIS_MEMBER("Collision Component");
@@ -115,18 +133,37 @@ namespace pg
 
     void CollisionPage::addId(CollisionComponent& comp, const constant::Vector2D& startPos, const constant::Vector2D& objSize)
     {
-        int startX = startPos.x / cellSize.x;
-        int startY = startPos.y / cellSize.y;
+        // compute integer cell indices (floored)
+        int startX = static_cast<int>(std::floor(startPos.x / cellSize.x));
+        int startY = static_cast<int>(std::floor(startPos.y / cellSize.y));
 
-        int endX = (startPos.x + objSize.x < cellSize.x * size.x) ? (startX + (objSize.x / cellSize.x) + 1) : size.x;
-        int endY = (startPos.y + objSize.y < cellSize.y * size.y) ? (startY + (objSize.y / cellSize.y) + 1) : size.y;
+        // similarly floor the end
+        int rawEndX = static_cast<int>(std::floor((startPos.x + objSize.x) / cellSize.x)) + 1;
+        int rawEndY = static_cast<int>(std::floor((startPos.y + objSize.y) / cellSize.y)) + 1;
+
+        // clamp into [0..size.x] / [0..size.y]
+        int endX = std::min(static_cast<int>(size.x), std::max(0, rawEndX));
+        int endY = std::min(static_cast<int>(size.y), std::max(0, rawEndY));
+
+        // clamp start as well
+        startX = std::min(static_cast<int>(size.x), std::max(0, startX));
+        startY = std::min(static_cast<int>(size.y), std::max(0, startY));
 
         for (int y = startY; y < endY; y++)
         {
             for (int x = startX; x < endX; x++)
             {
-                cells[x + y * size.x].ids.insert(comp.entityId);
-                comp.cells[pos].emplace_back(&cells[x + y * size.x]);
+                auto inserted = cells[x + y * size.x].ids.insert(comp.entityId);
+
+                if (inserted.second)
+                {
+                    // LOG_INFO(DOM, "Insert entity " << comp.entityId << " in cell " << x << ", " << y);
+                    comp.cells[pos].emplace_back(&cells[x + y * size.x]);
+                }
+                else
+                {
+                    // LOG_INFO(DOM, "Entity " << comp.entityId << " already in cell " << x << ", " << y);
+                }
             }
         }
     }
@@ -162,7 +199,7 @@ namespace pg
         // });
     }
 
-    void CollisionSystem::addComponentInGrid(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp)
+    void CollisionSystem::addComponentInGrid(PositionComponent* pos, CollisionComponent* comp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -186,21 +223,22 @@ namespace pg
         auto pWidth = (pageSize.x * cellSize.x);
         auto pHeight = (pageSize.y * cellSize.y);
 
-        int xPagePos = x / pWidth;
-        int yPagePos = y / pHeight;
+        int xPagePos = static_cast<int>(std::floor(x / pWidth));
+        int yPagePos = static_cast<int>(std::floor(y / pHeight));
 
-        int startY = y > 0 ? y - yPagePos * pHeight : yPagePos * pHeight - y;
+        int startY = y - yPagePos * pHeight;
 
         int usedWidth = 0, usedHeight = 0;
 
         int startingXPos = xPagePos;
 
-        comp->firstCellX = x / cellSize.x;
-        comp->firstCellY = y / cellSize.y;
+        comp->firstCellX = static_cast<int>(std::floor(x / cellSize.x));
+        comp->firstCellY = static_cast<int>(std::floor(y / cellSize.y));
 
         for (float remainingHeight = height * comp->scale; remainingHeight > 0; remainingHeight -= usedHeight)
         {
-            int startX = x > 0 ? x - xPagePos * pWidth : xPagePos * pWidth - x;
+            // int startX = x > 0 ? x - xPagePos * pWidth : xPagePos * pWidth - x;
+            int startX = x - xPagePos * pWidth;
 
             for (float remainingWidth = width * comp->scale; remainingWidth > 0; remainingWidth -= usedWidth)
             {
@@ -265,7 +303,7 @@ namespace pg
         comp->cells.clear();
     }
 
-    std::set<_unique_id> CollisionSystem::resolveCollisionList(CompRef<PositionComponent> pos, CompRef<CollisionComponent> comp)
+    std::set<_unique_id> CollisionSystem::resolveCollisionList(PositionComponent* pos, CollisionComponent* comp)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -535,7 +573,8 @@ namespace pg
     {
         // 1) find the page this cell lives in
         // integer‐divide by pageSize to get the page coords
-        PagePos pageKey { static_cast<int>(cellPos.x / pageSize.x), static_cast<int>(cellPos.y / pageSize.y) };
+        PagePos pageKey { static_cast<int>(std::floor(cellPos.x) / pageSize.x),
+                          static_cast<int>(std::floor(cellPos.y) / pageSize.y) };
 
         auto layerIt = loadedPages.find(layerId);
         if (layerIt == loadedPages.end())
@@ -548,8 +587,8 @@ namespace pg
         const CollisionPage& page = pageIt->second;
 
         // 2) compute local cell index within that page
-        int localX = cellPos.x % static_cast<int>(pageSize.x);
-        int localY = cellPos.y % static_cast<int>(pageSize.y);
+        int localX = cellPos.x - pageKey.x * pageSize.x;
+        int localY = cellPos.y - pageKey.y * pageSize.y;
 
         // guard against negative modulo if you support negative world coords
         if (localX < 0) localX += pageSize.x;
@@ -730,14 +769,23 @@ namespace pg
             }
         }
 
-        // 4) apply movement up to just before contact
-        float safeT = bestT > 0 ? bestT - 1e-3f : 0.f;
-        // float safeT = bestT > 0 ? bestT - 0.2 : 0.f;
+        res.hit = (bestT < 1.0f);
+        float safeT;
 
-        if (safeT < 0) safeT = 0;
+        if (res.hit)
+        {
+          // we hit, so back off by a small epsilon to avoid overlap
+          safeT = bestT - EPSILON;
+
+          if (safeT < 0) safeT = 0;
+        }
+        else
+        {
+          // no hit: full movement
+          safeT = 1.0f;
+        }
 
         res.delta = delta * safeT;
-        res.hit = (bestT < 1.0f);
 
         // 5) update the originPos *outside* this helper
         return res;

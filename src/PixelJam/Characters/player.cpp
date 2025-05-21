@@ -358,7 +358,7 @@ namespace pg
             {
                 lastMoveDir.y = 1.f;
                 bottomTimer->start();
-                
+
                 selectedRunningAnimation();
             }
             break;
@@ -387,18 +387,26 @@ namespace pg
         {
         case GameKeyConfig::MoveLeft:
             leftTimer->stop();
+            if (rightTimer->running)
+                lastMoveDir.x = 1.f;
             movementKeyPress = true;
             break;
         case GameKeyConfig::MoveRight:
             rightTimer->stop();
+            if (leftTimer->running)
+                lastMoveDir.x = -1.f;
             movementKeyPress = true;
             break;
         case GameKeyConfig::MoveUp:
             upTimer->stop();
+            if (bottomTimer->running)
+                lastMoveDir.y = 1.f;
             movementKeyPress = true;
             break;
         case GameKeyConfig::MoveDown:
             bottomTimer->stop();
+            if (upTimer->running)
+                lastMoveDir.y = -1.f;
             movementKeyPress = true;
             break;
 
@@ -506,7 +514,7 @@ namespace pg
         // camera->setViewportHeight(camera->viewportHeight * 0.95f);
 
         // Select dodge animation
-        
+
         if (lastMoveDir.x == 1.f)
         {
             auto playingAnim = animFile["Dodge_Profile"];
@@ -540,7 +548,7 @@ namespace pg
     {
         health = 5.0f;
         auto weaponEnt = player->get<WeaponComponent>();
-        
+
         if (weaponEnt) weaponEnt->weapon = getBaseWeapon();
 
         updateHealthUi();
