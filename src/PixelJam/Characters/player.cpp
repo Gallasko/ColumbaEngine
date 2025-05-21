@@ -291,13 +291,13 @@ namespace pg
 
     void PlayerSystem::selectedRunningAnimation()
     {
-        if (lastMoveDir.x == 1.f)
+        if (areAlmostEqual(lastMoveDir.x, 1.f))
         {
             auto playingAnim = animFile["Run_Profile"];
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
-        else if (lastMoveDir.x == -1.f)
+        else if (areAlmostEqual(lastMoveDir.x, -1.f))
         {
             auto playingAnim = animFile["Run_Profile_L"];
 
@@ -516,25 +516,25 @@ namespace pg
 
         // Select dodge animation
 
-        if (lastMoveDir.x == 1.f)
+        if (areAlmostEqual(lastMoveDir.x, 1.f))
         {
             auto playingAnim = animFile["Dodge_Profile"];
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
-        else if (lastMoveDir.x == -1.f)
+        else if (areAlmostEqual(lastMoveDir.x, -1.f))
         {
             auto playingAnim = animFile["Dodge_Profile_L"];
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
-        else if (lastMoveDir.y == -1.f)
+        else if (areAlmostEqual(lastMoveDir.y, -1.f))
         {
             auto playingAnim = animFile["Dodge_Back"];
 
             player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
         }
-        else if (lastMoveDir.y == 1.f)
+        else if (areAlmostEqual(lastMoveDir.y, 1.f))
         {
             auto playingAnim = animFile["Dodge_Front"];
 
