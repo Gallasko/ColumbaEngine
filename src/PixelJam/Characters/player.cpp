@@ -19,6 +19,7 @@ namespace pg
         return weapon;
     }
 
+    // Todo : move to aseprite loader
     std::vector<Animation2DKeyPoint> getAnimationKeypoint(const std::vector<AsepriteFrame>& frames)
     {
         std::vector<Animation2DKeyPoint> keypoints;

@@ -512,6 +512,10 @@ namespace pg
             }
         }
 
+        // Todo add a Component struct that add the onCreation()-> entityid adding
+        // and make the attach warn with this: #pragma message ("Warning goes here")
+        // if you try to attach a type that doesn't derive from component
+
         // Todo fix attach doesn't work if an args is a const std::string&
         template <typename Type, typename... Args>
         CompRef<Type> attach(EntityRef entity, Args&&... args) noexcept

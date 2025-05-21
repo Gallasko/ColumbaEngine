@@ -164,6 +164,12 @@ namespace pg
 
             // Todo see if there is a performance hit to keep this function or does it get optimized as it should be always false in production code
             // Block to find if a group is already registered in the ecs
+
+            // Todo if we try to attach a component not own by a system
+            // We should attach it to a default system (It will mainly be used for things such as flag)
+            // But we should warn the user that it is happening during compilation
+            // #pragma message ("Warning goes here")
+            // as they could try to create a component while the owner system was not initialized yet !
 #ifdef PROD
             if (const auto& it = componentStorageMap.find(id); it == componentStorageMap.end())
             {

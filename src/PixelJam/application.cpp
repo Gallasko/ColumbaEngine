@@ -557,6 +557,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     }
 };
 
+// Todo generalize this in the ecs
 struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<PlayerFlag>, Own<AllyBulletFlag>, Own<CollectibleFlag>,
     Own<EnemyFlag>, Own<EnemyBulletFlag>, Own<WeaponComponent>, Own<TestGridFlag>, Own<HoleFlag>, Own<SpikeFlag>>
 {
@@ -654,6 +655,7 @@ void initGame() {
 
     AsepriteLoader aseprite_loader;
 
+    // Todo : Move to aseprite loader
     std::vector<std::string> animToLoad = {"main-char", "pistol", "shotgun", "bazooka", "sniper", "raider", "raider-variant-001", "raider-variant-002", "bullet_hit", "Gold_Pile"};
 
     std::unordered_map<std::string, AsepriteFile> anims;
@@ -666,6 +668,8 @@ void initGame() {
 
         anims[animName] = anim;
     }
+
+
 
     mainWindow->ecs.createSystem<PlayerSystem>(anims["main-char"]);
 
