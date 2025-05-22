@@ -26,5 +26,8 @@
 // If issues happens while working on system.h, comment this line !
 #include "ECS/system.h"
 #include "ECS/entitysystem.h"
+#include "Renderer/renderer.h"
+
+#include <glm.hpp>
 
 // #include <taskflow.hpp>
