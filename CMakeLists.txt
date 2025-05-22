@@ -332,18 +332,18 @@ else()
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)
 
-    add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
+    # add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
-    target_sources(TetrisClone PRIVATE
-        exemples/TetrisClone/app.cpp
-        exemples/TetrisClone/tetromino.cpp
-        exemples/TetrisClone/keyconfig.cpp
-        exemples/TetrisClone/titlescreen.cpp
-    )
+    # target_sources(TetrisClone PRIVATE
+    #     exemples/TetrisClone/app.cpp
+    #     exemples/TetrisClone/tetromino.cpp
+    #     exemples/TetrisClone/keyconfig.cpp
+    #     exemples/TetrisClone/titlescreen.cpp
+    # )
 
-    target_include_directories(TetrisClone PRIVATE exemples/TetrisClone)
+    # target_include_directories(TetrisClone PRIVATE exemples/TetrisClone)
 
-    target_link_libraries(TetrisClone PRIVATE PgEngineSrc)
+    # target_link_libraries(TetrisClone PRIVATE PgEngineSrc)
 
     # enable_testing()
 
