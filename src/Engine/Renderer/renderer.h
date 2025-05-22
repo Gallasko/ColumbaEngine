@@ -435,9 +435,13 @@ namespace pg
 
     struct ReRendererAll { };
 
+    struct SaveCurrentFrameEvent { };
+
+    struct SavedFrameData { std::vector<unsigned char> pixels; const int width = 0; const int height = 0; };
+
     // Todo fix crash on renderer when failure to grab a missing texture or shader
 
-    class MasterRenderer : public System<Own<BaseCamera2D>, Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>>
+    class MasterRenderer : public System<Own<BaseCamera2D>, Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>, Listener<SaveCurrentFrameEvent>>
     {
     private:
         struct MaterialHolder
@@ -474,6 +478,7 @@ namespace pg
         virtual void onEvent(const OnSDLScanCode& event) override;
         virtual void onEvent(const SkipRenderPass& event ) override { skipRenderPass += event.count; }
         virtual void onEvent(const ReRendererAll&) override { reRenderAll = true; }
+        virtual void onEvent(const SaveCurrentFrameEvent&) override { saveCurrentFrame = true; }
 
         virtual void execute() override;
 
@@ -616,6 +621,7 @@ namespace pg
         {
             return atlasMap.at(textureName).getTexture(atlasTextureName);
         }
+
         const Material& getMaterial(const std::string& name) const
         {
             try
@@ -726,6 +732,8 @@ namespace pg
 
         bool reRenderAll = false;
 
+        bool saveCurrentFrame = false;
+
     private:
         void initializeParameters();
 
@@ -734,6 +742,8 @@ namespace pg
         void processRenderCall(const RenderCall& call);
 
         void registerTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback);
+
+        void getFrameData();
 
     private:
         RefracRef systemParameters;

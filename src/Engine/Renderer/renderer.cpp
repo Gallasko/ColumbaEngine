@@ -343,6 +343,19 @@ namespace pg
         }
     }
 
+    void MasterRenderer::getFrameData()
+    {
+        auto& rTable = getParameter();
+        const int screenWidth = rTable["ScreenWidth"].get<int>();
+        const int screenHeight = rTable["ScreenHeight"].get<int>();
+
+        std::vector<unsigned char> pixels(screenWidth * screenHeight * 4); // RGB24 format
+
+        glReadPixels(0, 0, screenWidth, screenHeight, GL_RGBA, GL_UNSIGNED_BYTE, pixels.data());
+
+        ecsRef->sendEvent(SavedFrameData{ std::move(pixels), screenWidth, screenHeight });
+    }
+
     void MasterRenderer::processTextureRegister()
     {
         TextureRegisteringQueueItem item;
@@ -375,6 +388,13 @@ namespace pg
         for (const auto& call : renderCallList[currentRenderList])
         {
             processRenderCall(call);
+        }
+
+        if (saveCurrentFrame)
+        {
+            getFrameData();
+
+            saveCurrentFrame = false;
         }
 
         nbRenderedFrames++;

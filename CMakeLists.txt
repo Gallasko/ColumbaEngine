@@ -345,6 +345,18 @@ else()
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)
 
+
+
+    add_executable(TugOfWar exemples/TugOfWar/main.cpp)
+
+    target_include_directories(TugOfWar PUBLIC exemples/TugOfWar)
+
+    target_sources(TugOfWar PRIVATE
+        exemples/TugOfWar/application.cpp
+    )
+
+    target_link_libraries(TugOfWar PRIVATE PgEngineSrc)
+
     # add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
     # target_sources(TetrisClone PRIVATE
