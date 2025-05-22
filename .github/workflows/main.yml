@@ -14,17 +14,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Linux + GCC
           - os: ubuntu-latest
             compiler: gcc
             cc: gcc
             cxx: g++
-          # Linux + Clang
           - os: ubuntu-latest
             compiler: clang
             cc: clang
             cxx: clang++
-          # Windows + MSVC
           - os: windows-latest
             compiler: msvc
             cc: cl
@@ -71,10 +68,3 @@ jobs:
         run: |
           cd build
           ctest --output-on-failure --parallel $(nproc || echo 2)
-
-      - name: Upload test logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v3.1.0
-        with:
-          name: ctest-logs-${{ matrix.os }}-{{ matrix.compiler }}
-          path: build/Testing/**/Test.xml
