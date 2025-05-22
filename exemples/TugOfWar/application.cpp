@@ -17,6 +17,9 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "Helpers/stbi_image_write.h"
 
+#include <iomanip>  // for std::setw and std::setfill
+#include <sstream>  // for std::stringstream
+
 using namespace pg;
 
 namespace {
@@ -33,16 +36,19 @@ GameApp::~GameApp() {
 
 void flipImageVertically(unsigned char* data, int width, int height)
 {
-    int rowSize = width * 3;
+    const int channels = 4;                // RGBA
+    int rowSize = width * channels;        // bytes per row
     std::vector<unsigned char> temp(rowSize);
 
     for (int y = 0; y < height / 2; ++y)
     {
-        unsigned char* row = data + y * rowSize;
-        unsigned char* opposite = data + (height - y - 1) * rowSize;
-        memcpy(temp.data(), row, rowSize);
-        memcpy(row, opposite, rowSize);
-        memcpy(opposite, temp.data(), rowSize);
+        unsigned char* row       = data + y * rowSize;
+        unsigned char* opposite  = data + (height - 1 - y) * rowSize;
+
+        // swap entire rows
+        memcpy(temp.data(),   row,       rowSize);
+        memcpy(row,           opposite,  rowSize);
+        memcpy(opposite,      temp.data(), rowSize);
     }
 }
 
@@ -56,8 +62,18 @@ struct ScreenSaverSystem : public System<Listener<SavedFrameData>, StoragePolicy
 
         flipImageVertically(pixels.data(), event.width, event.height);
 
-        stbi_write_png("debug_output.png", event.width, event.height, 4, pixels.data(), event.width * 4);
+        std::stringstream ss;
+
+        ss << "res/savedFrames/frame_" << std::setw(4) << std::setfill('0') << i++ << ".png";
+
+        std::string frameName = ss.str();
+
+        // std::string frameName = "res/savedFrames/frame_" + std::to_string(i++) + ".png";
+
+        stbi_write_png(frameName.c_str(), event.width, event.height, 4, pixels.data(), event.width * 4);
     }
+
+    size_t i = 0;
 };
 
 std::thread *initThread;
@@ -151,15 +167,84 @@ void initGame() {
 
     auto* ecsRef = &mainWindow->ecs;
 
-    makeSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {255.0f, 0.0f, 0.0f, 255.0f});
+    auto square = makeSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {255.0f, 0.0f, 0.0f, 255.0f});
+
+    mainWindow->ecs.executeOnce();
+    mainWindow->ecs.executeOnce();
 
     mainWindow->render();
 
     mainWindow->resize(820, 640);
 
-    mainWindow->ecs.sendEvent(SaveCurrentFrameEvent{});
+    for (int i = 0; i < 60; i++)
+    {
+        mainWindow->ecs.sendEvent(SaveCurrentFrameEvent{});
 
-    mainWindow->ecs.executeOnce();
+        mainWindow->ecs.executeOnce();
+
+        square.get<PositionComponent>()->setX(square.get<PositionComponent>()->x + 10);
+        square.get<PositionComponent>()->setY(square.get<PositionComponent>()->y + 10);
+
+        mainWindow->render();
+
+        std::cout << "here: " << i << std::endl;
+    }
+
+    // Tunable parameters:
+    const int runsRight = 3;     // how many times to spawn at left and go right
+    const int runsLeft  = 2;     // how many times to spawn at right and go left
+    const float speed   = 300;   // pixels per second
+
+    // Inside initGame(), after you’ve set up `square` and resized the window:
+    int windowW = 820;
+    int windowH = 640;
+
+    // width of your square (as used in makeSimple2DShape)
+    const float squareSize = 50;
+
+    // helper to perform one “run” in a given direction, capturing frames:
+    auto doRun = [&](float startX, float endX, float dirSign, int runIndex){
+        square.get<PositionComponent>()->setX(startX);
+        square.get<PositionComponent>()->setY(windowH/2 - squareSize/2);
+
+        // until we reach (or pass) endX:
+        while ((dirSign > 0 && square.get<PositionComponent>()->x < endX) ||
+            (dirSign < 0 && square.get<PositionComponent>()->x > endX))
+        {
+            // send frame‑save event
+            mainWindow->ecs.sendEvent(SaveCurrentFrameEvent{});
+            mainWindow->ecs.executeOnce();
+
+            // advance position by speed·dt (we’ll just pick a fixed dt based on your target FPS)
+            const float dt = 1.0f / 30.0f;  // 30 FPS
+            float delta = speed * dt * dirSign;
+            square.get<PositionComponent>()->setX(square.get<PositionComponent>()->x + delta);
+
+            mainWindow->render();
+        }
+    };
+
+    // now loop the runs:
+    for (int i = 0; i < runsRight; ++i) {
+        // spawn at left edge, go to right edge
+        doRun(
+        /*startX=*/ 0.0f,
+        /*endX  =*/ windowW - squareSize,
+        /*dirSign=*/ +1.0f,
+        /*runIndex=*/ i
+        );
+    }
+
+    for (int i = 0; i < runsLeft; ++i) {
+        // spawn at right edge, go to left edge
+        doRun(
+        /*startX=*/ windowW - squareSize,
+        /*endX  =*/ 0.0f,
+        /*dirSign=*/ -1.0f,
+        /*runIndex=*/ i
+        );
+    }
+    
 
     printf("Engine initialized\n");
 }
