@@ -1,9 +1,12 @@
 #include "logger.h"
 
-// Only used for the console sink 
+// Only used for the console sink
 #include <iostream>
 // Used for dumping to a file with file sink
 #include <fstream>
+
+// Todo include date when printing log
+#include "Helpers/date.h"
 
 #include "Memory/elementtype.h"
 
@@ -66,7 +69,7 @@ namespace pg
                     break;
             }
 
-            return logLevelStringBuffer; 
+            return logLevelStringBuffer;
         }
 
         std::string logPositionString(const std::string& filename, const std::string& objectName, const std::string& function, const int line)
@@ -126,7 +129,7 @@ namespace pg
 
         // Reset any color put on the text
         std::cout << "\033[0m" << std::endl;
-        
+
         //if(not ignoreNonErrors and log.level == Logger::InfoLevel::log)
         //    std::cout << log.line << ", " << log.filename << ", " << log.function << ", " << log.objectName << "," << log.scope << ", " << log.message << ", " << static_cast<int>(log.level) << std::endl;
     }

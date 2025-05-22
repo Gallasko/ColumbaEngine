@@ -6,6 +6,9 @@
 #include <unordered_map> // Included for RefractTable
 #include <string> // Included for RefractTable and Big Int
 #include <vector> // Included for Big Int
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
 
 #include <Memory/elementtype.h>
 

@@ -9,6 +9,8 @@
  *
  */
 
+#include <algorithm>
+
 #include "valuable.h"
 #include "environment.h"
 #include "expression.h"

@@ -10,9 +10,6 @@
 
 #include <chrono>
 
-// Todo include date when printing log
-#include "Helpers/date.h"
-
 #include "Files/filemanager.h"
 
 #define _CONCAT_(x, y) x ## y

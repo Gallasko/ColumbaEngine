@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [main, dev]
   pull_request:
-    branches: [ main, dev ]
+    branches: [main, dev]
 
 jobs:
   build-and-test:
@@ -31,43 +31,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install prerequisites and build SDL from source (Linux)
+      - name: Install prerequisites & build SDL2 v2.0.20 (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            build-essential clang cmake ccache git \
+            build-essential cmake ccache git \
             libgl1-mesa-dev libglu1-mesa-dev \
             libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
             libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
             libmpg123-dev libvorbis-dev libflac-dev libxmp-dev \
-            libopusfile-dev libfluidsynth-dev libogg-dev fluidsynth libwavpack-dev
+            libopusfile-dev libfluidsynth-dev libogg-dev libwavpack-dev
 
-          # Build SDL2
-          git clone --branch 2.0.20 https://github.com/libsdl-org/SDL.git SDL2
+          # SDL2 v2.0.20
+          git clone --branch SDL-2.0.20 https://github.com/libsdl-org/SDL.git SDL2
           cd SDL2
           mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DSDL_INSTALL_INCLUDEDIR=include/SDL2
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+                   -DSDL_INSTALL_PREFIX=/usr/local \
+                   -DSDL_INSTALL_INCLUDEDIR=include/SDL2 \
+                   -DSDL_INSTALL_LIBDIR=lib
           make -j$(nproc)
           sudo make install
           sudo ldconfig
           cd ../..
 
-          # Build SDL_ttf
-          git clone -b SDL2 https://github.com/libsdl-org/SDL_ttf.git SDL_ttf
-          cd SDL_ttf
+          # SDL_ttf v2.0.20
+          git clone --branch SDL2-2.0.20 https://github.com/libsdl-org/SDL_ttf.git SDL2_ttf
+          cd SDL2_ttf
           mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+                   -DSDL2TTF_INSTALL_PREFIX=/usr/local
           make -j$(nproc)
           sudo make install
           sudo ldconfig
           cd ../..
 
-          # Build SDL_mixer
-          git clone -b SDL2 https://github.com/libsdl-org/SDL_mixer.git SDL_mixer
-          cd SDL_mixer
+          # SDL_mixer v2.0.20
+          git clone --branch SDL2-2.0.20 https://github.com/libsdl-org/SDL_mixer.git SDL2_mixer
+          cd SDL2_mixer
           mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+                   -DSDL2MIXER_INSTALL_PREFIX=/usr/local
           make -j$(nproc)
           sudo make install
           sudo ldconfig
@@ -93,19 +98,29 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          export CMAKE_INCLUDE_PATH=/usr/local/include
-          export CMAKE_LIBRARY_PATH=/usr/local/lib
-          cmake \
-            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
-            -DCMAKE_BUILD_TYPE=Release \
-            ..
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            cmake \
+              -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_PREFIX_PATH="/usr/local" \
+              ..
+          else
+            cmake \
+              -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+              -DCMAKE_BUILD_TYPE=Release \
+              ..
+          fi
 
-      - name: Verify SDL installation
+      - name: Verify SDL2 installation (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
-          ls /usr/local/include/
+          echo "Includes:"
           ls /usr/local/include/SDL2
-          ls /usr/local/lib | grep SDL
+          echo "Libraries:"
+          ls /usr/local/lib | grep SDL2
+          echo "sdl2-config:"
           sdl2-config --version
 
       - name: Build
