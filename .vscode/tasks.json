@@ -100,7 +100,7 @@
                     "--config",
                     "Release",
                     "--target",
-                    "PixelJam",
+                    "GameOff",
                     // "PgEngine",
                     "-j",
                     "8"

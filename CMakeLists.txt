@@ -210,27 +210,27 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
     target_include_directories(PgEngineSrc PUBLIC src/Editor)
 
-    add_executable(GameOff src/GameOff/main.cpp)
+    add_executable(GameOff exemples/GameOff/main.cpp)
 
-    target_include_directories(GameOff PUBLIC src/GameOff)
+    target_include_directories(GameOff PUBLIC exemples/GameOff)
 
     target_sources(GameOff PRIVATE
-        src/GameOff/achievement.cpp
-        src/GameOff/application.cpp
-        src/GameOff/character.cpp
-        src/GameOff/characustomizationscene.cpp
-        src/GameOff/fightscene.cpp
-        src/GameOff/gamefacts.cpp
-        src/GameOff/inventory.cpp
-        src/GameOff/item.cpp
-        src/GameOff/location.cpp
-        src/GameOff/locationscene.cpp
-        src/GameOff/mainscene.cpp
-        src/GameOff/managenerator.cpp
-        src/GameOff/nexusscene.cpp
-        src/GameOff/skilltree.cpp
-        src/GameOff/passives.cpp
-        src/GameOff/spells.cpp
+        exemples/GameOff/achievement.cpp
+        exemples/GameOff/application.cpp
+        exemples/GameOff/character.cpp
+        exemples/GameOff/characustomizationscene.cpp
+        exemples/GameOff/fightscene.cpp
+        exemples/GameOff/gamefacts.cpp
+        exemples/GameOff/inventory.cpp
+        exemples/GameOff/item.cpp
+        exemples/GameOff/location.cpp
+        exemples/GameOff/locationscene.cpp
+        exemples/GameOff/mainscene.cpp
+        exemples/GameOff/managenerator.cpp
+        exemples/GameOff/nexusscene.cpp
+        exemples/GameOff/skilltree.cpp
+        exemples/GameOff/passives.cpp
+        exemples/GameOff/spells.cpp
     )
 
     target_link_libraries(GameOff PRIVATE PgEngineSrc)
@@ -286,30 +286,30 @@ else()
 
     target_link_libraries(PgEngine PRIVATE PgEngineSrc)
 
-    add_executable(GameOff src/GameOff/main.cpp)
+    add_executable(GameOff exemples/GameOff/main.cpp)
 
     configure_file(res/nexus.pg nexus.pg COPYONLY)
 
-    target_include_directories(GameOff PUBLIC src/GameOff)
+    target_include_directories(GameOff PUBLIC exemples/GameOff)
 
     target_sources(GameOff PRIVATE
-        src/GameOff/achievement.cpp
-        src/GameOff/application.cpp
-        src/GameOff/character.cpp
-        src/GameOff/characustomizationscene.cpp
-        src/GameOff/fightscene.cpp
-        src/GameOff/gamefacts.cpp
-        src/GameOff/inventory.cpp
-        src/GameOff/item.cpp
-        src/GameOff/location.cpp
-        src/GameOff/locationscene.cpp
-        src/GameOff/mainscene.cpp
-        src/GameOff/managenerator.cpp
-        src/GameOff/nexusscene.cpp
-        src/GameOff/skilltree.cpp
-        src/GameOff/passives.cpp
-        src/GameOff/spells.cpp
-        src/GameOff/theme.cpp
+        exemples/GameOff/achievement.cpp
+        exemples/GameOff/application.cpp
+        exemples/GameOff/character.cpp
+        exemples/GameOff/characustomizationscene.cpp
+        exemples/GameOff/fightscene.cpp
+        exemples/GameOff/gamefacts.cpp
+        exemples/GameOff/inventory.cpp
+        exemples/GameOff/item.cpp
+        exemples/GameOff/location.cpp
+        exemples/GameOff/locationscene.cpp
+        exemples/GameOff/mainscene.cpp
+        exemples/GameOff/managenerator.cpp
+        exemples/GameOff/nexusscene.cpp
+        exemples/GameOff/skilltree.cpp
+        exemples/GameOff/passives.cpp
+        exemples/GameOff/spells.cpp
+        exemples/GameOff/theme.cpp
     )
 
     target_link_libraries(GameOff PRIVATE PgEngineSrc)
