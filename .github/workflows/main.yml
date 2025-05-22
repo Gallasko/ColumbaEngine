@@ -2,32 +2,36 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, dev ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, dev ]
 
 jobs:
   build-and-test:
     runs-on: ${{ matrix.os }}
+
     strategy:
       fail-fast: false
       matrix:
         include:
+          # Linux + GCC
           - os: ubuntu-latest
             compiler: gcc
             cc: gcc
             cxx: g++
+          # Linux + Clang
           - os: ubuntu-latest
             compiler: clang
             cc: clang
             cxx: clang++
+          # Windows + MSVC
           - os: windows-latest
             compiler: msvc
             cc: cl
             cxx: cl
 
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install prerequisites (Linux)
@@ -50,7 +54,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cmake-${{ matrix.compiler }}-
 
-      - name: Configure CMake
+      - name: Configure with CMake
         run: |
           mkdir -p build
           cd build
@@ -69,8 +73,8 @@ jobs:
           ctest --output-on-failure --parallel $(nproc || echo 2)
 
       - name: Upload test logs on failure
-        if: failure() && github.actor != 'nektos/act'
+        if: failure()
         uses: actions/upload-artifact@v3
         with:
-          name: ctest-logs-${{ matrix.os }}-${{ matrix.compiler }}
+          name: ctest-logs-${{ matrix.os }}-{{ matrix.compiler }}
           path: build/Testing/**/Test.xml
