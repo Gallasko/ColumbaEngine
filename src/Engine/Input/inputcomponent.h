@@ -20,7 +20,7 @@ namespace pg
         Both
     };
 
-    struct MouseLeftClickComponent
+    struct MouseLeftClickComponent : public Component
     {
         MouseLeftClickComponent(CallablePtr callback, const MouseStateTrigger& trigger = MouseStateTrigger::OnRelease) : callback(callback), trigger(trigger) { LOG_THIS_MEMBER("MouseLeftClickComponent"); }
         MouseLeftClickComponent(const MouseLeftClickComponent& rhs) : callback(rhs.callback), trigger(rhs.trigger) { LOG_THIS_MEMBER("MouseLeftClickComponent"); }
@@ -33,7 +33,7 @@ namespace pg
     template<>
     void serialize(Archive& archive, const MouseLeftClickComponent& component);
 
-    struct MouseRightClickComponent
+    struct MouseRightClickComponent : public Component
     {
         MouseRightClickComponent(CallablePtr callback, const MouseStateTrigger& trigger = MouseStateTrigger::OnRelease) : callback(callback), trigger(trigger) { LOG_THIS_MEMBER("MouseRightClickComponent"); }
         MouseRightClickComponent(const MouseRightClickComponent& rhs) : callback(rhs.callback), trigger(rhs.trigger) { LOG_THIS_MEMBER("MouseRightClickComponent"); }
@@ -43,7 +43,7 @@ namespace pg
         MouseStateTrigger trigger;
     };
 
-    struct MouseLeaveClickComponent
+    struct MouseLeaveClickComponent : public Component
     {
         MouseLeaveClickComponent(CallablePtr callback) : callback(callback) { LOG_THIS_MEMBER("MouseLeaveClickComponent"); }
         MouseLeaveClickComponent(const MouseLeaveClickComponent& rhs) : callback(rhs.callback) { LOG_THIS_MEMBER("MouseLeaveClickComponent"); }
@@ -52,7 +52,7 @@ namespace pg
         CallablePtr callback;
     };
 
-    struct MouseWheelComponent
+    struct MouseWheelComponent : public Component
     {
         MouseWheelComponent(const StandardEvent& event) : event(event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
         MouseWheelComponent(const MouseWheelComponent& rhs) : event(rhs.event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
@@ -61,7 +61,7 @@ namespace pg
         StandardEvent event;
     };
 
-    struct OnMouseClick
+    struct OnMouseClick : public Component
     {
         OnMouseClick(const MousePos& pos, const MouseButton& button) : pos(pos), button(button) { }
         OnMouseClick(const OnMouseClick& other) : pos(other.pos), button(other.button) { }
@@ -78,7 +78,7 @@ namespace pg
         MouseButton button;
     };
 
-    struct OnMouseRelease
+    struct OnMouseRelease : public Component
     {
         OnMouseRelease(const MousePos& pos, const MouseButton& button) : pos(pos), button(button) { }
         OnMouseRelease(const OnMouseRelease& other) : pos(other.pos), button(other.button) { }
@@ -96,7 +96,7 @@ namespace pg
     };
 
     // Component that triggers a callback when the mouse enters the entity’s area.
-    struct MouseEnterComponent
+    struct MouseEnterComponent : public Component
     {
         MouseEnterComponent(CallablePtr callback) : callback(callback) { }
         MouseEnterComponent(const MouseEnterComponent& other) : callback(other.callback) { }
@@ -111,7 +111,7 @@ namespace pg
     };
 
     // Component that triggers a callback when the mouse leaves the entity’s area.
-    struct MouseLeaveComponent
+    struct MouseLeaveComponent : public Component
     {
         MouseLeaveComponent(CallablePtr callback) : callback(callback) { }
         MouseLeaveComponent(const MouseLeaveComponent& other) : callback(other.callback) { }

@@ -23,7 +23,7 @@ namespace pg
 
     struct Letter
     {
-        Letter(const LoadedAtlas::AtlasTexture * const font) : font(font) { }
+        Letter(const AtlasTexture * const font) : font(font) { }
         Letter(const Letter& rhs) : font(rhs.font) { }
 
         void operator=(const Letter& rhs)
@@ -31,7 +31,7 @@ namespace pg
             font = rhs.font;
         }
 
-        const LoadedAtlas::AtlasTexture * font;
+        const AtlasTexture * font;
     };
 
     struct SentenceText : public Ctor
@@ -96,7 +96,12 @@ namespace pg
 
         inline bool operator==(const SentenceText &rhs) const
         {
-            return this->text == rhs.text && this->scale == rhs.scale && this->mainColor == rhs.mainColor && this->outline1 == rhs.outline1 && this->outline2 == rhs.outline2 && this->effect == rhs.effect;
+            return this->text == rhs.text and
+                areAlmostEqual(this->scale, rhs.scale) and
+                this->mainColor == rhs.mainColor and
+                this->outline1 == rhs.outline1 and
+                this->outline2 == rhs.outline2 and
+                this->effect == rhs.effect;
         }
 
         inline bool operator!=(const SentenceText &rhs) const

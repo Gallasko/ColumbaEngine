@@ -198,6 +198,11 @@ namespace pg
             return;
         }
 
+        if (cameraRegisterQueue.size() > 0)
+        {
+            processCameraRegister();
+        }
+
         // If the skip flag is set we unset it and we pass the current render update
         if (skipRenderPass > 0)
         {
@@ -219,6 +224,28 @@ namespace pg
 
             renderer->setDirty(false);
         }
+
+        // bool isCameraDirty = false;
+
+        // for (auto* camera : cameraList)
+        // {
+        //     if (camera->dirty)
+        //     {
+        //         isCameraDirty = true;
+        //         camera->constructMatrices();
+        //     }
+        // }
+
+        // Todo not fully functional yet
+        // isDirty |= isCameraDirty;
+
+        // if (isCameraDirty)
+        // {
+        //     for (auto renderer : renderers)
+        //     {
+        //         renderer->setDirty(true);
+        //     }
+        // }
 
         // Nothing changed since last time we can skip the render pass
         if (not isDirty)
@@ -332,6 +359,15 @@ namespace pg
         // Todo Clear screen here
 
         processTextureRegister();
+
+        for (auto* camera : cameraList)
+        {
+            if (camera->dirty)
+            {
+                // isCameraDirty = true;
+                camera->constructMatrices();
+            }
+        }
 
         for (const auto& call : renderCallList[currentRenderList])
         {
@@ -465,11 +501,16 @@ namespace pg
         registerTextureHelper(name, texturePath);
     }
 
-    void MasterRenderer::registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath)
+    void MasterRenderer::registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath, std::unique_ptr<LoadedAtlas> atlas)
     {
-        registerTexture(name, texturePath);
+        if (atlas == nullptr) {
+            atlasMap.emplace(name, atlasFilePath);
+        }
+        else {
+            atlasMap.emplace(name, *atlas);
+        }
 
-        atlasMap.emplace(name, atlasFilePath);
+        registerTexture(name, texturePath);
     }
 
     void MasterRenderer::setState(const OpenGLState& state)
@@ -554,6 +595,33 @@ namespace pg
             return;
         }
 
+        // Todo only grab the camera when the viewport changes from last time
+        glm::mat4 projection = glm::mat4(1.0f);
+        glm::mat4 view = glm::mat4(1.0f);
+
+        auto viewport = call.getViewport();
+
+        if (viewport == 0)
+        {
+            view = camera.getViewMatrix();
+        }
+        else
+        {
+            int cameraIndex = viewport - 1;
+
+            if (cameraIndex < 0 or static_cast<size_t>(cameraIndex) >= cameraList.size())
+            {
+                LOG_MILE(DOM, "Unknown viewport: " << viewport << ", defaulting to 0");
+            }
+            else
+            {
+                view = cameraList[cameraIndex]->getViewMatrix();
+
+                // Todo fix this
+                // projection = cameraList[cameraIndex]->getProjectionMatrix();
+            }
+        }
+
         shaderProgram->bind();
 
         if (call.state != currentState)
@@ -572,9 +640,6 @@ namespace pg
         const int screenWidth = rTable["ScreenWidth"].get<int>();
         const int screenHeight = rTable["ScreenHeight"].get<int>();
 
-        glm::mat4 projection = glm::mat4(1.0f);
-        // glm::mat4 view = glm::mat4(1.0f);
-        glm::mat4 view = camera.getViewMatrix();
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 scale = glm::mat4(1.0f);
 

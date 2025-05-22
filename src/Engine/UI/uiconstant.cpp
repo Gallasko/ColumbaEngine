@@ -56,7 +56,7 @@ namespace pg
         // Todo add this flag
         dirty = false;
 
-        if(ecsRef and currentValue != oldValue)
+        if(ecsRef and areNotAlmostEqual(currentValue, oldValue))
         {
             auto entity = ecsRef->getEntity(entityId);
 

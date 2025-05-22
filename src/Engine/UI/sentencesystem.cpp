@@ -106,7 +106,7 @@ namespace pg
             auto ui = entity->get<UiComponent>();
             auto sentence = entity->get<SentenceText>();
 
-            ecsRef->attach<SentenceRenderCall>(entity, createRenderCall(ui, sentence));
+            ecsRef->attachGeneric<SentenceRenderCall>(entity, createRenderCall(ui, sentence));
 
             changed = true;
         });
@@ -269,7 +269,7 @@ namespace pg
         auto nbChara = sentence->text.length();
 
         float currentX = 0.0f;
-        float outO = 0.0f;    //Outline Offset
+        // float outO = 0.0f;    //Outline Offset
 
         sentence->letters.clear();
 
@@ -280,17 +280,17 @@ namespace pg
 
             sentence->letters.emplace_back(&letter);
 
-            outO = 0.0f;
+            // outO = 0.0f;
 
             auto w = letter.getWidth() * sentence->scale;
             auto h = letter.getHeight() * sentence->scale;
             auto o = letter.getOffset() * sentence->scale;
 
-            if (sentence->outline1.w == 0.0f)
-                outO += 1.0 * sentence->scale;
+            // if (sentence->outline1.w == 0.0f)
+            //     outO += 1.0 * sentence->scale;
 
-            if (sentence->outline2.w == 0.0f)
-                outO += 1.0 * sentence->scale;
+            // if (sentence->outline2.w == 0.0f)
+            //     outO += 1.0 * sentence->scale;
 
             // Todo maybe fix this
             currentX += w + 1;

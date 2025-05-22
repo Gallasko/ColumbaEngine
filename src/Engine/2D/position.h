@@ -2,6 +2,8 @@
 
 #include "ECS/system.h"
 
+#include "constant.h"
+
 namespace pg
 {
     enum class AnchorType : uint8_t

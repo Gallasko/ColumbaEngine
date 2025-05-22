@@ -79,8 +79,24 @@ namespace pg
         return 1 - (1 - value) * (1 - value);
     }
 
-    struct TweenComponent
+    struct TweenComponent : public Component
     {
+        TweenComponent() = default;
+
+        TweenComponent(const TweenValue& start, const TweenValue& end, float duration,
+                      std::function<void(const TweenValue&)> onUpdateCallback,
+                      CallablePtr onCompleteCallback = nullptr, int loops = 1,
+                      bool pingpong = false, bool reverse = false,
+                      std::function<float(float)> easing = TweenLinear) :
+                      start(start), end(end),
+                      duration(duration), onUpdateCallback(onUpdateCallback),
+                      onCompleteCallback(onCompleteCallback),
+                      loops(loops), pingpong(pingpong), reverse(reverse), easing(easing) {}
+
+
+        TweenComponent(const TweenComponent& other) = default;
+        ~TweenComponent() = default;
+
         TweenValue start;
         TweenValue end;
 

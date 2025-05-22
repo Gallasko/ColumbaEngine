@@ -4,7 +4,7 @@
 // Todo only need to import /ecs/system ! modify accordingly
 #include "ECS/entitysystem.h"
 #include "serialization.h"
-
+#include "constant.h"
 // Todo parenting, better anchoring
 // TODO refactor all the struct that need to be a class and make the element private
 
@@ -47,7 +47,7 @@ namespace pg
 
             bool operator==(const Corner& other)
             {
-                return verticalAnchor == other.verticalAnchor and horizontalAnchor == other.horizontalAnchor;
+                return areAlmostEqual(verticalAnchor, other.verticalAnchor) and areAlmostEqual(horizontalAnchor, other.horizontalAnchor);
             }
 
             bool operator!=(const Corner& other)
@@ -110,7 +110,7 @@ namespace pg
 
         /**
          * @brief Construct a new Ui Component object
-         * 
+         *
          * This construct an empty ui component at coord (0.0f, 0.0f, 0.0f) of size 0, 0
          */
         UiComponent()
@@ -120,12 +120,12 @@ namespace pg
             bottom = AnchorDir::Bottom;
             left = AnchorDir::Left;
         }
-        
+
         /**
          * @brief Construct a new Ui Component object
-         * 
+         *
          * @param frame The reference frame for this object
-         * 
+         *
          * This construct an ui component from a given reference
          * The position and size of the newly created object is automatically updated on the fly
          */
@@ -139,16 +139,16 @@ namespace pg
 
         /**
          * @brief Construct a new Ui Component object
-         * 
+         *
          * @param rhs Another UiComponent
-         * 
+         *
          * This creates a copy of the rhs ui component
          */
         UiComponent(const UiComponent& rhs);
 
         /**
          * @brief Add id info to anchors if created in a ECS
-         * 
+         *
          * @param entity The entity that hold this component
          */
         virtual void onCreation(EntityRef entity) override
@@ -180,7 +180,7 @@ namespace pg
             update();
         }
 
-        inline static std::string getType() { return "UiComponent"; } 
+        inline static std::string getType() { return "UiComponent"; }
 
         /**
          * @brief Destroy the Ui Component object
@@ -189,9 +189,9 @@ namespace pg
 
         // Setter methods for position and size properties
     public:
-        inline void setX(const float& value)              { if (pos.x != value) { pos.x = value; update(); } }
-        inline void setY(const float& value)              { if (pos.y != value) { pos.y = value; update(); } }
-        inline void setZ(const float& value)              { if (pos.z != value) { pos.z = value; update(); } }
+        inline void setX(const float& value)              { if (areNotAlmostEqual(pos.x, value)) { pos.x = value; update(); } }
+        inline void setY(const float& value)              { if (areNotAlmostEqual(pos.y, value)) { pos.y = value; update(); } }
+        inline void setZ(const float& value)              { if (areNotAlmostEqual(pos.z, value)) { pos.z = value; update(); } }
 
         inline void setX(const UiSize& value)             { pos.x = value; update(); }
         inline void setY(const UiSize& value)             { pos.y = value; update(); }
@@ -223,7 +223,7 @@ namespace pg
         inline void setBottomMargin(const UiSize& value)  { bottomMargin = value; update(); }
         inline void setLeftMargin(const UiSize& value)    { leftMargin = value;   update(); }
 
-        // Used to set a custom clip rect 
+        // Used to set a custom clip rect
         inline void setClipRect(const Corner& topLeft, const Corner& bottomRight) { isClippedToWindow = false; clipTopLeft = topLeft; clipBottomRight = bottomRight; update(); }
 
         // Set back the clip rect to the window (instead of a custom one)
@@ -236,10 +236,10 @@ namespace pg
             bottomAnchor = &component->bottom;
             leftAnchor   = &component->left;
 
-            hasTopAnchor = true;   
-            hasRightAnchor = true; 
+            hasTopAnchor = true;
+            hasRightAnchor = true;
             hasBottomAnchor = true;
-            hasLeftAnchor = true;  
+            hasLeftAnchor = true;
 
             update();
         }
@@ -251,10 +251,10 @@ namespace pg
             bottomAnchor = &component.bottom;
             leftAnchor   = &component.left;
 
-            hasTopAnchor = true;   
-            hasRightAnchor = true; 
+            hasTopAnchor = true;
+            hasRightAnchor = true;
             hasBottomAnchor = true;
-            hasLeftAnchor = true;  
+            hasLeftAnchor = true;
 
             update();
         }
@@ -276,7 +276,7 @@ namespace pg
 
         void show() { if (not this->visible) { this->visible = true; update(); } }
         void hide() { if (this->visible) { this->visible = false; update(); } }
-        
+
         void update();
 
     protected:
@@ -330,7 +330,7 @@ namespace pg
 
             inline void operator=(const UiComponent& comp)
             {
-                x = comp.pos.x; 
+                x = comp.pos.x;
                 y = comp.pos.y;
                 z = comp.pos.z;
                 w = comp.width;
@@ -338,13 +338,13 @@ namespace pg
             }
 
             inline bool isEqual(const UiComponent& comp) const
-            { 
-                return comp.pos.x == x and
-                       comp.pos.y == y and
-                       comp.pos.z == z and
-                       comp.width == w and
-                       comp.height == h; 
-            } 
+            {
+                return areAlmostEqual(comp.pos.x, x) and
+                       areAlmostEqual(comp.pos.y, y) and
+                       areAlmostEqual(comp.pos.z, z) and
+                       areAlmostEqual(comp.width, w) and
+                       areAlmostEqual(comp.height, h);
+            }
         };
 
         UiComponentSystem() {}
@@ -374,7 +374,7 @@ namespace pg
             LOG_MILE("Ui internals", "Entity " << event.parent << " is a parent of " << event.child);
 
             auto& vec = parentalMap[event.parent];
-            
+
             auto it = std::find(vec.begin(), vec.end(), event.child);
 
             if (it == vec.end())
@@ -391,7 +391,7 @@ namespace pg
                 std::lock_guard lock(m);
 
                 it = parentalMap.find(event.id);
-                
+
                 if (it != parentalMap.end())
                 {
                     vec = it->second;
@@ -415,7 +415,7 @@ namespace pg
                 //         child->setDirty();
                 // }
             }
-            
+
             // for(auto& child : vec)
             // {
             //     ecsRef->sendEvent(UiComponentChangeEvent{child});
@@ -461,7 +461,7 @@ namespace pg
         bool updated = false;
     };
 
-    template <typename LoaderId> 
+    template <typename LoaderId>
     struct LoaderRenderComponent : public UiComponent
     {
         LoaderRenderComponent(const LoaderId *id) : id(id) {}
@@ -472,7 +472,7 @@ namespace pg
         const LoaderId *id;
     };
 
-    template <typename LoaderId> 
+    template <typename LoaderId>
     LoaderRenderComponent<LoaderId>::LoaderRenderComponent(const LoaderRenderComponent &rhs) : UiComponent(rhs), id(rhs.id)
     {
         update();

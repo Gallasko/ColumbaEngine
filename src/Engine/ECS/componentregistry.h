@@ -56,6 +56,37 @@ namespace pg
     /**
      * @brief Structure tag used to specify onCreation member on a component
      *
+     */
+    struct Component : public Ctor
+    {
+        Component() = default;
+        Component(const Component& other) : ecsRef(other.ecsRef), entityId(other.entityId) {}
+
+        Component& operator=(const Component& other)
+        {
+            ecsRef = other.ecsRef;
+            entityId = other.entityId;
+
+            return *this;
+        }
+
+        virtual ~Component() {}
+
+        virtual void onCreation(EntityRef entity) override
+        {
+            LOG_THIS_MEMBER("Component");
+
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef = nullptr;
+        _unique_id entityId = 0;
+    };
+
+    /**
+     * @brief Structure tag used to specify onCreation member on a component
+     *
      * @todo find a better class name
      */
     struct Dtor
@@ -164,6 +195,12 @@ namespace pg
 
             // Todo see if there is a performance hit to keep this function or does it get optimized as it should be always false in production code
             // Block to find if a group is already registered in the ecs
+
+            // Todo if we try to attach a component not own by a system
+            // We should attach it to a default system (It will mainly be used for things such as flag)
+            // But we should warn the user that it is happening during compilation
+            // #pragma message ("Warning goes here")
+            // as they could try to create a component while the owner system was not initialized yet !
 #ifdef PROD
             if (const auto& it = componentStorageMap.find(id); it == componentStorageMap.end())
             {
@@ -493,6 +530,8 @@ namespace pg
     template<>
     void ComponentRegistry::processEvent(const StandardEvent& event);
 
+    // Todo setting a ref to a component that is not own by another system raises an exception std::map ::at: out of range
+    // Todo add a function to check if the component is already in the registry and log an error if it is not
     template <class Type>
     struct Ref
     {

@@ -11,6 +11,8 @@ namespace pg
     template<typename Event>
     struct Listener
     {
+        virtual ~Listener() {}
+
         virtual void onEvent(const Event& event) = 0;
 
         void setRegistry(ComponentRegistry* registry)
@@ -31,6 +33,8 @@ namespace pg
     template<>
     struct Listener<StandardEvent>
     {
+        virtual ~Listener() {}
+
         virtual void onEvent(const StandardEvent& event) = 0;
 
         void addListenerToStandardEvent(const std::string& name)
@@ -70,6 +74,8 @@ namespace pg
     template<typename Event>
     struct QueuedListener
     {
+        virtual ~QueuedListener() {}
+
         virtual void onProcessEvent(const Event& event) = 0;
 
         void onEvent(const Event& event)
@@ -99,6 +105,8 @@ namespace pg
     template<>
     struct QueuedListener<StandardEvent>
     {
+        virtual ~QueuedListener() {}
+
         virtual void onProcessEvent(const StandardEvent& event) = 0;
 
         void onEvent(const StandardEvent& event)

@@ -86,7 +86,7 @@ namespace pg
             {
                 auto genEnt = ecsRef->createEntity();
 
-                ecsRef->attach<RessourceGenerator>(genEnt, gen);
+                ecsRef->attachGeneric<RessourceGenerator>(genEnt, gen);
 
                 generatorMap[gen.id] = genEnt.id;
             }
@@ -106,7 +106,7 @@ namespace pg
 
             auto genEnt = ecsRef->createEntity();
 
-            ecsRef->attach<RessourceGenerator>(genEnt, event.generator);
+            ecsRef->attachGeneric<RessourceGenerator>(genEnt, event.generator);
 
             generatorMap[event.generator.id] = genEnt.id;
         }
@@ -289,7 +289,7 @@ namespace pg
     /**
      * ConverterComponent: Attach this to an entity that acts as a converter
      */
-    struct ConverterComponent
+    struct ConverterComponent : public Component
     {
         ConverterComponent() {}
         ConverterComponent(const std::string& id, const std::vector<std::string>& input, const std::vector<std::string>& output, const std::vector<float>& cost, const std::vector<float>& yield, bool active = false)
@@ -380,7 +380,7 @@ namespace pg
             for (const auto& conv : converters)
             {
                 auto convEnt = ecsRef->createEntity();
-                ecsRef->attach<ConverterComponent>(convEnt, conv);
+                ecsRef->attachGeneric<ConverterComponent>(convEnt, conv);
                 // Store the entity ID in the converter map for later lookup.
                 converterMap[conv.id] = convEnt.id;
             }
@@ -397,7 +397,7 @@ namespace pg
 
             // Create a new entity for the converter.
             auto convEnt = ecsRef->createEntity();
-            ecsRef->attach<ConverterComponent>(convEnt, event.converter);
+            ecsRef->attachGeneric<ConverterComponent>(convEnt, event.converter);
 
             // Save the mapping for later lookup.
             converterMap[event.converter.id] = convEnt.id;

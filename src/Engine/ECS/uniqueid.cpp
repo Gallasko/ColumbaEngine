@@ -6,10 +6,10 @@
 
 namespace pg
 {
-    namespace
-    {
-        static constexpr const char * DOM = "Unique id";
-    }
+    // namespace
+    // {
+    //     static constexpr const char * DOM = "Unique id";
+    // }
 
     // template <>
     // void serialize(Archive& archive, const _unique_id& value)

@@ -148,7 +148,7 @@ namespace pg
             }
             else
             {
-                ecsRef->attach<TextureRenderCall>(entity, createRenderCall(ui, obj));
+                ecsRef->attachGeneric<TextureRenderCall>(entity, createRenderCall(ui, obj));
             }
 
             textureUpdateQueue.pop();
@@ -177,6 +177,8 @@ namespace pg
         call.processPositionComponent(ui);
 
         call.setRenderStage(renderStage);
+
+        call.setViewport(obj->viewport);
 
         auto textureName = split(obj->textureName, '.');
 

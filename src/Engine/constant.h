@@ -13,6 +13,16 @@
 
 namespace pg
 {
+    inline bool areAlmostEqual(float a, float b, float epsilon = 1e-5f)
+    {
+        return std::fabs(a - b) <= epsilon * std::max({1.0f, std::fabs(a), std::fabs(b)});
+    }
+
+    inline bool areNotAlmostEqual(float a, float b, float epsilon = 1e-5f)
+    {
+        return not areAlmostEqual(a, b, epsilon);
+    }
+
     namespace constant
     {
         //Screen Const
@@ -27,7 +37,7 @@ namespace pg
         constexpr float ZOOM        =  45.0f;
 
         // Defines several possible options for camera movement. Used as abstraction to stay away from window-system specific input methods
-        enum class Camera_Movement 
+        enum class Camera_Movement
         {
             FORWARD,
             BACKWARD,
@@ -42,15 +52,17 @@ namespace pg
             float x = 0.0f;
             float y = 0.0f;
 
-            Vector2D() {}
+            inline Vector2D() {}
 
-            Vector2D(const unsigned int& x, const unsigned int& y) : x(static_cast<float>(x)), y(static_cast<float>(y)) {}
+            inline Vector2D(double x, double y) : x(static_cast<float>(x)), y(static_cast<float>(y)) {}
 
-            Vector2D(const int& x, const int& y) : x(static_cast<float>(x)), y(static_cast<float>(y)) {}
+            inline Vector2D(const unsigned int& x, const unsigned int& y) : x(static_cast<float>(x)), y(static_cast<float>(y)) {}
 
-            Vector2D(const float& x, const float& y) : x(x), y(y) {}
+            inline Vector2D(const int& x, const int& y) : x(static_cast<float>(x)), y(static_cast<float>(y)) {}
 
-            Vector2D(const Vector2D& vec) : x(vec.x), y(vec.y) {}
+            inline Vector2D(const float& x, const float& y) : x(x), y(y) {}
+
+            inline Vector2D(const Vector2D& vec) : x(vec.x), y(vec.y) {}
 
             inline void operator=(const Vector2D &rhs)
             {
@@ -95,12 +107,48 @@ namespace pg
 
             inline bool operator==(const Vector2D &rhs) const
             {
-                return (this->x == rhs.x) && (this->y == rhs.y);
+                return areAlmostEqual(this->x, rhs.x) and areAlmostEqual(this->y, rhs.y);
             }
 
             inline bool operator!=(const Vector2D &rhs) const
             {
                 return not (*this == rhs);
+            }
+
+            // Returns the Euclidean length (magnitude) of the vector.
+            inline float length() const
+            {
+                return std::sqrt(x * x + y * y);
+            }
+
+            inline float dot(const Vector2D &rhs) const
+            {
+                return this->x * rhs.x + this->y * rhs.y;
+            }
+
+            // Returns a normalized copy of this vector (unit length).
+            // If the vector is zero-length, returns the original (0,0).
+            inline Vector2D normalized() const
+            {
+                float len = length();
+
+                if (len > 0.0f)
+                    return Vector2D(x / len, y / len);
+                else
+                    return *this;
+            }
+
+            // Normalizes this vector in-place to unit length.
+            // If the vector is zero-length, it remains unchanged.
+            inline void normalize()
+            {
+                float len = length();
+
+                if (len > 0.0f)
+                {
+                    x /= len;
+                    y /= len;
+                }
             }
         };
 
@@ -169,7 +217,7 @@ namespace pg
 
             inline bool operator==(const Vector3D &rhs) const
             {
-                return (this->x == rhs.x) && (this->y == rhs.y) && (this->z == rhs.z);
+                return areAlmostEqual(this->x, rhs.x) and areAlmostEqual(this->y, rhs.y) and areAlmostEqual(this->z, rhs.z);
             }
 
             inline bool operator!=(const Vector3D &rhs) const
@@ -249,7 +297,7 @@ namespace pg
 
             inline bool operator==(const Vector4D &rhs) const
             {
-                return (this->x == rhs.x) and (this->y == rhs.y) and (this->z == rhs.z) and (this->w == rhs.w);
+                return areAlmostEqual(this->x, rhs.x) and areAlmostEqual(this->y, rhs.y) and areAlmostEqual(this->z, rhs.z) and areAlmostEqual(this->w, rhs.w);
             }
 
             inline bool operator!=(const Vector4D &rhs) const
@@ -273,7 +321,7 @@ namespace pg
                 sign = rhs.sign;
             }
 
-            void operator=(long long int value) 
+            void operator=(long long int value)
             {
                 digits.clear();
 
@@ -336,7 +384,7 @@ namespace pg
                             result.digits.push_back(0);
 
                         result.digits[i] += carry + (i < (int)digits.size() ? digits[i] : 0);
-                        
+
                         carry = result.digits[i] >= 1000;
                         if (carry)
                             result.digits[i] -= 1000;
@@ -344,26 +392,26 @@ namespace pg
 
                     return result;
                 }
-                
+
                 return *this - (-rhs);
             }
 
-            BigInt operator-() const 
+            BigInt operator-() const
             {
                 BigInt res = *this;
                 res.sign = !sign;
                 return res;
             }
 
-            BigInt operator-(const BigInt &rhs) const 
+            BigInt operator-(const BigInt &rhs) const
             {
-                if (sign == rhs.sign) 
+                if (sign == rhs.sign)
                 {
-                    if (abs() >= rhs.abs()) 
+                    if (abs() >= rhs.abs())
                     {
                         BigInt res = *this;
 
-                        for (int i = 0, carry = 0; i < (int) rhs.digits.size() || carry; i++) 
+                        for (int i = 0, carry = 0; i < (int) rhs.digits.size() || carry; i++)
                         {
                             res.digits[i] -= carry + (i < (int) rhs.digits.size() ? rhs.digits[i] : 0);
 
@@ -383,7 +431,7 @@ namespace pg
             void operator+=(const BigInt &rhs) { *this = *this + rhs; }
             void operator-=(const BigInt &rhs) { *this = *this - rhs; }
 
-            bool operator< (const BigInt &rhs) const 
+            bool operator< (const BigInt &rhs) const
             {
                 if (sign != rhs.sign)
                     return sign < rhs.sign;
@@ -397,7 +445,7 @@ namespace pg
 
                 return false;
             }
-        
+
             bool operator> (const BigInt &rhs) const { return rhs < *this; }
             bool operator<=(const BigInt &rhs) const { return !(rhs < *this); }
             bool operator>=(const BigInt &rhs) const { return !(*this < rhs); }
@@ -410,10 +458,10 @@ namespace pg
 
         private:
             std::vector<short> digits; // digit stored in base 1000 -> 1 slot == 3 digits
-            bool sign = 1; // sign = 1 positiv integer, sign = 0 negativ integer 
+            bool sign = 1; // sign = 1 positiv integer, sign = 0 negativ integer
 
             std::string numberWithLeadingZero(short n) const
-            { 
+            {
                 std::string value = "";
                 if (n < 100)
                         value += "0";
@@ -425,7 +473,7 @@ namespace pg
                 return value;
             }
 
-            BigInt abs() const 
+            BigInt abs() const
             {
                 BigInt res = *this;
                 res.sign = 1;
@@ -433,7 +481,7 @@ namespace pg
             }
 
             void trim()
-            { 
+            {
                 while (!digits.empty() && !digits.back())
                     digits.pop_back();
                 if (digits.empty())
@@ -486,10 +534,10 @@ namespace pg
 
                 this->indices = new unsigned int[rhs.nbIndices];
                 for (i = 0; i < rhs.nbIndices; i++)
-                    this->indices[i] = rhs.indices[i];	
+                    this->indices[i] = rhs.indices[i];
 
                 this->nbVertices = rhs.nbVertices;
-                this->nbIndices = rhs.nbIndices;		
+                this->nbIndices = rhs.nbIndices;
             }
         };
 
@@ -499,7 +547,7 @@ namespace pg
             {
                 vertices = new float[20];
                 //              x                     y                    z                    texpos x             texpos y
-                vertices[0] =  0.0f; vertices[1] =   0.0f; vertices[2] =  1.0f; vertices[3] =  0.0f; vertices[4] =  0.0f;   
+                vertices[0] =  0.0f; vertices[1] =   0.0f; vertices[2] =  1.0f; vertices[3] =  0.0f; vertices[4] =  0.0f;
                 vertices[5] =  1.0f; vertices[6] =   0.0f; vertices[7] =  1.0f; vertices[8] =  1.0f; vertices[9] =  0.0f;
                 vertices[10] = 0.0f; vertices[11] = -1.0f; vertices[12] = 1.0f; vertices[13] = 0.0f; vertices[14] = 1.0f;
                 vertices[15] = 1.0f; vertices[16] = -1.0f; vertices[17] = 1.0f; vertices[18] = 1.0f; vertices[19] = 1.0f;
@@ -544,10 +592,10 @@ namespace pg
 
                 this->indices = new unsigned int[rhs.nbIndices];
                 for (i = 0; i < rhs.nbIndices; i++)
-                    this->indices[i] = rhs.indices[i];	
+                    this->indices[i] = rhs.indices[i];
 
                 this->nbVertices = rhs.nbVertices;
-                this->nbIndices = rhs.nbIndices;		
+                this->nbIndices = rhs.nbIndices;
             }
         };
 

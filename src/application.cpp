@@ -45,7 +45,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
 
         selectionOutline = outline.entity;
         ecsRef->attach<EntityName>(selectionOutline, "SelectionOutline");
-        ecsRef->attach<SelectedEntity>(selectionOutline);
+        ecsRef->attachGeneric<SelectedEntity>(selectionOutline);
     }
 
     virtual void onEvent(const OnMouseClick& event) override

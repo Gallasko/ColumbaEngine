@@ -228,7 +228,9 @@ namespace pg
 
                 for (auto& pair : scancodeToType)
                 {
-                    if (pair.first.code == event.code and (pair.first.mod & event.mod))
+                    bool modOk = pair.first.mod == KMOD_NONE ? true : (pair.first.mod & event.mod);
+
+                    if (pair.first.code == event.code and modOk)
                     {
                         for (auto& holder : pair.second)
                         {

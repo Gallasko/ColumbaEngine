@@ -35,9 +35,9 @@ namespace pg
 
     enum class RenderStage : uint8_t
     {
-        Render      = 0b000,
-        PreRender   = 0b001,
-        PostProcess = 0b010
+        Render      = 0b0000,
+        PreRender   = 0b0001,
+        PostProcess = 0b0010
     };
 
     enum class OpacityType : uint8_t
@@ -167,10 +167,11 @@ namespace pg
             return *this;
         }
 
-        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId)
+        RenderCall(bool visible, const RenderStage& stage, const OpacityType& opacity, int depth, uint64_t materialId, uint8_t viewport = 0)
         {
             setVisibility(visible);
             setRenderStage(stage);
+            setViewport(viewport);
             setOpacity(opacity);
             setDepth(depth);
             setMaterial(materialId);
@@ -195,14 +196,30 @@ namespace pg
 
         void setRenderStage(const RenderStage& stage)
         {
-            key = (key & ~((uint64_t)0b111 << 56)) | static_cast<uint64_t>(stage) << 56;
+            key = (key & ~((uint64_t)0b1111 << 59)) | static_cast<uint64_t>(stage) << 59;
         }
 
         RenderStage getRenderStage() const
         {
-            uint64_t stageValue = (key >> 56) & 0b111;
+            uint64_t stageValue = (key >> 59) & 0b1111;
 
             return static_cast<RenderStage>(stageValue);
+        }
+
+        void setViewport(uint8_t viewport)
+        {
+            if (viewport > 0b111) // Ensure the viewport value fits in 3 bits
+            {
+                LOG_ERROR("RenderCall", "Viewport value is too large [" << viewport << "], should be less than or equal to 7.");
+                return;
+            }
+
+            key = (key & ~((uint64_t)0b111 << 56)) | (static_cast<uint64_t>(viewport) << 56);
+        }
+
+        uint8_t getViewport() const
+        {
+            return static_cast<uint8_t>((key >> 56) & 0b111);
         }
 
         void setOpacity(const OpacityType& opacity)
@@ -420,7 +437,7 @@ namespace pg
 
     // Todo fix crash on renderer when failure to grab a missing texture or shader
 
-    class MasterRenderer : public System<Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>>
+    class MasterRenderer : public System<Own<BaseCamera2D>, Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>>
     {
     private:
         struct MaterialHolder
@@ -470,7 +487,7 @@ namespace pg
         OpenGLTexture registerTextureHelper(const std::string& name, const char* texturePath, size_t oldId = 0, bool instantRegister = true);
         void registerTexture(const std::string& name, OpenGLTexture texture) { textureList[name] = texture; }
         void registerTexture(const std::string& name, const char* texturePath);
-        void registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath);
+        void registerAtlasTexture(const std::string& name, const char* texturePath, const char* atlasFilePath, std::unique_ptr<LoadedAtlas> atlas = nullptr);
 
         void queueRegisterTexture(const std::string& name, const char* texturePath)
         {
@@ -487,6 +504,34 @@ namespace pg
             else
                 registerTexture(name, callback);
 
+        }
+
+        // Todo change default camera
+
+        size_t queueRegisterCamera(_unique_id camera)
+        {
+            cameraRegisterQueue.push_back(camera);
+
+            return cameraList.size() + cameraRegisterQueue.size(); // Return the index of the new camera
+        }
+
+        void processCameraRegister()
+        {
+            for (auto id : cameraRegisterQueue)
+            {
+                auto* camera = ecsRef->getComponent<BaseCamera2D>(id);
+
+                if (not camera)
+                {
+                    LOG_MILE("Renderer", "Camera " << id << " not found");
+                    continue;
+                }
+
+                cameraList.push_back(camera);
+                ++nbCamera;
+            }
+
+            cameraRegisterQueue.clear();
         }
 
         size_t registerMaterial(const Material& material)
@@ -567,7 +612,7 @@ namespace pg
             return textureList.find(name) != textureList.end();
         }
 
-        const LoadedAtlas::AtlasTexture& getAtlasTexture(const std::string& textureName, const std::string& atlasTextureName) const
+        const AtlasTexture& getAtlasTexture(const std::string& textureName, const std::string& atlasTextureName) const
         {
             return atlasMap.at(textureName).getTexture(atlasTextureName);
         }
@@ -673,6 +718,8 @@ namespace pg
         mutable std::mutex materialRegisterMutex;
         std::vector<MaterialHolder> materialRegisterQueue;
 
+        std::vector<_unique_id> cameraRegisterQueue;
+
         moodycamel::ConcurrentQueue<TextureRegisteringQueueItem> textureRegisteringQueue;
 
         size_t nbRegisteredMaterials = 0;
@@ -695,10 +742,14 @@ namespace pg
         std::vector<Material> materialList;
         std::unordered_map<std::string, size_t> materialDict;
 
+        std::vector<BaseCamera2D*> cameraList;
+
         std::vector<Material> materialListTemp;
         std::unordered_map<std::string, size_t> materialDictTemp;
 
         size_t nbMaterials = 0;
+
+        size_t nbCamera = 0;
 
         /**
          * Flag to indicate that the current frame should not be recreated (RenderCallList should not be updated)

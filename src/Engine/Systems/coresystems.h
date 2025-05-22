@@ -11,6 +11,8 @@
 
 namespace pg
 {
+    constexpr int TickRateMilliseconds = 20;
+
     // Todo add all the logger thing to all those systems and doc too
 
     struct EntityName : public Ctor
@@ -66,7 +68,8 @@ namespace pg
 
     struct TickingSystem : public System<>
     {
-        TickingSystem(int16_t duration = 20) : tickDuration(duration), reminder(0)
+
+        TickingSystem(int16_t duration = TickRateMilliseconds) : tickDuration(duration), reminder(0)
         {
             LOG_THIS_MEMBER("Ticking System");
 
@@ -157,7 +160,7 @@ namespace pg
         bool paused = false;
     };
 
-    struct Timer
+    struct Timer: public Component
     {
         Timer() {}
         Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), oneShot(other.oneShot), callback(other.callback) {}

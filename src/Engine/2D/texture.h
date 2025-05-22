@@ -11,8 +11,8 @@ namespace pg
 {
     struct Texture2DComponent : public Ctor
     {
-        Texture2DComponent(const std::string& textureName) : textureName(textureName) { }
-        Texture2DComponent(const Texture2DComponent &rhs) : textureName(rhs.textureName), entityId(rhs.entityId), ecsRef(rhs.ecsRef), opacity(rhs.opacity), overlappingColor(rhs.overlappingColor), overlappingColorRatio(rhs.overlappingColorRatio) { }
+        Texture2DComponent(const std::string& textureName, size_t viewport = 0) : textureName(textureName), viewport(viewport) { }
+        Texture2DComponent(const Texture2DComponent &rhs) : textureName(rhs.textureName), entityId(rhs.entityId), ecsRef(rhs.ecsRef), opacity(rhs.opacity), overlappingColor(rhs.overlappingColor), overlappingColorRatio(rhs.overlappingColorRatio), viewport(rhs.viewport) { }
         virtual ~Texture2DComponent() {}
 
         Texture2DComponent& operator=(const Texture2DComponent& other)
@@ -23,11 +23,12 @@ namespace pg
 
             overlappingColor = other.overlappingColor;
             overlappingColorRatio = other.overlappingColorRatio;
+            viewport = other.viewport;
 
             if (ecsRef)
             {
                 ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }   
+            }
 
             return *this;
         }
@@ -39,7 +40,7 @@ namespace pg
             entityId = entity->id;
         }
 
-        inline static std::string getType() { return "Texture2DComponent"; } 
+        inline static std::string getType() { return "Texture2DComponent"; }
 
         void setTexture(const std::string& textureName)
         {
@@ -50,13 +51,13 @@ namespace pg
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
             }
         }
 
         void setOverlappingColor(const constant::Vector3D& color, float ratio)
         {
-            if (ratio != overlappingColorRatio or overlappingColor != color)
+            if (areNotAlmostEqual(ratio, overlappingColorRatio) or overlappingColor != color)
             {
                 this->overlappingColor = color;
                 this->overlappingColorRatio = ratio;
@@ -64,20 +65,33 @@ namespace pg
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
             }
         }
 
         void setOpacity(float opacity)
         {
-            if (this->opacity != opacity)
+            if (areNotAlmostEqual(this->opacity, opacity))
             {
                 this->opacity = opacity;
 
                 if (ecsRef)
                 {
                     ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }   
+                }
+            }
+        }
+
+        void setViewport(size_t viewport)
+        {
+            if (this->viewport != viewport)
+            {
+                this->viewport = viewport;
+
+                if (ecsRef)
+                {
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
             }
         }
 
@@ -92,6 +106,8 @@ namespace pg
 
         constant::Vector3D overlappingColor = {0.0f, 0.0f, 0.0f};
         float overlappingColorRatio = 0.0f;
+
+        size_t viewport = 0;
     };
 
     template <>

@@ -42,7 +42,7 @@ namespace pg
             };
 
             struct ASystem : public System<Own<A>>
-            {                
+            {
                 virtual void execute() { }
 
                 size_t getNbComponents() const { return view<A>().nbComponents(); }
@@ -88,7 +88,7 @@ namespace pg
             };
 
             struct DSystem : public System<Own<D>>
-            {                
+            {
                 virtual void execute() { }
             };
 
@@ -383,7 +383,7 @@ namespace pg
 
             ecs.removeEntity(entity0);
 
-            EXPECT_EQ(ecs.getNbEntities(), 0);            
+            EXPECT_EQ(ecs.getNbEntities(), 0);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -410,7 +410,7 @@ namespace pg
 
             ecs.removeEntity(entity1);
 
-            EXPECT_EQ(ecs.getNbEntities(), 0);            
+            EXPECT_EQ(ecs.getNbEntities(), 0);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -575,7 +575,7 @@ namespace pg
 
             EXPECT_FALSE(ecs.isRunning());
 
-            auto attachedComp = ecs.attach<A>(entity, 5, 4);
+            auto attachedComp = ecs.attachGeneric<A>(entity, 5, 4);
 
             EXPECT_EQ(sys->getNbComponents(), 2);
 
@@ -630,7 +630,7 @@ namespace pg
 
             EXPECT_FALSE(ecs.isRunning());
 
-            auto attachedComp = ecs.attach<F>(entity);
+            auto attachedComp = ecs.attachGeneric<F>(entity);
 
             EXPECT_EQ(sys->view<F>().nbComponents(), 2);
 
@@ -652,7 +652,7 @@ namespace pg
 
             EXPECT_EQ(attachedComp.component, comp.component);
 
-            auto attachedComp2 = ecs.attach<G>(entity);
+            auto attachedComp2 = ecs.attachGeneric<G>(entity);
 
             EXPECT_TRUE(attachedComp2.initialized);
 
@@ -700,7 +700,7 @@ namespace pg
             ecs->createSystem<DeleteTestSystem>();
 
             delete ecs;
-            
+
             EXPECT_EQ(logger.getNbTest(), 1);
         }
 
@@ -722,7 +722,7 @@ namespace pg
             EXPECT_EQ(ecs.getNbTasks(), 1);
 
             ecs.deleteSystem<TaskTestSystem>();
-            
+
             EXPECT_EQ(ecs.getNbSystems(), 0);
             EXPECT_EQ(ecs.getNbTasks(), 0);
         }
@@ -749,7 +749,7 @@ namespace pg
             EXPECT_EQ(ecs.getNbTasks(), 0);
 
             ecs.deleteSystem<DeleteTestSystem>();
-            
+
             EXPECT_EQ(logger.getNbTest(), 1);
             EXPECT_EQ(ecs.getNbSystems(), 0);
             EXPECT_EQ(ecs.getNbTasks(), 0);
@@ -775,7 +775,7 @@ namespace pg
             EXPECT_EQ(ecs.getNbTasks(), 0);
 
             ecs.deleteSystem(sys->_id);
-            
+
             EXPECT_EQ(logger.getNbTest(), 1);
             EXPECT_EQ(ecs.getNbSystems(), 0);
             EXPECT_EQ(ecs.getNbTasks(), 0);
@@ -811,9 +811,9 @@ namespace pg
 
             std::vector<EntityRef> entities;
             entities.reserve(nbComps + 1);
-            
+
             start = std::chrono::steady_clock::now();
-            
+
             for (size_t i = 0; i < nbComps + 1; i++)
             {
                 entities.emplace_back(ecs.createEntity());
@@ -831,7 +831,7 @@ namespace pg
 
             end = std::chrono::steady_clock::now();
 
-            start = std::chrono::steady_clock::now(); 
+            start = std::chrono::steady_clock::now();
             system3->execute();
             system3->execute();
             system3->execute();
@@ -925,7 +925,7 @@ namespace pg
 
             for (size_t i = 0; i < NUMBEROFENTITYTRIES; i++)
             {
-                ecs.attach<A>(entity, static_cast<int>(i), 15);
+                ecs.attachGeneric<A>(entity, static_cast<int>(i), 15);
             }
         }
 

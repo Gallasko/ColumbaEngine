@@ -1,0 +1,132 @@
+{
+    "automappingRulesFile": "",
+    "commands": [
+    ],
+    "compatibilityVersion": 1100,
+    "extensionsPath": "extensions",
+    "folders": [
+        "."
+    ],
+    "properties": [
+    ],
+    "propertyTypes": [
+        {
+            "id": 3,
+            "name": "BulletPattern",
+            "storageType": "int",
+            "type": "enum",
+            "values": [
+                "Radial",
+                "AtPlayer",
+                "Cone"
+            ],
+            "valuesAsFlags": false
+        },
+        {
+            "color": "#ffa40205",
+            "drawFill": true,
+            "id": 1,
+            "members": [
+                {
+                    "name": "enemyData",
+                    "type": "object",
+                    "value": 0
+                },
+                {
+                    "name": "spawnProba",
+                    "type": "float",
+                    "value": 0
+                }
+            ],
+            "name": "SpawnData",
+            "type": "class",
+            "useAs": [
+                "property",
+                "map",
+                "layer",
+                "object",
+                "tile",
+                "tileset",
+                "wangcolor",
+                "wangset",
+                "project"
+            ]
+        },
+        {
+            "color": "#ffa0a0a4",
+            "drawFill": true,
+            "id": 4,
+            "members": [
+                {
+                    "name": "ammo",
+                    "type": "int",
+                    "value": 18
+                },
+                {
+                    "name": "barrelSize",
+                    "type": "int",
+                    "value": 6
+                },
+                {
+                    "name": "bulletCount",
+                    "type": "int",
+                    "value": 1
+                },
+                {
+                    "name": "bulletSpreadAngle",
+                    "type": "float",
+                    "value": 0
+                },
+                {
+                    "name": "damage",
+                    "type": "float",
+                    "value": 1
+                },
+                {
+                    "name": "name",
+                    "type": "string",
+                    "value": ""
+                },
+                {
+                    "name": "pattern",
+                    "propertyType": "BulletPattern",
+                    "type": "int",
+                    "value": 0
+                },
+                {
+                    "name": "projectileLifeTime",
+                    "type": "float",
+                    "value": 1
+                },
+                {
+                    "name": "projectileSize",
+                    "type": "float",
+                    "value": 0.5
+                },
+                {
+                    "name": "projectileSpeed",
+                    "type": "float",
+                    "value": 10
+                },
+                {
+                    "name": "reloadTimeMs",
+                    "type": "float",
+                    "value": 1
+                }
+            ],
+            "name": "WeaponData",
+            "type": "class",
+            "useAs": [
+                "property",
+                "map",
+                "layer",
+                "object",
+                "tile",
+                "tileset",
+                "wangcolor",
+                "wangset",
+                "project"
+            ]
+        }
+    ]
+}

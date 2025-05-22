@@ -41,7 +41,8 @@ namespace pg
                 LOG_INFO(DOM, "Removing channel: " << i);
 
                 Mix_HaltChannel(i);
-                Mix_FreeChunk(channels[i]);
+
+                channels[i] = nullptr;
             }
         }
 
@@ -87,18 +88,31 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        for (unsigned int i = 0; i < nbSoundEffectChannels; i++)
+        Mix_HaltMusic();
+        Mix_HaltChannel(-1);
+
+        // 2. Free all loaded effects (owned by sfxDict)
+        for (auto &pair : sfxDict)
         {
-            if (channels[i] != nullptr)
-                Mix_FreeChunk(channels[i]);
+            Mix_FreeChunk(pair.second);
         }
+
+        sfxDict.clear();
+
+        // 3. Free the music
+        if (music)
+            Mix_FreeMusic(music);
+
+        // 4. Close SDL_mixer
+        Mix_CloseAudio();
+        Mix_Quit();
 
         if (soundEffectChannelEnable)
             delete[] channels;
 
-        Mix_FreeMusic(music);
-        Mix_CloseAudio();
-        Mix_Quit();
+        channels = nullptr;
+        nbSoundEffectChannels = 0;
+        soundEffectChannelEnable = false;
     }
 
     void AudioSystem::onEvent(const StartAudio& event)

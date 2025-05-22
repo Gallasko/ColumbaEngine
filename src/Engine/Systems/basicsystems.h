@@ -6,6 +6,8 @@
 
 #include "UI/sentencesystem.h"
 
+#include "2D/position.h"
+
 namespace pg
 {
     struct FpsSystem : public System<Listener<TickEvent>, InitSys, StoragePolicy>
@@ -132,11 +134,11 @@ namespace pg
         bool moving = true;
     };
 
-    struct MoveToSystem : public System<Own<MoveToComponent>, Listener<TickEvent>, InitSys>
+    struct MoveToSystem : public System<Own<MoveToComponent>, Ref<PositionComponent>, Listener<TickEvent>, InitSys>
     {
         virtual void init() override
         {
-            registerGroup<UiComponent, MoveToComponent>();
+            registerGroup<PositionComponent, MoveToComponent>();
         }
 
         virtual void onEvent(const TickEvent& event) override
@@ -149,9 +151,9 @@ namespace pg
             if (not deltaTime)
                 return;
 
-            for (const auto& elem : viewGroup<UiComponent, MoveToComponent>())
+            for (const auto& elem : viewGroup<PositionComponent, MoveToComponent>())
             {
-                auto ui = elem->get<UiComponent>();
+                auto ui = elem->get<PositionComponent>();
                 auto move = elem->get<MoveToComponent>();
 
                 if (not move->moving)
@@ -159,8 +161,8 @@ namespace pg
 
                 auto travelSpeed = move->speed * (deltaTime / 1000.0f);
 
-                float x = ui->pos.x;
-                float y = ui->pos.y;
+                float x = ui->x;
+                float y = ui->y;
 
                 if (move->changed)
                 {
@@ -208,6 +210,103 @@ namespace pg
 
                     ui->setX(newX);
                     ui->setY(newY);
+                }
+            }
+
+            deltaTime = 0;
+        }
+
+        size_t deltaTime = 0;
+    };
+
+    struct MoveDirComponent : public Component
+    {
+        MoveDirComponent(constant::Vector2D dir, float speed, float maxDistance = -1.0f, bool destroyAfter = false, CallablePtr callback = nullptr)
+            : direction(dir), speed(speed), maxDistance(maxDistance), destroyAfter(destroyAfter), callback(callback)
+        {
+            normalizeDirection();
+        }
+
+        MoveDirComponent(const MoveDirComponent& other)
+            : direction(other.direction), speed(other.speed), distanceTraveled(other.distanceTraveled),
+            maxDistance(other.maxDistance), destroyAfter(other.destroyAfter), callback(other.callback),
+            callbackCalled(other.callbackCalled)
+        {}
+
+        void setDirection(const constant::Vector2D& dir)
+        {
+            direction = dir;
+            normalizeDirection();
+        }
+
+        void normalizeDirection()
+        {
+            float mag = std::sqrt(direction.x * direction.x + direction.y * direction.y);
+            if (mag > 0.0f)
+            {
+                direction.x /= mag;
+                direction.y /= mag;
+            }
+        }
+
+        constant::Vector2D direction;
+        float speed = 1.0f;
+        float distanceTraveled = 0.0f;
+        float maxDistance = -1.0f; // if <= 0, move forever
+        bool destroyAfter = false;
+
+        CallablePtr callback = nullptr;
+        bool callbackCalled = false;
+    };
+
+    struct MoveDirSystem : public System<Own<MoveDirComponent>, Ref<PositionComponent>, Listener<TickEvent>, InitSys>
+    {
+        virtual void init() override
+        {
+            registerGroup<PositionComponent, MoveDirComponent>();
+        }
+
+        virtual void onEvent(const TickEvent& event) override
+        {
+            deltaTime += event.tick;
+        }
+
+        virtual void execute() override
+        {
+            if (not deltaTime)
+                return;
+
+            float deltaSeconds = deltaTime / 1000.0f;
+
+            for (const auto& elem : viewGroup<PositionComponent, MoveDirComponent>())
+            {
+                auto pos = elem->get<PositionComponent>();
+                auto move = elem->get<MoveDirComponent>();
+
+                float moveAmount = move->speed * deltaSeconds;
+
+                float dx = move->direction.x * moveAmount;
+                float dy = move->direction.y * moveAmount;
+
+                pos->setX(pos->x + dx);
+                pos->setY(pos->y + dy);
+
+                move->distanceTraveled += std::sqrt(dx * dx + dy * dy);
+
+                bool shouldDestroy = move->maxDistance > 0.0f and move->distanceTraveled >= move->maxDistance;
+
+                if (shouldDestroy)
+                {
+                    if (move->callback and not move->callbackCalled)
+                    {
+                        move->callbackCalled = true;
+                        move->callback->call(ecsRef);
+                    }
+
+                    if (move->destroyAfter)
+                    {
+                        ecsRef->removeEntity(elem->entity);
+                    }
                 }
             }
 

@@ -12,7 +12,7 @@
                 "command": "powershell",
                 "args": [
                     "-c",
-                    "cmake --build ${workspaceFolder}/debug --config Debug --target GameOff -j 8 --"
+                    "cmake --build ${workspaceFolder}/debug --config Debug --target PixelJam -j 8 --"
                 ]
             },
             "linux": {
@@ -88,7 +88,7 @@
                     "-c",
                     // "cmake --build x:/Document/GitHub/TeclaEatsDesktop/release --config Release --target PgEngine TetrisClone -j 22 --"
                     // "cmake --build ${workspaceFolder}/release --config Release --target PgEngine TetrisClone -j 22 --"
-                    "cmake --build ${workspaceFolder}/release --config Release --target GameOff -j 22 --"
+                    "cmake --build ${workspaceFolder}/release --config Release --target PixelJam -j 22 --"
                 ]
             },
             "linux": {
@@ -101,7 +101,7 @@
                     "Release",
                     "--target",
                     "GameOff",
-                    "PgEngine",
+                    // "PgEngine",
                     "-j",
                     "8"
                 ]

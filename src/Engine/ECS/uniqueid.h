@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <mutex>
+#include <stdexcept>
 
 namespace pg
 {

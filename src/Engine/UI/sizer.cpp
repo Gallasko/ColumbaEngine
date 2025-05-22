@@ -363,7 +363,7 @@ namespace pg
 
     void LayoutSystem::updateHorizontalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos)
     {
-        if (viewUi->width != view->contentWidth && view->contentWidth != 0)
+        if (areNotAlmostEqual(viewUi->width, view->contentWidth) and areNotAlmostEqual(view->contentWidth, 0))
         {
             float thumbWidth = (viewUi->width / view->contentWidth) * viewUi->width;
             sbPos->setX(viewUi->x + (view->xOffset / (view->contentWidth - viewUi->width)) * (viewUi->width - thumbWidth));
@@ -378,7 +378,7 @@ namespace pg
 
     void LayoutSystem::updateVerticalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos)
     {
-        if (viewUi->height != view->contentHeight and view->contentHeight != 0)
+        if (areNotAlmostEqual(viewUi->height, view->contentHeight) and areNotAlmostEqual(view->contentHeight, 0))
         {
             float thumbHeight = (viewUi->height / view->contentHeight) * viewUi->height;
             sbPos->setY(viewUi->y + (view->yOffset / (view->contentHeight - viewUi->height)) * (viewUi->height - thumbHeight));

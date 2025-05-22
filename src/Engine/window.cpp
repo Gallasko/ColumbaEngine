@@ -130,7 +130,7 @@ namespace pg
     // Todo better define save path
     Window::Window(const std::string &title, const std::string& savePath) : ecs(savePath), title(title)
     {
-        terminalSink = pg::Logger::registerSink<pg::TerminalSink>(true);
+        terminalSink = pg::Logger::registerSink<pg::TerminalSink>();
 
         LOG_THIS_MEMBER(DOM);
 
@@ -593,12 +593,12 @@ namespace pg
             pos->setHeight(height);
         }
 
-        if (screenUi->width != width)
+        if (areNotAlmostEqual(screenUi->width, width))
         {
             screenUi->setWidth(width);
         }
 
-        if (screenUi->height != height)
+        if (areNotAlmostEqual(screenUi->height, height))
         {
             screenUi->setHeight(height);
         }

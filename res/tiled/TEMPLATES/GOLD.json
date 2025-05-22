@@ -1,0 +1,19 @@
+{ "object":
+    {
+     "height":0,
+     "id":101,
+     "name":"GOLD",
+     "point":true,
+     "properties":[
+            {
+             "name":"gold",
+             "type":"bool",
+             "value":true
+            }],
+     "rotation":0,
+     "type":"",
+     "visible":true,
+     "width":0
+    },
+ "type":"template"
+}

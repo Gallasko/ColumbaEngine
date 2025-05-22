@@ -15,6 +15,52 @@
 
 namespace pg
 {
+    struct AbstractCamera
+    {
+        virtual const glm::mat4& getProjectionMatrix() = 0;
+        virtual const glm::mat4& getViewMatrix() = 0;
+
+        virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const = 0;
+
+        virtual ~AbstractCamera() {}
+
+        glm::mat4 projectionMatrix = glm::mat4(1.0f);
+        glm::mat4 viewMatrix = glm::mat4(1.0f);
+    };
+
+    struct BaseCamera2D : public AbstractCamera
+    {
+        virtual const glm::mat4& getProjectionMatrix() override;
+        virtual const glm::mat4& getViewMatrix() override;
+
+        virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const override;
+
+        void setOffset(const constant::Vector2D& offset)
+        {
+            xOffset = offset.x;
+            yOffset = offset.y;
+
+            dirty = true;
+        }
+
+        void constructMatrices();
+
+        virtual ~BaseCamera2D() {}
+
+        float width = 0.0f;
+        float height = 0.0f;
+        float nearPlane = -1.0f;
+        float farPlane = 1.0f;
+
+        float x = 0.0f;
+        float y = 0.0f;
+
+        float xOffset = 0.0f;
+        float yOffset = 0.0f;
+
+        bool dirty = false;
+    };
+
     class Camera
     {
     public:
@@ -29,7 +75,7 @@ namespace pg
         // euler Angles
         float yaw;
         float pitch;
-        
+
         // camera options
         float movementSpeed;
         float mouseSensitivity;

@@ -27,8 +27,12 @@ extern std::unordered_map<std::string, long long> _systemExecutionTimes;
 extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
 #endif
 
+#define _PGSTRINGIZE_DETAIL(x) #x
+#define _PGSTRINGIZE(x)        _PGSTRINGIZE_DETAIL(x)
 namespace pg
 {
+
+
     // Todo create a queue that hold all entity id that got deleted to reattribute them later on
 
     // Todo Create a different id gen for systems so that components id are smaller and more packed
@@ -57,6 +61,8 @@ namespace pg
     public:
         static constexpr bool value = decltype(check<T>(0))::value;
     };
+
+    template<typename> inline constexpr bool always_false = false;
 
     class EntitySystem
     {
@@ -512,12 +518,30 @@ namespace pg
             }
         }
 
+        // Todo add a Component struct that add the onCreation()-> entityid adding
+        // and make the attach warn with this: #pragma message ("Warning goes here")
+        // if you try to attach a type that doesn't derive from component
+
         // Todo fix attach doesn't work if an args is a const std::string&
+
         template <typename Type, typename... Args>
-        CompRef<Type> attach(EntityRef entity, Args&&... args) noexcept
+        CompRef<Type> attach(EntityRef entity, Args&&... args)
         {
             LOG_THIS_MEMBER("ECS");
 
+            // As component deriving from Ctor, check for Ctor presence is enough
+            if constexpr(not std::is_base_of_v<Ctor, Type>)
+            {
+                static_assert(always_false<Type>,
+                    "Not attaching a struct deriving from Component (or Ctor); use attachGeneric instead!");
+            }
+
+            return attachGeneric<Type>(entity, std::forward<Args>(args)...);
+        }
+
+        template <typename Type, typename... Args>
+        CompRef<Type> attachGeneric(EntityRef entity, Args&&... args) noexcept
+        {
             try
             {
                 Type* component;
@@ -543,7 +567,7 @@ namespace pg
             }
             catch (const std::exception& e)
             {
-                LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what());
+                LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
             }
 
             return CompRef<Type>();
@@ -619,7 +643,21 @@ namespace pg
         Entity* getEntity(const std::string& name) const;
 
         template <typename Comp>
-        inline Comp* getComponent(_unique_id id) const { LOG_THIS_MEMBER("ECS"); return registry.retrieve<Comp>()->getComponent(id); }
+        inline Comp* getComponent(_unique_id id) const
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            try
+            {
+                return registry.retrieve<Comp>()->getComponent(id);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_WARNING("ECS", "Can't get component [" << typeid(Comp).name() << "] from entity [" << id << "]: " << e.what());
+                return nullptr;
+            }
+        }
+
 
         inline ComponentSet<Entity>::ComponentSetList view() const
         {
@@ -652,7 +690,8 @@ namespace pg
         void reportSystemProfiles();
 
     private:
-        friend void serialize<>(Archive& archive, const EntitySystem& ecs);
+        // Todo maybe
+        // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
 
         void addEntityToPool(Entity* entity)
         {
@@ -714,7 +753,14 @@ namespace pg
 
                 // Todo add a mechanism to avoid creating a component that is already attached to the entity
 
-                registry.retrieve<Type>()->internalCreateComponent(entity, *component);
+                try
+                {
+                    registry.retrieve<Type>()->internalCreateComponent(entity, *component);
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
+                }
             }
         }
 
@@ -850,6 +896,42 @@ namespace pg
         LOG_ERROR("Entity", "Entity doesn't have component: " << componentId);
 
         return CompRef<Comp>();
+    }
+
+    template <typename Comp, typename... Args>
+    CompRef<Comp> EntityRef::attach(Args&&... args)
+    {
+        if (initialized)
+            return entity->template attach<Comp>(std::forward<Args>(args)...);
+        else
+        {
+            // Try to find the entity in the ecs to update this ref
+            auto ent = ecsRef->getEntity(id);
+
+            // Entity found, updating this entity ref
+            if (id != 0 and ent)
+            {
+                entity = ent;
+                initialized = true;
+            }
+
+            return entity->template attach<Comp>(std::forward<Args>(args)...);
+        }
+    }
+
+    template <typename Comp, typename... Args>
+    CompRef<Comp> Entity::attach(Args&&... args)
+    {
+        LOG_THIS_MEMBER("Entity");
+
+        if (not ecsRef)
+        {
+            LOG_ERROR("Entity", "Entity is not referenced in any ECS");
+
+            return CompRef<Comp>();
+        }
+
+        return ecsRef->template attach<Comp>(EntityRef(this, false), std::forward<Args>(args)...);
     }
 
     template <typename Type>

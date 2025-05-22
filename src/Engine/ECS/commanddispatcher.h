@@ -35,7 +35,7 @@ namespace pg
 
     /**
      * @brief A base ECS system responsible of system commands generated from other systems.
-     * 
+     *
      * This system is responsible for creating and running ECS system commands
      * Should be used for every commands that need to be executed asynchronously such as
      * creating or deleting an Entity or a component.
@@ -131,7 +131,7 @@ namespace pg
 
         /**
          * @brief Attach a new component to an entity
-         * 
+         *
          * @tparam Type Type of the component to be attached
          * @tparam Args Type of the arguments of the component to be attached
          * @param entity Entity where the component will be attached
@@ -143,7 +143,7 @@ namespace pg
         {
             LOG_THIS_MEMBER("Command Dispatcher");
 
-            Type* comp = new Type{std::forward<Args>(args)...};
+            Type* comp = new Type(std::forward<Args>(args)...);
 
             if (not componentCQueue.enqueue(ComponentCreateCommand{entity, comp}))
             {
@@ -156,7 +156,7 @@ namespace pg
 
         /**
          * @brief Detach a component from an entity
-         * 
+         *
          * @param entity Entity of the component to be detached
          * @param compid Id of the component to be detached
          */
@@ -172,7 +172,7 @@ namespace pg
 
         /**
          * @brief Enqueue a new system command in the dispatcher
-         * 
+         *
          * @param cmd Command to execute
          * @return true if the command was successfully enqueued, false otherwise
          */
@@ -183,9 +183,9 @@ namespace pg
 
         /**
          * @brief Enqueue a new system command in the dispatcher
-         * 
+         *
          * Overload to support universal references
-         * 
+         *
          * @param cmd Command to execute
          * @return true if the command was successfully enqueued, false otherwise
          */
@@ -196,9 +196,9 @@ namespace pg
 
          /**
          * @brief Enqueue a new system command in the dispatcher
-         * 
+         *
          * Overload to enforce a selected queue through a Command Token
-         * 
+         *
          * @param token Token of the queue to use
          * @param cmd Command to execute
          * @return true if the command was successfully enqueued, false otherwise
