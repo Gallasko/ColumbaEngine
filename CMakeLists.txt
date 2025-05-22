@@ -64,7 +64,15 @@ else()
         # set(CMAKE_CXX_FLAGS "-flto -Wall -Wextra -pthread -O3 -DNDEBUG")
         # set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
         # -Wdouble-promotion
-            set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -ftime-trace -pthread -O0 -ggdb -DDEBUG")
+
+            # Only add -ftime-trace if compiler is Clang
+            if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+                set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -ftime-trace -pthread -O0 -ggdb -DDEBUG")
+            else()  # GCC or others, without -ftime-trace
+                set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
+            endif()
+
+            # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -ftime-trace -pthread -O0 -ggdb -DDEBUG")
         endif()
 
         if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")
