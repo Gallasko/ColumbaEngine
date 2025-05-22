@@ -46,7 +46,7 @@ jobs:
             libxmp-dev \
             libopusfile-dev \
             libfluidsynth-dev \
-            libogg-dev fluidsynth
+            libogg-dev fluidsynth libwavpack-dev
 
           # Build SDL2
           git clone -b SDL2 https://github.com/libsdl-org/SDL.git SDL2
