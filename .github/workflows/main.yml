@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - os: ubuntu-latest
-          #   compiler: gcc
-          #   cc: gcc
-          #   cxx: g++
+          - os: ubuntu-latest
+            compiler: gcc
+            cc: gcc
+            cxx: g++
           - os: ubuntu-latest
             compiler: clang
             cc: clang
@@ -31,16 +31,45 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install prerequisites (Linux)
+      - name: Install prerequisites and build SDL from source (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang \
-            build-essential cmake ccache \
+          sudo apt-get install -y \
+            build-essential cmake ccache git \
             libgl1-mesa-dev libglu1-mesa-dev \
             libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
-            libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev \
-            libglew-dev libfreetype6-dev
+            libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
+
+          # Build SDL2
+          git clone https://github.com/libsdl-org/SDL.git SDL2
+          cd SDL2
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
+          cd ../..
+
+          # Build SDL_ttf
+          git clone https://github.com/libsdl-org/SDL_ttf.git SDL_ttf
+          cd SDL_ttf
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
+          cd ../..
+
+          # Build SDL_mixer
+          git clone https://github.com/libsdl-org/SDL_mixer.git SDL_mixer
+          cd SDL_mixer
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j$(nproc)
+          sudo make install
+          sudo ldconfig
+          cd ../..
 
       - name: Cache ccache
         uses: actions/cache@v3
@@ -62,7 +91,9 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake -B . -S ../. -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+          cmake \
+            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
             -DCMAKE_BUILD_TYPE=Release \
             ..
 
