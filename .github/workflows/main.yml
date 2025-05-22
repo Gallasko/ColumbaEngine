@@ -39,7 +39,8 @@ jobs:
             build-essential cmake ccache git \
             libgl1-mesa-dev libglu1-mesa-dev \
             libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
-            libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
+            libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
+            libopusfile-dev
 
           # Build SDL2
           git clone -b SDL2 https://github.com/libsdl-org/SDL.git SDL2
