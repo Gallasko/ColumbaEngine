@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "gtest/gtest.h"
 
 #include "ECS/uniqueid.h"

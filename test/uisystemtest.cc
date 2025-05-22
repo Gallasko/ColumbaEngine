@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "gtest/gtest.h"
 
 #include "UI/uisystem.h"
@@ -12,7 +14,7 @@ namespace pg
         TEST(ui_component_test, initialization)
         {
             UiComponent component;
-            
+
             EXPECT_FLOAT_EQ(component.pos.x,  0.0f);
             EXPECT_FLOAT_EQ(component.pos.y,  0.0f);
             EXPECT_FLOAT_EQ(component.pos.z,  0.0f);
@@ -88,7 +90,7 @@ namespace pg
             EXPECT_FLOAT_EQ(component.width,  5.4f);
             EXPECT_FLOAT_EQ(component.height, 2.2f);
 
-            //                x,   y,   w,   h 
+            //                x,   y,   w,   h
             // Component = (2.0, 1.5, 5.4, 2.2)
             EXPECT_FLOAT_EQ(component.top,    1.5f);
             EXPECT_FLOAT_EQ(component.left,   2.0f);
@@ -98,7 +100,7 @@ namespace pg
             component.setWidth(3.6f);
             component.setHeight(-1.4f);
 
-            //                x,   y,   w,    h 
+            //                x,   y,   w,    h
             // Component = (2.0, 1.5, 3.6, -1.4)
             EXPECT_FLOAT_EQ(component.top,    1.5f);
             EXPECT_FLOAT_EQ(component.left,   2.0f);
@@ -108,7 +110,7 @@ namespace pg
             component.setX(2.1f);
             component.setY(-0.3f);
 
-            //                x,    y,   w,    h 
+            //                x,    y,   w,    h
             // Component = (2.1, -0.3, 3.6, -1.4)
             EXPECT_FLOAT_EQ(component.top,    -0.3f);
             EXPECT_FLOAT_EQ(component.left,    2.1f);
@@ -117,5 +119,5 @@ namespace pg
         }
 
     } // namespace test
-    
+
 } // namespace pg

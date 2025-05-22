@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include <filesystem>
 #include <iostream>
 namespace fs = std::filesystem;
@@ -129,11 +131,11 @@ namespace pg
             int ret = serialize.deserializeObject<int>("test");
 
             EXPECT_EQ(ret, 5);
-            
+
             serialize.setFile("tmpSerializeTest.sz");
 
             ret = serialize.deserializeObject<int>("test");
-        
+
             EXPECT_EQ(ret, 5);
 
             EXPECT_EQ(logger.getNbError(), 0);

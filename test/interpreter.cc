@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "gtest/gtest.h"
 
 #include "mockinterpreter.h"
@@ -12,8 +14,8 @@ namespace pg
     {
         namespace
         {
-            const char * testScript1 =  "var a = 1; var b = 2; var c = 3; \n" 
-                                        "a = b + c                        \n" 
+            const char * testScript1 =  "var a = 1; var b = 2; var c = 3; \n"
+                                        "a = b + c                        \n"
                                         "ExpectEq(a, 5);                  \n";
 
             const char * testScript2 =  "var a = 1; var b = 2; var c = 3; \n"
