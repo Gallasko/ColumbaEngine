@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "coresystems.h"
 
 #include "UI/textinput.h"

@@ -1,10 +1,12 @@
+#include "stdafx.h"
+
 #include "interpretersystem.h"
 
 #include "scriptcallable.h"
 
 namespace pg
 {
-    void InterpreterSystem::addToRegistry(ComponentRegistry *registry) 
+    void InterpreterSystem::addToRegistry(ComponentRegistry *registry)
     {
         LOG_THIS_MEMBER("Interpreter System");
 
@@ -78,9 +80,9 @@ namespace pg
             return;
 
         ValuableQueue emptyQueue;
-        
+
         try
-        {    
+        {
             executeMethod->call(emptyQueue);
         }
         catch (const std::exception& e)

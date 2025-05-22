@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "logger.h"
 
 // Only used for the console sink

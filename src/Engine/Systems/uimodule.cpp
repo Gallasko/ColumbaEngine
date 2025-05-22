@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "uimodule.h"
 
 namespace pg

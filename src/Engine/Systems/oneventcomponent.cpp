@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "oneventcomponent.h"
 
 #include "ECS/entitysystem.h"

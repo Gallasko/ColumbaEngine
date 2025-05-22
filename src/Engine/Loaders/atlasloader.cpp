@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "atlasloader.h"
 #include "Files/fileparser.h"
 #include "logger.h"
@@ -97,7 +99,7 @@ namespace pg
             LOG_INFO(DOM, "Added callback for: " << callback.first);
             parser.addCallback(callback.first, [&](const std::string& string) { callback.second(parser, string); });
         }
-        
+
         parser.addCallback("###########",  [&](const std::string&) {
             texture.setMesh(xPos, yPos, atlasWidth, atlasHeight);
             textureList.push_back(texture);

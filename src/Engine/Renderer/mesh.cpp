@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "mesh.h"
 
 #include "UI/sentencesystem.h"
@@ -14,11 +16,11 @@ namespace pg
     OpenGLObject::~OpenGLObject()
     {
         LOG_THIS_MEMBER("OpenGLObject");
-        
+
         if (initialized)
         {
-            delete VAO; 
-            delete VBO; 
+            delete VAO;
+            delete VBO;
             delete instanceVBO;
             delete EBO;
         }
@@ -27,11 +29,11 @@ namespace pg
     void OpenGLObject::initialize()
     {
         LOG_THIS_MEMBER("OpenGLObject");
-        
+
         VAO = new OpenGLVertexArrayObject();
         VBO = new OpenGLBuffer(OpenGLBuffer::VertexBuffer);
         instanceVBO = new OpenGLBuffer(OpenGLBuffer::VertexBuffer);
-        EBO = new OpenGLBuffer(OpenGLBuffer::IndexBuffer); 
+        EBO = new OpenGLBuffer(OpenGLBuffer::IndexBuffer);
 
         VAO->create();
         VBO->create();
@@ -42,12 +44,12 @@ namespace pg
     }
 
     void Mesh::bind()
-    { 
+    {
         LOG_THIS_MEMBER("Mesh");
 
         if (not initialized)
             generateMesh();
-        
+
         openGLMesh.VAO->bind();
     }
 
@@ -76,7 +78,7 @@ namespace pg
 
         // Calculate the total size of the attributes requested
         size_t totalSize = 0;
-        
+
         for (auto att : attributes)
         {
             totalSize += att;
@@ -137,7 +139,7 @@ namespace pg
 
         // Calculate the total size of the attributes requested
         size_t totalSize = 0;
-        
+
         for (auto att : attributes)
         {
             totalSize += att;

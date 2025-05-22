@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "parser.h"
 
 #include "logger.h"
@@ -12,7 +14,7 @@ namespace pg
     std::string ParseException::createErrorMessage(const Token& token, const std::string& message) const noexcept
     {
         std::string errStr = "Parser Error: " + message + " at line " + std::to_string(token.line) + ", column " + std::to_string(token.column);
-        
+
         return errStr;
     }
 
@@ -221,7 +223,7 @@ namespace pg
         while (match(TokenType::LOGICOR))
         {
             Token op = previousToken;
-            
+
             skipEOL();
             auto rExpr = logicAnd();
 
@@ -240,7 +242,7 @@ namespace pg
         while (match(TokenType::LOGICAND))
         {
             Token op = previousToken;
-            
+
             skipEOL();
             auto rExpr = equality();
 
@@ -259,7 +261,7 @@ namespace pg
         while (match(TokenType::NOTEQUAL, TokenType::EQUALEQUAL))
         {
             Token op = previousToken;
-            
+
             skipEOL();
             auto rExpr = comparison();
 
@@ -278,7 +280,7 @@ namespace pg
         while (match(TokenType::SUPEQUAL, TokenType::INFEQUAL, TokenType::SUP, TokenType::INF))
         {
             Token op = previousToken;
-            
+
             skipEOL();
             auto rExpr = term();
 
@@ -297,7 +299,7 @@ namespace pg
         while (match(TokenType::MINUS, TokenType::PLUS))
         {
             Token op = previousToken;
-            
+
             skipEOL();
             auto rExpr = factor();
 
@@ -316,7 +318,7 @@ namespace pg
         while (match(TokenType::SLASH, TokenType::STAR, TokenType::MOD))
         {
             Token op = previousToken;
-            
+
             skipEOL();
             auto rExpr = unary();
 
@@ -362,7 +364,7 @@ namespace pg
 
         LOG_THIS_MEMBER(DOM);
 
-        while (match(TokenType::INCREMENT, TokenType::DECREMENT)) 
+        while (match(TokenType::INCREMENT, TokenType::DECREMENT))
         {
             Token op = previousToken;
 
@@ -401,7 +403,7 @@ namespace pg
                     throw ParseException(tokenList.front(), "Unexpected Token in post fix operator");
                     break;
                 }
-                
+
             }
             */
 
@@ -419,7 +421,7 @@ namespace pg
             {
                 skipEOL();
                 auto token = consume("Expect property name after '.'.", TokenType::EXPRESSION);
-                
+
                 expr = std::make_shared<Get>(expr, token);
             }
             else if (match(TokenType::CENTER))
@@ -632,7 +634,7 @@ namespace pg
 
         bool rangeBased = false;
         Token name;
-        
+
         if (match(TokenType::END))
             initializer = nullptr;
         else if (match(TokenType::TOK_VAR))
@@ -678,18 +680,18 @@ namespace pg
 
             // Get the iterator from the rhs of the : of the for statement
             ExprPtr itExpr = std::make_shared<Get>(range, Token{TokenType::EXPRESSION, "it", token.line, token.column});
-            itExpr = std::make_shared<CallExpression>(itExpr, it, emptyQueue);    
+            itExpr = std::make_shared<CallExpression>(itExpr, it, emptyQueue);
 
             // Store the it in a variable named "__it"
             auto itStmt = std::make_shared<VariableStatement>(it, itExpr);
 
-            // Create a var to get all the other function 
+            // Create a var to get all the other function
             auto itVar = std::make_shared<Var>(it);
 
-            // Grab the function "begin" in the iterator and store it in a var name "__begin" 
+            // Grab the function "begin" in the iterator and store it in a var name "__begin"
             auto begin = Token{TokenType::EXPRESSION, "__begin", token.line, token.column};
             ExprPtr beginExpr = std::make_shared<Get>(itVar, Token{TokenType::EXPRESSION, "begin", token.line, token.column});
-            beginExpr = std::make_shared<CallExpression>(beginExpr, it, emptyQueue);            
+            beginExpr = std::make_shared<CallExpression>(beginExpr, it, emptyQueue);
 
             auto beginStmt = std::make_shared<VariableStatement>(begin, beginExpr);
 
@@ -699,11 +701,11 @@ namespace pg
             ExprPtr currentExpr = std::make_shared<Get>(itVar, Token{TokenType::EXPRESSION, "current", token.line, token.column});
             currentExpr = std::make_shared<CallExpression>(currentExpr, it, emptyQueue);
 
-            // Grab the function "next" to advance the iterator 
+            // Grab the function "next" to advance the iterator
             ExprPtr nextExpr = std::make_shared<Get>(itVar, Token{TokenType::EXPRESSION, "next", token.line, token.column});
             nextExpr = std::make_shared<CallExpression>(nextExpr, it, emptyQueue);
 
-            // Grab the function "end" in the iterator and store it in a var name "__end" 
+            // Grab the function "end" in the iterator and store it in a var name "__end"
             auto end = Token{TokenType::EXPRESSION, "__end", token.line, token.column};
 
             ExprPtr endExpr = std::make_shared<Get>(itVar, Token{TokenType::EXPRESSION, "end", token.line, token.column});
@@ -751,7 +753,7 @@ namespace pg
                 q.push(itStmt);
                 q.push(beginStmt);
                 q.push(endStmt);
-                
+
                 // Init the named variable
                 q.push(initializer);
                 q.push(std::make_shared<ExpressionStatement>(varExpr));
@@ -760,7 +762,7 @@ namespace pg
 
                 body = std::make_shared<BlockStatement>(q);
             }
-                
+
             return body;
         }
         else
@@ -816,7 +818,7 @@ namespace pg
 
                 body = std::make_shared<BlockStatement>(q);
             }
-                
+
             return body;
         }
 
@@ -837,7 +839,7 @@ namespace pg
         skipEOL();
         consume("Expect ')' after 'if'.", TokenType::PCLOSE);
         skipEOL();
-        
+
         StatementPtr thenBranch = statement();
         StatementPtr elseBranch = nullptr;
 

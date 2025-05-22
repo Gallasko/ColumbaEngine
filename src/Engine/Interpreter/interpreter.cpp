@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "interpreter.h"
 #include "environment.h"
 
@@ -53,7 +55,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             case TokenType::PLUS:
@@ -65,7 +67,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             case TokenType::STAR:
@@ -76,9 +78,9 @@ namespace pg
                 catch(const std::exception& e)
                 {
                     throw RuntimeException(expr->op, e.what());
-                }   
+                }
                 break;
-            
+
             case TokenType::SLASH:
                 try
                 {
@@ -110,7 +112,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             case TokenType::SUPEQUAL:
@@ -122,7 +124,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             case TokenType::INF:
@@ -134,7 +136,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             case TokenType::INFEQUAL:
@@ -146,7 +148,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             case TokenType::EQUALEQUAL:
@@ -158,7 +160,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             case TokenType::NOTEQUAL:
@@ -170,7 +172,7 @@ namespace pg
                 {
                     throw RuntimeException(expr->op, e.what());
                 }
-                    
+
                 break;
 
             default:
@@ -191,7 +193,7 @@ namespace pg
             case TokenType::LOGICOR:
                 if (lvalue.isTrue()) return std::make_shared<Variable>(ElementType { lvalue.isTrue() });
                 break;
-            
+
             case TokenType::LOGICAND:
                 if (not lvalue.isTrue()) return std::make_shared<Variable>(ElementType { lvalue.isTrue() });
                 break;
@@ -242,7 +244,7 @@ namespace pg
             case TokenType::INCREMENT:
                 try
                 {
-                    // Specialization to imitate "++it" 
+                    // Specialization to imitate "++it"
                     if(expr->expr->accept(this)->getType() == "IteratorInstance")
                     {
                         auto it = std::static_pointer_cast<IteratorInstance>(expr->expr->accept(this));
@@ -299,7 +301,7 @@ namespace pg
             case TokenType::INCREMENT:
                 try
                 {
-                    // Specialization to imitate "it++" 
+                    // Specialization to imitate "it++"
                     if(baseValue->getType() == "IteratorInstance")
                     {
                         auto it = std::static_pointer_cast<IteratorInstance>(baseValue);
@@ -467,7 +469,7 @@ namespace pg
         if (object->getType() != "ClassInstance" and object->getType() != "IteratorInstance")
             throw RuntimeException(expr->name, "Only instance have fields");
 
-        auto value = expr->value->accept(this); 
+        auto value = expr->value->accept(this);
         std::static_pointer_cast<ClassInstance>(object)->set(expr->name, value);
 
         return value;
@@ -481,7 +483,7 @@ namespace pg
     void VisitorInterpreter::visitStatement(VariableStatement *stmt)
     {
         auto name = stmt->name;
-        
+
         std::shared_ptr<Valuable> value;
         if (stmt->expr)
             value = stmt->expr->accept(this);
@@ -499,7 +501,7 @@ namespace pg
     void VisitorInterpreter::visitStatement(ClassStatement *stmt)
     {
         env->declareValue(stmt->name.text, nullptr);
-        
+
         std::unordered_map<std::string, std::shared_ptr<Function>> methods;
 
         auto temp = stmt->methods;
@@ -508,7 +510,7 @@ namespace pg
         {
             auto funStmt = temp.front();
             methods[funStmt->name.text] = std::make_shared<Function>(env, funStmt->name.text, funStmt->name, this, funStmt->parameters, funStmt->body);
-        
+
             temp.pop();
         }
 
@@ -608,7 +610,7 @@ namespace pg
                     tmpImports.pop();
                     continue;
                 }
-                
+
                 // Get the Ast of the script that we try to import
                 auto scriptAst = interpreter->getAst(importName, scriptPath);
 
@@ -667,7 +669,7 @@ namespace pg
     std::shared_ptr<Environment> VisitorInterpreter::ancestor(int distance) const
     {
         auto currentEnv = env;
-        
+
         for (int i = 0; i < distance; i++)
             currentEnv = currentEnv->getEnv();
 
@@ -686,7 +688,7 @@ namespace pg
         else
         {
             return globalContext->getValue(name, token);
-        } 
+        }
     }
 
     std::shared_ptr<Valuable> VisitorInterpreter::getAt(int distance, const std::string& name, const Token& token) const
@@ -698,7 +700,7 @@ namespace pg
     {
         if (localsList.empty())
             return globalContext->assignValue(name.text, name, value);
-        
+
         auto it = localsList.find(expression);
 
         if (it != localsList.end())

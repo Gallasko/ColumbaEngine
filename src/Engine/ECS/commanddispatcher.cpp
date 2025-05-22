@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "commanddispatcher.h"
 
 #include "entity.h"
@@ -12,7 +14,7 @@ namespace pg
 
     /**
      * @brief Enqueue the creation of a new entity
-     * 
+     *
      * @return EntityRef A reference object to the newly created entity
      */
     EntityRef CommandDispatcher::createEntity()
@@ -32,7 +34,7 @@ namespace pg
 
     /**
      * @brief Enqueue the deletion of an entity
-     * 
+     *
      * @param entity The entity to be deleted
      */
     void CommandDispatcher::deleteEntity(Entity* entity)
@@ -61,8 +63,8 @@ namespace pg
 
         // Component commands
         ComponentCreateCommand item3;
-        ComponentDeleteCommand item4;        
-        
+        ComponentDeleteCommand item4;
+
         bool found3 = componentCQueue.try_dequeue(item3);
         bool found4 = componentDQueue.try_dequeue(item4);
 

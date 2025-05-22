@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "openglobject.h"
 
 #include <fstream>
@@ -36,9 +38,9 @@ namespace
 }
 
 #ifdef DEBUG
-#define glCheckError() glCheckError_(__FILE__, __LINE__) 
+#define glCheckError() glCheckError_(__FILE__, __LINE__)
 #else
-#define glCheckError() 
+#define glCheckError()
 #endif
 
 
@@ -56,7 +58,7 @@ namespace pg
             LOG_ERROR(DOM, "Couldn't open files to create shader: '" << vertexPath << ", " << fragmentPath << "'");
             return;
         }
-        
+
         const char* vShaderCode = vertexFile.data.c_str();
         const char * fShaderCode = fragmentFile.data.c_str();
         // 2. compile shaders
@@ -85,74 +87,74 @@ namespace pg
     // activate the shader
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::bind() const
-    { 
-        glUseProgram(ID); 
+    {
+        glUseProgram(ID);
 
         glCheckError();
     }
     // release the shader
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::release() const
-    { 
-        glUseProgram(0); 
+    {
+        glUseProgram(0);
     }
     // utility uniform functions
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::setUniformValue(const std::string &name, bool value) const
-    {         
+    {
         glUniform1i(glGetUniformLocation(ID, name.c_str()), (int)value);
 
         glCheckError();
     }
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::setUniformValue(const std::string &name, int value) const
-    { 
+    {
         glUniform1i(glGetUniformLocation(ID, name.c_str()), value);
 
         glCheckError();
     }
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::setUniformValue(const std::string &name, float value) const
-    { 
+    {
         glUniform1f(glGetUniformLocation(ID, name.c_str()), value);
 
         glCheckError();
     }
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::setUniformValue(const std::string &name, const glm::vec2 &value) const
-    { 
+    {
         glUniform2fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
 
         glCheckError();
     }
     void OpenGLShaderProgram::setUniformValue(const std::string &name, float x, float y) const
-    { 
+    {
         glUniform2f(glGetUniformLocation(ID, name.c_str()), x, y);
 
         glCheckError();
     }
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::setUniformValue(const std::string &name, const glm::vec3 &value) const
-    { 
+    {
         glUniform3fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
 
         glCheckError();
     }
     void OpenGLShaderProgram::setUniformValue(const std::string &name, float x, float y, float z) const
-    { 
+    {
         glUniform3f(glGetUniformLocation(ID, name.c_str()), x, y, z);
 
         glCheckError();
     }
     // ------------------------------------------------------------------------
     void OpenGLShaderProgram::setUniformValue(const std::string &name, const glm::vec4 &value) const
-    { 
+    {
         glUniform4fv(glGetUniformLocation(ID, name.c_str()), 1, &value[0]);
 
         glCheckError();
     }
     void OpenGLShaderProgram::setUniformValue(const std::string &name, float x, float y, float z, float w) const
-    { 
+    {
         glUniform4f(glGetUniformLocation(ID, name.c_str()), x, y, z, w);
 
         glCheckError();

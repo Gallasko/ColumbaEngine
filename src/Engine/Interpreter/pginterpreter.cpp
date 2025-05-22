@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "pginterpreter.h"
 
 #include <filesystem>
@@ -103,7 +105,7 @@ namespace pg
         // Check if an AST is available for the script
         // Checking with the relative path to insure unicity
         const auto& it = importedScripts.find(p.relative_path().string());
-        
+
         if (it != importedScripts.end())
             return it->second;
 
@@ -128,7 +130,7 @@ namespace pg
         {
             LOG_INFO(DOM, "Adding sys function: " << it.first);
             it.second(interpreter, it.first);
-        } 
+        }
 
         auto env = interpreter->interpret();
 
@@ -140,7 +142,7 @@ namespace pg
 
         if (importedScripts.find(script.name) == importedScripts.end())
             importedScripts[script.name] = script;
-        
+
         if (interpreter->hasEcsSys())
             sysInterpreters.push_back(interpreter);
         else
@@ -198,7 +200,7 @@ namespace pg
     ScriptImport PgInterpreter::generateASTFromFile(const std::string& filename)
     {
         auto file = UniversalFileAccessor::openTextFile(filename);
-        
+
         return generateASTFromFile(file);
     }
 
@@ -230,7 +232,7 @@ namespace pg
 
             if (value == "true")
                 v = true;
-            
+
             addToList(currentList, caller->getToken(), {text, v});
         }
         // Todo this is casted to a size_t (Should not be !)
@@ -331,7 +333,7 @@ namespace pg
                     const auto& element = field.value->getElement();
 
                     std::string str;
-                    
+
                     if (strcmp(ARCHIVEVERSION, "1.0.0") == 0)
                         str = ATTRIBUTECONST + " " + element.getTypeString() + " {" + element.toString() + "}";
 

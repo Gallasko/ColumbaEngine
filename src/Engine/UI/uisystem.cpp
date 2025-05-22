@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "uisystem.h"
 
 #include "constant.h"
@@ -13,8 +15,8 @@ namespace pg
 	}
 
     /**
-     * @brief Specialization of the serialize function for AnchorDir 
-     * 
+     * @brief Specialization of the serialize function for AnchorDir
+     *
      * @param archive A references to the archive
      * @param value The anchor dir value
      */
@@ -69,8 +71,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for UiPosition 
-     * 
+     * @brief Specialization of the serialize function for UiPosition
+     *
      * @param archive A references to the archive
      * @param value The ui position value
      */
@@ -94,8 +96,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for UiFrame 
-     * 
+     * @brief Specialization of the serialize function for UiFrame
+     *
      * @param archive A references to the archive
      * @param value The ui frame value
      */
@@ -114,8 +116,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for UiComponent 
-     * 
+     * @brief Specialization of the serialize function for UiComponent
+     *
      * @param archive A references to the archive
      * @param value The ui component value
      */
@@ -155,7 +157,7 @@ namespace pg
 
         // if (value.hasRightAnchor)
         //     serialize(archive, "rightAnchor", value.rightAnchor);
-        
+
         // if (value.hasBottomAnchor)
         //     serialize(archive, "bottomAnchor", value.bottomAnchor);
 
@@ -167,7 +169,7 @@ namespace pg
 
     /**
      * @brief Specialization of the deserialize function for AnchorDir
-     * 
+     *
      * @param serializedString A serialized string
      * @return AnchorDir An AnchorDir object contructed via the serialization string
      */
@@ -256,7 +258,7 @@ namespace pg
 
     /**
      * @brief Specialization of the deserialize function for UiSize
-     * 
+     *
      * @param serializedString A serialized string
      * @return UiSize An UiSize object contructed via the serialization string
      */
@@ -283,7 +285,7 @@ namespace pg
 
     /**
      * @brief Specialization of the deserialize function for UiPosition
-     * 
+     *
      * @param serializedString A serialized string
      * @return UiPosition An UiPosition object contructed via the serialization string
      */
@@ -315,7 +317,7 @@ namespace pg
 
     /**
      * @brief Specialization of the deserialize function for UiFrame
-     * 
+     *
      * @param serializedString A serialized string
      * @return UiFrame An UiFrame object contructed via the serialization string
      */
@@ -344,7 +346,7 @@ namespace pg
 
     /**
      * @brief Specialization of the deserialize function for UiComponent
-     * 
+     *
      * @param serializedString A serialized string
      * @return UiComponent An UiComponent object contructed via the serialization string
      */
@@ -476,7 +478,7 @@ namespace pg
 
         if (not visible)
             return false;
-        
+
         if (isClippedToWindow)
             return inBound(x, y);
 
@@ -500,7 +502,7 @@ namespace pg
     void UiComponent::update()
     {
         LOG_THIS_MEMBER(DOM);
-        
+
         if (hasTopAnchor and hasBottomAnchor)
         {
             this->height = (bottomAnchor - bottomMargin) - (topAnchor - topMargin);

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "savemanager.h"
 
 #ifdef __EMSCRIPTEN__

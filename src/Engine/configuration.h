@@ -34,7 +34,7 @@ namespace pg
     private:
         /**
          * @brief Construct a new Configuration object.
-         * 
+         *
          * @param fromSerialization boolean to know if the configuration should be built from serialization or not.
          */
         Configuration(bool fromSerialization = false)
@@ -85,4 +85,10 @@ namespace pg
         // Save the current configuration file inside the serializer
         Serializer::getSerializer()->serializeObject("Config", *this);
     }
+
+    template <>
+    void serialize(Archive& archive, const Configuration& config);
+
+    template <>
+    Configuration deserialize(const UnserializedObject& serializedString);
 }

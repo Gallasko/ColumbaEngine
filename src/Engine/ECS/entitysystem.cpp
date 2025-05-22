@@ -9,6 +9,8 @@
  *
  */
 
+#include "stdafx.h"
+
 #include "entitysystem.h"
 
 #include "system.h"

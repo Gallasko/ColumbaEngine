@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "collisionsystem.h"
 
 namespace pg

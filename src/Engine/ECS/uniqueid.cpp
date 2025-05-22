@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "uniqueid.h"
 
 #include "logger.h"

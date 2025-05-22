@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "camera.h"
 
 #include "logger.h"

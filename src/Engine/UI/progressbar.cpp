@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "progressbar.h"
 
 #include "Helpers/helpers.h"

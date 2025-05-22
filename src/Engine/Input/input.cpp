@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "input.h"
 
 #include <algorithm>
@@ -24,7 +26,7 @@ namespace pg
 	{
 		static constexpr char const * DOM = "Input";
 
-		//Helper function 
+		//Helper function
 		template <typename Instance>
 		static inline bool CheckReleased(const Instance& instance)
 		{
@@ -49,7 +51,7 @@ namespace pg
 				}
 				else
 					return Input::InputState::INPUTERROR;
-			
+
 			break;
 
 			case Input::InputState::KEYGRABBED:
@@ -60,7 +62,7 @@ namespace pg
 				}
 				else
 					return Input::InputState::INPUTERROR;
-			
+
 			break;
 
 			case Input::InputState::KEYRELEASED:
@@ -252,7 +254,7 @@ namespace pg
 		LOG_THIS_MEMBER(DOM);
 
 		updateTime = deltaTime;
-		
+
 		this->mouseDelta.x = 0;
 		this->mouseDelta.y = 0;
 

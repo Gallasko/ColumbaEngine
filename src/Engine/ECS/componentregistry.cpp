@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "componentregistry.h"
 
 #include "Interpreter/interpretersystem.h"
@@ -10,10 +12,10 @@ namespace pg
     void serialize(Archive& archive, const StandardEvent& value)
     {
         archive.startSerialization("StandardEvent");
-        
+
         serialize(archive, "name", value.name);
         serialize(archive, "values", value.values);
-        
+
         archive.endSerialization();
     }
 
@@ -48,7 +50,7 @@ namespace pg
         LOG_THIS_MEMBER("ComponentRegistry");
 
         systemSerializer.setFile("save/systems.sz");
-    } 
+    }
 
     ComponentRegistry::~ComponentRegistry()
     {
@@ -65,7 +67,7 @@ namespace pg
     void ComponentRegistry::addEventListener(_unique_id eventId, InterpreterSystem *listener)
     {
         LOG_THIS_MEMBER("Component Registry");
-        
+
         // Store the listerer using the listener pointer value to be able to delete it later
         eventStorageMap[eventId].emplace((intptr_t)listener, [eventId, listener](const std::any& event) {
             listener->onEvent(eventId, std::any_cast<const std::shared_ptr<ClassInstance>&>(event));

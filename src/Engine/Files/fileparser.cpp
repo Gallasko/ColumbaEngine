@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "fileparser.h"
 
 #include <algorithm>
@@ -35,17 +37,17 @@ namespace pg
             if (not std::getline(stream, nextLine))
             {
                 LOG_ERROR(DOM, "Couldn't advance in file: " << this->file.filepath);
-            
+
                 return false;
             }
         }
         catch (const std::exception& e)
         {
             LOG_ERROR(DOM, "Couldn't advance in file: " << this->file.filepath << ", error: " << e.what());
-            
+
             return false;
         }
-        
+
         return true;
     }
 

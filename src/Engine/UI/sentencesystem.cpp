@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "sentencesystem.h"
 
 #include "Helpers/openglobject.h"

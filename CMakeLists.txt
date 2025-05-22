@@ -197,6 +197,10 @@ set(ENGINESOURCE
 
 add_library(PgEngineSrc ${ENGINESOURCE})
 
+target_precompile_headers(PgEngineSrc PUBLIC
+    src/Engine/stdafx.h
+)
+
 # target_precompile_headers(PgEngineSrc PUBLIC
 #     src/Engine/stdafx.h)
 

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "sizer.h"
 
 namespace pg

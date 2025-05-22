@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "position.h"
 
 #include "ECS/entitysystem.h"

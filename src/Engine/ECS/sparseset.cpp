@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "sparseset.h"
 
 #include "logger.h"
@@ -11,7 +13,7 @@ namespace pg
 
     /**
      * @brief Construct a new Sparse Set object
-     * 
+     *
      * Initialize all the internal arrays
      * Component list should always strictly match the dense array
      */
@@ -26,10 +28,10 @@ namespace pg
 
     /**
      * @brief Destroy the Sparse Set object
-     * 
+     *
      * Clear all the component in the component list
      * and destroy the internal arrays
-     * 
+     *
      * @todo Check the cost of this virtual function
      */
     SparseSet::~SparseSet()
@@ -45,11 +47,11 @@ namespace pg
 
     /**
      * @brief Add an id inside of the set
-     * 
+     *
      * @param id The id to add to the set
-     *  
+     *
      * @return size_t The position of the added id in the set
-     * 
+     *
      * This function add an id to the set with respect to the dense <-> sparse linkage
      * It also allocate new memory if the set is too small
      */
@@ -91,7 +93,7 @@ namespace pg
 
     /**
      * @brief Remove an id in the set
-     * 
+     *
      * @param id the id to be removed
      * @return size_t The index of the removed element
      */
@@ -105,7 +107,7 @@ namespace pg
         // Check if the id has a component
         if (currentSize < 1 && !has(id))
             return 0;
-        
+
         const auto index = sparse[id];
 
         LOG_MILE(DOM, "Removing component of entity: " << id << " at index " << index << " " << currentSize);
@@ -122,9 +124,9 @@ namespace pg
 
     // /**
     //  * @brief Remove a component by component index
-    //  * 
+    //  *
     //  * @param index The index of the component to remove.
-    //  * 
+    //  *
     //  * @todo Tell the management system that this entity (dense[index]) as lost this component to update all the other "archtype" using it
     //  * @todo Must implement a mutex for each component and entity for multithreaded use !
     //  */
@@ -132,18 +134,18 @@ namespace pg
     // {
     //     LOG_THIS_MEMBER(DOM);
 
-    //     if(size < 1 && index >= size) 
+    //     if(size < 1 && index >= size)
     //         return;
 
     //     // TODO make a sparse set implementation that doesn't delete components on remove but instead reuse dead memory
     //     // Delete the component
     //     delete componentList[dense[index]];
-        
+
     //     // Swap the last component in the place of the component to be removed
     //     componentList[dense[index]] = componentList[dense[size - 1]];
 
     //     // Put the last value where the removed value is, to keep a contiguous dense array
-    //     // and update the sparse array accordingly.  
+    //     // and update the sparse array accordingly.
     //     sparse[dense[index]] = sparse[dense[size -1]];
     //     dense[index] = dense[size - 1];
 
@@ -153,8 +155,8 @@ namespace pg
 
     /**
      * @brief Internal helper function used to expend the dense and the component list
-     * 
-     * This helper function double both the size of the dense and the component list to store up to size_t amount of data 
+     *
+     * This helper function double both the size of the dense and the component list to store up to size_t amount of data
      */
     void SparseSet::addDenseCapacity(const size_t& size)
     {
@@ -162,7 +164,7 @@ namespace pg
 
         if (denseCapacity > size)
             return;
-        
+
         if (size > SIZE_MAX)
         {
             LOG_ERROR(DOM, "Entity id is too large to fit into sparse set");
@@ -179,13 +181,13 @@ namespace pg
 
         // Create the doubled size containers
         _unique_id* tempDense = new _unique_id[targetCapacity];
-        
+
         // Copy the current data inside of the newly created containers
         memcpy(tempDense, dense, denseCapacity * sizeof(_unique_id));
-        
+
         // Delete old data to not leak memory
         delete[] dense;
-        
+
         // Set the new containers as the list container
         dense = tempDense;
 
@@ -195,10 +197,10 @@ namespace pg
 
     /**
      * @brief Internal helper function used to expend the sparse list
-     * 
+     *
      * @param[in] id The id to fit inside of the sparse array
-     * 
-     * This helper function double the size of the sparse to store up to size_t amount of data 
+     *
+     * This helper function double the size of the sparse to store up to size_t amount of data
      */
     void SparseSet::addSparseCapacity(const _unique_id& id)
     {

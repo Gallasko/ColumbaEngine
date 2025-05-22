@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "systemfunction.h"
 
 #include "logger.h"

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "configuration.h"
 
 #include "logger.h"
@@ -49,7 +51,7 @@ namespace pg
                 value.elementMap[element.getObjectName()] = child;
             }
         }
-        
+
         return value;
     }
 }

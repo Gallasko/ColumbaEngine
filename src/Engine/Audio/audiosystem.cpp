@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "audiosystem.h"
 
 namespace pg

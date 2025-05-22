@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "uianimation.h"
 
 namespace pg
@@ -9,7 +11,7 @@ namespace pg
         if(keyPointsVecSize <= 0) // the sequence is empty <- currently it should be impossible
             return UiPosition();
 
-        // TODO Make sure that current index is always in bound 
+        // TODO Make sure that current index is always in bound
         if(keyPoints[currentIndex].time == elapsedTime)
         {
             return origin + keyPoints[currentIndex].pos;
@@ -69,15 +71,15 @@ namespace pg
     std::vector<AnimationComponent*> AnimationComponent::runningQueue;
 
     void AnimationComponent::tick(const unsigned int& tickRate)
-    { 
+    {
         elapsedTime += tickRate;
 
-        if(elapsedTime > animationSequence.duration && !looping) 
+        if(elapsedTime > animationSequence.duration && !looping)
             running = false;
         else if (elapsedTime > animationSequence.duration && looping)
             elapsedTime = animationSequence.duration - elapsedTime;
 
-        if(pos != nullptr) 
+        if(pos != nullptr)
             *pos = animationSequence.getPos(elapsedTime);
     }
 }

@@ -1,6 +1,6 @@
-#include "gl_debug.hpp"
-
 #include "stdafx.h"
+
+#include "gl_debug.hpp"
 
 #include "window.h"
 

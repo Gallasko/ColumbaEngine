@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "camera2d.h"
 
 namespace pg

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "textinput.h"
 
 #include "sentencesystem.h"

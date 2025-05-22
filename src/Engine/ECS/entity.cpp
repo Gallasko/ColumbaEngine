@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "entity.h"
 
 #include "entitysystem.h"

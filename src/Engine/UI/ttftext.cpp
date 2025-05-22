@@ -1,4 +1,6 @@
 
+#include "stdafx.h"
+
 #include "ttftext.h"
 
 #ifdef __EMSCRIPTEN__

@@ -4,10 +4,12 @@
  * @brief Implementation of the lexer class
  * @version 1.0
  * @date 2022-04-11
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
+
+#include "stdafx.h"
 
 #include "lexer.h"
 
@@ -42,16 +44,16 @@ namespace pg
             {"import",  TokenType::TOK_IMPORT},
             {"from",    TokenType::TOK_FROM},
             {"as",      TokenType::TOK_AS}
-            
+
         };
 
         /**
          * @brief Helper function to convert a character to an op Token
-         * 
+         *
          * @param chara    The character that is currently being read form the file
          * @param nextChar The next character to be read from the file (for two characters op)
-         * 
-         * @return The TokenType corresponding to the given character 
+         *
+         * @return The TokenType corresponding to the given character
          */
         TokenType charaToToken(const char chara, const char nextChar = ' ')
         {
@@ -177,7 +179,7 @@ namespace pg
                 else
                     return token;
                 break;
-            
+
             // Return TokenType::NOOP if the character is not defined in the table as an op
             default:
                 return TokenType::NOOP;
@@ -186,23 +188,23 @@ namespace pg
 
         /**
          * @brief Helper function to determine if a string is an integer
-         * 
+         *
          * @param s The string to be checked
-         * 
-         * @return True if the string is an integer, false otherwise 
+         *
+         * @return True if the string is an integer, false otherwise
          */
         bool isNumber(const std::string& s)
         {
-            return !s.empty() && std::find_if(s.begin(), 
+            return !s.empty() && std::find_if(s.begin(),
                 s.end(), [](unsigned char c) { return !std::isdigit(c); }) == s.end();
         }
 
         /**
          * @brief Helper function to determine if a string is a float number
-         * 
+         *
          * @param s The string to be checked
-         * 
-         * @return True if the string is a float, false otherwise 
+         *
+         * @return True if the string is a float, false otherwise
          */
         bool isFloat(const std::string& s)
         {
@@ -210,18 +212,18 @@ namespace pg
             float f;
             iss >> std::noskipws >> f; // noskipws considers leading whitespace invalid
             // Check the entire string was consumed and if either failbit or badbit is set
-            return iss.eof() && !iss.fail(); 
+            return iss.eof() && !iss.fail();
         }
 
         /**
          * @brief Helper function to determine the type of a string expression
-         * 
+         *
          * @param expression The string to be checked
          * @return A TokenType corresponding to the type of the expression
-         * 
+         *
          * This function compare the input string to the keyword list to see if the string is a reserved keyword
          * Then it check if the string is a number
-         * 
+         *
          * If both check failed then the string is an expression
          */
         TokenType strToKeyword(const std::string& expression)
@@ -234,7 +236,7 @@ namespace pg
 
             if (isFloat(expression))
                 return TokenType::FLOAT;
-                
+
             return TokenType::EXPRESSION;
         }
 
@@ -324,7 +326,7 @@ namespace pg
                             isTokenString = true;
                         }
                     }
-                    //TODO check if temp is == to TokenType::POINT and current token parse is a number -> create a float 
+                    //TODO check if temp is == to TokenType::POINT and current token parse is a number -> create a float
                     else
                     {
                         if (temp == TokenType::POINT)
@@ -374,14 +376,14 @@ namespace pg
                         }
 
                         columnNumber += token.length();
-                        
+
                         // 270 is the maximum code for single character op
                         if (static_cast<int>(temp) < 270)
                         {
                             tokens.emplace(temp, std::string(1, currentChara), lineNumber, columnNumber);
                             columnNumber++;
                         }
-                        else // Else It is a two character op 
+                        else // Else It is a two character op
                         {
                             tokens.emplace(temp, std::string{currentChara, line[i + 1]}, lineNumber, columnNumber);
                             columnNumber+= 2;
@@ -390,7 +392,7 @@ namespace pg
 
                         token = "";
                         isTokenNumber = false;
-                        
+
                         skip:;
                     }
 
@@ -406,7 +408,7 @@ namespace pg
                         columnNumber += token.length();
                     }
 
-                    tokens.emplace(TokenType::EOL, "\n", lineNumber, columnNumber);   
+                    tokens.emplace(TokenType::EOL, "\n", lineNumber, columnNumber);
                 }
 
                 lineNumber++;

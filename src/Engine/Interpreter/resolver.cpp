@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "resolver.h"
 
 #include "parser.h"
@@ -9,7 +11,7 @@ namespace pg
 
     namespace
     {
-        const char * DOM = "Resolver";   
+        const char * DOM = "Resolver";
     }
 
     std::shared_ptr<Valuable> VisitorResolver::visit(BinaryExpression *expr)
@@ -90,7 +92,7 @@ namespace pg
     {
         if(currentClass == ClassType::NONE)
             throw ParseException(expr->name, "Can't use 'this' outside a class");
-            
+
         resolveLocal(expr, expr->getName());
         return nullptr;
     }
@@ -101,10 +103,10 @@ namespace pg
         {
             const auto it = scopes.top().find(expr->name.text);
 
-            if(it != scopes.top().end() && it->second == false) 
+            if(it != scopes.top().end() && it->second == false)
                 throw ParseException(expr->name, "Can't read local variable inside is own initializer");
         }
-        
+
         resolveLocal(expr, expr->getName());
 
         return nullptr;
@@ -187,7 +189,7 @@ namespace pg
         auto tmpMethods = stmt->methods;
 
         while(tmpMethods.size() > 0)
-        {        
+        {
             resolveFunction(tmpMethods.front().get(), FunctionType::METHOD);
             tmpMethods.pop();
         }
@@ -208,7 +210,7 @@ namespace pg
             temp.front()->accept(this);
             temp.pop();
         }
-        
+
         scopes.pop();
     }
 
@@ -293,7 +295,7 @@ namespace pg
         currentFunction = type;
 
         scopes.push(std::unordered_map<std::string, bool>());
-        
+
         auto temp = statement->parameters;
 
         while(temp.size() > 0)

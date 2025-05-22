@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "focusable.h"
 
 #include "serialization.h"
@@ -48,7 +50,7 @@ namespace pg
                 value.focused = deserialize<bool>(serializedString["focused"]);
             }
         }
-        
+
         return value;
     }
 }

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "uiconstant.h"
 
 #include "uisystem.h"
@@ -71,8 +73,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for UiSize 
-     * 
+     * @brief Specialization of the serialize function for UiSize
+     *
      * @param archive A references to the archive
      * @param value The ui size value
      */
@@ -95,7 +97,7 @@ namespace pg
             case UiSize::UiValue::UiSizeOpType::ADD:
             {
                 op = "add";
-                
+
                 break;
             }
 
@@ -139,8 +141,8 @@ namespace pg
     }
 
     /**
-     * @brief Specialization of the serialize function for UiSize 
-     * 
+     * @brief Specialization of the serialize function for UiSize
+     *
      * @param archive A references to the archive
      * @param value The ui size value
      */
