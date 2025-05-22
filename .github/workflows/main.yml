@@ -14,10 +14,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            compiler: gcc
-            cc: gcc
-            cxx: g++
+          # - os: ubuntu-latest
+          #   compiler: gcc
+          #   cc: gcc
+          #   cxx: g++
           - os: ubuntu-latest
             compiler: clang
             cc: clang
@@ -35,7 +35,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get install -y clang \
             build-essential cmake ccache \
             libgl1-mesa-dev libglu1-mesa-dev \
             libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
@@ -62,9 +62,7 @@ jobs:
         run: |
           mkdir -p build
           cd build
-          cmake \
-            -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-            -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+          cmake -B . -S ../. -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_BUILD_TYPE=Release \
             ..
 
