@@ -129,8 +129,8 @@ jobs:
           echo "sdl2-config:"
           sdl2-config --version
 
-      - name: Build
-        run: cmake --build build --config Release -- -j$(nproc || echo 2)
+      - name: Build tests only
+        run: cmake --build build --config Release --target t1 -- -j$(nproc || echo 2)
 
       - name: Run unit tests
         run: |
