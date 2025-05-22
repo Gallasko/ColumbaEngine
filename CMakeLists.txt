@@ -314,20 +314,20 @@ else()
 
     target_link_libraries(GameOff PRIVATE PgEngineSrc)
 
-    add_executable(PixelJam src/PixelJam/main.cpp)
+    add_executable(PixelJam exemples/PixelJam/main.cpp)
 
-    target_include_directories(PixelJam PUBLIC src/PixelJam)
+    target_include_directories(PixelJam PUBLIC exemples/PixelJam)
 
     target_sources(PixelJam PRIVATE
-        src/PixelJam/application.cpp
-        src/PixelJam/Characters/enemy.cpp
-        src/PixelJam/Characters/player.cpp
-        src/PixelJam/config.cpp
-        src/PixelJam/Aseprite_Lib/AsepriteLoader.cpp
-            src/PixelJam/Aseprite_Lib/AsepriteFileAtlasLoader.cpp
-        src/PixelJam/Tiled_Lib/TiledLoader.cpp
-        src/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
-        src/PixelJam/Room/room.cpp
+        exemples/PixelJam/application.cpp
+        exemples/PixelJam/Characters/enemy.cpp
+        exemples/PixelJam/Characters/player.cpp
+        exemples/PixelJam/config.cpp
+        exemples/PixelJam/Aseprite_Lib/AsepriteLoader.cpp
+        exemples/PixelJam/Aseprite_Lib/AsepriteFileAtlasLoader.cpp
+        exemples/PixelJam/Tiled_Lib/TiledLoader.cpp
+        exemples/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
+        exemples/PixelJam/Room/room.cpp
     )
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)
