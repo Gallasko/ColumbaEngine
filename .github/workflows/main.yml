@@ -39,45 +39,52 @@ jobs:
             build-essential cmake ccache git \
             libgl1-mesa-dev libglu1-mesa-dev \
             libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
-            libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
-            libmpg123-dev libvorbis-dev libflac-dev libxmp-dev \
-            libopusfile-dev libfluidsynth-dev libogg-dev libwavpack-dev
+            libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev \
+            libglew-dev libfreetype6-dev
+            
+          # sudo apt-get install -y \
+          #   build-essential cmake ccache git \
+          #   libgl1-mesa-dev libglu1-mesa-dev \
+          #   libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
+          #   libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
+          #   libmpg123-dev libvorbis-dev libflac-dev libxmp-dev \
+          #   libopusfile-dev libfluidsynth-dev libogg-dev libwavpack-dev
 
-          # SDL2 v2.0.20
-          git clone https://github.com/libsdl-org/SDL.git SDL2
-          cd SDL2
-          git fetch --tags                      # ← make sure tags are present locally
-          git checkout release-2.0.20           # ← the correct release tag
-          mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release \
-                   -DSDL_INSTALL_INCLUDEDIR=include/SDL2
-          make -j$(nproc)
-          sudo make install
-          sudo ldconfig
-          cd ../..
+          # # SDL2 v2.0.20
+          # git clone https://github.com/libsdl-org/SDL.git SDL2
+          # cd SDL2
+          # git fetch --tags                      # ← make sure tags are present locally
+          # git checkout release-2.0.20           # ← the correct release tag
+          # mkdir build && cd build
+          # cmake .. -DCMAKE_BUILD_TYPE=Release \
+          #          -DSDL_INSTALL_INCLUDEDIR=include/SDL2
+          # make -j$(nproc)
+          # sudo make install
+          # sudo ldconfig
+          # cd ../..
 
-          # repeat the same pattern (fetch tags + checkout) for ttf & mixer
-          git clone https://github.com/libsdl-org/SDL_ttf.git SDL_ttf
-          cd SDL_ttf
-          git fetch --tags
-          git checkout release-2.0.15
-          mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
-          sudo make install
-          sudo ldconfig
-          cd ../..
+          # # repeat the same pattern (fetch tags + checkout) for ttf & mixer
+          # git clone https://github.com/libsdl-org/SDL_ttf.git SDL_ttf
+          # cd SDL_ttf
+          # git fetch --tags
+          # git checkout release-2.0.15
+          # mkdir build && cd build
+          # cmake .. -DCMAKE_BUILD_TYPE=Release
+          # make -j$(nproc)
+          # sudo make install
+          # sudo ldconfig
+          # cd ../..
 
-          git clone https://github.com/libsdl-org/SDL_mixer.git SDL_mixer
-          cd SDL_mixer
-          git fetch --tags
-          git checkout release-2.0.4
-          mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
-          make -j$(nproc)
-          sudo make install
-          sudo ldconfig
-          cd ../..
+          # git clone https://github.com/libsdl-org/SDL_mixer.git SDL_mixer
+          # cd SDL_mixer
+          # git fetch --tags
+          # git checkout release-2.0.4
+          # mkdir build && cd build
+          # cmake .. -DCMAKE_BUILD_TYPE=Release
+          # make -j$(nproc)
+          # sudo make install
+          # sudo ldconfig
+          # cd ../..
 
       - name: Cache ccache
         uses: actions/cache@v3
