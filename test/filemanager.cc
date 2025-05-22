@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "gtest/gtest.h"
 
 #include "Files/filemanager.h"
@@ -120,7 +122,7 @@ namespace pg
                 }
             }
 
-            
+
         }
 
     } // namespace test

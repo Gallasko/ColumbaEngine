@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include <iostream>
 
 #include "gtest/gtest.h"
@@ -168,7 +170,7 @@ TEST(taskflow_test, personal_composition)
     f1A.name("f1A");
     f1B.name("f1B");
 
-    //  
+    //
     // f1_module_task ---> f2A ---> f2B ---> f2C
     //
     tf::Taskflow f2("F2");
@@ -184,7 +186,7 @@ TEST(taskflow_test, personal_composition)
     auto f1_module_task = f2.composed_of(f1).name("module_of_f1");
     f1_module_task.precede(f2A);
 
-    // 
+    //
     //                             | ---> f3B
     // f2_module_task ---> f3A --- |
     //                             | ---> f3C

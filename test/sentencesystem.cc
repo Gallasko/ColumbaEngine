@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include <gtest/gtest.h>
 
 #include "mocksentencesystem.h"
@@ -31,7 +33,7 @@ namespace pg
             MockLogger logger;
             EntitySystem ecs;
 
-            MasterRenderer renderer;  
+            MasterRenderer renderer;
 
             ecs.createSystem<UiComponentSystem>();
 
@@ -51,7 +53,7 @@ namespace pg
 
             ui->setX(15);
             ui->setY(16);
-            
+
             auto text = ecs.attach<SentenceText>(ent, SentenceText{"Hello"});
 
             ui->setWidth(&text->textWidth);
@@ -93,7 +95,7 @@ namespace pg
             MockLogger logger;
             EntitySystem ecs;
 
-            MasterRenderer renderer;  
+            MasterRenderer renderer;
 
             ecs.createSystem<UiComponentSystem>();
 
@@ -113,7 +115,7 @@ namespace pg
 
             ui->setX(15);
             ui->setY(16);
-            
+
             auto text = ecs.attach<SentenceText>(ent, SentenceText{"Hello"});
 
             ui->setWidth(&text->textWidth);
@@ -167,7 +169,7 @@ namespace pg
             MockLogger logger;
             EntitySystem ecs;
 
-            MasterRenderer renderer;  
+            MasterRenderer renderer;
 
             ecs.createSystem<UiComponentSystem>();
 
@@ -209,7 +211,7 @@ namespace pg
             MockLogger logger;
             EntitySystem ecs;
 
-            MasterRenderer renderer;  
+            MasterRenderer renderer;
 
             ecs.createSystem<UiComponentSystem>();
 
@@ -238,7 +240,7 @@ namespace pg
             MockLogger logger;
             EntitySystem ecs;
 
-            MasterRenderer renderer;  
+            MasterRenderer renderer;
 
             ecs.createSystem<UiComponentSystem>();
 
@@ -279,7 +281,7 @@ namespace pg
             MockLogger logger;
             EntitySystem ecs;
 
-            MasterRenderer renderer;  
+            MasterRenderer renderer;
 
             ecs.createSystem<UiComponentSystem>();
 

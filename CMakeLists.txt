@@ -4,6 +4,7 @@ cmake_minimum_required(VERSION 3.18)
 project(PgEngine VERSION 1.0)
 
 option(UseGDB "UseGDB" OFF)
+option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds (for compile-time profiling)" OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -66,13 +67,13 @@ else()
         # -Wdouble-promotion
 
             # Only add -ftime-trace if compiler is Clang
-            if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-                set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -ftime-trace -pthread -O0 -ggdb -DDEBUG")
-            else()  # GCC or others, without -ftime-trace
-                set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
-            endif()
+            set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
 
-            # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -ftime-trace -pthread -O0 -ggdb -DDEBUG")
+            if (${ENABLE_TIME_TRACE})
+                if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+                    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
+                endif()
+            endif()
         endif()
 
         if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")
@@ -120,7 +121,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -g -O0 -DNDEBUG -m32 ${USE_FLAGS}")
 else()
     # Todo add -mwindows to disable the shell window opening
-    set(CMAKE_CXX_FLAGS_RELEASE "-ftime-trace -Wall -Wextra -pthread -O3 -DNDEBUG")
+    # set(CMAKE_CXX_FLAGS_RELEASE "-ftime-trace -Wall -Wextra -pthread -O3 -DNDEBUG")
     # set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -s -O3 -DNDEBUG")
 endif()
 
@@ -357,7 +358,7 @@ else()
 
     # target_link_libraries(TetrisClone PRIVATE PgEngineSrc)
 
-    # enable_testing()
+    enable_testing()
 
     # find_package(GTest REQUIRED)
 
@@ -396,6 +397,17 @@ else()
     add_custom_command(TARGET t1 PRE_BUILD
                        COMMAND ${CMAKE_COMMAND} -E copy_directory
                        ${CMAKE_SOURCE_DIR}/testdeps/ $<TARGET_FILE_DIR:t1>)
+
+    # add_test(NAME unit_tests COMMAND t1)
+
+    include(GoogleTest)
+
+    gtest_discover_tests(t1
+        PROPERTIES
+        FAIL_REGULAR_EXPRESSION "FAILED"
+    )
+
+    # gtest_discover_tests(t1)
 
     add_executable(bench benchmark/mainbenchmark.cc)
 

@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include <gtest/gtest.h>
 
 #include "mocklogger.h"
@@ -122,7 +124,7 @@ namespace pg
 #else
             EXPECT_EQ(logger.getLastMessage().message, "Test log");
             EXPECT_EQ(logger.getLastMessage().level, Logger::InfoLevel::test);
-#endif 
+#endif
 
             LOG_INFO("Test", "Second Info");
             LOG_THIS("Test");
@@ -139,7 +141,7 @@ namespace pg
             EXPECT_EQ(logger.getNbTest(),  1);
             EXPECT_EQ(logger.getLastMessage().message, "First Error");
             EXPECT_EQ(logger.getLastMessage().level, Logger::InfoLevel::error);
-        } 
+        }
 
     } // namespace test
 

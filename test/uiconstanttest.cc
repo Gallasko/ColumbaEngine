@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "gtest/gtest.h"
 
 #include "UI/uiconstant.h"
@@ -115,7 +117,7 @@ namespace pg
             EXPECT_FLOAT_EQ(res, 4.0f);
 
             EXPECT_FLOAT_EQ(-value1, -8.0f);
-            
+
             value1 = 5.25f;
             value2 = 0.0f;
 
@@ -155,7 +157,7 @@ namespace pg
                 UiSize temp = -1.1f;
 
                 UiSize temp2 = 5.4f;
-                
+
                 resTemp2 += temp * temp2;
 
                 EXPECT_FLOAT_EQ(resTemp2, -4.84f);

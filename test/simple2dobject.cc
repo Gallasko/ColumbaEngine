@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "gtest/gtest.h"
 
 #include "mock2dsimpleshape.h"
@@ -18,14 +20,14 @@ namespace pg
             EXPECT_EQ(sys.getCurrentSize(),     1);
             EXPECT_EQ(sys.getElementIndex(),    0);
             EXPECT_EQ(sys.getVisibleElements(), 0);
-            EXPECT_EQ(sys.getNbAttributes(),    8);            
+            EXPECT_EQ(sys.getNbAttributes(),    8);
         }
 
         TEST(system_2d, creation)
-        {            
+        {
             EntitySystem ecs;
 
-            MasterRenderer renderer; 
+            MasterRenderer renderer;
 
             ecs.createSystem<UiComponentSystem>();
 
@@ -48,7 +50,7 @@ namespace pg
 
             ui->setWidth(30);
             ui->setHeight(40);
-            
+
             ecs.attach<Simple2DObject>(ent, Shape2D::Square);
 
             EXPECT_EQ(sys->getCurrentSize(),     2);
@@ -339,7 +341,7 @@ namespace pg
             EXPECT_EQ(sys->getIdToIndexMap()[ent4.id], 3);
 
             ui0->setVisibility(false);
-            
+
             EXPECT_EQ(sys->getCurrentSize(),     8);
             EXPECT_EQ(sys->getElementIndex(),    5);
             EXPECT_EQ(sys->getVisibleElements(), 3);
