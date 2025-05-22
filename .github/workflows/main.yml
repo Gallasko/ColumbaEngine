@@ -42,7 +42,7 @@ jobs:
             libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev
 
           # Build SDL2
-          git clone https://github.com/libsdl-org/SDL.git SDL2
+          git clone -b SDL2 https://github.com/libsdl-org/SDL.git SDL2
           cd SDL2
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release -DSDL_INSTALL_INCLUDEDIR=include/SDL2
