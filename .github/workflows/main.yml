@@ -55,7 +55,7 @@ jobs:
           git clone https://github.com/libsdl-org/SDL_ttf.git SDL_ttf
           cd SDL_ttf
           mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DSDL_INSTALL_INCLUDEDIR=include/SDL2
+          cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
           sudo make install
           sudo ldconfig
@@ -65,7 +65,7 @@ jobs:
           git clone https://github.com/libsdl-org/SDL_mixer.git SDL_mixer
           cd SDL_mixer
           mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release -DSDL_INSTALL_INCLUDEDIR=include/SDL2
+          cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
           sudo make install
           sudo ldconfig
@@ -101,6 +101,7 @@ jobs:
 
       - name: Verify SDL installation
         run: |
+          ls /usr/local/include/
           ls /usr/local/include/SDL2
           ls /usr/local/lib | grep SDL
 
