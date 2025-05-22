@@ -91,12 +91,18 @@ jobs:
         run: |
           mkdir -p build
           cd build
+          export CMAKE_INCLUDE_PATH=/usr/local/include
+          export CMAKE_LIBRARY_PATH=/usr/local/lib
           cmake \
             -DCMAKE_C_COMPILER=${{ matrix.cc }} \
             -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
             -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_PREFIX_PATH="/usr/local" \
             ..
+
+      - name: Verify SDL installation
+        run: |
+          ls /usr/local/include/SDL2
+          ls /usr/local/lib | grep SDL
 
       - name: Build
         run: cmake --build build --config Release -- -j$(nproc || echo 2)
