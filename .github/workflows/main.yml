@@ -2,12 +2,13 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
   build-and-test:
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
@@ -24,16 +25,10 @@ jobs:
             compiler: msvc
             cc: cl
             cxx: cl
-    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Setup vcpkg (if you use it for SDL2/GLEW/etc.)
-        if: matrix.os == 'windows-latest'
-        run: |
-          # (optional) install SDL2, GLEW, etc via vcpkg here, if you prefer.
 
       - name: Install prerequisites (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -47,7 +42,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-${{ matrix.compiler }}-
 
-      - name: Cache CMake build directory
+      - name: Cache CMake build
         uses: actions/cache@v3
         with:
           path: build
@@ -72,11 +67,10 @@ jobs:
         run: |
           cd build
           ctest --output-on-failure --parallel $(nproc || echo 2)
-        continue-on-error: false
 
       - name: Upload test logs on failure
-        if: failure()
-        uses: actions/upload-artifact@v2
+        if: failure() && github.actor != 'nektos/act'
+        uses: actions/upload-artifact@v3
         with:
           name: ctest-logs-${{ matrix.os }}-${{ matrix.compiler }}
           path: build/Testing/**/Test.xml
