@@ -83,7 +83,7 @@ namespace pg
             auto ui = entity->get<PositionComponent>();
             auto shape = entity->get<ProgressBarComponent>();
 
-            ecsRef->attach<ProgressBarRenderCall>(entity, createRenderCall(ui, shape));
+            ecsRef->attachGeneric<ProgressBarRenderCall>(entity, createRenderCall(ui, shape));
 
             changed = true;
         });

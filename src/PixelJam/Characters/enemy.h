@@ -82,7 +82,7 @@ namespace pg
 
     // Holds current AI state
     enum class AIState { Patrol, Chase, ShotWideUp, Attack, Cooldown };
-    struct AIStateComponent
+    struct AIStateComponent : public Component
     {
         AIStateComponent() : state(AIState::Patrol) {}
         AIStateComponent(AIState state) : state(state) {}
@@ -179,7 +179,7 @@ namespace pg
             return *this;
         }
 
-        _unique_id prefabId; 
+        _unique_id prefabId;
     };
 
     // System responsible for spawning waves of enemies
@@ -229,7 +229,7 @@ namespace pg
                 LOG_INFO("Enemy", "Weapon barrelSize: " << weapon.barrelSize);
                 LOG_INFO("Enemy", "Weapon reloadTimeMs: " << weapon.reloadTimeMs);
                 LOG_INFO("Enemy", "Weapon bulletSpreadAngle: " << weapon.bulletSpreadAngle);
-                
+
                 std::string textureName;
 
                 switch (weapon.pattern)
@@ -354,7 +354,7 @@ namespace pg
                         enemy->invicibilityTimeLeft = 0.f;
                     }
                 }
-                
+
                 switch (ai->state)
                 {
                     case AIState::Patrol:
@@ -465,7 +465,7 @@ namespace pg
             {
                 // Todo fix ttf may be off by one when loading the atlas
                 auto ent = makeOutlinedTTFText(ecsRef, pos->x - pos->width / 2.0f, pos->y - 10, 6, "res/font/Inter/static/Inter_28pt-Light.ttf", "Out of ammo", 0.3, {255, 176, 176, 255}, {0, 0, 0, 255}, 2, 1);
-                
+
                 // Todo add the possibility to make composed tween (here I want to fade out the text AND move it up)
                 ecsRef->attach<TweenComponent>(ent.entity, TweenComponent {
                     pos->y - 10,

@@ -302,7 +302,7 @@ namespace pg
             }
             else
             {
-                ecsRef->attach<TTFTextCall>(entity, createRenderCall(ui, obj));
+                ecsRef->attachGeneric<TTFTextCall>(entity, createRenderCall(ui, obj));
             }
 
             textUpdateQueue.pop();

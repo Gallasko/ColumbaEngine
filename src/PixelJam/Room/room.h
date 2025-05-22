@@ -166,7 +166,7 @@ namespace pg
         }
     };
 
-    struct RoomTriggerFlag
+    struct RoomTriggerFlag : public Component
     {
         RoomTriggerFlag(int roomIndex) : roomIndex(roomIndex) {}
         RoomTriggerFlag(const RoomTriggerFlag& rhs) : roomIndex(rhs.roomIndex) {}

@@ -225,7 +225,7 @@ namespace pg
             renderer->setDirty(false);
         }
 
-        bool isCameraDirty = false;
+        // bool isCameraDirty = false;
 
         // for (auto* camera : cameraList)
         // {
@@ -616,10 +616,10 @@ namespace pg
             else
             {
                 view = cameraList[cameraIndex]->getViewMatrix();
-                
+
                 // Todo fix this
                 // projection = cameraList[cameraIndex]->getProjectionMatrix();
-            }            
+            }
         }
 
         shaderProgram->bind();

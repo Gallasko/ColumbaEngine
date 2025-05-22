@@ -27,8 +27,12 @@ extern std::unordered_map<std::string, long long> _systemExecutionTimes;
 extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
 #endif
 
+#define _PGSTRINGIZE_DETAIL(x) #x
+#define _PGSTRINGIZE(x)        _PGSTRINGIZE_DETAIL(x)
 namespace pg
 {
+
+
     // Todo create a queue that hold all entity id that got deleted to reattribute them later on
 
     // Todo Create a different id gen for systems so that components id are smaller and more packed
@@ -57,6 +61,8 @@ namespace pg
     public:
         static constexpr bool value = decltype(check<T>(0))::value;
     };
+
+    template<typename> inline constexpr bool always_false = false;
 
     class EntitySystem
     {
@@ -517,11 +523,25 @@ namespace pg
         // if you try to attach a type that doesn't derive from component
 
         // Todo fix attach doesn't work if an args is a const std::string&
+
         template <typename Type, typename... Args>
-        CompRef<Type> attach(EntityRef entity, Args&&... args) noexcept
+        CompRef<Type> attach(EntityRef entity, Args&&... args)
         {
             LOG_THIS_MEMBER("ECS");
 
+            // As component deriving from Ctor, check for Ctor presence is enough
+            if constexpr(not std::is_base_of_v<Ctor, Type>)
+            {
+                static_assert(always_false<Type>,
+                    "Not attaching a struct deriving from Component (or Ctor); use attachGeneric instead!");
+            }
+
+            return attachGeneric<Type>(entity, std::forward<Args>(args)...);
+        }
+
+        template <typename Type, typename... Args>
+        CompRef<Type> attachGeneric(EntityRef entity, Args&&... args) noexcept
+        {
             try
             {
                 Type* component;
@@ -670,7 +690,8 @@ namespace pg
         void reportSystemProfiles();
 
     private:
-        friend void serialize<>(Archive& archive, const EntitySystem& ecs);
+        // Todo maybe
+        // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
 
         void addEntityToPool(Entity* entity)
         {

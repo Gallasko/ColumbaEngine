@@ -4,6 +4,6 @@ namespace pg
 {
     namespace
     {
-        static constexpr char const * DOM = "Camera2D";
+        // static constexpr char const * DOM = "Camera2D";
     }
 }

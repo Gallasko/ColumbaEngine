@@ -415,7 +415,7 @@ namespace pg
 
         auto handle = std::make_unique<CollisionHandlePair<Comp1, Comp2>>(fn);
 
-        ecsRef->template attach<CollisionHandleComponent>(ent, std::move(handle));
+        ecsRef->template attachGeneric<CollisionHandleComponent>(ent, std::move(handle));
 
         return ent;
     }

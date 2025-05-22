@@ -2,6 +2,8 @@
 
 #include "logger.h"
 
+#include "constant.h"
+
 namespace pg
 {
     namespace
@@ -25,7 +27,7 @@ namespace pg
         case ElementType::UnionType::INT:
             return os << "int";
             break;
-        
+
         case ElementType::UnionType::SIZE_T:
             return os << "size_t";
             break;
@@ -52,7 +54,7 @@ namespace pg
         LOG_THIS(DOM);
 
         archive.startSerialization(ElementType::getType());
-        
+
         switch(element.type)
         {
         case ElementType::UnionType::FLOAT:
@@ -78,7 +80,7 @@ namespace pg
         case ElementType::UnionType::BOOL:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.b);
-            break; 
+            break;
         }
 
         archive.endSerialization();
@@ -479,15 +481,15 @@ namespace pg
     {
         if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
         {
-            return ElementType { get<float>() == other.get<float>() };
+            return ElementType { areAlmostEqual(get<float>(), other.get<float>()) };
         }
         else if (type == UnionType::FLOAT and other.type == UnionType::INT)
         {
-            return ElementType { get<float>() == other.get<int>() };
+            return ElementType { areAlmostEqual(get<float>(), other.get<int>()) };
         }
         else if (type == UnionType::FLOAT and other.type == UnionType::SIZE_T)
         {
-            return ElementType { get<float>() == other.get<size_t>() };
+            return ElementType { areAlmostEqual(get<float>(), other.get<size_t>()) };
         }
         else if (type == UnionType::INT and other.type == UnionType::INT)
         {
@@ -495,7 +497,7 @@ namespace pg
         }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
-            return ElementType { get<int>() == other.get<float>() };
+            return ElementType { areAlmostEqual(get<int>(), other.get<float>()) };
         }
         else if (type == UnionType::INT and other.type == UnionType::SIZE_T)
         {
@@ -517,7 +519,7 @@ namespace pg
         }
         else if (type == UnionType::SIZE_T and other.type == UnionType::FLOAT)
         {
-            return ElementType { get<size_t>() == other.get<float>() };
+            return ElementType { areAlmostEqual(get<size_t>(), other.get<float>()) };
         }
         else if (type == UnionType::STRING and other.type == UnionType::STRING)
         {

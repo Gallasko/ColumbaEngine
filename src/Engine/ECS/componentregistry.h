@@ -56,6 +56,37 @@ namespace pg
     /**
      * @brief Structure tag used to specify onCreation member on a component
      *
+     */
+    struct Component : public Ctor
+    {
+        Component() = default;
+        Component(const Component& other) : ecsRef(other.ecsRef), entityId(other.entityId) {}
+
+        Component& operator=(const Component& other)
+        {
+            ecsRef = other.ecsRef;
+            entityId = other.entityId;
+
+            return *this;
+        }
+
+        virtual ~Component() {}
+
+        virtual void onCreation(EntityRef entity) override
+        {
+            LOG_THIS_MEMBER("Component");
+
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        EntitySystem* ecsRef = nullptr;
+        _unique_id entityId = 0;
+    };
+
+    /**
+     * @brief Structure tag used to specify onCreation member on a component
+     *
      * @todo find a better class name
      */
     struct Dtor

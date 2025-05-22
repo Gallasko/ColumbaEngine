@@ -26,8 +26,8 @@
 
 #ifdef DEBUG
 // #define LOG_THIS(scope)
-#define LOG_THIS_MEMBER(scope)
-#define LOG_MILE(scope, msg)
+#define LOG_THIS_MEMBER(scope) (void)(scope);
+#define LOG_MILE(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
 #define LOG_INFO(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::info)
 #define LOG_ERROR(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::error)
 #define LOG_WARNING(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::warning)
@@ -37,14 +37,14 @@
 // #define LOG_INFO(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::info)
 // #define LOG_ERROR(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::error)
 #else
-#define LOG_THIS(scope)
-#define LOG_THIS_MEMBER(scope)
-#define LOG_MILE(scope, msg)
+#define LOG_THIS(scope) (void)(scope);
+#define LOG_THIS_MEMBER(scope) (void)(scope);
+#define LOG_MILE(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
 
 #ifdef __EMSCRIPTEN__
-#define LOG_INFO(scope, msg)
-#define LOG_ERROR(scope, msg)
-#define LOG_WARNING(scope, msg)
+#define LOG_INFO(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
+#define LOG_ERROR(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
+#define LOG_WARNING(scope, msg) (void)(scope); (void)(pg::Strfy() << msg);
 // #define LOG_INFO(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::info)
 // #define LOG_ERROR(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::error)
 #else
@@ -514,24 +514,19 @@ namespace pg
     {
     friend class Logger;
     public:
-        TerminalSink() : ignoreNonErrors(false) {}
-        TerminalSink(bool ignoreNonErrors) : ignoreNonErrors(ignoreNonErrors) {}
+        TerminalSink() {}
 
         virtual ~TerminalSink() {}
 
         /** Stream operator used to get the log and print the message to the console */
         virtual void processLog(const Logger::Info& log) override;
-
-    private:
-        /** Flag indicating whether we should ignore errors or not */
-        bool ignoreNonErrors;
     };
 
     class FileSink : public Logger::LogSink
     {
     friend class Logger;
     public:
-        FileSink(const std::string& fileName = "log.txt", bool ignoreNonErrors = false) : filename(fileName), dataBuffer(""), ignoreNonErrors(ignoreNonErrors) {}
+        FileSink(const std::string& fileName = "log.txt") : filename(fileName), dataBuffer("") {}
 
         virtual ~FileSink() override;
 
@@ -546,6 +541,6 @@ namespace pg
         std::string dataBuffer;
 
         /** Flag indicating whether we should ignore errors or not */
-        bool ignoreNonErrors;
+        // bool ignoreNonErrors;
     };
 }

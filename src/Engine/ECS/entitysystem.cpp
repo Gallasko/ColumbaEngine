@@ -38,11 +38,12 @@ namespace
 
 namespace pg
 {
-    template <>
-    void serialize(Archive& archive, const EntitySystem& ecs)
-    {
-        LOG_THIS(DOM);
-    }
+    // Todo maybe
+    // template <>
+    // void serialize(Archive& archive, const EntitySystem& ecs)
+    // {
+    //     LOG_THIS(DOM);
+    // }
 
     // Todo set executor depending on the configuration / env !
     // Todo better save system init

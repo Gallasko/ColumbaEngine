@@ -45,7 +45,7 @@ namespace pg
                 {
                     std::string temp;
                     std::string buffer;
-                    
+
                     while (std::getline(file, buffer))
                     {
                         if (firstLine)
@@ -82,7 +82,7 @@ namespace pg
         return openTxtFile(":/" + filepath);
     }
 
-    std::vector<TextFile> ResourceAccessor::openTextFolder(const std::string& foldername) noexcept
+    std::vector<TextFile> ResourceAccessor::openTextFolder(const std::string& /*foldername*/) noexcept
     {
         LOG_THIS(DOM);
 
@@ -176,14 +176,14 @@ namespace pg
 
     /**
      * @brief Universal file accessor for both res file and system files
-     * 
+     *
      * By default, it tries to open files on the system to allow override of the base file for the users
-     * 
+     *
      * If the file does not exist or is empty on the system, it then tries to open it in res file.
-     * 
-     * If is still empty on the res file, then the user wants to write to the system 
-     * so we return the system file path 
-     * 
+     *
+     * If is still empty on the res file, then the user wants to write to the system
+     * so we return the system file path
+     *
      * @param filepath Path to the file to be accessed
      * @return TextFile Structure representing the accessed file (path and contents)
      */

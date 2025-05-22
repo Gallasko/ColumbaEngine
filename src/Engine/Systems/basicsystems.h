@@ -219,7 +219,7 @@ namespace pg
         size_t deltaTime = 0;
     };
 
-    struct MoveDirComponent
+    struct MoveDirComponent : public Component
     {
         MoveDirComponent(constant::Vector2D dir, float speed, float maxDistance = -1.0f, bool destroyAfter = false, CallablePtr callback = nullptr)
             : direction(dir), speed(speed), maxDistance(maxDistance), destroyAfter(destroyAfter), callback(callback)

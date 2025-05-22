@@ -4,10 +4,10 @@
 
 namespace pg
 {
-    namespace
-    {
-        static constexpr const char * const DOM = "Scrollable";
-    }
+    // namespace
+    // {
+    //     static constexpr const char * const DOM = "Scrollable";
+    // }
 
     // void ScrollableSystem::addChild(EntityRef list, EntityRef child)
     // {

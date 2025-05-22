@@ -130,7 +130,7 @@ namespace pg
     // Todo better define save path
     Window::Window(const std::string &title, const std::string& savePath) : ecs(savePath), title(title)
     {
-        terminalSink = pg::Logger::registerSink<pg::TerminalSink>(true);
+        terminalSink = pg::Logger::registerSink<pg::TerminalSink>();
 
         LOG_THIS_MEMBER(DOM);
 

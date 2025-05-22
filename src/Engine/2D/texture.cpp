@@ -148,7 +148,7 @@ namespace pg
             }
             else
             {
-                ecsRef->attach<TextureRenderCall>(entity, createRenderCall(ui, obj));
+                ecsRef->attachGeneric<TextureRenderCall>(entity, createRenderCall(ui, obj));
             }
 
             textureUpdateQueue.pop();

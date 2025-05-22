@@ -147,7 +147,7 @@ namespace pg
                 auto followCam = entity->get<FollowCamera2D>();
                 auto pos = entity->get<PositionComponent>();
 
-                auto cam = ecsRef->attach<BaseCamera2D>(entity);
+                auto cam = ecsRef->attachGeneric<BaseCamera2D>(entity);
 
                 updateCamera(cam, pos, followCam);
 

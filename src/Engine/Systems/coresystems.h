@@ -160,7 +160,7 @@ namespace pg
         bool paused = false;
     };
 
-    struct Timer
+    struct Timer: public Component
     {
         Timer() {}
         Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), oneShot(other.oneShot), callback(other.callback) {}
