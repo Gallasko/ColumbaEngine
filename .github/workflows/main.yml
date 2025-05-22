@@ -37,15 +37,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y \
             build-essential cmake ccache \
-            libgl1-mesa-dev \
-            libx11-dev \
-            libxrandr-dev \
-            libxi-dev \
-            libxinerama-dev \
-            libxcursor-dev \
-            libxss-dev \
-            libxxf86vm-dev \
-            libpthread-stubs0-dev
+            libgl1-mesa-dev libglu1-mesa-dev \
+            libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
+            libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev \
+            libglew-dev libfreetype6-dev
 
       - name: Cache ccache
         uses: actions/cache@v3
