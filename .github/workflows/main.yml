@@ -44,35 +44,36 @@ jobs:
             libopusfile-dev libfluidsynth-dev libogg-dev libwavpack-dev
 
           # SDL2 v2.0.20
-          git clone --branch release-2.0-20 https://github.com/libsdl-org/SDL.git SDL2
+          git clone https://github.com/libsdl-org/SDL.git SDL2
           cd SDL2
+          git fetch --tags                      # ← make sure tags are present locally
+          git checkout release-2.0.20           # ← the correct release tag
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release \
-                   -DSDL_INSTALL_PREFIX=/usr/local \
-                   -DSDL_INSTALL_INCLUDEDIR=include/SDL2 \
-                   -DSDL_INSTALL_LIBDIR=lib
+                   -DSDL_INSTALL_INCLUDEDIR=include/SDL2
           make -j$(nproc)
           sudo make install
           sudo ldconfig
           cd ../..
 
-          # SDL_ttf
-          git clone --branch release-2.20.1 https://github.com/libsdl-org/SDL_ttf.git SDL2_ttf
-          cd SDL2_ttf
+          # repeat the same pattern (fetch tags + checkout) for ttf & mixer
+          git clone https://github.com/libsdl-org/SDL_ttf.git SDL_ttf
+          cd SDL_ttf
+          git fetch --tags
+          git checkout release-2.0.15
           mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release \
-                   -DSDL2TTF_INSTALL_PREFIX=/usr/local
+          cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
           sudo make install
           sudo ldconfig
           cd ../..
 
-          # SDL_mixer
-          git clone --branch release-2.0.4 https://github.com/libsdl-org/SDL_mixer.git SDL2_mixer
-          cd SDL2_mixer
+          git clone https://github.com/libsdl-org/SDL_mixer.git SDL_mixer
+          cd SDL_mixer
+          git fetch --tags
+          git checkout release-2.0.4
           mkdir build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release \
-                   -DSDL2MIXER_INSTALL_PREFIX=/usr/local
+          cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
           sudo make install
           sudo ldconfig
