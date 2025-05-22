@@ -44,7 +44,7 @@ jobs:
             libopusfile-dev libfluidsynth-dev libogg-dev fluidsynth libwavpack-dev
 
           # Build SDL2
-          git clone -b SDL2 https://github.com/libsdl-org/SDL.git SDL2
+          git clone --branch 2.0.20 https://github.com/libsdl-org/SDL.git SDL2
           cd SDL2
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release -DSDL_INSTALL_INCLUDEDIR=include/SDL2
@@ -106,6 +106,7 @@ jobs:
           ls /usr/local/include/
           ls /usr/local/include/SDL2
           ls /usr/local/lib | grep SDL
+          sdl2-config --version
 
       - name: Build
         run: cmake --build build --config Release -- -j$(nproc || echo 2)
