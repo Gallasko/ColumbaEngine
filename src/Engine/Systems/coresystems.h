@@ -61,9 +61,9 @@ namespace pg
 
     struct TickEvent
     {
-        TickEvent(int16_t duration) : tick(duration) {}
+        TickEvent(float duration) : tick(duration) {}
 
-        int16_t tick;
+        float tick;
     };
 
     struct TickingSystem : public System<>
@@ -136,7 +136,7 @@ namespace pg
 
                 delta -= tickDuration;
 
-                ecsRef->sendEvent(TickEvent{tickDuration});
+                ecsRef->sendEvent(TickEvent{static_cast<float>(tickDuration)});
             }
 
             if (triggered)

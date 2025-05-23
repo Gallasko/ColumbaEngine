@@ -37,6 +37,10 @@ struct InstaFlag  : public Component {};
 struct TikTokFlag : public Component {};
 struct WallFlag   : public Component {};
 
+const float W = 820, H = 640;
+const int FPS = 60;
+FILE* ffmpeg;
+
 // -------------------------------------------------------
 // TugOfWarSystem
 // -------------------------------------------------------
@@ -52,7 +56,7 @@ struct TugOfWarSystem : public System<InitSys>
     virtual void init() override
     {
         // window dims (must match your resize)
-        const float W = 820.f, H = 640.f;
+        // const float W = 820.f, H = 640.f;
         const float y = H / 2.f - size / 2.f;
 
         std::vector<size_t> layer = {2};
@@ -169,6 +173,25 @@ struct ScreenSaverSystem : public System<Listener<SavedFrameData>, StoragePolicy
     size_t i = 0;
 };
 
+struct VideoCreatorSystem : public System<Listener<SavedFrameData>, StoragePolicy>
+{
+    virtual void onEvent(const SavedFrameData &event)
+    {
+        LOG_INFO("ScreenSaverSystem", "Saving frame");
+
+        auto pixels = event.pixels;
+
+        flipImageVertically(pixels.data(), event.width, event.height);
+
+        size_t written = fwrite(pixels.data(), 1, pixels.size(), ffmpeg);
+        
+        if (written != pixels.size()) {
+            fprintf(stderr, "Short write to ffmpeg pipe\n");
+        }
+    }
+};
+
+
 std::thread *initThread;
 pg::Window *mainWindow = nullptr;
 std::atomic<bool> initialized = {false};
@@ -262,13 +285,37 @@ void initGame() {
 
     // mainWindow->ecs.start();
 
-    mainWindow->ecs.createSystem<ScreenSaverSystem>();
+    ffmpeg = popen(
+        ("ffmpeg -y "
+         "-f rawvideo "
+         "-pixel_format rgba "
+         "-video_size " + std::to_string(int(W)) + "x" + std::to_string(int(H)) + " "
+         "-framerate " + std::to_string(FPS) + " "
+         "-i - "
+         "-c:v libx264 "
+         "-pix_fmt yuv420p "
+         "output.mp4").c_str(),
+        "w"
+    );
+
+    if (not ffmpeg) {
+        fprintf(stderr, "Failed to open ffmpeg pipe\n");
+        std::exit(1);
+    }
+
+    srand(time(nullptr));
+
+    // mainWindow->ecs.createSystem<ScreenSaverSystem>();
+    mainWindow->ecs.createSystem<VideoCreatorSystem>();
 
     mainWindow->ecs.createSystem<MoveDirSystem>();
 
-    mainWindow->ecs.createSystem<TugOfWarSystem>(270, 270, 25, 20);
+    mainWindow->ecs.createSystem<TugOfWarSystem>(270, 270, 45, 20);
 
     auto* ecsRef = &mainWindow->ecs;
+
+    // Pause the ticking system so that we can feed our own delta
+    ecsRef->getSystem<TickingSystem>()->pause();
 
     auto square = makeSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {255.0f, 0.0f, 0.0f, 255.0f});
 
@@ -279,19 +326,18 @@ void initGame() {
 
     mainWindow->resize(820, 640);
 
-    for (int i = 0; i < 600; i++)
+    for (int i = 0; i < FPS * 61; i++)
     {
         mainWindow->ecs.sendEvent(SaveCurrentFrameEvent{});
 
         mainWindow->ecs.executeOnce();
 
-        square.get<PositionComponent>()->setX(square.get<PositionComponent>()->x + 10);
-        square.get<PositionComponent>()->setY(square.get<PositionComponent>()->y + 10);
-
         mainWindow->render();
 
-        std::cout << "here: " << i << std::endl;
+        ecsRef->sendEvent(TickEvent{1000 / FPS});
     }
+
+    pclose(ffmpeg);
 
     printf("Engine initialized\n");
 }
