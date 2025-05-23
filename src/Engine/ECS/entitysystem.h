@@ -534,14 +534,6 @@ namespace pg
                     "Not attaching a struct deriving from Component (or Ctor); use attachGeneric instead!");
             }
 
-            if (not registry.hasTypeId<Type>())
-            {
-                LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
-                LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
-
-                registerFlagComponent<Type>();
-            }
-
             return attachGeneric<Type>(entity, std::forward<Args>(args)...);
         }
 
