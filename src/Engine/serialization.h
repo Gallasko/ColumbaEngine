@@ -7,9 +7,9 @@
  * @brief Definition of the serialization class
  * @version 0.1
  * @date 2022-04-28
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 
 #include <string>
@@ -43,7 +43,7 @@ namespace pg
 
     // TODO correctly ban ":" from class name "{" for attribute name and ATTRIBUTECONST from any litteral !
     // check and remove any \t not correctly placed
-    // Indent always go up one by one so if we skip an increment their is a problem 
+    // Indent always go up one by one so if we skip an increment their is a problem
     // Test all those case !
 
     /**
@@ -55,7 +55,7 @@ namespace pg
 
         /**
          * @brief Helper struct for end of line in the serialized string.
-         * 
+         *
          * This struct is used to put an end of line in the serialized string.
          * A specialized template catches this struct and can then put an end of line
          * and the matching indent thanks to it.
@@ -69,7 +69,7 @@ namespace pg
     public:
         /**
          * @brief Construct a new Archive object
-         * 
+         *
          * The archive object is an advanced container for a serialized string
          * It manages all the operation related to the creation of the serialized string from user defined data
          * The underlying stringstream hold the serialized string
@@ -77,10 +77,10 @@ namespace pg
         Archive() { endOfLine.indentLevel = &indentLevel; }
 
         virtual ~Archive() { }
-        
+
         /**
          * @brief Function used to put an end of line in the serialized string
-         * 
+         *
          * @return const EndOfLine& A reference to the end of line object of the Archive
          */
         const EndOfLine& endl() const { return endOfLine; }
@@ -110,19 +110,20 @@ namespace pg
 
         Archive& operator<<(std::ostream & (*)(std::ostream &))
         {
-            static_assert(true, "Can't use any std:: manipulator on this class !");
+            // Todo
+            // static_assert(false, "Can't use any std:: manipulator on this class !");
 
             return *this;
         }
 
         /**
          * @brief Operator used to put data into the serialized string
-         * 
+         *
          * @tparam Type The type of data to be serialized
-         * 
+         *
          * @param rhs A value to be serialized
          * @return Archive& A reference to the current Archive object
-         * 
+         *
          * This operator put the data passed as the first parameter into the underlying container
          * It is responsible for putting new lines and setting the appropriate indent level,
          * to make it valid data for the parser !
@@ -134,7 +135,7 @@ namespace pg
             {
                 if (requestComma)
                     container << ",";
-                
+
                 container << std::endl;
                 container << std::string(*endOfLine.indentLevel, '\t');
                 requestNewline = false;
@@ -217,7 +218,7 @@ namespace pg
         SerializedInfoHolder* currentNode = &mainNode;
     };
 
-    // TODO make a specialized renderer for std::nullptr_t to catch nullptr error ?; 
+    // TODO make a specialized renderer for std::nullptr_t to catch nullptr error ?;
 
     template <typename Type>
     void serialize(Archive&, const Type&) { LOG_ERROR("Serializer", "No serialize function exist for " << typeid(Type).name()); }
@@ -326,7 +327,7 @@ namespace pg
         /**
          * @brief Return the object as an Attribute object.
          * Can only be called if isClass is set to false.
-         * 
+         *
          * @return The representation of the string in an attribute form
          */
         UnserializedObject::Attribute getAsAttribute() const;
@@ -356,7 +357,7 @@ namespace pg
         std::string objectName;
         std::string objectType;
         std::string serializedString;
-        
+
         bool isNullObject = false;
         bool isClass = true;
     };
@@ -385,7 +386,7 @@ namespace pg
             {
                 if (child.isNull())
                     continue;
-                
+
                 auto element = deserialize<Type>(child);
 
                 data.push_back(element);
@@ -472,7 +473,7 @@ namespace pg
         friend class ComponentRegistry;
             ClassSerializer(Serializer *ser, const std::string& objectName) : serializer(ser), objectName(objectName) {}
             ~ClassSerializer() { archive.container << std::endl; serializer->registerSerialized(objectName, archive.container); }
-        
+
         public:
             Archive archive;
 
@@ -503,12 +504,12 @@ namespace pg
 
         template <typename Type>
         Type deserializeObject(const std::string& objectName) const
-        { 
+        {
             const auto& it = serializedMap.find(objectName);
 
             if (it != serializedMap.end())
-                return deserialize<Type>(UnserializedObject(it->second, objectName)); 
-            else 
+                return deserialize<Type>(UnserializedObject(it->second, objectName));
+            else
                 return deserialize<Type>(UnserializedObject());
         }
 
