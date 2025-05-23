@@ -434,15 +434,15 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 if (tile.isWall)
                 {
                     //LOG_INFO("TILED", std::to_string(count++));
-                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
-                    ecsRef->attach<WallFlag>(tex.entity);
+                    tex.attach<CollisionComponent>(0);
+                    tex.attach<WallFlag>();
                 }
 
                 if (tile.isHole)
                 {
                     //LOG_INFO("TILED", "Is Hole " << std::to_string(++holeCount));
-                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
-                    ecsRef->attach<HoleFlag>(tex.entity);
+                    tex.attach<CollisionComponent>(0);
+                    tex.attach<HoleFlag>();
                 }
             }
 
