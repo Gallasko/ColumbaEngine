@@ -100,7 +100,7 @@
                     "--config",
                     "Release",
                     "--target",
-                    "TugOfWar",
+                    "PixelJam",
                     // "PgEngine",
                     "-j",
                     "8"

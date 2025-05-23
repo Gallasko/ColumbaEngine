@@ -1,12 +1,12 @@
 /**
  * @file group.h
  * @author your name (you@domain.com)
- * @brief 
+ * @brief
  * @version 0.1
  * @date 2022-09-02
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
@@ -19,7 +19,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
- * 
+ *
  */
 #pragma once
 
@@ -144,7 +144,7 @@ namespace pg
 
                 for (size_t j = 0; j < nbOfSets; j++)
                 {
-                    setList[j]->setElement(setList[j]->set, element, id);    
+                    setList[j]->setElement(setList[j]->set, element, id);
                 }
 
                 for (const auto& callback : onAddGroup)
@@ -200,6 +200,25 @@ namespace pg
             LOG_THIS_MEMBER("Ecs Group");
 
             onDelGroup.push_back(callback);
+        }
+
+        template <typename Comp>
+        void checkGroupTypeExistence()
+        {
+            if (not registry->hasTypeId<Comp>())
+            {
+                LOG_WARNING("ECS", "Component [" << typeid(Comp).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
+                LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
+
+                registry->registerFlagComponent<Comp>();
+            }
+        }
+
+        template <typename Comp, typename Comp2, typename... Comps>
+        void checkGroupTypeExistence()
+        {
+            checkGroupTypeExistence<Comp>();
+            checkGroupTypeExistence<Comp2, Comps...>();
         }
 
         void process();

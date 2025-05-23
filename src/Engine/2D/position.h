@@ -269,6 +269,18 @@ namespace pg
     template <>
     void serialize(Archive& archive, const PosConstrain& value);
 
+    template <>
+    PositionComponent deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    UiAnchor deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    PosAnchor deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    PosConstrain deserialize(const UnserializedObject& serializedString);
+
     // Todo add Listener<ResizeEvent>,
     struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, QueuedListener<PositionComponentChangedEvent>>
     {
