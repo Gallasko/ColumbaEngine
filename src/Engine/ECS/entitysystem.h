@@ -548,6 +548,20 @@ namespace pg
         template <typename Type, typename... Args>
         CompRef<Type> attachGeneric(EntityRef entity, Args&&... args) noexcept
         {
+            if (not registry.hasTypeId<Type>())
+            {
+                LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
+                LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
+
+                registerFlagComponent<Type>();
+            }
+
+            return _attach<Type>(entity, std::forward<Args>(args)...);
+        }
+
+        template <typename Type, typename... Args>
+        CompRef<Type> _attach(EntityRef entity, Args&&... args) noexcept
+        {
             try
             {
                 Type* component;

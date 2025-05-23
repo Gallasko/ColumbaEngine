@@ -193,7 +193,7 @@ namespace pg
             }
             else
             {
-                ecsRef->attachGeneric<Simple2DRenderCall>(entity, createRenderCall(ui, obj));
+                ecsRef->_attach<Simple2DRenderCall>(entity, createRenderCall(ui, obj));
             }
 
             shapeUpdateQueue.pop();
