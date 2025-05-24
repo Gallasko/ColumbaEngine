@@ -186,6 +186,9 @@ namespace pg
         void unstore(Own<Type>* owner) noexcept;
 
         template <typename Type>
+        void registerFlagComponent();
+
+        template <typename Type>
         Own<Type>* retrieve() const
         {
             LOG_THIS_MEMBER("Component Registry");
@@ -361,6 +364,16 @@ namespace pg
 #endif
 
             return static_cast<Group<Type, Types...>*>(groupStorageMap.at(id));
+        }
+
+        template <typename Type>
+        bool hasTypeId() const noexcept
+        {
+            auto globalId = getGlobalGenericId<Type>();
+
+            auto it = idMap.find(globalId);
+
+            return it != idMap.end();
         }
 
         template <typename Type>
@@ -547,6 +560,20 @@ namespace pg
         void setRegistry(ComponentRegistry* registry)
         {
             LOG_THIS_MEMBER("Ref");
+
+            if (not registry)
+            {
+                LOG_ERROR("ECS", "Cannot set a null registry");
+                return;
+            }
+
+            if (not registry->hasTypeId<Type>())
+            {
+                LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
+                LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
+
+                registry->registerFlagComponent<Type>();
+            }
 
             ref = registry->retrieve<Type>();
         }

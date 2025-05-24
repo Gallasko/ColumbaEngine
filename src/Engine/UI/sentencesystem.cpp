@@ -108,7 +108,7 @@ namespace pg
             auto ui = entity->get<UiComponent>();
             auto sentence = entity->get<SentenceText>();
 
-            ecsRef->attachGeneric<SentenceRenderCall>(entity, createRenderCall(ui, sentence));
+            ecsRef->_attach<SentenceRenderCall>(entity, createRenderCall(ui, sentence));
 
             changed = true;
         });

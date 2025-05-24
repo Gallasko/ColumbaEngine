@@ -204,6 +204,9 @@ namespace pg
         template <typename Comp>
         inline CompRef<Comp> get() const { return static_cast<const CompListGetter<Comp>*>(this)->get(); }
 
+        template <typename Comp, typename... Args>
+        CompRef<Comp> attach(Args&&... args) { return entity->template attach<Comp>(std::forward<Args>(args)...); }
+
         EntityRef entity;
     };
 }

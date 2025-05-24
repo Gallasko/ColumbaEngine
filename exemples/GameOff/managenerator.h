@@ -86,7 +86,7 @@ namespace pg
             {
                 auto genEnt = ecsRef->createEntity();
 
-                ecsRef->attachGeneric<RessourceGenerator>(genEnt, gen);
+                ecsRef->_attach<RessourceGenerator>(genEnt, gen);
 
                 generatorMap[gen.id] = genEnt.id;
             }
@@ -106,7 +106,7 @@ namespace pg
 
             auto genEnt = ecsRef->createEntity();
 
-            ecsRef->attachGeneric<RessourceGenerator>(genEnt, event.generator);
+            ecsRef->_attach<RessourceGenerator>(genEnt, event.generator);
 
             generatorMap[event.generator.id] = genEnt.id;
         }
@@ -380,7 +380,7 @@ namespace pg
             for (const auto& conv : converters)
             {
                 auto convEnt = ecsRef->createEntity();
-                ecsRef->attachGeneric<ConverterComponent>(convEnt, conv);
+                ecsRef->_attach<ConverterComponent>(convEnt, conv);
                 // Store the entity ID in the converter map for later lookup.
                 converterMap[conv.id] = convEnt.id;
             }
@@ -397,7 +397,7 @@ namespace pg
 
             // Create a new entity for the converter.
             auto convEnt = ecsRef->createEntity();
-            ecsRef->attachGeneric<ConverterComponent>(convEnt, event.converter);
+            ecsRef->_attach<ConverterComponent>(convEnt, event.converter);
 
             // Save the mapping for later lookup.
             converterMap[event.converter.id] = convEnt.id;

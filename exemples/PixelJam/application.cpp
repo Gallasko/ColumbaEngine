@@ -434,15 +434,15 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 if (tile.isWall)
                 {
                     //LOG_INFO("TILED", std::to_string(count++));
-                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
-                    ecsRef->attach<WallFlag>(tex.entity);
+                    tex.attach<CollisionComponent>(0);
+                    tex.attach<WallFlag>();
                 }
 
                 if (tile.isHole)
                 {
                     //LOG_INFO("TILED", "Is Hole " << std::to_string(++holeCount));
-                    ecsRef->attach<CollisionComponent>(tex.entity, 0);
-                    ecsRef->attach<HoleFlag>(tex.entity);
+                    tex.attach<CollisionComponent>(0);
+                    tex.attach<HoleFlag>();
                 }
             }
 
@@ -616,7 +616,17 @@ void initGame() {
     mainWindow->ecs.succeed<FollowCamera2DSystem, PositionComponent>();
     mainWindow->ecs.succeed<MasterRenderer, FollowCamera2DSystem>();
 
-    mainWindow->ecs.createSystem<FlagSystem>();
+    // mainWindow->ecs.createSystem<FlagSystem>();
+    // mainWindow->ecs.registerFlagComponent<TestGridFlag>();
+    // mainWindow->ecs.registerFlagComponent<SpikeFlag>();
+    // mainWindow->ecs.registerFlagComponent<WallFlag>();
+    // mainWindow->ecs.registerFlagComponent<CollectibleFlag>();
+    // mainWindow->ecs.registerFlagComponent<EnemyFlag>();
+    // mainWindow->ecs.registerFlagComponent<AllyBulletFlag>();
+    // mainWindow->ecs.registerFlagComponent<EnemyBulletFlag>();
+    // mainWindow->ecs.registerFlagComponent<WeaponComponent>();
+    // mainWindow->ecs.registerFlagComponent<PlayerFlag>();
+    // mainWindow->ecs.registerFlagComponent<HoleFlag>();
 
     mainWindow->ecs.createSystem<FpsSystem>();
 
