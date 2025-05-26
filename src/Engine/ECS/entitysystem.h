@@ -517,9 +517,9 @@ namespace pg
         // Todo fix attach doesn't work if an args is a const std::string&
 
         template <typename Type>
-        void registerFlagComponent()
+        auto registerFlagComponent()
         {
-            registry.registerFlagComponent<Type>();
+            return registry.registerFlagComponent<Type>();
         }
 
         template <typename Type, typename... Args>
@@ -1043,11 +1043,11 @@ namespace pg
     }
 
     template <typename Type>
-    void ComponentRegistry::registerFlagComponent()
+    auto ComponentRegistry::registerFlagComponent()
     {
         struct DummyFlagSys : public System<Own<Type>, StoragePolicy> {};
 
-        ecsRef->createSystem<DummyFlagSys, true>();
+        return ecsRef->createSystem<DummyFlagSys, true>();
     }
 
     template <typename Comp>

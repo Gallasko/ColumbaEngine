@@ -105,11 +105,19 @@ namespace pg
         AtlasLoader() = default;
 
         // Set atlas metadata
-        void setImagePath(const std::string& path) { imagePath = path; }
-        void setAtlasSize(unsigned int width, unsigned int height)
+        AtlasLoader& setImagePath(const std::string& path)
+        {
+            imagePath = path;
+
+            return *this;
+        }
+
+        AtlasLoader& setAtlasSize(unsigned int width, unsigned int height)
         {
             atlasWidth = width;
             atlasHeight = height;
+
+            return *this;
         }
 
         const std::string& getImagePath() const { return imagePath; }
@@ -117,7 +125,7 @@ namespace pg
         unsigned int getAtlasHeight() const { return atlasHeight; }
 
         // Convenience for external generators (e.g. Aseprite loader)
-        void addTexture(const std::string& name,
+        AtlasLoader& addTexture(const std::string& name,
                         unsigned int w, unsigned int h,
                         unsigned int xPos, unsigned int yPos,
                         unsigned int yOff = 0)
@@ -141,6 +149,8 @@ namespace pg
             tex.setMesh(xPos, yPos, atlasWidth, atlasHeight);
 
             pushEntry(std::move(tex));
+
+            return *this;
         }
 
     private:

@@ -186,7 +186,7 @@ namespace pg
         void unstore(Own<Type>* owner) noexcept;
 
         template <typename Type>
-        void registerFlagComponent();
+        auto registerFlagComponent();
 
         template <typename Type>
         Own<Type>* retrieve() const
