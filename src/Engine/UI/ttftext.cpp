@@ -128,7 +128,7 @@ namespace pg
         onEventUpdate(event.id);
     }
 
-    void TTFTextSystem::registerFont(const std::string& fontPath, int size)
+    void TTFTextSystem::registerFont(const std::string& fontPath, const std::string& fontName, int size)
     {
         auto f = [fontPath, size, this](size_t oldId)
         {
@@ -234,7 +234,9 @@ namespace pg
             return fontTexture;
         };
 
-        auto textureName = "TTFText_" + fontPath;
+
+
+        auto textureName = "TTFText_" + (fontName == "" ? fontPath : fontName);
 
         LOG_INFO(DOM, "Registering texture: " << textureName);
 

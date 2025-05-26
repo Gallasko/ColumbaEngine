@@ -106,7 +106,7 @@ struct TugOfWarSystem : public System<InitSys>
             wallEnt->get<PositionComponent>()->setX(wallEnt->get<PositionComponent>()->x + 4.f);
 
             ecsRef->removeEntity(insta->entityId);
-        }); 
+        });
 
         makeCollisionHandlePair(ecsRef, [&](TikTokFlag* tiktok, WallFlag* wall) {
             auto wallEnt = ecsRef->getEntity(wall->entityId);
@@ -184,13 +184,12 @@ struct VideoCreatorSystem : public System<Listener<SavedFrameData>, StoragePolic
         flipImageVertically(pixels.data(), event.width, event.height);
 
         size_t written = fwrite(pixels.data(), 1, pixels.size(), ffmpeg);
-        
+
         if (written != pixels.size()) {
             fprintf(stderr, "Short write to ffmpeg pipe\n");
         }
     }
 };
-
 
 std::thread *initThread;
 pg::Window *mainWindow = nullptr;
@@ -198,9 +197,6 @@ std::atomic<bool> initialized = {false};
 bool init = false;
 bool running = true;
 
-struct FlagSystem : public System<StoragePolicy, Own<WallFlag>, Own<InstaFlag>, Own<TikTokFlag>>
-{
-};
 
 void initWindow(const std::string &appName) {
 #ifdef __EMSCRIPTEN__
@@ -269,15 +265,18 @@ void initGame() {
     // mainWindow->ecs.createSystem<InspectorSystem>();
     auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
     mainWindow->masterRenderer->processTextureRegister();
 
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
-    mainWindow->ecs.createSystem<FlagSystem>();
+    // mainWindow->ecs.createSystem<FlagSystem>();
+    // mainWindow->ecs.registerFlagComponent<InstaFlag>();
+    // mainWindow->ecs.registerFlagComponent<TikTokFlag>();
+    // mainWindow->ecs.registerFlagComponent<WallFlag>();
 
     mainWindow->ecs.dumbTaskflow();
 
@@ -326,7 +325,11 @@ void initGame() {
 
     mainWindow->resize(820, 640);
 
-    for (int i = 0; i < FPS * 61; i++)
+    // mainWindow->ecs.start();
+
+    int nbVideoSeconds = 1;
+
+    for (int i = 0; i < FPS * nbVideoSeconds; i++)
     {
         mainWindow->ecs.sendEvent(SaveCurrentFrameEvent{});
 
