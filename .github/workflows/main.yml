@@ -79,6 +79,7 @@ jobs:
             cmake \
               -DCMAKE_BUILD_TYPE=Release \
               ..
+          fi
         shell: bash
 
       - name: Cache ccache
@@ -112,6 +113,7 @@ jobs:
             mingw32-make -j$(nproc || echo 2) t1
           else
             cmake --build . --config Release --target t1 -- -j$(nproc || echo 2)
+          fi
         shell: bash
 
       - name: Run unit tests
