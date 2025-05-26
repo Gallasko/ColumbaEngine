@@ -1,4 +1,3 @@
-#version 330 core
 layout (location = 0) in vec3 aPos;
 
 layout (location = 1) in vec3 aWorldPos;
@@ -54,7 +53,7 @@ void main()
 	TexCoord = vec2((1 - aPos.x) * aTexCoord.x  + aPos.x * aTexCoord.z, (1 + aPos.y) * aTexCoord.y  + (-1.0f * aPos.y) * aTexCoord.a);
 	// TexCoord = vec2((1 - aPos.x) * aTexCoord.x, (1 + aPos.y) * aTexCoord.y);
 	// TexCoord = vec2((1.0f - aPos.x) * aTexCoord.x + aPos.x * aTexCoord.z, (1.0f - aPos.y) * aTexCoord.y + aPos.y * aTexCoord.a);
-	
+
 	mainColor = aMainColor;
 	outline1 = aOutline1;
 	outline2 = aOutline2;
