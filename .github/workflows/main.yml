@@ -22,17 +22,20 @@ jobs:
             compiler: clang
             cc: clang
             cxx: clang++
-          # For now disable msvc test
-          # - os: windows-latest
-          #   compiler: msvc
-          #   cc: cl
-          #   cxx: cl
+          - os: windows-latest
+            compiler: msvc
+            cc: cl
+            cxx: cl
+          - os: windows-latest
+            compiler: mingw64
+            cc: x86_64-w64-mingw32-gcc
+            cxx: x86_64-w64-mingw32-g++
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install prerequisites & build SDL2 v2.0.20 (Linux)
+      - name: Install prerequisites (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
@@ -43,49 +46,40 @@ jobs:
             libsdl2-dev libsdl2-ttf-dev libsdl2-mixer-dev \
             libglew-dev libfreetype6-dev
 
-          # sudo apt-get install -y \
-          #   build-essential cmake ccache git \
-          #   libgl1-mesa-dev libglu1-mesa-dev \
-          #   libx11-dev libxrandr-dev libxi-dev libxinerama-dev libxcursor-dev libxss-dev libxxf86vm-dev \
-          #   libglew-dev libfreetype6-dev libasound2-dev libpulse-dev libudev-dev libdbus-1-dev \
-          #   libmpg123-dev libvorbis-dev libflac-dev libxmp-dev \
-          #   libopusfile-dev libfluidsynth-dev libogg-dev libwavpack-dev
+      - name: Install MinGW (Windows, MinGW only)
+        if: matrix.os == 'windows-latest' && matrix.compiler == 'mingw64'
+        shell: bash
+        run: |
+          choco install -y mingw
+          echo "C:/ProgramData/chocolatey/bin" >> $GITHUB_PATH
 
-          # # SDL2 v2.0.20
-          # git clone https://github.com/libsdl-org/SDL.git SDL2
-          # cd SDL2
-          # git fetch --tags                      # ← make sure tags are present locally
-          # git checkout release-2.0.20           # ← the correct release tag
-          # mkdir build && cd build
-          # cmake .. -DCMAKE_BUILD_TYPE=Release \
-          #          -DSDL_INSTALL_INCLUDEDIR=include/SDL2
-          # make -j$(nproc)
-          # sudo make install
-          # sudo ldconfig
-          # cd ../..
+      - name: Setup MSVC (Windows, MSVC only)
+        if: matrix.os == 'windows-latest' && matrix.compiler == 'msvc'
+        uses: ilammy/msvc-dev-cmd@v1
 
-          # # repeat the same pattern (fetch tags + checkout) for ttf & mixer
-          # git clone https://github.com/libsdl-org/SDL_ttf.git SDL_ttf
-          # cd SDL_ttf
-          # git fetch --tags
-          # git checkout release-2.0.15
-          # mkdir build && cd build
-          # cmake .. -DCMAKE_BUILD_TYPE=Release
-          # make -j$(nproc)
-          # sudo make install
-          # sudo ldconfig
-          # cd ../..
-
-          # git clone https://github.com/libsdl-org/SDL_mixer.git SDL_mixer
-          # cd SDL_mixer
-          # git fetch --tags
-          # git checkout release-2.0.4
-          # mkdir build && cd build
-          # cmake .. -DCMAKE_BUILD_TYPE=Release
-          # make -j$(nproc)
-          # sudo make install
-          # sudo ldconfig
-          # cd ../..
+      - name: Configure with CMake
+        run: |
+          mkdir -p build
+          cd build
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            cmake \
+              -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DCMAKE_PREFIX_PATH="/usr/local" \
+              ..
+          elif [ "${{ matrix.compiler }}" = "mingw64" ]; then
+            cmake \
+              -G "MinGW Makefiles" \
+              -DCMAKE_C_COMPILER=${{ matrix.cc }} \
+              -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
+              -DCMAKE_BUILD_TYPE=Release \
+              ..
+          else
+            cmake \
+              -DCMAKE_BUILD_TYPE=Release \
+              ..
+        shell: bash
 
       - name: Cache ccache
         uses: actions/cache@v3
@@ -103,26 +97,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cmake-${{ matrix.compiler }}-
 
-      - name: Configure with CMake
-        run: |
-          mkdir -p build
-          cd build
-          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
-            cmake \
-              -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-              -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DCMAKE_PREFIX_PATH="/usr/local" \
-              ..
-          else
-            cmake \
-              -DCMAKE_C_COMPILER=${{ matrix.cc }} \
-              -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} \
-              -DCMAKE_BUILD_TYPE=Release \
-              ..
-          fi
-
-      - name: Verify SDL2 installation (Linux)
+      - name: Verify SDL2 installation (Linux only)
         if: matrix.os == 'ubuntu-latest'
         run: |
           echo "Includes:"
@@ -131,9 +106,16 @@ jobs:
           sdl2-config --version
 
       - name: Build tests only
-        run: cmake --build build --config Release --target t1 -- -j$(nproc || echo 2)
+        run: |
+          cd build
+          if [ "${{ matrix.compiler }}" = "mingw64" ]; then
+            mingw32-make -j$(nproc || echo 2) t1
+          else
+            cmake --build . --config Release --target t1 -- -j$(nproc || echo 2)
+        shell: bash
 
       - name: Run unit tests
         run: |
           cd build
           ctest --output-on-failure --parallel $(nproc || echo 2)
+        shell: bash
