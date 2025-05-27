@@ -2,6 +2,8 @@
 
 #include "logger.h"
 
+#include "Networking/backend.h"
+
 using namespace pg;
 
 namespace {
@@ -34,7 +36,50 @@ void initWindow(const std::string &appName) {
     initialized = true;
 }
 
-void initGame() {
+constexpr int TICK_MS = 16;
+
+// Simple server loop: echo back what you get
+void runServer(NetworkBackend& net) {
+    // std::cout << "[SERVER] Listening on UDP port "
+    //           << net.config.udpLocalPort << "\n";
+    // Packet p;
+    // while (true) {
+    //     net.pollIncoming();
+    //     while (net.receivePacket(p)) {
+    //         std::cout << "[SERVER] recv '"
+    //                   << std::string(p.data.begin(), p.data.end())
+    //                   << "' → echo\n";
+    //         net.sendPacket(p, /*reliable=*/false);
+    //     }
+    //     SDL_Delay(TICK_MS);
+    // }
+
+    LOG_INFO(DOM, "Server running...");
+}
+
+// Simple client loop: send HELLO once, then print echoes
+void runClient(NetworkBackend& net) {
+    // Packet hello{ 1, 0, { 'H','E','L','O' } };
+    // net.sendPacket(hello, /*reliable=*/false);
+    // std::cout << "[CLIENT] sent HELLO\n";
+
+    // Packet p;
+    // while (true) {
+    //     net.pollIncoming();
+    //     while (net.receivePacket(p)) {
+    //         std::cout << "[CLIENT] echo: '"
+    //                   << std::string(p.data.begin(), p.data.end())
+    //                   << "'\n";
+    //     }
+    //     SDL_Delay(TICK_MS);
+    // }
+
+    LOG_INFO(DOM, "Client running...");
+}
+
+
+void initGame(int argc, char** argv)
+{
     printf("Initializing engine ...\n");
 
 #ifdef __EMSCRIPTEN__
@@ -55,6 +100,44 @@ void initGame() {
 #endif
 
     mainWindow->initEngine();
+
+    if (SDLNet_Init() < 0) {
+        std::cerr << "SDL_net init failed: "
+                  << SDLNet_GetError() << "\n";
+        return;
+    }
+
+    // ——— 1) Parse mode ———
+    bool isServer = false;
+
+    for (int i = 1; i < argc; ++i)
+    {
+        std::string a = argv[i];
+        if (a == "--mode=server") isServer = true;
+        if (a == "--mode=client") isServer = false;
+    }
+
+    // ——— 2) Build network config ———
+    NetworkConfig netCfg;
+    netCfg.isServer     = isServer;
+    netCfg.peerAddress  = "127.0.0.1";
+    netCfg.udpLocalPort = isServer ? 9000 : 0;    // server binds; client gets ephemeral
+    netCfg.udpPeerPort  = isServer ? 0    : 9000; // client → server port
+    netCfg.tcpEnabled   = false;                 // disable TCP for PoC
+    // you can tweak defaultSystemFlags here:
+    netCfg.defaultSystemFlags.networked       = true;
+    netCfg.defaultSystemFlags.reliableChannel = false;
+    netCfg.defaultSystemFlags.updateRateHz    = 30.0f;
+
+    // ——— 3) Initialize transport backend ———
+    NetworkBackend netBackend(netCfg);
+    netBackend.initialize();
+
+    if (isServer) runServer(netBackend);
+    else          runClient(netBackend);
+
+    SDLNet_Quit();
+    // SDL_Quit();
 
     printf("Engine initialized ...\n");
 
@@ -84,7 +167,8 @@ void syncFilesystem() {
 #endif
 }
 
-void mainloop(void *arg) {
+void mainloop(int argc, char** argv, void *arg)
+{
     if (not initialized.load())
         return;
 
@@ -105,7 +189,7 @@ void mainloop(void *arg) {
 
         printf("Window init done !\n");
 
-        initGame();
+        initGame(argc, argv);
     }
 
     SDL_Event event;
@@ -130,7 +214,8 @@ void mainloop(void *arg) {
     }
 }
 
-int GameApp::exec() {
+int GameApp::exec(int argc, char** argv)
+{
 #ifdef __EMSCRIPTEN__
     printf("Start init thread...\n");
     initThread = new std::thread(initWindow, appName);
@@ -142,7 +227,7 @@ int GameApp::exec() {
                         820, 640,
                         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
 
-    emscripten_set_main_loop_arg(mainloop, pWindow, 0, 1);
+    emscripten_set_main_loop_arg(mainloop, argc, argv, pWindow, 0, 1);
 
 #else
     LOG_THIS_MEMBER(DOM);
@@ -153,7 +238,7 @@ int GameApp::exec() {
 
     LOG_INFO(DOM, "Window init done !");
 
-    initGame();
+    initGame(argc, argv);
 
     while (running) {
         SDL_Event event;

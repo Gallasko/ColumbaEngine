@@ -1,8 +1,8 @@
 // UDPSocketTransport.h
 #pragma once
 
-#include "INetworkTransport.h"
-#include <SDL2/SDL_net.h>
+#include "inetwork_transport.h"
+#include <SDL_net.h>
 #include <vector>
 #include <stdexcept>
 

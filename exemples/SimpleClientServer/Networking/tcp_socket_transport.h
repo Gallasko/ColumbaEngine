@@ -1,30 +1,32 @@
 // TCPSocketTransport.h
 #pragma once
 
-#include "INetworkTransport.h"
-#include <SDL2/SDL_net.h>
+#include "inetwork_transport.h"
+#include <SDL_net.h>
 #include <thread>
 #include <stdexcept>
+#include <cstring>
 
-class TCPSocketTransport : public INetworkTransport
-{
+class TCPSocketTransport : public INetworkTransport {
 public:
-    TCPSocketTransport(const std::string& addr, uint16_t port, bool isServer)
+    TCPSocketTransport(const std::string& addr,
+                       uint16_t port,
+                       bool isServer)
     {
-        // ensure SDL_net is initialized
-        if (SDLNet_Init() == -1)
+        // Resolve host: nullptr means “bind to all” in server mode
+        if (SDLNet_ResolveHost(&tcpAddr,
+                              isServer ? nullptr : addr.c_str(),
+                              port) == -1)
         {
-            throw std::runtime_error("SDLNet_Init failed");
+            throw std::runtime_error(SDLNet_GetError());
         }
 
-        if (isServer)
-        {
-            // open a listening socket on port
-            SDLNet_ResolveHost(&tcpAddr, nullptr, port);
+        if (isServer) {
+            // open listening socket
             listener = SDLNet_TCP_Open(&tcpAddr);
-            if (!listener) {
-                throw std::runtime_error("SDLNet_TCP_Open (server) failed");
-            }
+            if (!listener)
+                throw std::runtime_error(SDLNet_GetError());
+
             // accept asynchronously
             std::thread([this]() {
                 TCPsocket clientSock = nullptr;
@@ -32,42 +34,29 @@ public:
                     clientSock = SDLNet_TCP_Accept(listener);
                     SDL_Delay(10);
                 }
-                // close listener, use clientSock from now on
+                // switch from listener to client socket
                 SDLNet_TCP_Close(listener);
                 listener = nullptr;
-                sock     = clientSock;
+                sock = clientSock;
             }).detach();
-        }
-        else
-        {
-            // client: connect to remote
-            SDLNet_ResolveHost(&tcpAddr, addr.c_str(), port);
+        } else {
+            // connect as client
             sock = SDLNet_TCP_Open(&tcpAddr);
-
-            if (not sock)
-            {
-                throw std::runtime_error("SDLNet_TCP_Open (client) failed");
-            }
+            if (!sock)
+                throw std::runtime_error(SDLNet_GetError());
         }
-
-        // make non-blocking
-        if (sock) SDLNet_TCP_SetNonBlocking(sock);
     }
 
-    ~TCPSocketTransport() override
-    {
+    ~TCPSocketTransport() override {
         if (sock)     SDLNet_TCP_Close(sock);
         if (listener) SDLNet_TCP_Close(listener);
-
-        SDLNet_Quit();
     }
 
     bool sendReliable(const Packet& pkt) override {
-        // prepend length if you need framing; here we assume raw payload
+        const char* buf = reinterpret_cast<const char*>(pkt.data.data());
         int total = 0, len = static_cast<int>(pkt.data.size());
-        const char* buffer = reinterpret_cast<const char*>(pkt.data.data());
         while (total < len) {
-            int sent = SDLNet_TCP_Send(sock, buffer + total, len - total);
+            int sent = SDLNet_TCP_Send(sock, buf + total, len - total);
             if (sent <= 0) return false;
             total += sent;
         }
@@ -75,21 +64,27 @@ public:
     }
 
     bool sendUnreliable(const Packet& /*pkt*/) override {
-        // no UDP semantics on TCP
         return false;
     }
 
     bool receive(Packet& out) override {
-        // read up to buffer size
+        if (!sock) return false;
+
+        // Poll: only read if data is ready
+        if (!SDLNet_SocketReady(sock)) {
+            return false;
+        }
+
         char buffer[1500];
         int rec = SDLNet_TCP_Recv(sock, buffer, sizeof(buffer));
         if (rec <= 0) return false;
+
         out.data.assign(buffer, buffer + rec);
         return true;
     }
 
 private:
-    TCPsocket listener = nullptr;
-    TCPsocket sock     = nullptr;
-    IPaddress tcpAddr{};
+    TCPsocket  listener = nullptr;
+    TCPsocket  sock     = nullptr;
+    IPaddress  tcpAddr{};
 };

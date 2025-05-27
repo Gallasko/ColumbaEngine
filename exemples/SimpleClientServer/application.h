@@ -9,7 +9,7 @@ public:
     GameApp(const std::string& appName);
     ~GameApp();
 
-    int exec();
+    int exec(int argc, char** argv);
 
 private:
     std::string appName;

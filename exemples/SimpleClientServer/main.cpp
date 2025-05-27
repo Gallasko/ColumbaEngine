@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 #endif
     GameApp app("Simple app");
 
-    return app.exec();
+    return app.exec(argc, argv);
 }
 
 
