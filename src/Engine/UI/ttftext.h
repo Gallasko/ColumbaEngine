@@ -162,7 +162,7 @@ namespace pg
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 
-        void registerFont(const std::string& fontPath, int size = 48);
+        void registerFont(const std::string& fontPath, const std::string& fontName = "", int size = 48);
 
         void onEventUpdate(_unique_id entityId);
 

@@ -40,7 +40,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/PixelJam"
+                "program": "${workspaceFolder}/release/TugOfWar"
             },
             "osx": {
                 "MIMode": "lldb",

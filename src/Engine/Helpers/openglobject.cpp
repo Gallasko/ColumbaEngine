@@ -59,8 +59,20 @@ namespace pg
             return;
         }
 
-        const char* vShaderCode = vertexFile.data.c_str();
-        const char * fShaderCode = fragmentFile.data.c_str();
+        std::string extraString;
+
+#if defined(__EMSCRIPTEN__)
+        // Modern Windows drivers support 330 core or higher
+        extraString = "#version 300 es\nprecision mediump float;\n"; // For WebGL or embedded
+#else
+        extraString = "#version 330 core\n";
+#endif
+
+        auto vertexCode = extraString + vertexFile.data;
+        auto fragmentCode = extraString + fragmentFile.data;
+
+        const char* vShaderCode = vertexCode.c_str();
+        const char * fShaderCode = fragmentCode.c_str();
         // 2. compile shaders
         unsigned int vertex, fragment;
         // vertex shader

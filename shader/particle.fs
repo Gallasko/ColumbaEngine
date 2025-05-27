@@ -1,4 +1,3 @@
-#version 330 core
 out vec4 FragColor;
 
 in vec2 TexCoord;
@@ -11,7 +10,7 @@ void main()
 {
     if(visible <= 0.0f)
         discard;
-    
+
 	//FragColor = vec4(color, 1.0f);
     FragColor = texture(texture1, TexCoord);
 }

@@ -434,11 +434,11 @@ namespace pg
         // ensure they really are pointers
         static_assert(std::is_pointer_v<Arg0> and std::is_pointer_v<Arg1>, "handler must take two raw pointers");
 
-        // strip off the pointer → Comp1=PlayerFlag, Comp2=CollectibleFlag
+        // strip off the pointer -> Comp1=PlayerFlag, Comp2=CollectibleFlag
         using Comp1 = std::remove_pointer_t<Arg0>;
         using Comp2 = std::remove_pointer_t<Arg1>;
 
-        // now wrap your original fn in the exact std::function<void(Comp1*,Comp2*)>
+        // now wrap your original fn in the exact std::function<void(Comp1*, Comp2*)>
         std::function<void(Comp1*, Comp2*)> wrapper = fn;
 
         return makeCollisionHandlePair<Comp1, Comp2>(ecsRef, std::move(wrapper));
