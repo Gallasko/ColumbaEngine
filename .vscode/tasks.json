@@ -100,7 +100,7 @@
                     "--config",
                     "Release",
                     "--target",
-                    "TugOfWar",
+                    "SimpleClientServer",
                     // "PgEngine",
                     "-j",
                     "8"

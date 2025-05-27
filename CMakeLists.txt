@@ -348,8 +348,6 @@ else()
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)
 
-
-
     add_executable(TugOfWar exemples/TugOfWar/main.cpp)
 
     target_include_directories(TugOfWar PUBLIC exemples/TugOfWar)
@@ -359,6 +357,30 @@ else()
     )
 
     target_link_libraries(TugOfWar PRIVATE PgEngineSrc)
+
+    ###
+
+    add_executable(SimpleClientServer exemples/SimpleClientServer/main.cpp)
+
+    target_include_directories(SimpleClientServer PUBLIC exemples/SimpleClientServer)
+
+    target_sources(SimpleClientServer PRIVATE
+        exemples/SimpleClientServer/application.cpp
+    )
+
+    target_link_libraries(SimpleClientServer PRIVATE PgEngineSrc)
+
+    ###
+
+    add_executable(EmptyApp exemples/EmptyAppTemplate/main.cpp)
+
+    target_include_directories(EmptyApp PUBLIC exemples/EmptyAppTemplate)
+
+    target_sources(EmptyApp PRIVATE
+        exemples/EmptyAppTemplate/application.cpp
+    )
+
+    target_link_libraries(EmptyApp PRIVATE PgEngineSrc)
 
     # add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
