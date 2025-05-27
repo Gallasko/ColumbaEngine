@@ -35,7 +35,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # MSVC: ensure glew.rc is where the CMake scripts expect it
+      # MSVC: copy glew.rc so CMake's add_library() finds it
       - name: Prepare GLEW resource file for MSVC
         if: matrix.os == 'windows-latest' && matrix.compiler == 'msvc'
         shell: pwsh
@@ -59,9 +59,10 @@ jobs:
         shell: pwsh
         run: |
           choco install -y mingw
-          $mingwBin = 'C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin'
-          Add-Content $Env:GITHUB_PATH $mingwBin
-          refreshenv
+          # Chocolatey unpacks MinGW-w64 under ProgramData\mingw64
+          $mingwBin = 'C:\ProgramData\mingw64\mingw64\bin'
+          # Persist to PATH for subsequent steps
+          Add-Content -Path $Env:GITHUB_PATH -Value $mingwBin
 
       - name: Setup MSVC (Windows, MSVC only)
         if: matrix.os == 'windows-latest' && matrix.compiler == 'msvc'
