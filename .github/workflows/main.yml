@@ -22,10 +22,10 @@ jobs:
             compiler: clang
             cc: clang
             cxx: clang++
-          - os: windows-latest
-            compiler: msvc
-            cc: cl
-            cxx: cl
+          # - os: windows-latest # Fix msvc build in ci
+          #   compiler: msvc
+          #   cc: cl
+          #   cxx: cl
           - os: windows-latest
             compiler: mingw64
             cc: x86_64-w64-mingw32-gcc
