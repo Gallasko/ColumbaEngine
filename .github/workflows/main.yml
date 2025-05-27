@@ -59,10 +59,9 @@ jobs:
         shell: pwsh
         run: |
           choco install -y mingw
-          # Chocolatey unpacks MinGW-w64 under ProgramData\mingw64
-          $mingwBin = 'C:\ProgramData\mingw64\mingw64\bin'
-          # Persist to PATH for subsequent steps
-          Add-Content -Path $Env:GITHUB_PATH -Value $mingwBin
+          # Chocolatey unpacks MinGW-w64 under C:\ProgramData\mingw64\mingw64\bin
+          $bin = 'C:\ProgramData\mingw64\mingw64\bin'
+          Add-Content -Path $Env:GITHUB_PATH -Value $bin
 
       - name: Setup MSVC (Windows, MSVC only)
         if: matrix.os == 'windows-latest' && matrix.compiler == 'msvc'
@@ -116,6 +115,16 @@ jobs:
           ls /usr/local/include/
           echo "sdl2-config:"
           sdl2-config --version
+
+      - name: Copy MinGW-w64 runtime DLLs for tests
+        if: matrix.os == 'windows-latest' && matrix.compiler == 'mingw64'
+        shell: pwsh
+        run: |
+          $bin = 'C:\ProgramData\mingw64\mingw64\bin'
+          Copy-Item "$bin\libstdc++-6.dll" build
+          Copy-Item "$bin\libgcc_s_seh-1.dll" build
+          # Optional, if your build uses winpthread:
+          Copy-Item "$bin\libwinpthread-1.dll" build -ErrorAction SilentlyContinue
 
       - name: Build tests only
         shell: bash
