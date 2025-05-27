@@ -30,6 +30,7 @@ endif()
 
 set(SDL2_DIR "import/SDL2-2.28.5")
 set(SDL2MIXER_DIR "import/SDL2_mixer-2.6.3")
+set(SDL2NET_DIR "import/SDL2_net-2.2.0")
 set(GLM_DIR "import/glm")
 set(TASKFLOW_DIR "import/taskflow-3.6.0")
 set(GTEST_DIR "import/googletest-1.14.0")
@@ -41,7 +42,7 @@ find_package(OpenGL REQUIRED)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 # set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_TTF=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload-plugins \
         --preload-file res \
         --preload-file scripts \
@@ -53,6 +54,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload
 else()
     add_subdirectory(${SDL2_DIR})
     add_subdirectory(${SDL2MIXER_DIR})
+    add_subdirectory(${SDL2NET_DIR})
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
     add_subdirectory(${GLTF_DIR})
@@ -99,6 +101,7 @@ include_directories(${GLTF_DIR}/include)
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(${SDL2_DIR}/include)
     include_directories(${SDL2MIXER_DIR}/include)
+    include_directories(${SDL2NET_DIR}/include)
     include_directories(${GLEW_DIR}/include)
     include_directories(${TTF_DIR}/include)
 endif()
