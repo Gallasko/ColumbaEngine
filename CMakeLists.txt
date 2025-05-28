@@ -175,7 +175,7 @@ set(ENGINESOURCE
     src/Engine/Maths/randomnumbergenerator.cpp
     src/Engine/Memory/elementtype.cpp
     src/Engine/Memory/parallelfor.cpp
-    src/Engine/Networking/sdl_backend.cpp
+    src/Engine/Networking/backend_sdl.cpp
     src/Engine/Renderer/mesh.cpp
     src/Engine/Renderer/particle.cpp
     src/Engine/Renderer/renderer.cpp

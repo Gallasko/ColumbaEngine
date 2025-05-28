@@ -3,6 +3,7 @@
 #include "logger.h"
 
 #include "Networking/network_system.h"
+#include "Networking/backend_sdl.h"
 
 
 using namespace pg;

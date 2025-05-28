@@ -3,7 +3,7 @@
 #include "Networking/network_config.h"
 #include "Networking/network_sys_config.h"
 #include "Networking/common.h"
-#include "Networking/sdl_backend.h"
+#include "Networking/ibackend.h"
 
 #include "Systems/coresystems.h"
 
