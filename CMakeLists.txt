@@ -175,6 +175,7 @@ set(ENGINESOURCE
     src/Engine/Maths/randomnumbergenerator.cpp
     src/Engine/Memory/elementtype.cpp
     src/Engine/Memory/parallelfor.cpp
+    src/Engine/Networking/sdl_backend.cpp
     src/Engine/Renderer/mesh.cpp
     src/Engine/Renderer/particle.cpp
     src/Engine/Renderer/renderer.cpp
@@ -366,7 +367,6 @@ else()
 
     target_sources(SimpleClientServer PRIVATE
         exemples/SimpleClientServer/application.cpp
-        exemples/SimpleClientServer/Networking/sdl_backend.cpp
     )
 
     target_link_libraries(SimpleClientServer PRIVATE PgEngineSrc)

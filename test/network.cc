@@ -3,6 +3,9 @@
 #include "Networking/network_system.h"
 #include <tuple>
 
+using namespace pg;
+
+
 //------------------------------------------------------------------------
 // MockNetworkBackend: captures sends in an outbox and provides a scripted inbox.
 //------------------------------------------------------------------------
@@ -158,8 +161,3 @@ TEST(NetworkSystemTest, ServerLinksUdpHandshake) {
     EXPECT_EQ(echoed.payloadLen, 0);
 }
 
-int main(int argc, char** argv)
-{
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
