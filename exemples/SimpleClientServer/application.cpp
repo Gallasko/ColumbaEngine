@@ -4,17 +4,21 @@
 
 #include "Networking/backend.h"
 
+#include "Systems/coresystems.h"
+
 using namespace pg;
 
 namespace {
     static const char *const DOM = "App";
 }
 
-GameApp::GameApp(const std::string &appName) : appName(appName) {
+GameApp::GameApp(const std::string &appName) : appName(appName)
+{
     LOG_THIS_MEMBER(DOM);
 }
 
-GameApp::~GameApp() {
+GameApp::~GameApp()
+{
     LOG_THIS_MEMBER(DOM);
 }
 
@@ -24,7 +28,8 @@ std::atomic<bool> initialized = {false};
 bool init = false;
 bool running = true;
 
-void initWindow(const std::string &appName) {
+void initWindow(const std::string &appName)
+{
 #ifdef __EMSCRIPTEN__
     mainWindow = new pg::Window(appName, "/save/savedData.sz");
 #else
@@ -39,43 +44,117 @@ void initWindow(const std::string &appName) {
 constexpr int TICK_MS = 16;
 
 // Simple server loop: echo back what you get
-void runServer(NetworkBackend& net) {
-    // std::cout << "[SERVER] Listening on UDP port "
-    //           << net.config.udpLocalPort << "\n";
-    // Packet p;
-    // while (true) {
-    //     net.pollIncoming();
-    //     while (net.receivePacket(p)) {
-    //         std::cout << "[SERVER] recv '"
-    //                   << std::string(p.data.begin(), p.data.end())
-    //                   << "' → echo\n";
-    //         net.sendPacket(p, /*reliable=*/false);
-    //     }
-    //     SDL_Delay(TICK_MS);
-    // }
+void runServer(NetworkBackend& net)
+{
+    Packet p;
 
-    LOG_INFO(DOM, "Server running...");
+    net.pollIncoming();
+
+    while (net.receivePacket(p))
+    {
+        LOG_INFO(DOM, "Received packet from client: id = " << p.entityId << ", type = " << p.compType << ", data size = " << p.data.size());
+
+        net.sendPacket(p, /*reliable=*/false);
+    }
 }
 
 // Simple client loop: send HELLO once, then print echoes
-void runClient(NetworkBackend& net) {
-    // Packet hello{ 1, 0, { 'H','E','L','O' } };
-    // net.sendPacket(hello, /*reliable=*/false);
-    // std::cout << "[CLIENT] sent HELLO\n";
+void runClient(NetworkBackend& net)
+{
+    LOG_INFO(DOM, "Client running, sending HELLO packet...");
 
-    // Packet p;
-    // while (true) {
-    //     net.pollIncoming();
-    //     while (net.receivePacket(p)) {
-    //         std::cout << "[CLIENT] echo: '"
-    //                   << std::string(p.data.begin(), p.data.end())
-    //                   << "'\n";
-    //     }
-    //     SDL_Delay(TICK_MS);
-    // }
+    Packet hello{ 1, 0, { 'H','E','L','O' } };
 
-    LOG_INFO(DOM, "Client running...");
+    net.sendPacket(hello, /*reliable=*/false);
+
+    Packet p;
+    net.pollIncoming();
+
+    while (net.receivePacket(p))
+    {
+        std::cout << "[CLIENT] echo: '"
+                    << std::string(p.data.begin(), p.data.end())
+                    << "'\n";
+    }
 }
+
+struct NetworkSystem : public System<InitSys, Listener<TickEvent>>
+{
+    bool isServer;
+    bool initialized;
+    std::unique_ptr<NetworkBackend> netBackend;
+
+    float deltaTime = 0.0f;
+    virtual void onEvent(const TickEvent& e) override
+    {
+        deltaTime += e.tick;
+    }
+
+    NetworkSystem(bool isServer) : isServer(isServer), initialized(false)
+    {
+        if (SDLNet_Init() < 0)
+        {
+            LOG_ERROR(DOM, "SDLNet_Init failed: " << SDLNet_GetError());
+            return;
+        }
+
+        LOG_INFO(DOM, "SDLNet initialized");
+        initialized = true;
+    }
+
+    virtual void init() override
+    {
+        if (not initialized)
+            return;
+
+        NetworkConfig netCfg;
+        netCfg.isServer     = isServer;
+        netCfg.peerAddress  = "127.0.0.1";
+        netCfg.udpLocalPort = isServer ? 9000 : 0;    // server binds; client gets ephemeral
+        netCfg.udpPeerPort  = isServer ? 0    : 9000; // client → server port
+        netCfg.tcpEnabled   = false;                 // disable TCP for PoC
+        // you can tweak defaultSystemFlags here:
+        netCfg.defaultSystemFlags.networked       = true;
+        netCfg.defaultSystemFlags.reliableChannel = false;
+        netCfg.defaultSystemFlags.updateRateHz    = 30.0f;
+
+        // ——— 3) Initialize transport backend ———
+        LOG_INFO(DOM, "Initializing network backend...");
+        netBackend = std::make_unique<NetworkBackend>(netCfg);
+        netBackend->initialize();
+
+        if (isServer)
+            LOG_INFO(DOM, "Server initialized");
+        else
+            LOG_INFO(DOM, "Client initialized");
+    }
+
+    virtual void execute() override
+    {
+        if (not initialized)
+            return;
+
+        if (isServer)
+            runServer(*netBackend);
+        else
+        {
+            if (deltaTime > 1000.0f)
+            {
+                runClient(*netBackend);
+                deltaTime = 0.0f;
+            }
+        }
+    }
+
+    virtual ~NetworkSystem() override
+    {
+        if (not initialized)
+            return;
+
+        LOG_INFO(DOM, "Shutting down network backend...");
+        SDLNet_Quit();
+    }
+};
 
 
 void initGame(int argc, char** argv)
@@ -101,12 +180,6 @@ void initGame(int argc, char** argv)
 
     mainWindow->initEngine();
 
-    if (SDLNet_Init() < 0) {
-        std::cerr << "SDL_net init failed: "
-                  << SDLNet_GetError() << "\n";
-        return;
-    }
-
     // ——— 1) Parse mode ———
     bool isServer = false;
 
@@ -117,26 +190,8 @@ void initGame(int argc, char** argv)
         if (a == "--mode=client") isServer = false;
     }
 
-    // ——— 2) Build network config ———
-    NetworkConfig netCfg;
-    netCfg.isServer     = isServer;
-    netCfg.peerAddress  = "127.0.0.1";
-    netCfg.udpLocalPort = isServer ? 9000 : 0;    // server binds; client gets ephemeral
-    netCfg.udpPeerPort  = isServer ? 0    : 9000; // client → server port
-    netCfg.tcpEnabled   = false;                 // disable TCP for PoC
-    // you can tweak defaultSystemFlags here:
-    netCfg.defaultSystemFlags.networked       = true;
-    netCfg.defaultSystemFlags.reliableChannel = false;
-    netCfg.defaultSystemFlags.updateRateHz    = 30.0f;
+    mainWindow->ecs.createSystem<NetworkSystem>(isServer);
 
-    // ——— 3) Initialize transport backend ———
-    NetworkBackend netBackend(netCfg);
-    netBackend.initialize();
-
-    if (isServer) runServer(netBackend);
-    else          runClient(netBackend);
-
-    SDLNet_Quit();
     // SDL_Quit();
 
     printf("Engine initialized ...\n");
@@ -147,7 +202,7 @@ void initGame(int argc, char** argv)
 
     mainWindow->resize(820, 640);
 
-    // mainWindow->ecs.start();
+    mainWindow->ecs.start();
 
     printf("Engine initialized\n");
 }

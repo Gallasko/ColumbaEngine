@@ -4,15 +4,22 @@
 #include <cstdint>
 #include <vector>
 
+#include "ECS/uniqueid.h"
+
+using namespace pg;
+
 // Simple packet type used by all transports
-struct Packet {
-    uint32_t    entityId;
-    uint16_t    compType;
+struct Packet
+{
+    _unique_id entityId;
+    _unique_id compType;
+
     std::vector<uint8_t> data;
 };
 
 // Abstract base for UDP/TCP socket wrappers
-class INetworkTransport {
+class INetworkTransport
+{
 public:
     virtual ~INetworkTransport() = default;
 

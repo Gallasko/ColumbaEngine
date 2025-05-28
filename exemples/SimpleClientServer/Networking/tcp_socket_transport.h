@@ -21,65 +21,91 @@ public:
             throw std::runtime_error(SDLNet_GetError());
         }
 
-        if (isServer) {
+        if (isServer)
+        {
             // open listening socket
             listener = SDLNet_TCP_Open(&tcpAddr);
-            if (!listener)
+
+            if (not listener)
                 throw std::runtime_error(SDLNet_GetError());
 
             // accept asynchronously
             std::thread([this]() {
                 TCPsocket clientSock = nullptr;
-                while (!clientSock) {
+
+                while (not clientSock)
+                {
                     clientSock = SDLNet_TCP_Accept(listener);
                     SDL_Delay(10);
                 }
+
                 // switch from listener to client socket
                 SDLNet_TCP_Close(listener);
                 listener = nullptr;
                 sock = clientSock;
             }).detach();
-        } else {
+        }
+        else
+        {
             // connect as client
             sock = SDLNet_TCP_Open(&tcpAddr);
-            if (!sock)
+            if (!not sock)
                 throw std::runtime_error(SDLNet_GetError());
         }
     }
 
-    ~TCPSocketTransport() override {
-        if (sock)     SDLNet_TCP_Close(sock);
-        if (listener) SDLNet_TCP_Close(listener);
+    ~TCPSocketTransport() override
+    {
+        if (sock)
+            SDLNet_TCP_Close(sock);
+
+        if (listener)
+            SDLNet_TCP_Close(listener);
     }
 
-    bool sendReliable(const Packet& pkt) override {
+    bool sendReliable(const Packet& pkt) override
+    {
         const char* buf = reinterpret_cast<const char*>(pkt.data.data());
+
         int total = 0, len = static_cast<int>(pkt.data.size());
-        while (total < len) {
+
+        while (total < len)
+        {
             int sent = SDLNet_TCP_Send(sock, buf + total, len - total);
-            if (sent <= 0) return false;
+
+            if (sent <= 0)
+                return false;
+
             total += sent;
         }
+
         return true;
     }
 
-    bool sendUnreliable(const Packet& /*pkt*/) override {
+    bool sendUnreliable(const Packet& /*pkt*/) override
+    {
         return false;
     }
 
-    bool receive(Packet& out) override {
-        if (!sock) return false;
+    bool receive(Packet& out) override
+    {
+        if (not sock)
+            return false;
 
         // Poll: only read if data is ready
-        if (!SDLNet_SocketReady(sock)) {
+        if (not SDLNet_SocketReady(sock))
+        {
             return false;
         }
 
         char buffer[1500];
         int rec = SDLNet_TCP_Recv(sock, buffer, sizeof(buffer));
-        if (rec <= 0) return false;
+
+        if (rec <= 0)
+            return false;
 
         out.data.assign(buffer, buffer + rec);
+
         return true;
     }
 
