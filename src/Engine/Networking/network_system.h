@@ -21,56 +21,20 @@ namespace pg
 
     struct NetworkSystem : public System<InitSys, Listener<TickEvent>>
     {
-        // bool isServer;
-        // bool initialized;
-
-        // NetworkConfig netCfg;
-        // INetworkBackend* netBackend;
-
-        // bool connectedToServer = false;
-        // float timeBeforeReconnect = 0.0f;
-
-        float deltaTime = 0.0f;
-
         virtual void onEvent(const TickEvent& e) override
         {
-            deltaTime += e.tick;
+            _deltaTime += e.tick;
         }
-
-        // NetworkSystem(INetworkBackend* netBackend) : isServer(netBackend->cfg)
-        // {
-        //     LOG_INFO(DOM, "SDLNet initialized");
-        //     initialized = true;
-        // }
-
-        // // virtual void execute() override
-        // // {
-        // //     if (not initialized)
-        // //         return;
-
-        // //     if (isServer)
-        // //         runServer(*netBackend);
-        // //     else
-        // //     {
-        // //         if (deltaTime > 1000.0f)
-        // //         {
-        // //             runClient(*netBackend);
-        // //             deltaTime = 0.0f;
-        // //         }
-        // //     }
-        // // }
-
-        // virtual ~NetworkSystem() override
-        // {
-        //     if (not initialized)
-        //         return;
-
-
-        // }
 
         NetworkSystem(INetworkBackend* backend, const NetworkConfig& cfg)
             : _backend(backend), _cfg(cfg)
         {}
+
+        virtual ~NetworkSystem() override
+         {
+            if (_backend)
+                delete _backend;
+        }
 
 
         virtual void init() override {

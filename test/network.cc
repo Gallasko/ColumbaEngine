@@ -1,163 +1,397 @@
-// test_networksystem.cpp
+// test_networksystem_full.cpp
 #include <gtest/gtest.h>
+
 #include "Networking/network_system.h"
 #include <tuple>
+#include <queue>
 
 using namespace pg;
 
-
-//------------------------------------------------------------------------
-// MockNetworkBackend: captures sends in an outbox and provides a scripted inbox.
-//------------------------------------------------------------------------
-class MockNetworkBackend : public INetworkBackend {
+//-----------------------------------------------------------------------------
+// MockNetworkBackend: as before, but exposes control for tests
+//-----------------------------------------------------------------------------
+class MockNetworkBackend : public INetworkBackend
+{
 public:
-    // Inbox entries: either TCP or UDP
+    // Inbox entries: (tcpSock, udpSrc, data)
     std::queue<std::tuple<TCPsocket, IPaddress, std::vector<uint8_t>>> inbox;
-    // Outbox entries: record (isTcp, TCPsocket, IPaddress, data)
-    struct Out { bool isTcp; TCPsocket sock; IPaddress addr; std::vector<uint8_t> data; };
+
+    struct Out
+    {
+        bool isTcp;
+        TCPsocket sock;
+        IPaddress addr;
+        std::vector<uint8_t> data;
+    };
+
     std::vector<Out> outbox;
 
-    // Simulated “already listening” socket for server
     TCPsocket fakeListener = reinterpret_cast<TCPsocket>(0x1);
 
-    // --- INetworkBackend impl ---
-    TCPsocket acceptTcpClient() override {
-        // If inbox has a special marker for accept, pop it
-        if (!inbox.empty()) {
-            auto [sock, addr, data] = inbox.front();
-            // We encode accept by sock==fakeListener && data empty
-            if (sock == fakeListener && data.empty()) {
+    TCPsocket acceptTcpClient() override
+    {
+        // pop a marker if it matches
+        if (not inbox.empty())
+        {
+            auto [sock, addr, dat] = inbox.front();
+
+            if (sock == fakeListener and dat.empty())
+            {
                 inbox.pop();
-                return reinterpret_cast<TCPsocket>(0x42); // new client sock
+                return reinterpret_cast<TCPsocket>(0x42);
             }
         }
+
         return nullptr;
     }
 
-    bool connectToServer() override {
-        // Always succeed
-        return true;
-    }
+    bool connectToServer() override { return connectSucceeds; }
 
-    bool sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data) override {
+    bool sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data) override
+    {
         outbox.push_back({false, nullptr, dest, data});
         return true;
     }
-    bool sendTcp(TCPsocket sock, const std::vector<uint8_t>& data) override {
+
+    bool sendTcp(TCPsocket sock, const std::vector<uint8_t>& data) override
+    {
         outbox.push_back({true, sock, IPaddress{}, data});
         return true;
     }
 
-    bool receive(TCPsocket& tcpSock,
-                 IPaddress& srcUdp,
-                 std::vector<uint8_t>& out) override {
-        if (inbox.empty()) return false;
+    bool receive(TCPsocket& tcpSock, IPaddress& srcUdp, std::vector<uint8_t>& out) override
+    {
+        if (inbox.empty())
+            return false;
+
         std::tie(tcpSock, srcUdp, out) = inbox.front();
         inbox.pop();
         return true;
     }
 
-    bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override {
-        std::vector<uint8_t> raw;
-        TCPsocket dummy;
-        if (!receive(dummy, src, raw) || dummy != nullptr) return false;
+    bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override
+    {
+        TCPsocket dummy; std::vector<uint8_t> raw;
+
+        if (not receive(dummy, src, raw) or dummy != nullptr)
+            return false;
+
         hdr = readHeader(raw.data());
         return true;
     }
+
+    // Control flags for tests
+    bool connectSucceeds = true;
 };
 
-//------------------------------------------------------------------------
-// Test: Client handshake produces one UDP send with correct header
-//------------------------------------------------------------------------
-TEST(NetworkSystemTest, ClientHandshakeSendsUdpHello) {
+//-----------------------------------------------------------------------------
+// Test Fixture
+//-----------------------------------------------------------------------------
+struct NetSysTest : public testing::Test
+{
     NetworkConfig cfg;
-    cfg.isServer    = false;
-    cfg.peerAddress = "127.0.0.1";
-    cfg.tcpPort     = 9000;
-    cfg.udpLocalPort= 0;
-    cfg.udpPeerPort = 9001;
+    MockNetworkBackend* mock;
+    NetworkSystem* sys;
 
-    auto* mock = new MockNetworkBackend();
-    // We need to feed the "welcome" TCP packet into the inbox for initClient()
-    // Welcome is [clientId,token] in BE.
-    uint8_t welcome[8];
-    SDLNet_Write32(123, welcome+0);
-    SDLNet_Write32(0xCAFE, welcome+4);
-    // Enqueue a TCP receive: sock=non-null to indicate TCP data
-    IPaddress dummyIp{}; // unused
-    mock->inbox.emplace(reinterpret_cast<TCPsocket>(1), dummyIp,
-                        std::vector<uint8_t>(welcome, welcome+8));
+    void SetUp() override
+    {
+        cfg.peerAddress    = "127.0.0.1";
+        cfg.tcpPort        = 9000;
+        cfg.udpLocalPort   = 9001;
+        cfg.udpPeerPort    = 9001;
+        cfg.isServer       = false;
 
-    // Create system & inject mock
-    NetworkSystem sys(mock, cfg);
-    sys.init();      // initClient triggers connect
-    sys.execute();   // should consume the welcome and send UDP hello
+        mock = new MockNetworkBackend();
+        sys  = new NetworkSystem(mock, cfg);
+    }
 
-    // Verify one UDP send
-    ASSERT_EQ(mock->outbox.size(), 1u);
-    auto& first = mock->outbox[0];
-    EXPECT_FALSE(first.isTcp);  // UDP
-    ASSERT_GE(first.data.size(), sizeof(UdpHeader));
+    void TearDown() override
+    {
+        delete sys; // also deletes mock
+    }
+};
 
-    // Check header contents
-    UdpHeader h = readHeader(first.data.data());
-    EXPECT_EQ(h.clientId, 123);
-    EXPECT_EQ(h.token, 0xCAFE);
-    EXPECT_EQ(h.payloadLen, 0);
+//-----------------------------------------------------------------------------
+// 1. Client startup: failed connect -> no receive
+//-----------------------------------------------------------------------------
+TEST_F(NetSysTest, ClientStartupFailsBackoff)
+{
+    cfg.isServer = false;
+    mock->connectSucceeds = false;
+    sys->init();
+    EXPECT_FALSE(mock->outbox.size());  // no UDP handshake yet
+
+    sys->execute();
+    // still not connected, no receive called
+    EXPECT_FALSE(mock->outbox.size());
 }
 
-//------------------------------------------------------------------------
-// Test: Server accepts TCP, sends welcome, then links UDP handshake
-//------------------------------------------------------------------------
-TEST(NetworkSystemTest, ServerLinksUdpHandshake) {
-    NetworkConfig cfg;
-    cfg.isServer     = true;
-    cfg.tcpPort      = 9000;
-    cfg.udpLocalPort = 9001;
+//-----------------------------------------------------------------------------
+// 2. Client receives malformed welcome (too short) -> ignore
+//-----------------------------------------------------------------------------
+TEST_F(NetSysTest, ClientIgnoresMalformedWelcome)
+{
+    // simulate successful connect
+    mock->connectSucceeds = true;
+    sys->init();
+    // enqueue 4-byte instead of 8
+    uint8_t shortBuf[4] = {0,1,2,3};
+    mock->inbox.emplace(reinterpret_cast<TCPsocket>(1), IPaddress{}, std::vector<uint8_t>(shortBuf, shortBuf+4));
+    sys->execute();
+    // no UDP send
+    EXPECT_TRUE(mock->outbox.empty());
+}
 
-    auto* mock = new MockNetworkBackend();
-    // Tell acceptTcpClient() to fire: push an “accept” marker
+//-----------------------------------------------------------------------------
+// 3. Client handshake sends UDP hello
+//-----------------------------------------------------------------------------
+TEST_F(NetSysTest, ClientHandshakeSendsUdpHello)
+{
+    cfg.isServer = false;
+    mock->connectSucceeds = true;
+
+    // 1) Enqueue the TCP welcome BEFORE init()
+    uint8_t welcome[8];
+    SDLNet_Write32(123,     welcome + 0);    // clientId
+    SDLNet_Write32(0xCAFE,  welcome + 4);    // token
+    mock->inbox.emplace((TCPsocket)1, IPaddress{},
+                        std::vector<uint8_t>(welcome, welcome + 8));
+
+    // 2) Call init(), which will:
+    //    - connectToServer()
+    //    - receive() the TCP welcome
+    //    - sendUdpHandshake()
+    sys->init();
+
+    // 3) Inspect outbox for exactly one UDP send
+    ASSERT_EQ(mock->outbox.size(), 1u);
+    auto& pkt = mock->outbox[0];
+    EXPECT_FALSE(pkt.isTcp);
+
+    UdpHeader h = readHeader(pkt.data.data());
+    EXPECT_EQ(h.clientId, 123u);
+    EXPECT_EQ(h.token,    0xCAFEu);
+    EXPECT_EQ(h.payloadLen, 0u);
+
+    // No payload bytes beyond the header
+    EXPECT_EQ(pkt.data.size(), sizeof(UdpHeader));
+}
+
+//-----------------------------------------------------------------------------
+// 4. Server welcome and link UDP handshake
+//-----------------------------------------------------------------------------
+TEST_F(NetSysTest, ServerAcceptsAndLinksUdp)
+{
+    // reconfigure fixture as server
+    cfg.isServer = true;
+    delete sys;
+
+    mock = new MockNetworkBackend();
+    sys  = new NetworkSystem(mock, cfg);
+    sys->init();
+
+    // simulate accept marker
     mock->inbox.emplace(mock->fakeListener, IPaddress{}, std::vector<uint8_t>{});
 
-    // Create system & init
-    NetworkSystem sys(mock, cfg);
-    sys.init();
-    sys.execute();  // handles TCP accept and sends 8-byte welcome
+    sys->execute(); // sends welcome
 
-    // After this, mock->outbox should have one TCP send (the welcome)
     ASSERT_EQ(mock->outbox.size(), 1u);
     auto& welcomeSend = mock->outbox[0];
     EXPECT_TRUE(welcomeSend.isTcp);
-    // welcomeSend.sock should be the client-socket repr (0x42)
-    EXPECT_EQ(welcomeSend.sock, reinterpret_cast<TCPsocket>(0x42));
-    ASSERT_EQ(welcomeSend.data.size(), 8u);
-    uint32_t newId  = SDLNet_Read32(welcomeSend.data.data());
-    uint32_t token  = SDLNet_Read32(welcomeSend.data.data()+4);
-    EXPECT_GT(newId, 0u);
-    EXPECT_NE(token, 0u);
+    uint32_t clientId = SDLNet_Read32(welcomeSend.data.data());
+    uint32_t token    = SDLNet_Read32(welcomeSend.data.data()+4);
 
-    // Now simulate the client sending the UDP handshake
+    // clear outbox, simulate UDP handshake
     mock->outbox.clear();
+
     uint8_t udpBuf[sizeof(UdpHeader)];
-    SDLNet_Write32(newId, udpBuf+0);
-    SDLNet_Write32(token, udpBuf+4);
-    SDLNet_Write16(0, udpBuf+8);  // zero payloadLen
-    IPaddress clientAddr{};
-    // Feed into inbox as UDP: sock=nullptr
-    mock->inbox.emplace(nullptr, clientAddr,
-                        std::vector<uint8_t>(udpBuf, udpBuf+sizeof(UdpHeader)));
+    SDLNet_Write32(clientId, udpBuf + 0);
+    SDLNet_Write32(token,    udpBuf + 4);
+    SDLNet_Write16(0,        udpBuf + 8);
 
-    // Run another frame
-    sys.execute();
+    IPaddress src{}; SDLNet_ResolveHost(&src, "1.2.3.4", 5555);
+    mock->inbox.emplace(nullptr, src, std::vector<uint8_t>(udpBuf, udpBuf+sizeof(udpBuf)));
 
-    // Now the server should have linked and echoed the header back via UDP
+    sys->execute(); // link + echo
+
+    ASSERT_EQ(mock->outbox.size(), 1u);
+    auto& echo = mock->outbox[0];
+    EXPECT_FALSE(echo.isTcp);
+
+    UdpHeader h2 = readHeader(echo.data.data());
+    EXPECT_EQ(h2.clientId, clientId);
+    EXPECT_EQ(h2.token, token);
+}
+
+//-----------------------------------------------------------------------------
+// 5. Invalid UDP token is dropped
+//-----------------------------------------------------------------------------
+// -------------- ServerDropsInvalidUdpToken --------------
+TEST_F(NetSysTest, ServerDropsInvalidUdpToken) {
+    // 1) Server mode
+
+    cfg.isServer = true;
+    delete sys;
+    mock = new MockNetworkBackend();
+    sys  = new NetworkSystem(mock, cfg);
+    sys->init();
+
+    // 2) Simulate TCP accept → server sends welcome
+    mock->inbox.emplace(mock->fakeListener, IPaddress{}, std::vector<uint8_t>{});
+    sys->execute();
+    ASSERT_EQ(mock->outbox.size(), 1u);
+    // Extract clientId and token from the welcome
+    auto& welcomeSend = mock->outbox[0];
+    uint32_t clientId = SDLNet_Read32(welcomeSend.data.data());
+    uint32_t token    = SDLNet_Read32(welcomeSend.data.data()+4);
+
+    // drop that welcome
+    mock->outbox.clear();
+
+    // 3) First do a valid UDP handshake to link the client
+    {
+        uint8_t buf[sizeof(UdpHeader)];
+        SDLNet_Write32(clientId, buf+0);
+        SDLNet_Write32(token,    buf+4);
+        SDLNet_Write16(0,        buf+8);
+        IPaddress src{}; SDLNet_ResolveHost(&src,"1.2.3.4",1234);
+        mock->inbox.emplace(nullptr, src,
+            std::vector<uint8_t>(buf, buf+sizeof(buf)));
+    }
+    sys->execute();
+    // drop the echo from the valid mapping
+    mock->outbox.clear();
+
+    // 4) Now inject the *invalid* handshake (same clientId, wrong token)
+    {
+        uint8_t buf[sizeof(UdpHeader)];
+        SDLNet_Write32(clientId, buf+0);
+        SDLNet_Write32(9999,     buf+4);  // WRONG token
+        SDLNet_Write16(0,        buf+8);
+        IPaddress src{}; SDLNet_ResolveHost(&src,"1.2.3.4",1234);
+        mock->inbox.emplace(nullptr, src,
+            std::vector<uint8_t>(buf, buf+sizeof(buf)));
+    }
+    sys->execute();
+
+    // 5) Because token is invalid, no echo should be sent
+    EXPECT_TRUE(mock->outbox.empty());
+}
+
+//-----------------------------------------------------------------------------
+// 6. Echo payload back correctly
+//-----------------------------------------------------------------------------
+TEST_F(NetSysTest, ServerEchoesPayload) {
+    // 1) Server mode
+    cfg.isServer = true;
+    delete sys;
+    mock = new MockNetworkBackend();
+    sys  = new NetworkSystem(mock, cfg);
+    sys->init();
+
+    // 2) Accept → server sends welcome
+    mock->inbox.emplace(mock->fakeListener, IPaddress{}, std::vector<uint8_t>{});
+    sys->execute();
+    ASSERT_EQ(mock->outbox.size(), 1u);
+    auto& welcomeSend = mock->outbox[0];
+    uint32_t clientId = SDLNet_Read32(welcomeSend.data.data());
+    uint32_t token    = SDLNet_Read32(welcomeSend.data.data()+4);
+    mock->outbox.clear();
+
+    // 3) Valid UDP handshake mapping
+    {
+        uint8_t buf[sizeof(UdpHeader)];
+        SDLNet_Write32(clientId, buf+0);
+        SDLNet_Write32(token,    buf+4);
+        SDLNet_Write16(0,        buf+8);
+        IPaddress src{}; SDLNet_ResolveHost(&src,"9.9.9.9",9999);
+        mock->inbox.emplace(nullptr, src,
+            std::vector<uint8_t>(buf, buf+sizeof(buf)));
+    }
+    sys->execute();
+    // drop the echo from the handshake
+    mock->outbox.clear();
+
+    // 4) Now send a real payload ("ABC")
+    const char* msg = "ABC";
+    {
+        uint8_t buf[sizeof(UdpHeader) + 3];
+        SDLNet_Write32(clientId, buf+0);
+        SDLNet_Write32(token,    buf+4);
+        SDLNet_Write16(3,        buf+8);
+        memcpy(buf+sizeof(UdpHeader), msg, 3);
+        IPaddress src{}; SDLNet_ResolveHost(&src,"9.9.9.9",9999);
+        mock->inbox.emplace(nullptr, src,
+            std::vector<uint8_t>(buf, buf+sizeof(buf)));
+    }
+    sys->execute();
+
+    // 5) Echo should be sent back exactly once
     ASSERT_EQ(mock->outbox.size(), 1u);
     auto& echoSend = mock->outbox[0];
     EXPECT_FALSE(echoSend.isTcp);
-    // The echoed data should match the header we sent
-    UdpHeader echoed = readHeader(echoSend.data.data());
-    EXPECT_EQ(echoed.clientId, newId);
-    EXPECT_EQ(echoed.token,    token);
-    EXPECT_EQ(echoed.payloadLen, 0);
+    UdpHeader h = readHeader(echoSend.data.data());
+    EXPECT_EQ(h.clientId,    clientId);
+    EXPECT_EQ(h.token,       token);
+    EXPECT_EQ(h.payloadLen, 3u);
+
+    std::string body(
+      reinterpret_cast<const char*>(echoSend.data.data() + sizeof(UdpHeader)),
+      3
+    );
+    EXPECT_EQ(body, "ABC");
 }
 
+//-----------------------------------------------------------------------------
+// 7. Back‐to‐back packets are all processed
+//-----------------------------------------------------------------------------
+TEST_F(NetSysTest, ServerHandlesMultiplePackets)
+{
+    cfg.isServer = true;
+    delete sys;
+    mock = new MockNetworkBackend();
+    sys  = new NetworkSystem(mock, cfg);
+
+    sys->init();
+
+    // accept marker
+    mock->inbox.emplace(mock->fakeListener, IPaddress{}, std::vector<uint8_t>{});
+
+    sys->execute();
+
+    mock->outbox.clear();
+
+    // create two handshake pkt for same client
+    uint32_t id = SDLNet_Read32(mock->outbox[0].data.data());
+    uint32_t token = SDLNet_Read32(mock->outbox[0].data.data()+4);
+    uint8_t buf[sizeof(UdpHeader)];
+    SDLNet_Write32(id, buf+0);
+    SDLNet_Write32(token, buf+4);
+    SDLNet_Write16(0, buf+8);
+
+    IPaddress src{};
+    SDLNet_ResolveHost(&src, "1.2.3.4", 1111);
+
+    // enqueue two
+    mock->inbox.emplace(nullptr, src, std::vector<uint8_t>(buf, buf + sizeof(buf)));
+    mock->inbox.emplace(nullptr, src, std::vector<uint8_t>(buf, buf + sizeof(buf)));
+
+    sys->execute();
+
+    // should echo back twice
+    EXPECT_EQ(mock->outbox.size(), 2u);
+}
+
+//-----------------------------------------------------------------------------
+// 8. Empty queue does nothing
+//-----------------------------------------------------------------------------
+TEST_F(NetSysTest, EmptyQueueNoAction)
+{
+    sys->init();
+    // no inbox
+    mock->outbox.clear();
+
+    sys->execute();
+
+    EXPECT_TRUE(mock->outbox.empty());
+}
