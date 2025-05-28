@@ -172,7 +172,19 @@ namespace pg
             if (overTcp)
                 backend->sendTcp(_clients[_idToTcp[_myClientId]].tcpSock, data);
             else
-                backend->sendUdp(_clients[_idToTcp[_myClientId]].udpAddr, data);
+            {
+                std::vector<uint8_t> data(sizeof(UdpHeader));
+                UdpHeader h{_myClientId, _myToken, 0};
+
+                writeHeader(data.data(), h);
+
+                // send with zero‐length payload
+                IPaddress dest{};
+                SDLNet_ResolveHost(&dest, netCfg.peerAddress.c_str(), netCfg.udpPeerPort);
+
+                backend->sendUdp(dest, data);
+            }
+                // backend->sendUdp(_clients[_idToTcp[_myClientId]].udpAddr, data);
         }
 
         // ----- Per-frame logic -----
@@ -206,17 +218,22 @@ namespace pg
 
             while (backend->receive(sock, udpSrc, pkt))
             {
+                LOG_INFO("NetSys", "Got Packet");
+
                 if (sock)
                 {
                     // handle any future TCP messages…
                 }
                 else
                 {
+
                     // UDP packet => header + optional payload
                     if (pkt.size() < sizeof(UdpHeader))
                         continue;
 
                     UdpHeader h = readHeader(pkt.data());
+
+                    LOG_INFO("NetSys", "Got UDP packet from client " << h.clientId);
 
                     auto it = _idToTcp.find(h.clientId);
                     if (it ==_idToTcp.end())
@@ -235,7 +252,7 @@ namespace pg
                         auto key = ipPortKey(udpSrc);
                         _udpClientMap[key] = ci.clientId;
 
-                        LOG_INFO("NetSys","Linked UDP for client " << ci.clientId);
+                        LOG_INFO("NetSys", "Linked UDP for client " << ci.clientId);
                     }
 
                     // echo back header

@@ -41,6 +41,27 @@ void initWindow(const std::string &appName)
     initialized = true;
 }
 
+struct TestSystem : public System<Listener<TickEvent>>
+{
+    float deltaTime = 0.0f;
+
+    virtual void onEvent(const TickEvent& event) override
+    {
+        deltaTime += event.tick;
+    }
+
+    virtual void execute() override
+    {
+        if (deltaTime >= 1000.0f)
+        {
+            LOG_INFO("Event", "Sending data to server");
+            ecsRef->sendEvent(SendDataToServer{std::vector<uint8_t>(1, 42), false});
+
+            deltaTime = 0.0f;
+        }
+    }
+};
+
 void initGame(int argc, char** argv)
 {
     printf("Initializing engine ...\n");
@@ -92,6 +113,11 @@ void initGame(int argc, char** argv)
     auto *backend = new SdlNetworkBackend(netCfg);
 
     mainWindow->ecs.createSystem<NetworkSystem>(backend, netCfg);
+
+    if (not isServer)
+    {
+        mainWindow->ecs.createSystem<TestSystem>();
+    }
 
     // SDL_Quit();
 
