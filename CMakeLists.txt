@@ -362,10 +362,11 @@ else()
 
     add_executable(SimpleClientServer exemples/SimpleClientServer/main.cpp)
 
-    target_include_directories(SimpleClientServer PUBLIC exemples/SimpleClientServer)
+
 
     target_sources(SimpleClientServer PRIVATE
         exemples/SimpleClientServer/application.cpp
+        exemples/SimpleClientServer/Networking/sdl_backend.cpp
     )
 
     target_link_libraries(SimpleClientServer PRIVATE PgEngineSrc)
@@ -415,6 +416,7 @@ else()
         test/filemanager.cc
         test/interpreter.cc
         test/layout.cc
+        test/network.cc
         # test/mock2dsimpleshape.h
         # test/simple2dobject.cc
         test/position.cc
