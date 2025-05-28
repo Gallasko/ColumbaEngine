@@ -16,7 +16,7 @@ struct NetworkConfig {
     uint16_t    udpPeerPort    = 0;             // where to send UDP packets (server port)
 
     // --- TCP fallback (reliable) ---
-    bool        tcpEnabled     = false;
+    bool        tcpEnabled     = true;
     uint16_t    tcpPort        = 0;             // port to bind/connect TCP
 
     // --- Default flags for all net‐systems ---
