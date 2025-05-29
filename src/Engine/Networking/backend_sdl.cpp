@@ -109,6 +109,11 @@ namespace pg
         return true;
     }
 
+    bool SdlNetworkBackend::sendTcp(const std::vector<uint8_t>& data)
+    {
+        return sendTcp(_tcpSock, data);
+    }
+
     bool SdlNetworkBackend::sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data)
     {
         if (!_udpPkt)

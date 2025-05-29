@@ -73,9 +73,9 @@ namespace pg
         float deltaTime = 0.0f;
 
         // Server state
-        std::unordered_map<TCPsocket,ClientInfo> clients;
-        std::unordered_map<uint32_t,TCPsocket>   idToTcp;
-        std::unordered_map<std::string,uint32_t> _udpClientMap;
+        std::unordered_map<TCPsocket, ClientInfo> clients;
+        std::unordered_map<uint32_t, TCPsocket>   idToTcp;
+        std::unordered_map<std::string, uint32_t> _udpClientMap;
         uint32_t nextClientId = 1;
 
         // Client state
@@ -153,7 +153,10 @@ namespace pg
         void sendToServer(const std::vector<uint8_t>& data, bool overTcp)
         {
             if (overTcp)
-                backend->sendTcp(clients[idToTcp[_myClientId]].tcpSock, data);
+            {
+                backend->sendTcp(data);
+            }
+                // backend->sendTcp(clients[idToTcp[_myClientId]].tcpSock, data);
             else
             {
                 std::vector<uint8_t> data(sizeof(UdpHeader));

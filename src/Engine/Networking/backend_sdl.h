@@ -24,6 +24,7 @@ namespace pg
         // Send raw data
         bool sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data) override;
         bool sendTcp(TCPsocket sock, const std::vector<uint8_t>& data) override;
+        bool sendTcp(const std::vector<uint8_t>& data) override;
 
         // Receive exactly one packet: either UDP or TCP (non-blocking)
         //  - If you get a UDP packet, tcpSock=nullptr and srcUdp is set.

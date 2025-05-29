@@ -55,7 +55,7 @@ struct TestSystem : public System<Listener<TickEvent>>
         if (deltaTime >= 1000.0f)
         {
             LOG_INFO("Event", "Sending data to server");
-            ecsRef->sendEvent(SendDataToServer{std::vector<uint8_t>(1, 42), false});
+            ecsRef->sendEvent(SendDataToServer{std::vector<uint8_t>(1, 42), true});
 
             deltaTime = 0.0f;
         }

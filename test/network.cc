@@ -59,6 +59,13 @@ public:
         return true;
     }
 
+    bool sendTcp(const std::vector<uint8_t>& data) override
+    {
+        // Todo
+        // outbox.push_back({true, sock, IPaddress{}, data});
+        return true;
+    }
+
     bool receive(TCPsocket& tcpSock, IPaddress& srcUdp, std::vector<uint8_t>& out) override
     {
         if (inbox.empty())

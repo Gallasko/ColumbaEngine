@@ -24,6 +24,7 @@ namespace pg
         // Send raw packet (header+payload)
         virtual bool sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data) = 0;
         virtual bool sendTcp(TCPsocket sock, const std::vector<uint8_t>& data) = 0;
+        virtual bool sendTcp(const std::vector<uint8_t>& data) = 0;
 
         // Poll for incoming packets
         //   If tcpSock!=nullptr, it reads exactly one TCP packet (or returns false)
