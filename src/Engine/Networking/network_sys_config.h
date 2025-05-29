@@ -9,6 +9,7 @@ namespace pg
         bool networked             = false;  // should this system participate in NetSystem?
         bool reliableChannel       = false;  // use reliable (TCP) vs. unreliable (UDP)
         float updateRateHz         = 60.0f;  // desired tick rate (for throttling sends)
+        size_t socketSetSize       = 16;     // size of the socket set for SDLNet (default 16)
     };
 
     // Per-system configuration container

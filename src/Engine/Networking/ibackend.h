@@ -21,6 +21,9 @@ namespace pg
         // Client-side: try to connect; return true on success
         virtual bool connectToServer() = 0;
 
+        bool _isConnectedToServer = false;
+        inline bool isConnectedToServer() const { return _isConnectedToServer; }
+
         // Send raw packet (header+payload)
         virtual bool sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data) = 0;
         virtual bool sendTcp(TCPsocket sock, const std::vector<uint8_t>& data) = 0;

@@ -84,7 +84,9 @@ namespace pg
         if (not _udpSock)
             return false;
 
-        return SDLNet_TCP_AddSocket(sockSet, _tcpSock) != -1;
+        _isConnectedToServer = SDLNet_TCP_AddSocket(sockSet, _tcpSock) != -1;
+
+        return _isConnectedToServer;
     }
 
     bool SdlNetworkBackend::sendTcp(TCPsocket sock, const std::vector<uint8_t>& data)
@@ -111,7 +113,10 @@ namespace pg
 
     bool SdlNetworkBackend::sendTcp(const std::vector<uint8_t>& data)
     {
-        return sendTcp(_tcpSock, data);
+        if (_isConnectedToServer)
+            return sendTcp(_tcpSock, data);
+        else
+            return false;
     }
 
     bool SdlNetworkBackend::sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data)
@@ -161,7 +166,6 @@ namespace pg
         // 2) Try TCP (non-blocking)
         if (_tcpSock and SDLNet_SocketReady(_tcpSock))
         {
-            LOG_INFO(DOM, "Looking for tcp");
             // peek a chunk
             char buf[4096];
             int rec = SDLNet_TCP_Recv(_tcpSock, buf, sizeof(buf));
@@ -170,6 +174,14 @@ namespace pg
                 out.assign((uint8_t*)buf, (uint8_t*)buf + rec);
                 tcpSock = _tcpSock;
                 return true;
+            }
+            else
+            {
+                SDLNet_TCP_DelSocket(sockSet, _tcpSock);
+                SDLNet_TCP_Close(_tcpSock);
+                _tcpSock = nullptr;
+                _isConnectedToServer = false;
+                LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
             }
         }
 

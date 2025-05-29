@@ -76,7 +76,9 @@ namespace pg
         std::unordered_map<TCPsocket, ClientInfo> clients;
         std::unordered_map<uint32_t, TCPsocket>   idToTcp;
         std::unordered_map<std::string, uint32_t> _udpClientMap;
-        uint32_t nextClientId = 1;
+
+        std::vector<SDLNet_SocketSet>             sockSets;
+        uint32_t nextClientId = 0;
 
         // Client state
         uint32_t _myClientId = 0;
@@ -179,6 +181,24 @@ namespace pg
             // 1) Accept new TCP clients
             if (auto newSock = backend->acceptTcpClient())
             {
+                size_t setId = std::floor(nextClientId / netCfg.defaultSystemFlags.socketSetSize);
+
+                if (setId >= sockSets.size())
+                {
+                    auto newSet = SDLNet_AllocSocketSet(netCfg.defaultSystemFlags.socketSetSize);
+
+                    if (newSet)
+                    {
+                        sockSets.push_back(newSet);
+                        LOG_INFO("NetSys", "Created socket set " << sockSets.size() - 1);
+                    }
+                    else
+                    {
+                        LOG_WARNING("NetSys", "Failed to create socket set");
+                        return;
+                    }
+                }
+
                 ClientInfo ci;
                 ci.tcpSock  = newSock;
                 ci.clientId = nextClientId++;
@@ -186,6 +206,8 @@ namespace pg
 
                 clients[newSock] = ci;
                 idToTcp[ci.clientId] = newSock;
+
+                SDLNet_TCP_AddSocket(sockSets[setId], newSock);
 
                 // send welcome
                 std::vector<uint8_t> w(8);
@@ -205,6 +227,11 @@ namespace pg
             TCPsocket  sock;
             IPaddress  udpSrc;
             std::vector<uint8_t> pkt;
+
+            for (auto sockSet : sockSets)
+            {
+                SDLNet_CheckSockets(sockSet, 0);
+            }
 
             while (backend->receive(sock, udpSrc, pkt))
             {
@@ -330,6 +357,8 @@ namespace pg
                     }
                 }
             }
+
+            clientConnected = backend->isConnectedToServer();
         }
     };
 
