@@ -138,41 +138,32 @@ namespace pg
 
         void sendUdpHandshake()
         {
-            // build packet
-            std::vector<uint8_t> data(sizeof(UdpHeader));
-            UdpHeader h{_myClientId, _myToken, 0};
-
-            writeHeader(data.data(), h);
+            auto pkt = makePacket(_myClientId, _myToken, NetMsgType::Handshake, {0});
 
             // send with zero‐length payload
             IPaddress dest{};
             SDLNet_ResolveHost(&dest, netCfg.peerAddress.c_str(), netCfg.udpPeerPort);
 
-            backend->sendUdp(dest, data);
+            backend->sendUdp(dest, pkt);
             LOG_INFO("NetSys", "UDP handshake sent");
         }
 
         void sendToServer(const std::vector<uint8_t>& data, bool overTcp)
         {
+            auto pkt = makePacket(_myClientId, _myToken, NetMsgType::Custom, data);
+
             if (overTcp)
             {
-                backend->sendTcp(data);
+                backend->sendTcp(pkt);
             }
-                // backend->sendTcp(clients[idToTcp[_myClientId]].tcpSock, data);
             else
             {
-                std::vector<uint8_t> data(sizeof(UdpHeader));
-                UdpHeader h{_myClientId, _myToken, 0};
-
-                writeHeader(data.data(), h);
-
                 // send with zero‐length payload
                 IPaddress dest{};
                 SDLNet_ResolveHost(&dest, netCfg.peerAddress.c_str(), netCfg.udpPeerPort);
 
-                backend->sendUdp(dest, data);
+                backend->sendUdp(dest, pkt);
             }
-                // backend->sendUdp(clients[idToTcp[_myClientId]].udpAddr, data);
         }
 
         // ----- Per-frame logic -----
@@ -213,12 +204,10 @@ namespace pg
                 SDLNet_TCP_AddSocket(sockSets[setId], newSock);
 
                 // send welcome
-                std::vector<uint8_t> w(8);
 
-                SDLNet_Write32(ci.clientId, w.data());
-                SDLNet_Write32(ci.token,    w.data() + 4);
+                auto pkt = makePacket(ci.clientId, ci.token, NetMsgType::Connect, {0});
 
-                if (backend->sendTcp(newSock, w))
+                if (backend->sendTcp(newSock, pkt))
                 {
                     LOG_INFO("NetSys", "Sent client Id and Token to the client: " << ci.clientId << " " << ci.token);
                 }
@@ -244,12 +233,29 @@ namespace pg
                 while (backend->receiveTcp(ci.tcpSock, set, data, tcpClosed))
                 {
                     LOG_INFO("NetSys", "Received TCP request from client: " << ci.clientId);
+
+                    ParsedPacket pkt;
+
+                    if (parsePacket(data, pkt))
+                    {
+                        LOG_INFO("NetSys", "Parsed packet from client: " << ci.clientId);
+                        // Todo here check if the pkt token is correct
+
+                        std::string str(pkt.payload.begin(), pkt.payload.end());
+
+                        LOG_INFO("NetSys", "Received over tcp: " << str);
+                    }
+                    else
+                    {
+                        LOG_WARNING("NetSys", "Failed to parse packet");
+                    }
                 }
             }
 
             // Process Udp data
             IPaddress ip;
             std::vector<uint8_t> data;
+
             while (backend->receiveUdp(ip, data))
             {
                 LOG_INFO("NetSys", "Received UDP request from ip: " << ipPortKey(ip));

@@ -55,7 +55,13 @@ struct TestSystem : public System<Listener<TickEvent>>
         if (deltaTime >= 1000.0f)
         {
             LOG_INFO("Event", "Sending data to server");
-            ecsRef->sendEvent(SendDataToServer{std::vector<uint8_t>(1, 42), true});
+
+            std::string str = "Hello world ! That is reeeeeaaaaaaly reeeeeeaaalllly loong that will ovesize the actual tcp buffer data of our system to see if it is actually capable of handling realllly long input because otherwise it will be definitly impossible to see this if it is not correctly cut into smaller chunks !";
+            std::vector<uint8_t> vec(str.begin(), str.end());
+
+            LOG_INFO("Event", "Data size: " << vec.size());
+
+            ecsRef->sendEvent(SendDataToServer{vec, true});
 
             deltaTime = 0.0f;
         }
