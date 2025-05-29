@@ -3,11 +3,23 @@
 #include <SDL_net.h>
 #include <cstring>
 
+#include "logger.h"
+
 namespace pg
 {
+    namespace
+    {
+        inline constexpr const char * const DOM = "Backend SDL";
+    }
 
     SdlNetworkBackend::SdlNetworkBackend(const NetworkConfig& cfg) : _cfg(cfg)
     {
+        sockSet = SDLNet_AllocSocketSet(2);
+        if (not sockSet)
+        {
+            LOG_ERROR(DOM, "Socket set couldn't be created !");
+        }
+
         // Only set up server listener sockets here; client will connect in connectToServer()
         if (_cfg.isServer)
         {
@@ -15,6 +27,9 @@ namespace pg
             IPaddress addr{};
             SDLNet_ResolveHost(&addr, nullptr, _cfg.tcpPort);
             _listener = SDLNet_TCP_Open(&addr);
+
+            if (sockSet)
+                SDLNet_TCP_AddSocket(sockSet, _listener);
 
             // UDP socket
             _udpSock = SDLNet_UDP_Open(_cfg.udpLocalPort);
@@ -26,6 +41,9 @@ namespace pg
 
     SdlNetworkBackend::~SdlNetworkBackend()
     {
+        if (sockSet)
+            SDLNet_FreeSocketSet(sockSet);
+
         if (_listener)
             SDLNet_TCP_Close(_listener);
 
@@ -63,9 +81,10 @@ namespace pg
 
         // Open UDP on local port (0 = ephemeral)
         _udpSock = SDLNet_UDP_Open(_cfg.udpLocalPort);
+        if (not _udpSock)
+            return false;
 
-        // Remember peer for sendUdp if needed
-        return _udpSock != nullptr;
+        return SDLNet_TCP_AddSocket(sockSet, _tcpSock) != -1;
     }
 
     bool SdlNetworkBackend::sendTcp(TCPsocket sock, const std::vector<uint8_t>& data)
@@ -106,7 +125,19 @@ namespace pg
 
     bool SdlNetworkBackend::receive(TCPsocket& tcpSock,
                                     IPaddress& srcUdp,
-                                    std::vector<uint8_t>& out) {
+                                    std::vector<uint8_t>& out)
+    {
+
+        if (sockSet)
+        {
+            auto nbSocketReady = SDLNet_CheckSockets(sockSet, 0);
+
+            if (nbSocketReady <= 0)
+            {
+                // LOG_INFO(DOM, "No data to read");
+            }
+        }
+
         // 1) Try UDP (non-blocking)
         if (_udpSock)
         {
@@ -125,6 +156,7 @@ namespace pg
         // 2) Try TCP (non-blocking)
         if (_tcpSock and SDLNet_SocketReady(_tcpSock))
         {
+            LOG_INFO(DOM, "Looking for tcp");
             // peek a chunk
             char buf[4096];
             int rec = SDLNet_TCP_Recv(_tcpSock, buf, sizeof(buf));

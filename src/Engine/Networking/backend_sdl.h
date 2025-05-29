@@ -46,6 +46,8 @@ namespace pg
         // Shared receive buffer
         UDPpacket*      _udpPkt   = nullptr;
 
+        SDLNet_SocketSet sockSet  = nullptr;
+
         // Internal helpers
         UDPpacket* allocUdpPacket();
     };

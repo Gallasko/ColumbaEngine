@@ -73,16 +73,17 @@ namespace pg
         float deltaTime = 0.0f;
 
         // Server state
-        std::unordered_map<TCPsocket,ClientInfo> _clients;
-        std::unordered_map<uint32_t,TCPsocket>   _idToTcp;
+        std::unordered_map<TCPsocket,ClientInfo> clients;
+        std::unordered_map<uint32_t,TCPsocket>   idToTcp;
         std::unordered_map<std::string,uint32_t> _udpClientMap;
-        uint32_t _nextClientId = 1;
+        uint32_t nextClientId = 1;
 
         // Client state
         uint32_t _myClientId = 0;
         uint32_t _myToken    = 0;
         bool     clientConnected  = false;
         float    timeSinceFail = 0.0f;
+        bool waitingForServerId = false;
 
         // Utilities
         uint32_t genToken()
@@ -130,25 +131,7 @@ namespace pg
                 }
             }
 
-            // receive welcome <id, token> over TCP
-            TCPsocket sock;
-            IPaddress udpSrc; // ignored for TCP
-            std::vector<uint8_t> buf;
-
-            if (backend->receive(sock, udpSrc, buf) && sock != nullptr)
-            {
-                // We got data on our TCP socket
-                if (buf.size() >= 8)
-                {
-                    _myClientId = SDLNet_Read32(buf.data());
-                    _myToken    = SDLNet_Read32(buf.data() + 4);
-
-                    LOG_INFO("NetSys", "Received id=" << _myClientId << " token=" << _myToken);
-
-                    // Send the UDP handshake now that we have id + token
-                    sendUdpHandshake();
-                }
-            }
+            waitingForServerId = true;
         }
 
         void sendUdpHandshake()
@@ -170,7 +153,7 @@ namespace pg
         void sendToServer(const std::vector<uint8_t>& data, bool overTcp)
         {
             if (overTcp)
-                backend->sendTcp(_clients[_idToTcp[_myClientId]].tcpSock, data);
+                backend->sendTcp(clients[idToTcp[_myClientId]].tcpSock, data);
             else
             {
                 std::vector<uint8_t> data(sizeof(UdpHeader));
@@ -184,7 +167,7 @@ namespace pg
 
                 backend->sendUdp(dest, data);
             }
-                // backend->sendUdp(_clients[_idToTcp[_myClientId]].udpAddr, data);
+                // backend->sendUdp(clients[idToTcp[_myClientId]].udpAddr, data);
         }
 
         // ----- Per-frame logic -----
@@ -195,11 +178,11 @@ namespace pg
             {
                 ClientInfo ci;
                 ci.tcpSock  = newSock;
-                ci.clientId = _nextClientId++;
+                ci.clientId = nextClientId++;
                 ci.token    = genToken();
 
-                _clients[newSock] = ci;
-                _idToTcp[ci.clientId] = newSock;
+                clients[newSock] = ci;
+                idToTcp[ci.clientId] = newSock;
 
                 // send welcome
                 std::vector<uint8_t> w(8);
@@ -207,7 +190,11 @@ namespace pg
                 SDLNet_Write32(ci.clientId, w.data());
                 SDLNet_Write32(ci.token,    w.data() + 4);
 
-                backend->sendTcp(newSock, w);
+                if (backend->sendTcp(newSock, w))
+                {
+                    LOG_INFO("NetSys", "Sent client Id and Token to the client: " << ci.clientId << " " << ci.token);
+                }
+
                 LOG_INFO("NetSys", "New client " << ci.clientId);
             }
 
@@ -223,6 +210,8 @@ namespace pg
                 if (sock)
                 {
                     // handle any future TCP messages…
+
+                    LOG_INFO("NetSys", "Got TCP packet from a client");
                 }
                 else
                 {
@@ -235,11 +224,11 @@ namespace pg
 
                     LOG_INFO("NetSys", "Got UDP packet from client " << h.clientId);
 
-                    auto it = _idToTcp.find(h.clientId);
-                    if (it ==_idToTcp.end())
+                    auto it = idToTcp.find(h.clientId);
+                    if (it == idToTcp.end())
                         continue;
 
-                    auto& ci = _clients[it->second];
+                    auto& ci = clients[it->second];
                     if (ci.token != h.token)
                         continue;
 
@@ -281,12 +270,42 @@ namespace pg
                 return;
             }
 
+            if (waitingForServerId)
+            {
+                // LOG_INFO("NetSys", "Waiting for server id");
+
+                // receive welcome <id, token> over TCP
+                TCPsocket sock;
+                IPaddress udpSrc; // ignored for TCP
+                std::vector<uint8_t> buf;
+
+                while (backend->receive(sock, udpSrc, buf))
+                {
+                    LOG_INFO("NetSys", "Received packet for server");
+                    if (sock != nullptr and buf.size() >= 8)
+                    {
+                        _myClientId = SDLNet_Read32(buf.data());
+                        _myToken    = SDLNet_Read32(buf.data() + 4);
+
+                        waitingForServerId = false;
+
+                        LOG_INFO("NetSys", "Received id=" << _myClientId << " token=" << _myToken);
+
+                        // Send the UDP handshake now that we have id + token
+                        sendUdpHandshake();
+                    }
+                }
+            }
+
+            if (waitingForServerId)
+                return;
+
             TCPsocket sock;
             IPaddress udpSrc;
             std::vector<uint8_t> pkt;
 
             // backend->receive returns one packet at a time
-            if (backend->receive(sock, udpSrc, pkt))
+            while (backend->receive(sock, udpSrc, pkt))
             {
                 if (sock != nullptr)
                 {
