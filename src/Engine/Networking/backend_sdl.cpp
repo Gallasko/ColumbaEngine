@@ -121,7 +121,7 @@ namespace pg
 
     bool SdlNetworkBackend::sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data)
     {
-        if (!_udpPkt)
+        if (not _udpPkt)
             return false;
 
         // prepare packet
@@ -181,6 +181,80 @@ namespace pg
                 SDLNet_TCP_Close(_tcpSock);
                 _tcpSock = nullptr;
                 _isConnectedToServer = false;
+                LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
+            }
+        }
+
+        return false;
+    }
+
+    bool SdlNetworkBackend::receiveUdp(IPaddress& srcUdp, std::vector<uint8_t>& out)
+    {
+        if (_udpSock)
+        {
+            UDPpacket* pkt = _udpPkt;
+
+            if (SDLNet_UDP_Recv(_udpSock, pkt) > 0)
+            {
+                srcUdp = pkt->address;
+                out.assign(pkt->data, pkt->data + pkt->len);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    bool SdlNetworkBackend::receiveTcp(TCPsocket& tcpSock, const SDLNet_SocketSet& socketSet, std::vector<uint8_t>& out, bool& socketClosed)
+    {
+        if (tcpSock and SDLNet_SocketReady(tcpSock))
+        {
+            // peek a chunk
+            char buf[4096];
+            int rec = SDLNet_TCP_Recv(tcpSock, buf, sizeof(buf));
+
+            if (rec > 0)
+            {
+                out.assign((uint8_t*)buf, (uint8_t*)buf + rec);
+
+                return true;
+            }
+            else
+            {
+                SDLNet_TCP_DelSocket(socketSet, tcpSock);
+                SDLNet_TCP_Close(tcpSock);
+
+                tcpSock = nullptr;
+                socketClosed = false;
+                LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
+            }
+        }
+
+        return false;
+    }
+
+    bool SdlNetworkBackend::receiveTcp(std::vector<uint8_t>& out, bool& socketClosed)
+    {
+        if (_tcpSock and SDLNet_SocketReady(_tcpSock))
+        {
+            // peek a chunk
+            char buf[4096];
+            int rec = SDLNet_TCP_Recv(_tcpSock, buf, sizeof(buf));
+            if (rec > 0)
+            {
+                out.assign((uint8_t*)buf, (uint8_t*)buf + rec);
+
+                return true;
+            }
+            else
+            {
+                SDLNet_TCP_DelSocket(sockSet, _tcpSock);
+                SDLNet_TCP_Close(_tcpSock);
+
+                _tcpSock = nullptr;
+                _isConnectedToServer = false;
+
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
             }
         }

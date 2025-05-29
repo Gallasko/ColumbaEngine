@@ -34,6 +34,10 @@ namespace pg
         //   If tcpSock==nullptr, it reads one UDP packet (keeping sourceAddr).
         virtual bool receive(TCPsocket& tcpSock, IPaddress& srcUdp, std::vector<uint8_t>& out) = 0;
 
+        virtual bool receiveUdp(IPaddress& srcUdp, std::vector<uint8_t>& out) = 0;
+        virtual bool receiveTcp(TCPsocket& tcpSock, const SDLNet_SocketSet& socketSet, std::vector<uint8_t>& out, bool& socketClosed) = 0;
+        virtual bool receiveTcp(std::vector<uint8_t>& out, bool& socketClosed) = 0;
+
         // Helpers to pull out your UDP header types
         virtual bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) = 0;
     };

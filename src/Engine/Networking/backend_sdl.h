@@ -31,6 +31,10 @@ namespace pg
         //  - If you get a TCP packet, tcpSock is the socket and srcUdp is untouched.
         bool receive(TCPsocket& tcpSock, IPaddress& srcUdp, std::vector<uint8_t>& out) override;
 
+        virtual bool receiveUdp(IPaddress& srcUdp, std::vector<uint8_t>& out) override;
+        virtual bool receiveTcp(TCPsocket& tcpSock, const SDLNet_SocketSet& socketSet, std::vector<uint8_t>& out, bool& socketClosed) override;
+        virtual bool receiveTcp(std::vector<uint8_t>& out, bool& socketClosed) override;
+
         // Helper: just read one UDP header into hdr and src
         bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override;
 

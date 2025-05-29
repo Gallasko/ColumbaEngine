@@ -11,6 +11,7 @@ namespace pg
 {
     struct ClientInfo
     {
+        size_t       tcpSetID   = 0;
         TCPsocket    tcpSock    = nullptr;
         uint32_t     clientId   = 0;
         uint32_t     token      = 0;
@@ -46,7 +47,6 @@ namespace pg
             if (backend)
                 delete backend;
         }
-
 
         virtual void init() override
         {
@@ -200,12 +200,15 @@ namespace pg
                 }
 
                 ClientInfo ci;
+                ci.tcpSetID = setId;
                 ci.tcpSock  = newSock;
                 ci.clientId = nextClientId++;
                 ci.token    = genToken();
 
                 clients[newSock] = ci;
                 idToTcp[ci.clientId] = newSock;
+
+                LOG_INFO("NetSys", "Adding new socket to socket set: " << setId);
 
                 SDLNet_TCP_AddSocket(sockSets[setId], newSock);
 
@@ -224,67 +227,32 @@ namespace pg
             }
 
             // 2) Process incoming packets
-            TCPsocket  sock;
-            IPaddress  udpSrc;
-            std::vector<uint8_t> pkt;
-
-            for (auto sockSet : sockSets)
+            // Process Tcp data
+            for (const auto& sockSet : sockSets)
             {
                 SDLNet_CheckSockets(sockSet, 0);
             }
 
-            while (backend->receive(sock, udpSrc, pkt))
+            for (auto& client : clients)
             {
-                LOG_INFO("NetSys", "Got Packet");
+                auto& ci = client.second;
+                auto& set = sockSets.at(ci.tcpSetID);
 
-                if (sock)
+                std::vector<uint8_t> data;
+                bool tcpClosed = false; // Todo need to use this
+
+                while (backend->receiveTcp(ci.tcpSock, set, data, tcpClosed))
                 {
-                    // handle any future TCP messages…
-
-                    LOG_INFO("NetSys", "Got TCP packet from a client");
+                    LOG_INFO("NetSys", "Received TCP request from client: " << ci.clientId);
                 }
-                else
-                {
+            }
 
-                    // UDP packet => header + optional payload
-                    if (pkt.size() < sizeof(UdpHeader))
-                        continue;
-
-                    UdpHeader h = readHeader(pkt.data());
-
-                    LOG_INFO("NetSys", "Got UDP packet from client " << h.clientId);
-
-                    auto it = idToTcp.find(h.clientId);
-                    if (it == idToTcp.end())
-                        continue;
-
-                    auto& ci = clients[it->second];
-                    if (ci.token != h.token)
-                        continue;
-
-                    // first‐time UDP link?
-                    if (not ci.udpLinked)
-                    {
-                        ci.udpLinked = true;
-                        ci.udpAddr   = udpSrc;
-
-                        auto key = ipPortKey(udpSrc);
-                        _udpClientMap[key] = ci.clientId;
-
-                        LOG_INFO("NetSys", "Linked UDP for client " << ci.clientId);
-                    }
-
-                    // echo back header
-                    std::vector<uint8_t> out(sizeof(UdpHeader) + h.payloadLen);
-                    UdpHeader oh{ci.clientId, ci.token, h.payloadLen};
-                    writeHeader(out.data(), oh);
-
-                    // copy payload if any
-                    if (h.payloadLen>0)
-                        std::copy(pkt.begin() + sizeof(UdpHeader), pkt.end(), out.begin() + sizeof(UdpHeader));
-
-                    backend->sendUdp(ci.udpAddr, out);
-                }
+            // Process Udp data
+            IPaddress ip;
+            std::vector<uint8_t> data;
+            while (backend->receiveUdp(ip, data))
+            {
+                LOG_INFO("NetSys", "Received UDP request from ip: " << ipPortKey(ip));
             }
         }
 
