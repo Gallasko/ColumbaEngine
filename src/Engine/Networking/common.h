@@ -12,13 +12,16 @@ namespace pg
 
     enum class NetMsgType : uint8_t
     {
-        Heartbeat   = 0x01,
-        Connect     = 0x02,
-        Disconnect  = 0x03,
-        Handshake   = 0x04,
-        EntityData  = 0x05,
+        Heartbeat   = 0x01,  // periodic keepalive
+        Ping        = 0x02, // client → server with timestamp
+        Pong        = 0x03, // server → client echo timestamp
+        Disconnect  = 0x04, // either side clean‐teardown
+        Connect     = 0x05,
+        Handshake   = 0x06,
+        EntityData  = 0x07,
         Custom      = 0xFE,
     };
+
 
     typedef std::vector<uint8_t> NetPayload;
     typedef std::vector<NetPayload> NetFragmentedPayload;
