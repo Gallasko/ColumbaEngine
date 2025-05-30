@@ -38,11 +38,11 @@ namespace pg
     void NetworkSystem::initClient()
     {
         // attempt TCP connect, with simple back-off
-        if (not clientConnected)
+        if (currentClientState == ClientState::Connecting)
         {
             if (backend->connectToServer())
             {
-                clientConnected = true;
+                currentClientState = ClientState::WaitingForId;
                 LOG_INFO("NetSys", "TCP connected to " << netCfg.peerAddress << ":" << netCfg.tcpPort);
             }
             else
@@ -52,8 +52,6 @@ namespace pg
                 return;
             }
         }
-
-        waitingForServerId = true;
     }
 
     void NetworkSystem::sendUdpHandshake()
@@ -153,9 +151,21 @@ namespace pg
         // 1) Accept new TCP clients
         if (auto newSock = backend->acceptTcpClient())
         {
-            size_t setId = std::floor(nextClientId / netCfg.defaultSystemFlags.socketSetSize);
+            size_t setId = 0;
+            bool addedToSet = false;
 
-            if (setId >= sockSets.size())
+            for (;setId < sockSets.size(); setId++)
+            {
+                auto res = SDLNet_TCP_AddSocket(sockSets[setId], newSock);
+
+                if (res != -1)
+                {
+                    addedToSet = true;
+                    break;
+                }
+            }
+
+            if (not addedToSet)
             {
                 auto newSet = SDLNet_AllocSocketSet(netCfg.defaultSystemFlags.socketSetSize);
 
@@ -163,6 +173,14 @@ namespace pg
                 {
                     sockSets.push_back(newSet);
                     LOG_INFO("NetSys", "Created socket set " << sockSets.size() - 1);
+
+                    auto res = SDLNet_TCP_AddSocket(newSet, newSock);
+
+                    if (res == -1)
+                    {
+                        LOG_ERROR("NetSys", "Failed to add this new socket in the new set");
+                        return;
+                    }
                 }
                 else
                 {
@@ -180,15 +198,15 @@ namespace pg
             clients[newSock] = ci;
             idToTcp[ci.clientId] = newSock;
 
-            LOG_INFO("NetSys", "Adding new socket to socket set: " << setId);
-
-            SDLNet_TCP_AddSocket(sockSets[setId], newSock);
-
             // send welcome
 
-            if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Connect, {0}))
+            if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Connect, {0}, newSock))
             {
                 LOG_INFO("NetSys", "Sent client Id and Token to the client: " << ci.clientId << " " << ci.token);
+            }
+            else
+            {
+                LOG_ERROR("NetSys", "Couldn't send client id and token to the client");
             }
 
             LOG_INFO("NetSys", "New client " << ci.clientId);
@@ -220,24 +238,8 @@ namespace pg
                 {
                     LOG_INFO("NetSys", "Parsed packet from client:" << ci.clientId << " that should match header: " << msg.header.clientId);
 
-                    std::string str(msg.payload.begin(), msg.payload.end());
-
-                    LOG_INFO("NetSys", "Received over tcp: " << str);
+                    handleServerMessage(msg.header, msg.payload);
                 }
-
-                // if (parsePacket(data, pkt))
-                // {
-                //     LOG_INFO("NetSys", "Parsed packet from client: " << ci.clientId);
-                //     // Todo here check if the pkt token is correct
-
-                //     std::string str(pkt.payload.begin(), pkt.payload.end());
-
-                //     LOG_INFO("NetSys", "Received over tcp: " << str);
-                // }
-                // else
-                // {
-                //     LOG_WARNING("NetSys", "Failed to parse packet");
-                // }
             }
         }
 
@@ -252,9 +254,7 @@ namespace pg
             {
                 LOG_INFO("NetSys", "Parsed packet from client:"  << msg.header.clientId);
 
-                std::string str(msg.payload.begin(), msg.payload.end());
-
-                LOG_INFO("NetSys", "Received over udp: " << str);
+                handleServerMessage(msg.header, msg.payload);
             }
             // LOG_INFO("NetSys", "Received UDP request from ip: " << ipPortKey(ip));
         }
@@ -262,7 +262,7 @@ namespace pg
 
     void NetworkSystem::runClientFrame()
     {
-        if (not clientConnected)
+        if (currentClientState == ClientState::Connecting)
         {
             timeSinceFail += deltaTime;
 
@@ -272,66 +272,50 @@ namespace pg
             return;
         }
 
-        if (waitingForServerId)
+        TCPsocket sock;
+        IPaddress udpSrc; // ignored for TCP
+        std::vector<uint8_t> buf;
+
+        while (backend->receive(sock, udpSrc, buf))
         {
-            // LOG_INFO("NetSys", "Waiting for server id");
-
-            // receive welcome <id, token> over TCP
-            TCPsocket sock;
-            IPaddress udpSrc; // ignored for TCP
-            std::vector<uint8_t> buf;
-
-            while (backend->receive(sock, udpSrc, buf))
+            ParsedPacket msg;
+            if (parseAndReassemble(buf, reassembly, msg))
             {
-                LOG_INFO("NetSys", "Received packet for server");
-                if (sock != nullptr and buf.size() >= 8)
-                {
-                    _myClientId = SDLNet_Read32(buf.data());
-                    _myToken    = SDLNet_Read32(buf.data() + 4);
-
-                    waitingForServerId = false;
-
-                    LOG_INFO("NetSys", "Received id=" << _myClientId << " token=" << _myToken);
-
-                    // Send the UDP handshake now that we have id + token
-                    sendUdpHandshake();
-                }
+                handleClientMessage(msg.header, msg.payload);
             }
         }
-
-        if (waitingForServerId)
-            return;
-
-        // TCPsocket sock;
-        // IPaddress udpSrc;
-        // std::vector<uint8_t> pkt;
-
-        // backend->receive returns one packet at a time
-
-        readData();
-        // while (backend->receive(sock, udpSrc, pkt))
-        // {
-        //     if (sock != nullptr)
-        //     {
-        //         // Data on TCP (could be a reconnect drop, server message, etc.)
-        //         // For now, we only expected the initial welcome, so ignore further TCP data
-        //     }
-        //     else
-        //     {
-        //         // UDP packet
-        //         if (pkt.size() < sizeof(UdpHeader))
-        //             return;
-
-        //         UdpHeader h = readHeader(pkt.data());
-
-        //         if (h.clientId == _myClientId and h.token == _myToken)
-        //         {
-        //             // LOG_INFO("NetSys", "Received UDP echo from server" << int(h.payloadLen) << ". " << pkt.data() + sizeof(UdpHeader));
-        //             SDL_Log("CLIENT echo: %.*s", int(h.payloadLen), pkt.data() + sizeof(UdpHeader));
-        //         }
-        //     }
-        // }
-
-        clientConnected = backend->isConnectedToServer();
     }
+
+    void NetworkSystem::handleMessage(const PacketHeader& header, const NetPayload& payload)
+    {
+
+    }
+
+    void NetworkSystem::handleServerMessage(const PacketHeader& header, const NetPayload& payload)
+    {
+
+        handleMessage(header, payload);
+    }
+
+    void NetworkSystem::handleClientMessage(const PacketHeader& header, const NetPayload& payload)
+    {
+        LOG_INFO("NetSys", "Received packet from client: "
+            << header.clientId << " type: " << int(header.type)
+            << " payload size: " << payload.size());
+
+        if (currentClientState == ClientState::WaitingForId)
+        {
+            _myClientId = header.clientId;
+            _myToken = header.token;
+
+            currentClientState = ClientState::Connected;
+
+            LOG_INFO("NetSys", "Connected to server");
+
+            sendUdpHandshake();
+        }
+
+        handleMessage(header, payload);
+    }
+
 } // namespace pg

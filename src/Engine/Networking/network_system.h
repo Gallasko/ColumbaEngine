@@ -9,6 +9,13 @@
 
 namespace pg
 {
+    enum class ClientState : uint8_t
+    {
+        Connecting    = 0x00,
+        WaitingForId,
+        Connected
+    };
+
     struct ClientInfo
     {
         size_t       tcpSetID   = 0;
@@ -17,6 +24,14 @@ namespace pg
         uint32_t     token      = 0;
         bool         udpLinked  = false;
         IPaddress    udpAddr{};
+
+        ClientState state = ClientState::Connecting;
+
+        uint64_t lastHeartbeatMs = 0;   // last time we heard anything
+        uint64_t lastPingSentMs  = 0;   // for RTT
+        float    rttMs           = 0;   // smoothed RTT
+        // Reassembly‐buffer timestamping:
+        std::map<uint32_t, uint64_t> fragmentTimers; // packetNumber → first‐seen timestamp
     };
 
     struct SendDataToServer
@@ -83,9 +98,8 @@ namespace pg
         // Client state
         uint32_t _myClientId = 0;
         uint32_t _myToken    = 0;
-        bool     clientConnected  = false;
         float    timeSinceFail = 0.0f;
-        bool waitingForServerId = false;
+        ClientState currentClientState = ClientState::Connecting;
 
         // Utilities
         uint32_t genToken() const;
@@ -113,6 +127,10 @@ namespace pg
         void runServerFrame();
 
         void runClientFrame();
+
+        void handleMessage(const PacketHeader& header, const NetPayload& payload);
+        void handleServerMessage(const PacketHeader& header, const NetPayload& payload);
+        void handleClientMessage(const PacketHeader& header, const NetPayload& payload);
     };
 
 }

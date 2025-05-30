@@ -254,6 +254,7 @@ namespace pg
 
                 _tcpSock = nullptr;
                 _isConnectedToServer = false;
+                socketClosed = true;
 
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
             }
