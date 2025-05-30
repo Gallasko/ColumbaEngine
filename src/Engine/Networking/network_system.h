@@ -138,23 +138,19 @@ namespace pg
 
         void sendUdpHandshake()
         {
-            auto pkt = makePacket(_myClientId, _myToken, NetMsgType::Handshake, {0});
-
             // send with zero‐length payload
             IPaddress dest{};
             SDLNet_ResolveHost(&dest, netCfg.peerAddress.c_str(), netCfg.udpPeerPort);
 
-            backend->sendUdp(dest, pkt);
+            sendUDPMessage(_myClientId, _myToken, NetMsgType::Handshake, {0}, dest);
             LOG_INFO("NetSys", "UDP handshake sent");
         }
 
         void sendToServer(const std::vector<uint8_t>& data, bool overTcp)
         {
-            auto pkt = makePacket(_myClientId, _myToken, NetMsgType::Custom, data);
-
             if (overTcp)
             {
-                backend->sendTcp(pkt);
+                sendTCPMessage(_myClientId, _myToken, NetMsgType::Custom, data);
             }
             else
             {
@@ -162,7 +158,76 @@ namespace pg
                 IPaddress dest{};
                 SDLNet_ResolveHost(&dest, netCfg.peerAddress.c_str(), netCfg.udpPeerPort);
 
-                backend->sendUdp(dest, pkt);
+                sendUDPMessage(_myClientId, _myToken, NetMsgType::Custom, data, dest);
+            }
+        }
+
+        size_t nextPacketNumber = 0;
+
+        bool sendTCPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
+            const NetPayload& payload, TCPsocket tcpSock = nullptr)
+        {
+            auto frags = fragmentPayload(clientId, token, type,
+                            nextPacketNumber++, payload);
+
+            bool sent = true;
+
+            for (auto& pkt : frags)
+            {
+                if (not tcpSock)
+                    sent = backend->sendTcp(pkt);
+                else
+                    sent = backend->sendTcp(tcpSock, pkt);
+
+                if (not sent)
+                    break;
+            }
+
+            return sent;
+        }
+
+        bool sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
+            const NetPayload& payload, const IPaddress& udpDest)
+        {
+            auto frags = fragmentPayload(clientId, token, type,
+                            nextPacketNumber++, payload);
+
+            bool sent = true;
+
+            for (auto& pkt : frags)
+            {
+                sent = backend->sendUdp(udpDest, pkt);
+
+                if (not sent)
+                    break;
+            }
+
+            return sent;
+        }
+
+        NetPacketBuffer reassembly;
+
+        void readData()
+        {
+            TCPsocket sock;
+            IPaddress udpSrc; // ignored for TCP
+            std::vector<uint8_t> buf;
+
+            while (backend->receive(sock, udpSrc, buf))
+            {
+                ParsedPacket msg;
+                if (parseAndReassemble(buf, reassembly, msg))
+                {
+                    // msg.header.clientId, msg.header.token,
+                    // msg.header.packetNumber, msg.header.timestamp,
+                    // msg.header.type, msg.payload
+
+                    LOG_INFO("NetSys", "Received packet from client: "
+                        << msg.header.clientId << " type: " << int(msg.header.type)
+                        << " payload size: " << msg.payload.size());
+
+                    // handleMessage(msg.header, msg.payload);
+                }
             }
         }
 
@@ -205,9 +270,7 @@ namespace pg
 
                 // send welcome
 
-                auto pkt = makePacket(ci.clientId, ci.token, NetMsgType::Connect, {0});
-
-                if (backend->sendTcp(newSock, pkt))
+                if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Connect, {0}))
                 {
                     LOG_INFO("NetSys", "Sent client Id and Token to the client: " << ci.clientId << " " << ci.token);
                 }
@@ -234,21 +297,31 @@ namespace pg
                 {
                     LOG_INFO("NetSys", "Received TCP request from client: " << ci.clientId);
 
-                    ParsedPacket pkt;
+                    // ParsedPacket pkt;
 
-                    if (parsePacket(data, pkt))
+                    ParsedPacket msg;
+                    if (parseAndReassemble(data, reassembly, msg))
                     {
-                        LOG_INFO("NetSys", "Parsed packet from client: " << ci.clientId);
-                        // Todo here check if the pkt token is correct
+                        LOG_INFO("NetSys", "Parsed packet from client:" << ci.clientId << " that should match header: " << msg.header.clientId);
 
-                        std::string str(pkt.payload.begin(), pkt.payload.end());
+                        std::string str(msg.payload.begin(), msg.payload.end());
 
                         LOG_INFO("NetSys", "Received over tcp: " << str);
                     }
-                    else
-                    {
-                        LOG_WARNING("NetSys", "Failed to parse packet");
-                    }
+
+                    // if (parsePacket(data, pkt))
+                    // {
+                    //     LOG_INFO("NetSys", "Parsed packet from client: " << ci.clientId);
+                    //     // Todo here check if the pkt token is correct
+
+                    //     std::string str(pkt.payload.begin(), pkt.payload.end());
+
+                    //     LOG_INFO("NetSys", "Received over tcp: " << str);
+                    // }
+                    // else
+                    // {
+                    //     LOG_WARNING("NetSys", "Failed to parse packet");
+                    // }
                 }
             }
 
@@ -258,7 +331,16 @@ namespace pg
 
             while (backend->receiveUdp(ip, data))
             {
-                LOG_INFO("NetSys", "Received UDP request from ip: " << ipPortKey(ip));
+                ParsedPacket msg;
+                if (parseAndReassemble(data, reassembly, msg))
+                {
+                    LOG_INFO("NetSys", "Parsed packet from client:"  << msg.header.clientId);
+
+                    std::string str(msg.payload.begin(), msg.payload.end());
+
+                    LOG_INFO("NetSys", "Received over udp: " << str);
+                }
+                // LOG_INFO("NetSys", "Received UDP request from ip: " << ipPortKey(ip));
             }
         }
 
@@ -304,33 +386,35 @@ namespace pg
             if (waitingForServerId)
                 return;
 
-            TCPsocket sock;
-            IPaddress udpSrc;
-            std::vector<uint8_t> pkt;
+            // TCPsocket sock;
+            // IPaddress udpSrc;
+            // std::vector<uint8_t> pkt;
 
             // backend->receive returns one packet at a time
-            while (backend->receive(sock, udpSrc, pkt))
-            {
-                if (sock != nullptr)
-                {
-                    // Data on TCP (could be a reconnect drop, server message, etc.)
-                    // For now, we only expected the initial welcome, so ignore further TCP data
-                }
-                else
-                {
-                    // UDP packet
-                    if (pkt.size() < sizeof(UdpHeader))
-                        return;
 
-                    UdpHeader h = readHeader(pkt.data());
+            readData();
+            // while (backend->receive(sock, udpSrc, pkt))
+            // {
+            //     if (sock != nullptr)
+            //     {
+            //         // Data on TCP (could be a reconnect drop, server message, etc.)
+            //         // For now, we only expected the initial welcome, so ignore further TCP data
+            //     }
+            //     else
+            //     {
+            //         // UDP packet
+            //         if (pkt.size() < sizeof(UdpHeader))
+            //             return;
 
-                    if (h.clientId == _myClientId and h.token == _myToken)
-                    {
-                        // LOG_INFO("NetSys", "Received UDP echo from server" << int(h.payloadLen) << ". " << pkt.data() + sizeof(UdpHeader));
-                        SDL_Log("CLIENT echo: %.*s", int(h.payloadLen), pkt.data() + sizeof(UdpHeader));
-                    }
-                }
-            }
+            //         UdpHeader h = readHeader(pkt.data());
+
+            //         if (h.clientId == _myClientId and h.token == _myToken)
+            //         {
+            //             // LOG_INFO("NetSys", "Received UDP echo from server" << int(h.payloadLen) << ". " << pkt.data() + sizeof(UdpHeader));
+            //             SDL_Log("CLIENT echo: %.*s", int(h.payloadLen), pkt.data() + sizeof(UdpHeader));
+            //         }
+            //     }
+            // }
 
             clientConnected = backend->isConnectedToServer();
         }

@@ -39,7 +39,7 @@ namespace pg
         virtual bool receiveTcp(std::vector<uint8_t>& out, bool& socketClosed) = 0;
 
         // Helpers to pull out your UDP header types
-        virtual bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) = 0;
+        // virtual bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) = 0;
     };
 
 }

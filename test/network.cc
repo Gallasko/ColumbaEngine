@@ -76,16 +76,16 @@ public:
         return true;
     }
 
-    bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override
-    {
-        TCPsocket dummy; std::vector<uint8_t> raw;
+    // bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override
+    // {
+    //     TCPsocket dummy; std::vector<uint8_t> raw;
 
-        if (not receive(dummy, src, raw) or dummy != nullptr)
-            return false;
+    //     if (not receive(dummy, src, raw) or dummy != nullptr)
+    //         return false;
 
-        hdr = readHeader(raw.data());
-        return true;
-    }
+    //     hdr = readHeader(raw.data());
+    //     return true;
+    // }
 
     // Control flags for tests
     bool connectSucceeds = true;

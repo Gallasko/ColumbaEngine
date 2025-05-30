@@ -36,7 +36,7 @@ namespace pg
         }
 
         // Allocate a reusable UDP packet buffer
-        _udpPkt = SDLNet_AllocPacket(MAX_PAYLOAD + sizeof(UdpHeader));
+        _udpPkt = SDLNet_AllocPacket(MAX_PAYLOAD);
     }
 
     SdlNetworkBackend::~SdlNetworkBackend()
@@ -167,7 +167,7 @@ namespace pg
         if (_tcpSock and SDLNet_SocketReady(_tcpSock))
         {
             // peek a chunk
-            char buf[4096];
+            char buf[MAX_PAYLOAD];
             int rec = SDLNet_TCP_Recv(_tcpSock, buf, sizeof(buf));
             if (rec > 0)
             {
@@ -211,7 +211,7 @@ namespace pg
         if (tcpSock and SDLNet_SocketReady(tcpSock))
         {
             // peek a chunk
-            char buf[4096];
+            char buf[MAX_PAYLOAD];
             int rec = SDLNet_TCP_Recv(tcpSock, buf, sizeof(buf));
 
             if (rec > 0)
@@ -239,7 +239,7 @@ namespace pg
         if (_tcpSock and SDLNet_SocketReady(_tcpSock))
         {
             // peek a chunk
-            char buf[4096];
+            char buf[MAX_PAYLOAD];
             int rec = SDLNet_TCP_Recv(_tcpSock, buf, sizeof(buf));
             if (rec > 0)
             {
@@ -262,21 +262,21 @@ namespace pg
         return false;
     }
 
-    bool SdlNetworkBackend::recvUdpHeader(UdpHeader& hdr, IPaddress& src)
-    {
-        TCPsocket dummySock;
-        std::vector<uint8_t> raw;
+    // bool SdlNetworkBackend::recvUdpHeader(UdpHeader& hdr, IPaddress& src)
+    // {
+    //     TCPsocket dummySock;
+    //     std::vector<uint8_t> raw;
 
-        if (not receive(dummySock, src, raw) or dummySock != nullptr)
-        {
-            return false;
-        }
+    //     if (not receive(dummySock, src, raw) or dummySock != nullptr)
+    //     {
+    //         return false;
+    //     }
 
-        if ((int)raw.size() < (int)sizeof(UdpHeader))
-            return false;
+    //     if ((int)raw.size() < (int)sizeof(UdpHeader))
+    //         return false;
 
-        hdr = readHeader(raw.data());
-        return true;
-    }
+    //     hdr = readHeader(raw.data());
+    //     return true;
+    // }
 
 }

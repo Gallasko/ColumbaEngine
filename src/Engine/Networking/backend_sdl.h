@@ -36,7 +36,7 @@ namespace pg
         virtual bool receiveTcp(std::vector<uint8_t>& out, bool& socketClosed) override;
 
         // Helper: just read one UDP header into hdr and src
-        bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override;
+        // bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override;
 
     private:
         NetworkConfig   _cfg;
