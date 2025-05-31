@@ -63,7 +63,49 @@ namespace pg
         if (not _listener)
             return nullptr;
 
-        return SDLNet_TCP_Accept(_listener);
+        auto newSock = SDLNet_TCP_Accept(_listener);
+
+        bool addedToSet = false;
+
+        for (size_t setId = 0; setId < sockSets.size(); setId++)
+        {
+            auto res = SDLNet_TCP_AddSocket(sockSets[setId], newSock);
+
+            if (res != -1)
+            {
+                sockSetsMap[newSock] = sockSets[setId];
+                addedToSet = true;
+                break;
+            }
+        }
+
+        if (not addedToSet)
+        {
+            auto newSet = SDLNet_AllocSocketSet(_cfg.defaultSystemFlags.socketSetSize);
+
+            if (newSet)
+            {
+                sockSets.push_back(newSet);
+                LOG_INFO("NetSys", "Created socket set " << sockSets.size() - 1);
+
+                auto res = SDLNet_TCP_AddSocket(newSet, newSock);
+
+                if (res == -1)
+                {
+                    LOG_ERROR("NetSys", "Failed to add this new socket in the new set");
+                    return nullptr;
+                }
+
+                sockSetsMap[newSock] = newSet;
+            }
+            else
+            {
+                LOG_WARNING("NetSys", "Failed to create socket set");
+                return nullptr;
+            }
+        }
+
+        return newSock;
     }
 
     bool SdlNetworkBackend::connectToServer()
@@ -141,12 +183,7 @@ namespace pg
 
         if (sockSet)
         {
-            auto nbSocketReady = SDLNet_CheckSockets(sockSet, 0);
-
-            if (nbSocketReady <= 0)
-            {
-                // LOG_INFO(DOM, "No data to read");
-            }
+            SDLNet_CheckSockets(sockSet, 0);
         }
 
         // 1) Try UDP (non-blocking)
@@ -207,8 +244,26 @@ namespace pg
         return false;
     }
 
-    bool SdlNetworkBackend::receiveTcp(TCPsocket& tcpSock, const SDLNet_SocketSet& socketSet, std::vector<uint8_t>& out, bool& socketClosed)
+    bool SdlNetworkBackend::receiveTcp(TCPsocket& tcpSock, std::vector<uint8_t>& out, bool& socketClosed)
     {
+        auto it = sockSetsMap.find(tcpSock);
+
+        SDLNet_SocketSet socketSet = nullptr;
+
+        if (it != sockSetsMap.end())
+        {
+            socketSet = it->second;
+            auto dataReceived = SDLNet_CheckSockets(socketSet, 0);
+
+            if ( dataReceived > 0)
+                LOG_INFO(DOM, "Tcp data received: " << dataReceived);
+        }
+        else
+        {
+            LOG_ERROR(DOM, "Invalid socket set");
+            return false;
+        }
+
         if (tcpSock and SDLNet_SocketReady(tcpSock))
         {
             // peek a chunk
@@ -227,7 +282,7 @@ namespace pg
                 SDLNet_TCP_Close(tcpSock);
 
                 tcpSock = nullptr;
-                socketClosed = false;
+                socketClosed = true;
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
             }
         }

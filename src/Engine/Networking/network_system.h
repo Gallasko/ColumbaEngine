@@ -18,7 +18,6 @@ namespace pg
 
     struct ClientInfo
     {
-        size_t       tcpSetID   = 0;
         TCPsocket    tcpSock    = nullptr;
         uint32_t     clientId   = 0;
         uint32_t     token      = 0;

@@ -32,7 +32,7 @@ namespace pg
         bool receive(TCPsocket& tcpSock, IPaddress& srcUdp, std::vector<uint8_t>& out) override;
 
         virtual bool receiveUdp(IPaddress& srcUdp, std::vector<uint8_t>& out) override;
-        virtual bool receiveTcp(TCPsocket& tcpSock, const SDLNet_SocketSet& socketSet, std::vector<uint8_t>& out, bool& socketClosed) override;
+        virtual bool receiveTcp(TCPsocket& tcpSock, std::vector<uint8_t>& out, bool& socketClosed) override;
         virtual bool receiveTcp(std::vector<uint8_t>& out, bool& socketClosed) override;
 
         // Helper: just read one UDP header into hdr and src
@@ -52,6 +52,9 @@ namespace pg
         UDPpacket*      _udpPkt   = nullptr;
 
         SDLNet_SocketSet sockSet  = nullptr;
+
+        std::unordered_map<TCPsocket, SDLNet_SocketSet> sockSetsMap;
+        std::vector<SDLNet_SocketSet> sockSets;
 
         // Internal helpers
         UDPpacket* allocUdpPacket();

@@ -177,46 +177,7 @@ namespace pg
         // 1) Accept new TCP clients
         if (auto newSock = backend->acceptTcpClient())
         {
-            size_t setId = 0;
-            bool addedToSet = false;
-
-            for (;setId < sockSets.size(); setId++)
-            {
-                auto res = SDLNet_TCP_AddSocket(sockSets[setId], newSock);
-
-                if (res != -1)
-                {
-                    addedToSet = true;
-                    break;
-                }
-            }
-
-            if (not addedToSet)
-            {
-                auto newSet = SDLNet_AllocSocketSet(netCfg.defaultSystemFlags.socketSetSize);
-
-                if (newSet)
-                {
-                    sockSets.push_back(newSet);
-                    LOG_INFO("NetSys", "Created socket set " << sockSets.size() - 1);
-
-                    auto res = SDLNet_TCP_AddSocket(newSet, newSock);
-
-                    if (res == -1)
-                    {
-                        LOG_ERROR("NetSys", "Failed to add this new socket in the new set");
-                        return;
-                    }
-                }
-                else
-                {
-                    LOG_WARNING("NetSys", "Failed to create socket set");
-                    return;
-                }
-            }
-
             ClientInfo ci;
-            ci.tcpSetID = setId;
             ci.tcpSock  = newSock;
             ci.clientId = nextClientId++;
             ci.token    = genToken();
@@ -240,17 +201,12 @@ namespace pg
 
         // 2) Process incoming packets
         // Process Tcp data
-        for (const auto& sockSet : sockSets)
-        {
-            SDLNet_CheckSockets(sockSet, 0);
-        }
 
         auto now = getCurrentTime();
 
         for (auto& client : clients)
         {
             auto& ci = client.second;
-            auto& set = sockSets.at(ci.tcpSetID);
 
             ci.lastHeartbeatMs += dt;
             ci.lastPingSentMs += dt;
@@ -259,7 +215,6 @@ namespace pg
             {
                 if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Ping, {0}, ci.tcpSock))
                 {
-
                     LOG_INFO("NetSys", "Sent ping to client: " << ci.clientId << " at time: " << now);
                     ci.lastPingSentMs = 0;
                 }
@@ -268,7 +223,7 @@ namespace pg
             std::vector<uint8_t> data;
             bool tcpClosed = false; // Todo need to use this
 
-            while (backend->receiveTcp(ci.tcpSock, set, data, tcpClosed))
+            while (backend->receiveTcp(ci.tcpSock, data, tcpClosed))
             {
                 LOG_INFO("NetSys", "Received TCP request from client: " << ci.clientId);
 
