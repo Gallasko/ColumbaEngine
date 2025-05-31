@@ -156,7 +156,7 @@ namespace pg
     };
 
     // Reassemble fragments
-    inline bool parseAndReassemble(const NetPayload& raw, NetPacketBuffer& buffer, ParsedPacket& out)
+    inline bool parseAndReassemble(const NetPayload& raw, NetPacketBuffer& buffer, std::map<uint32_t, uint64_t>& rTimers, ParsedPacket& out)
     {
         if (raw.size() < HEADER_SIZE)
             return false;
@@ -168,7 +168,14 @@ namespace pg
         auto& slots = buffer[key];
 
         if (slots.empty())
+        {
             slots.resize(hdr.totalFragments);
+
+            auto now =  std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+
+            rTimers[hdr.packetNumber] = now;
+        }
 
         if (hdr.fragmentIndex >= hdr.totalFragments)
             return false;

@@ -16,108 +16,118 @@ public:
     // Inbox entries: (tcpSock, udpSrc, data)
     std::queue<std::tuple<TCPsocket, IPaddress, std::vector<uint8_t>>> inbox;
 
-    struct Out
-    {
+    struct Out {
         bool isTcp;
         TCPsocket sock;
         IPaddress addr;
         std::vector<uint8_t> data;
     };
-
     std::vector<Out> outbox;
 
     TCPsocket fakeListener = reinterpret_cast<TCPsocket>(0x1);
 
-    TCPsocket acceptTcpClient() override
-    {
-        // pop a marker if it matches
-        if (not inbox.empty())
-        {
-            auto [sock, addr, dat] = inbox.front();
+    bool connectSucceeds = true;
 
-            if (sock == fakeListener and dat.empty())
-            {
+    // INetworkBackend impl:
+    TCPsocket acceptTcpClient() override {
+        if (!inbox.empty()) {
+            auto [sock, addr, dat] = inbox.front();
+            if (sock == fakeListener && dat.empty()) {
                 inbox.pop();
                 return reinterpret_cast<TCPsocket>(0x42);
             }
         }
-
         return nullptr;
     }
-
     bool connectToServer() override { return connectSucceeds; }
 
-    bool sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data) override
-    {
+    bool sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data) override {
         outbox.push_back({false, nullptr, dest, data});
         return true;
     }
-
-    bool sendTcp(TCPsocket sock, const std::vector<uint8_t>& data) override
-    {
+    bool sendTcp(TCPsocket sock, const std::vector<uint8_t>& data) override {
         outbox.push_back({true, sock, IPaddress{}, data});
         return true;
     }
-
-    bool sendTcp(const std::vector<uint8_t>& data) override
-    {
-        // Todo
-        // outbox.push_back({true, sock, IPaddress{}, data});
+    bool sendTcp(const std::vector<uint8_t>& data) override {
+        // We won’t use this overload in tests—so just return true.
         return true;
     }
 
-    bool receive(TCPsocket& tcpSock, IPaddress& srcUdp, std::vector<uint8_t>& out) override
-    {
-        if (inbox.empty())
-            return false;
-
+    bool receive(TCPsocket& tcpSock, IPaddress& srcUdp, std::vector<uint8_t>& out) override {
+        if (inbox.empty()) return false;
         std::tie(tcpSock, srcUdp, out) = inbox.front();
         inbox.pop();
         return true;
     }
-
-    // bool recvUdpHeader(UdpHeader& hdr, IPaddress& src) override
-    // {
-    //     TCPsocket dummy; std::vector<uint8_t> raw;
-
-    //     if (not receive(dummy, src, raw) or dummy != nullptr)
-    //         return false;
-
-    //     hdr = readHeader(raw.data());
-    //     return true;
-    // }
-
-    // Control flags for tests
-    bool connectSucceeds = true;
+    bool receiveUdp(IPaddress& srcUdp, std::vector<uint8_t>& out) override {
+        // Not used by NetworkSystem directly in this test suite.
+        return false;
+    }
+    bool receiveTcp(TCPsocket& tcpSock, const SDLNet_SocketSet& socketSet,
+                    std::vector<uint8_t>& out, bool& socketClosed) override {
+        // Not directly used: we let receive(...) be the main entrypoint.
+        return false;
+    }
+    bool receiveTcp(std::vector<uint8_t>& out, bool& socketClosed) override {
+        return false;
+    }
 };
 
 //-----------------------------------------------------------------------------
 // Test Fixture
 //-----------------------------------------------------------------------------
-struct NetSysTest : public testing::Test
-{
+struct NetSysTest : public testing::Test {
     NetworkConfig cfg;
     MockNetworkBackend* mock;
     NetworkSystem* sys;
 
-    void SetUp() override
-    {
-        cfg.peerAddress    = "127.0.0.1";
-        cfg.tcpPort        = 9000;
-        cfg.udpLocalPort   = 9001;
-        cfg.udpPeerPort    = 9001;
-        cfg.isServer       = false;
+    // Helper: expose client state for tests
+    struct ClientSnapshot {
+        float rttMs;
+        bool exists;
+    };
+
+    // Retrieve RTT from internal client state:
+    ClientSnapshot getClientSnapshot(uint32_t clientId) {
+        ClientSnapshot snap {0.0f, false};
+        auto it = sys->getClientStates().find(clientId);
+        if (it != sys->getClientStates().end()) {
+            snap.exists = true;
+            snap.rttMs = it->second.rttMs;
+        }
+        return snap;
+    }
+
+    // Retrieve whether fragment buffer has a given key
+    bool fragmentKeyExists(uint32_t packetNumber) {
+        for (auto& [key, slots] : sys->getReassemblyBuffer()) {
+            if (std::get<2>(key) == packetNumber) return true;
+        }
+        return false;
+    }
+
+    void SetUp() override {
+        cfg.peerAddress      = "127.0.0.1";
+        cfg.tcpPort          = 9000;
+        cfg.udpLocalPort     = 9001;
+        cfg.udpPeerPort      = 9001;
+        cfg.isServer         = false;
+
+        // Default flags for timeouts (in ms):
+        cfg.defaultSystemFlags.pingTimer = 100;      // 100 ms for ping in tests
+        cfg.defaultSystemFlags.dropPacketTimeout = 500; // 500 ms timeout
 
         mock = new MockNetworkBackend();
         sys  = new NetworkSystem(mock, cfg);
+        // expose internals via friend or getter:
+        // e.g. sys->getClientStates(), sys->getReassemblyBuffer(), sys->getFragmentTimers()
     }
 
-    void TearDown() override
-    {
-        delete sys; // also deletes mock
+    void TearDown() override {
+        delete sys;
     }
 };
-
 //-----------------------------------------------------------------------------
 // 1. Client startup: failed connect -> no receive
 //-----------------------------------------------------------------------------

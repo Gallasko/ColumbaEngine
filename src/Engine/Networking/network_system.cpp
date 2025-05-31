@@ -10,6 +10,12 @@ namespace pg
             delete backend;
     }
 
+    uint64_t NetworkSystem::getCurrentTime() const
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+    }
+
     uint32_t NetworkSystem::genToken() const
     {
         static std::mt19937 rng{ std::random_device{}() };
@@ -28,6 +34,24 @@ namespace pg
 
         return std::to_string(b0) + "." + std::to_string(b1) + "." +
                 std::to_string(b2) + "." + std::to_string(b3) + ":" + std::to_string(rawPort);
+    }
+
+    void NetworkSystem::cleanReassemblyBuffer()
+    {
+        auto now = getCurrentTime();
+
+        for (auto& [key, slots] : reassembly)
+        {
+            uint64_t firstSeen = fragmentTimers[std::get<2>(key)];
+
+            if (now - firstSeen > netCfg.defaultSystemFlags.dropPacketTimeout)
+            {
+                // 5s timeout
+                reassembly.erase(key);
+                fragmentTimers.erase(std::get<2>(key));
+                LOG_ERROR("NetSys", "Reassembly buffer cleaned for key: " << std::get<2>(key));
+            }
+        }
     }
 
     // ----- Initialization -----
@@ -132,7 +156,7 @@ namespace pg
         while (backend->receive(sock, udpSrc, buf))
         {
             ParsedPacket msg;
-            if (parseAndReassemble(buf, reassembly, msg))
+            if (parseAndReassemble(buf, reassembly, fragmentTimers, msg))
             {
                 // msg.header.clientId, msg.header.token,
                 // msg.header.packetNumber, msg.header.timestamp,
@@ -221,6 +245,8 @@ namespace pg
             SDLNet_CheckSockets(sockSet, 0);
         }
 
+        auto now = getCurrentTime();
+
         for (auto& client : clients)
         {
             auto& ci = client.second;
@@ -233,8 +259,7 @@ namespace pg
             {
                 if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Ping, {0}, ci.tcpSock))
                 {
-                    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                        std::chrono::system_clock::now().time_since_epoch()).count();
+
                     LOG_INFO("NetSys", "Sent ping to client: " << ci.clientId << " at time: " << now);
                     ci.lastPingSentMs = 0;
                 }
@@ -252,7 +277,7 @@ namespace pg
                 // ParsedPacket pkt;
 
                 ParsedPacket msg;
-                if (parseAndReassemble(data, reassembly, msg))
+                if (parseAndReassemble(data, reassembly, fragmentTimers, msg))
                 {
                     LOG_INFO("NetSys", "Parsed packet from client:" << ci.clientId << " that should match header: " << msg.header.clientId);
 
@@ -268,7 +293,7 @@ namespace pg
         while (backend->receiveUdp(ip, data))
         {
             ParsedPacket msg;
-            if (parseAndReassemble(data, reassembly, msg))
+            if (parseAndReassemble(data, reassembly, fragmentTimers, msg))
             {
                 LOG_INFO("NetSys", "Parsed packet from client:"  << msg.header.clientId);
 
@@ -297,14 +322,14 @@ namespace pg
         while (backend->receive(sock, udpSrc, buf))
         {
             ParsedPacket msg;
-            if (parseAndReassemble(buf, reassembly, msg))
+            if (parseAndReassemble(buf, reassembly, fragmentTimers, msg))
             {
                 handleClientMessage(msg.header, msg.payload);
             }
         }
     }
 
-    void NetworkSystem::handleMessage(const PacketHeader& header, const NetPayload& payload)
+    void NetworkSystem::handleMessage(const PacketHeader&, const NetPayload&)
     {
     }
 
@@ -313,8 +338,7 @@ namespace pg
 
         if (header.type == NetMsgType::Pong)
         {
-            auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count();
+            auto now = getCurrentTime();
 
             LOG_INFO("NetSys", "Received Pong from client: " << header.clientId << " at time: " << now);
 
@@ -334,7 +358,8 @@ namespace pg
             float sampleRtt = float(now - sentTs);
 
             // simple smoothing
-            state.rttMs = state.rttMs == 0 ? sampleRtt : (state.rttMs * 0.8f + sampleRtt * 0.2f);
+            // state.rttMs = state.rttMs == 0 ? sampleRtt : (state.rttMs * 0.8f + sampleRtt * 0.2f);
+            state.rttMs = sampleRtt;
             LOG_INFO("NetSys", "Received Pong from client: " << header.clientId << " rtt: " << state.rttMs);
         }
 

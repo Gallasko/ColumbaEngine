@@ -30,8 +30,6 @@ namespace pg
         uint64_t lastHeartbeatMs = 0;   // last time we heard anything
         uint64_t lastPingSentMs  = 0;   // for RTT
         float    rttMs           = 0;   // smoothed RTT
-        // Reassembly‐buffer timestamping:
-        std::map<uint32_t, uint64_t> fragmentTimers; // packetNumber → first‐seen timestamp
     };
 
     struct SendDataToServer
@@ -74,7 +72,47 @@ namespace pg
             else
                 runClientFrame(deltaTime);
 
+            cleanReassemblyBuffer();
+
             deltaTime = 0.0f;
+        }
+
+        const ClientInfo& getClientState(uint32_t id) const
+        {
+            return clients.at(idToTcp.at(id));
+        }
+
+        std::vector<uint32_t> getClientIds() const
+        {
+            std::vector<uint32_t> ids;
+
+            ids.reserve(idToTcp.size());
+
+            for (const auto& pair : idToTcp)
+            {
+                ids.push_back(pair.first);
+            }
+
+            return ids;
+        }
+
+        // Expose the reassembly‐buffer map:
+        std::map<std::tuple<uint32_t,uint32_t,uint32_t,NetMsgType>,
+                 std::vector<std::vector<uint8_t>>>& getReassemblyBuffer()
+        {
+            return reassembly;
+        }
+
+        // Expose fragment‐timestamp map:
+        std::map<uint32_t,uint64_t>& getFragmentTimers()
+        {
+            return fragmentTimers;
+        }
+
+        // Check if a client exists by ID:
+        bool clientExists(uint32_t id) const
+        {
+            return idToTcp.find(id) != idToTcp.end();
         }
 
     private:
@@ -85,6 +123,8 @@ namespace pg
 
         size_t nextPacketNumber = 0;
 
+        // Reassembly‐buffer timestamping:
+        std::map<uint32_t, uint64_t> fragmentTimers; // packetNumber → first‐seen timestamp
         NetPacketBuffer reassembly;
 
         // Server state
@@ -102,9 +142,13 @@ namespace pg
         ClientState currentClientState = ClientState::Connecting;
 
         // Utilities
+        uint64_t getCurrentTime() const;
+
         uint32_t genToken() const;
 
         std::string ipPortKey(const IPaddress& addr) const;
+
+        void cleanReassemblyBuffer();
 
         // ----- Initialization -----
         void initServer();
