@@ -70,9 +70,9 @@ namespace pg
         virtual void execute() override
         {
             if (netCfg.isServer)
-                runServerFrame();
+                runServerFrame(deltaTime);
             else
-                runClientFrame();
+                runClientFrame(deltaTime);
 
             deltaTime = 0.0f;
         }
@@ -124,9 +124,9 @@ namespace pg
         void readData();
 
         // ----- Per-frame logic -----
-        void runServerFrame();
+        void runServerFrame(float deltaTime);
 
-        void runClientFrame();
+        void runClientFrame(float deltaTime);
 
         void handleMessage(const PacketHeader& header, const NetPayload& payload);
         void handleServerMessage(const PacketHeader& header, const NetPayload& payload);

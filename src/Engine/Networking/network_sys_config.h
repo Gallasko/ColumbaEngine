@@ -8,7 +8,8 @@ namespace pg
         bool enabled               = true;   // is this system active?
         bool networked             = false;  // should this system participate in NetSystem?
         bool reliableChannel       = false;  // use reliable (TCP) vs. unreliable (UDP)
-        float updateRateHz         = 60.0f;  // desired tick rate (for throttling sends)
+        float updateRateHz         = 60.0f;  // desired tick rate (for throttling sends)netCfg
+        float pingTimer            = 1000.0f;// Time between pings in ms
         size_t socketSetSize       = 16;     // size of the socket set for SDLNet (default 16)
     };
 

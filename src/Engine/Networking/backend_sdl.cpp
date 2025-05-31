@@ -1,4 +1,5 @@
-// SdlNetworkBackend.cpp
+#include "stdafx.h"
+
 #include "backend_sdl.h"
 #include <SDL_net.h>
 #include <cstring>

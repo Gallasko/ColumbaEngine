@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "network_system.h"
 
 namespace pg
@@ -146,7 +148,7 @@ namespace pg
     }
 
     // ----- Per-frame logic -----
-    void NetworkSystem::runServerFrame()
+    void NetworkSystem::runServerFrame(float dt)
     {
         // 1) Accept new TCP clients
         if (auto newSock = backend->acceptTcpClient())
@@ -224,12 +226,28 @@ namespace pg
             auto& ci = client.second;
             auto& set = sockSets.at(ci.tcpSetID);
 
+            ci.lastHeartbeatMs += dt;
+            ci.lastPingSentMs += dt;
+
+            if (ci.lastPingSentMs >= netCfg.defaultSystemFlags.pingTimer)
+            {
+                if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Ping, {0}, ci.tcpSock))
+                {
+                    auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    LOG_INFO("NetSys", "Sent ping to client: " << ci.clientId << " at time: " << now);
+                    ci.lastPingSentMs = 0;
+                }
+            }
+
             std::vector<uint8_t> data;
             bool tcpClosed = false; // Todo need to use this
 
             while (backend->receiveTcp(ci.tcpSock, set, data, tcpClosed))
             {
                 LOG_INFO("NetSys", "Received TCP request from client: " << ci.clientId);
+
+                ci.lastHeartbeatMs = 0.0f;
 
                 // ParsedPacket pkt;
 
@@ -260,11 +278,11 @@ namespace pg
         }
     }
 
-    void NetworkSystem::runClientFrame()
+    void NetworkSystem::runClientFrame(float dt)
     {
         if (currentClientState == ClientState::Connecting)
         {
-            timeSinceFail += deltaTime;
+            timeSinceFail += dt;
 
             if (timeSinceFail > 1000.0f)
                 initClient();
@@ -288,11 +306,37 @@ namespace pg
 
     void NetworkSystem::handleMessage(const PacketHeader& header, const NetPayload& payload)
     {
-
     }
 
     void NetworkSystem::handleServerMessage(const PacketHeader& header, const NetPayload& payload)
     {
+
+        if (header.type == NetMsgType::Pong)
+        {
+            auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+
+            LOG_INFO("NetSys", "Received Pong from client: " << header.clientId << " at time: " << now);
+
+            auto it = idToTcp.find(header.clientId);
+
+            if (it == idToTcp.end())
+            {
+                LOG_ERROR("NetSys", "Received Pong from unknown client: " << header.clientId);
+                return;
+            }
+
+            auto& state = clients[it->second];
+
+            // payload is original timestamp
+            uint64_t sentTs = readU64BE(payload.data());
+
+            float sampleRtt = float(now - sentTs);
+
+            // simple smoothing
+            state.rttMs = state.rttMs == 0 ? sampleRtt : (state.rttMs * 0.8f + sampleRtt * 0.2f);
+            LOG_INFO("NetSys", "Received Pong from client: " << header.clientId << " rtt: " << state.rttMs);
+        }
 
         handleMessage(header, payload);
     }
@@ -313,6 +357,24 @@ namespace pg
             LOG_INFO("NetSys", "Connected to server");
 
             sendUdpHandshake();
+        }
+
+        if (header.type == NetMsgType::Ping)
+        {
+            // send pong back
+
+            // Todo make helpers that convert str, uint16, uint32, uint64 -> vector<uint8_t>
+            uint8_t buf[8];
+            writeU64BE(buf, header.timestamp);
+
+            if (sendTCPMessage(_myClientId, _myToken, NetMsgType::Pong, std::vector<uint8_t>(buf, buf + 8)))
+            {
+                LOG_INFO("NetSys", "Sent Pong to server");
+            }
+            else
+            {
+                LOG_ERROR("NetSys", "Failed to send Pong to server");
+            }
         }
 
         handleMessage(header, payload);
