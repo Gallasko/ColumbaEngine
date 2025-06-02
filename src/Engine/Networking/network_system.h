@@ -114,7 +114,12 @@ namespace pg
             return idToTcp.find(id) != idToTcp.end();
         }
 
-    private:
+    public:
+        uint64_t getCurrentTime() const;
+
+        std::string ipPortKey(const IPaddress& addr) const;
+
+    protected:
         INetworkBackend* backend;
         NetworkConfig    netCfg;
 
@@ -141,11 +146,7 @@ namespace pg
         ClientState currentClientState = ClientState::Connecting;
 
         // Utilities
-        uint64_t getCurrentTime() const;
-
         uint32_t genToken() const;
-
-        std::string ipPortKey(const IPaddress& addr) const;
 
         void cleanReassemblyBuffer();
 
