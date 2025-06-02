@@ -58,7 +58,7 @@ namespace pg
             SDLNet_FreePacket(_udpPkt);
     }
 
-    TCPsocket SdlNetworkBackend::acceptTcpClient()
+    SocketHandle SdlNetworkBackend::acceptTcpClient()
     {
         if (not _listener)
             return nullptr;
@@ -132,7 +132,7 @@ namespace pg
         return _isConnectedToServer;
     }
 
-    bool SdlNetworkBackend::sendTcp(TCPsocket sock, const std::vector<uint8_t>& data)
+    bool SdlNetworkBackend::sendTcp(SocketHandle sock, const std::vector<uint8_t>& data)
     {
         if (not sock)
             return false;
@@ -142,7 +142,7 @@ namespace pg
 
         while (remaining > 0)
         {
-            int sent = SDLNet_TCP_Send(sock, buf, remaining);
+            int sent = SDLNet_TCP_Send(static_cast<TCPsocket>(sock), buf, remaining);
 
             if (sent <= 0)
                 return false;
@@ -162,13 +162,18 @@ namespace pg
             return false;
     }
 
-    bool SdlNetworkBackend::sendUdp(const IPaddress& dest, const std::vector<uint8_t>& data)
+    bool SdlNetworkBackend::sendUdp(const IpEndpoint& dest, const std::vector<uint8_t>& data)
     {
         if (not _udpPkt)
             return false;
 
         // prepare packet
-        _udpPkt->address = dest;
+        IPaddress sdlDest;
+        if (SDLNet_ResolveHost(&sdlDest, dest.host.c_str(), dest.port) < 0) {
+            return false;
+        }
+
+        _udpPkt->address = sdlDest;
         _udpPkt->len     = SDL_min((int)data.size(), _udpPkt->maxlen);
 
         std::memcpy(_udpPkt->data, data.data(), _udpPkt->len);
@@ -176,9 +181,9 @@ namespace pg
         return SDLNet_UDP_Send(_udpSock, -1, _udpPkt) == 1;
     }
 
-    bool SdlNetworkBackend::receive(TCPsocket& tcpSock,
-                                    IPaddress& srcUdp,
-                                    std::vector<uint8_t>& out)
+    bool SdlNetworkBackend::receive(SocketHandle& tcpSock,
+        IpEndpoint& srcUdp,
+        std::vector<uint8_t>& out)
     {
 
         if (sockSet)
@@ -193,7 +198,9 @@ namespace pg
 
             if (SDLNet_UDP_Recv(_udpSock, pkt) > 0)
             {
-                srcUdp = pkt->address;
+                srcUdp.host = SDLNet_ResolveIP(&pkt->address);;
+                srcUdp.port = pkt->address.port;
+
                 out.assign(pkt->data, pkt->data + pkt->len);
                 tcpSock = nullptr;
 
@@ -226,7 +233,7 @@ namespace pg
         return false;
     }
 
-    bool SdlNetworkBackend::receiveUdp(IPaddress& srcUdp, std::vector<uint8_t>& out)
+    bool SdlNetworkBackend::receiveUdp(IpEndpoint& srcUdp, std::vector<uint8_t>& out)
     {
         if (_udpSock)
         {
@@ -234,8 +241,10 @@ namespace pg
 
             if (SDLNet_UDP_Recv(_udpSock, pkt) > 0)
             {
-                srcUdp = pkt->address;
                 out.assign(pkt->data, pkt->data + pkt->len);
+
+                srcUdp.host = SDLNet_ResolveIP(&pkt->address);;
+                srcUdp.port = pkt->address.port;
 
                 return true;
             }
@@ -244,8 +253,10 @@ namespace pg
         return false;
     }
 
-    bool SdlNetworkBackend::receiveTcp(TCPsocket& tcpSock, std::vector<uint8_t>& out, bool& socketClosed)
+    bool SdlNetworkBackend::receiveTcp(SocketHandle& tcpHandle, std::vector<uint8_t>& out, bool& socketClosed)
     {
+        auto tcpSock = static_cast<TCPsocket>(tcpHandle);
+
         auto it = sockSetsMap.find(tcpSock);
 
         SDLNet_SocketSet socketSet = nullptr;

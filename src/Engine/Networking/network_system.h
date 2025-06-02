@@ -18,11 +18,11 @@ namespace pg
 
     struct ClientInfo
     {
-        TCPsocket    tcpSock    = nullptr;
+        SocketHandle tcpSock    = nullptr;
         uint32_t     clientId   = 0;
         uint32_t     token      = 0;
         bool         udpLinked  = false;
-        IPaddress    udpAddr{};
+        IpEndpoint  udpAddr{};
 
         ClientState state = ClientState::Connecting;
 
@@ -33,7 +33,7 @@ namespace pg
 
     struct SendDataToServer
     {
-        std::vector<uint8_t> data;
+        NetPayload data;
         bool inTcp = false; // true = send over TCP, false = send over UDP
     };
 
@@ -96,14 +96,14 @@ namespace pg
         }
 
         // Expose the reassembly‐buffer map:
-        std::map<std::tuple<uint32_t,uint32_t,uint32_t,NetMsgType>,
-                 std::vector<std::vector<uint8_t>>>& getReassemblyBuffer()
+        std::map<std::tuple<uint32_t, uint32_t, uint32_t, NetMsgType>,
+            std::vector<std::vector<uint8_t>>>& getReassemblyBuffer()
         {
             return reassembly;
         }
 
         // Expose fragment‐timestamp map:
-        std::map<uint32_t,uint64_t>& getFragmentTimers()
+        std::map<uint32_t, uint64_t>& getFragmentTimers()
         {
             return fragmentTimers;
         }
@@ -117,7 +117,7 @@ namespace pg
     public:
         uint64_t getCurrentTime() const;
 
-        std::string ipPortKey(const IPaddress& addr) const;
+        std::string ipPortKey(const IpEndpoint& addr) const;
 
     protected:
         INetworkBackend* backend;
@@ -132,11 +132,9 @@ namespace pg
         NetPacketBuffer reassembly;
 
         // Server state
-        std::unordered_map<TCPsocket, ClientInfo> clients;
-        std::unordered_map<uint32_t, TCPsocket>   idToTcp;
+        std::unordered_map<SocketHandle, ClientInfo> clients;
+        std::unordered_map<uint32_t, SocketHandle>   idToTcp;
         std::unordered_map<std::string, uint32_t> _udpClientMap;
-
-        std::vector<SDLNet_SocketSet>             sockSets;
         uint32_t nextClientId = 0;
 
         // Client state
@@ -157,13 +155,13 @@ namespace pg
 
         void sendUdpHandshake();
 
-        void sendToServer(const std::vector<uint8_t>& data, bool overTcp);
+        void sendToServer(const NetPayload& data, bool overTcp);
 
         bool sendTCPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-            const NetPayload& payload, TCPsocket tcpSock = nullptr);
+            const NetPayload& payload, SocketHandle tcpSock = nullptr);
 
         bool sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-            const NetPayload& payload, const IPaddress& udpDest);
+            const NetPayload& payload, const IpEndpoint& udpDest);
 
         void readData();
 

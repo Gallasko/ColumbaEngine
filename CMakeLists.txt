@@ -176,6 +176,7 @@ set(ENGINESOURCE
     src/Engine/Memory/elementtype.cpp
     src/Engine/Memory/parallelfor.cpp
     src/Engine/Networking/backend_sdl.cpp
+    src/Engine/Networking/common.cpp
     src/Engine/Networking/network_system.cpp
     src/Engine/Renderer/mesh.cpp
     src/Engine/Renderer/particle.cpp

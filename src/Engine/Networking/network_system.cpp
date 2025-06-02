@@ -22,18 +22,20 @@ namespace pg
         return rng();
     }
 
-    std::string NetworkSystem::ipPortKey(const IPaddress& addr) const
+    std::string NetworkSystem::ipPortKey(const IpEndpoint& addr) const
     {
-        Uint32 rawIP   = SDLNet_Read32(reinterpret_cast<const Uint8*>(&addr.host));
-        Uint16 rawPort = SDLNet_Read16(reinterpret_cast<const Uint8*>(&addr.port));
+        // Todo
+        return addr.host + ":" + std::to_string(addr.port);
+        // Uint32 rawIP   = SDLNet_Read32(reinterpret_cast<const Uint8*>(&addr.host));
+        // Uint16 rawPort = SDLNet_Read16(reinterpret_cast<const Uint8*>(&addr.port));
 
-        Uint8 b0 = (rawIP >> 24) & 0xFF;
-        Uint8 b1 = (rawIP >> 16) & 0xFF;
-        Uint8 b2 = (rawIP >>  8) & 0xFF;
-        Uint8 b3 = (rawIP      ) & 0xFF;
+        // Uint8 b0 = (rawIP >> 24) & 0xFF;
+        // Uint8 b1 = (rawIP >> 16) & 0xFF;
+        // Uint8 b2 = (rawIP >>  8) & 0xFF;
+        // Uint8 b3 = (rawIP      ) & 0xFF;
 
-        return std::to_string(b0) + "." + std::to_string(b1) + "." +
-                std::to_string(b2) + "." + std::to_string(b3) + ":" + std::to_string(rawPort);
+        // return std::to_string(b0) + "." + std::to_string(b1) + "." +
+        //         std::to_string(b2) + "." + std::to_string(b3) + ":" + std::to_string(rawPort);
     }
 
     void NetworkSystem::cleanReassemblyBuffer()
@@ -83,8 +85,7 @@ namespace pg
     void NetworkSystem::sendUdpHandshake()
     {
         // send with zero‐length payload
-        IPaddress dest{};
-        SDLNet_ResolveHost(&dest, netCfg.peerAddress.c_str(), netCfg.udpPeerPort);
+        IpEndpoint dest{netCfg.peerAddress, netCfg.udpPeerPort};
 
         sendUDPMessage(_myClientId, _myToken, NetMsgType::Handshake, {0}, dest);
         LOG_INFO("NetSys", "UDP handshake sent");
@@ -99,18 +100,17 @@ namespace pg
         else
         {
             // send with zero‐length payload
-            IPaddress dest{};
-            SDLNet_ResolveHost(&dest, netCfg.peerAddress.c_str(), netCfg.udpPeerPort);
+            IpEndpoint dest{netCfg.peerAddress, netCfg.udpPeerPort};
 
             sendUDPMessage(_myClientId, _myToken, NetMsgType::Custom, data, dest);
         }
     }
 
     bool NetworkSystem::sendTCPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-        const NetPayload& payload, TCPsocket tcpSock)
+        const NetPayload& payload, SocketHandle tcpSock)
     {
         auto frags = fragmentPayload(clientId, token, type,
-                        nextPacketNumber++, payload);
+                        nextPacketNumber++, backend, payload);
 
         bool sent = true;
 
@@ -129,10 +129,10 @@ namespace pg
     }
 
     bool NetworkSystem::sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-        const NetPayload& payload, const IPaddress& udpDest)
+        const NetPayload& payload, const IpEndpoint& udpDest)
     {
         auto frags = fragmentPayload(clientId, token, type,
-                        nextPacketNumber++, payload);
+                        nextPacketNumber++, backend, payload);
 
         bool sent = true;
 
@@ -149,14 +149,14 @@ namespace pg
 
     void NetworkSystem::readData()
     {
-        TCPsocket sock;
-        IPaddress udpSrc; // ignored for TCP
+        SocketHandle sock;
+        IpEndpoint udpSrc; // ignored for TCP
         std::vector<uint8_t> buf;
 
         while (backend->receive(sock, udpSrc, buf))
         {
             ParsedPacket msg;
-            if (parseAndReassemble(buf, reassembly, fragmentTimers, msg))
+            if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
             {
                 // msg.header.clientId, msg.header.token,
                 // msg.header.packetNumber, msg.header.timestamp,
@@ -232,7 +232,7 @@ namespace pg
                 // ParsedPacket pkt;
 
                 ParsedPacket msg;
-                if (parseAndReassemble(data, reassembly, fragmentTimers, msg))
+                if (parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
                 {
                     LOG_INFO("NetSys", "Parsed packet from client:" << ci.clientId << " that should match header: " << msg.header.clientId);
 
@@ -242,13 +242,14 @@ namespace pg
         }
 
         // Process Udp data
-        IPaddress ip;
+        IpEndpoint ip;
+
         std::vector<uint8_t> data;
 
         while (backend->receiveUdp(ip, data))
         {
             ParsedPacket msg;
-            if (parseAndReassemble(data, reassembly, fragmentTimers, msg))
+            if (parseAndReassemble(data, reassembly, fragmentTimers, backend, msg))
             {
                 LOG_INFO("NetSys", "Parsed packet from client:"  << msg.header.clientId);
 
@@ -270,14 +271,14 @@ namespace pg
             return;
         }
 
-        TCPsocket sock;
-        IPaddress udpSrc; // ignored for TCP
+        SocketHandle sock;
+        IpEndpoint udpSrc; // ignored for TCP
         std::vector<uint8_t> buf;
 
         while (backend->receive(sock, udpSrc, buf))
         {
             ParsedPacket msg;
-            if (parseAndReassemble(buf, reassembly, fragmentTimers, msg))
+            if (parseAndReassemble(buf, reassembly, fragmentTimers, backend, msg))
             {
                 handleClientMessage(msg.header, msg.payload);
             }
@@ -308,7 +309,7 @@ namespace pg
             auto& state = clients[it->second];
 
             // payload is original timestamp
-            uint64_t sentTs = readU64BE(payload.data());
+            uint64_t sentTs = backend->readU64BE(payload.data());
 
             float sampleRtt = float(now - sentTs);
 
@@ -345,7 +346,7 @@ namespace pg
 
             // Todo make helpers that convert str, uint16, uint32, uint64 -> vector<uint8_t>
             uint8_t buf[8];
-            writeU64BE(buf, header.timestamp);
+            backend->writeU64BE(buf, header.timestamp);
 
             if (sendTCPMessage(_myClientId, _myToken, NetMsgType::Pong, std::vector<uint8_t>(buf, buf + 8)))
             {
