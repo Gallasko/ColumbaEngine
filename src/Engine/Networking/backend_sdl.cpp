@@ -132,7 +132,7 @@ namespace pg
         return _isConnectedToServer;
     }
 
-    bool SdlNetworkBackend::sendTcp(SocketHandle sock, const std::vector<uint8_t>& data)
+    bool SdlNetworkBackend::sendTcp(SocketHandle sock, const NetPayload& data)
     {
         if (not sock)
             return false;
@@ -154,7 +154,7 @@ namespace pg
         return true;
     }
 
-    bool SdlNetworkBackend::sendTcp(const std::vector<uint8_t>& data)
+    bool SdlNetworkBackend::sendTcp(const NetPayload& data)
     {
         if (_isConnectedToServer)
             return sendTcp(_tcpSock, data);
@@ -162,7 +162,7 @@ namespace pg
             return false;
     }
 
-    bool SdlNetworkBackend::sendUdp(const IpEndpoint& dest, const std::vector<uint8_t>& data)
+    bool SdlNetworkBackend::sendUdp(const IpEndpoint& dest, const NetPayload& data)
     {
         if (not _udpPkt)
             return false;
@@ -183,7 +183,7 @@ namespace pg
 
     bool SdlNetworkBackend::receive(SocketHandle& tcpSock,
         IpEndpoint& srcUdp,
-        std::vector<uint8_t>& out)
+        NetPayload& out)
     {
 
         if (sockSet)
@@ -233,7 +233,7 @@ namespace pg
         return false;
     }
 
-    bool SdlNetworkBackend::receiveUdp(IpEndpoint& srcUdp, std::vector<uint8_t>& out)
+    bool SdlNetworkBackend::receiveUdp(IpEndpoint& srcUdp, NetPayload& out)
     {
         if (_udpSock)
         {
@@ -253,7 +253,7 @@ namespace pg
         return false;
     }
 
-    bool SdlNetworkBackend::receiveTcp(SocketHandle& tcpHandle, std::vector<uint8_t>& out, bool& socketClosed)
+    bool SdlNetworkBackend::receiveTcp(SocketHandle& tcpHandle, NetPayload& out, bool& socketClosed)
     {
         auto tcpSock = static_cast<TCPsocket>(tcpHandle);
 
@@ -301,7 +301,7 @@ namespace pg
         return false;
     }
 
-    bool SdlNetworkBackend::receiveTcp(std::vector<uint8_t>& out, bool& socketClosed)
+    bool SdlNetworkBackend::receiveTcp(NetPayload& out, bool& socketClosed)
     {
         if (_tcpSock and SDLNet_SocketReady(_tcpSock))
         {
