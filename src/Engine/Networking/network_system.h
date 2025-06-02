@@ -76,6 +76,11 @@ namespace pg
             deltaTime = 0.0f;
         }
 
+        ClientState getCurrentConnectingState() const
+        {
+            return currentClientState;
+        }
+
         const ClientInfo& getClientState(uint32_t id) const
         {
             return clients.at(idToTcp.at(id));
@@ -119,6 +124,12 @@ namespace pg
 
         std::string ipPortKey(const IpEndpoint& addr) const;
 
+        bool sendTCPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
+            const NetPayload& payload, SocketHandle tcpSock = nullptr);
+
+        bool sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
+            const NetPayload& payload, const IpEndpoint& udpDest);
+
     protected:
         INetworkBackend* backend;
         NetworkConfig    netCfg;
@@ -156,12 +167,6 @@ namespace pg
         void sendUdpHandshake();
 
         void sendToServer(const NetPayload& data, bool overTcp);
-
-        bool sendTCPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-            const NetPayload& payload, SocketHandle tcpSock = nullptr);
-
-        bool sendUDPMessage(uint32_t clientId, uint32_t token, NetMsgType type,
-            const NetPayload& payload, const IpEndpoint& udpDest);
 
         void readData();
 
