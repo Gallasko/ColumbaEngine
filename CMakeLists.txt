@@ -375,6 +375,18 @@ else()
 
     ###
 
+    add_executable(BasicTerminal exemples/BasicTerminal/main.cpp)
+
+    target_include_directories(BasicTerminal PUBLIC exemples/BasicTerminal)
+
+    target_sources(BasicTerminal PRIVATE
+        exemples/BasicTerminal/application.cpp
+    )
+
+    target_link_libraries(BasicTerminal PRIVATE PgEngineSrc)
+
+    ###
+
     add_executable(EmptyApp exemples/EmptyAppTemplate/main.cpp)
 
     target_include_directories(EmptyApp PUBLIC exemples/EmptyAppTemplate)

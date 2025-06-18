@@ -23,6 +23,12 @@ namespace pg
         _unique_id id;
     };
 
+    struct __InternalCurrentTextInputTextChanged
+    {
+        std::string text;
+        _unique_id id;
+    };
+
     struct TextInputComponent : public Ctor
     {
         TextInputComponent(StandardEvent event, const std::string& defaultText = "") : event(event), text(defaultText) { LOG_THIS_MEMBER("TextInputComponent"); }
@@ -50,7 +56,7 @@ namespace pg
 
         void setText(const std::string& text)
         {
-            ecsRef->sendEvent(CurrentTextInputTextChanged{text, entityId});
+            ecsRef->sendEvent(__InternalCurrentTextInputTextChanged{text, entityId});
         }
 
         StandardEvent event;
@@ -71,7 +77,7 @@ namespace pg
         _unique_id entityId = 0;
     };
 
-    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, QueuedListener<CurrentTextInputTextChanged>, InitSys>
+    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, QueuedListener<__InternalCurrentTextInputTextChanged>, InitSys>
     {
         TextInputSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("Text Input System"); }
 
@@ -86,7 +92,7 @@ namespace pg
 
         virtual void onEvent(const OnSDLScanCode& event) override;
 
-        virtual void onProcessEvent(const CurrentTextInputTextChanged& event) override
+        virtual void onProcessEvent(const __InternalCurrentTextInputTextChanged& event) override
         {
             auto ent = ecsRef->getEntity(event.id);
 
@@ -106,11 +112,11 @@ namespace pg
             {
                 ent->get<TTFText>()->setText(text->text);
             }
+
+            ecsRef->sendEvent(CurrentTextInputTextChanged{text->text, event.id});
         }
 
         virtual void execute() override;
-
-        std::queue<CurrentTextInputTextChanged> eventQueue;
 
         Input *inputHandler;
     };
