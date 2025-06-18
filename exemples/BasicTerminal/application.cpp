@@ -2,7 +2,10 @@
 
 #include "logger.h"
 
+#include "UI/prefab.h"
 #include "UI/textinput.h"
+#include "UI/sizer.h"
+#include "2D/simple2dobject.h"
 
 using namespace pg;
 
@@ -36,13 +39,58 @@ void initWindow(const std::string &appName) {
     initialized = true;
 }
 
-struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, InitSys>
+EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> parentAnchor, size_t lineNumber)
+{
+    auto prefabEnt = makeAnchoredPrefab(ecsRef);
+    auto prefab = prefabEnt.get<Prefab>();
+
+    auto sizer = makeAnchoredPosition(ecsRef);
+    auto sizerAnchor = sizer.get<UiAnchor>();
+
+    sizerAnchor->setLeftAnchor(parentAnchor->left);
+    sizerAnchor->setRightAnchor(parentAnchor->right);
+
+    auto color = (lineNumber % 2) ? constant::Vector4D{192.f, 0.f, 0.f, 255.f} : constant::Vector4D{0.f, 192.f, 0.f, 255.f};
+
+    auto square = makeUiSimple2DShape(ecsRef, Shape2D::Square, 10, 10, color);
+    auto squareAnchor = square.get<UiAnchor>();
+
+    sizerAnchor->setHeightConstrain(PosConstrain{square.entity.id, AnchorType::Height});
+
+    squareAnchor->setTopAnchor(sizerAnchor->top);
+    squareAnchor->setLeftAnchor(sizerAnchor->left);
+
+    prefab->setMainEntity(sizer.entity);
+
+    prefab->addToPrefab(square.entity);
+
+    return prefabEnt.entity;
+}
+
+struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Listener<OnSDLScanCode>, InitSys>
 {
     virtual void onEvent(const CurrentTextInputTextChanged& event) override
     {
         if (event.id == textInputEnt.id)
         {
             printf("%s\n", event.text.c_str());
+        }
+    }
+
+    virtual void onEvent(const OnSDLScanCode& event) override
+    {
+        if (event.key != SDL_SCANCODE_RETURN and event.key != SDL_SCANCODE_BACKSPACE)
+            return;
+
+        if (event.key == SDL_SCANCODE_RETURN)
+        {
+            auto anchor = textInputEnt.get<UiAnchor>();
+
+            auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+
+            auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+            listViewComp->addEntity(linePrefab);
         }
     }
 
@@ -65,9 +113,27 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, In
         StandardEvent event {"TerminalNewLine"};
 
         auto textInputComp = ecsRef->attach<TextInputComponent>(textInputEnt, event, "");
+
+        auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500);
+
+        auto listViewAnchor = listView.get<UiAnchor>();
+
+        // listViewAnchor->fillIn(anchor);
+
+        auto listViewComp = listView.get<VerticalLayout>();
+
+        auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+
+        listViewComp->addEntity(linePrefab);
+
+        listViewEnt = listView.entity;
     }
 
     EntityRef textInputEnt;
+
+    EntityRef listViewEnt;
+
+    size_t lineNumber = 1;
 };
 
 void initGame() {
