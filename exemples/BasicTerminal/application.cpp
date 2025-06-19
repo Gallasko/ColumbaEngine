@@ -39,28 +39,22 @@ void initWindow(const std::string &appName) {
     initialized = true;
 }
 
-EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> parentAnchor, size_t lineNumber)
+EntityRef makeLinePrefab(EntitySystem *ecsRef, size_t lineNumber)
 {
     auto prefabEnt = makeAnchoredPrefab(ecsRef);
     auto prefab = prefabEnt.get<Prefab>();
+    auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
-    auto sizer = makeAnchoredPosition(ecsRef);
-    auto sizerAnchor = sizer.get<UiAnchor>();
+    auto color = (lineNumber % 2) ? constant::Vector4D{167.f, 167.f, 167.f, 255.f} : constant::Vector4D{218.f, 218.f, 218.f, 255.f};
 
-    sizerAnchor->setLeftAnchor(parentAnchor->left);
-    sizerAnchor->setRightAnchor(parentAnchor->right);
-
-    auto color = (lineNumber % 2) ? constant::Vector4D{192.f, 0.f, 0.f, 255.f} : constant::Vector4D{0.f, 192.f, 0.f, 255.f};
-
-    auto square = makeUiSimple2DShape(ecsRef, Shape2D::Square, 10, 10, color);
+    auto square = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, color);
     auto squareAnchor = square.get<UiAnchor>();
 
-    sizerAnchor->setHeightConstrain(PosConstrain{square.entity.id, AnchorType::Height});
+    prefabAnchor->setHeightConstrain(PosConstrain{square.entity.id, AnchorType::Height});
+    prefabEnt.get<PositionComponent>()->setWidth(50);
 
-    squareAnchor->setTopAnchor(sizerAnchor->top);
-    squareAnchor->setLeftAnchor(sizerAnchor->left);
-
-    prefab->setMainEntity(sizer.entity);
+    squareAnchor->setTopAnchor(prefabAnchor->top);
+    squareAnchor->setLeftAnchor(prefabAnchor->left);
 
     prefab->addToPrefab(square.entity);
 
@@ -86,7 +80,7 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Li
         {
             auto anchor = textInputEnt.get<UiAnchor>();
 
-            auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+            auto linePrefab = makeLinePrefab(ecsRef, lineNumber++);
 
             auto listViewComp = listViewEnt.get<VerticalLayout>();
 
@@ -116,15 +110,27 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Li
 
         auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500);
 
+        // listView.attach<Simple2DObject>(Shape2D::Square, constant::Vector4D{0.f, 192.f, 0.f, 255.f});
+
         auto listViewAnchor = listView.get<UiAnchor>();
 
-        // listViewAnchor->fillIn(anchor);
+        listViewAnchor->fillIn(anchor);
 
         auto listViewComp = listView.get<VerticalLayout>();
 
-        auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+        auto linePrefab = makeLinePrefab(ecsRef, lineNumber++);
+        auto linePrefab2 = makeLinePrefab(ecsRef, lineNumber++);
+        auto linePrefab3 = makeLinePrefab(ecsRef, lineNumber++);
+
+        // listViewComp->addEntity(linePrefab);
+
+        // auto testCube = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, constant::Vector4D{192.f, 0.f, 0.f, 255.f});
+
+        // listViewComp->addEntity(testCube.entity);
 
         listViewComp->addEntity(linePrefab);
+        listViewComp->addEntity(linePrefab2);
+        listViewComp->addEntity(linePrefab3);
 
         listViewEnt = listView.entity;
     }
