@@ -85,6 +85,23 @@ namespace pg
             childrenIds.insert(entity.id);
         }
 
+        void addToPrefab(EntityRef entity, const std::string& name)
+        {
+            addToPrefab(entity);
+
+            namedChildrenIds[name] = entity.id;
+        }
+
+        EntityRef getEntity(const std::string& name)
+        {
+            const auto it = namedChildrenIds.find(name);
+
+            if (it == namedChildrenIds.end())
+                return nullptr;
+
+            return ecsRef->getEntity(namedChildrenIds[name]);
+        }
+
         void setMainEntity(EntityRef entity)
         {
             ecsRef->sendEvent(SetMainEntityEvent{id, entity->id});

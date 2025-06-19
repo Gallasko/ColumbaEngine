@@ -67,7 +67,7 @@ EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t 
     prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
 
     prefab->addToPrefab(square.entity);
-    prefab->addToPrefab(s2.entity);
+    prefab->addToPrefab(s2.entity, "TextBg");
 
     return prefabEnt.entity;
 }
@@ -84,18 +84,61 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
-        if (event.key != SDL_SCANCODE_RETURN and event.key != SDL_SCANCODE_BACKSPACE)
-            return;
-
         if (event.key == SDL_SCANCODE_RETURN)
         {
             auto anchor = textInputEnt.get<UiAnchor>();
+
+            currentLine = lineNumber;
 
             auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
 
             auto listViewComp = listViewEnt.get<VerticalLayout>();
 
+            // Todo need to add an insert in listView
             listViewComp->addEntity(linePrefab);
+        }
+        else if (event.key == SDL_SCANCODE_BACKSPACE)
+        {
+            // if (textInputEnt.has<TextInputComponent>())
+            // {
+            //     auto textInputComp = textInputEnt.get<TextInputComponent>();
+            //     textInputComp->removeLastCharacter();
+            // }
+        }
+        else if (event.key == SDL_SCANCODE_UP)
+        {
+            if (currentLine > 1)
+            {
+                auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+                auto entBefore = listViewComp->entities[currentLine - 1];
+                auto prefabBefore = entBefore.get<Prefab>();
+                prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+
+                currentLine--;
+
+                auto entAfter = listViewComp->entities[currentLine - 1];
+                auto prefabAfter = entAfter.get<Prefab>();
+
+                prefabAfter->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+            }
+        }
+        else if (event.key == SDL_SCANCODE_DOWN)
+        {
+            if (currentLine < lineNumber - 1)
+            {
+                auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+                auto entBefore = listViewComp->entities[currentLine - 1];
+                auto prefabBefore = entBefore.get<Prefab>();
+                prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+
+                currentLine++;
+
+                auto entAfter = listViewComp->entities[currentLine - 1];
+                auto prefabAfter = entAfter.get<Prefab>();
+                prefabAfter->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+            }
         }
     }
 
@@ -143,6 +186,8 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         listViewComp->addEntity(linePrefab2);
         listViewComp->addEntity(linePrefab3);
 
+        currentLine = 3;
+
         listViewEnt = listView.entity;
     }
 
@@ -151,6 +196,7 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
     EntityRef listViewEnt;
 
     size_t lineNumber = 1;
+    size_t currentLine = 1;
 };
 
 void initGame() {
