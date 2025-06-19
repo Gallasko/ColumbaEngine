@@ -39,7 +39,7 @@ void initWindow(const std::string &appName) {
     initialized = true;
 }
 
-EntityRef makeLinePrefab(EntitySystem *ecsRef, size_t lineNumber)
+EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
 {
     auto prefabEnt = makeAnchoredPrefab(ecsRef);
     auto prefab = prefabEnt.get<Prefab>();
@@ -56,12 +56,23 @@ EntityRef makeLinePrefab(EntitySystem *ecsRef, size_t lineNumber)
     squareAnchor->setTopAnchor(prefabAnchor->top);
     squareAnchor->setLeftAnchor(prefabAnchor->left);
 
+    auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    auto s2Anchor = s2.get<UiAnchor>();
+
+    s2Anchor->setTopAnchor(prefabAnchor->top);
+    s2Anchor->setLeftAnchor(prefabAnchor->left);
+    s2Anchor->setLeftMargin(30);
+    s2Anchor->setRightAnchor(anchor->right);
+
+    prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
+
     prefab->addToPrefab(square.entity);
+    prefab->addToPrefab(s2.entity);
 
     return prefabEnt.entity;
 }
 
-struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Listener<OnSDLScanCode>, InitSys>
+struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, QueuedListener<OnSDLScanCode>, InitSys>
 {
     virtual void onEvent(const CurrentTextInputTextChanged& event) override
     {
@@ -71,7 +82,7 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Li
         }
     }
 
-    virtual void onEvent(const OnSDLScanCode& event) override
+    virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
         if (event.key != SDL_SCANCODE_RETURN and event.key != SDL_SCANCODE_BACKSPACE)
             return;
@@ -80,7 +91,7 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Li
         {
             auto anchor = textInputEnt.get<UiAnchor>();
 
-            auto linePrefab = makeLinePrefab(ecsRef, lineNumber++);
+            auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
 
             auto listViewComp = listViewEnt.get<VerticalLayout>();
 
@@ -118,9 +129,9 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Li
 
         auto listViewComp = listView.get<VerticalLayout>();
 
-        auto linePrefab = makeLinePrefab(ecsRef, lineNumber++);
-        auto linePrefab2 = makeLinePrefab(ecsRef, lineNumber++);
-        auto linePrefab3 = makeLinePrefab(ecsRef, lineNumber++);
+        auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+        auto linePrefab2 = makeLinePrefab(ecsRef, anchor, lineNumber++);
+        auto linePrefab3 = makeLinePrefab(ecsRef, anchor, lineNumber++);
 
         // listViewComp->addEntity(linePrefab);
 

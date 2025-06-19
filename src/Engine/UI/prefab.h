@@ -34,7 +34,7 @@ namespace pg
             // Without a position component, we cannot work on adding the entity to the prefab ui, so we skip the rest
             if (not entity->has<PositionComponent>())
             {
-                LOG_ERROR("Prefab", "Entity " << entity.id << " can't be added to prefab as it doesn't have a PositionComponent!");
+                LOG_MILE("Prefab", "Entity " << entity.id << " can't be added to prefab as it doesn't have a PositionComponent!");
                 return;
             }
 
@@ -127,6 +127,7 @@ namespace pg
 
         // Todo make it simpler to find a specific child in a prefab
         std::set<_unique_id> childrenIds;
+        std::map<std::string, _unique_id> namedChildrenIds;
 
         // Data to keep track
 
