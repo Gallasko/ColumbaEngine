@@ -39,7 +39,7 @@ void initWindow(const std::string &appName) {
     initialized = true;
 }
 
-CompList<Prefab> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
+CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
 {
     auto prefabEnt = makeAnchoredPrefab(ecsRef);
     auto prefab = prefabEnt.get<Prefab>();
@@ -63,6 +63,7 @@ CompList<Prefab> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, 
     textAnchor->setZConstrain(PosConstrain{square.entity.id, AnchorType::Z, PosOpType::Add, 1});
 
     auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    auto s2Bg = s2.get<Simple2DObject>();
     auto s2Anchor = s2.get<UiAnchor>();
 
     s2Anchor->setTopAnchor(prefabAnchor->top);
@@ -76,7 +77,7 @@ CompList<Prefab> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, 
     prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
 
-    return {prefabEnt.entity, prefab};
+    return {prefabEnt.entity, prefab, s2Bg};
     // return prefabEnt.entity;
 }
 
@@ -126,12 +127,13 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
                 prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
             }
 
-            auto prefab = linePrefab.get<Prefab>();
+            // auto prefab = linePrefab.get<Prefab>();
 
-            auto ent = prefab->getEntity("TextBg");
-            // Todo fix this (An entity here has a empty comp list as their comp are not materialized yet !)
-            auto shape = ent->get<Simple2DObject>();
-            shape->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+            // auto ent = prefab->getEntity("TextBg");
+            // // Todo fix this (An entity here has a empty comp list as their comp are not materialized yet !)
+            // auto shape = ent->get<Simple2DObject>();
+            // shape->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+            linePrefab.get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
 
             // Todo need to add an insert in listView
             // listViewComp->addEntity(linePrefab);
