@@ -56,6 +56,14 @@ EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t 
     squareAnchor->setTopAnchor(prefabAnchor->top);
     squareAnchor->setLeftAnchor(prefabAnchor->left);
 
+    auto lineText = makeTTFText(ecsRef, 0, 0, 4, "light", std::to_string(lineNumber), 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+
+    auto textAnchor = lineText.get<UiAnchor>();
+    // textAnchor->setTopAnchor(prefabAnchor->top);
+    // textAnchor->setLeftAnchor(prefabAnchor->left);
+    textAnchor->centeredIn(squareAnchor);
+    textAnchor->setZConstrain(PosConstrain{square.entity.id, AnchorType::Z, PosOpType::Add, 1});
+
     auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
     auto s2Anchor = s2.get<UiAnchor>();
 
@@ -67,6 +75,7 @@ EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t 
     prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
 
     prefab->addToPrefab(square.entity);
+    prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
 
     return prefabEnt.entity;
@@ -101,6 +110,8 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
+            makeTTFText(ecsRef, 300, 350, 0, "light", "Hello World", 1.0);
+
             // if (textInputEnt.has<TextInputComponent>())
             // {
             //     auto textInputComp = textInputEnt.get<TextInputComponent>();
@@ -166,6 +177,7 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
 
         auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500);
 
+
         // listView.attach<Simple2DObject>(Shape2D::Square, constant::Vector4D{0.f, 192.f, 0.f, 255.f});
 
         auto listViewAnchor = listView.get<UiAnchor>();
@@ -224,6 +236,17 @@ void initGame() {
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+
+    // Need to fix this
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+
+    // mainWindow->masterRenderer->processTextureRegister();
+
+    mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
     mainWindow->ecs.createSystem<TextHandlingSys>();
 
