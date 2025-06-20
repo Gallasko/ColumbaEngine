@@ -882,7 +882,12 @@ namespace pg
             // Try to find the entity in the ecs to update this ref
             auto ent = ecsRef->getEntity(id);
 
-            return ent->template get<Comp>();
+            if (ent)
+                return ent->template get<Comp>();
+            else
+            {
+                return entity->template get<Comp>();
+            }
         }
     }
 

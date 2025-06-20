@@ -39,7 +39,7 @@ void initWindow(const std::string &appName) {
     initialized = true;
 }
 
-EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
+CompList<Prefab> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
 {
     auto prefabEnt = makeAnchoredPrefab(ecsRef);
     auto prefab = prefabEnt.get<Prefab>();
@@ -59,8 +59,6 @@ EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t 
     auto lineText = makeTTFText(ecsRef, 0, 0, 4, "light", std::to_string(lineNumber), 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
 
     auto textAnchor = lineText.get<UiAnchor>();
-    // textAnchor->setTopAnchor(prefabAnchor->top);
-    // textAnchor->setLeftAnchor(prefabAnchor->left);
     textAnchor->centeredIn(squareAnchor);
     textAnchor->setZConstrain(PosConstrain{square.entity.id, AnchorType::Z, PosOpType::Add, 1});
 
@@ -78,7 +76,8 @@ EntityRef makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t 
     prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
 
-    return prefabEnt.entity;
+    return {prefabEnt.entity, prefab};
+    // return prefabEnt.entity;
 }
 
 struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, QueuedListener<OnSDLScanCode>, InitSys>
@@ -91,27 +90,55 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         }
     }
 
+    void focusLine(size_t lineNumber)
+    {
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+        auto entBefore = listViewComp->entities[currentLine - 1];
+        auto prefabBefore = entBefore.get<Prefab>();
+        prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+
+        currentLine = lineNumber;
+
+        auto entAfter = listViewComp->entities[currentLine - 1];
+        auto prefabAfter = entAfter.get<Prefab>();
+
+        prefabAfter->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+    }
+
     virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
         if (event.key == SDL_SCANCODE_RETURN)
         {
             auto anchor = textInputEnt.get<UiAnchor>();
 
-            currentLine++;
+            auto oldLine = currentLine++;
             lineNumber++;
 
             auto linePrefab = makeLinePrefab(ecsRef, anchor, currentLine);
 
             auto listViewComp = listViewEnt.get<VerticalLayout>();
 
+            if (oldLine > 0)
+            {
+                auto entBefore = listViewComp->entities[oldLine - 1];
+                auto prefabBefore = entBefore.get<Prefab>();
+                prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+            }
+
+            auto prefab = linePrefab.get<Prefab>();
+
+            auto ent = prefab->getEntity("TextBg");
+            // Todo fix this (An entity here has a empty comp list as their comp are not materialized yet !)
+            auto shape = ent->get<Simple2DObject>();
+            shape->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+
             // Todo need to add an insert in listView
             // listViewComp->addEntity(linePrefab);
-            listViewComp->insertEntity(linePrefab, currentLine - 1);
+            listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
-            makeTTFText(ecsRef, 300, 350, 0, "light", "Hello World", 1.0);
-
             // if (textInputEnt.has<TextInputComponent>())
             // {
             //     auto textInputComp = textInputEnt.get<TextInputComponent>();
@@ -122,35 +149,14 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         {
             if (currentLine > 1)
             {
-                auto listViewComp = listViewEnt.get<VerticalLayout>();
-
-                auto entBefore = listViewComp->entities[currentLine - 1];
-                auto prefabBefore = entBefore.get<Prefab>();
-                prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
-
-                currentLine--;
-
-                auto entAfter = listViewComp->entities[currentLine - 1];
-                auto prefabAfter = entAfter.get<Prefab>();
-
-                prefabAfter->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+                focusLine(currentLine - 1);
             }
         }
         else if (event.key == SDL_SCANCODE_DOWN)
         {
             if (currentLine < lineNumber - 1)
             {
-                auto listViewComp = listViewEnt.get<VerticalLayout>();
-
-                auto entBefore = listViewComp->entities[currentLine - 1];
-                auto prefabBefore = entBefore.get<Prefab>();
-                prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
-
-                currentLine++;
-
-                auto entAfter = listViewComp->entities[currentLine - 1];
-                auto prefabAfter = entAfter.get<Prefab>();
-                prefabAfter->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+                focusLine(currentLine + 1);
             }
         }
     }
@@ -190,15 +196,17 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         auto linePrefab2 = makeLinePrefab(ecsRef, anchor, lineNumber++);
         auto linePrefab3 = makeLinePrefab(ecsRef, anchor, lineNumber++);
 
+        linePrefab3.get<Prefab>()->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+
         // listViewComp->addEntity(linePrefab);
 
         // auto testCube = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, constant::Vector4D{192.f, 0.f, 0.f, 255.f});
 
         // listViewComp->addEntity(testCube.entity);
 
-        listViewComp->addEntity(linePrefab);
-        listViewComp->addEntity(linePrefab2);
-        listViewComp->addEntity(linePrefab3);
+        listViewComp->addEntity(linePrefab.entity);
+        listViewComp->addEntity(linePrefab2.entity);
+        listViewComp->addEntity(linePrefab3.entity);
 
         currentLine = 3;
 

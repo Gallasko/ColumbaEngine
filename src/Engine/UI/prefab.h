@@ -89,7 +89,7 @@ namespace pg
         {
             addToPrefab(entity);
 
-            namedChildrenIds[name] = entity.id;
+            namedChildrenIds[name] = entity;
         }
 
         EntityRef getEntity(const std::string& name)
@@ -97,9 +97,12 @@ namespace pg
             const auto it = namedChildrenIds.find(name);
 
             if (it == namedChildrenIds.end())
+            {
+                LOG_ERROR("Prefab", "Couldn't find entity with name: " << name << " in prefab: " << id);
                 return nullptr;
+            }
 
-            return ecsRef->getEntity(namedChildrenIds[name]);
+            return namedChildrenIds[name];
         }
 
         void setMainEntity(EntityRef entity)
@@ -144,7 +147,7 @@ namespace pg
 
         // Todo make it simpler to find a specific child in a prefab
         std::set<_unique_id> childrenIds;
-        std::map<std::string, _unique_id> namedChildrenIds;
+        std::map<std::string, EntityRef> namedChildrenIds;
 
         // Data to keep track
 
