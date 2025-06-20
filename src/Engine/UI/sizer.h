@@ -22,6 +22,11 @@ namespace pg
         _unique_id id; _unique_id ui; LayoutOrientation orientation;
     };
 
+    struct InsertLayoutElementEvent
+    {
+        _unique_id id; _unique_id ui; LayoutOrientation orientation; int index;
+    };
+
     struct RemoveLayoutElementEvent
     {
         _unique_id id; _unique_id index; LayoutOrientation orientation;
@@ -70,6 +75,11 @@ namespace pg
         void addEntity(EntityRef entity)
         {
             ecsRef->sendEvent(AddLayoutElementEvent{id, entity.id, orientation});
+        }
+
+        void insertEntity(EntityRef entity, int index)
+        {
+            ecsRef->sendEvent(InsertLayoutElementEvent{id, entity.id, orientation, index});
         }
 
         void removeEntity(EntityRef entity)
@@ -157,6 +167,7 @@ namespace pg
         Listener<StandardEvent>,
         QueuedListener<EntityChangedEvent>,
         QueuedListener<AddLayoutElementEvent>,
+        QueuedListener<InsertLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementEvent>,
         QueuedListener<ClearLayoutEvent>,
         QueuedListener<UpdateLayoutScrollable>,
@@ -171,6 +182,8 @@ namespace pg
         virtual void onEvent(const StandardEvent& event) override;
 
         virtual void onProcessEvent(const AddLayoutElementEvent& event) override;
+
+        virtual void onProcessEvent(const InsertLayoutElementEvent& event) override;
 
         virtual void onProcessEvent(const RemoveLayoutElementEvent& event) override;
 
@@ -201,7 +214,7 @@ namespace pg
         // Todo calculate the lesser axis of the view (Biggest width for Vertical for example)
         void recalculateChildrenPos(EntityRef viewEnt, BaseLayout* view);
 
-        void addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation);
+        void addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation, int index = -1);
 
         void removeEntity(BaseLayout* view, _unique_id index);
 

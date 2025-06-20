@@ -88,14 +88,16 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         {
             auto anchor = textInputEnt.get<UiAnchor>();
 
-            currentLine = lineNumber;
+            currentLine++;
+            lineNumber++;
 
-            auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+            auto linePrefab = makeLinePrefab(ecsRef, anchor, currentLine);
 
             auto listViewComp = listViewEnt.get<VerticalLayout>();
 
             // Todo need to add an insert in listView
-            listViewComp->addEntity(linePrefab);
+            // listViewComp->addEntity(linePrefab);
+            listViewComp->insertEntity(linePrefab, currentLine - 1);
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
