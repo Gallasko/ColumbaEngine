@@ -284,6 +284,28 @@ namespace pg
         }
     }
 
+    void LayoutSystem::onProcessEvent(const RemoveLayoutElementAtEvent& event)
+    {
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (ent)
+        {
+            if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
+            {
+                removeEntityAt(ent->get<HorizontalLayout>(), event.index);
+            }
+
+            if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
+            {
+                removeEntityAt(ent->get<VerticalLayout>(), event.index);
+            }
+
+            entitiesInLayout.erase(event.id);
+
+            layoutUpdate.insert(ent);
+        }
+    }
+
     void LayoutSystem::onProcessEvent(const EntityChangedEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
@@ -745,7 +767,7 @@ namespace pg
 
             if (index < 0)
             {
-                index = static_cast<int>(view->entities.size()) + index;
+                index = static_cast<int>(view->entities.size()) + index + 1;
             }
 
             if (index < 0 or index >= static_cast<int>(view->entities.size()))
@@ -848,6 +870,27 @@ namespace pg
             view->entities.erase(it);
             ecsRef->removeEntity(index);
         }
+    }
+
+    void LayoutSystem::removeEntityAt(BaseLayout* view, int index)
+    {
+        if (index < 0)
+        {
+            index = static_cast<int>(view->entities.size()) + index + 1;
+        }
+
+        if (index < 0 or index >= static_cast<int>(view->entities.size()))
+        {
+            LOG_ERROR(DOM, "Index " << index << " is out of bounds for layout with id: " << view->id);
+            return;
+        }
+
+        _unique_id indexId = view->entities[index].id;
+
+        ecsRef->sendEvent(ClearParentingEvent{indexId, view->id});
+
+        view->entities.erase(view->entities.begin() + index);
+        ecsRef->removeEntity(indexId);
     }
 
     void LayoutSystem::updateVisibility(EntityRef viewEnt, BaseLayout* view)

@@ -79,9 +79,17 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
 
     prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
 
+    auto inputText = makeTTFText(ecsRef, 0, 0, 4, "light", "", 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    auto inputTextAnchor = inputText.get<UiAnchor>();
+
+    inputTextAnchor->setLeftAnchor(s2Anchor->left);
+    inputTextAnchor->setBottomAnchor(s2Anchor->bottom);
+    inputTextAnchor->setBottomMargin(5);
+
     prefab->addToPrefab(square.entity, "LineTextBg");
     prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
+    prefab->addToPrefab(inputText.entity, "Text");
 
     return {prefabEnt.entity, prefab, s2Bg};
     // return prefabEnt.entity;
@@ -162,11 +170,35 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
-            // if (textInputEnt.has<TextInputComponent>())
-            // {
-            //     auto textInputComp = textInputEnt.get<TextInputComponent>();
-            //     textInputComp->removeLastCharacter();
-            // }
+            auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+            // auto ent = listViewComp->entities[currentLine - 1];
+
+            if (currentLine <= 1)
+                return;
+
+            if (currentLine - 2 >= 0)
+            {
+                listViewComp->entities[currentLine - 2].get<Prefab>()->getEntity("TextBg").get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+            }
+
+            // Update the line text for all the line after the inserted line
+            for (size_t i = currentLine; i < lineNumber - 1; ++i)
+            {
+                auto ent = listViewComp->entities[i];
+                auto prefab = ent.get<Prefab>();
+
+                auto newLineValue = i;
+
+                prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+                prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+            }
+
+            listViewComp->removeAt(currentLine - 1);
+
+            lineNumber--;
+            currentLine--;
         }
         else if (event.key == SDL_SCANCODE_UP)
         {
