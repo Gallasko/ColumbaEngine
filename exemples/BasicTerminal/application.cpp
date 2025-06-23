@@ -97,6 +97,11 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
         prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
     });
 
+    prefab->addHelper("GetCurrentText", [](Prefab *prefab) -> std::string {
+        // return prefab->getEntity("Text")->get<TTFText>()->text;
+        return "a";
+    });
+
     return {prefabEnt.entity, prefab, s2Bg};
     // return prefabEnt.entity;
 }
@@ -109,6 +114,13 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
         {
             printf("%s\n", event.text.c_str());
         }
+
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+        auto entBefore = listViewComp->entities[currentLine - 1];
+
+        LOG_INFO("TextHandlingSys", "Current line: " << currentLine << " - Text: " << entBefore.get<Prefab>()->callHelper<std::string>("GetCurrentText"));
+        // LOG_INFO("TextHandlingSys", "Current line: " << currentLine << " - Text: " << entBefore.get<Prefab>()->getEntity("Text")->get<TTFText>()->text);
     }
 
     void focusLine(size_t lineNumber)

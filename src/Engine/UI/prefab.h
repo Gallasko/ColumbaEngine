@@ -152,6 +152,9 @@ namespace pg
         template <typename... Args>
         std::any callHelper(const std::string& name, Args... args);
 
+        template <typename ReturnType, typename... Args>
+        ReturnType callHelper(const std::string& name, Args... args);
+
         EntitySystem *ecsRef = nullptr;
 
         _unique_id id = 0;
@@ -309,6 +312,12 @@ namespace pg
             return helperRegistry[id].call(name, args...);
         }
 
+        template <typename ReturnType, typename... Args>
+        ReturnType callHelper(_unique_id id, const std::string& name, Args... args)
+        {
+            return helperRegistry[id].call<ReturnType>(name, args...);
+        }
+
         std::unordered_map<_unique_id, FunctionRegistry> helperRegistry;
     };
 
@@ -328,6 +337,12 @@ namespace pg
     std::any Prefab::callHelper(const std::string& name, Args... args)
     {
         return ecsRef->getSystem<PrefabSystem>()->callHelper(id, name, this, std::forward<Args>(args)...);
+    }
+
+    template <typename ReturnType, typename... Args>
+    ReturnType Prefab::callHelper(const std::string& name, Args... args)
+    {
+        return ecsRef->getSystem<PrefabSystem>()->callHelper<ReturnType>(id, name, this, std::forward<Args>(args)...);
     }
 
     template <typename Type>
