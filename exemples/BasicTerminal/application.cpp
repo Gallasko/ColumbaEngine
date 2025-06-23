@@ -105,11 +105,19 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
         prefab->getEntity("Text")->get<TTFText>()->setText(newText);
     });
 
+    prefab->addHelper("SetAsFocusLine", [](Prefab *prefab) {
+        prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+    });
+
+    prefab->addHelper("UnfocusLine", [](Prefab *prefab) {
+        prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    });
+
     return {prefabEnt.entity, prefab, s2Bg};
     // return prefabEnt.entity;
 }
 
-struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedListener<OnSDLScanCode>, InitSys>
+struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLScanCodeReleased>, InitSys>
 {
     virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
@@ -129,14 +137,14 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
 
         auto entBefore = listViewComp->entities[currentLine - 1];
         auto prefabBefore = entBefore.get<Prefab>();
-        prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+        prefabBefore->callHelper("UnfocusLine");
 
         currentLine = lineNumber;
 
         auto entAfter = listViewComp->entities[currentLine - 1];
         auto prefabAfter = entAfter.get<Prefab>();
 
-        prefabAfter->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+        prefabAfter->callHelper("SetAsFocusLine");
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
@@ -157,7 +165,7 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
             {
                 auto entBefore = listViewComp->entities[oldLine - 1];
                 auto prefabBefore = entBefore.get<Prefab>();
-                prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+                prefabBefore->callHelper("UnfocusLine");
             }
 
             // Todo We should be able to do this
@@ -168,6 +176,7 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
             // auto shape = ent->get<Simple2DObject>();
             // shape->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
 
+            // Todo fix this
             // Higlight the new line
             linePrefab.get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
 
@@ -201,6 +210,16 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
             if (not text.empty())
             {
                 text.pop_back();
+
+                // If control is held try to remove everything till the beginning or till another space is found
+                if (lcontrolPressed or rcontrolPressed)
+                {
+                    while (not text.empty() and not (text.back() == ' '))
+                    {
+                        text.pop_back();
+                    }
+                }
+
                 pf->callHelper("SetCurrentText", text);
 
                 return;
@@ -212,7 +231,9 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
 
             if (currentLine - 2 >= 0)
             {
-                listViewComp->entities[currentLine - 2].get<Prefab>()->getEntity("TextBg").get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+                auto entBefore = listViewComp->entities[currentLine - 2];
+                auto prefabBefore = entBefore.get<Prefab>();
+                prefabBefore->callHelper("UnfocusLine");
             }
 
             // Update the line text for all the line after the inserted line
@@ -249,6 +270,26 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
                 focusLine(currentLine + 1);
             }
         }
+        else if (event.key == SDL_SCANCODE_LCTRL)
+        {
+            lcontrolPressed = true;
+        }
+        else if (event.key == SDL_SCANCODE_RCTRL)
+        {
+            rcontrolPressed = true;
+        }
+    }
+
+    virtual void onProcessEvent(const OnSDLScanCodeReleased& event) override
+    {
+        if (event.key == SDL_SCANCODE_LCTRL)
+        {
+            lcontrolPressed = false;
+        }
+        else if (event.key == SDL_SCANCODE_RCTRL)
+        {
+            rcontrolPressed = false;
+        }
     }
 
     virtual void init() override
@@ -272,7 +313,6 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
         auto textInputComp = ecsRef->attach<TextInputComponent>(textInputEnt, event, "");
 
         auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500);
-
 
         // listView.attach<Simple2DObject>(Shape2D::Square, constant::Vector4D{0.f, 192.f, 0.f, 255.f});
 
@@ -306,6 +346,9 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
     EntityRef textInputEnt;
 
     EntityRef listViewEnt;
+
+    bool lcontrolPressed = false;
+    bool rcontrolPressed = false;
 
     size_t lineNumber = 1;
     size_t currentLine = 1;
