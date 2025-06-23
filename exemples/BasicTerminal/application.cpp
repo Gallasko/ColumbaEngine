@@ -79,7 +79,7 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
 
     prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
 
-    auto inputText = makeTTFText(ecsRef, 0, 0, 4, "light", "", 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    auto inputText = makeTTFText(ecsRef, 0, 0, 4, "light", "", 0.4, constant::Vector4D{255.f, 255.f, 255.f, 255.f});
     auto inputTextAnchor = inputText.get<UiAnchor>();
 
     inputTextAnchor->setLeftAnchor(s2Anchor->left);
@@ -98,29 +98,29 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
     });
 
     prefab->addHelper("GetCurrentText", [](Prefab *prefab) -> std::string {
-        // return prefab->getEntity("Text")->get<TTFText>()->text;
-        return "a";
+        return prefab->getEntity("Text")->get<TTFText>()->text;
+    });
+
+    prefab->addHelper("SetCurrentText", [](Prefab *prefab, const std::string& newText) {
+        prefab->getEntity("Text")->get<TTFText>()->setText(newText);
     });
 
     return {prefabEnt.entity, prefab, s2Bg};
     // return prefabEnt.entity;
 }
 
-struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, QueuedListener<OnSDLScanCode>, InitSys>
+struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedListener<OnSDLScanCode>, InitSys>
 {
-    virtual void onEvent(const CurrentTextInputTextChanged& event) override
+    virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
-        if (event.id == textInputEnt.id)
-        {
-            printf("%s\n", event.text.c_str());
-        }
-
         auto listViewComp = listViewEnt.get<VerticalLayout>();
 
-        auto entBefore = listViewComp->entities[currentLine - 1];
+        auto ent = listViewComp->entities[currentLine - 1];
+        auto prefab = ent.get<Prefab>();
 
-        LOG_INFO("TextHandlingSys", "Current line: " << currentLine << " - Text: " << entBefore.get<Prefab>()->callHelper<std::string>("GetCurrentText"));
-        // LOG_INFO("TextHandlingSys", "Current line: " << currentLine << " - Text: " << entBefore.get<Prefab>()->getEntity("Text")->get<TTFText>()->text);
+        auto currentText = prefab->callHelper<std::string>("GetCurrentText");
+
+        prefab->callHelper("SetCurrentText", currentText + event.text);
     }
 
     void focusLine(size_t lineNumber)
