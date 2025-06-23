@@ -192,7 +192,20 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
         {
             auto listViewComp = listViewEnt.get<VerticalLayout>();
 
-            // auto ent = listViewComp->entities[currentLine - 1];
+            auto ent = listViewComp->entities[currentLine - 1];
+
+            auto pf = ent->get<Prefab>();
+
+            auto text = pf->callHelper<std::string>("GetCurrentText");
+
+            if (not text.empty())
+            {
+                text.pop_back();
+                pf->callHelper("SetCurrentText", text);
+
+                return;
+            }
+            // else do the line removal logic down here
 
             if (currentLine <= 1)
                 return;
