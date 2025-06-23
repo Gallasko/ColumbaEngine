@@ -39,13 +39,18 @@ void initWindow(const std::string &appName) {
     initialized = true;
 }
 
+constant::Vector4D getLineTextBgColor(size_t lineNumber)
+{
+    return (lineNumber % 2) ? constant::Vector4D{167.f, 167.f, 167.f, 255.f} : constant::Vector4D{218.f, 218.f, 218.f, 255.f};
+}
+
 CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
 {
     auto prefabEnt = makeAnchoredPrefab(ecsRef);
     auto prefab = prefabEnt.get<Prefab>();
     auto prefabAnchor = prefabEnt.get<UiAnchor>();
 
-    auto color = (lineNumber % 2) ? constant::Vector4D{167.f, 167.f, 167.f, 255.f} : constant::Vector4D{218.f, 218.f, 218.f, 255.f};
+    auto color = getLineTextBgColor(lineNumber);
 
     auto square = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, color);
     auto squareAnchor = square.get<UiAnchor>();
@@ -56,7 +61,8 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
     squareAnchor->setTopAnchor(prefabAnchor->top);
     squareAnchor->setLeftAnchor(prefabAnchor->left);
 
-    auto lineText = makeTTFText(ecsRef, 0, 0, 4, "light", std::to_string(lineNumber), 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    // Todo replace the -50 here by an actual masking until ready of the ttf text component
+    auto lineText = makeTTFText(ecsRef, 0, -50, 4, "light", std::to_string(lineNumber), 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
 
     auto textAnchor = lineText.get<UiAnchor>();
     textAnchor->centeredIn(squareAnchor);
@@ -73,7 +79,7 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
 
     prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
 
-    prefab->addToPrefab(square.entity);
+    prefab->addToPrefab(square.entity, "LineTextBg");
     prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
 
@@ -120,6 +126,7 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
 
             auto listViewComp = listViewEnt.get<VerticalLayout>();
 
+            // Remove the old higlighted line
             if (oldLine > 0)
             {
                 auto entBefore = listViewComp->entities[oldLine - 1];
@@ -127,16 +134,30 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
                 prefabBefore->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
             }
 
+            // Todo We should be able to do this
             // auto prefab = linePrefab.get<Prefab>();
 
             // auto ent = prefab->getEntity("TextBg");
             // // Todo fix this (An entity here has a empty comp list as their comp are not materialized yet !)
             // auto shape = ent->get<Simple2DObject>();
             // shape->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+
+            // Higlight the new line
             linePrefab.get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
 
-            // Todo need to add an insert in listView
-            // listViewComp->addEntity(linePrefab);
+            // Update the line text for all the line after the inserted line
+            for (size_t i = currentLine - 1; i < lineNumber - 2; ++i)
+            {
+                auto ent = listViewComp->entities[i];
+                auto prefab = ent.get<Prefab>();
+
+                auto newLineValue = i + 2;
+
+                prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+                prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+            }
+
             listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
