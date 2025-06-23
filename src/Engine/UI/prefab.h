@@ -4,6 +4,8 @@
 
 #include "2D/position.h"
 
+#include "Helpers/functionregistry.h"
+
 namespace pg
 {
     struct ClearPrefabEvent { std::set<_unique_id> ids; };
@@ -140,6 +142,15 @@ namespace pg
                 update();
             }
         }
+
+        template<typename R, typename... Args>
+        void addHelper(const std::string& name, std::function<R(Args...)> func);
+
+        template <typename HelperType>
+        void addHelper(const std::string& name, HelperType func);
+
+        template <typename... Args>
+        std::any callHelper(const std::string& name, Args... args);
 
         EntitySystem *ecsRef = nullptr;
 
@@ -278,7 +289,46 @@ namespace pg
         virtual void execute() override
         {
         }
+
+        template<typename R, typename... Args>
+        void addHelper(_unique_id id, const std::string& name, std::function<R(Args...)> func)
+        {
+            helperRegistry[id].add(name, func);
+        }
+
+
+        template <typename HelperType>
+        void addHelper(_unique_id id, const std::string& name, HelperType func)
+        {
+            helperRegistry[id].add(name, func);
+        }
+
+        template <typename... Args>
+        std::any callHelper(_unique_id id, const std::string& name, Args... args)
+        {
+            return helperRegistry[id].call(name, args...);
+        }
+
+        std::unordered_map<_unique_id, FunctionRegistry> helperRegistry;
     };
+
+    template<typename R, typename... Args>
+    void Prefab::addHelper(const std::string& name, std::function<R(Args...)> func)
+    {
+        ecsRef->getSystem<PrefabSystem>()->addHelper(id, name, std::move(func));
+    }
+
+    template <typename HelperType>
+    void Prefab::addHelper(const std::string& name, HelperType func)
+    {
+        ecsRef->getSystem<PrefabSystem>()->addHelper(id, name, std::move(func));
+    }
+
+    template <typename... Args>
+    std::any Prefab::callHelper(const std::string& name, Args... args)
+    {
+        return ecsRef->getSystem<PrefabSystem>()->callHelper(id, name, this, std::forward<Args>(args)...);
+    }
 
     template <typename Type>
     CompList<PositionComponent, Prefab> makePrefab(Type *ecs, float x, float y)

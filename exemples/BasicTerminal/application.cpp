@@ -91,6 +91,12 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
     prefab->addToPrefab(s2.entity, "TextBg");
     prefab->addToPrefab(inputText.entity, "Text");
 
+    prefab->addHelper("UpdateLineText", [](Prefab *prefab, size_t newLineValue) {
+        prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+        prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+    });
+
     return {prefabEnt.entity, prefab, s2Bg};
     // return prefabEnt.entity;
 }
@@ -161,9 +167,11 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
 
                 auto newLineValue = i + 2;
 
-                prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+                prefab->callHelper("UpdateLineText", newLineValue);
 
-                prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+                // prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+                // prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
             }
 
             listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
@@ -190,9 +198,11 @@ struct TextHandlingSys : public System<Listener<CurrentTextInputTextChanged>, Qu
 
                 auto newLineValue = i;
 
-                prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+                prefab->callHelper("UpdateLineText", newLineValue);
 
-                prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+                // prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+                // prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
             }
 
             listViewComp->removeAt(currentLine - 1);

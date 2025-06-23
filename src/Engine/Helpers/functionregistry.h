@@ -9,18 +9,17 @@
 #include <stdexcept>
 
 namespace pg {
-
-    // Base class for function wrapper
+    // Base interface for all wrappers
     struct IFunctionWrapper {
         virtual ~IFunctionWrapper() = default;
         virtual std::any call(const std::vector<std::any>& args) = 0;
     };
 
-    // Templated derived class for wrapping actual function
+    // Wrapper for non-void return
     template<typename R, typename... Args>
     class FunctionWrapper : public IFunctionWrapper {
     public:
-        FunctionWrapper(std::function<R(Args...)> func) : func_(func) {}
+        explicit FunctionWrapper(std::function<R(Args...)> f) : func(std::move(f)) {}
 
         std::any call(const std::vector<std::any>& args) override {
             if (args.size() != sizeof...(Args)) throw std::runtime_error("Argument count mismatch");
@@ -28,64 +27,68 @@ namespace pg {
         }
 
     private:
-        template<std::size_t... Is>
-        std::any callImpl(const std::vector<std::any>& args, std::index_sequence<Is...>) {
-            return func_(std::any_cast<Args>(args[Is])...);
+        template<std::size_t... I>
+        std::any callImpl(const std::vector<std::any>& args, std::index_sequence<I...>) {
+            return func(std::any_cast<std::remove_cv_t<std::remove_reference_t<Args>>>(args[I])...);
         }
 
-        std::function<R(Args...)> func_;
+        std::function<R(Args...)> func;
     };
 
-    // Helper to deduce function traits
-    template<typename T>
-    struct FunctionTraits;
-
-    // Function pointer
-    template<typename R, typename... Args>
-    struct FunctionTraits<R(*)(Args...)> {
-        using return_type = R;
-        using function_type = std::function<R(Args...)>;
-    };
-
-    // std::function
-    template<typename R, typename... Args>
-    struct FunctionTraits<std::function<R(Args...)>> {
-        using return_type = R;
-        using function_type = std::function<R(Args...)>;
-    };
-
-    // Lambda or functor
-    template<typename T>
-    struct FunctionTraits {
-    private:
-        using call_type = FunctionTraits<decltype(&T::operator())>;
+    // Wrapper specialization for void return
+    template<typename... Args>
+    class FunctionWrapper<void, Args...> : public IFunctionWrapper {
     public:
-        using return_type = typename call_type::return_type;
-        using function_type = typename call_type::function_type;
-    };
+        explicit FunctionWrapper(std::function<void(Args...)> f) : func(std::move(f)) {}
 
-    // Lambda operator()
-    template<typename C, typename R, typename... Args>
-    struct FunctionTraits<R(C::*)(Args...) const> {
-        using return_type = R;
-        using function_type = std::function<R(Args...)>;
+        std::any call(const std::vector<std::any>& args) override {
+            if (args.size() != sizeof...(Args)) throw std::runtime_error("Argument count mismatch");
+            callImpl(args, std::index_sequence_for<Args...>{});
+            return {};
+        }
+
+    private:
+        template<std::size_t... I>
+        void callImpl(const std::vector<std::any>& args, std::index_sequence<I...>) {
+            func(std::any_cast<std::remove_cv_t<std::remove_reference_t<Args>>>(args[I])...);
+        }
+
+        std::function<void(Args...)> func;
     };
 
     class FunctionRegistry {
     public:
-        template<typename F>
-        void add(const std::string& name, F func) {
-            using Traits = FunctionTraits<F>;
-            functions_[name] = std::make_unique<FunctionWrapper<typename Traits::function_type::result_type, typename Traits::function_type::argument_type::type...>>(Traits::function_type(func));
+        FunctionRegistry() = default;
+        FunctionRegistry(FunctionRegistry&&) noexcept = default;
+        FunctionRegistry& operator=(FunctionRegistry&&) noexcept = default;
+        FunctionRegistry(const FunctionRegistry&) = delete;
+        FunctionRegistry& operator=(const FunctionRegistry&) = delete;
+
+        // Directly add a std::function with signature R(Args...)
+        template<typename R, typename... Args>
+        void add(const std::string& name, std::function<R(Args...)> func) {
+            functions_[name] = std::make_unique<FunctionWrapper<R, Args...>>(std::move(func));
         }
 
-        std::any call(const std::string& name, const std::vector<std::any>& args) {
+        // Add any callable (e.g., lambda); deduced to std::function
+        template<typename Func>
+        void add(const std::string& name, Func func) {
+            add(name, std::function(std::move(func)));
+        }
+
+        // Call stored function by name; returns R
+        template<typename R, typename... Args>
+        R call(const std::string& name, Args&&... args) {
             auto it = functions_.find(name);
-            if (it == functions_.end()) throw std::runtime_error("Function not found");
-            return it->second->call(args);
+            if (it == functions_.end()) throw std::runtime_error("Function not found: " + name);
+            std::vector<std::any> packed{std::forward<Args>(args)...};
+            std::any result = it->second->call(packed);
+            if constexpr (!std::is_void_v<R>) return std::any_cast<R>(result);
         }
 
     private:
         std::unordered_map<std::string, std::unique_ptr<IFunctionWrapper>> functions_;
     };
+
+
 }
