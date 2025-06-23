@@ -7,6 +7,8 @@
 #include "UI/sizer.h"
 #include "2D/simple2dobject.h"
 
+#include "Helpers/tinyfiledialogs.h"
+
 using namespace pg;
 
 namespace {
@@ -117,7 +119,11 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
     // return prefabEnt.entity;
 }
 
-struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLScanCodeReleased>, InitSys>
+struct OpenFileAction {};
+
+struct SaveFileAction {};
+
+struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLScanCodeReleased>, Listener<OpenFileAction>, Listener<SaveFileAction>, InitSys>
 {
     virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
@@ -317,6 +323,7 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
         // listView.attach<Simple2DObject>(Shape2D::Square, constant::Vector4D{0.f, 192.f, 0.f, 255.f});
 
         auto listViewAnchor = listView.get<UiAnchor>();
+        listViewAnchor->setTopMargin(90);
 
         listViewAnchor->fillIn(anchor);
 
@@ -341,6 +348,55 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
         currentLine = 3;
 
         listViewEnt = listView.entity;
+
+        auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
+        ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFileAction>());
+
+        auto save = makeTTFText(ecsRef, 70.0f, 5.0f, 12.0f, "light", "Save", 0.5);
+        ecsRef->attach<MouseLeftClickComponent>(save.entity, makeCallable<SaveFileAction>());
+    }
+
+    virtual void onEvent(const OpenFileAction& event) override
+    {
+        LOG_INFO("Context Menu", "Open file");
+
+        char * lTheOpenFileName;
+    	// char const * lFilterPatterns[1] = { "*.sc" };
+
+        lTheOpenFileName = tinyfd_openFileDialog(
+            "Open a scene file",
+            "", // Starting path
+            0, // Number of patterns
+            nullptr, // List of patterns
+            "file",
+            1);
+
+        if (lTheOpenFileName)
+        {
+            LOG_INFO("Context Menu", lTheOpenFileName);
+            // ecsRef->sendEvent(LoadScene{lTheOpenFileName});
+        }
+    }
+
+    virtual void onEvent(const SaveFileAction& event) override
+    {
+        LOG_INFO("Context Menu", "Save file");
+
+        char * lTheSaveFileName;
+    	// char const * lFilterPatterns[1] = { "*.sc" };
+
+        lTheSaveFileName = tinyfd_saveFileDialog(
+            "Save a scene file",
+            "./file.tx",
+            0,
+            NULL,
+            NULL);
+
+        if (lTheSaveFileName)
+        {
+            LOG_INFO("Context Menu", lTheSaveFileName);
+            // ecsRef->sendEvent(SaveScene{lTheSaveFileName});
+        }
     }
 
     EntityRef textInputEnt;
