@@ -9,6 +9,8 @@
 
 #include "Helpers/tinyfiledialogs.h"
 
+#include "Systems/basicsystems.h"
+
 using namespace pg;
 
 namespace {
@@ -45,6 +47,20 @@ constant::Vector4D getLineTextBgColor(size_t lineNumber)
 {
     return (lineNumber % 2) ? constant::Vector4D{167.f, 167.f, 167.f, 255.f} : constant::Vector4D{218.f, 218.f, 218.f, 255.f};
 }
+
+struct PrefabClickedEvent
+{
+    PrefabClickedEvent(_unique_id id) : id(id) {}
+    PrefabClickedEvent(const PrefabClickedEvent& other) : id(other.id) {}
+
+    PrefabClickedEvent& operator=(const PrefabClickedEvent& other)
+    {
+        id = other.id;
+        return *this;
+    }
+
+    _unique_id id;
+};
 
 CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
 {
@@ -94,6 +110,8 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
     prefab->addToPrefab(s2.entity, "TextBg");
     prefab->addToPrefab(inputText.entity, "Text");
 
+    prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
+
     prefab->addHelper("UpdateLineText", [](Prefab *prefab, size_t newLineValue) {
         prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
 
@@ -124,8 +142,36 @@ struct OpenFileAction {};
 
 struct SaveFileAction {};
 
-struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLScanCodeReleased>, Listener<OpenFileAction>, Listener<SaveFileAction>, InitSys>
+struct TextHandlingSys : public System<
+    QueuedListener<OnSDLTextInput>,
+    QueuedListener<OnSDLScanCode>,
+    QueuedListener<OnSDLScanCodeReleased>,
+    QueuedListener<PrefabClickedEvent>,
+    Listener<OpenFileAction>,
+    Listener<SaveFileAction>,
+    InitSys>
 {
+    virtual void onProcessEvent(const PrefabClickedEvent& event) override
+    {
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (not ent or not ent->has<Prefab>())
+        {
+            LOG_ERROR(DOM, "Clicked on a non-prefab entity " << event.id);
+            return;
+        }
+
+        auto prefab = ent->get<Prefab>();
+
+        auto lineText = prefab->getEntity("LineText");
+
+        auto lineNumber = lineText->get<TTFText>()->text;
+
+        LOG_INFO(DOM, "Clicked on line: " << lineNumber);
+
+        focusLine(std::stoul(lineNumber));
+    }
+
     virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
         auto listViewComp = listViewEnt.get<VerticalLayout>();
@@ -499,6 +545,8 @@ void initGame() {
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
     // mainWindow->masterRenderer->processTextureRegister();
+
+    mainWindow->ecs.createSystem<FpsSystem>();
 
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
 
