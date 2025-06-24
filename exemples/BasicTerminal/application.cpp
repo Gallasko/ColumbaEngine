@@ -46,7 +46,7 @@ constant::Vector4D getLineTextBgColor(size_t lineNumber)
     return (lineNumber % 2) ? constant::Vector4D{167.f, 167.f, 167.f, 255.f} : constant::Vector4D{218.f, 218.f, 218.f, 255.f};
 }
 
-CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
+CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
 {
     auto prefabEnt = makeAnchoredPrefab(ecsRef);
     auto prefab = prefabEnt.get<Prefab>();
@@ -82,6 +82,7 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
     prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
 
     auto inputText = makeTTFText(ecsRef, 0, 0, 4, "light", "", 0.4, constant::Vector4D{255.f, 255.f, 255.f, 255.f});
+    auto inputTTFText = inputText.get<TTFText>();
     auto inputTextAnchor = inputText.get<UiAnchor>();
 
     inputTextAnchor->setLeftAnchor(s2Anchor->left);
@@ -115,7 +116,7 @@ CompList<Prefab, Simple2DObject> makeLinePrefab(EntitySystem *ecsRef, CompRef<Ui
         prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
     });
 
-    return {prefabEnt.entity, prefab, s2Bg};
+    return {prefabEnt.entity, prefab, s2Bg, inputTTFText};
     // return prefabEnt.entity;
 }
 
@@ -318,7 +319,7 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
 
         auto textInputComp = ecsRef->attach<TextInputComponent>(textInputEnt, event, "");
 
-        auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500);
+        auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500, true);
 
         // listView.attach<Simple2DObject>(Shape2D::Square, constant::Vector4D{0.f, 192.f, 0.f, 255.f});
 
@@ -374,8 +375,64 @@ struct TextHandlingSys : public System<QueuedListener<OnSDLTextInput>, QueuedLis
         if (lTheOpenFileName)
         {
             LOG_INFO("Context Menu", lTheOpenFileName);
+
+            auto file = FileAccessor::openTextFile(lTheOpenFileName);
+
+            auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+            listViewComp->clear();
+
+            lineNumber = 1;
+            currentLine = 1;
+
+            fillText(file.data);
             // ecsRef->sendEvent(LoadScene{lTheOpenFileName});
         }
+    }
+
+    void fillText(std::string_view sv)
+    {
+        auto anchor = textInputEnt.get<UiAnchor>();
+
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+        while (not sv.empty())
+        {
+            // Find the next newline character
+            size_t pos = sv.find_first_of("\n\r");
+
+            // Extract the line (no copy, still a view)
+            std::string_view line = sv.substr(0, pos);
+
+            // Expand tabs into 4 spaces (requires building a string)
+            std::string expandedLine;
+            expandedLine.reserve(line.size() + 4); // rough guess to avoid frequent reallocs
+
+            for (char ch : line)
+            {
+                if (ch == '\t') {
+                    expandedLine += "    "; // replace tab with 4 spaces
+                } else {
+                    expandedLine += ch;
+                }
+            }
+
+            auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+
+            linePrefab.get<TTFText>()->setText(expandedLine);
+
+            listViewComp->addEntity(linePrefab.entity);
+
+            if (pos == std::string_view::npos) break;
+
+            // Handle CRLF (\r\n): if \r is found and followed by \n, skip both
+            if (sv[pos] == '\r' && pos + 1 < sv.size() && sv[pos + 1] == '\n') {
+                sv.remove_prefix(pos + 2);
+            } else {
+                sv.remove_prefix(pos + 1);
+            }
+        }
+
     }
 
     virtual void onEvent(const SaveFileAction& event) override
