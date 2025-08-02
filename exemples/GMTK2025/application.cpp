@@ -20,6 +20,63 @@ GameApp::~GameApp() {
     LOG_THIS_MEMBER(DOM);
 }
 
+bool doSegmentsIntersect(const pg::Segment2D& s1, const pg::Segment2D& s2)
+{
+    auto orientation = [](const pg::Point2D& a, const pg::Point2D& b, const pg::Point2D& c) {
+        float val = (b.y - a.y) * (c.x - b.x) - 
+                    (b.x - a.x) * (c.y - b.y);
+        if (std::abs(val) < 1e-6f)
+            return 0;  // colinear
+
+        return (val > 0) ? 1 : 2;             // clockwise or counterclockwise
+    };
+
+    auto onSegment = [](const pg::Point2D& p, const pg::Point2D& q, const pg::Point2D& r) {
+        return q.x <= std::max(p.x, r.x) && q.x >= std::min(p.x, r.x) &&
+               q.y <= std::max(p.y, r.y) && q.y >= std::min(p.y, r.y);
+    };
+
+    const pg::Point2D& p1 = s1.start;
+    const pg::Point2D& q1 = s1.end;
+    const pg::Point2D& p2 = s2.start;
+    const pg::Point2D& q2 = s2.end;
+
+    int o1 = orientation(p1, q1, p2);
+    int o2 = orientation(p1, q1, q2);
+    int o3 = orientation(p2, q2, p1);
+    int o4 = orientation(p2, q2, q1);
+
+    // General case
+    if (o1 != o2 && o3 != o4)
+        return true;
+
+    // Special cases (colinear overlaps)
+    if (o1 == 0 && onSegment(p1, p2, q1)) return true;
+    if (o2 == 0 && onSegment(p1, q2, q1)) return true;
+    if (o3 == 0 && onSegment(p2, p1, q2)) return true;
+    if (o4 == 0 && onSegment(p2, q1, q2)) return true;
+
+    return false;
+}
+
+std::optional<std::pair<size_t, size_t>> findLoopSegment(const std::vector<pg::Point2D>& path)
+{
+    if (path.size() < 4) return std::nullopt;
+
+    // Only check the latest segment against previous ones
+    pg::Segment2D newSegment(path[path.size() - 2], path[path.size() - 1]);
+
+    for (size_t i = 0; i + 2 < path.size() - 1; ++i) { // avoid checking with adjacent segments
+        pg::Segment2D oldSegment(path[i], path[i + 1]);
+
+        if (doSegmentsIntersect(newSegment, oldSegment)) {
+            return std::make_pair(i, path.size() - 2); // intersection between [i, i+1] and last segment
+        }
+    }
+
+    return std::nullopt; // No loop detected
+}
+
 // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
 // that we need to wait before the event becomes triggerable again.
 
@@ -85,6 +142,14 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
                 tick = 0.0f;
                 LOG_INFO("PointAggregator", "Mouse moved to: " << currentMousePos.x << ", " << currentMousePos.y);
                 mousePosList.emplace_back(currentMousePos);
+
+                if (auto loop = findLoopSegment(mousePosList))
+                {
+                    size_t start = loop->first;
+                    size_t end   = loop->second;
+
+                    std::cout << "Loop detected between segments " << start << " and " << end << std::endl;
+                }
 
                 currentEnt.get<RibbonComponent>()->setPath(mousePosList);
             }
