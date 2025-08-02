@@ -109,7 +109,7 @@ namespace pg {
         void init() override
         {
             // baseMaterial.shader = masterRenderer->getShader("ribbonShader");
-            baseMaterial.shader = masterRenderer->getShader("simpleTexture");
+            baseMaterial.shader = masterRenderer->getShader("lineShader");
             baseMaterial.nbTextures = 1;
             baseMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
             baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
@@ -138,6 +138,8 @@ namespace pg {
                     ent->get<MeshRenderCall>()->call = rc;
                 else
                     ecsRef->_attach<MeshRenderCall>(ent, rc);
+
+                comp->clean = true;
             }
 
             renderCallList.clear();
