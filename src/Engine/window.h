@@ -83,7 +83,7 @@ namespace pg
         EntityRef screenEntity;
         CompRef<UiComponent> screenUi;
 
-        MousePos mousePos;
+        Point2D mousePos;
 
         std::mutex renderMutex;
 

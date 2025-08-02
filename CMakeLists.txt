@@ -405,6 +405,7 @@ else()
 
     target_sources(GMTK2025 PRIVATE
         exemples/GMTK2025/application.cpp
+        exemples/GMTK2025/ribbonmesh.cpp
     )
 
     target_link_libraries(GMTK2025 PRIVATE PgEngineSrc)

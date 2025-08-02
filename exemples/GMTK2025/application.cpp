@@ -4,6 +4,8 @@
 
 #include "Systems/basicsystems.h"
 
+#include "ribbonmesh.h"
+
 using namespace pg;
 
 namespace {
@@ -41,12 +43,11 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
         {
             tick = 0.0f;
 
-            LOG_INFO("PointAggregator", "Mouse left clicked");
             pressed = true;
 
-            currentMousePos = event.button;
+            currentMousePos = event.pos;
 
-            mousePosList.emplace_back(event.button);
+            mousePosList.emplace_back(event.pos);
         }
     }
 
@@ -84,9 +85,9 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
 
     float tick = 0.0f;
 
-    MousePos currentMousePos;
+    Point2D currentMousePos;
 
-    std::vector<MousePos> mousePosList;
+    std::vector<Point2D> mousePosList;
 };
 
 std::thread *initThread;
