@@ -100,7 +100,7 @@
                     "--config",
                     "Release",
                     "--target",
-                    "BasicTerminal",
+                    "GMTK2025",
                     // "PgEngine",
                     "-j",
                     "8"

@@ -2,6 +2,8 @@
 
 #include "logger.h"
 
+#include "Systems/basicsystems.h"
+
 using namespace pg;
 
 namespace {
@@ -15,6 +17,77 @@ GameApp::GameApp(const std::string &appName) : appName(appName) {
 GameApp::~GameApp() {
     LOG_THIS_MEMBER(DOM);
 }
+
+// Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
+// that we need to wait before the event becomes triggerable again.
+
+struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>>
+{
+    virtual void onEvent(const OnMouseMove& event)
+    {
+        if (pressed)
+        {
+            LOG_INFO("PointAggregator", "Mouse moved");
+
+            currentMousePos = event.pos;
+        }
+    }
+
+    virtual void onEvent(const OnMouseClick& event)
+    {
+        LOG_INFO("PointAggregator", "Mouse clicked");
+
+        if (event.button == SDL_BUTTON_LEFT)
+        {
+            tick = 0.0f;
+
+            LOG_INFO("PointAggregator", "Mouse left clicked");
+            pressed = true;
+
+            currentMousePos = event.button;
+
+            mousePosList.emplace_back(event.button);
+        }
+    }
+
+    virtual void onEvent(const OnMouseRelease& event)
+    {
+        if (event.button == SDL_BUTTON_LEFT)
+        {
+            pressed = false;
+
+            for (const auto& pos : mousePosList)
+            {
+                LOG_INFO("PointAggregator", "-> Stored Mouse position: " << pos.x << ", " << pos.y);
+            }
+
+            mousePosList.clear();
+        }
+    }
+
+    virtual void onEvent(const TickEvent& event)
+    {
+        if (pressed)
+        {
+            tick += event.tick;
+
+            if (tick >= 80 and currentMousePos != mousePosList.back())
+            {
+                tick = 0.0f;
+                LOG_INFO("PointAggregator", "Mouse moved to: " << currentMousePos.x << ", " << currentMousePos.y);
+                mousePosList.emplace_back(currentMousePos);
+            }
+        }
+    }
+
+    bool pressed = false;
+
+    float tick = 0.0f;
+
+    MousePos currentMousePos;
+
+    std::vector<MousePos> mousePosList;
+};
 
 std::thread *initThread;
 pg::Window *mainWindow = nullptr;
@@ -57,6 +130,8 @@ void initGame() {
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    mainWindow->ecs.createSystem<PointAggregator>();
 
     mainWindow->ecs.dumbTaskflow();
 

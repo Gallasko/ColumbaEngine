@@ -12,9 +12,28 @@ namespace pg
 
 	struct MousePos
 	{
+		MousePos(float x = 0.0f, float y = 0.0f) : x(x), y(y) { };
+		MousePos(const MousePos& other) : x(other.x), y(other.y) { };
+		MousePos& operator=(const MousePos& other)
+		{
+			x = other.x;
+			y = other.y;
+			return *this;
+		}
+
 		float x = 0.0f, y = 0.0f;
 
 		MousePos& operator+=(const MousePos& rhs) { x += rhs.x; y += rhs.y; return *this; }
+
+		bool operator==(const MousePos& rhs) const
+		{
+			return (x == rhs.x and y == rhs.y);
+		}
+
+		bool operator!=(const MousePos& rhs) const
+		{
+			return not (*this == rhs);
+		}
 	};
 
 	class Input

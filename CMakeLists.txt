@@ -397,6 +397,18 @@ else()
 
     target_link_libraries(EmptyApp PRIVATE PgEngineSrc)
 
+    ###
+
+    add_executable(GMTK2025 exemples/GMTK2025/main.cpp)
+
+    target_include_directories(GMTK2025 PUBLIC exemples/GMTK2025)
+
+    target_sources(GMTK2025 PRIVATE
+        exemples/GMTK2025/application.cpp
+    )
+
+    target_link_libraries(GMTK2025 PRIVATE PgEngineSrc)
+
     # add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
     # target_sources(TetrisClone PRIVATE
