@@ -48,6 +48,12 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
             currentMousePos = event.pos;
 
             mousePosList.emplace_back(event.pos);
+
+            auto ent = ecsRef->createEntity();
+
+            ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
+
+            currentEnt = ent;
         }
     }
 
@@ -62,11 +68,9 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
                 LOG_INFO("PointAggregator", "-> Stored Mouse position: " << pos.x << ", " << pos.y);
             }
 
-            auto ent = ecsRef->createEntity();
-
-            ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
-
             mousePosList.clear();
+
+            ecsRef->removeEntity(currentEnt);
         }
     }
 
@@ -76,11 +80,13 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
         {
             tick += event.tick;
 
-            if (tick >= 80 and currentMousePos != mousePosList.back())
+            if (tick >= 40 and currentMousePos != mousePosList.back())
             {
                 tick = 0.0f;
                 LOG_INFO("PointAggregator", "Mouse moved to: " << currentMousePos.x << ", " << currentMousePos.y);
                 mousePosList.emplace_back(currentMousePos);
+
+                currentEnt.get<RibbonComponent>()->setPath(mousePosList);
             }
         }
     }
@@ -92,6 +98,8 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
     Point2D currentMousePos;
 
     std::vector<Point2D> mousePosList;
+
+    EntityRef currentEnt;
 };
 
 std::thread *initThread;
@@ -137,6 +145,8 @@ void initGame() {
     printf("Engine initialized ...\n");
 
     mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
+
+    mainWindow->ecs.succeed<MasterRenderer, TexturedRibbonComponentSystem>();
     
     mainWindow->ecs.createSystem<PointAggregator>();
 

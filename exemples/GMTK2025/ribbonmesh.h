@@ -12,6 +12,13 @@
 
 namespace pg {
 
+    // 1) Generate ribbon data
+    struct RibbonData
+    {
+        std::vector<float> verts;
+        std::vector<unsigned int> idx;
+    };
+
     /**
      * @brief A dynamic textured ribbon mesh that follows a polyline path.
      */
@@ -27,6 +34,8 @@ namespace pg {
         }
 
         virtual ~TexturedRibbonMesh() {}
+
+        RibbonData prepareMesh();
 
         /**
          * Build the ribbon vertex & index buffers and upload to OpenGL.
@@ -80,6 +89,13 @@ namespace pg {
             entityId = entity->id;
         }
 
+        void setPath(const std::vector<Point2D>& newPath)
+        {
+            path = newPath;
+
+            clean = false; // Mark as dirty to regenerate the mesh
+        }
+
         EntitySystem* ecsRef;
         _unique_id entityId;
 
@@ -117,6 +133,17 @@ namespace pg {
 
         void execute() override
         {
+            renderCallList.clear();
+
+            const auto& renderCallView = view<MeshRenderCall>();
+
+            renderCallList.reserve(renderCallView.nbComponents());
+
+            for (const auto& renderCall : renderCallView)
+            {
+                renderCallList.push_back(renderCall->call);
+            }
+
             for (auto* comp : view<RibbonComponent>())
             {
                 if (comp->clean)
@@ -140,17 +167,6 @@ namespace pg {
                     ecsRef->_attach<MeshRenderCall>(ent, rc);
 
                 comp->clean = true;
-            }
-
-            renderCallList.clear();
-
-            const auto& renderCallView = view<MeshRenderCall>();
-
-            renderCallList.reserve(renderCallView.nbComponents());
-
-            for (const auto& renderCall : renderCallView)
-            {
-                renderCallList.push_back(renderCall->call);
             }
 
             finishChanges();

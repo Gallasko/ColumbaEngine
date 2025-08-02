@@ -6,15 +6,8 @@
 
 namespace pg
 {
-    void TexturedRibbonMesh::generateMesh()
+    RibbonData TexturedRibbonMesh::prepareMesh()
     {
-        // 1) Generate ribbon data
-        struct RibbonData
-        {
-            std::vector<float> verts;
-            std::vector<unsigned int> idx;
-        };
-        
         RibbonData data;
         size_t N = m_path.size();
 
@@ -23,7 +16,7 @@ namespace pg
             modelInfo.nbVertices = 0;
             modelInfo.nbIndices = 0;
 
-            return;
+            return data;
         }
 
         data.verts.reserve(N * 4);
@@ -100,6 +93,13 @@ namespace pg
             data.idx.push_back(i0); data.idx.push_back(i1); data.idx.push_back(i2);
             data.idx.push_back(i2); data.idx.push_back(i1); data.idx.push_back(i3);
         }
+
+        return data;
+    }
+
+    void TexturedRibbonMesh::generateMesh()
+    {
+        auto data = prepareMesh();
 
         // 2) Copy into modelInfo
         modelInfo.nbVertices = static_cast<unsigned int>(data.verts.size());

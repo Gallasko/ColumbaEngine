@@ -149,7 +149,7 @@ namespace pg
         size_t nbElements = 0;
 
         RenderCall() {}
-        RenderCall(std::shared_ptr<Mesh> mesh) : batchable(false), mesh(std::move(mesh)) {}
+        RenderCall(std::shared_ptr<Mesh> mesh) : batchable(false), mesh(mesh) {}
         RenderCall(const RenderCall& other) : key(other.key), data(other.data), batchable(other.batchable), state(other.state), mesh(other.mesh), nbElements(other.nbElements) {}
         RenderCall(RenderCall&& other) : key(std::move(other.key)), data(std::move(other.data)), batchable(std::move(other.batchable)), state(std::move(other.state)), mesh(std::move(other.mesh)), nbElements(std::move(other.nbElements)) {}
         ~RenderCall() {};

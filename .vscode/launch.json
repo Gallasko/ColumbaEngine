@@ -7,7 +7,7 @@
             "request": "launch",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/debug",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "linux": {

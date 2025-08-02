@@ -307,7 +307,7 @@ namespace pg
                 const auto& material = getMaterial(materialId);
 
                 // If the mesh is not set we use the one from the material
-                if (call.mesh == nullptr)
+                if (not call.mesh)
                 {
                     call.mesh = material.mesh;
                 }
@@ -742,6 +742,12 @@ namespace pg
         shaderProgram->setUniformValue("model", model);
         shaderProgram->setUniformValue("scale", scale);
         shaderProgram->setUniformValue("view", view);
+
+        if (not call.mesh)
+        {
+            LOG_ERROR(DOM, "Mesh not set for render call with key: " << call.key);
+            return;
+        }
 
         call.mesh->bind();
         
