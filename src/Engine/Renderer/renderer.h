@@ -142,27 +142,38 @@ namespace pg
         /** Keep track of all the opengl state needed for this render call */
         OpenGLState state;
 
+        /** Mesh to use for rendering (If given in ctor, else it will be fetched from the material) */
+        std::shared_ptr<Mesh> mesh;
+
+        /** (Internal) Number of elements to render */
+        size_t nbElements = 0;
+
         RenderCall() {}
-        RenderCall(const RenderCall& other) : key(other.key), data(other.data), batchable(other.batchable), state(other.state) {}
-        RenderCall(RenderCall&& other) : key(std::move(other.key)), data(std::move(other.data)), batchable(std::move(other.batchable)), state(std::move(other.state)) {}
+        RenderCall(std::shared_ptr<Mesh> mesh) : batchable(false), mesh(std::move(mesh)) {}
+        RenderCall(const RenderCall& other) : key(other.key), data(other.data), batchable(other.batchable), state(other.state), mesh(other.mesh), nbElements(other.nbElements) {}
+        RenderCall(RenderCall&& other) : key(std::move(other.key)), data(std::move(other.data)), batchable(std::move(other.batchable)), state(std::move(other.state)), mesh(std::move(other.mesh)), nbElements(std::move(other.nbElements)) {}
         ~RenderCall() {};
 
         RenderCall & operator=(const RenderCall& other)
         {
-            key       = other.key;
-            data      = other.data;
-            batchable = other.batchable;
-            state     = other.state;
+            key        = other.key;
+            data       = other.data;
+            batchable  = other.batchable;
+            state      = other.state;
+            mesh       = other.mesh;
+            nbElements = other.nbElements;
 
             return *this;
         }
 
         RenderCall & operator=(RenderCall&& other)
         {
-            key       = std::move(other.key);
-            data      = std::move(other.data);
-            batchable = std::move(other.batchable);
-            state     = std::move(other.state);
+            key        = std::move(other.key);
+            data       = std::move(other.data);
+            batchable  = std::move(other.batchable);
+            state      = std::move(other.state);
+            mesh       = std::move(other.mesh);
+            nbElements = std::move(other.nbElements);
 
             return *this;
         }
@@ -739,7 +750,7 @@ namespace pg
 
         void setState(const OpenGLState& state);
 
-        void processRenderCall(const RenderCall& call);
+        void processRenderCall(const RenderCall& call, const RefracRef& rTable, unsigned int screenWidth, unsigned int screenHeight);
 
         void registerTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback);
 
