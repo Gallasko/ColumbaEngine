@@ -30,6 +30,7 @@ endif()
 
 set(SDL2_DIR "import/SDL2-2.28.5")
 set(SDL2MIXER_DIR "import/SDL2_mixer-2.6.3")
+set(SDL2NET_DIR "import/SDL2_net-2.2.0")
 set(GLM_DIR "import/glm")
 set(TASKFLOW_DIR "import/taskflow-3.6.0")
 set(GTEST_DIR "import/googletest-1.14.0")
@@ -41,7 +42,7 @@ find_package(OpenGL REQUIRED)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 # set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_TTF=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload-plugins \
         --preload-file res \
         --preload-file scripts \
@@ -53,6 +54,7 @@ set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload
 else()
     add_subdirectory(${SDL2_DIR})
     add_subdirectory(${SDL2MIXER_DIR})
+    add_subdirectory(${SDL2NET_DIR})
     add_subdirectory(${GLEW_DIR})
     add_subdirectory(${TTF_DIR})
     add_subdirectory(${GLTF_DIR})
@@ -99,6 +101,7 @@ include_directories(${GLTF_DIR}/include)
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     include_directories(${SDL2_DIR}/include)
     include_directories(${SDL2MIXER_DIR}/include)
+    include_directories(${SDL2NET_DIR})
     include_directories(${GLEW_DIR}/include)
     include_directories(${TTF_DIR}/include)
 endif()
@@ -172,6 +175,9 @@ set(ENGINESOURCE
     src/Engine/Maths/randomnumbergenerator.cpp
     src/Engine/Memory/elementtype.cpp
     src/Engine/Memory/parallelfor.cpp
+    src/Engine/Networking/backend_sdl.cpp
+    src/Engine/Networking/common.cpp
+    src/Engine/Networking/network_system.cpp
     src/Engine/Renderer/mesh.cpp
     src/Engine/Renderer/particle.cpp
     src/Engine/Renderer/renderer.cpp
@@ -283,7 +289,7 @@ else()
     target_link_options(PgEngineSrc PRIVATE -static-libgcc -static-libstdc++)
 
     # target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_ttf::SDL2_ttf-static SDL2_mixer::SDL2_mixer-static glm libglew_static)
-    target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static glm libglew_static freetype)
+    target_link_libraries(PgEngineSrc PRIVATE SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static SDL2_net::SDL2_net-static glm libglew_static freetype)
 
     add_executable(PgEngine src/main.cpp)
 
@@ -345,8 +351,6 @@ else()
 
     target_link_libraries(PixelJam PRIVATE PgEngineSrc)
 
-
-
     add_executable(TugOfWar exemples/TugOfWar/main.cpp)
 
     target_include_directories(TugOfWar PUBLIC exemples/TugOfWar)
@@ -356,6 +360,42 @@ else()
     )
 
     target_link_libraries(TugOfWar PRIVATE PgEngineSrc)
+
+    ###
+
+    add_executable(SimpleClientServer exemples/SimpleClientServer/main.cpp)
+
+
+
+    target_sources(SimpleClientServer PRIVATE
+        exemples/SimpleClientServer/application.cpp
+    )
+
+    target_link_libraries(SimpleClientServer PRIVATE PgEngineSrc)
+
+    ###
+
+    add_executable(BasicTerminal exemples/BasicTerminal/main.cpp)
+
+    target_include_directories(BasicTerminal PUBLIC exemples/BasicTerminal)
+
+    target_sources(BasicTerminal PRIVATE
+        exemples/BasicTerminal/application.cpp
+    )
+
+    target_link_libraries(BasicTerminal PRIVATE PgEngineSrc)
+
+    ###
+
+    add_executable(EmptyApp exemples/EmptyAppTemplate/main.cpp)
+
+    target_include_directories(EmptyApp PUBLIC exemples/EmptyAppTemplate)
+
+    target_sources(EmptyApp PRIVATE
+        exemples/EmptyAppTemplate/application.cpp
+    )
+
+    target_link_libraries(EmptyApp PRIVATE PgEngineSrc)
 
     # add_executable(TetrisClone exemples/TetrisClone/tetris.cpp)
 
@@ -390,6 +430,7 @@ else()
         test/filemanager.cc
         test/interpreter.cc
         test/layout.cc
+        test/network.cc
         # test/mock2dsimpleshape.h
         # test/simple2dobject.cc
         test/position.cc

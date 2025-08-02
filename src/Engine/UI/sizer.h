@@ -22,9 +22,19 @@ namespace pg
         _unique_id id; _unique_id ui; LayoutOrientation orientation;
     };
 
+    struct InsertLayoutElementEvent
+    {
+        _unique_id id; _unique_id ui; LayoutOrientation orientation; int index;
+    };
+
     struct RemoveLayoutElementEvent
     {
         _unique_id id; _unique_id index; LayoutOrientation orientation;
+    };
+
+    struct RemoveLayoutElementAtEvent
+    {
+        _unique_id id; int index; LayoutOrientation orientation;
     };
 
     struct UpdateLayoutScrollable
@@ -72,6 +82,11 @@ namespace pg
             ecsRef->sendEvent(AddLayoutElementEvent{id, entity.id, orientation});
         }
 
+        void insertEntity(EntityRef entity, int index)
+        {
+            ecsRef->sendEvent(InsertLayoutElementEvent{id, entity.id, orientation, index});
+        }
+
         void removeEntity(EntityRef entity)
         {
             ecsRef->sendEvent(RemoveLayoutElementEvent{id, entity.id, orientation});
@@ -80,6 +95,11 @@ namespace pg
         void removeEntity(_unique_id entityId)
         {
             ecsRef->sendEvent(RemoveLayoutElementEvent{id, entityId, orientation});
+        }
+
+        void removeAt(int index)
+        {
+            ecsRef->sendEvent(RemoveLayoutElementAtEvent{id, index, orientation});
         }
 
         void setScrollable(bool scrollable)
@@ -157,7 +177,9 @@ namespace pg
         Listener<StandardEvent>,
         QueuedListener<EntityChangedEvent>,
         QueuedListener<AddLayoutElementEvent>,
+        QueuedListener<InsertLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementEvent>,
+        QueuedListener<RemoveLayoutElementAtEvent>,
         QueuedListener<ClearLayoutEvent>,
         QueuedListener<UpdateLayoutScrollable>,
         Own<HorizontalLayout>,
@@ -172,7 +194,11 @@ namespace pg
 
         virtual void onProcessEvent(const AddLayoutElementEvent& event) override;
 
+        virtual void onProcessEvent(const InsertLayoutElementEvent& event) override;
+
         virtual void onProcessEvent(const RemoveLayoutElementEvent& event) override;
+
+        virtual void onProcessEvent(const RemoveLayoutElementAtEvent& event) override;
 
         virtual void onProcessEvent(const ClearLayoutEvent& event) override;
 
@@ -201,9 +227,11 @@ namespace pg
         // Todo calculate the lesser axis of the view (Biggest width for Vertical for example)
         void recalculateChildrenPos(EntityRef viewEnt, BaseLayout* view);
 
-        void addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation);
+        void addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation, int index = -1);
 
         void removeEntity(BaseLayout* view, _unique_id index);
+
+        void removeEntityAt(BaseLayout* view, int index);
 
         void updateVisibility(EntityRef viewEnt, BaseLayout* view);
 

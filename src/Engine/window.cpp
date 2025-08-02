@@ -52,6 +52,8 @@
 #include "logger.h"
 #include "serialization.h"
 
+#include "SDL_net.h"
+
 namespace pg
 {
     namespace
@@ -185,6 +187,9 @@ namespace pg
 
         if (audioSystem != nullptr)
             audioSystem->closeSDLMixer();
+
+        LOG_INFO(DOM, "Shutting down network backend...");
+        SDLNet_Quit();
 
         SDL_GL_DeleteContext(context);
         SDL_DestroyWindow(window);
@@ -339,6 +344,14 @@ namespace pg
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, &unusedIds, GL_TRUE);
         }
 #endif
+
+        // Todo add a flag to enable/disable this
+        if (SDLNet_Init() < 0)
+        {
+            LOG_ERROR(DOM, "SDLNet_Init failed: " << SDLNet_GetError());
+            return false;
+        }
+
         return true;
     }
 

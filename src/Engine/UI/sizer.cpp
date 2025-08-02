@@ -249,6 +249,19 @@ namespace pg
         }
     }
 
+    void LayoutSystem::onProcessEvent(const InsertLayoutElementEvent& event)
+    {
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (ent and (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>()))
+        {
+            entitiesInLayout.insert(event.id);
+            addEntity(ent, event.ui, event.orientation, event.index);
+
+            layoutUpdate.insert(ent);
+        }
+    }
+
     void LayoutSystem::onProcessEvent(const RemoveLayoutElementEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
@@ -263,6 +276,28 @@ namespace pg
             if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
             {
                 removeEntity(ent->get<VerticalLayout>(), event.index);
+            }
+
+            entitiesInLayout.erase(event.id);
+
+            layoutUpdate.insert(ent);
+        }
+    }
+
+    void LayoutSystem::onProcessEvent(const RemoveLayoutElementAtEvent& event)
+    {
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (ent)
+        {
+            if (event.orientation == LayoutOrientation::Horizontal and ent->has<HorizontalLayout>())
+            {
+                removeEntityAt(ent->get<HorizontalLayout>(), event.index);
+            }
+
+            if (event.orientation == LayoutOrientation::Vertical and ent->has<VerticalLayout>())
+            {
+                removeEntityAt(ent->get<VerticalLayout>(), event.index);
             }
 
             entitiesInLayout.erase(event.id);
@@ -325,7 +360,7 @@ namespace pg
         adjustOffsets(viewEnt, view, childrenAdded);
         updateScrollBars(viewEnt, view);
 
-        if (not view->fitToAxis and !view->spaced)
+        if (not view->fitToAxis and not view->spaced)
         {
             layoutWithoutSpacing(viewEnt, view);
             return;
@@ -699,7 +734,7 @@ namespace pg
         }
     }
 
-    void LayoutSystem::addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation)
+    void LayoutSystem::addEntity(EntityRef viewEnt, _unique_id ui, LayoutOrientation orientation, int index)
     {
         if (not viewEnt->has<PositionComponent>())
         {
@@ -730,6 +765,19 @@ namespace pg
         {
             auto view = viewEnt->get<HorizontalLayout>();
 
+            if (index < 0)
+            {
+                index = static_cast<int>(view->entities.size()) + index + 1;
+            }
+
+            if (index < 0 or index >= static_cast<int>(view->entities.size()))
+            {
+                LOG_ERROR(DOM, "Index " << index << " is out of bounds for layout with id: " << viewEnt.id);
+                return;
+            }
+
+            LOG_INFO(DOM, "Add entity " << ent->id << " to layout with id: " << viewEnt.id << " at index: " << index);
+
             if (view->scrollable)
             {
                 ecsRef->attach<ClippedTo>(ent, view->id);
@@ -740,7 +788,9 @@ namespace pg
                 ecsRef->attach<ClippedTo>(ent, viewEnt->get<ClippedTo>()->clipperId);
             }
 
-            view->entities.push_back(ent);
+            view->entities.insert(view->entities.begin() + index, ent);
+
+            // view->entities.push_back(ent);
 
             // Stick to end logic for horizontal layout
             if (view->stickToEnd)
@@ -761,6 +811,19 @@ namespace pg
         {
             auto view = viewEnt->get<VerticalLayout>();
 
+            if (index < 0)
+            {
+                index = static_cast<int>(view->entities.size()) + index + 1;
+            }
+
+            if (index < 0 or index > static_cast<int>(view->entities.size()))
+            {
+                LOG_ERROR(DOM, "Index " << index << " is out of bounds for layout with id: " << viewEnt.id);
+                return;
+            }
+
+            LOG_INFO(DOM, "Add entity " << ent->id << " to layout with id: " << viewEnt.id << " at index: " << index);
+
             if (view->scrollable)
             {
                 ecsRef->attach<ClippedTo>(ent, view->id);
@@ -771,7 +834,8 @@ namespace pg
                 ecsRef->attach<ClippedTo>(ent, viewEnt->get<ClippedTo>()->clipperId);
             }
 
-            view->entities.push_back(ent);
+            // view->entities.push_back(ent);
+            view->entities.insert(view->entities.begin() + index, ent);
 
             // Stick to end logic for vertical layout
             if (view->stickToEnd)
@@ -806,6 +870,27 @@ namespace pg
             view->entities.erase(it);
             ecsRef->removeEntity(index);
         }
+    }
+
+    void LayoutSystem::removeEntityAt(BaseLayout* view, int index)
+    {
+        if (index < 0)
+        {
+            index = static_cast<int>(view->entities.size()) + index + 1;
+        }
+
+        if (index < 0 or index >= static_cast<int>(view->entities.size()))
+        {
+            LOG_ERROR(DOM, "Index " << index << " is out of bounds for layout with id: " << view->id);
+            return;
+        }
+
+        _unique_id indexId = view->entities[index].id;
+
+        ecsRef->sendEvent(ClearParentingEvent{indexId, view->id});
+
+        view->entities.erase(view->entities.begin() + index);
+        ecsRef->removeEntity(indexId);
     }
 
     void LayoutSystem::updateVisibility(EntityRef viewEnt, BaseLayout* view)

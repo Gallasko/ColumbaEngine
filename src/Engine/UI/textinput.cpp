@@ -35,6 +35,8 @@ namespace pg
                     entity->entity->get<TTFText>()->setText(text->text);
                 }
 
+                ecsRef->sendEvent(CurrentTextInputTextChanged{text->text, entity->entityId});
+
                 LOG_INFO(DOM, "Current Text: " << text->text);
             }
         }
@@ -77,6 +79,8 @@ namespace pg
                         {
                             entity->entity->get<TTFText>()->setText(text->text);
                         }
+
+                        ecsRef->sendEvent(CurrentTextInputTextChanged{text->text, entity->entityId});
                     }
                     break;
 
@@ -106,6 +110,8 @@ namespace pg
                         {
                             entity->entity->get<TTFText>()->setText(text->text);
                         }
+
+                        ecsRef->sendEvent(CurrentTextInputTextChanged{text->text, entity->entityId});
                     }
                     break;
 
