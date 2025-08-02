@@ -62,6 +62,10 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
                 LOG_INFO("PointAggregator", "-> Stored Mouse position: " << pos.x << ", " << pos.y);
             }
 
+            auto ent = ecsRef->createEntity();
+
+            ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
+
             mousePosList.clear();
         }
     }
@@ -132,6 +136,8 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
+    mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
+    
     mainWindow->ecs.createSystem<PointAggregator>();
 
     mainWindow->ecs.dumbTaskflow();

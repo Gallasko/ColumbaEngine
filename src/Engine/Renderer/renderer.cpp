@@ -285,11 +285,15 @@ namespace pg
         std::vector<RenderCall> merged;
         merged.reserve(renderCallList[tempRenderList].size());
 
-        // Todo we can break early when the key visibility is set to false
-        // as all the element after the first invisible element will be invisible
-
         for (auto& pair : buckets)
         {
+            // After this point all the render calls are invisible so we don't need to process them
+            if (pair.first > (static_cast<uint64_t>(1) << 63))
+            {
+                break;
+            }
+
+            // Pre process the render calls before passing them to the render stage
             for (auto& call : pair.second)
             {
                 auto materialId = call.getMaterialId();
@@ -302,11 +306,13 @@ namespace pg
 
                 const auto& material = getMaterial(materialId);
 
+                // If the mesh is not set we use the one from the material
                 if (call.mesh == nullptr)
                 {
                     call.mesh = material.mesh;
                 }
 
+                // We get the number of elements to render
                 if (material.nbAttributes == 0)
                 {
                     call.nbElements = 1;
@@ -610,8 +616,9 @@ namespace pg
 
     void MasterRenderer::processRenderCall(const RenderCall& call, const RefracRef& rTable, unsigned int screenWidth, unsigned int screenHeight)
     {
-        if (not call.getVisibility())
-            return;
+        // This should never happens anymore
+        // if (not call.getVisibility())
+        //     return;
         
         // Todo initialize material in another call !
         if (not call.mesh->initialized)
@@ -736,11 +743,11 @@ namespace pg
         shaderProgram->setUniformValue("scale", scale);
         shaderProgram->setUniformValue("view", view);
 
-        material.mesh->bind();
+        call.mesh->bind();
         
-        material.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
+        call.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
 
-        glDrawElementsInstanced(GL_TRIANGLES, material.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0, call.nbElements);
+        glDrawElementsInstanced(GL_TRIANGLES, call.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0, call.nbElements);
 
         // Todo only release if the shader need to change
         shaderProgram->release();
