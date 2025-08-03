@@ -36,9 +36,13 @@ namespace pg
         for(auto& element : serializedString.children)
         {
             if(element.isNull())
+            {
                 LOG_ERROR(DOM, "Element is null");
+            }
             else if(element.getObjectName() == "")
+            {
                 LOG_ERROR(DOM, "Element has no name");
+            }
             else
             {
                 LOG_INFO(DOM, "Deserializing " + element.getObjectName());

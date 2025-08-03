@@ -25,7 +25,7 @@ namespace pg
     };
 
     // Background scrolling system that creates an infinite diagonal scrolling grid
-    struct BackgroundScrollerSystem : public System<InitSys, Listener<TickEvent>>
+    struct BackgroundScrollerSystem : public System<InitSys, QueuedListener<TickEvent>>
     {
         // Screen and tile parameters
         float screenWidth = 820.0f;
@@ -64,7 +64,7 @@ namespace pg
                     << "px, speed: " << scrollSpeed << " px/s");
         }
         
-        virtual void onEvent(const TickEvent& event) override
+        virtual void onProcessEvent(const TickEvent& event) override
         {
             float deltaTime = event.tick / 1000.0f; // Convert to seconds
             

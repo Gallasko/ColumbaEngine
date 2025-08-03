@@ -147,7 +147,7 @@ namespace pg
     };
 
     // Enhanced enemy spawning system that spawns enemies crossing the full screen
-    struct EnemySpawnerSystem : public System<InitSys, Listener<TickEvent>, Listener<UpdateSpawnParamsEvent>, Listener<PauseGame>, Listener<ResumeGame>>
+    struct EnemySpawnerSystem : public System<InitSys, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>, QueuedListener<PauseGame>, QueuedListener<ResumeGame>>
     {
         // Screen dimensions
         float screenWidth = 820.0f;
@@ -172,13 +172,13 @@ namespace pg
 
         bool paused = false;               // Pause state
 
-        virtual void onEvent(const PauseGame& event) override
+        virtual void onProcessEvent(const PauseGame& event) override
         {
             LOG_INFO("EnemySpawnerSystem", "Game Paused");
             paused = true;
         }
 
-        virtual void onEvent(const ResumeGame& event) override
+        virtual void onProcessEvent(const ResumeGame& event) override
         {
             LOG_INFO("EnemySpawnerSystem", "Game Resumed");
             paused = false;
@@ -201,7 +201,7 @@ namespace pg
                     << "s, Enemies per spawn: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s");
         }
         
-        virtual void onEvent(const TickEvent& event) override
+        virtual void onProcessEvent(const TickEvent& event) override
         {
             if (paused) return; // Skip updates if paused
 
@@ -221,7 +221,7 @@ namespace pg
             updateEnemyMovement(deltaTime);
         }
         
-        virtual void onEvent(const UpdateSpawnParamsEvent& event) override
+        virtual void onProcessEvent(const UpdateSpawnParamsEvent& event) override
         {
             bool changed = false;
             

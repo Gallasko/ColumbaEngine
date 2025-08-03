@@ -73,11 +73,16 @@ void initGame() {
 
     auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
+#ifdef __EMSCRIPTEN__
     // Need to fix this
+    ttfSys->registerFont("/res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("/res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("/res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+#else
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
-
+#endif
     // mainWindow->masterRenderer->processTextureRegister();
 
     mainWindow->ecs.createSystem<TweenSystem>();
@@ -100,6 +105,8 @@ void initGame() {
     mainWindow->ecs.createSystem<PointAggregator>();
 
     mainWindow->ecs.succeed<PointAggregator, EnemySpawnerSystem>();
+    mainWindow->ecs.succeed<TexturedRibbonComponentSystem, PointAggregator>();
+    mainWindow->ecs.succeed<PolygonComponentSystem, TexturedRibbonComponentSystem>();
 
     mainWindow->ecs.dumbTaskflow();
 

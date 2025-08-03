@@ -277,8 +277,8 @@ namespace pg {
     // that we need to wait before the event becomes triggerable again.
 
     struct PointAggregator : public System<InitSys,
-        Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>, QueuedListener<RemoveEntityEvent>,
-        Listener<EnemyLoopHitEvent>, Listener<OnSDLScanCode>>
+        QueuedListener<OnMouseMove>, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<TickEvent>, QueuedListener<RemoveEntityEvent>,
+        QueuedListener<EnemyLoopHitEvent>, QueuedListener<OnSDLScanCode>>
     {
         CompRef<PositionComponent> obscurerPos;
         CompRef<TTFText> pauseText;
@@ -327,7 +327,7 @@ namespace pg {
             updateTimer();
         }
 
-        virtual void onEvent(const OnSDLScanCode& event) override
+        virtual void onProcessEvent(const OnSDLScanCode& event) override
         {
             if (not started)
             {
@@ -379,7 +379,7 @@ namespace pg {
             }
         }
 
-        virtual void onEvent(const OnMouseMove& event) override
+        virtual void onProcessEvent(const OnMouseMove& event) override
         {
             if (pressed)
             {
@@ -389,7 +389,7 @@ namespace pg {
             }
         }
 
-        virtual void onEvent(const OnMouseClick& event) override
+        virtual void onProcessEvent(const OnMouseClick& event) override
         {
             LOG_INFO("PointAggregator", "Mouse clicked");
 
@@ -411,13 +411,13 @@ namespace pg {
 
                 auto ent = ecsRef->createEntity();
 
-                ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
+                // ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
 
                 currentEnt = ent;
             }
         }
 
-        virtual void onEvent(const OnMouseRelease& event) override
+        virtual void onProcessEvent(const OnMouseRelease& event) override
         {
             if (event.button == SDL_BUTTON_LEFT)
             {
@@ -443,7 +443,7 @@ namespace pg {
             ecsRef->removeEntity(event.prefabId);
         }
 
-        virtual void onEvent(const EnemyLoopHitEvent& event) override
+        virtual void onProcessEvent(const EnemyLoopHitEvent& event) override
         {
             LOG_INFO("PointAggregator", "Enemy hit the looped, processing event");
             // Handle the enemy loop hit event here if needed
@@ -485,7 +485,7 @@ namespace pg {
             updateTimer();
         }
 
-        virtual void onEvent(const TickEvent& event) override
+        virtual void onProcessEvent(const TickEvent& event) override
         {
             deltaTime += event.tick;
 
