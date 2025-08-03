@@ -269,22 +269,35 @@ namespace pg {
 
     struct EnemyLoopHitEvent {};
 
+    struct PauseGame {};
+
     // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
     // that we need to wait before the event becomes triggerable again.
 
     struct PointAggregator : public System<InitSys,
         Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>, QueuedListener<RemoveEntityEvent>,
-        Listener<EnemyLoopHitEvent>>
+        Listener<EnemyLoopHitEvent>, Listener<OnSDLScanCode>>
     {
         virtual void init() override
         {
             LOG_THIS_MEMBER("PointAggregator");
 
-            registerGroup<PositionComponent, EnemyFlag>();
+            registerGroup<PositionComponent, Simple2DObject, EnemyFlag>();
 
             auto text = makeTTFText(ecsRef, 340, 12, 1, "light", "30 : 00", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
 
             timer = text.get<TTFText>();
+
+            auto pauseText = makeTTFText(ecsRef, 15, 595, 1, "light", "Press P to Pause", 1.0f, {255.0f, 255.0f, 255.0f, 185.0f}); 
+        }
+
+        virtual void onEvent(const OnSDLScanCode& event) override
+        {
+            if (event.key == SDL_SCANCODE_P)
+            {
+                LOG_INFO("PointAggregator", "Pause Game");
+                ecsRef->sendEvent(PauseGame{});
+            }
         }
 
         virtual void onEvent(const OnMouseMove& event) override
@@ -316,18 +329,6 @@ namespace pg {
                 ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
 
                 currentEnt = ent;
-            }
-
-            if (event.button == SDL_BUTTON_RIGHT)
-            {
-                LOG_INFO("PointAggregator", "Right click detected, creating test enemy");
-
-                auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, {0.0f, 0.0f, 255.0f, 255.0f});
-
-                shape.get<PositionComponent>()->setX(event.pos.x - 25.0f);
-                shape.get<PositionComponent>()->setY(event.pos.y - 25.0f);
-
-                shape.attach<EnemyFlag>();
             }
         }
 
@@ -448,21 +449,41 @@ namespace pg {
         void checkEnemyInLoop(const std::vector<Point2D>& loop)
         {
             int nbEnemiesCollected = 0;
-            for (const auto& ent : viewGroup<PositionComponent, EnemyFlag>())
+            for (const auto& ent : viewGroup<PositionComponent, Simple2DObject, EnemyFlag>())
             {
                 auto pos = ent->get<PositionComponent>();
+                auto shape = ent->get<Simple2DObject>();
+                auto flag = ent->get<EnemyFlag>();
 
                 // Only check if the center of the enemy is inside the loop ( we don't check for the whole BB to avoid performance issues )
                 if (pos and pointInPolygon(loop, Point2D(pos->x + 25, pos->y + 25)))
                 {
-                    nbEnemiesCollected++;
+                    flag->hp--;
+
+                    if (flag->hp > 0)
+                    {
+                        if (flag->hp == 1)
+                        {
+                            shape->setColors({255.0f, 0.0f, 0.0f, 255.0f}); // Change color to red when hp is 1
+                        }
+                        else if (flag->hp == 2)
+                        {
+                            shape->setColors({0.0f, 255.0f, 0.0f, 255.0f}); // Change color to gree when hp is 2
+                        }
+
+                        continue; // Skip to the next enemy if it still has hp
+                    }
 
                     LOG_INFO("PointAggregator", "Enemy found in loop at: " << pos->x << ", " << pos->y);
                     // Do something with the enemy, like removing it or marking it
                     ecsRef->removeEntity(ent->entityId);
 
                     auto y = pos->y + 25 - 10;
-                    auto popText = makeTTFText(ecsRef, pos->x + 25, y, 1, "light", "+" + std::to_string(nbEnemiesCollected) + "s", .4f, {0.0f, 255.0f, 0.0f, 255.0f});
+                    std::stringstream stream;
+                    stream << std::fixed << std::setprecision(1) << nbEnemiesCollected * 0.3 + 1;
+                    std::string s = stream.str();
+
+                    auto popText = makeTTFText(ecsRef, pos->x + 25, y, 1, "light", "+" + s + "s", .4f, {0.0f, 255.0f, 0.0f, 255.0f});
 
                     popText.attach<TweenComponent>(TweenComponent {
                         0.0f, // Start opacity
@@ -474,7 +495,9 @@ namespace pg {
                         makeCallable<RemoveEntityEvent>(popText.entity.id)
                     });
 
-                    timerTime += nbEnemiesCollected * 1000.0f; // Increase the timer by 1 second
+                    timerTime += nbEnemiesCollected * 300.f + 1000.0f; // Increase the timer by 1 second
+
+                    nbEnemiesCollected++;
                 }
             }
         }
@@ -484,6 +507,7 @@ namespace pg {
             if (timerTime > 0.0f)
             {
                 timerTime -= deltaTime;
+                totalTime += deltaTime;
 
                 if (timerTime <= 0.0f)
                 {
@@ -515,5 +539,7 @@ namespace pg {
 
         float timerTime = 30000.0f; // 30 seconds
         CompRef<TTFText> timer;
+
+        float totalTime = 0.0f; // Total time for the game
     };
 }

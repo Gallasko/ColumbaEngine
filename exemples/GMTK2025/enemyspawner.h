@@ -58,7 +58,8 @@ namespace pg
         float centerWFrac,     // fraction (0–1) of screen width for center rect
         float centerHFrac,     // fraction (0–1) of screen height
         float speed            // constant speed for enemies
-    ) {
+    )
+    {
         EnemySpawn spawn;
         
         // Define the center rectangle bounds
@@ -111,12 +112,14 @@ namespace pg
     }
 
     // Event for changing spawn parameters during gameplay
-    struct UpdateSpawnParamsEvent {
+    struct UpdateSpawnParamsEvent
+    {
         float newSpawnInterval = -1.0f;     // -1 means don't change
         int newEnemiesPerSpawn = -1;        // -1 means don't change
         float newEnemySpeed = -1.0f;        // -1 means don't change
         float newCenterWFrac = -1.0f;       // -1 means don't change
         float newCenterHFrac = -1.0f;       // -1 means don't change
+        int maxHp = -1;                     // -1 means don't change
         
         UpdateSpawnParamsEvent() = default;
         
@@ -152,11 +155,12 @@ namespace pg
         
         // Spawn parameters - can be changed during gameplay
         float spawnInterval = 3.0f;          // seconds between spawn waves
-        int enemiesPerSpawn = 15;             // number of enemies to spawn per wave
+        int enemiesPerSpawn = 15;            // number of enemies to spawn per wave
         float enemySpeed = 250.0f;           // pixels per second
         float centerWFrac = 0.8f;            // target area width fraction
         float centerHFrac = 0.8f;            // target area height fraction
         float edgePadding = 100.0f;          // distance off-screen to spawn
+        int maxHp = 1;                       // default HP for enemies
         
         // Runtime state
         float timeSinceLastSpawn = 0.0f;
@@ -164,7 +168,13 @@ namespace pg
         // Wave/difficulty progression
         int currentWave = 1;
         float waveTimer = 0.0f;
-        float waveInterval = 30.0f;          // 30 seconds per wave
+        float waveInterval = 3.0f;           // 3 seconds per wave
+
+        std::vector<constant::Vector4D> enemyColors = {
+            {255.0f, 0.0f, 0.0f, 255.0f}, // 1hp = Red
+            {0.0f, 255.0f, 0.0f, 255.0f}, // 2hp = Green
+            {0.0f, 0.0f, 255.0f, 255.0f}, // 3hp = Blue
+        };
         
         virtual void init() override
         {
@@ -280,9 +290,12 @@ namespace pg
                 centerHFrac,
                 enemySpeed
             );
+
+            std::uniform_int_distribution<int> hpGen(1, maxHp);
+            int hp = hpGen(gen);
             
             // Create enemy entity using your existing shape creation
-            auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, {255.0f, 0.0f, 0.0f, 255.0f});
+            auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, enemyColors[hp - 1]);
             
             // Set position to spawn point
             shape.get<PositionComponent>()->setX(spawnData.start.x - 25.0f); // Center the 50x50 square
@@ -296,7 +309,7 @@ namespace pg
             shape.attach<EnemyMeta>(spawnData.target);
             
             // Attach enemy flag
-            shape.attach<EnemyFlag>();
+            shape.attach<EnemyFlag>(hp);
         }
         
         void updateEnemyMovement(float deltaTime)
