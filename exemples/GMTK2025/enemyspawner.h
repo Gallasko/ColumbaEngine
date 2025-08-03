@@ -147,7 +147,7 @@ namespace pg
     };
 
     // Enhanced enemy spawning system that spawns enemies crossing the full screen
-    struct EnemySpawnerSystem : public System<InitSys, Listener<TickEvent>, Listener<UpdateSpawnParamsEvent>>
+    struct EnemySpawnerSystem : public System<InitSys, Listener<TickEvent>, Listener<UpdateSpawnParamsEvent>, Listener<PauseGame>, Listener<ResumeGame>>
     {
         // Screen dimensions
         float screenWidth = 820.0f;
@@ -170,6 +170,20 @@ namespace pg
         float waveTimer = 0.0f;
         float waveInterval = 3.0f;           // 3 seconds per wave
 
+        bool paused = false;               // Pause state
+
+        virtual void onEvent(const PauseGame& event) override
+        {
+            LOG_INFO("EnemySpawnerSystem", "Game Paused");
+            paused = true;
+        }
+
+        virtual void onEvent(const ResumeGame& event) override
+        {
+            LOG_INFO("EnemySpawnerSystem", "Game Resumed");
+            paused = false;
+        }
+
         std::vector<constant::Vector4D> enemyColors = {
             {255.0f, 0.0f, 0.0f, 255.0f}, // 1hp = Red
             {0.0f, 255.0f, 0.0f, 255.0f}, // 2hp = Green
@@ -189,6 +203,8 @@ namespace pg
         
         virtual void onEvent(const TickEvent& event) override
         {
+            if (paused) return; // Skip updates if paused
+
             float deltaTime = event.tick / 1000.0f; // Convert to seconds if needed
             
             // Update wave progression
@@ -418,7 +434,7 @@ namespace pg
             enemySpeed = 100.0f;
             centerWFrac = 0.5f;
             centerHFrac = 0.5f;
-            
+             
             LOG_INFO("EnemySpawnerSystem", "Game reset to initial parameters");
         }
         

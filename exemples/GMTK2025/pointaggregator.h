@@ -271,6 +271,8 @@ namespace pg {
 
     struct PauseGame {};
 
+    struct ResumeGame {};
+
     // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
     // that we need to wait before the event becomes triggerable again.
 
@@ -278,6 +280,9 @@ namespace pg {
         Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>, QueuedListener<RemoveEntityEvent>,
         Listener<EnemyLoopHitEvent>, Listener<OnSDLScanCode>>
     {
+        CompRef<PositionComponent> obscurerPos;
+        CompRef<TTFText> pauseText;
+
         virtual void init() override
         {
             LOG_THIS_MEMBER("PointAggregator");
@@ -288,15 +293,89 @@ namespace pg {
 
             timer = text.get<TTFText>();
 
-            auto pauseText = makeTTFText(ecsRef, 15, 595, 1, "light", "Press P to Pause", 1.0f, {255.0f, 255.0f, 255.0f, 185.0f}); 
+            auto pText = makeTTFText(ecsRef, 15, 595, 3, "light", "Press P to Pause", 1.0f, {255.0f, 255.0f, 255.0f, 185.0f});
+            pauseText = pText.get<TTFText>();
+
+            auto obscurer = makeSimple2DShape(ecsRef, Shape2D::Square, 820.0f, 640.0f, {0.0f, 0.0f, 0.0f, 130.0f});
+            obscurer.get<PositionComponent>()->setZ(2.0f);
+            obscurer.get<PositionComponent>()->setVisibility(false);
+
+            obscurerPos = obscurer.get<PositionComponent>();
+            
+            // Todo set started to true when they circle the first enemy
+            startGame();
+        }
+
+        void startGame()
+        {
+            LOG_THIS_MEMBER("PointAggregator");
+
+            started = true;
+            running = true;
+
+            obscurerPos->setVisibility(false);
+
+            deltaTime = 0.0f;
+
+            timerTime = 30000.0f; // 30 seconds
+            totalTime = timerTime;
+
+            mousePosList.clear();
+
+            pressed = false;
+
+            updateTimer();
         }
 
         virtual void onEvent(const OnSDLScanCode& event) override
         {
+            if (not started)
+            {
+                LOG_INFO("PointAggregator", "Game not started yet, ignoring key press");
+                return;
+            }
+
+            if (lost)
+            {
+                if (event.key == SDL_SCANCODE_RETURN)
+                {
+                    LOG_INFO("PointAggregator", "Restarting game");
+
+                    startGame();
+                    lost = false;
+                }
+                
+                return;
+            }
+
             if (event.key == SDL_SCANCODE_P)
             {
-                LOG_INFO("PointAggregator", "Pause Game");
-                ecsRef->sendEvent(PauseGame{});
+                if (running)
+                {
+                    pauseText->setText("Press P to Resume");
+
+                    pressed = false;
+
+                    if (mousePosList.size() > 0)
+                    {
+                        mousePosList.clear();
+                        ecsRef->removeEntity(currentEnt);
+                    }
+
+                    running = false;
+                    LOG_INFO("PointAggregator", "Pause Game");
+                    ecsRef->sendEvent(PauseGame{});
+                }
+                else
+                {
+                    pauseText->setText("Press P to Pause");
+
+                    running = true;
+                    LOG_INFO("PointAggregator", "Resume Game");
+                    ecsRef->sendEvent(ResumeGame{});
+                }
+
+                obscurerPos->setVisibility(not running);
             }
         }
 
@@ -313,6 +392,12 @@ namespace pg {
         virtual void onEvent(const OnMouseClick& event) override
         {
             LOG_INFO("PointAggregator", "Mouse clicked");
+
+            if (not running)
+            {
+                LOG_INFO("PointAggregator", "Game not running, ignoring mouse click");
+                return;
+            }
 
             if (event.button == SDL_BUTTON_LEFT)
             {
@@ -343,9 +428,12 @@ namespace pg {
                     LOG_INFO("PointAggregator", "-> Stored Mouse position: " << pos.x << ", " << pos.y);
                 }
 
-                mousePosList.clear();
+                if (mousePosList.size() > 0)
+                {
+                    mousePosList.clear();
 
-                ecsRef->removeEntity(currentEnt);
+                    ecsRef->removeEntity(currentEnt);
+                }
             }
         }
 
@@ -504,7 +592,7 @@ namespace pg {
 
         virtual void execute() override
         {
-            if (timerTime > 0.0f)
+            if (timerTime > 0.0f and running)
             {
                 timerTime -= deltaTime;
                 totalTime += deltaTime;
@@ -512,6 +600,7 @@ namespace pg {
                 if (timerTime <= 0.0f)
                 {
                     // lose condition
+                    loseState();
                 }
 
                 updateTimer();
@@ -520,8 +609,26 @@ namespace pg {
             deltaTime = 0.0f;
         }
 
+        void loseState()
+        {
+            LOG_INFO("PointAggregator", "You lost the game!");
+            running = false;
+
+            lost = true;
+
+            pauseText->setText("Press Enter To Restart");
+
+            obscurerPos->setVisibility(true);
+        }
+
         inline void updateTimer()
         {
+            if (timerTime < 0.0f)
+            {
+                timerTime = 0.0f;
+                loseState();
+            }
+
             timer->setText(std::to_string(static_cast<int>(timerTime / 1000.0f)) + " : " + std::to_string((static_cast<int>(timerTime) % 1000) / 10));
         }
 
@@ -541,5 +648,11 @@ namespace pg {
         CompRef<TTFText> timer;
 
         float totalTime = 0.0f; // Total time for the game
+
+        bool running = false; // Game state
+
+        bool started = false; // Game started state
+
+        bool lost = false; // Game lost state
     };
 }
