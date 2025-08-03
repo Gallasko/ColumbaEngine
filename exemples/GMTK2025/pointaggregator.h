@@ -17,6 +17,75 @@
 
 namespace pg {
 
+    struct ShakeMainCamera
+    {
+        float duration = 500.0f; // in milliseconds
+    };
+
+    struct MainCameraShake : public System<Listener<TickEvent>, Listener<ShakeMainCamera>>
+    {
+        // BaseCamera2D& camera;
+
+        MainCameraShake(MasterRenderer* MasterRenderer) {}
+        // MainCameraShake(MasterRenderer* MasterRenderer) : camera(MasterRenderer->getCamera()) {}
+
+        virtual std::string getSystemName() const override { return "Camera Shake"; }
+
+        float deltaTime = 0.0f;
+
+        float shakeMagnitude = 0.1f; // Adjust the magnitude of the shake
+        float shakeDuration = 500.0f; // Duration of the shake in milliseconds
+
+        bool isShaking = false;
+
+        float shakeElapsed = 0.0f; // Time elapsed since the shake started
+
+        virtual void onEvent(const TickEvent& event) override
+        {
+            deltaTime += event.tick;
+        }
+
+        virtual void onEvent(const ShakeMainCamera& event) override
+        {
+            shakeDuration = event.duration;
+            isShaking = true;
+        }
+
+        // Called every frame:
+        virtual void execute() override
+        {
+            if (deltaTime == 0.0f)
+                return;
+
+            // if (isShaking)
+            // {
+            //     shakeElapsed += deltaTime;
+
+            //     if (shakeElapsed >= shakeDuration)
+            //     {
+            //         // done shaking
+            //         camera.setOffset({0.f, 0.f});
+            //         isShaking = false;
+
+            //         deltaTime = 0.0f;
+            //         return;
+            //     }
+
+            //     // fall‑off: stronger at start, taper off
+            //     float t = 1.0f - (shakeElapsed / shakeDuration);
+            //     float currentMag = shakeMagnitude* t;
+
+            //     // generate a random offset in [-currentMag, +currentMag]
+            //     float ox = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.f - 1.f) * currentMag;
+            //     float oy = (static_cast<float>(rand()) / static_cast<float>(RAND_MAX) * 2.f - 1.f) * currentMag;
+
+            //     camera.setOffset({ox, oy});
+            // }
+
+            deltaTime = 0.0f;
+        }
+    };
+
     bool doSegmentsIntersect(const pg::Segment2D& s1, const pg::Segment2D& s2)
     {
         auto orientation = [](const pg::Point2D& a, const pg::Point2D& b, const pg::Point2D& c) {

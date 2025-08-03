@@ -360,6 +360,7 @@ namespace pg
             if (loopHit)
             {
                 ecsRef->sendEvent(EnemyLoopHitEvent{});
+                ecsRef->sendEvent(ShakeMainCamera{});
             }
         }
         
