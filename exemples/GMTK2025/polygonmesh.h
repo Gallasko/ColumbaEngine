@@ -162,30 +162,30 @@ namespace pg
 
         virtual void onEvent(const TickEvent& event) override
         {
-            std::vector<_unique_id> entitiesToRemove;
-            for (auto* poly : view<PolygonComponent>())
-            {
-                if (not poly)
-                    continue;
+            // std::vector<_unique_id> entitiesToRemove;
+            // for (auto* poly : view<PolygonComponent>())
+            // {
+            //     if (not poly)
+            //         continue;
 
-                poly->aliveTime += event.tick;
+            //     poly->aliveTime += event.tick;
 
-                poly->setOpacity(255.0f * (1 - (poly->aliveTime / 450.0f)));
+            //     poly->setOpacity(255.0f * (1 - (poly->aliveTime / 450.0f)));
 
-                if (poly->aliveTime > 450.0f)
-                {
-                    entitiesToRemove.push_back(poly->entityId);
-                    continue;
-                }
+            //     if (poly->aliveTime > 450.0f)
+            //     {
+            //         entitiesToRemove.push_back(poly->entityId);
+            //         continue;
+            //     }
 
-            //     // Optionally, you can trigger an update if needed
-            //     updateQueue.push(poly->entityId);
-            }
+            // //     // Optionally, you can trigger an update if needed
+            // //     updateQueue.push(poly->entityId);
+            // }
 
-            for (auto entityId : entitiesToRemove)
-            {
-                ecsRef->removeEntity(entityId);
-            }
+            // for (auto entityId : entitiesToRemove)
+            // {
+            //     ecsRef->removeEntity(entityId);
+            // }
         }
 
         void init() override

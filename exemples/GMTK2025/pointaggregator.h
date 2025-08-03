@@ -330,7 +330,7 @@ namespace pg {
             deltaTime = 0.0f;
 
             timerTime = 30000.0f; // 30 seconds
-            totalTime = timerTime;
+            totalTime = 0.0f;
 
             mousePosList.clear();
 
@@ -528,13 +528,13 @@ namespace pg {
                         ent->attach<PolygonComponent>(polygon, 0);
                         ent->attach<PolyFlag>();
 
-                        // ecsRef->attach<TweenComponent>(ent, TweenComponent {
-                        //     1.0f, // Fully opaque
-                        //     0.0f, // Fully transparent
-                        //     400.0f, // Duration in milliseconds
-                        //     [ent](const TweenValue& value) { ent.get<PolygonComponent>()->setOpacity(std::get<float>(value)); },
-                        //     makeCallable<RemoveEntityEvent>(ent.id)
-                        // });
+                        ecsRef->attach<TweenComponent>(ent, TweenComponent {
+                            1.0f, // Fully opaque
+                            0.0f, // Fully transparent
+                            400.0f, // Duration in milliseconds
+                            [ent](const TweenValue& value) { ent.get<PolygonComponent>()->setOpacity(std::get<float>(value)); },
+                            makeCallable<RemoveEntityEvent>(ent.id)
+                        });
 
                         checkEnemyInLoop(polygon);
 
@@ -583,6 +583,8 @@ namespace pg {
 
                         continue; // Skip to the next enemy if it still has hp
                     }
+
+                    ecsRef->sendEvent(PlaySoundEffect{"/res/audio/Pickup.wav"});
 
                     LOG_INFO("PointAggregator", "Enemy found in loop at: " << pos->x << ", " << pos->y);
                     // Do something with the enemy, like removing it or marking it
