@@ -104,9 +104,10 @@ void initGame() {
     
     mainWindow->ecs.createSystem<PointAggregator>();
 
-    mainWindow->ecs.succeed<PointAggregator, EnemySpawnerSystem>();
-    mainWindow->ecs.succeed<TexturedRibbonComponentSystem, PointAggregator>();
-    mainWindow->ecs.succeed<PolygonComponentSystem, TexturedRibbonComponentSystem>();
+    mainWindow->ecs.succeed<PointAggregator, TexturedRibbonComponentSystem>();
+
+    mainWindow->ecs.succeed<PointAggregator, PolygonComponentSystem>();
+    mainWindow->ecs.succeed<MasterRenderer, PointAggregator>();
 
     mainWindow->ecs.dumbTaskflow();
 

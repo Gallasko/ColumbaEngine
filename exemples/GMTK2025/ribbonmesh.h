@@ -133,44 +133,44 @@ namespace pg {
 
         void execute() override
         {
-            renderCallList.clear();
+            // renderCallList.clear();
 
-            const auto& renderCallView = view<MeshRenderCall>();
+            // const auto& renderCallView = view<MeshRenderCall>();
 
-            renderCallList.reserve(renderCallView.nbComponents());
+            // renderCallList.reserve(renderCallView.nbComponents());
 
-            for (const auto& renderCall : renderCallView)
-            {
-                renderCallList.push_back(renderCall->call);
-            }
+            // for (const auto& renderCall : renderCallView)
+            // {
+            //     renderCallList.push_back(renderCall->call);
+            // }
 
-            for (auto* comp : view<RibbonComponent>())
-            {
-                if (comp->clean)
-                {
-                    continue;
-                }
+            // for (auto* comp : view<RibbonComponent>())
+            // {
+            //     if (comp->clean)
+            //     {
+            //         continue;
+            //     }
 
-                auto ent = ecsRef->getEntity(comp->entityId);
+            //     auto ent = ecsRef->getEntity(comp->entityId);
 
-                if (not ent)
-                {
-                    LOG_ERROR("RibbonComponentSystem", "Entity with ID " << comp->entityId << " not found for RibbonComponent.");
-                    continue;
-                }
+            //     if (not ent)
+            //     {
+            //         LOG_ERROR("RibbonComponentSystem", "Entity with ID " << comp->entityId << " not found for RibbonComponent.");
+            //         continue;
+            //     }
 
-                RenderCall rc = createRenderCall(comp);
+            //     RenderCall rc = createRenderCall(comp);
 
-                if (ent->has<MeshRenderCall>())
-                    ent->get<MeshRenderCall>()->call = rc;
-                else
-                    ecsRef->_attach<MeshRenderCall>(ent, rc);
+            //     if (ent->has<MeshRenderCall>())
+            //         ent->get<MeshRenderCall>()->call = rc;
+            //     else
+            //         ecsRef->_attach<MeshRenderCall>(ent, rc);
 
-                comp->clean = true;
-            }
+            //     comp->clean = true;
+            // }
 
-            finishChanges();
-            changed = false;
+            // finishChanges();
+            // changed = false;
         }
 
     private:

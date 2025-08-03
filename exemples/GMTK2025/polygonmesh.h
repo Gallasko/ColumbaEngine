@@ -100,12 +100,22 @@ namespace pg
         {
             ecsRef = entity->world();
             entityId = entity->id;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
         }
 
         void setPolygon(const std::vector<Point2D>& newPolygon)
         {
             polygon = newPolygon;
             clean = false; // Mark as dirty to regenerate the mesh
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
         }
 
         EntitySystem* ecsRef;
@@ -131,7 +141,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct PolygonComponentSystem : public AbstractRenderer, public System<Own<PolygonComponent>, Own<PolygonRenderCall>, Ref<PositionComponent>, InitSys>
+    struct PolygonComponentSystem : public AbstractRenderer, public System<Own<PolygonComponent>, Own<PolygonRenderCall>, Ref<PositionComponent>, InitSys, Listener<EntityChangedEvent>>
     {
         PolygonComponentSystem(MasterRenderer* master): AbstractRenderer(master, RenderStage::Render) {}
 
@@ -151,6 +161,35 @@ namespace pg
 
         void execute() override
         {
+            if (not changed)
+                return;
+
+            while (not updateQueue.empty())
+            {
+                auto entityId = updateQueue.front();
+
+                auto entity = ecsRef->getEntity(entityId);
+
+                if (not entity)
+                {
+                    updateQueue.pop();
+                    continue;
+                }
+
+                auto comp = entity->get<PolygonComponent>();
+
+                if (entity->has<PolygonRenderCall>())
+                {
+                    entity->get<PolygonRenderCall>()->call = createRenderCall(comp);
+                }
+                else
+                {
+                    ecsRef->_attach<PolygonRenderCall>(entity, createRenderCall(comp));
+                }
+
+                updateQueue.pop();
+            }
+
             renderCallList.clear();
 
             const auto& renderCallView = view<PolygonRenderCall>();
@@ -162,33 +201,19 @@ namespace pg
                 renderCallList.push_back(renderCall->call);
             }
 
-            for (auto* comp : view<PolygonComponent>())
-            {
-                if (comp->clean)
-                {
-                    continue;
-                }
-
-                auto ent = ecsRef->getEntity(comp->entityId);
-
-                if (not ent)
-                {
-                    LOG_ERROR("PolygonComponentSystem", "Entity with ID " << comp->entityId << " not found for PolygonComponent.");
-                    continue;
-                }
-
-                RenderCall rc = createRenderCall(comp);
-
-                if (ent->has<PolygonRenderCall>())
-                    ent->get<PolygonRenderCall>()->call = rc;
-                else
-                    ecsRef->_attach<PolygonRenderCall>(ent, rc);
-
-                comp->clean = true;
-            }
-
             finishChanges();
-            changed = false;
+        }
+
+        void onEvent(const EntityChangedEvent& event)
+        {
+            auto entity = ecsRef->getEntity(event.id);
+
+            if (not entity)
+                return;
+
+            updateQueue.push(event.id);
+
+            changed = true;
         }
 
     private:

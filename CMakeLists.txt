@@ -229,36 +229,36 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_include_directories(PgEngineSrc PUBLIC src/GameElements)
     target_include_directories(PgEngineSrc PUBLIC src/Editor)
 
-    add_executable(GameOff exemples/GameOff/main.cpp)
+    # add_executable(GameOff exemples/GameOff/main.cpp)
 
-    target_include_directories(GameOff PUBLIC exemples/GameOff)
+    # target_include_directories(GameOff PUBLIC exemples/GameOff)
 
-    target_sources(GameOff PRIVATE
-        exemples/GameOff/achievement.cpp
-        exemples/GameOff/application.cpp
-        exemples/GameOff/character.cpp
-        exemples/GameOff/characustomizationscene.cpp
-        exemples/GameOff/fightscene.cpp
-        exemples/GameOff/gamefacts.cpp
-        exemples/GameOff/inventory.cpp
-        exemples/GameOff/item.cpp
-        exemples/GameOff/location.cpp
-        exemples/GameOff/locationscene.cpp
-        exemples/GameOff/mainscene.cpp
-        exemples/GameOff/managenerator.cpp
-        exemples/GameOff/nexusscene.cpp
-        exemples/GameOff/skilltree.cpp
-        exemples/GameOff/passives.cpp
-        exemples/GameOff/spells.cpp
-    )
+    # target_sources(GameOff PRIVATE
+    #     exemples/GameOff/achievement.cpp
+    #     exemples/GameOff/application.cpp
+    #     exemples/GameOff/character.cpp
+    #     exemples/GameOff/characustomizationscene.cpp
+    #     exemples/GameOff/fightscene.cpp
+    #     exemples/GameOff/gamefacts.cpp
+    #     exemples/GameOff/inventory.cpp
+    #     exemples/GameOff/item.cpp
+    #     exemples/GameOff/location.cpp
+    #     exemples/GameOff/locationscene.cpp
+    #     exemples/GameOff/mainscene.cpp
+    #     exemples/GameOff/managenerator.cpp
+    #     exemples/GameOff/nexusscene.cpp
+    #     exemples/GameOff/skilltree.cpp
+    #     exemples/GameOff/passives.cpp
+    #     exemples/GameOff/spells.cpp
+    # )
 
-    target_link_libraries(GameOff PRIVATE PgEngineSrc)
+    # target_link_libraries(GameOff PRIVATE PgEngineSrc)
 
-    set_target_properties(GameOff
-        PROPERTIES SUFFIX ".html"
-        LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
+    # set_target_properties(GameOff
+    #     PROPERTIES SUFFIX ".html"
+    #     LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
 
-    target_link_libraries(GameOff PRIVATE glm)
+    # target_link_libraries(GameOff PRIVATE glm)
 
     # add_executable(PgEngine src/main.cpp)
 
@@ -276,6 +276,24 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     #     LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
 
     # target_link_libraries(PgEngine PRIVATE glm)
+
+    add_executable(GMTK2025 exemples/GMTK2025/main.cpp)
+
+    target_include_directories(GMTK2025 PUBLIC exemples/GMTK2025)
+
+    target_sources(GMTK2025 PRIVATE
+        exemples/GMTK2025/application.cpp
+        exemples/GMTK2025/ribbonmesh.cpp
+        exemples/GMTK2025/polygonmesh.cpp
+    )
+
+    target_link_libraries(GMTK2025 PRIVATE PgEngineSrc)
+
+    set_target_properties(GMTK2025
+        PROPERTIES SUFFIX ".html"
+        LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
+
+    target_link_libraries(GMTK2025 PRIVATE glm)
 
 else()
     target_include_directories(PgEngineSrc PUBLIC src/Engine)
