@@ -411,7 +411,7 @@ namespace pg {
 
                 auto ent = ecsRef->createEntity();
 
-                // ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
+                ent.attach<RibbonComponent>("cursor", mousePosList, 10.0f, true, 1.0f);
 
                 currentEnt = ent;
             }
@@ -529,7 +529,8 @@ namespace pg {
                         // And (optionally) handle the polygon for game logic.
                     }
 
-                    currentEnt.get<RibbonComponent>()->setPath(mousePosList);
+                    if (currentEnt and currentEnt.has<RibbonComponent>())
+                        currentEnt.get<RibbonComponent>()->setPath(mousePosList);
                 }
             }
         }
