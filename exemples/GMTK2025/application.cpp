@@ -4,6 +4,8 @@
 
 #include "Systems/basicsystems.h"
 
+#include "UI/ttftext.h"
+
 #include "ribbonmesh.h"
 #include "polygonmesh.h"
 
@@ -312,6 +314,17 @@ void initGame() {
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+
+    // Need to fix this
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+
+    // mainWindow->masterRenderer->processTextureRegister();
+
+    mainWindow->ecs.createSystem<FpsSystem>();
 
     mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
     mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);

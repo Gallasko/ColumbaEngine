@@ -112,8 +112,9 @@ namespace pg
         // Ear clipping algorithm
         int nv = static_cast<int>(n);
         int count = 2 * nv; // Prevent infinite loops
+        int v = nv - 1;
 
-        for (int v = nv - 1; nv > 2; )
+        while (nv > 2)
         {
             if (--count <= 0)
             {
@@ -130,10 +131,14 @@ namespace pg
 
             if (isEar(polygon, vertexList[u], vertexList[v], vertexList[w]))
             {
+                int a = vertexList[u];
+                int b = vertexList[v];
+                int c = vertexList[w];
+
                 // Output triangle
-                indices.push_back(static_cast<unsigned int>(vertexList[u]));
-                indices.push_back(static_cast<unsigned int>(vertexList[v]));
-                indices.push_back(static_cast<unsigned int>(vertexList[w]));
+                indices.push_back(static_cast<unsigned int>(a));
+                indices.push_back(static_cast<unsigned int>(b));
+                indices.push_back(static_cast<unsigned int>(c));
 
                 // Remove vertex v from the list
                 for (int s = v, t = v + 1; t < nv; s++, t++)
@@ -142,7 +147,15 @@ namespace pg
                 }
                 nv--;
 
+                // Reset counter and adjust v
                 count = 2 * nv;
+                if (v >= nv) v = 0;
+            }
+            else
+            {
+                // Move to next vertex
+                v++;
+                if (v >= nv) v = 0;
             }
         }
 
@@ -159,6 +172,11 @@ namespace pg
         const Point2D& a = poly[prev];
         const Point2D& b = poly[curr];
         const Point2D& c = poly[next];
+
+        // Check triangle area - if too small, might cause issues
+        float area = std::abs(cross2D(a, b, c));
+        if (area < 1e-10f)
+            return false;
 
         for (size_t i = 0; i < poly.size(); ++i)
         {
@@ -185,13 +203,19 @@ namespace pg
 
     bool PolygonMesh::isPointInTriangle(const Point2D& p, const Point2D& a, const Point2D& b, const Point2D& c) const
     {
-        float d1 = cross2D(a, b, p);
-        float d2 = cross2D(b, c, p);
-        float d3 = cross2D(c, a, p);
-
-        bool hasNeg = (d1 < 0) || (d2 < 0) || (d3 < 0);
-        bool hasPos = (d1 > 0) || (d2 > 0) || (d3 > 0);
-
-        return !(hasNeg && hasPos);
+        // Use barycentric coordinates for more robust point-in-triangle test
+        float denom = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+        
+        if (std::abs(denom) < 1e-10f)
+            return false; // Degenerate triangle
+        
+        float alpha = ((b.y - c.y) * (p.x - c.x) + (c.x - b.x) * (p.y - c.y)) / denom;
+        float beta = ((c.y - a.y) * (p.x - c.x) + (a.x - c.x) * (p.y - c.y)) / denom;
+        float gamma = 1.0f - alpha - beta;
+        
+        // Point is inside if all barycentric coordinates are non-negative
+        // Use small epsilon to handle floating point precision issues
+        const float eps = 1e-10f;
+        return (alpha >= eps && beta >= eps && gamma >= eps);
     }
 }

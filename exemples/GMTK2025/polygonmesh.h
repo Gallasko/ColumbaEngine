@@ -10,7 +10,32 @@
 
 #include "logger.h"
 
-namespace pg {
+namespace pg
+{
+
+    //-----------------------------------------------------------------------------
+    // Utility: Point-in-Polygon (ray-casting)
+    //-----------------------------------------------------------------------------  
+    // Returns true if point P is inside the simple polygon poly (closed, non-self-intersecting).
+    static bool pointInPolygon(const std::vector<Point2D>& poly, const Point2D& P)
+    {
+        bool inside = false;
+        size_t n = poly.size();
+
+        for (size_t i = 0, j = n - 1; i < n; j = i++)
+        {
+            const Point2D& Pi = poly[i];
+            const Point2D& Pj = poly[j];
+        
+            bool intersect = ((Pi.y > P.y) != (Pj.y > P.y)) &&
+                            (P.x < (Pj.x - Pi.x) * (P.y - Pi.y) / (Pj.y - Pi.y) + Pi.x);
+        
+            if (intersect)
+                inside = !inside;
+        }
+
+        return inside;
+    }
 
     // 1) Generate polygon data
     struct PolygonData
