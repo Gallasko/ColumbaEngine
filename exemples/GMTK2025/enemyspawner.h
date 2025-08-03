@@ -31,20 +31,17 @@ namespace pg
     };
 
     struct EnemyMeta : public Component {
-        Vector2D exitPoint{0.0f, 0.0f};     // Point where enemy exits screen
-        float crossTime{4.0f};               // Time to cross entire screen
+        Vector2D targetPoint{0.0f, 0.0f};   // Center target point
         float timeAlive{0.0f};
-        Vector2D spawnPoint{0.0f, 0.0f};     // Where enemy started
         
         EnemyMeta() = default;
-        EnemyMeta(const Vector2D& spawn, const Vector2D& exit, float time) 
-            : spawnPoint(spawn), exitPoint(exit), crossTime(time) {}
+        EnemyMeta(const Vector2D& target) : targetPoint(target) {}
     };
 
     // Helper struct for spawn data
     struct EnemySpawn {
         Vector2D start;
-        Vector2D exit;
+        Vector2D target;
         Vector2D direction;
         float speed;
         float totalDistance;
@@ -54,63 +51,60 @@ namespace pg
     static std::random_device rd;
     static std::mt19937 gen(rd());
 
-    EnemySpawn makeRandomCrossScreenSpawn(
+    EnemySpawn makeRandomEdgeToCenterSpawn(
         float screenW, float screenH,
-        float edgePad,         // how far off-screen to spawn/exit
-        float crossTime        // seconds to cross entire screen
+        float edgePad,         // how far off-screen
+        float centerWFrac,     // fraction (0–1) of screen width for center rect
+        float centerHFrac,     // fraction (0–1) of screen height
+        float speed            // constant speed for enemies
     ) {
         EnemySpawn spawn;
         
-        // Choose random edge to spawn from (0=left, 1=right, 2=top, 3=bottom)
-        std::uniform_int_distribution<int> edgeDist(0, 3);
-        int spawnEdge = edgeDist(gen);
+        // Define the center rectangle bounds
+        float centerW = screenW * centerWFrac;
+        float centerH = screenH * centerHFrac;
+        float centerLeft = (screenW - centerW) * 0.5f;
+        float centerRight = centerLeft + centerW;
+        float centerTop = (screenH - centerH) * 0.5f;
+        float centerBottom = centerTop + centerH;
         
-        // Calculate spawn position and corresponding exit point
-        switch (spawnEdge) {
-            case 0: // Spawn from left edge
+        // Choose random target point within center rectangle
+        std::uniform_real_distribution<float> targetXDist(centerLeft, centerRight);
+        std::uniform_real_distribution<float> targetYDist(centerTop, centerBottom);
+        Vector2D target = Vector2D(targetXDist(gen), targetYDist(gen));
+        
+        // Choose random edge (0=left, 1=right, 2=top, 3=bottom)
+        std::uniform_int_distribution<int> edgeDist(0, 3);
+        int edge = edgeDist(gen);
+        
+        // Calculate spawn position based on chosen edge
+        switch (edge) {
+            case 0: // Left edge
                 spawn.start.x = -edgePad;
                 spawn.start.y = std::uniform_real_distribution<float>(0.0f, screenH)(gen);
-                // Exit on right edge at roughly the same height (with some variation)
-                spawn.exit.x = screenW + edgePad;
-                spawn.exit.y = spawn.start.y + std::uniform_real_distribution<float>(-screenH * 0.3f, screenH * 0.3f)(gen);
-                spawn.exit.y = std::clamp(spawn.exit.y, 0.0f, screenH);
                 break;
-                
-            case 1: // Spawn from right edge
+            case 1: // Right edge
                 spawn.start.x = screenW + edgePad;
                 spawn.start.y = std::uniform_real_distribution<float>(0.0f, screenH)(gen);
-                // Exit on left edge
-                spawn.exit.x = -edgePad;
-                spawn.exit.y = spawn.start.y + std::uniform_real_distribution<float>(-screenH * 0.3f, screenH * 0.3f)(gen);
-                spawn.exit.y = std::clamp(spawn.exit.y, 0.0f, screenH);
                 break;
-                
-            case 2: // Spawn from top edge
+            case 2: // Top edge
                 spawn.start.x = std::uniform_real_distribution<float>(0.0f, screenW)(gen);
                 spawn.start.y = -edgePad;
-                // Exit on bottom edge
-                spawn.exit.x = spawn.start.x + std::uniform_real_distribution<float>(-screenW * 0.3f, screenW * 0.3f)(gen);
-                spawn.exit.x = std::clamp(spawn.exit.x, 0.0f, screenW);
-                spawn.exit.y = screenH + edgePad;
                 break;
-                
-            case 3: // Spawn from bottom edge
+            case 3: // Bottom edge
                 spawn.start.x = std::uniform_real_distribution<float>(0.0f, screenW)(gen);
                 spawn.start.y = screenH + edgePad;
-                // Exit on top edge
-                spawn.exit.x = spawn.start.x + std::uniform_real_distribution<float>(-screenW * 0.3f, screenW * 0.3f)(gen);
-                spawn.exit.x = std::clamp(spawn.exit.x, 0.0f, screenW);
-                spawn.exit.y = -edgePad;
                 break;
         }
         
-        // Calculate direction vector (normalized)
-        Vector2D displacement = spawn.exit - spawn.start;
-        spawn.totalDistance = displacement.length();
-        spawn.direction = (spawn.totalDistance > 0.0f) ? displacement.normalized() : Vector2D(0.0f, 0.0f);
+        // Calculate direction vector toward center target (normalized)
+        Vector2D displacement = target - spawn.start;
+        float distance = displacement.length();
+        spawn.direction = (distance > 0.0f) ? displacement.normalized() : Vector2D(0.0f, 0.0f);
         
-        // Calculate speed needed to traverse the full distance in crossTime seconds
-        spawn.speed = (crossTime > 0.0f && spawn.totalDistance > 0.0f) ? spawn.totalDistance / crossTime : 0.0f;
+        // Use constant speed
+        spawn.speed = speed;
+        spawn.totalDistance = distance; // Distance to center target
         
         return spawn;
     }
@@ -119,7 +113,9 @@ namespace pg
     struct UpdateSpawnParamsEvent {
         float newSpawnInterval = -1.0f;     // -1 means don't change
         int newEnemiesPerSpawn = -1;        // -1 means don't change
-        float newCrossTime = -1.0f;         // -1 means don't change
+        float newEnemySpeed = -1.0f;        // -1 means don't change
+        float newCenterWFrac = -1.0f;       // -1 means don't change
+        float newCenterHFrac = -1.0f;       // -1 means don't change
         
         UpdateSpawnParamsEvent() = default;
         
@@ -131,10 +127,17 @@ namespace pg
             return event;
         }
         
-        static UpdateSpawnParamsEvent setDifficulty(float crossTime, int enemiesPerSpawn) {
+        static UpdateSpawnParamsEvent setDifficulty(float speed, int enemiesPerSpawn) {
             UpdateSpawnParamsEvent event;
-            event.newCrossTime = crossTime;
+            event.newEnemySpeed = speed;
             event.newEnemiesPerSpawn = enemiesPerSpawn;
+            return event;
+        }
+        
+        static UpdateSpawnParamsEvent setTargetArea(float centerWFrac, float centerHFrac) {
+            UpdateSpawnParamsEvent event;
+            event.newCenterWFrac = centerWFrac;
+            event.newCenterHFrac = centerHFrac;
             return event;
         }
     };
@@ -148,9 +151,11 @@ namespace pg
         
         // Spawn parameters - can be changed during gameplay
         float spawnInterval = 3.0f;          // seconds between spawn waves
-        int enemiesPerSpawn = 6;             // number of enemies to spawn per wave
-        float crossTime = 12.0f;              // time for enemies to cross entire screen
-        float edgePadding = 100.0f;          // distance off-screen to spawn/exit
+        int enemiesPerSpawn = 15;             // number of enemies to spawn per wave
+        float enemySpeed = 250.0f;           // pixels per second
+        float centerWFrac = 0.8f;            // target area width fraction
+        float centerHFrac = 0.8f;            // target area height fraction
+        float edgePadding = 100.0f;          // distance off-screen to spawn
         
         // Runtime state
         float timeSinceLastSpawn = 0.0f;
@@ -167,8 +172,8 @@ namespace pg
             // Register groups for entities with velocity and enemy components
             registerGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>();
             
-            LOG_INFO("EnemySpawnerSystem", "Cross-screen spawn system initialized - Interval: " << spawnInterval 
-                    << "s, Enemies per spawn: " << enemiesPerSpawn << ", Cross time: " << crossTime << "s");
+            LOG_INFO("EnemySpawnerSystem", "Edge-to-center spawn system initialized - Interval: " << spawnInterval 
+                    << "s, Enemies per spawn: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s");
         }
         
         virtual void onEvent(const TickEvent& event) override
@@ -203,14 +208,24 @@ namespace pg
                 changed = true;
             }
             
-            if (event.newCrossTime > 0.0f) {
-                crossTime = event.newCrossTime;
+            if (event.newEnemySpeed > 0.0f) {
+                enemySpeed = event.newEnemySpeed;
+                changed = true;
+            }
+            
+            if (event.newCenterWFrac > 0.0f && event.newCenterWFrac <= 1.0f) {
+                centerWFrac = event.newCenterWFrac;
+                changed = true;
+            }
+            
+            if (event.newCenterHFrac > 0.0f && event.newCenterHFrac <= 1.0f) {
+                centerHFrac = event.newCenterHFrac;
                 changed = true;
             }
             
             if (changed) {
                 LOG_INFO("EnemySpawnerSystem", "Updated spawn parameters - Interval: " << spawnInterval 
-                        << "s, Enemies per spawn: " << enemiesPerSpawn << ", Cross time: " << crossTime << "s");
+                        << "s, Enemies per spawn: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s");
             }
         }
         
@@ -229,13 +244,13 @@ namespace pg
         }
         
         void increaseDifficulty() {
-            // Each wave: slightly more enemies, slightly faster crossing
+            // Each wave: slightly more enemies, slightly faster speed
             if (currentWave % 2 == 0) {
                 enemiesPerSpawn = std::min(enemiesPerSpawn + 1, 8); // Cap at 8 enemies per spawn
             }
             
             if (currentWave % 3 == 0) {
-                crossTime = std::max(crossTime - 0.3f, 2.0f); // Minimum 2.0 seconds to cross
+                enemySpeed += 20.0f; // Increase speed by 20 px/s each time
             }
             
             if (currentWave % 4 == 0) {
@@ -243,7 +258,7 @@ namespace pg
             }
             
             LOG_INFO("EnemySpawnerSystem", "Difficulty increased - Wave: " << currentWave 
-                    << ", Enemies: " << enemiesPerSpawn << ", Cross time: " << crossTime 
+                    << ", Enemies: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s"
                     << ", Spawn interval: " << spawnInterval);
         }
         
@@ -256,11 +271,13 @@ namespace pg
         }
         
         void spawnSingleEnemy() {
-            // Generate spawn data for cross-screen movement
-            EnemySpawn spawnData = makeRandomCrossScreenSpawn(
+            // Generate spawn data for edge-to-center movement
+            EnemySpawn spawnData = makeRandomEdgeToCenterSpawn(
                 screenWidth, screenHeight,
                 edgePadding,
-                crossTime
+                centerWFrac,
+                centerHFrac,
+                enemySpeed
             );
             
             // Create enemy entity using your existing shape creation
@@ -274,8 +291,8 @@ namespace pg
             Vector2D velocity = spawnData.direction * spawnData.speed;
             shape.attach<VelocityComponent>(velocity);
             
-            // Attach enemy metadata with exit point instead of target
-            shape.attach<EnemyMeta>(spawnData.start, spawnData.exit, crossTime);
+            // Attach enemy metadata with target point
+            shape.attach<EnemyMeta>(spawnData.target);
             
             // Attach enemy flag
             shape.attach<EnemyFlag>();
@@ -302,24 +319,19 @@ namespace pg
                 // Get current position (center of the enemy)
                 Vector2D currentPos(pos->x + 25.0f, pos->y + 25.0f);
                 
-                // Check if enemy has moved off screen (reached exit area)
+                // Check if enemy has moved off screen (out of bounds)
                 bool offScreen = false;
                 
-                // Check if enemy is well beyond screen boundaries
-                if (currentPos.x < -edgePadding * 1.5f || currentPos.x > screenWidth + edgePadding * 1.5f ||
-                    currentPos.y < -edgePadding * 1.5f || currentPos.y > screenHeight + edgePadding * 1.5f) {
-                    offScreen = true;
-                }
-                
-                // Also check if it's been alive longer than expected (safety cleanup)
-                if (meta->timeAlive >= meta->crossTime * 1.5f) {
+                // Check if enemy is beyond screen boundaries (including padding)
+                if (currentPos.x < -edgePadding || currentPos.x > screenWidth + edgePadding ||
+                    currentPos.y < -edgePadding || currentPos.y > screenHeight + edgePadding) {
                     offScreen = true;
                 }
                 
                 if (offScreen) {
-                    // Mark for destruction - enemy successfully crossed screen
+                    // Mark for destruction - enemy went off screen
                     enemiesToDestroy.push_back(ent->entityId);
-                    LOG_INFO("EnemySpawnerSystem", "Enemy exited screen after " << meta->timeAlive << "s");
+                    LOG_INFO("EnemySpawnerSystem", "Enemy went off-screen after " << meta->timeAlive << "s");
                 }
             }
             
@@ -338,8 +350,13 @@ namespace pg
             enemiesPerSpawn = std::max(count, 1); // Minimum 1 enemy
         }
         
-        void setCrossTime(float time) {
-            crossTime = std::max(time, 1.0f); // Minimum 1.0 seconds
+        void setEnemySpeed(float speed) {
+            enemySpeed = std::max(speed, 10.0f); // Minimum 10 px/s
+        }
+        
+        void setTargetArea(float wFrac, float hFrac) {
+            centerWFrac = std::clamp(wFrac, 0.1f, 1.0f);
+            centerHFrac = std::clamp(hFrac, 0.1f, 1.0f);
         }
         
         void setScreenSize(float width, float height) {
@@ -351,7 +368,9 @@ namespace pg
         int getCurrentWave() const { return currentWave; }
         float getSpawnInterval() const { return spawnInterval; }
         int getEnemiesPerSpawn() const { return enemiesPerSpawn; }
-        float getCrossTime() const { return crossTime; }
+        float getEnemySpeed() const { return enemySpeed; }
+        float getCenterWFrac() const { return centerWFrac; }
+        float getCenterHFrac() const { return centerHFrac; }
         
         // Reset game state
         void resetGame() {
@@ -360,7 +379,9 @@ namespace pg
             timeSinceLastSpawn = 0.0f;
             spawnInterval = 3.0f;
             enemiesPerSpawn = 1;
-            crossTime = 4.0f;
+            enemySpeed = 100.0f;
+            centerWFrac = 0.5f;
+            centerHFrac = 0.5f;
             
             LOG_INFO("EnemySpawnerSystem", "Game reset to initial parameters");
         }
@@ -374,6 +395,5 @@ namespace pg
             return count;
         }
     };
-
 
 }
