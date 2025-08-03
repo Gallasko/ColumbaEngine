@@ -1,0 +1,180 @@
+#pragma once
+
+#include "Renderer/mesh.h"
+#include "Maths/geometry.h"   // For Point2D
+#include <vector>
+
+#include "Renderer/renderer.h"
+
+#include "constant.h"
+
+#include "logger.h"
+
+namespace pg {
+
+    // 1) Generate polygon data
+    struct PolygonData
+    {
+        std::vector<float> verts;
+        std::vector<unsigned int> idx;
+    };
+
+    /**
+     * @brief A dynamic polygon mesh that triangulates a 2D polygon (possibly concave).
+     */
+    struct PolygonMesh : public Mesh
+    {
+        PolygonMesh(const std::vector<Point2D>& polygon) : Mesh(), m_polygon(polygon)
+        {
+            // No pre-population of modelInfo here; done in generateMesh()
+        }
+
+        virtual ~PolygonMesh() {}
+
+        PolygonData prepareMesh();
+
+        /**
+         * Build the polygon vertex & index buffers and upload to OpenGL.
+         */
+        void generateMesh() override;
+
+    private:
+        std::vector<Point2D> m_polygon;
+
+        // Ear clipping triangulation helpers
+        bool isEar(const std::vector<Point2D>& poly, int prev, int curr, int next) const;
+        bool isPointInTriangle(const Point2D& p, const Point2D& a, const Point2D& b, const Point2D& c) const;
+        float cross2D(const Point2D& a, const Point2D& b, const Point2D& c) const;
+        bool isConvexVertex(const std::vector<Point2D>& poly, int prev, int curr, int next) const;
+        std::vector<unsigned int> triangulateEarClipping(const std::vector<Point2D>& polygon) const;
+    };
+
+    struct PolygonComponent : public Ctor
+    {
+        PolygonComponent(const std::vector<Point2D>& polygon, size_t viewport = 0) :
+                        polygon(polygon), viewport(viewport)
+        {}
+
+        PolygonComponent(const PolygonComponent& other) : ecsRef(other.ecsRef), entityId(other.entityId),
+            polygon(other.polygon), viewport(other.viewport), clean(other.clean)
+        {}
+
+        PolygonComponent& operator=(const PolygonComponent& other)
+        {
+            ecsRef = other.ecsRef;
+            entityId = other.entityId;
+            polygon = other.polygon;
+            viewport = other.viewport;
+            clean = other.clean;
+
+            return *this;
+        }
+
+        virtual void onCreation(EntityRef entity)
+        {
+            ecsRef = entity->world();
+            entityId = entity->id;
+        }
+
+        void setPolygon(const std::vector<Point2D>& newPolygon)
+        {
+            polygon = newPolygon;
+            clean = false; // Mark as dirty to regenerate the mesh
+        }
+
+        EntitySystem* ecsRef;
+        _unique_id entityId;
+
+        std::vector<Point2D> polygon;
+        size_t viewport;
+
+        bool clean = false;
+    };
+
+    struct PolygonRenderCall
+    {
+        PolygonRenderCall(const RenderCall& call) : call(call) {}
+
+        RenderCall call;
+    };
+
+    struct PolygonComponentSystem : public AbstractRenderer, public System<Own<PolygonComponent>, Own<PolygonRenderCall>, Ref<PositionComponent>, InitSys>
+    {
+        PolygonComponentSystem(MasterRenderer* master): AbstractRenderer(master, RenderStage::Render) {}
+
+        std::string getSystemName() const override { return "Polygon System"; }
+
+        void init() override
+        {
+            // Use a simple shader for solid polygon rendering
+            baseMaterial.shader = masterRenderer->getShader("polygonShader");
+            baseMaterial.nbTextures = 0; // No textures needed for solid polygons
+            baseMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
+            baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
+        }
+
+        void execute() override
+        {
+            renderCallList.clear();
+
+            const auto& renderCallView = view<PolygonRenderCall>();
+
+            renderCallList.reserve(renderCallView.nbComponents());
+
+            for (const auto& renderCall : renderCallView)
+            {
+                renderCallList.push_back(renderCall->call);
+            }
+
+            for (auto* comp : view<PolygonComponent>())
+            {
+                if (comp->clean)
+                {
+                    continue;
+                }
+
+                auto ent = ecsRef->getEntity(comp->entityId);
+
+                if (not ent)
+                {
+                    LOG_ERROR("PolygonComponentSystem", "Entity with ID " << comp->entityId << " not found for PolygonComponent.");
+                    continue;
+                }
+
+                RenderCall rc = createRenderCall(comp);
+
+                if (ent->has<PolygonRenderCall>())
+                    ent->get<PolygonRenderCall>()->call = rc;
+                else
+                    ecsRef->_attach<PolygonRenderCall>(ent, rc);
+
+                comp->clean = true;
+            }
+
+            finishChanges();
+            changed = false;
+        }
+
+    private:
+        RenderCall createRenderCall(PolygonComponent* polygon)
+        {
+            auto mesh = std::make_shared<PolygonMesh>(polygon->polygon);
+
+            RenderCall call(mesh);
+
+            call.setRenderStage(renderStage);
+            call.setViewport(polygon->viewport);
+            call.setOpacity(OpacityType::Opaque);
+
+            // Use the base material (no texture needed for solid polygons)
+            call.setMaterial(masterRenderer->registerMaterial("defaultPolygon", baseMaterial));
+
+            return call;
+        }
+
+        Material baseMaterial;
+        std::queue<_unique_id> updateQueue;
+        bool changed = false;
+    };
+
+} // namespace pg

@@ -5,6 +5,7 @@
 #include "Systems/basicsystems.h"
 
 #include "ribbonmesh.h"
+#include "polygonmesh.h"
 
 using namespace pg;
 
@@ -237,7 +238,10 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
                 if (auto lr = detectAndClipLoop(mousePosList))
                 {
                     // The enclosed polygon:
-                    auto polygon = lr->polygon;        
+                    auto polygon = lr->polygon;
+
+                    auto entity = ecsRef->createEntity();
+                    entity->attach<PolygonComponent>(polygon, 0); 
 
                     // The new, clipped path:
                     auto newPath = lr->clipped;       
@@ -247,7 +251,6 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
                     // mousePosList = newPath;
                     // else if you just reset the whole path
                     mousePosList = std::vector<Point2D>{ currentMousePos };
-
 
                     // And (optionally) handle the polygon for game logic.
                 }
@@ -311,8 +314,10 @@ void initGame() {
     printf("Engine initialized ...\n");
 
     mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
+    mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
 
     mainWindow->ecs.succeed<MasterRenderer, TexturedRibbonComponentSystem>();
+    mainWindow->ecs.succeed<MasterRenderer, PolygonComponentSystem>();
     
     mainWindow->ecs.createSystem<PointAggregator>();
 
