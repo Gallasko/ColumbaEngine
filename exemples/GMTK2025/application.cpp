@@ -13,6 +13,7 @@
 #include "polygonmesh.h"
 #include "enemyspawner.h"
 #include "pointaggregator.h"
+#include "bgscroller.h"
 
 using namespace pg;
 
@@ -83,6 +84,8 @@ void initGame() {
 
     mainWindow->ecs.createSystem<FpsSystem>();
 
+    mainWindow->ecs.createSystem<BackgroundScrollerSystem>();
+
     mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
     mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
     
@@ -92,6 +95,8 @@ void initGame() {
     mainWindow->ecs.succeed<MasterRenderer, PolygonComponentSystem>();
     
     mainWindow->ecs.createSystem<PointAggregator>();
+
+    mainWindow->ecs.succeed<PointAggregator, EnemySpawnerSystem>();
 
     mainWindow->ecs.dumbTaskflow();
 

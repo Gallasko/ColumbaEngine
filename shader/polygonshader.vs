@@ -18,7 +18,7 @@ void main()
         vec4(1.0, 0.0, 0.0, 0.0),
         vec4(0.0, 1.0, 0.0, 0.0),
         vec4(0.0, 0.0, 1.0, 0.0),
-        vec4(-1.0f + 2.0 * aPos.x * (1.0 / sWidth), 1.0 + 2.0 * -(aPos.y) * (1.0 / sHeight), 0.0f / 100.0f, 1.0) );
+        vec4(-1.0f + 2.0 * aPos.x * (1.0 / sWidth), 1.0 + 2.0 * -(aPos.y) * (1.0 / sHeight), 2.0f, 1.0) );
 
     gl_Position = projection * posMat * view * scale * model * vec4(1.0f);
 
