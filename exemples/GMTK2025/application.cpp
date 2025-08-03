@@ -3,13 +3,15 @@
 #include "logger.h"
 
 #include "Systems/basicsystems.h"
+#include "Systems/tween.h"
 
 #include "UI/ttftext.h"
 
+#include "2D/simple2dobject.h"
+
 #include "ribbonmesh.h"
 #include "polygonmesh.h"
-
-#include "Systems/tween.h"
+#include "enemyspawner.h"
 
 using namespace pg;
 
@@ -192,8 +194,16 @@ std::optional<LoopResult> detectAndClipLoop(const std::vector<Point2D>& path)
 // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
 // that we need to wait before the event becomes triggerable again.
 
-struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>, QueuedListener<RemoveEntityEvent>>
+struct PointAggregator : public System<InitSys,
+    Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>, QueuedListener<RemoveEntityEvent>>
 {
+    virtual void init() override
+    {
+        LOG_THIS_MEMBER("PointAggregator");
+
+        registerGroup<PositionComponent, EnemyFlag>();
+    }
+
     virtual void onEvent(const OnMouseMove& event) override
     {
         if (pressed)
@@ -224,6 +234,18 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
 
             currentEnt = ent;
         }
+
+        if (event.button == SDL_BUTTON_RIGHT)
+        {
+            LOG_INFO("PointAggregator", "Right click detected, creating test enemy");
+
+            auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, {0.0f, 0.0f, 255.0f, 255.0f});
+
+            shape.get<PositionComponent>()->setX(event.pos.x - 25.0f);
+            shape.get<PositionComponent>()->setY(event.pos.y - 25.0f);
+
+            shape.attach<EnemyFlag>();
+        }
     }
 
     virtual void onEvent(const OnMouseRelease& event) override
@@ -251,6 +273,8 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
 
     virtual void onEvent(const TickEvent& event)
     {
+        deltaTime += event.tick;
+
         if (pressed)
         {
             tick += event.tick;
@@ -277,6 +301,8 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
                         makeCallable<RemoveEntityEvent>(ent.id)
                     });
 
+                    checkEnemyInLoop(polygon);
+
                     // The new, clipped path:
                     auto newPath = lr->clipped;       
 
@@ -294,6 +320,22 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
         }
     }
 
+    void checkEnemyInLoop(const std::vector<Point2D>& loop)
+    {
+        for (const auto& ent : viewGroup<PositionComponent, EnemyFlag>())
+        {
+            auto pos = ent->get<PositionComponent>();
+
+            // Only check if the center of the enemy is inside the loop ( we don't check for the whole BB to avoid performance issues )
+            if (pos and pointInPolygon(loop, Point2D(pos->x + 25, pos->y + 25)))
+            {
+                LOG_INFO("PointAggregator", "Enemy found in loop at: " << pos->x << ", " << pos->y);
+                // Do something with the enemy, like removing it or marking it
+                ecsRef->removeEntity(ent->entityId);
+            }
+        }
+    }
+
     bool pressed = false;
 
     float tick = 0.0f;
@@ -303,6 +345,8 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
     std::vector<Point2D> mousePosList;
 
     EntityRef currentEnt;
+
+    float deltaTime = 0.0f;
 };
 
 std::thread *initThread;
@@ -362,6 +406,8 @@ void initGame() {
 
     mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
     mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
+    
+    mainWindow->ecs.createSystem<EnemySpawnerSystem>();
 
     mainWindow->ecs.succeed<MasterRenderer, TexturedRibbonComponentSystem>();
     mainWindow->ecs.succeed<MasterRenderer, PolygonComponentSystem>();
