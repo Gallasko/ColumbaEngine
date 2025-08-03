@@ -15,11 +15,12 @@
 
 #include "constant.h"
 
+#include "enemy.h"
+#include "pointaggregator.h"
+
 namespace pg
 {
     using Vector2D = constant::Vector2D;
-
-    struct EnemyFlag : public Component {};
 
     // Components that integrate with your existing system
     struct VelocityComponent : public Component {
@@ -298,8 +299,13 @@ namespace pg
             shape.attach<EnemyFlag>();
         }
         
-        void updateEnemyMovement(float deltaTime) {
+        void updateEnemyMovement(float deltaTime)
+        {
             std::vector<_unique_id> enemiesToDestroy;
+
+            auto loop = ecsRef->getSystem<PointAggregator>()->mousePosList;
+            
+            bool loopHit = false;
             
             // Process all enemies with required components
             for (const auto& ent : viewGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>()) {
@@ -309,6 +315,17 @@ namespace pg
                 
                 if (!pos || !vel || !meta) continue;
                 
+                Point2D beginPos(pos->x + 25.0f, pos->y + 25.0f);
+                Point2D endPos(pos->x + 25.0f + vel->velocity.x * deltaTime, pos->y + 25.0f + vel->velocity.y * deltaTime);
+
+                if (checkSegmentIntersectWithLoop({beginPos, endPos}, loop))
+                {
+                    loopHit = true;
+                    enemiesToDestroy.push_back(ent->entityId);
+                    LOG_INFO("EnemySpawnerSystem", "Enemy hit the looped after " << meta->timeAlive << "s");
+                    continue; // Skip further processing if hit
+                }
+
                 // Update position by velocity * deltaTime
                 pos->setX(pos->x + vel->velocity.x * deltaTime);
                 pos->setY(pos->y + vel->velocity.y * deltaTime);
@@ -338,6 +355,11 @@ namespace pg
             // Destroy enemies that have left the screen
             for (auto entityId : enemiesToDestroy) {
                 ecsRef->removeEntity(entityId);
+            }
+
+            if (loopHit)
+            {
+                ecsRef->sendEvent(EnemyLoopHitEvent{});
             }
         }
         
@@ -389,9 +411,11 @@ namespace pg
         // Get count of active enemies (for debugging/UI)
         int getActiveEnemyCount() const {
             int count = 0;
-            for (const auto& ent : viewGroup<EnemyFlag>()) {
+            for (const auto& ent : viewGroup<EnemyFlag>())
+            {
                 count++;
             }
+
             return count;
         }
     };
