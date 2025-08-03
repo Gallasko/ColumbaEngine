@@ -93,6 +93,8 @@ namespace pg {
         {
             path = newPath;
 
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+
             clean = false; // Mark as dirty to regenerate the mesh
         }
 
@@ -116,7 +118,7 @@ namespace pg {
         RenderCall call;
     };
 
-    struct TexturedRibbonComponentSystem : public AbstractRenderer, public System<Own<RibbonComponent>, Own<MeshRenderCall>, Ref<PositionComponent>, InitSys>
+    struct TexturedRibbonComponentSystem : public AbstractRenderer, public System<Own<RibbonComponent>, Own<MeshRenderCall>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
     {
         TexturedRibbonComponentSystem(MasterRenderer* master): AbstractRenderer(master, RenderStage::Render) {}
 
@@ -129,48 +131,86 @@ namespace pg {
             baseMaterial.nbTextures = 1;
             baseMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
             baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
+
+            auto group = registerGroup<RibbonComponent>();
+
+            group->addOnGroup([this](EntityRef entity)
+            {
+                LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
+
+                updateQueue.push(entity->id);
+
+                changed = true;
+            });
+
+            group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id)
+            {
+                LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
+
+                auto entity = ecsRef->getEntity(id);
+
+                ecsRef->detach<MeshRenderCall>(entity);
+
+                changed = true;
+            });
         }
 
         void execute() override
         {
-            // renderCallList.clear();
+            if (not changed)
+                return;
 
-            // const auto& renderCallView = view<MeshRenderCall>();
+            while (not updateQueue.empty())
+            {
+                auto entityId = updateQueue.front();
 
-            // renderCallList.reserve(renderCallView.nbComponents());
+                auto entity = ecsRef->getEntity(entityId);
 
-            // for (const auto& renderCall : renderCallView)
-            // {
-            //     renderCallList.push_back(renderCall->call);
-            // }
+                if (not entity)
+                {
+                    updateQueue.pop();
+                    continue;
+                }
 
-            // for (auto* comp : view<RibbonComponent>())
-            // {
-            //     if (comp->clean)
-            //     {
-            //         continue;
-            //     }
+                auto comp = entity->get<RibbonComponent>();
 
-            //     auto ent = ecsRef->getEntity(comp->entityId);
+                if (entity->has<MeshRenderCall>())
+                {
+                    entity->get<MeshRenderCall>()->call = createRenderCall(comp);
+                }
+                else
+                {
+                    ecsRef->_attach<MeshRenderCall>(entity, createRenderCall(comp));
+                }
 
-            //     if (not ent)
-            //     {
-            //         LOG_ERROR("RibbonComponentSystem", "Entity with ID " << comp->entityId << " not found for RibbonComponent.");
-            //         continue;
-            //     }
+                updateQueue.pop();
+            }
 
-            //     RenderCall rc = createRenderCall(comp);
+            renderCallList.clear();
 
-            //     if (ent->has<MeshRenderCall>())
-            //         ent->get<MeshRenderCall>()->call = rc;
-            //     else
-            //         ecsRef->_attach<MeshRenderCall>(ent, rc);
+            const auto& renderCallView = view<MeshRenderCall>();
 
-            //     comp->clean = true;
-            // }
+            renderCallList.reserve(renderCallView.nbComponents());
 
-            // finishChanges();
+            for (const auto& renderCall : renderCallView)
+            {
+                renderCallList.push_back(renderCall->call);
+            }
+
+            finishChanges();
             // changed = false;
+        }
+
+        void onEvent(const EntityChangedEvent& event) override
+        {
+            auto entity = ecsRef->getEntity(event.id);
+
+            if (not entity or not entity->has<RibbonComponent>())
+                return;
+
+            updateQueue.push(event.id);
+
+            changed = true;
         }
 
     private:

@@ -87,16 +87,16 @@ void initGame() {
 
     mainWindow->ecs.createSystem<TweenSystem>();
 
-    // mainWindow->ecs.createSystem<FpsSystem>();
+    mainWindow->ecs.createSystem<FpsSystem>();
 
-    // mainWindow->ecs.createSystem<BackgroundScrollerSystem>();
+    mainWindow->ecs.createSystem<BackgroundScrollerSystem>();
 
     mainWindow->ecs.createSystem<MainCameraShake>(mainWindow->masterRenderer);
 
     mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
     mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
     
-    // mainWindow->ecs.createSystem<EnemySpawnerSystem>();
+    mainWindow->ecs.createSystem<EnemySpawnerSystem>();
 
     mainWindow->ecs.succeed<MasterRenderer, MainCameraShake>();
     mainWindow->ecs.succeed<MasterRenderer, TexturedRibbonComponentSystem>();

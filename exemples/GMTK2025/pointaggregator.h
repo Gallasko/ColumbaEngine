@@ -275,6 +275,8 @@ namespace pg {
 
     struct ResumeGame {};
 
+    struct RestartGame{};
+
     // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
     // that we need to wait before the event becomes triggerable again.
 
@@ -284,12 +286,13 @@ namespace pg {
     {
         CompRef<PositionComponent> obscurerPos;
         CompRef<TTFText> pauseText;
+        EntityRef scoreText;
 
         virtual void init() override
         {
             LOG_THIS_MEMBER("PointAggregator");
 
-            ecsRef->sendEvent(StartAudio{"/res/audio/gm.mp3", -1});
+            ecsRef->sendEvent(StartAudio{"/res/audio/gm.ogg", -1});
 
             registerGroup<PositionComponent, Simple2DObject, EnemyFlag>();
 
@@ -299,6 +302,11 @@ namespace pg {
 
             auto pText = makeTTFText(ecsRef, 15, 595, 3, "light", "Press P to Pause", 1.0f, {255.0f, 255.0f, 255.0f, 185.0f});
             pauseText = pText.get<TTFText>();
+
+            auto score = makeTTFText(ecsRef, 340, 240, 1, "light", "Score: 0", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
+            scoreText = score.entity;
+
+            scoreText.get<PositionComponent>()->setVisibility(false);
 
             auto obscurer = makeSimple2DShape(ecsRef, Shape2D::Square, 820.0f, 640.0f, {0.0f, 0.0f, 0.0f, 130.0f});
             obscurer.get<PositionComponent>()->setZ(2.0f);
@@ -344,6 +352,14 @@ namespace pg {
                 if (event.key == SDL_SCANCODE_RETURN)
                 {
                     LOG_INFO("PointAggregator", "Restarting game");
+
+                    pauseText->setText("Press P To Pause");
+
+                    scoreText.get<PositionComponent>()->setVisibility(false);
+
+                    obscurerPos->setVisibility(false);
+
+                    ecsRef->sendEvent(RestartGame{});
 
                     startGame();
                     lost = false;
@@ -623,6 +639,9 @@ namespace pg {
             lost = true;
 
             pauseText->setText("Press Enter To Restart");
+
+            scoreText.get<PositionComponent>()->setVisibility(true);
+            scoreText.get<TTFText>()->setText("You surved for: " + std::to_string(static_cast<int>(totalTime / 1000.0f)) + "s !");
 
             obscurerPos->setVisibility(true);
         }

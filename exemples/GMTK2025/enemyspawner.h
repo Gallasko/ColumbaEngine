@@ -147,7 +147,8 @@ namespace pg
     };
 
     // Enhanced enemy spawning system that spawns enemies crossing the full screen
-    struct EnemySpawnerSystem : public System<InitSys, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>, QueuedListener<PauseGame>, QueuedListener<ResumeGame>>
+    struct EnemySpawnerSystem : public System<InitSys, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>,
+        QueuedListener<PauseGame>, QueuedListener<ResumeGame>, QueuedListener<RestartGame>>
     {
         // Screen dimensions
         float screenWidth = 820.0f;
@@ -155,8 +156,8 @@ namespace pg
         
         // Spawn parameters - can be changed during gameplay
         float spawnInterval = 3.0f;          // seconds between spawn waves
-        int enemiesPerSpawn = 15;            // number of enemies to spawn per wave
-        float enemySpeed = 250.0f;           // pixels per second
+        int enemiesPerSpawn = 6;            // number of enemies to spawn per wave
+        float enemySpeed = 150.0f;           // pixels per second
         float centerWFrac = 0.8f;            // target area width fraction
         float centerHFrac = 0.8f;            // target area height fraction
         float edgePadding = 100.0f;          // distance off-screen to spawn
@@ -220,6 +221,36 @@ namespace pg
             // Handle enemy movement and cleanup
             updateEnemyMovement(deltaTime);
         }
+
+        virtual void onProcessEvent(const RestartGame& event) override
+        {
+            LOG_INFO("EnemySpawnerSystem", "Restarting enemy spawner");
+            
+            // Reset state
+            timeSinceLastSpawn = 0.0f;
+            currentWave = 1;
+            waveTimer = 0.0f;
+            
+            // Reset spawn parameters to defaults
+            spawnInterval = 3.0f;
+            enemiesPerSpawn = 6;
+            enemySpeed = 150.0f;
+            centerWFrac = 0.8f;
+            centerHFrac = 0.8f;
+            maxHp = 1;
+            
+            std::vector<_unique_id> enemyIds;
+            // Clear existing enemies
+            for (auto ent : viewGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>())
+            {
+                enemyIds.push_back(ent->entityId);
+            }
+            
+            for (const auto& id : enemyIds)
+            {
+                ecsRef->removeEntity(id);
+            }
+        }
         
         virtual void onProcessEvent(const UpdateSpawnParamsEvent& event) override
         {
@@ -272,16 +303,20 @@ namespace pg
         
         void increaseDifficulty() {
             // Each wave: slightly more enemies, slightly faster speed
-            if (currentWave % 2 == 0) {
-                enemiesPerSpawn = std::min(enemiesPerSpawn + 1, 8); // Cap at 8 enemies per spawn
+            if (currentWave % 3 == 0) {
+                enemiesPerSpawn = std::min(enemiesPerSpawn + 1, 12); // Cap at 8 enemies per spawn
             }
             
             if (currentWave % 3 == 0) {
-                enemySpeed += 20.0f; // Increase speed by 20 px/s each time
+                enemySpeed = std::max(enemySpeed + 15.0f, 350.0f); // Increase speed by 20 px/s each time
             }
             
-            if (currentWave % 4 == 0) {
-                spawnInterval = std::max(spawnInterval - 0.3f, 0.8f); // Minimum 0.8 seconds between spawns
+            if (currentWave % 5 == 0) {
+                spawnInterval = std::max(spawnInterval - 0.5f, 0.8f); // Minimum 0.8 seconds between spawns
+            }
+
+            if (currentWave % 8 == 0) {
+                maxHp = std::max(maxHp + 1, 3); // Minimum 0.8 seconds between spawns
             }
             
             LOG_INFO("EnemySpawnerSystem", "Difficulty increased - Wave: " << currentWave 
@@ -434,6 +469,7 @@ namespace pg
             enemySpeed = 100.0f;
             centerWFrac = 0.5f;
             centerHFrac = 0.5f;
+            maxHp = 1;
              
             LOG_INFO("EnemySpawnerSystem", "Game reset to initial parameters");
         }
