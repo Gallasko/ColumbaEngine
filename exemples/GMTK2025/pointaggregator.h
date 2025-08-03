@@ -212,6 +212,10 @@ namespace pg {
             LOG_THIS_MEMBER("PointAggregator");
 
             registerGroup<PositionComponent, EnemyFlag>();
+
+            auto text = makeTTFText(ecsRef, 340, 12, 1, "light", "30 : 00", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
+
+            timer = text.get<TTFText>();
         }
 
         virtual void onEvent(const OnMouseMove& event) override
@@ -292,6 +296,35 @@ namespace pg {
             {
                 currentEnt.get<RibbonComponent>()->setPath(mousePosList);
             }
+            
+            auto y = currentMousePos.y;
+            auto popText = makeTTFText(ecsRef, currentMousePos.x, y - 10, 1, "light", "-2s", .4f, {255.0f, 0.0f, 0.0f, 255.0f});
+
+            popText.attach<TweenComponent>(TweenComponent {
+                0.0f, // Start opacity
+                50.0f, // End opacity
+                600.0f, // Duration in milliseconds
+                [y, popText](const TweenValue& value) {
+                    popText.get<PositionComponent>()->setY(y - 10 - std::get<float>(value));
+                },
+                makeCallable<RemoveEntityEvent>(popText.entity.id)
+            });
+
+            timerTime -= 2000.0f; // Decrease the timer by 2 seconds
+
+            auto ent = ecsRef->createEntity();
+
+            ecsRef->attach<TweenComponent>(ent, TweenComponent {
+                0.0f,
+                255.0f,
+                500.0f, // Duration in milliseconds
+                [this](const TweenValue& value) {
+                    auto v = std::get<float>(value);
+                    timer->setColor({255.0f, v, v, v}); },
+                makeCallable<RemoveEntityEvent>(ent.id)
+            });
+
+            updateTimer();
         }
 
         virtual void onEvent(const TickEvent& event) override
@@ -345,6 +378,7 @@ namespace pg {
 
         void checkEnemyInLoop(const std::vector<Point2D>& loop)
         {
+            int nbEnemiesCollected = 0;
             for (const auto& ent : viewGroup<PositionComponent, EnemyFlag>())
             {
                 auto pos = ent->get<PositionComponent>();
@@ -352,11 +386,50 @@ namespace pg {
                 // Only check if the center of the enemy is inside the loop ( we don't check for the whole BB to avoid performance issues )
                 if (pos and pointInPolygon(loop, Point2D(pos->x + 25, pos->y + 25)))
                 {
+                    nbEnemiesCollected++;
+
                     LOG_INFO("PointAggregator", "Enemy found in loop at: " << pos->x << ", " << pos->y);
                     // Do something with the enemy, like removing it or marking it
                     ecsRef->removeEntity(ent->entityId);
+
+                    auto y = pos->y + 25 - 10;
+                    auto popText = makeTTFText(ecsRef, pos->x + 25, y, 1, "light", "+" + std::to_string(nbEnemiesCollected) + "s", .4f, {0.0f, 255.0f, 0.0f, 255.0f});
+
+                    popText.attach<TweenComponent>(TweenComponent {
+                        0.0f, // Start opacity
+                        50.0f, // End opacity
+                        750.0f, // Duration in milliseconds
+                        [y, popText](const TweenValue& value) {
+                            popText.get<PositionComponent>()->setY(y - std::get<float>(value));
+                        },
+                        makeCallable<RemoveEntityEvent>(popText.entity.id)
+                    });
+
+                    timerTime += nbEnemiesCollected * 1000.0f; // Increase the timer by 1 second
                 }
             }
+        }
+
+        virtual void execute() override
+        {
+            if (timerTime > 0.0f)
+            {
+                timerTime -= deltaTime;
+
+                if (timerTime <= 0.0f)
+                {
+                    // lose condition
+                }
+
+                updateTimer();
+            }
+
+            deltaTime = 0.0f;
+        }
+
+        inline void updateTimer()
+        {
+            timer->setText(std::to_string(static_cast<int>(timerTime / 1000.0f)) + " : " + std::to_string((static_cast<int>(timerTime) % 1000) / 10));
         }
 
         bool pressed = false;
@@ -370,5 +443,8 @@ namespace pg {
         EntityRef currentEnt;
 
         float deltaTime = 0.0f;
+
+        float timerTime = 30000.0f; // 30 seconds
+        CompRef<TTFText> timer;
     };
 }
