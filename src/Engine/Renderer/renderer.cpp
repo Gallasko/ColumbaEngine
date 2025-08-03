@@ -633,7 +633,7 @@ namespace pg
 
         auto shaderProgram = material.shader;
 
-        if (not shaderProgram)
+        if (not shaderProgram or shaderProgram->ID < 0)
         {
             LOG_ERROR(DOM, "Shader not found");
 

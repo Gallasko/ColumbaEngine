@@ -10,6 +10,8 @@
 
 #include "logger.h"
 
+#include "Systems/basicsystems.h"
+
 namespace pg
 {
 
@@ -40,6 +42,14 @@ namespace pg
     // 1) Generate polygon data
     struct PolygonData
     {
+        PolygonData() = default;
+        PolygonData(const PolygonData&) = default;
+        PolygonData& operator=(const PolygonData&) = default;
+
+        PolygonData(PolygonData&&) = default;
+        PolygonData& operator=(PolygonData&&) = default;
+
+        ~PolygonData() = default;
         std::vector<float> verts;
         std::vector<unsigned int> idx;
     };
@@ -81,7 +91,7 @@ namespace pg
         {}
 
         PolygonComponent(const PolygonComponent& other) : ecsRef(other.ecsRef), entityId(other.entityId),
-            polygon(other.polygon), viewport(other.viewport), opacity(other.opacity), clean(other.clean)
+            polygon(other.polygon), viewport(other.viewport), opacity(other.opacity)
         {}
 
         PolygonComponent& operator=(const PolygonComponent& other)
@@ -91,7 +101,6 @@ namespace pg
             polygon = other.polygon;
             viewport = other.viewport;
             opacity = other.opacity;
-            clean = other.clean;
 
             return *this;
         }
@@ -100,17 +109,11 @@ namespace pg
         {
             ecsRef = entity->world();
             entityId = entity->id;
-
-            if (ecsRef)
-            {
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }
         }
 
         void setPolygon(const std::vector<Point2D>& newPolygon)
         {
             polygon = newPolygon;
-            clean = false; // Mark as dirty to regenerate the mesh
 
             if (ecsRef)
             {
@@ -129,9 +132,17 @@ namespace pg
 
         float opacity = 1.0f; // Default opacity
 
-        inline void setOpacity(float newOpacity) { opacity = newOpacity; clean = false; }
+        float aliveTime = 0.0f; // Time the polygon has been alive (for animations or effects)
 
-        bool clean = false;
+        inline void setOpacity(float newOpacity)
+        { 
+            opacity = newOpacity;
+            
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
+        }
     };
 
     struct PolygonRenderCall
@@ -141,11 +152,41 @@ namespace pg
         RenderCall call;
     };
 
-    struct PolygonComponentSystem : public AbstractRenderer, public System<Own<PolygonComponent>, Own<PolygonRenderCall>, Ref<PositionComponent>, InitSys, Listener<EntityChangedEvent>>
+    struct PolyFlag : public Component {};
+
+    struct PolygonComponentSystem : public AbstractRenderer, public System<Own<PolygonComponent>, Own<PolygonRenderCall>, Ref<PositionComponent>, InitSys, Listener<EntityChangedEvent>, Listener<TickEvent>>
     {
         PolygonComponentSystem(MasterRenderer* master): AbstractRenderer(master, RenderStage::Render) {}
 
         std::string getSystemName() const override { return "Polygon System"; }
+
+        virtual void onEvent(const TickEvent& event) override
+        {
+            std::vector<_unique_id> entitiesToRemove;
+            for (auto* poly : view<PolygonComponent>())
+            {
+                if (not poly)
+                    continue;
+
+                poly->aliveTime += event.tick;
+
+                poly->setOpacity(255.0f * (1 - (poly->aliveTime / 450.0f)));
+
+                if (poly->aliveTime > 450.0f)
+                {
+                    entitiesToRemove.push_back(poly->entityId);
+                    continue;
+                }
+
+            //     // Optionally, you can trigger an update if needed
+            //     updateQueue.push(poly->entityId);
+            }
+
+            for (auto entityId : entitiesToRemove)
+            {
+                ecsRef->removeEntity(entityId);
+            }
+        }
 
         void init() override
         {
@@ -157,6 +198,28 @@ namespace pg
             baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
 
             baseMaterial.nbAttributes = 1;
+
+            auto group = registerGroup<PolygonComponent, PolyFlag>();
+
+            group->addOnGroup([this](EntityRef entity)
+            {
+                LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
+
+                updateQueue.push(entity->id);
+
+                changed = true;
+            });
+
+            group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id)
+            {
+                LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
+
+                auto entity = ecsRef->getEntity(id);
+
+                ecsRef->detach<PolygonRenderCall>(entity);
+
+                changed = true;
+            });
         }
 
         void execute() override
@@ -204,11 +267,11 @@ namespace pg
             finishChanges();
         }
 
-        void onEvent(const EntityChangedEvent& event)
+        void onEvent(const EntityChangedEvent& event) override
         {
             auto entity = ecsRef->getEntity(event.id);
 
-            if (not entity)
+            if (not entity or not entity->has<PolygonComponent>())
                 return;
 
             updateQueue.push(event.id);

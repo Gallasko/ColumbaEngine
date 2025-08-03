@@ -42,7 +42,8 @@ find_package(OpenGL REQUIRED)
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 # set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_TTF=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-set(USE_FLAGS "-sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+# set(USE_FLAGS "-O0 -DNDEBUG -g -ggdb -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+set(USE_FLAGS "-O3 -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload-plugins \
         --preload-file res \
         --preload-file scripts \
@@ -291,7 +292,8 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     set_target_properties(GMTK2025
         PROPERTIES SUFFIX ".html"
-        LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s ASSERTIONS=1 -O3 ${USE_FLAGS}")
+        # LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s DEMANGLE_SUPPORT=1 -s GL_ASSERTIONS=1 -s GL_DEBUG=1 ${USE_FLAGS}")
+        LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
     target_link_libraries(GMTK2025 PRIVATE glm)
 
