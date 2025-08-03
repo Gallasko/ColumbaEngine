@@ -62,6 +62,22 @@ namespace pg
         glEnableVertexAttribArray(0);
         glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (void*)0);
 
+        // Attribute for instancing (location = 1, float)
+
+        openGLMesh.instanceVBO->setUsagePattern(OpenGLBuffer::DynamicDraw);
+        openGLMesh.instanceVBO->create();
+
+        openGLMesh.instanceVBO->bind();
+
+        glEnableVertexAttribArray(1);
+        glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), (void*)(0 * sizeof(float)));
+
+        glVertexAttribDivisor(1, 1); // tell OpenGL this is an instanced vertex attribute.
+
+        glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+        // -------------
+
         // Index buffer
         openGLMesh.EBO->bind();
         openGLMesh.EBO->setUsagePattern(OpenGLBuffer::DynamicDraw);

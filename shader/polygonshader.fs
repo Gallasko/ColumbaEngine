@@ -1,5 +1,7 @@
 out vec4 FragColor;
 
+in float opacity;
+
 // in vec2 TexCoord;
 
 // texture samplers
@@ -10,5 +12,5 @@ void main()
 	// vec4 pixelColor = texture(texture0, TexCoord);
 
 	// FragColor = pixelColor;
-	FragColor = vec4(1.0, 0.0, 0.0, 1.0); // Default color for polygons
+	FragColor = vec4(1.0f, 0.0, 0.0, opacity); // Default color for polygons
 }

@@ -77,11 +77,11 @@ namespace pg
     struct PolygonComponent : public Ctor
     {
         PolygonComponent(const std::vector<Point2D>& polygon, size_t viewport = 0) :
-                        polygon(polygon), viewport(viewport)
+                        polygon(polygon), viewport(viewport), opacity(1.0f)
         {}
 
         PolygonComponent(const PolygonComponent& other) : ecsRef(other.ecsRef), entityId(other.entityId),
-            polygon(other.polygon), viewport(other.viewport), clean(other.clean)
+            polygon(other.polygon), viewport(other.viewport), opacity(other.opacity), clean(other.clean)
         {}
 
         PolygonComponent& operator=(const PolygonComponent& other)
@@ -90,6 +90,7 @@ namespace pg
             entityId = other.entityId;
             polygon = other.polygon;
             viewport = other.viewport;
+            opacity = other.opacity;
             clean = other.clean;
 
             return *this;
@@ -113,6 +114,13 @@ namespace pg
         std::vector<Point2D> polygon;
         size_t viewport;
 
+        // Todo add a color or material to the polygon
+        // Todo add a z-index to the polygon
+
+        float opacity = 1.0f; // Default opacity
+
+        inline void setOpacity(float newOpacity) { opacity = newOpacity; clean = false; }
+
         bool clean = false;
     };
 
@@ -134,8 +142,11 @@ namespace pg
             // Use a simple shader for solid polygon rendering
             baseMaterial.shader = masterRenderer->getShader("polygonShader");
             baseMaterial.nbTextures = 0; // No textures needed for solid polygons
+
             baseMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
             baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
+
+            baseMaterial.nbAttributes = 1;
         }
 
         void execute() override
@@ -189,10 +200,21 @@ namespace pg
 
             call.setRenderStage(renderStage);
             call.setViewport(polygon->viewport);
-            call.setOpacity(OpacityType::Opaque);
+            call.setOpacity(OpacityType::Additive);
 
             // Use the base material (no texture needed for solid polygons)
-            call.setMaterial(masterRenderer->registerMaterial("defaultPolygon", baseMaterial));
+            if (masterRenderer->hasMaterial("__defaultPolygon"))
+            {
+                call.setMaterial(masterRenderer->getMaterialID("__defaultPolygon"));
+            }
+            else
+            {
+                call.setMaterial(masterRenderer->registerMaterial("__defaultPolygon", baseMaterial));
+            }
+
+            call.data.resize(1);
+
+            call.data[0] = polygon->opacity; // Store opacity in the data vector
 
             return call;
         }

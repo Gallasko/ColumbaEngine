@@ -9,6 +9,8 @@
 #include "ribbonmesh.h"
 #include "polygonmesh.h"
 
+#include "Systems/tween.h"
+
 using namespace pg;
 
 namespace {
@@ -171,12 +173,28 @@ std::optional<LoopResult> detectAndClipLoop(const std::vector<Point2D>& path)
     return result;
 }
 
+// Todo add this event in the main ecs
+    struct RemoveEntityEvent
+    {
+        RemoveEntityEvent(_unique_id prefabId) : prefabId(prefabId) {}
+        RemoveEntityEvent(const RemoveEntityEvent& rhs) : prefabId(rhs.prefabId) {}
+
+        RemoveEntityEvent& operator=(const RemoveEntityEvent& rhs)
+        {
+            prefabId = rhs.prefabId;
+            return *this;
+        }
+
+        _unique_id prefabId;
+    };
+
+
 // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
 // that we need to wait before the event becomes triggerable again.
 
-struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>>
+struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseClick>, Listener<OnMouseRelease>, Listener<TickEvent>, QueuedListener<RemoveEntityEvent>>
 {
-    virtual void onEvent(const OnMouseMove& event)
+    virtual void onEvent(const OnMouseMove& event) override
     {
         if (pressed)
         {
@@ -186,7 +204,7 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
         }
     }
 
-    virtual void onEvent(const OnMouseClick& event)
+    virtual void onEvent(const OnMouseClick& event) override
     {
         LOG_INFO("PointAggregator", "Mouse clicked");
 
@@ -208,7 +226,7 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
         }
     }
 
-    virtual void onEvent(const OnMouseRelease& event)
+    virtual void onEvent(const OnMouseRelease& event) override
     {
         if (event.button == SDL_BUTTON_LEFT)
         {
@@ -223,6 +241,12 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
 
             ecsRef->removeEntity(currentEnt);
         }
+    }
+
+    // Todo make this a base event that can be used by any system
+    void onProcessEvent(const RemoveEntityEvent& event) override
+    {
+        ecsRef->removeEntity(event.prefabId);
     }
 
     virtual void onEvent(const TickEvent& event)
@@ -242,8 +266,16 @@ struct PointAggregator : public System<Listener<OnMouseMove>, Listener<OnMouseCl
                     // The enclosed polygon:
                     auto polygon = lr->polygon;
 
-                    auto entity = ecsRef->createEntity();
-                    entity->attach<PolygonComponent>(polygon, 0); 
+                    auto ent = ecsRef->createEntity();
+                    ent->attach<PolygonComponent>(polygon, 0);
+
+                    ecsRef->attach<TweenComponent>(ent, TweenComponent {
+                        1.0f, // Fully opaque
+                        0.0f, // Fully transparent
+                        400.0f, // Duration in milliseconds
+                        [ent](const TweenValue& value) { ent.get<PolygonComponent>()->setOpacity(std::get<float>(value)); },
+                        makeCallable<RemoveEntityEvent>(ent.id)
+                    });
 
                     // The new, clipped path:
                     auto newPath = lr->clipped;       
@@ -323,6 +355,8 @@ void initGame() {
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
     // mainWindow->masterRenderer->processTextureRegister();
+
+    mainWindow->ecs.createSystem<TweenSystem>();
 
     mainWindow->ecs.createSystem<FpsSystem>();
 
