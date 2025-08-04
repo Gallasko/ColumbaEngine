@@ -10,6 +10,8 @@
 
 #include "logger.h"
 
+#include "simplerenderer.h"
+
 namespace pg {
 
     // 1) Generate ribbon data
@@ -111,110 +113,27 @@ namespace pg {
         bool clean = false;
     };
 
-    struct MeshRenderCall
+    struct TexturedRibbonComponentSystem : public SimpleRenderer<RibbonComponent>
     {
-        MeshRenderCall(const RenderCall& call) : call(call) {}
+        TexturedRibbonComponentSystem(MasterRenderer* masterRenderer) : SimpleRenderer(masterRenderer)
+        {
 
-        RenderCall call;
-    };
+        }
 
-    struct TexturedRibbonComponentSystem : public AbstractRenderer, public System<Own<RibbonComponent>, Own<MeshRenderCall>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
-    {
-        TexturedRibbonComponentSystem(MasterRenderer* master): AbstractRenderer(master, RenderStage::Render) {}
+        void setupRenderer() override
+        {
+            auto baseMaterial = newMaterial("defaultRibbon");
+
+            // baseMaterial.shader = masterRenderer->getShader("ribbonShader");
+            baseMaterial->shader = masterRenderer->getShader("lineShader");
+            baseMaterial->nbTextures = 1;
+            baseMaterial->uniformMap.emplace("sWidth", "ScreenWidth");
+            baseMaterial->uniformMap.emplace("sHeight", "ScreenHeight");
+        }
 
         std::string getSystemName() const override { return "Ribbon System"; }
 
-        void init() override
-        {
-            // baseMaterial.shader = masterRenderer->getShader("ribbonShader");
-            baseMaterial.shader = masterRenderer->getShader("lineShader");
-            baseMaterial.nbTextures = 1;
-            baseMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
-            baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
-
-            auto group = registerGroup<RibbonComponent>();
-
-            group->addOnGroup([this](EntityRef entity)
-            {
-                LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
-
-                updateQueue.push(entity->id);
-
-                changed = true;
-            });
-
-            group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id)
-            {
-                LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
-
-                auto entity = ecsRef->getEntity(id);
-
-                ecsRef->detach<MeshRenderCall>(entity);
-
-                changed = true;
-            });
-        }
-
-        void execute() override
-        {
-            if (not changed)
-                return;
-
-            while (not updateQueue.empty())
-            {
-                auto entityId = updateQueue.front();
-
-                auto entity = ecsRef->getEntity(entityId);
-
-                if (not entity)
-                {
-                    updateQueue.pop();
-                    continue;
-                }
-
-                auto comp = entity->get<RibbonComponent>();
-
-                if (entity->has<MeshRenderCall>())
-                {
-                    entity->get<MeshRenderCall>()->call = createRenderCall(comp);
-                }
-                else
-                {
-                    ecsRef->_attach<MeshRenderCall>(entity, createRenderCall(comp));
-                }
-
-                updateQueue.pop();
-            }
-
-            renderCallList.clear();
-
-            const auto& renderCallView = view<MeshRenderCall>();
-
-            renderCallList.reserve(renderCallView.nbComponents());
-
-            for (const auto& renderCall : renderCallView)
-            {
-                renderCallList.push_back(renderCall->call);
-            }
-
-            finishChanges();
-            // changed = false;
-        }
-
-        void onEvent(const EntityChangedEvent& event) override
-        {
-            auto entity = ecsRef->getEntity(event.id);
-
-            if (not entity or not entity->has<RibbonComponent>())
-                return;
-
-            updateQueue.push(event.id);
-
-            changed = true;
-        }
-
-    private:
-        RenderCall createRenderCall(RibbonComponent* ribbon)
+        RenderCall createRenderCall(CompRef<RibbonComponent> ribbon) override
         {
             auto mesh = std::make_shared<TexturedRibbonMesh>(ribbon->path, ribbon->width * 0.5f, ribbon->repeatBySize, ribbon->repeatValue);
 
@@ -224,24 +143,10 @@ namespace pg {
             call.setViewport(ribbon->viewport);
             call.setOpacity(OpacityType::Opaque);
 
-            if (masterRenderer->hasMaterial(ribbon->textureName))
-            {
-                call.setMaterial(masterRenderer->getMaterialID(ribbon->textureName));
-            }
-            else
-            {
-                Material simpleShapeMaterial = baseMaterial;
-
-                simpleShapeMaterial.textureId[0] = masterRenderer->getTexture(ribbon->textureName).id;
-
-                call.setMaterial(masterRenderer->registerMaterial(ribbon->textureName, simpleShapeMaterial));
-            }
+            applyMaterial(call, "defaultRibbon", {ribbon->textureName});
 
             return call;
         }
-
-        Material baseMaterial;
-        std::queue<_unique_id> updateQueue;
     };
 
 } // namespace pg

@@ -91,7 +91,7 @@ namespace pg {
     bool doSegmentsIntersect(const pg::Segment2D& s1, const pg::Segment2D& s2)
     {
         auto orientation = [](const pg::Point2D& a, const pg::Point2D& b, const pg::Point2D& c) {
-            float val = (b.y - a.y) * (c.x - b.x) - 
+            float val = (b.y - a.y) * (c.x - b.x) -
                         (b.x - a.x) * (c.y - b.y);
             if (std::abs(val) < 1e-6f)
                 return 0;  // colinear
@@ -313,7 +313,7 @@ namespace pg {
             obscurer.get<PositionComponent>()->setVisibility(false);
 
             obscurerPos = obscurer.get<PositionComponent>();
-            
+
             // Todo set started to true when they circle the first enemy
             startGame();
         }
@@ -364,7 +364,7 @@ namespace pg {
                     startGame();
                     lost = false;
                 }
-                
+
                 return;
             }
 
@@ -474,7 +474,7 @@ namespace pg {
             {
                 currentEnt.get<RibbonComponent>()->setPath(mousePosList);
             }
-            
+
             auto y = currentMousePos.y;
             auto popText = makeTTFText(ecsRef, currentMousePos.x, y - 10, 1, "light", "-2s", .4f, {255.0f, 0.0f, 0.0f, 255.0f});
 
@@ -526,7 +526,6 @@ namespace pg {
 
                         auto ent = ecsRef->createEntity();
                         ent->attach<PolygonComponent>(polygon, 0);
-                        ent->attach<PolyFlag>();
 
                         ecsRef->attach<TweenComponent>(ent, TweenComponent {
                             1.0f, // Fully opaque
@@ -539,7 +538,7 @@ namespace pg {
                         checkEnemyInLoop(polygon);
 
                         // The new, clipped path:
-                        auto newPath = lr->clipped;       
+                        auto newPath = lr->clipped;
 
                         // Now update your RibbonComponent:
                         // Todo do this if you want the clipped path to be used
