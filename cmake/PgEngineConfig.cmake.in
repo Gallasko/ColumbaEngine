@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find required dependencies
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    find_dependency(OpenGL REQUIRED)
+    # Note: SDL2, glm, etc. should be available or the user should provide them
+endif()
+
+# Include the targets file
+include("${CMAKE_CURRENT_LIST_DIR}/PgEngineTargets.cmake")
+
+check_required_components(PgEngine)
