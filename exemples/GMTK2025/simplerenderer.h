@@ -105,6 +105,47 @@ namespace pg
             changed = true;
         }
 
+        Material* newMaterial(const std::string& name)
+        {
+            return &materials[name];
+        }
+
+        void applyMaterial(RenderCall& call, const std::string& materialName, const std::vector<std::string>& textures = {})
+        {
+            std::string materialKey = "__" + materialName;
+
+            for (const auto& texture : textures)
+            {
+                materialKey += "_" + texture;
+            }
+
+            Material material = materials[materialName];
+
+            if (textures.size() != material.nbTextures)
+            {
+                LOG_ERROR("SimpleRenderer", "Material '" << materialName << "' has " << material.nbTextures <<
+                    " textures, but " << textures.size() << " were provided.");
+            }
+
+            // Set the material of the call with the correct textures
+            if (masterRenderer->hasMaterial(materialKey))
+            {
+                call.setMaterial(masterRenderer->getMaterialID(materialKey));
+            }
+            else
+            {
+                for (size_t i = 0; i < textures.size(); ++i)
+                {
+                    material.textureId[i] = masterRenderer->getTexture(textures[i]).id;
+                }
+
+                call.setMaterial(masterRenderer->registerMaterial(materialKey, material));
+            }
+
+            // Resize the data to the number of attributes
+            call.data.resize(material.nbAttributes);
+        }
+
         virtual void setupRenderer() = 0;
 
         virtual RenderCall createRenderCall(CompRef<Comps>... comps) = 0;
@@ -112,5 +153,7 @@ namespace pg
         std::queue<_unique_id> updateQueue;
 
         Own<SimpleRenderCall> renderCallOwner;
+
+        std::unordered_map<std::string, Material> materials;
     };
 }

@@ -318,7 +318,7 @@ namespace pg
     // };
 
 
-    struct PolygonComponentSystem : public SimpleRenderer<PolygonComponent, PolyFlag>
+    struct PolygonComponentSystem : public SimpleRenderer<PolygonComponent>
     {
         PolygonComponentSystem(MasterRenderer* masterRenderer) : SimpleRenderer(masterRenderer)
         {
@@ -327,18 +327,20 @@ namespace pg
 
         void setupRenderer() override
         {
-            baseMaterial.shader = masterRenderer->getShader("polygonShader");
-            baseMaterial.nbTextures = 0; // No textures needed for solid polygons
+            auto baseMaterial = newMaterial("defaultPolygon");
 
-            baseMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
-            baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
+            baseMaterial->shader = masterRenderer->getShader("polygonShader");
+            baseMaterial->nbTextures = 0; // No textures needed for solid polygons
 
-            baseMaterial.nbAttributes = 1;
+            baseMaterial->uniformMap.emplace("sWidth", "ScreenWidth");
+            baseMaterial->uniformMap.emplace("sHeight", "ScreenHeight");
+
+            baseMaterial->nbAttributes = 1;
         }
 
         std::string getSystemName() const override { return "Polygon Component System"; }
 
-        RenderCall createRenderCall(CompRef<PolygonComponent> polygon, CompRef<PolyFlag> flag) override
+        RenderCall createRenderCall(CompRef<PolygonComponent> polygon) override
         {
             auto mesh = std::make_shared<PolygonMesh>(polygon->polygon);
 
@@ -348,24 +350,12 @@ namespace pg
             call.setViewport(polygon->viewport);
             call.setOpacity(OpacityType::Additive);
 
-            // Use the base material (no texture needed for solid polygons)
-            if (masterRenderer->hasMaterial("__defaultPolygon"))
-            {
-                call.setMaterial(masterRenderer->getMaterialID("__defaultPolygon"));
-            }
-            else
-            {
-                call.setMaterial(masterRenderer->registerMaterial("__defaultPolygon", baseMaterial));
-            }
-
-            call.data.resize(1);
+            applyMaterial(call, "defaultPolygon");
 
             call.data[0] = polygon->opacity; // Store opacity in the data vector
 
             return call;
         }
-
-        Material baseMaterial;
     };
 
 
