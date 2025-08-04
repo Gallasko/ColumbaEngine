@@ -242,7 +242,6 @@ namespace pg {
 
         Material baseMaterial;
         std::queue<_unique_id> updateQueue;
-        bool changed = false;
     };
 
 } // namespace pg

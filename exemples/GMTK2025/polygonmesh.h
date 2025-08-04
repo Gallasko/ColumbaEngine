@@ -17,7 +17,7 @@ namespace pg
 
     //-----------------------------------------------------------------------------
     // Utility: Point-in-Polygon (ray-casting)
-    //-----------------------------------------------------------------------------  
+    //-----------------------------------------------------------------------------
     // Returns true if point P is inside the simple polygon poly (closed, non-self-intersecting).
     static bool pointInPolygon(const std::vector<Point2D>& poly, const Point2D& P)
     {
@@ -28,10 +28,10 @@ namespace pg
         {
             const Point2D& Pi = poly[i];
             const Point2D& Pj = poly[j];
-        
+
             bool intersect = ((Pi.y > P.y) != (Pj.y > P.y)) &&
                             (P.x < (Pj.x - Pi.x) * (P.y - Pi.y) / (Pj.y - Pi.y) + Pi.x);
-        
+
             if (intersect)
                 inside = !inside;
         }
@@ -135,9 +135,9 @@ namespace pg
         float aliveTime = 0.0f; // Time the polygon has been alive (for animations or effects)
 
         inline void setOpacity(float newOpacity)
-        { 
+        {
             opacity = newOpacity;
-            
+
             if (ecsRef)
             {
                 ecsRef->sendEvent(EntityChangedEvent{entityId});
@@ -218,6 +218,8 @@ namespace pg
 
                 ecsRef->detach<PolygonRenderCall>(entity);
 
+                LOG_INFO("PolygonComponentSystem", "Removed render call for polygon entity " << id);
+
                 changed = true;
             });
         }
@@ -252,6 +254,8 @@ namespace pg
 
                 updateQueue.pop();
             }
+
+            LOG_INFO("PolygonComponentSystem", "Updating render calls for polygons... changed: " << changed);
 
             renderCallList.clear();
 
@@ -309,7 +313,6 @@ namespace pg
 
         Material baseMaterial;
         std::queue<_unique_id> updateQueue;
-        bool changed = false;
     };
 
 } // namespace pg
