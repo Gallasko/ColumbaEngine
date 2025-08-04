@@ -95,13 +95,13 @@ void initGame() {
 
     mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
     mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
-    
+
     mainWindow->ecs.createSystem<EnemySpawnerSystem>();
 
     mainWindow->ecs.succeed<MasterRenderer, MainCameraShake>();
     mainWindow->ecs.succeed<MasterRenderer, TexturedRibbonComponentSystem>();
     mainWindow->ecs.succeed<MasterRenderer, PolygonComponentSystem>();
-    
+
     mainWindow->ecs.createSystem<PointAggregator>();
 
     mainWindow->ecs.succeed<PointAggregator, TexturedRibbonComponentSystem>();

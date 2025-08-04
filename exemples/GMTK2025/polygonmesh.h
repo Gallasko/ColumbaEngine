@@ -12,6 +12,8 @@
 
 #include "Systems/basicsystems.h"
 
+#include "simplerenderer.h"
+
 namespace pg
 {
 
@@ -145,52 +147,186 @@ namespace pg
         }
     };
 
-    struct PolygonRenderCall
-    {
-        PolygonRenderCall(const RenderCall& call) : call(call) {}
+    // struct PolygonRenderCall
+    // {
+    //     PolygonRenderCall(const RenderCall& call) : call(call) {}
 
-        RenderCall call;
-    };
+    //     RenderCall call;
+    // };
 
     struct PolyFlag : public Component {};
 
-    struct PolygonComponentSystem : public AbstractRenderer, public System<Own<PolygonComponent>, Own<PolygonRenderCall>, Ref<PositionComponent>, InitSys, Listener<EntityChangedEvent>, Listener<TickEvent>>
+    // struct PolygonComponentSystem : public AbstractRenderer, public System<Own<PolygonComponent>, Own<PolygonRenderCall>, Ref<PositionComponent>, InitSys, Listener<EntityChangedEvent>, Listener<TickEvent>>
+    // {
+    //     PolygonComponentSystem(MasterRenderer* master): AbstractRenderer(master, RenderStage::Render) {}
+
+    //     std::string getSystemName() const override { return "Polygon System"; }
+
+    //     virtual void onEvent(const TickEvent& event) override
+    //     {
+    //         // std::vector<_unique_id> entitiesToRemove;
+    //         // for (auto* poly : view<PolygonComponent>())
+    //         // {
+    //         //     if (not poly)
+    //         //         continue;
+
+    //         //     poly->aliveTime += event.tick;
+
+    //         //     poly->setOpacity(255.0f * (1 - (poly->aliveTime / 450.0f)));
+
+    //         //     if (poly->aliveTime > 450.0f)
+    //         //     {
+    //         //         entitiesToRemove.push_back(poly->entityId);
+    //         //         continue;
+    //         //     }
+
+    //         // //     // Optionally, you can trigger an update if needed
+    //         // //     updateQueue.push(poly->entityId);
+    //         // }
+
+    //         // for (auto entityId : entitiesToRemove)
+    //         // {
+    //         //     ecsRef->removeEntity(entityId);
+    //         // }
+    //     }
+
+    //     void init() override
+    //     {
+    //         // Use a simple shader for solid polygon rendering
+    //         baseMaterial.shader = masterRenderer->getShader("polygonShader");
+    //         baseMaterial.nbTextures = 0; // No textures needed for solid polygons
+
+    //         baseMaterial.uniformMap.emplace("sWidth", "ScreenWidth");
+    //         baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
+
+    //         baseMaterial.nbAttributes = 1;
+
+    //         auto group = registerGroup<PolygonComponent, PolyFlag>();
+
+    //         group->addOnGroup([this](EntityRef entity)
+    //         {
+    //             LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
+
+    //             updateQueue.push(entity->id);
+
+    //             changed = true;
+    //         });
+
+    //         group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id)
+    //         {
+    //             LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
+
+    //             auto entity = ecsRef->getEntity(id);
+
+    //             ecsRef->detach<PolygonRenderCall>(entity);
+
+    //             LOG_INFO("PolygonComponentSystem", "Removed render call for polygon entity " << id);
+
+    //             changed = true;
+    //         });
+    //     }
+
+    //     void execute() override
+    //     {
+    //         if (not changed)
+    //             return;
+
+    //         while (not updateQueue.empty())
+    //         {
+    //             auto entityId = updateQueue.front();
+
+    //             auto entity = ecsRef->getEntity(entityId);
+
+    //             if (not entity)
+    //             {
+    //                 updateQueue.pop();
+    //                 continue;
+    //             }
+
+    //             auto comp = entity->get<PolygonComponent>();
+
+    //             if (entity->has<PolygonRenderCall>())
+    //             {
+    //                 entity->get<PolygonRenderCall>()->call = createRenderCall(comp);
+    //             }
+    //             else
+    //             {
+    //                 ecsRef->_attach<PolygonRenderCall>(entity, createRenderCall(comp));
+    //             }
+
+    //             updateQueue.pop();
+    //         }
+
+    //         LOG_INFO("PolygonComponentSystem", "Updating render calls for polygons... changed: " << changed);
+
+    //         renderCallList.clear();
+
+    //         const auto& renderCallView = view<PolygonRenderCall>();
+
+    //         renderCallList.reserve(renderCallView.nbComponents());
+
+    //         for (const auto& renderCall : renderCallView)
+    //         {
+    //             renderCallList.push_back(renderCall->call);
+    //         }
+
+    //         finishChanges();
+    //     }
+
+    //     void onEvent(const EntityChangedEvent& event) override
+    //     {
+    //         auto entity = ecsRef->getEntity(event.id);
+
+    //         if (not entity or not entity->has<PolygonComponent>())
+    //             return;
+
+    //         updateQueue.push(event.id);
+
+    //         changed = true;
+    //     }
+
+    // private:
+    //     RenderCall createRenderCall(PolygonComponent* polygon)
+    //     {
+    //         auto mesh = std::make_shared<PolygonMesh>(polygon->polygon);
+
+    //         RenderCall call(mesh);
+
+    //         call.setRenderStage(renderStage);
+    //         call.setViewport(polygon->viewport);
+    //         call.setOpacity(OpacityType::Additive);
+
+    //         // Use the base material (no texture needed for solid polygons)
+    //         if (masterRenderer->hasMaterial("__defaultPolygon"))
+    //         {
+    //             call.setMaterial(masterRenderer->getMaterialID("__defaultPolygon"));
+    //         }
+    //         else
+    //         {
+    //             call.setMaterial(masterRenderer->registerMaterial("__defaultPolygon", baseMaterial));
+    //         }
+
+    //         call.data.resize(1);
+
+    //         call.data[0] = polygon->opacity; // Store opacity in the data vector
+
+    //         return call;
+    //     }
+
+    //     Material baseMaterial;
+    //     std::queue<_unique_id> updateQueue;
+    // };
+
+
+    struct PolygonComponentSystem : public SimpleRenderer<PolygonComponent, PolyFlag>
     {
-        PolygonComponentSystem(MasterRenderer* master): AbstractRenderer(master, RenderStage::Render) {}
-
-        std::string getSystemName() const override { return "Polygon System"; }
-
-        virtual void onEvent(const TickEvent& event) override
+        PolygonComponentSystem(MasterRenderer* masterRenderer) : SimpleRenderer(masterRenderer)
         {
-            // std::vector<_unique_id> entitiesToRemove;
-            // for (auto* poly : view<PolygonComponent>())
-            // {
-            //     if (not poly)
-            //         continue;
 
-            //     poly->aliveTime += event.tick;
-
-            //     poly->setOpacity(255.0f * (1 - (poly->aliveTime / 450.0f)));
-
-            //     if (poly->aliveTime > 450.0f)
-            //     {
-            //         entitiesToRemove.push_back(poly->entityId);
-            //         continue;
-            //     }
-
-            // //     // Optionally, you can trigger an update if needed
-            // //     updateQueue.push(poly->entityId);
-            // }
-
-            // for (auto entityId : entitiesToRemove)
-            // {
-            //     ecsRef->removeEntity(entityId);
-            // }
         }
 
-        void init() override
+        void setupRenderer() override
         {
-            // Use a simple shader for solid polygon rendering
             baseMaterial.shader = masterRenderer->getShader("polygonShader");
             baseMaterial.nbTextures = 0; // No textures needed for solid polygons
 
@@ -198,93 +334,11 @@ namespace pg
             baseMaterial.uniformMap.emplace("sHeight", "ScreenHeight");
 
             baseMaterial.nbAttributes = 1;
-
-            auto group = registerGroup<PolygonComponent, PolyFlag>();
-
-            group->addOnGroup([this](EntityRef entity)
-            {
-                LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
-
-                updateQueue.push(entity->id);
-
-                changed = true;
-            });
-
-            group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id)
-            {
-                LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
-
-                auto entity = ecsRef->getEntity(id);
-
-                ecsRef->detach<PolygonRenderCall>(entity);
-
-                LOG_INFO("PolygonComponentSystem", "Removed render call for polygon entity " << id);
-
-                changed = true;
-            });
         }
 
-        void execute() override
-        {
-            if (not changed)
-                return;
+        std::string getSystemName() const override { return "Polygon Component System"; }
 
-            while (not updateQueue.empty())
-            {
-                auto entityId = updateQueue.front();
-
-                auto entity = ecsRef->getEntity(entityId);
-
-                if (not entity)
-                {
-                    updateQueue.pop();
-                    continue;
-                }
-
-                auto comp = entity->get<PolygonComponent>();
-
-                if (entity->has<PolygonRenderCall>())
-                {
-                    entity->get<PolygonRenderCall>()->call = createRenderCall(comp);
-                }
-                else
-                {
-                    ecsRef->_attach<PolygonRenderCall>(entity, createRenderCall(comp));
-                }
-
-                updateQueue.pop();
-            }
-
-            LOG_INFO("PolygonComponentSystem", "Updating render calls for polygons... changed: " << changed);
-
-            renderCallList.clear();
-
-            const auto& renderCallView = view<PolygonRenderCall>();
-
-            renderCallList.reserve(renderCallView.nbComponents());
-
-            for (const auto& renderCall : renderCallView)
-            {
-                renderCallList.push_back(renderCall->call);
-            }
-
-            finishChanges();
-        }
-
-        void onEvent(const EntityChangedEvent& event) override
-        {
-            auto entity = ecsRef->getEntity(event.id);
-
-            if (not entity or not entity->has<PolygonComponent>())
-                return;
-
-            updateQueue.push(event.id);
-
-            changed = true;
-        }
-
-    private:
-        RenderCall createRenderCall(PolygonComponent* polygon)
+        RenderCall createRenderCall(CompRef<PolygonComponent> polygon, CompRef<PolyFlag> flag) override
         {
             auto mesh = std::make_shared<PolygonMesh>(polygon->polygon);
 
@@ -312,7 +366,7 @@ namespace pg
         }
 
         Material baseMaterial;
-        std::queue<_unique_id> updateQueue;
     };
+
 
 } // namespace pg
