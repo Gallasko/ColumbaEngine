@@ -340,6 +340,10 @@ namespace pg
 
             const auto& id = getTypeId<Event>();
 
+#ifdef PROFILE
+            eventCountMap[id]++;
+#endif
+
             for (auto& eventListener : eventStorageMap[id])
             {
                 eventListener.second(a);
@@ -517,6 +521,10 @@ namespace pg
         // Common singleton system
     public:
         mutable UniqueIdGenerator idGenerator;
+
+#ifdef PROFILE
+        std::map<_unique_id, size_t> eventCountMap;
+#endif
 
     public:
         inline size_t componentStorageMapSize() const noexcept     { return componentStorageMap.size(); }
