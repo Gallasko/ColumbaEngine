@@ -11,7 +11,7 @@
 
 namespace pg
 {
-    constexpr int TickRateMilliseconds = 20;
+    constexpr int TickRateMilliseconds = 16;
 
     // Todo add all the logger thing to all those systems and doc too
 

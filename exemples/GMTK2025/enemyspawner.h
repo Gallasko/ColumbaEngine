@@ -150,6 +150,8 @@ namespace pg
     struct EnemySpawnerSystem : public System<InitSys, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>,
         QueuedListener<PauseGame>, QueuedListener<ResumeGame>, QueuedListener<RestartGame>>
     {
+        std::string getSystemName() const override { return "Enemy Spawner System"; }
+
         // Screen dimensions
         float screenWidth = 820.0f;
         float screenHeight = 640.0f;

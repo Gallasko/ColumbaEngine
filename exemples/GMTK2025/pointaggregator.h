@@ -288,6 +288,8 @@ namespace pg {
         CompRef<TTFText> pauseText;
         EntityRef scoreText;
 
+        std::string getSystemName() const override { return "Point Aggregator"; }
+
         virtual void init() override
         {
             LOG_THIS_MEMBER("PointAggregator");
