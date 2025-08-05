@@ -162,8 +162,7 @@ namespace pg
 
     struct Timer: public Component
     {
-        Timer() {}
-        Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), oneShot(other.oneShot), callback(other.callback) {}
+        DEFAULT_COMPONENT_MEMBERS(Timer)
 
         void start()
         {

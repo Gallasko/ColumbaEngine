@@ -25,7 +25,7 @@ namespace pg
     // Components that integrate with your existing system
     struct VelocityComponent : public Component {
         Vector2D velocity{0.0f, 0.0f};
-        
+
         VelocityComponent() = default;
         VelocityComponent(float vx, float vy) : velocity(vx, vy) {}
         VelocityComponent(const Vector2D& vel) : velocity(vel) {}
@@ -34,7 +34,7 @@ namespace pg
     struct EnemyMeta : public Component {
         Vector2D targetPoint{0.0f, 0.0f};   // Center target point
         float timeAlive{0.0f};
-        
+
         EnemyMeta() = default;
         EnemyMeta(const Vector2D& target) : targetPoint(target) {}
     };
@@ -61,7 +61,7 @@ namespace pg
     )
     {
         EnemySpawn spawn;
-        
+
         // Define the center rectangle bounds
         float centerW = screenW * centerWFrac;
         float centerH = screenH * centerHFrac;
@@ -69,16 +69,16 @@ namespace pg
         float centerRight = centerLeft + centerW;
         float centerTop = (screenH - centerH) * 0.5f;
         float centerBottom = centerTop + centerH;
-        
+
         // Choose random target point within center rectangle
         std::uniform_real_distribution<float> targetXDist(centerLeft, centerRight);
         std::uniform_real_distribution<float> targetYDist(centerTop, centerBottom);
         Vector2D target = Vector2D(targetXDist(gen), targetYDist(gen));
-        
+
         // Choose random edge (0=left, 1=right, 2=top, 3=bottom)
         std::uniform_int_distribution<int> edgeDist(0, 3);
         int edge = edgeDist(gen);
-        
+
         // Calculate spawn position based on chosen edge
         switch (edge) {
             case 0: // Left edge
@@ -98,16 +98,16 @@ namespace pg
                 spawn.start.y = screenH + edgePad;
                 break;
         }
-        
+
         // Calculate direction vector toward center target (normalized)
         Vector2D displacement = target - spawn.start;
         float distance = displacement.length();
         spawn.direction = (distance > 0.0f) ? displacement.normalized() : Vector2D(0.0f, 0.0f);
-        
+
         // Use constant speed
         spawn.speed = speed;
         spawn.totalDistance = distance; // Distance to center target
-        
+
         return spawn;
     }
 
@@ -120,9 +120,9 @@ namespace pg
         float newCenterWFrac = -1.0f;       // -1 means don't change
         float newCenterHFrac = -1.0f;       // -1 means don't change
         int maxHp = -1;                     // -1 means don't change
-        
+
         UpdateSpawnParamsEvent() = default;
-        
+
         // Convenience constructors
         static UpdateSpawnParamsEvent setSpawnRate(float interval, int enemiesPerSpawn = -1) {
             UpdateSpawnParamsEvent event;
@@ -130,14 +130,14 @@ namespace pg
             event.newEnemiesPerSpawn = enemiesPerSpawn;
             return event;
         }
-        
+
         static UpdateSpawnParamsEvent setDifficulty(float speed, int enemiesPerSpawn) {
             UpdateSpawnParamsEvent event;
             event.newEnemySpeed = speed;
             event.newEnemiesPerSpawn = enemiesPerSpawn;
             return event;
         }
-        
+
         static UpdateSpawnParamsEvent setTargetArea(float centerWFrac, float centerHFrac) {
             UpdateSpawnParamsEvent event;
             event.newCenterWFrac = centerWFrac;
@@ -153,7 +153,7 @@ namespace pg
         // Screen dimensions
         float screenWidth = 820.0f;
         float screenHeight = 640.0f;
-        
+
         // Spawn parameters - can be changed during gameplay
         float spawnInterval = 3.0f;          // seconds between spawn waves
         int enemiesPerSpawn = 6;            // number of enemies to spawn per wave
@@ -162,10 +162,10 @@ namespace pg
         float centerHFrac = 0.8f;            // target area height fraction
         float edgePadding = 100.0f;          // distance off-screen to spawn
         int maxHp = 1;                       // default HP for enemies
-        
+
         // Runtime state
         float timeSinceLastSpawn = 0.0f;
-        
+
         // Wave/difficulty progression
         int currentWave = 1;
         float waveTimer = 0.0f;
@@ -173,13 +173,13 @@ namespace pg
 
         bool paused = false;               // Pause state
 
-        virtual void onProcessEvent(const PauseGame& event) override
+        virtual void onProcessEvent(const PauseGame&) override
         {
             LOG_INFO("EnemySpawnerSystem", "Game Paused");
             paused = true;
         }
 
-        virtual void onProcessEvent(const ResumeGame& event) override
+        virtual void onProcessEvent(const ResumeGame&) override
         {
             LOG_INFO("EnemySpawnerSystem", "Game Resumed");
             paused = false;
@@ -190,47 +190,47 @@ namespace pg
             {0.0f, 255.0f, 0.0f, 255.0f}, // 2hp = Green
             {0.0f, 0.0f, 255.0f, 255.0f}, // 3hp = Blue
         };
-        
+
         virtual void init() override
         {
             LOG_THIS_MEMBER("EnemySpawnerSystem");
-            
+
             // Register groups for entities with velocity and enemy components
             registerGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>();
-            
-            LOG_INFO("EnemySpawnerSystem", "Edge-to-center spawn system initialized - Interval: " << spawnInterval 
+
+            LOG_INFO("EnemySpawnerSystem", "Edge-to-center spawn system initialized - Interval: " << spawnInterval
                     << "s, Enemies per spawn: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s");
         }
-        
+
         virtual void onProcessEvent(const TickEvent& event) override
         {
             if (paused) return; // Skip updates if paused
 
             float deltaTime = event.tick / 1000.0f; // Convert to seconds if needed
-            
+
             // Update wave progression
             updateWaves(deltaTime);
-            
+
             // Handle spawning
             timeSinceLastSpawn += deltaTime;
             if (timeSinceLastSpawn >= spawnInterval) {
                 spawnEnemyWave();
                 timeSinceLastSpawn = 0.0f;
             }
-            
+
             // Handle enemy movement and cleanup
             updateEnemyMovement(deltaTime);
         }
 
-        virtual void onProcessEvent(const RestartGame& event) override
+        virtual void onProcessEvent(const RestartGame&) override
         {
             LOG_INFO("EnemySpawnerSystem", "Restarting enemy spawner");
-            
+
             // Reset state
             timeSinceLastSpawn = 0.0f;
             currentWave = 1;
             waveTimer = 0.0f;
-            
+
             // Reset spawn parameters to defaults
             spawnInterval = 3.0f;
             enemiesPerSpawn = 6;
@@ -238,79 +238,79 @@ namespace pg
             centerWFrac = 0.8f;
             centerHFrac = 0.8f;
             maxHp = 1;
-            
+
             std::vector<_unique_id> enemyIds;
             // Clear existing enemies
             for (auto ent : viewGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>())
             {
                 enemyIds.push_back(ent->entityId);
             }
-            
+
             for (const auto& id : enemyIds)
             {
                 ecsRef->removeEntity(id);
             }
         }
-        
+
         virtual void onProcessEvent(const UpdateSpawnParamsEvent& event) override
         {
             bool changed = false;
-            
+
             if (event.newSpawnInterval > 0.0f) {
                 spawnInterval = event.newSpawnInterval;
                 changed = true;
             }
-            
+
             if (event.newEnemiesPerSpawn > 0) {
                 enemiesPerSpawn = event.newEnemiesPerSpawn;
                 changed = true;
             }
-            
+
             if (event.newEnemySpeed > 0.0f) {
                 enemySpeed = event.newEnemySpeed;
                 changed = true;
             }
-            
+
             if (event.newCenterWFrac > 0.0f && event.newCenterWFrac <= 1.0f) {
                 centerWFrac = event.newCenterWFrac;
                 changed = true;
             }
-            
+
             if (event.newCenterHFrac > 0.0f && event.newCenterHFrac <= 1.0f) {
                 centerHFrac = event.newCenterHFrac;
                 changed = true;
             }
-            
+
             if (changed) {
-                LOG_INFO("EnemySpawnerSystem", "Updated spawn parameters - Interval: " << spawnInterval 
+                LOG_INFO("EnemySpawnerSystem", "Updated spawn parameters - Interval: " << spawnInterval
                         << "s, Enemies per spawn: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s");
             }
         }
-        
+
         void updateWaves(float deltaTime) {
             waveTimer += deltaTime;
-            
+
             if (waveTimer >= waveInterval) {
                 currentWave++;
                 waveTimer = 0.0f;
-                
+
                 // Increase difficulty each wave
                 increaseDifficulty();
-                
+
                 LOG_INFO("EnemySpawnerSystem", "Wave " << currentWave << " started!");
             }
         }
-        
+
         void increaseDifficulty() {
             // Each wave: slightly more enemies, slightly faster speed
             if (currentWave % 3 == 0) {
                 enemiesPerSpawn = std::min(enemiesPerSpawn + 1, 12); // Cap at 8 enemies per spawn
             }
-            
+
             if (currentWave % 3 == 0) {
                 enemySpeed = std::max(enemySpeed + 15.0f, 350.0f); // Increase speed by 20 px/s each time
             }
-            
+
             if (currentWave % 5 == 0) {
                 spawnInterval = std::max(spawnInterval - 0.5f, 0.8f); // Minimum 0.8 seconds between spawns
             }
@@ -318,20 +318,20 @@ namespace pg
             if (currentWave % 8 == 0) {
                 maxHp = std::max(maxHp + 1, 3); // Minimum 0.8 seconds between spawns
             }
-            
-            LOG_INFO("EnemySpawnerSystem", "Difficulty increased - Wave: " << currentWave 
+
+            LOG_INFO("EnemySpawnerSystem", "Difficulty increased - Wave: " << currentWave
                     << ", Enemies: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s"
                     << ", Spawn interval: " << spawnInterval);
         }
-        
+
         void spawnEnemyWave() {
             for (int i = 0; i < enemiesPerSpawn; ++i) {
                 spawnSingleEnemy();
             }
-            
+
             LOG_INFO("EnemySpawnerSystem", "Spawned wave of " << enemiesPerSpawn << " enemies");
         }
-        
+
         void spawnSingleEnemy() {
             // Generate spawn data for edge-to-center movement
             EnemySpawn spawnData = makeRandomEdgeToCenterSpawn(
@@ -344,41 +344,41 @@ namespace pg
 
             std::uniform_int_distribution<int> hpGen(1, maxHp);
             int hp = hpGen(gen);
-            
+
             // Create enemy entity using your existing shape creation
             auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, enemyColors[hp - 1]);
-            
+
             // Set position to spawn point
             shape.get<PositionComponent>()->setX(spawnData.start.x - 25.0f); // Center the 50x50 square
             shape.get<PositionComponent>()->setY(spawnData.start.y - 25.0f);
-            
+
             // Attach velocity component
             Vector2D velocity = spawnData.direction * spawnData.speed;
             shape.attach<VelocityComponent>(velocity);
-            
+
             // Attach enemy metadata with target point
             shape.attach<EnemyMeta>(spawnData.target);
-            
+
             // Attach enemy flag
             shape.attach<EnemyFlag>(hp);
         }
-        
+
         void updateEnemyMovement(float deltaTime)
         {
             std::vector<_unique_id> enemiesToDestroy;
 
             auto loop = ecsRef->getSystem<PointAggregator>()->mousePosList;
-            
+
             bool loopHit = false;
-            
+
             // Process all enemies with required components
             for (const auto& ent : viewGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>()) {
                 auto pos = ent->get<PositionComponent>();
                 auto vel = ent->get<VelocityComponent>();
                 auto meta = ent->get<EnemyMeta>();
-                
+
                 if (!pos || !vel || !meta) continue;
-                
+
                 Point2D beginPos(pos->x + 25.0f, pos->y + 25.0f);
                 Point2D endPos(pos->x + 25.0f + vel->velocity.x * deltaTime, pos->y + 25.0f + vel->velocity.y * deltaTime);
 
@@ -393,29 +393,29 @@ namespace pg
                 // Update position by velocity * deltaTime
                 pos->setX(pos->x + vel->velocity.x * deltaTime);
                 pos->setY(pos->y + vel->velocity.y * deltaTime);
-                
+
                 // Update time alive
                 meta->timeAlive += deltaTime;
-                
+
                 // Get current position (center of the enemy)
                 Vector2D currentPos(pos->x + 25.0f, pos->y + 25.0f);
-                
+
                 // Check if enemy has moved off screen (out of bounds)
                 bool offScreen = false;
-                
+
                 // Check if enemy is beyond screen boundaries (including padding)
                 if (currentPos.x < -edgePadding || currentPos.x > screenWidth + edgePadding ||
                     currentPos.y < -edgePadding || currentPos.y > screenHeight + edgePadding) {
                     offScreen = true;
                 }
-                
+
                 if (offScreen) {
                     // Mark for destruction - enemy went off screen
                     enemiesToDestroy.push_back(ent->entityId);
                     LOG_INFO("EnemySpawnerSystem", "Enemy went off-screen after " << meta->timeAlive << "s");
                 }
             }
-            
+
             // Destroy enemies that have left the screen
             for (auto entityId : enemiesToDestroy) {
                 ecsRef->removeEntity(entityId);
@@ -427,30 +427,30 @@ namespace pg
                 ecsRef->sendEvent(ShakeMainCamera{});
             }
         }
-        
+
         // Public methods to control the spawner
         void setSpawnInterval(float interval) {
             spawnInterval = std::max(interval, 0.1f); // Minimum 0.1 seconds
         }
-        
+
         void setEnemiesPerSpawn(int count) {
             enemiesPerSpawn = std::max(count, 1); // Minimum 1 enemy
         }
-        
+
         void setEnemySpeed(float speed) {
             enemySpeed = std::max(speed, 10.0f); // Minimum 10 px/s
         }
-        
+
         void setTargetArea(float wFrac, float hFrac) {
             centerWFrac = std::clamp(wFrac, 0.1f, 1.0f);
             centerHFrac = std::clamp(hFrac, 0.1f, 1.0f);
         }
-        
+
         void setScreenSize(float width, float height) {
             screenWidth = width;
             screenHeight = height;
         }
-        
+
         // Getters for UI/debugging
         int getCurrentWave() const { return currentWave; }
         float getSpawnInterval() const { return spawnInterval; }
@@ -458,7 +458,7 @@ namespace pg
         float getEnemySpeed() const { return enemySpeed; }
         float getCenterWFrac() const { return centerWFrac; }
         float getCenterHFrac() const { return centerHFrac; }
-        
+
         // Reset game state
         void resetGame() {
             currentWave = 1;
@@ -470,14 +470,14 @@ namespace pg
             centerWFrac = 0.5f;
             centerHFrac = 0.5f;
             maxHp = 1;
-             
+
             LOG_INFO("EnemySpawnerSystem", "Game reset to initial parameters");
         }
-        
+
         // Get count of active enemies (for debugging/UI)
         int getActiveEnemyCount() const {
             int count = 0;
-            for (const auto& ent : viewGroup<EnemyFlag>())
+            for (const auto& _ : viewGroup<EnemyFlag>())
             {
                 count++;
             }

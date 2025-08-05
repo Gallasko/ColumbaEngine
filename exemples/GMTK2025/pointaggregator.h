@@ -28,7 +28,7 @@ namespace pg {
     {
         // BaseCamera2D& camera;
 
-        MainCameraShake(MasterRenderer* MasterRenderer) {}
+        MainCameraShake(MasterRenderer*) {}
         // MainCameraShake(MasterRenderer* MasterRenderer) : camera(MasterRenderer->getCamera()) {}
 
         virtual std::string getSystemName() const override { return "Camera Shake"; }
@@ -463,7 +463,7 @@ namespace pg {
             ecsRef->removeEntity(event.prefabId);
         }
 
-        virtual void onProcessEvent(const EnemyLoopHitEvent& event) override
+        virtual void onProcessEvent(const EnemyLoopHitEvent&) override
         {
             LOG_INFO("PointAggregator", "Enemy hit the looped, processing event");
             // Handle the enemy loop hit event here if needed

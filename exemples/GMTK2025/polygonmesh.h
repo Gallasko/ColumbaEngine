@@ -86,45 +86,23 @@ namespace pg
         std::vector<unsigned int> triangulateEarClipping(const std::vector<Point2D>& polygon) const;
     };
 
-    struct PolygonComponent : public Ctor
+    struct PolygonComponent : public Component
     {
         PolygonComponent(const std::vector<Point2D>& polygon, size_t viewport = 0) :
                         polygon(polygon), viewport(viewport), opacity(1.0f)
         {}
 
-        PolygonComponent(const PolygonComponent& other) : ecsRef(other.ecsRef), entityId(other.entityId),
-            polygon(other.polygon), viewport(other.viewport), opacity(other.opacity)
-        {}
-
-        PolygonComponent& operator=(const PolygonComponent& other)
-        {
-            ecsRef = other.ecsRef;
-            entityId = other.entityId;
-            polygon = other.polygon;
-            viewport = other.viewport;
-            opacity = other.opacity;
-
-            return *this;
-        }
-
-        virtual void onCreation(EntityRef entity)
-        {
-            ecsRef = entity->world();
-            entityId = entity->id;
-        }
+        DEFAULT_COMPONENT_MEMBERS(PolygonComponent)
 
         void setPolygon(const std::vector<Point2D>& newPolygon)
         {
-            polygon = newPolygon;
-
-            if (ecsRef)
-            {
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }
+            setValue(polygon, newPolygon);
         }
 
-        EntitySystem* ecsRef;
-        _unique_id entityId;
+        void setOpacity(float newOpacity)
+        {
+            setValue(opacity, newOpacity);
+        }
 
         std::vector<Point2D> polygon;
         size_t viewport;
@@ -135,16 +113,6 @@ namespace pg
         float opacity = 1.0f; // Default opacity
 
         float aliveTime = 0.0f; // Time the polygon has been alive (for animations or effects)
-
-        inline void setOpacity(float newOpacity)
-        {
-            opacity = newOpacity;
-
-            if (ecsRef)
-            {
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }
-        }
     };
 
     struct PolygonComponentSystem : public SimpleRenderer<PolygonComponent>
