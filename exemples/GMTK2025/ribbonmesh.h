@@ -51,7 +51,7 @@ namespace pg {
         float m_repeatValue;
     };
 
-    struct RibbonComponent : public Ctor
+    struct RibbonComponent : public Component
     {
         RibbonComponent(const std::string& textureName,
                         const std::vector<Point2D>& path,
@@ -63,45 +63,12 @@ namespace pg {
                         repeatBySize(repeatBySize), repeatValue(repeatValue), viewport(viewport)
         {}
 
-        RibbonComponent(const RibbonComponent& other) : ecsRef(other.ecsRef), entityId(other.entityId),
-            textureName(other.textureName), path(other.path), width(other.width),
-            repeatBySize(other.repeatBySize), repeatValue(other.repeatValue),
-            viewport(other.viewport), clean(other.clean)
-        {}
+        DEFAULT_COMPONENT_MEMBERS(RibbonComponent)
 
-        RibbonComponent& operator=(const RibbonComponent& other)
+        inline void setPath(const std::vector<Point2D>& newPath)
         {
-            ecsRef = other.ecsRef;
-            entityId = other.entityId;
-            textureName = other.textureName;
-            path = other.path;
-            width = other.width;
-            repeatBySize = other.repeatBySize;
-            repeatValue = other.repeatValue;
-            viewport = other.viewport;
-
-            clean = other.clean;
-
-            return *this;
+            setValue(path, newPath);
         }
-
-        virtual void onCreation(EntityRef entity)
-        {
-            ecsRef = entity->world();
-            entityId = entity->id;
-        }
-
-        void setPath(const std::vector<Point2D>& newPath)
-        {
-            path = newPath;
-
-            ecsRef->sendEvent(EntityChangedEvent{entityId});
-
-            clean = false; // Mark as dirty to regenerate the mesh
-        }
-
-        EntitySystem* ecsRef;
-        _unique_id entityId;
 
         std::string textureName;
         std::vector<Point2D> path;
@@ -109,8 +76,6 @@ namespace pg {
         bool repeatBySize;
         float repeatValue;
         size_t viewport;
-
-        bool clean = false;
     };
 
     struct TexturedRibbonComponentSystem : public SimpleRenderer<RibbonComponent>

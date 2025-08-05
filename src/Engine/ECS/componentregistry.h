@@ -16,6 +16,19 @@
 
 #include "Memory/elementtype.h"
 
+/**
+ * Macro that add all default members to a component
+ *
+ * @param TypeName Name of the type to add the members to
+ */
+#define DEFAULT_COMPONENT_MEMBERS(TypeName)             \
+    TypeName()                               = default; \
+    TypeName(const TypeName&)                = default; \
+    TypeName(TypeName&&) noexcept            = default; \
+    TypeName& operator=(const TypeName&)     = default; \
+    TypeName& operator=(TypeName&&) noexcept = default; \
+    ~TypeName() override                     = default;
+
 namespace pg
 {
     class InputSystem;
@@ -82,6 +95,22 @@ namespace pg
 
         EntitySystem* ecsRef = nullptr;
         _unique_id entityId = 0;
+
+        template <typename Type>
+        void setValue(Type& currentValue, const Type& value)
+        {
+            LOG_THIS_MEMBER("Component");
+
+            if (currentValue != value)
+            {
+                currentValue = value;
+
+                if (ecsRef)
+                {
+                    ecsRef->sendEvent(EntityChangedEvent{entityId});
+                }
+            }
+        }
     };
 
     /**
