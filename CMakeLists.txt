@@ -69,11 +69,11 @@ else()
         if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
         # set(CMAKE_CXX_FLAGS "-flto -Wall -Wextra -pthread -O3 -DNDEBUG")
         # set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
-        set(CMAKE_CXX_FLAGS "-Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
+        # set(CMAKE_CXX_FLAGS "-Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
         # -Wdouble-promotion
 
             # Only add -ftime-trace if compiler is Clang
-            # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
+            set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
 
             if (${ENABLE_TIME_TRACE})
                 if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")

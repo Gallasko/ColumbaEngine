@@ -515,7 +515,7 @@ namespace pg {
             {
                 tick += event.tick;
 
-                if (tick >= 40 and currentMousePos != mousePosList.back())
+                if (tick >= 16 and currentMousePos != mousePosList.back())
                 {
                     tick = 0.0f;
                     LOG_INFO("PointAggregator", "Mouse moved to: " << currentMousePos.x << ", " << currentMousePos.y);
