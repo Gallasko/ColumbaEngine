@@ -710,6 +710,8 @@ namespace pg
 
         inline void addRenderer(BaseAbstractRenderer* renderer) { renderers.push_back(renderer); }
 
+        inline size_t getNbMaterials() const { return nbMaterials; }
+
         inline size_t getNbGeneratedFrames() const { return nbGeneratedFrames; }
 
         inline size_t getNbRenderedFrames() const { return nbRenderedFrames; }
