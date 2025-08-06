@@ -155,8 +155,6 @@ set(ENGINESOURCE
     src/Engine/UI/uiconstant.cpp
     src/Engine/UI/uisystem.cpp
 )
-
-
 # Create the static library
 add_library(PgEngine STATIC ${ENGINESOURCE})
 
@@ -231,18 +229,36 @@ install(DIRECTORY ${GLTF_DIR}/include/
 
 # Install platform-specific headers for native builds
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # Install SDL2 headers
     install(DIRECTORY ${SDL2_DIR}/include/
-        DESTINATION include/SDL2
+        DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
 
+    # Install SDL2_mixer headers
+    install(DIRECTORY ${SDL2MIXER_DIR}/include/
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.h"
+    )
+
+    # Install SDL2_net headers
+    install(DIRECTORY ${SDL2NET_DIR}/
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.h"
+        PATTERN "CMakeLists.txt" EXCLUDE
+        PATTERN "*.c" EXCLUDE
+        PATTERN "*.cpp" EXCLUDE
+    )
+
+    # Install GLEW headers
     install(DIRECTORY ${GLEW_DIR}/include/
         DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
 
+    # Install FreeType headers
     install(DIRECTORY ${TTF_DIR}/include/
-        DESTINATION include/freetype2
+        DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
 endif()
