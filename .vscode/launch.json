@@ -7,13 +7,13 @@
             "request": "launch",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/debug",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/BasicTerminal"
+                "program": "${workspaceFolder}/release/GMTK2025"
             },
             "osx": {
                 "MIMode": "lldb",

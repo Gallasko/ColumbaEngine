@@ -2,6 +2,19 @@
 
 #include "logger.h"
 
+#include "Systems/basicsystems.h"
+#include "Systems/tween.h"
+
+#include "UI/ttftext.h"
+
+#include "2D/simple2dobject.h"
+
+#include "ribbonmesh.h"
+#include "polygonmesh.h"
+#include "enemyspawner.h"
+#include "pointaggregator.h"
+#include "bgscroller.h"
+
 using namespace pg;
 
 namespace {
@@ -57,6 +70,44 @@ void initGame() {
     mainWindow->initEngine();
 
     printf("Engine initialized ...\n");
+
+    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+
+#ifdef __EMSCRIPTEN__
+    // Need to fix this
+    ttfSys->registerFont("/res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("/res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("/res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+#else
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+#endif
+    // mainWindow->masterRenderer->processTextureRegister();
+
+    mainWindow->ecs.createSystem<TweenSystem>();
+
+    mainWindow->ecs.createSystem<FpsSystem>();
+
+    mainWindow->ecs.createSystem<BackgroundScrollerSystem>();
+
+    mainWindow->ecs.createSystem<MainCameraShake>(mainWindow->masterRenderer);
+
+    mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
+    mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
+
+    mainWindow->ecs.createSystem<EnemySpawnerSystem>();
+
+    mainWindow->ecs.succeed<MasterRenderer, MainCameraShake>();
+    mainWindow->ecs.succeed<MasterRenderer, TexturedRibbonComponentSystem>();
+    mainWindow->ecs.succeed<MasterRenderer, PolygonComponentSystem>();
+
+    mainWindow->ecs.createSystem<PointAggregator>();
+
+    mainWindow->ecs.succeed<PointAggregator, TexturedRibbonComponentSystem>();
+
+    mainWindow->ecs.succeed<PointAggregator, PolygonComponentSystem>();
+    mainWindow->ecs.succeed<MasterRenderer, PointAggregator>();
 
     mainWindow->ecs.dumbTaskflow();
 

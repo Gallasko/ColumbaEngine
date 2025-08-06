@@ -541,8 +541,8 @@ namespace pg
 
             case SDL_MOUSEMOTION:
             {
-                MousePos currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
-                MousePos mouseDelta {(mousePos.x - currentPos.x) * xSensitivity, (currentPos.y - mousePos.y) * ySensitivity};
+                Point2D currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
+                Point2D mouseDelta {(mousePos.x - currentPos.x) * xSensitivity, (currentPos.y - mousePos.y) * ySensitivity};
 
                 inputHandler->registerMouseMove(currentPos, mouseDelta);
 

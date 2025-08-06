@@ -14,6 +14,8 @@
 #include <fstream>
 #include <filesystem>
 
+#include "Maths/geometry.h"
+
 #include "logger.h"
 #include "configuration.h"
 #include "serialization.h"
@@ -28,6 +30,7 @@
 #include "ECS/entitysystem.h"
 #include "Renderer/renderer.h"
 
-#include <glm.hpp>
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 // #include <taskflow.hpp>

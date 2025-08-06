@@ -7,9 +7,6 @@
 
 #include "Renderer/renderer.h"
 
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
-
 #include "Helpers/openglobject.h"
 
 namespace pg

@@ -336,6 +336,14 @@ namespace pg
         std::cout << "Bottleneck system: " << bottleneckSystem
                   << " with average execution time: " << maxAvgTime << " ns" << std::endl;
 
+
+        for (const auto& event : registry.eventCountMap)
+        {
+            std::cout << "Event ID: " << event.first << ", called: " << event.second << std::endl;
+        }
+
+        registry.eventCountMap.clear();
+
         // Optional: Reset the counters if you want per-interval reporting.
         _systemExecutionTimes.clear();
         _systemExecutionCounts.clear();

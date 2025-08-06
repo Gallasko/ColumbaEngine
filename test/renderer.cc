@@ -101,9 +101,34 @@ namespace pg
             EXPECT_EQ(v[1].getDepth(), +5);
         }
 
+        TEST(renderer_test, register_material)
+        {
+            MasterRenderer masterRenderer;
+
+            EXPECT_EQ(masterRenderer.getNbMaterials(), 0ull);
+
+            masterRenderer.registerMaterial("testMaterial", Material());
+
+            EXPECT_EQ(masterRenderer.getNbMaterials(), 0ull);
+
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
+            EXPECT_EQ(masterRenderer.getNbMaterials(), 1ull);
+
+            EXPECT_TRUE(masterRenderer.hasMaterial("testMaterial"));
+            EXPECT_EQ(masterRenderer.getMaterialID("testMaterial"), 0ull);
+        }
+
         TEST(renderer_test, basic_render)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
             RenderCall call1, call2;
@@ -135,6 +160,11 @@ namespace pg
         TEST(renderer_test, basic_render_not_batchable)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
             RenderCall call1, call2;
@@ -167,6 +197,12 @@ namespace pg
         TEST(renderer_test, render_different_state)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            masterRenderer.registerMaterial("testMaterial2", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
             RenderCall call1, call2;
@@ -188,10 +224,16 @@ namespace pg
         TEST(renderer_test, render_multiple_keys_sorted)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            masterRenderer.registerMaterial("testMaterial2", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
-            RenderCall call1(true, RenderStage::Render, OpacityType::Opaque, 0, 2);
-            RenderCall call2(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
+            RenderCall call1(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
+            RenderCall call2(true, RenderStage::Render, OpacityType::Opaque, 0, 0);
             call1.data.push_back(200.0f);
             call2.data.push_back(100.0f);
 
@@ -201,17 +243,42 @@ namespace pg
 
             const auto& calls = masterRenderer.getRenderCalls(1);
             ASSERT_EQ(calls.size(), 2u);
-            EXPECT_EQ(calls[0].getMaterialId(), 1ull);
-            EXPECT_EQ(calls[1].getMaterialId(), 2ull);
+            EXPECT_EQ(calls[0].getMaterialId(), 0ull);
+            EXPECT_EQ(calls[1].getMaterialId(), 1ull);
+        }
+
+        TEST(renderer_test, render_skip_invisible_calls)
+        {
+            MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
+            MockRenderer renderer(&masterRenderer, RenderStage::Render);
+
+            RenderCall hidden(false, RenderStage::Render, OpacityType::Opaque, 0, 0);
+
+            renderer.addRenderCall(hidden);
+            masterRenderer.execute();
+
+            const auto& calls = masterRenderer.getRenderCalls(1);
+            ASSERT_EQ(calls.size(), 0);
         }
 
         TEST(renderer_test, render_visibility_order)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            masterRenderer.registerMaterial("testMaterial2", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
-            RenderCall hidden(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
-            RenderCall visible(true, RenderStage::Render, OpacityType::Opaque, 0, 2);
+            RenderCall hidden(true, RenderStage::Render, OpacityType::Opaque, 0, 0);
+            RenderCall visible(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
             hidden.setVisibility(false);
 
             renderer.addRenderCall(hidden);
@@ -219,20 +286,24 @@ namespace pg
             masterRenderer.execute();
 
             const auto& calls = masterRenderer.getRenderCalls(1);
-            ASSERT_EQ(calls.size(), 2);
+            ASSERT_EQ(calls.size(), 1);
             EXPECT_TRUE(calls[0].getVisibility());
-            EXPECT_FALSE(calls[1].getVisibility());
         }
 
         TEST(renderer_test, render_scissor_grouping)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
-            RenderCall a(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
-            RenderCall b(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
+            RenderCall a(true, RenderStage::Render, OpacityType::Opaque, 0, 0);
+            RenderCall b(true, RenderStage::Render, OpacityType::Opaque, 0, 0);
             a.state.scissorEnabled = true;
-            b.state.scissorBound = {10,10,100,100};
+            b.state.scissorBound = {10, 10, 100, 100};
 
             a.data.push_back(5.0f);
             b.data.push_back(6.0f);
@@ -251,6 +322,11 @@ namespace pg
         TEST(renderer_test, complex_batching_sequence)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
             // call1 and call2 merge
@@ -285,11 +361,16 @@ namespace pg
         TEST(renderer_test, render_state_sorting)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
             // Two calls same key, different state
-            RenderCall callA(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
-            RenderCall callB(true, RenderStage::Render, OpacityType::Opaque, 0, 1);
+            RenderCall callA(true, RenderStage::Render, OpacityType::Opaque, 0, 0);
+            RenderCall callB(true, RenderStage::Render, OpacityType::Opaque, 0, 0);
             callA.state.scissorBound = {0, 0, 10, 10};
             callB.state.scissorBound = {5, 5, 15, 15};
 
@@ -306,6 +387,11 @@ namespace pg
         TEST(renderer_test, chained_batching_three_calls)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
             RenderCall call1, call2, call3;
@@ -320,12 +406,17 @@ namespace pg
 
             const auto& calls = masterRenderer.getRenderCalls(1);
             ASSERT_EQ(calls.size(), 1u);
-            EXPECT_EQ(calls[0].data, (std::vector<float>{1,2,3}));
+            EXPECT_EQ(calls[0].data, (std::vector<float>{1, 2, 3}));
         }
 
         TEST(renderer_test, zero_data_calls)
         {
             MasterRenderer masterRenderer;
+            masterRenderer.registerMaterial("testMaterial", Material());
+            // Need to execute and render to finalize the material registration
+            masterRenderer.execute();
+            masterRenderer.renderAll();
+
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
             RenderCall call1, call2;

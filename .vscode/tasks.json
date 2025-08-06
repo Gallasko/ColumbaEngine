@@ -100,8 +100,9 @@
                     "--config",
                     "Release",
                     "--target",
-                    "BasicTerminal",
-                    // "PgEngine",
+                    "GMTK2025",
+                    // "PgEngineEditor",
+                    // "PixelJam",
                     "-j",
                     "8"
                 ]

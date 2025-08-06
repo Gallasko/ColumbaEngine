@@ -6,16 +6,11 @@
 #include <SDL_scancode.h>
 #include <SDL_gamecontroller.h>
 
+#include "Maths/geometry.h"
+
 namespace pg
 {
 	typedef uint8_t MouseButton;
-
-	struct MousePos
-	{
-		float x = 0.0f, y = 0.0f;
-
-		MousePos& operator+=(const MousePos& rhs) { x += rhs.x; y += rhs.y; return *this; }
-	};
 
 	class Input
 	{
@@ -62,7 +57,7 @@ namespace pg
 
 		Input::InputState registerKeyInput(const SDL_Scancode& key, const Input::InputState& state);
 		Input::InputState registerMouseInput(const MouseButton& button, const Input::InputState& state);
-		Input::InputState registerMouseMove(const MousePos& mousePos, const MousePos& mouseDelta);
+		Input::InputState registerMouseMove(const Point2D& mousePos, const Point2D& mouseDelta);
 		Input::InputState registerGamepadInput(const SDL_GameControllerButton& button, const Input::InputState& state);
 		Input::InputState registerGamepadAxisMove(const MouseButton& button, const Input::InputState& state);
 
@@ -86,8 +81,8 @@ namespace pg
 
 		// Todo gamepad axis
 
-		const MousePos& getMousePos() const;
-		const MousePos& getMouseDelta() const;
+		const Point2D& getMousePos() const;
+		const Point2D& getMouseDelta() const;
 
 		void addGamepad(SDL_GameController *controller);
 		void removeGamepad();
@@ -106,8 +101,8 @@ namespace pg
 		std::vector<Input::ButtonInstance> buttonContainer;
 		std::vector<SDL_GameController*> gamepadContainer;
 		// Todo game pad button and axis holders
-		MousePos mousePos;
-		MousePos mouseDelta;
+		Point2D mousePos;
+		Point2D mouseDelta;
 
 		template <typename Container, typename Value>
 		int findInputPos(const Value& value, const Container& container) const;

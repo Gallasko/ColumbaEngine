@@ -63,7 +63,7 @@ namespace pg
 
     struct OnMouseClick : public Component
     {
-        OnMouseClick(const MousePos& pos, const MouseButton& button) : pos(pos), button(button) { }
+        OnMouseClick(const Point2D& pos, const MouseButton& button) : pos(pos), button(button) { }
         OnMouseClick(const OnMouseClick& other) : pos(other.pos), button(other.button) { }
 
         OnMouseClick& operator=(const OnMouseClick& other)
@@ -74,13 +74,13 @@ namespace pg
             return *this;
         }
 
-        MousePos pos;
+        Point2D pos;
         MouseButton button;
     };
 
     struct OnMouseRelease : public Component
     {
-        OnMouseRelease(const MousePos& pos, const MouseButton& button) : pos(pos), button(button) { }
+        OnMouseRelease(const Point2D& pos, const MouseButton& button) : pos(pos), button(button) { }
         OnMouseRelease(const OnMouseRelease& other) : pos(other.pos), button(other.button) { }
 
         OnMouseRelease& operator=(const OnMouseRelease& other)
@@ -91,7 +91,7 @@ namespace pg
             return *this;
         }
 
-        MousePos pos;
+        Point2D pos;
         MouseButton button;
     };
 
@@ -127,7 +127,7 @@ namespace pg
 
     struct OnMouseMove
     {
-        MousePos pos;
+        Point2D pos;
         Input *inputHandler;
     };
 
@@ -201,7 +201,7 @@ namespace pg
         void callCallback(const MouseButton& button, _unique_id id);
 
         Input *inputHandler;
-        MousePos oldMousePos;
+        Point2D oldMousePos;
         std::set<MouseAreaZ, std::greater<>> mouseLeftAreaPressHolder;
         std::set<MouseAreaZ, std::greater<>> mouseLeftAreaReleaseHolder;
         std::set<MouseAreaZ, std::greater<>> mouseRightAreaPressHolder;
@@ -341,7 +341,7 @@ namespace pg
         // Listen for mouse move events.
         virtual void onEvent(const OnMouseMove& event) override
         {
-            MousePos mousePos = event.pos;
+            Point2D mousePos = event.pos;
             // Iterate over all entities in our hover state.
             for (auto& pair : hoverState)
             {

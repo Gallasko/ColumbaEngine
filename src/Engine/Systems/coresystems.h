@@ -11,7 +11,7 @@
 
 namespace pg
 {
-    constexpr int TickRateMilliseconds = 20;
+    constexpr int TickRateMilliseconds = 16;
 
     // Todo add all the logger thing to all those systems and doc too
 
@@ -162,8 +162,7 @@ namespace pg
 
     struct Timer: public Component
     {
-        Timer() {}
-        Timer(const Timer& other) : interval(other.interval), currentTime(other.currentTime), running(other.running), oneShot(other.oneShot), callback(other.callback) {}
+        DEFAULT_COMPONENT_MEMBERS(Timer)
 
         void start()
         {

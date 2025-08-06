@@ -22,8 +22,6 @@
 #include <GL/gl.h>
 #endif
 
-#include <glm.hpp>
-
 
 namespace pg
 {
@@ -72,7 +70,14 @@ namespace pg
     {
     public:
         OpenGLVertexArrayObject() { LOG_THIS_MEMBER("OpenGLVertexArrayObject"); }
-        ~OpenGLVertexArrayObject() { LOG_THIS_MEMBER("OpenGLVertexArrayObject"); if(created) glDeleteVertexArrays(1, &VAO); }
+
+        ~OpenGLVertexArrayObject()
+        {
+            LOG_THIS_MEMBER("OpenGLVertexArrayObject");
+
+            if (created and (not (VAO != static_cast<unsigned int>(-1))))
+                glDeleteVertexArrays(1, &VAO);
+        }
 
         OpenGLVertexArrayObject(const OpenGLVertexArrayObject&) = delete;
         OpenGLVertexArrayObject& operator=(const OpenGLVertexArrayObject&) = delete;
@@ -92,7 +97,7 @@ namespace pg
             LOG_THIS_MEMBER("OpenGLVertexArrayObject");
 
             /* Bind our Vertex Array Object as the current used object */
-            if(created)
+            if (created)
                 glBindVertexArray(VAO);
             else
             {
@@ -104,7 +109,7 @@ namespace pg
         {
             LOG_THIS_MEMBER("OpenGLVertexArrayObject");
 
-            if(created)
+            if (created)
                 glBindVertexArray(0);
             else
             {
