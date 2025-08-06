@@ -12,6 +12,26 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
+        TEST(layout_test, layout_creation)
+        {
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto layoutSystem = ecs.createSystem<LayoutSystem>();
+            ecs.succeed<PositionComponentSystem, LayoutSystem>();
+
+            // Create a horizontal layout
+            auto layoutEntity = ecs.createEntity();
+            auto layout = ecs.attach<HorizontalLayout>(layoutEntity);
+            auto layoutPos = ecs.attach<PositionComponent>(layoutEntity);
+            ecs.attach<UiAnchor>(layoutEntity);
+
+            EXPECT_EQ(layout->entities.size(), 0);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
         TEST(layout_test, add_entities_to_layout)
         {
             EntitySystem ecs;
@@ -31,6 +51,8 @@ namespace pg
             layoutPos->setWidth(200.0f);
             layoutPos->setHeight(50.0f);
 
+            EXPECT_EQ(layout->entities.size(), 0);
+
             // Create an entity to add to the layout
             auto childEntity = ecs.createEntity();
             auto childPos = ecs.attach<PositionComponent>(childEntity);
@@ -47,7 +69,11 @@ namespace pg
             layoutSystem->_execute();
 
             EXPECT_EQ(layout->entities.size(), 1);
-            EXPECT_EQ(layout->entities[0].id, childEntity.id);
+            if (layout->entities.size() > 0)
+            {
+                // Check if the child entity was added correctly
+                EXPECT_EQ(layout->entities[0].id, childEntity.id);
+            }
         }
 
         // ----------------------------------------------------------------------------------------

@@ -770,7 +770,7 @@ namespace pg
                 index = static_cast<int>(view->entities.size()) + index + 1;
             }
 
-            if (index < 0 or index >= static_cast<int>(view->entities.size()))
+            if (index < 0 or index > static_cast<int>(view->entities.size()))
             {
                 LOG_ERROR(DOM, "Index " << index << " is out of bounds for layout with id: " << viewEnt.id);
                 return;
@@ -847,7 +847,7 @@ namespace pg
                 if (not view->childrenAdded)
                     view->yOffset = std::max(0.0f, view->contentHeight - viewUi->height + entUi->height);
                 else
-                    view->xOffset += entUi->height;
+                    view->yOffset += entUi->height;
             }
 
             view->childrenAdded = true;

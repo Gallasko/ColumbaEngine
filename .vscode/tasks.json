@@ -101,7 +101,7 @@
                     "Release",
                     "--target",
                     "GMTK2025",
-                    // "PgEngine",
+                    // "PgEngineEditor",
                     // "PixelJam",
                     "-j",
                     "8"
