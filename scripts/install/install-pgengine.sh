@@ -8,9 +8,9 @@ set -e  # Exit on any error
 
 # Configuration
 PGENGINE_VERSION="${PGENGINE_VERSION:-main}"  # Can be set via environment variable
-PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/Gallasko/PgEngine.git}"  # Update this!
+PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/YourUsername/PgEngine.git}"  # Update this!
 INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
-INSTALL_DIR="${HOME}/pgengine-install"
+INSTALL_DIR="${INSTALL_DIR:-$HOME/pgengine-install}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
 
 # Colors for output
@@ -124,6 +124,7 @@ install_dependencies() {
 # Download PgEngine source
 download_pgengine() {
     log_info "Downloading PgEngine version: $PGENGINE_VERSION"
+    log_info "Working directory: $INSTALL_DIR"
 
     if [[ -d "$INSTALL_DIR" ]]; then
         log_warning "Directory $INSTALL_DIR already exists"
@@ -137,7 +138,14 @@ download_pgengine() {
         fi
     fi
 
+    # Create directory with explicit permissions
     mkdir -p "$INSTALL_DIR"
+    if [[ ! -w "$INSTALL_DIR" ]]; then
+        log_error "Cannot write to directory: $INSTALL_DIR"
+        log_info "Please ensure you have write permissions to this location"
+        exit 1
+    fi
+
     cd "$INSTALL_DIR"
 
     git clone --recursive "$PGENGINE_REPO" pgengine
@@ -147,7 +155,7 @@ download_pgengine() {
         git checkout "$PGENGINE_VERSION"
     fi
 
-    log_success "PgEngine source downloaded"
+    log_success "PgEngine source downloaded to: $INSTALL_DIR/pgengine"
 }
 
 # Build PgEngine
