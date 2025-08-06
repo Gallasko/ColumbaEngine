@@ -1,5 +1,65 @@
 # PgEngine configuration file for bundled dependencies
 
+# Check if we're building for Emscripten
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # For Emscripten, we don't need to link static libraries
+    # Everything is handled through Emscripten's system
+
+    # Get the installation prefix from this file's location
+    get_filename_component(PgEngine_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+    get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_CMAKE_DIR}/../../../" ABSOLUTE)
+
+    # Set up paths
+    set(PgEngine_INCLUDE_DIR "${PgEngine_INSTALL_PREFIX}/include")
+    set(PgEngine_LIB_DIR "${PgEngine_INSTALL_PREFIX}/lib")
+
+    # Find the main PgEngine library
+    find_library(PgEngine_LIBRARY
+        NAMES PgEngine libPgEngine
+        PATHS ${PgEngine_LIB_DIR}
+        NO_DEFAULT_PATH
+    )
+
+    if(NOT PgEngine_LIBRARY)
+        set(PgEngine_FOUND FALSE)
+        if(PgEngine_FIND_REQUIRED)
+            message(FATAL_ERROR "PgEngine library not found in ${PgEngine_LIB_DIR}")
+        endif()
+        return()
+    endif()
+
+    # Create imported target for Emscripten
+    if(NOT TARGET PgEngine::PgEngine)
+        add_library(PgEngine::PgEngine STATIC IMPORTED)
+
+        set_target_properties(PgEngine::PgEngine PROPERTIES
+            IMPORTED_LOCATION "${PgEngine_LIBRARY}"
+        )
+
+        # Set include directories
+        target_include_directories(PgEngine::PgEngine INTERFACE
+            "${PgEngine_INCLUDE_DIR}"
+            "${PgEngine_INCLUDE_DIR}/PgEngine"
+            "${PgEngine_INCLUDE_DIR}/PgEngine/GameElements"
+        )
+
+        # For Emscripten, no additional libraries needed
+        # SDL2, OpenGL, etc. are provided by the Emscripten system
+    endif()
+
+    set(PgEngine_FOUND TRUE)
+    set(PgEngine_LIBRARIES ${PgEngine_LIBRARY})
+    set(PgEngine_INCLUDE_DIRS ${PgEngine_INCLUDE_DIR})
+
+    message(STATUS "PgEngine configuration complete (Emscripten)")
+    message(STATUS "PgEngine library: ${PgEngine_LIBRARY}")
+    message(STATUS "PgEngine include dir: ${PgEngine_INCLUDE_DIR}")
+
+    return()
+endif()
+
+# Native build configuration (existing code follows)
+
 # Get the installation prefix from this file's location
 get_filename_component(PgEngine_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_CMAKE_DIR}/../../../" ABSOLUTE)
