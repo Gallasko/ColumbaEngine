@@ -1234,6 +1234,22 @@ namespace pg
     }
 
     template <typename Type>
+    void Component::setValue(Type& currentValue, const Type& value)
+    {
+        LOG_THIS_MEMBER("Component");
+
+        if (currentValue != value)
+        {
+            currentValue = value;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
+        }
+    }
+
+    template <typename Type>
     void CommandDispatcher::ComponentCreateCommand::setupFunctions()
     {
         LOG_THIS_MEMBER("Command Dispatcher");

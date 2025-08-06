@@ -97,20 +97,7 @@ namespace pg
         _unique_id entityId = 0;
 
         template <typename Type>
-        void setValue(Type& currentValue, const Type& value)
-        {
-            LOG_THIS_MEMBER("Component");
-
-            if (currentValue != value)
-            {
-                currentValue = value;
-
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
+        void setValue(Type& currentValue, const Type& value);
     };
 
     /**
