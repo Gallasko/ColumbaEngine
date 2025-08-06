@@ -1,17 +1,14 @@
-@PACKAGE_INIT@
+# PgEngine configuration file for bundled dependencies
 
-include(CMakeFindDependencyMacro)
-
-# Set up package variables
+# Get the installation prefix from this file's location
 get_filename_component(PgEngine_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
-get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_CMAKE_DIR}" PATH)
-get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_INSTALL_PREFIX}" PATH)
-get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_INSTALL_PREFIX}" PATH)
+get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_CMAKE_DIR}/../../../" ABSOLUTE)
 
+# Set up paths
 set(PgEngine_INCLUDE_DIR "${PgEngine_INSTALL_PREFIX}/include")
 set(PgEngine_LIB_DIR "${PgEngine_INSTALL_PREFIX}/lib")
 
-# Find the static library
+# Find the main PgEngine library
 find_library(PgEngine_LIBRARY
     NAMES PgEngine libPgEngine
     PATHS ${PgEngine_LIB_DIR}
@@ -21,47 +18,123 @@ find_library(PgEngine_LIBRARY
 if(NOT PgEngine_LIBRARY)
     set(PgEngine_FOUND FALSE)
     if(PgEngine_FIND_REQUIRED)
-        message(FATAL_ERROR "PgEngine library not found")
+        message(FATAL_ERROR "PgEngine library not found in ${PgEngine_LIB_DIR}")
     endif()
     return()
 endif()
+
+# Find all the bundled static libraries that were built with PgEngine
+# These should have been installed alongside PgEngine
+find_library(SDL2_STATIC_LIB NAMES SDL2-static libSDL2-static SDL2 libSDL2 PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
+find_library(SDL2_MIXER_STATIC_LIB NAMES SDL2_mixer-static libSDL2_mixer-static SDL2_mixer libSDL2_mixer PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
+find_library(SDL2_NET_STATIC_LIB NAMES SDL2_net-static libSDL2_net-static SDL2_net libSDL2_net PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
+find_library(GLEW_STATIC_LIB NAMES glew_static libglew_static glew-static libglew-static PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
+find_library(FREETYPE_STATIC_LIB NAMES freetype libfreetype PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
+
+# Find required system dependencies (only the ones not bundled)
+find_package(OpenGL REQUIRED)
 
 # Create imported target if it doesn't exist
 if(NOT TARGET PgEngine::PgEngine)
     add_library(PgEngine::PgEngine STATIC IMPORTED)
 
+    # Set the library location
     set_target_properties(PgEngine::PgEngine PROPERTIES
         IMPORTED_LOCATION "${PgEngine_LIBRARY}"
-        INTERFACE_INCLUDE_DIRECTORIES "${PgEngine_INCLUDE_DIR};${PgEngine_INCLUDE_DIR}/PgEngine;${PgEngine_INCLUDE_DIR}/PgEngine/GameElements"
     )
 
-    # Set up system dependencies that consuming projects need to link
-    if(NOT EMSCRIPTEN)
-        find_package(OpenGL REQUIRED)
+    # Set include directories
+    target_include_directories(PgEngine::PgEngine INTERFACE
+        "${PgEngine_INCLUDE_DIR}"
+        "${PgEngine_INCLUDE_DIR}/PgEngine"
+        "${PgEngine_INCLUDE_DIR}/PgEngine/GameElements"
+    )
 
-        # On Linux/Windows, consumers need to link system libraries
-        if(UNIX AND NOT APPLE)
-            set_property(TARGET PgEngine::PgEngine APPEND PROPERTY
-                INTERFACE_LINK_LIBRARIES
-                OpenGL::GL
-                ${CMAKE_DL_LIBS}
-                pthread
-            )
-        elseif(WIN32)
-            set_property(TARGET PgEngine::PgEngine APPEND PROPERTY
-                INTERFACE_LINK_LIBRARIES
-                OpenGL::GL
-                winmm
-                version
-                setupapi
-                imm32
-            )
-        endif()
+    # Build the list of libraries to link
+    set(PgEngine_LINK_LIBRARIES OpenGL::GL)
+
+    # Add bundled libraries if found
+    if(SDL2_STATIC_LIB)
+        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_STATIC_LIB})
+        message(STATUS "Found bundled SDL2: ${SDL2_STATIC_LIB}")
     endif()
+
+    if(SDL2_MIXER_STATIC_LIB)
+        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_MIXER_STATIC_LIB})
+        message(STATUS "Found bundled SDL2_mixer: ${SDL2_MIXER_STATIC_LIB}")
+    endif()
+
+    if(SDL2_NET_STATIC_LIB)
+        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_NET_STATIC_LIB})
+        message(STATUS "Found bundled SDL2_net: ${SDL2_NET_STATIC_LIB}")
+    endif()
+
+    if(GLEW_STATIC_LIB)
+        list(APPEND PgEngine_LINK_LIBRARIES ${GLEW_STATIC_LIB})
+        message(STATUS "Found bundled GLEW: ${GLEW_STATIC_LIB}")
+    endif()
+
+    if(FREETYPE_STATIC_LIB)
+        list(APPEND PgEngine_LINK_LIBRARIES ${FREETYPE_STATIC_LIB})
+        message(STATUS "Found bundled FreeType: ${FREETYPE_STATIC_LIB}")
+    endif()
+
+    # Add system libraries that are still needed
+    if(UNIX AND NOT APPLE)
+        list(APPEND PgEngine_LINK_LIBRARIES
+            pthread
+            ${CMAKE_DL_LIBS}
+            m  # math library
+        )
+
+        # Additional system libraries that SDL/OpenGL might need
+        find_library(X11_LIB X11)
+        find_library(XEXT_LIB Xext)
+        find_library(ASOUND_LIB asound)  # ALSA for audio
+        find_library(PULSE_LIB pulse)    # PulseAudio
+        find_library(UDEV_LIB udev)      # udev for input
+
+        if(X11_LIB)
+            list(APPEND PgEngine_LINK_LIBRARIES ${X11_LIB})
+        endif()
+        if(XEXT_LIB)
+            list(APPEND PgEngine_LINK_LIBRARIES ${XEXT_LIB})
+        endif()
+        if(ASOUND_LIB)
+            list(APPEND PgEngine_LINK_LIBRARIES ${ASOUND_LIB})
+        endif()
+        if(PULSE_LIB)
+            list(APPEND PgEngine_LINK_LIBRARIES ${PULSE_LIB})
+        endif()
+        if(UDEV_LIB)
+            list(APPEND PgEngine_LINK_LIBRARIES ${UDEV_LIB})
+        endif()
+
+    elseif(WIN32)
+        list(APPEND PgEngine_LINK_LIBRARIES
+            winmm
+            version
+            setupapi
+            imm32
+            ole32
+            oleaut32
+            shell32
+            gdi32
+            user32
+        )
+    endif()
+
+    # Link all libraries
+    target_link_libraries(PgEngine::PgEngine INTERFACE ${PgEngine_LINK_LIBRARIES})
 endif()
 
 # Set found flag
 set(PgEngine_FOUND TRUE)
 
-# Don't use check_required_components since we're not using exported targets
-# check_required_components(PgEngine)
+# Provide some useful variables
+set(PgEngine_LIBRARIES ${PgEngine_LIBRARY})
+set(PgEngine_INCLUDE_DIRS ${PgEngine_INCLUDE_DIR})
+
+message(STATUS "PgEngine configuration complete")
+message(STATUS "PgEngine library: ${PgEngine_LIBRARY}")
+message(STATUS "PgEngine include dir: ${PgEngine_INCLUDE_DIR}")
