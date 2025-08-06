@@ -2,7 +2,7 @@ name: Test Installation Scripts
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, dev ]
     paths:
       - 'scripts/**'
       - '.github/workflows/test-installation.yml'
