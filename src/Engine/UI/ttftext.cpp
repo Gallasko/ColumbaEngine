@@ -21,8 +21,6 @@
 #include <GL/gl.h>
 #endif
 
-#include <glm.hpp>
-
 namespace pg
 {
     namespace

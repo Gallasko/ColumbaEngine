@@ -5,9 +5,6 @@
 #include "Helpers/openglobject.h"
 #include "Files/fileparser.h"
 
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
-
 namespace pg
 {
     namespace

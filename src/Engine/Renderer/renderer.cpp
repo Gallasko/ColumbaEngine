@@ -8,9 +8,6 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
-
 #include "logger.h"
 
 #include "Helpers/openglobject.h"
@@ -619,7 +616,7 @@ namespace pg
         // This should never happens anymore
         // if (not call.getVisibility())
         //     return;
-        
+
         // Todo initialize material in another call !
         if (not call.mesh->initialized)
         {
@@ -750,7 +747,7 @@ namespace pg
         }
 
         call.mesh->bind();
-        
+
         call.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
 
         glDrawElementsInstanced(GL_TRIANGLES, call.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0, call.nbElements);
