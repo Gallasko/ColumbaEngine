@@ -194,56 +194,26 @@ else()
     target_link_libraries(PgEngine PUBLIC SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static SDL2_net::SDL2_net-static glm libglew_static freetype)
 endif()
 
-# Installation for vendoring approach - Install PgEngine and all its dependencies
+# Installation for vendoring approach - Install PgEngine and find built libraries
 install(TARGETS PgEngine
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
 )
 
-# Install all the static libraries we built (using real target names, not aliases)
+# Custom command to find and install all built static libraries
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    # Install SDL2 static libraries (real target names)
-    if(TARGET SDL2-static)
-        install(TARGETS SDL2-static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-    if(TARGET SDL2main)
-        install(TARGETS SDL2main ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-
-    # Install SDL2_mixer static library
-    if(TARGET SDL2_mixer-static)
-        install(TARGETS SDL2_mixer-static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-
-    # Install SDL2_net static library
-    if(TARGET SDL2_net-static)
-        install(TARGETS SDL2_net-static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-
-    # Install GLEW static library
-    if(TARGET libglew_static)
-        install(TARGETS libglew_static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-
-    # Install FreeType library
-    if(TARGET freetype)
-        install(TARGETS freetype ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-
-    # Also try common alternative target names in case the above don't exist
-    if(TARGET SDL2_static)
-        install(TARGETS SDL2_static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-    if(TARGET SDL2_mixer_static)
-        install(TARGETS SDL2_mixer_static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-    if(TARGET SDL2_net_static)
-        install(TARGETS SDL2_net_static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
-    if(TARGET glew_static)
-        install(TARGETS glew_static ARCHIVE DESTINATION lib OPTIONAL)
-    endif()
+    install(CODE "
+        file(GLOB_RECURSE BUILT_LIBS \"${CMAKE_CURRENT_BINARY_DIR}/*.a\")
+        foreach(lib_file \${BUILT_LIBS})
+            get_filename_component(lib_name \"\${lib_file}\" NAME)
+            # Skip PgEngine library (already installed) and object libraries
+            if(NOT \"\${lib_name}\" MATCHES \"PgEngine\" AND NOT \"\${lib_name}\" MATCHES \"\\\\.dir\")
+                message(STATUS \"Installing dependency library: \${lib_name}\")
+                file(INSTALL \"\${lib_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/lib\")
+            endif()
+        endforeach()
+    ")
 endif()
 
 # Install ALL headers including dependencies

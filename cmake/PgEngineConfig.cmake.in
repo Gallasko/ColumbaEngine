@@ -23,16 +23,38 @@ if(NOT PgEngine_LIBRARY)
     return()
 endif()
 
-# Find all the bundled static libraries that were built with PgEngine
-# These should have been installed alongside PgEngine
-find_library(SDL2_STATIC_LIB NAMES SDL2-static libSDL2-static SDL2 libSDL2 PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
-find_library(SDL2_MIXER_STATIC_LIB NAMES SDL2_mixer-static libSDL2_mixer-static SDL2_mixer libSDL2_mixer PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
-find_library(SDL2_NET_STATIC_LIB NAMES SDL2_net-static libSDL2_net-static SDL2_net libSDL2_net PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
-find_library(GLEW_STATIC_LIB NAMES glew_static libglew_static glew-static libglew-static PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
-find_library(FREETYPE_STATIC_LIB NAMES freetype libfreetype PATHS ${PgEngine_LIB_DIR} NO_DEFAULT_PATH)
-
 # Find required system dependencies (only the ones not bundled)
 find_package(OpenGL REQUIRED)
+
+# Function to find library with multiple possible names
+function(find_bundled_library var_name)
+    set(lib_names ${ARGN})
+    foreach(name ${lib_names})
+        find_library(${var_name}
+            NAMES ${name}
+            PATHS ${PgEngine_LIB_DIR}
+            NO_DEFAULT_PATH
+        )
+        if(${var_name})
+            message(STATUS "Found bundled ${name}: ${${var_name}}")
+            break()
+        endif()
+    endforeach()
+endfunction()
+
+# Find all the bundled static libraries with various possible names
+find_bundled_library(SDL2_STATIC_LIB
+    SDL2-static libSDL2-static SDL2 libSDL2 SDL2_static libSDL2_static)
+find_bundled_library(SDL2MAIN_STATIC_LIB
+    SDL2main libSDL2main SDL2Main libSDL2Main)
+find_bundled_library(SDL2_MIXER_STATIC_LIB
+    SDL2_mixer-static libSDL2_mixer-static SDL2_mixer libSDL2_mixer SDL2_mixer_static libSDL2_mixer_static)
+find_bundled_library(SDL2_NET_STATIC_LIB
+    SDL2_net-static libSDL2_net-static SDL2_net libSDL2_net SDL2_net_static libSDL2_net_static)
+find_bundled_library(GLEW_STATIC_LIB
+    libglew_static glew_static GLEW_static libGLEW_static glew libglew GLEW libGLEW)
+find_bundled_library(FREETYPE_STATIC_LIB
+    freetype libfreetype freetype_static libfreetype_static)
 
 # Create imported target if it doesn't exist
 if(NOT TARGET PgEngine::PgEngine)
@@ -56,27 +78,26 @@ if(NOT TARGET PgEngine::PgEngine)
     # Add bundled libraries if found
     if(SDL2_STATIC_LIB)
         list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_STATIC_LIB})
-        message(STATUS "Found bundled SDL2: ${SDL2_STATIC_LIB}")
+    endif()
+
+    if(SDL2MAIN_STATIC_LIB)
+        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2MAIN_STATIC_LIB})
     endif()
 
     if(SDL2_MIXER_STATIC_LIB)
         list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_MIXER_STATIC_LIB})
-        message(STATUS "Found bundled SDL2_mixer: ${SDL2_MIXER_STATIC_LIB}")
     endif()
 
     if(SDL2_NET_STATIC_LIB)
         list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_NET_STATIC_LIB})
-        message(STATUS "Found bundled SDL2_net: ${SDL2_NET_STATIC_LIB}")
     endif()
 
     if(GLEW_STATIC_LIB)
         list(APPEND PgEngine_LINK_LIBRARIES ${GLEW_STATIC_LIB})
-        message(STATUS "Found bundled GLEW: ${GLEW_STATIC_LIB}")
     endif()
 
     if(FREETYPE_STATIC_LIB)
         list(APPEND PgEngine_LINK_LIBRARIES ${FREETYPE_STATIC_LIB})
-        message(STATUS "Found bundled FreeType: ${FREETYPE_STATIC_LIB}")
     endif()
 
     # Add system libraries that are still needed
@@ -85,13 +106,20 @@ if(NOT TARGET PgEngine::PgEngine)
             pthread
             ${CMAKE_DL_LIBS}
             m  # math library
+            GL  # System OpenGL library (provides glXGetProcAddressARB)
         )
+
+        # Try to find GLU (optional)
+        find_library(GLU_LIB GLU)
+        if(GLU_LIB)
+            list(APPEND PgEngine_LINK_LIBRARIES ${GLU_LIB})
+        endif()
 
         # Additional system libraries that SDL/OpenGL might need
         find_library(X11_LIB X11)
         find_library(XEXT_LIB Xext)
         find_library(ASOUND_LIB asound)  # ALSA for audio
-        find_library(PULSE_LIB pulse)    # PulseAudio
+        find_library(PULSE_LIB pulse-simple)    # PulseAudio
         find_library(UDEV_LIB udev)      # udev for input
 
         if(X11_LIB)
@@ -126,6 +154,9 @@ if(NOT TARGET PgEngine::PgEngine)
 
     # Link all libraries
     target_link_libraries(PgEngine::PgEngine INTERFACE ${PgEngine_LINK_LIBRARIES})
+
+    # Print what we're linking for debugging
+    message(STATUS "PgEngine will link with: ${PgEngine_LINK_LIBRARIES}")
 endif()
 
 # Set found flag
