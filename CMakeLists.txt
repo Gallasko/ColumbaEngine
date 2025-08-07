@@ -215,10 +215,30 @@ else()
     target_link_options(PgEngine PRIVATE -static-libgcc -static-libstdc++)
     
     # All dependencies as PUBLIC since we're exporting them
+    # Check for target name variations and use the correct ones
+    set(SDL2_TARGETS)
+    if(TARGET SDL2::SDL2-static)
+        list(APPEND SDL2_TARGETS SDL2::SDL2-static)
+    elseif(TARGET SDL2-static)
+        list(APPEND SDL2_TARGETS SDL2-static)
+    endif()
+    
+    if(TARGET SDL2_mixer::SDL2_mixer-static)
+        list(APPEND SDL2_TARGETS SDL2_mixer::SDL2_mixer-static)
+    elseif(TARGET SDL2_mixer-static)
+        list(APPEND SDL2_TARGETS SDL2_mixer-static)
+    endif()
+    
+    if(TARGET SDL2_net::SDL2_net-static)
+        list(APPEND SDL2_TARGETS SDL2_net::SDL2_net-static)
+    elseif(TARGET SDL2_net-static)
+        list(APPEND SDL2_TARGETS SDL2_net-static)
+    elseif(TARGET SDL2_net)
+        list(APPEND SDL2_TARGETS SDL2_net)
+    endif()
+    
     target_link_libraries(PgEngine PUBLIC 
-        SDL2::SDL2-static 
-        SDL2_mixer::SDL2_mixer-static 
-        SDL2_net::SDL2_net-static 
+        ${SDL2_TARGETS}
         glm 
         libglew_static 
         freetype
@@ -253,7 +273,7 @@ else()
     # First check which targets actually exist
     set(TARGETS_TO_INSTALL PgEngine)
     
-    # Add targets that exist
+    # Add targets that exist (check for both alias and direct names)
     if(TARGET SDL2-static)
         list(APPEND TARGETS_TO_INSTALL SDL2-static)
     endif()
@@ -268,9 +288,7 @@ else()
     
     if(TARGET SDL2_net-static)
         list(APPEND TARGETS_TO_INSTALL SDL2_net-static)
-    endif()
-    
-    if(TARGET SDL2_net)
+    elseif(TARGET SDL2_net)
         list(APPEND TARGETS_TO_INSTALL SDL2_net)
     endif()
     

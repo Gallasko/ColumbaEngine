@@ -5,8 +5,35 @@ include(CMakeFindDependencyMacro)
 # Find required system dependencies that consumers need
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     find_dependency(OpenGL REQUIRED)
-    # You might also need these system dependencies depending on your setup
-    # find_dependency(Threads REQUIRED)
+    find_dependency(Threads REQUIRED)
+    
+    # Find X11 libraries for SDL2
+    find_package(X11 QUIET)
+    if(X11_FOUND)
+        # Create imported targets for X11 if they don't exist
+        if(NOT TARGET X11::X11)
+            add_library(X11::X11 UNKNOWN IMPORTED)
+            set_target_properties(X11::X11 PROPERTIES
+                IMPORTED_LOCATION "${X11_X11_LIB}"
+                INTERFACE_INCLUDE_DIRECTORIES "${X11_X11_INCLUDE_PATH}"
+            )
+        endif()
+        
+        if(NOT TARGET X11::Xext AND X11_Xext_FOUND)
+            add_library(X11::Xext UNKNOWN IMPORTED)
+            set_target_properties(X11::Xext PROPERTIES
+                IMPORTED_LOCATION "${X11_Xext_LIB}"
+                INTERFACE_INCLUDE_DIRECTORIES "${X11_X11_INCLUDE_PATH}"
+            )
+        endif()
+    endif()
+    
+    # Find other system dependencies that SDL2 might need
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(ALSA QUIET alsa)
+        pkg_check_modules(PULSE QUIET libpulse-simple)
+    endif()
 endif()
 
 # Include the targets file - this brings in all the PgEngine:: targets
