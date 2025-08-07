@@ -8,7 +8,7 @@ set -e  # Exit on any error
 
 # Configuration
 PGENGINE_VERSION="${PGENGINE_VERSION:-main}"  # Can be set via environment variable
-PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/YourUsername/PgEngine.git}"  # Update this!
+PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/Gallasko/PgEngine.git}"  # Update this!
 INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/pgengine-install}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
@@ -48,7 +48,7 @@ check_permissions() {
 # Detect OS and install dependencies
 install_dependencies() {
     log_info "Installing system dependencies..."
-
+    
     if [[ -f /etc/os-release ]]; then
         . /etc/os-release
         OS=$ID
@@ -56,7 +56,7 @@ install_dependencies() {
         log_error "Cannot detect OS type"
         exit 1
     fi
-
+    
     case $OS in
         ubuntu|debian)
             sudo apt update
@@ -79,7 +79,7 @@ install_dependencies() {
             else
                 PKG_MGR="yum"
             fi
-
+            
             sudo $PKG_MGR install -y \
                 gcc-c++ \
                 cmake \
@@ -125,7 +125,7 @@ install_dependencies() {
 download_pgengine() {
     log_info "Downloading PgEngine version: $PGENGINE_VERSION"
     log_info "Working directory: $INSTALL_DIR"
-
+    
     if [[ -d "$INSTALL_DIR" ]]; then
         log_warning "Directory $INSTALL_DIR already exists"
         read -p "Remove it and continue? (y/N): " -n 1 -r
@@ -137,7 +137,7 @@ download_pgengine() {
             exit 1
         fi
     fi
-
+    
     # Create directory with explicit permissions
     mkdir -p "$INSTALL_DIR"
     if [[ ! -w "$INSTALL_DIR" ]]; then
@@ -145,66 +145,68 @@ download_pgengine() {
         log_info "Please ensure you have write permissions to this location"
         exit 1
     fi
-
+    
     cd "$INSTALL_DIR"
-
+    
     git clone --recursive "$PGENGINE_REPO" pgengine
     cd pgengine
-
+    
     if [[ "$PGENGINE_VERSION" != "main" ]]; then
         git checkout "$PGENGINE_VERSION"
     fi
-
+    
     log_success "PgEngine source downloaded to: $INSTALL_DIR/pgengine"
 }
 
 # Build PgEngine
 build_pgengine() {
     log_info "Building PgEngine..."
-
+    
     cd "$INSTALL_DIR/pgengine"
     mkdir -p build
     cd build
-
+    
+    # Use Unix Makefiles instead of Ninja to avoid dependency issues
     cmake .. \
+        -G "Unix Makefiles" \
         -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_STATIC_LIB=ON
-
+    
     make -j"$BUILD_JOBS"
-
+    
     log_success "PgEngine built successfully"
 }
 
 # Install PgEngine
 install_pgengine() {
     log_info "Installing PgEngine to $INSTALL_PREFIX..."
-
+    
     cd "$INSTALL_DIR/pgengine/build"
-
+    
     if [[ "$INSTALL_PREFIX" == "/usr/local" ]]; then
         sudo make install
     else
         make install
     fi
-
+    
     # Update library cache if installing to system directories
     if [[ "$INSTALL_PREFIX" == "/usr/local" ]]; then
         sudo ldconfig
     fi
-
+    
     log_success "PgEngine installed successfully"
 }
 
 # Create test application
 create_test_app() {
     log_info "Creating test application..."
-
+    
     local test_dir="$INSTALL_DIR/test-app"
     mkdir -p "$test_dir/src"
     cd "$test_dir"
-
+    
     # Create main.cpp
     cat > src/main.cpp << 'EOF'
 #include <iostream>
@@ -235,13 +237,13 @@ int main(int argc, char *argv[])
 {
     // Decouple C++ and C stream for faster runtime
     std::ios_base::sync_with_stdio(false);
-
+    
 #ifdef __EMSCRIPTEN__
     printf("Starting program...\n");
 #endif
-
+    
     GameApp app("PgEngine Test App");
-
+    
     return app.exec();
 }
 EOF
@@ -433,8 +435,32 @@ project(PgEngineTestApp VERSION 1.0)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# Find PgEngine
-find_package(PgEngine REQUIRED)
+# Try to find PgEngine with multiple fallback strategies
+find_package(PgEngine QUIET)
+
+if(NOT PgEngine_FOUND)
+    # Try with common installation paths
+    set(CMAKE_PREFIX_PATH 
+        /usr/local/lib/cmake/PgEngine
+        /usr/lib/cmake/PgEngine
+        ~/.local/lib/cmake/PgEngine
+        ${CMAKE_PREFIX_PATH}
+    )
+    find_package(PgEngine QUIET)
+endif()
+
+if(NOT PgEngine_FOUND)
+    # Try setting PgEngine_DIR directly
+    if(EXISTS "/usr/local/lib/cmake/PgEngine/PgEngineConfig.cmake")
+        set(PgEngine_DIR "/usr/local/lib/cmake/PgEngine")
+        find_package(PgEngine REQUIRED)
+    elseif(EXISTS "$ENV{HOME}/.local/lib/cmake/PgEngine/PgEngineConfig.cmake")
+        set(PgEngine_DIR "$ENV{HOME}/.local/lib/cmake/PgEngine")
+        find_package(PgEngine REQUIRED)
+    else()
+        message(FATAL_ERROR "PgEngine not found. Please ensure it's installed or set PgEngine_DIR manually.")
+    endif()
+endif()
 
 # Create executable
 add_executable(PgEngineTestApp
@@ -508,12 +534,42 @@ EOF
 # Build and test the application
 test_application() {
     log_info "Building test application..."
-
+    
     cd "$INSTALL_DIR/test-app"
-    ./build.sh
-
-    log_success "Test application built successfully!"
-    log_info "You can run it with: cd $INSTALL_DIR/test-app/build && ./PgEngineTestApp"
+    ./build.sh 2>&1 | tee build.log
+    
+    # Check if build succeeded
+    if [[ -f "build/PgEngineTestApp" ]]; then
+        log_success "Test application built successfully!"
+        log_info "You can run it with: cd $INSTALL_DIR/test-app/build && ./PgEngineTestApp"
+    else
+        log_warning "Test application build failed. Debugging..."
+        
+        # Check if PgEngine config exists
+        log_info "Checking PgEngine installation..."
+        if [[ -f "$INSTALL_PREFIX/lib/cmake/PgEngine/PgEngineConfig.cmake" ]]; then
+            log_info "✓ PgEngine CMake config found at: $INSTALL_PREFIX/lib/cmake/PgEngine/"
+        else
+            log_error "✗ PgEngine CMake config not found!"
+            log_info "Looking for PgEngine files..."
+            find "$INSTALL_PREFIX" -name "*PgEngine*" -type f 2>/dev/null | head -10 || true
+        fi
+        
+        # Try building with explicit path
+        log_info "Attempting build with explicit PgEngine path..."
+        cd build
+        if cmake .. -DPgEngine_DIR="$INSTALL_PREFIX/lib/cmake/PgEngine"; then
+            log_info "CMake succeeded with explicit path"
+            if make; then
+                log_success "Build succeeded with explicit path!"
+                return 0
+            fi
+        fi
+        
+        log_warning "Test application build failed, but PgEngine installation completed"
+        log_info "You may need to set PgEngine_DIR manually when building projects"
+        return 1
+    fi
 }
 
 # Clean up function
