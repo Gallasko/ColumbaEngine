@@ -1,231 +1,29 @@
-# PgEngine configuration file for bundled dependencies
+@PACKAGE_INIT@
 
-# Check if we're building for Emscripten
-if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    # For Emscripten, we don't need to link static libraries
-    # Everything is handled through Emscripten's system
+include(CMakeFindDependencyMacro)
 
-    # Get the installation prefix from this file's location
-    get_filename_component(PgEngine_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
-    get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_CMAKE_DIR}/../../../" ABSOLUTE)
-
-    # Set up paths
-    set(PgEngine_INCLUDE_DIR "${PgEngine_INSTALL_PREFIX}/include")
-    set(PgEngine_LIB_DIR "${PgEngine_INSTALL_PREFIX}/lib")
-
-    # Find the main PgEngine library
-    find_library(PgEngine_LIBRARY
-        NAMES PgEngine libPgEngine
-        PATHS ${PgEngine_LIB_DIR}
-        NO_DEFAULT_PATH
-    )
-
-    if(NOT PgEngine_LIBRARY)
-        set(PgEngine_FOUND FALSE)
-        if(PgEngine_FIND_REQUIRED)
-            message(FATAL_ERROR "PgEngine library not found in ${PgEngine_LIB_DIR}")
-        endif()
-        return()
-    endif()
-
-    # Create imported target for Emscripten
-    if(NOT TARGET PgEngine::PgEngine)
-        add_library(PgEngine::PgEngine STATIC IMPORTED)
-
-        set_target_properties(PgEngine::PgEngine PROPERTIES
-            IMPORTED_LOCATION "${PgEngine_LIBRARY}"
-        )
-
-        # Set include directories
-        target_include_directories(PgEngine::PgEngine INTERFACE
-            "${PgEngine_INCLUDE_DIR}"
-            "${PgEngine_INCLUDE_DIR}/PgEngine"
-            "${PgEngine_INCLUDE_DIR}/PgEngine/GameElements"
-        )
-
-        # For Emscripten, no additional libraries needed
-        # SDL2, OpenGL, etc. are provided by the Emscripten system
-    endif()
-
-    set(PgEngine_FOUND TRUE)
-    set(PgEngine_LIBRARIES ${PgEngine_LIBRARY})
-    set(PgEngine_INCLUDE_DIRS ${PgEngine_INCLUDE_DIR})
-
-    message(STATUS "PgEngine configuration complete (Emscripten)")
-    message(STATUS "PgEngine library: ${PgEngine_LIBRARY}")
-    message(STATUS "PgEngine include dir: ${PgEngine_INCLUDE_DIR}")
-
-    return()
+# Find required system dependencies that consumers need
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    find_dependency(OpenGL REQUIRED)
+    # You might also need these system dependencies depending on your setup
+    # find_dependency(Threads REQUIRED)
 endif()
 
-# Native build configuration (existing code follows)
+# Include the targets file - this brings in all the PgEngine:: targets
+include("${CMAKE_CURRENT_LIST_DIR}/PgEngineTargets.cmake")
 
-# Get the installation prefix from this file's location
-get_filename_component(PgEngine_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
-get_filename_component(PgEngine_INSTALL_PREFIX "${PgEngine_CMAKE_DIR}/../../../" ABSOLUTE)
+# Provide variables for backward compatibility
+set(PgEngine_LIBRARIES PgEngine::PgEngine)
 
-# Set up paths
-set(PgEngine_INCLUDE_DIR "${PgEngine_INSTALL_PREFIX}/include")
-set(PgEngine_LIB_DIR "${PgEngine_INSTALL_PREFIX}/lib")
+# Set include directories based on the imported target
+get_target_property(PgEngine_INCLUDE_DIRS PgEngine::PgEngine INTERFACE_INCLUDE_DIRECTORIES)
 
-# Find the main PgEngine library
-find_library(PgEngine_LIBRARY
-    NAMES PgEngine libPgEngine
-    PATHS ${PgEngine_LIB_DIR}
-    NO_DEFAULT_PATH
-)
-
-if(NOT PgEngine_LIBRARY)
-    set(PgEngine_FOUND FALSE)
-    if(PgEngine_FIND_REQUIRED)
-        message(FATAL_ERROR "PgEngine library not found in ${PgEngine_LIB_DIR}")
-    endif()
-    return()
-endif()
-
-# Find required system dependencies (only the ones not bundled)
-find_package(OpenGL REQUIRED)
-
-# Function to find library with multiple possible names
-function(find_bundled_library var_name)
-    set(lib_names ${ARGN})
-    foreach(name ${lib_names})
-        find_library(${var_name}
-            NAMES ${name}
-            PATHS ${PgEngine_LIB_DIR}
-            NO_DEFAULT_PATH
-        )
-        if(${var_name})
-            message(STATUS "Found bundled ${name}: ${${var_name}}")
-            break()
-        endif()
-    endforeach()
-endfunction()
-
-# Find all the bundled static libraries with various possible names
-find_bundled_library(SDL2_STATIC_LIB
-    SDL2-static libSDL2-static SDL2 libSDL2 SDL2_static libSDL2_static)
-find_bundled_library(SDL2MAIN_STATIC_LIB
-    SDL2main libSDL2main SDL2Main libSDL2Main)
-find_bundled_library(SDL2_MIXER_STATIC_LIB
-    SDL2_mixer-static libSDL2_mixer-static SDL2_mixer libSDL2_mixer SDL2_mixer_static libSDL2_mixer_static)
-find_bundled_library(SDL2_NET_STATIC_LIB
-    SDL2_net-static libSDL2_net-static SDL2_net libSDL2_net SDL2_net_static libSDL2_net_static)
-find_bundled_library(GLEW_STATIC_LIB
-    libglew_static glew_static GLEW_static libGLEW_static glew libglew GLEW libGLEW)
-find_bundled_library(FREETYPE_STATIC_LIB
-    freetype libfreetype freetype_static libfreetype_static)
-
-# Create imported target if it doesn't exist
-if(NOT TARGET PgEngine::PgEngine)
-    add_library(PgEngine::PgEngine STATIC IMPORTED)
-
-    # Set the library location
-    set_target_properties(PgEngine::PgEngine PROPERTIES
-        IMPORTED_LOCATION "${PgEngine_LIBRARY}"
-    )
-
-    # Set include directories
-    target_include_directories(PgEngine::PgEngine INTERFACE
-        "${PgEngine_INCLUDE_DIR}"
-        "${PgEngine_INCLUDE_DIR}/PgEngine"
-        "${PgEngine_INCLUDE_DIR}/PgEngine/GameElements"
-    )
-
-    # Build the list of libraries to link
-    set(PgEngine_LINK_LIBRARIES OpenGL::GL)
-
-    # Add bundled libraries if found
-    if(SDL2_STATIC_LIB)
-        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_STATIC_LIB})
-    endif()
-
-    if(SDL2MAIN_STATIC_LIB)
-        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2MAIN_STATIC_LIB})
-    endif()
-
-    if(SDL2_MIXER_STATIC_LIB)
-        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_MIXER_STATIC_LIB})
-    endif()
-
-    if(SDL2_NET_STATIC_LIB)
-        list(APPEND PgEngine_LINK_LIBRARIES ${SDL2_NET_STATIC_LIB})
-    endif()
-
-    if(GLEW_STATIC_LIB)
-        list(APPEND PgEngine_LINK_LIBRARIES ${GLEW_STATIC_LIB})
-    endif()
-
-    if(FREETYPE_STATIC_LIB)
-        list(APPEND PgEngine_LINK_LIBRARIES ${FREETYPE_STATIC_LIB})
-    endif()
-
-    # Add system libraries that are still needed
-    if(UNIX AND NOT APPLE)
-        list(APPEND PgEngine_LINK_LIBRARIES
-            pthread
-            ${CMAKE_DL_LIBS}
-            m  # math library
-            GL  # System OpenGL library (provides glXGetProcAddressARB)
-        )
-
-        # Try to find GLU (optional)
-        find_library(GLU_LIB GLU)
-        if(GLU_LIB)
-            list(APPEND PgEngine_LINK_LIBRARIES ${GLU_LIB})
-        endif()
-
-        # Additional system libraries that SDL/OpenGL might need
-        find_library(X11_LIB X11)
-        find_library(XEXT_LIB Xext)
-        find_library(ASOUND_LIB asound)  # ALSA for audio
-        find_library(PULSE_LIB pulse-simple)    # PulseAudio
-        find_library(UDEV_LIB udev)      # udev for input
-
-        if(X11_LIB)
-            list(APPEND PgEngine_LINK_LIBRARIES ${X11_LIB})
-        endif()
-        if(XEXT_LIB)
-            list(APPEND PgEngine_LINK_LIBRARIES ${XEXT_LIB})
-        endif()
-        if(ASOUND_LIB)
-            list(APPEND PgEngine_LINK_LIBRARIES ${ASOUND_LIB})
-        endif()
-        if(PULSE_LIB)
-            list(APPEND PgEngine_LINK_LIBRARIES ${PULSE_LIB})
-        endif()
-        if(UDEV_LIB)
-            list(APPEND PgEngine_LINK_LIBRARIES ${UDEV_LIB})
-        endif()
-
-    elseif(WIN32)
-        list(APPEND PgEngine_LINK_LIBRARIES
-            winmm
-            version
-            setupapi
-            imm32
-            ole32
-            oleaut32
-            shell32
-            gdi32
-            user32
-        )
-    endif()
-
-    # Link all libraries
-    target_link_libraries(PgEngine::PgEngine INTERFACE ${PgEngine_LINK_LIBRARIES})
-
-    # Print what we're linking for debugging
-    message(STATUS "PgEngine will link with: ${PgEngine_LINK_LIBRARIES}")
+# Create an alias for easier consumption if it doesn't exist
+if(NOT TARGET PgEngine)
+    add_library(PgEngine ALIAS PgEngine::PgEngine)
 endif()
 
 # Set found flag
 set(PgEngine_FOUND TRUE)
 
-# Provide some useful variables
-set(PgEngine_LIBRARIES ${PgEngine_LIBRARY})
-set(PgEngine_INCLUDE_DIRS ${PgEngine_INCLUDE_DIR})
-
-message(STATUS "PgEngine configuration complete")
-message(STATUS "PgEngine library: ${PgEngine_LIBRARY}")
-message(STATUS "PgEngine include dir: ${PgEngine_INCLUDE_DIR}")
+check_required_components(PgEngine)
