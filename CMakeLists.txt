@@ -62,14 +62,11 @@ endif()
 # Always add GLM (header-only)
 add_subdirectory(${GLM_DIR})
 
-# Compiler flags (your existing logic)
+# Compiler flags
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_compile_options(-DGLEW_STATIC)
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
-        # set(CMAKE_CXX_FLAGS "-flto -Wall -Wextra -pthread -O3 -DNDEBUG")
-        # set(CMAKE_CXX_FLAGS "-ftime-trace -Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
-        # set(CMAKE_CXX_FLAGS "-Wall -Wextra -pthread -O0 -ggdb -DDEBUG -DPROFILE")
         set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
 
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -80,6 +77,26 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")
         set(CMAKE_CXX_FLAGS " -Wall -Wextra -pthread -Wa,-mbig-obj -s -O2 -DNDEBUG")
     endif()
+endif()
+
+if(${UseGDB} EQUAL ON)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+endif()
+
+# Debug Flags
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG ${USE_FLAGS}")
+    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG ${USE_FLAGS}")
+else()
+    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+endif()
+
+# Release Flags
+if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
+    set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
+else()
+    # Release flags for native builds can be set here if needed
 endif()
 
 message("Current c++ debug flags used: '${CMAKE_CXX_FLAGS_DEBUG}'")
@@ -162,22 +179,20 @@ add_library(PgEngine STATIC ${ENGINESOURCE})
 # Set precompiled headers
 target_precompile_headers(PgEngine PUBLIC src/Engine/stdafx.h)
 
-# Include directories - use BUILD_INTERFACE for vendoring
+# Include directories - ONLY use generator expressions for proper build/install interface
 target_include_directories(PgEngine PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/GameElements>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLTF_DIR}/include>
-    $<INSTALL_INTERFACE:include>
     $<INSTALL_INTERFACE:include/PgEngine>
     $<INSTALL_INTERFACE:include/PgEngine/GameElements>
+    $<INSTALL_INTERFACE:include>
 )
 
-# Platform-specific includes and linking
-if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_link_libraries(PgEngine PUBLIC glm)
-else()
+# Add platform-specific build interface includes
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     target_include_directories(PgEngine PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${SDL2_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${SDL2MIXER_DIR}/include>
@@ -185,35 +200,106 @@ else()
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLEW_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TTF_DIR}/include>
     )
+endif()
 
+# Platform-specific linking - Keep dependencies PUBLIC since we're exporting them
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # Emscripten - link publicly so they get exported
+    target_link_libraries(PgEngine PUBLIC glm)
+else()
+    # Native platforms - link publicly so they get exported
     if (TARGET SDL2::SDL2main)
         target_link_libraries(PgEngine PUBLIC SDL2::SDL2main)
     endif()
 
     target_link_options(PgEngine PRIVATE -static-libgcc -static-libstdc++)
-    target_link_libraries(PgEngine PUBLIC SDL2::SDL2-static SDL2_mixer::SDL2_mixer-static SDL2_net::SDL2_net-static glm libglew_static freetype)
+    
+    # All dependencies as PUBLIC since we're exporting them
+    target_link_libraries(PgEngine PUBLIC 
+        SDL2::SDL2-static 
+        SDL2_mixer::SDL2_mixer-static 
+        SDL2_net::SDL2_net-static 
+        glm 
+        libglew_static 
+        freetype
+        OpenGL::GL
+    )
 endif()
 
-# Installation for vendoring approach - Install PgEngine and find built libraries
-install(TARGETS PgEngine
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
-)
+# Debug: Print all available targets
+get_property(ALL_TARGETS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
+message(STATUS "All available targets: ${ALL_TARGETS}")
 
-# Custom command to find and install all built static libraries
-if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    install(CODE "
-        file(GLOB_RECURSE BUILT_LIBS \"${CMAKE_CURRENT_BINARY_DIR}/*.a\")
-        foreach(lib_file \${BUILT_LIBS})
-            get_filename_component(lib_name \"\${lib_file}\" NAME)
-            # Skip PgEngine library (already installed) and object libraries
-            if(NOT \"\${lib_name}\" MATCHES \"PgEngine\" AND NOT \"\${lib_name}\" MATCHES \"\\\\.dir\")
-                message(STATUS \"Installing dependency library: \${lib_name}\")
-                file(INSTALL \"\${lib_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/lib\")
-            endif()
-        endforeach()
-    ")
+# Check specific targets
+foreach(target IN ITEMS SDL2main SDL2-static SDL2_net SDL2_mixer-static glm libglew_static freetype)
+    if(TARGET ${target})
+        message(STATUS "Target ${target} exists")
+    else()
+        message(STATUS "Target ${target} does NOT exist")
+    endif()
+endforeach()
+
+# Installation - Install PgEngine and all its static dependencies
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # Emscripten build - only install PgEngine and glm
+    install(TARGETS PgEngine glm
+        EXPORT PgEngineTargets
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+    )
+else()
+    # Native build - install all static dependencies
+    # First check which targets actually exist
+    set(TARGETS_TO_INSTALL PgEngine)
+    
+    # Add targets that exist
+    if(TARGET SDL2-static)
+        list(APPEND TARGETS_TO_INSTALL SDL2-static)
+    endif()
+    
+    if(TARGET SDL2main)
+        list(APPEND TARGETS_TO_INSTALL SDL2main)
+    endif()
+    
+    if(TARGET SDL2_mixer-static)
+        list(APPEND TARGETS_TO_INSTALL SDL2_mixer-static)
+    endif()
+    
+    if(TARGET SDL2_net-static)
+        list(APPEND TARGETS_TO_INSTALL SDL2_net-static)
+    endif()
+    
+    if(TARGET SDL2_net)
+        list(APPEND TARGETS_TO_INSTALL SDL2_net)
+    endif()
+    
+    if(TARGET glm)
+        list(APPEND TARGETS_TO_INSTALL glm)
+    endif()
+    
+    if(TARGET libglew_static)
+        list(APPEND TARGETS_TO_INSTALL libglew_static)
+    endif()
+    
+    if(TARGET freetype)
+        list(APPEND TARGETS_TO_INSTALL freetype)
+    endif()
+    
+    if(TARGET tinygltf)
+        list(APPEND TARGETS_TO_INSTALL tinygltf)
+    endif()
+    
+    # Debug: Print what targets we're installing
+    message(STATUS "Installing targets: ${TARGETS_TO_INSTALL}")
+    
+    install(TARGETS ${TARGETS_TO_INSTALL}
+        EXPORT PgEngineTargets
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        RUNTIME DESTINATION bin
+        INCLUDES DESTINATION include
+    )
 endif()
 
 # Install ALL headers including dependencies
@@ -225,6 +311,13 @@ install(DIRECTORY src/Engine/
 install(DIRECTORY src/GameElements/
     DESTINATION include/PgEngine/GameElements
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
+)
+
+# Export targets - this creates the PgEngineTargets.cmake file
+install(EXPORT PgEngineTargets
+    FILE PgEngineTargets.cmake
+    NAMESPACE PgEngine::
+    DESTINATION lib/cmake/PgEngine
 )
 
 # Install vendored dependencies headers
@@ -250,13 +343,13 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
-
+    
     # Install SDL2_mixer headers
     install(DIRECTORY ${SDL2MIXER_DIR}/include/
         DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
-
+    
     # Install SDL2_net headers
     install(DIRECTORY ${SDL2NET_DIR}/
         DESTINATION include
@@ -265,13 +358,13 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         PATTERN "*.c" EXCLUDE
         PATTERN "*.cpp" EXCLUDE
     )
-
+    
     # Install GLEW headers
     install(DIRECTORY ${GLEW_DIR}/include/
         DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
-
+    
     # Install FreeType headers
     install(DIRECTORY ${TTF_DIR}/include/
         DESTINATION include
@@ -288,8 +381,11 @@ write_basic_package_version_file(
     COMPATIBILITY AnyNewerVersion
 )
 
-# Copy the improved config file
-configure_file(cmake/PgEngineConfig.cmake.in "${CMAKE_CURRENT_BINARY_DIR}/PgEngineConfig.cmake" COPYONLY)
+configure_package_config_file(
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PgEngineConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/PgEngineConfig.cmake"
+    INSTALL_DESTINATION lib/cmake/PgEngine
+)
 
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PgEngineConfig.cmake"
@@ -314,7 +410,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(GMTK2025
             PROPERTIES SUFFIX ".html"
-            # LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 -s DEMANGLE_SUPPORT=1 -s GL_ASSERTIONS=1 -s GL_DEBUG=1 ${USE_FLAGS}")
             LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
     else()

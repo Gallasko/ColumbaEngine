@@ -196,6 +196,36 @@ install_pgengine() {
         sudo ldconfig
     fi
     
+    # Verify installation
+    log_info "Verifying installation..."
+    
+    # Check main library
+    if [[ -f "$INSTALL_PREFIX/lib/libPgEngine.a" ]]; then
+        log_success "✓ Main library installed: $INSTALL_PREFIX/lib/libPgEngine.a"
+    else
+        log_error "✗ Main library missing: $INSTALL_PREFIX/lib/libPgEngine.a"
+    fi
+    
+    # Check headers
+    if [[ -d "$INSTALL_PREFIX/include/PgEngine" ]]; then
+        log_success "✓ Headers installed: $INSTALL_PREFIX/include/PgEngine/"
+    else
+        log_error "✗ Headers missing: $INSTALL_PREFIX/include/PgEngine/"
+    fi
+    
+    # Check CMake config
+    if [[ -f "$INSTALL_PREFIX/lib/cmake/PgEngine/PgEngineConfig.cmake" ]]; then
+        log_success "✓ CMake config installed: $INSTALL_PREFIX/lib/cmake/PgEngine/"
+    else
+        log_error "✗ CMake config missing: $INSTALL_PREFIX/lib/cmake/PgEngine/"
+        log_info "Checking what CMake files exist..."
+        find "$INSTALL_PREFIX" -name "*PgEngine*" -path "*/cmake/*" 2>/dev/null || log_info "No CMake files found"
+    fi
+    
+    # List some dependency libraries
+    log_info "Checking dependency libraries..."
+    ls -la "$INSTALL_PREFIX/lib/"lib{SDL2,glew,freetype}* 2>/dev/null | head -5 || log_info "Some dependency libraries may be missing"
+    
     log_success "PgEngine installed successfully"
 }
 
