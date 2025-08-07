@@ -4,6 +4,8 @@
 
 #include "2D/position.h"
 
+#include "Helpers/functionregistry.h"
+
 namespace pg
 {
     struct ClearPrefabEvent { std::set<_unique_id> ids; };
@@ -34,7 +36,7 @@ namespace pg
             // Without a position component, we cannot work on adding the entity to the prefab ui, so we skip the rest
             if (not entity->has<PositionComponent>())
             {
-                LOG_ERROR("Prefab", "Entity " << entity.id << " can't be added to prefab as it doesn't have a PositionComponent!");
+                LOG_MILE("Prefab", "Entity " << entity.id << " can't be added to prefab as it doesn't have a PositionComponent!");
                 return;
             }
 
@@ -85,6 +87,26 @@ namespace pg
             childrenIds.insert(entity.id);
         }
 
+        void addToPrefab(EntityRef entity, const std::string& name)
+        {
+            addToPrefab(entity);
+
+            namedChildrenIds[name] = entity;
+        }
+
+        EntityRef getEntity(const std::string& name)
+        {
+            const auto it = namedChildrenIds.find(name);
+
+            if (it == namedChildrenIds.end())
+            {
+                LOG_ERROR("Prefab", "Couldn't find entity with name: " << name << " in prefab: " << id);
+                return nullptr;
+            }
+
+            return namedChildrenIds[name];
+        }
+
         void setMainEntity(EntityRef entity)
         {
             ecsRef->sendEvent(SetMainEntityEvent{id, entity->id});
@@ -121,12 +143,25 @@ namespace pg
             }
         }
 
+        template<typename R, typename... Args>
+        void addHelper(const std::string& name, std::function<R(Args...)> func);
+
+        template <typename HelperType>
+        void addHelper(const std::string& name, HelperType func);
+
+        template <typename... Args>
+        std::any callHelper(const std::string& name, Args... args);
+
+        template <typename ReturnType, typename... Args>
+        ReturnType callHelper(const std::string& name, Args... args);
+
         EntitySystem *ecsRef = nullptr;
 
         _unique_id id = 0;
 
         // Todo make it simpler to find a specific child in a prefab
         std::set<_unique_id> childrenIds;
+        std::map<std::string, EntityRef> namedChildrenIds;
 
         // Data to keep track
 
@@ -257,7 +292,58 @@ namespace pg
         virtual void execute() override
         {
         }
+
+        template<typename R, typename... Args>
+        void addHelper(_unique_id id, const std::string& name, std::function<R(Args...)> func)
+        {
+            helperRegistry[id].add(name, func);
+        }
+
+
+        template <typename HelperType>
+        void addHelper(_unique_id id, const std::string& name, HelperType func)
+        {
+            helperRegistry[id].add(name, func);
+        }
+
+        template <typename... Args>
+        std::any callHelper(_unique_id id, const std::string& name, Args... args)
+        {
+            return helperRegistry[id].call(name, args...);
+        }
+
+        template <typename ReturnType, typename... Args>
+        ReturnType callHelper(_unique_id id, const std::string& name, Args... args)
+        {
+            return helperRegistry[id].call<ReturnType>(name, args...);
+        }
+
+        std::unordered_map<_unique_id, FunctionRegistry> helperRegistry;
     };
+
+    template<typename R, typename... Args>
+    void Prefab::addHelper(const std::string& name, std::function<R(Args...)> func)
+    {
+        ecsRef->getSystem<PrefabSystem>()->addHelper(id, name, std::move(func));
+    }
+
+    template <typename HelperType>
+    void Prefab::addHelper(const std::string& name, HelperType func)
+    {
+        ecsRef->getSystem<PrefabSystem>()->addHelper(id, name, std::move(func));
+    }
+
+    template <typename... Args>
+    std::any Prefab::callHelper(const std::string& name, Args... args)
+    {
+        return ecsRef->getSystem<PrefabSystem>()->callHelper(id, name, this, std::forward<Args>(args)...);
+    }
+
+    template <typename ReturnType, typename... Args>
+    ReturnType Prefab::callHelper(const std::string& name, Args... args)
+    {
+        return ecsRef->getSystem<PrefabSystem>()->callHelper<ReturnType>(id, name, this, std::forward<Args>(args)...);
+    }
 
     template <typename Type>
     CompList<PositionComponent, Prefab> makePrefab(Type *ecs, float x, float y)

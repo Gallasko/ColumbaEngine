@@ -10,9 +10,13 @@
 #include "2D/simple2dobject.h"
 #include "2D/animator2d.h"
 #include "2D/collisionsystem.h"
+// near top of file, after your other includes:
+#include "2D/collisionsystem.h"   // for CollisionComponent
+
+#include "Systems/coresystems.h"
+#include "Systems/basicsystems.h"
 
 #include "UI/ttftext.h"
-#include "UI/progressbar.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "Helpers/stbi_image_write.h"
@@ -20,11 +24,103 @@
 #include <iomanip>  // for std::setw and std::setfill
 #include <sstream>  // for std::stringstream
 
+
 using namespace pg;
 
 namespace {
     static const char *const DOM = "Editor app";
 }
+
+
+// define two empty tags to mark sides:
+struct InstaFlag  : public Component {};
+struct TikTokFlag : public Component {};
+struct WallFlag   : public Component {};
+
+const float W = 820, H = 640;
+const int FPS = 60;
+FILE* ffmpeg;
+
+// -------------------------------------------------------
+// TugOfWarSystem
+// -------------------------------------------------------
+struct TugOfWarSystem : public System<InitSys>
+{
+    TugOfWarSystem(int leftCount, int rightCount, float speed, float squareSize)
+      : leftCount(leftCount),
+        rightCount(rightCount),
+        speed(speed),
+        size(squareSize)
+    {}
+
+    virtual void init() override
+    {
+        // window dims (must match your resize)
+        // const float W = 820.f, H = 640.f;
+        const float y = H / 2.f - size / 2.f;
+
+        std::vector<size_t> layer = {2};
+
+        // spawn left→right
+        for (int i = 0; i < leftCount; ++i)
+        {
+            auto sq = makeSimple2DShape(ecsRef, Shape2D::Square, size, size, { 0.f, 0.f, 255.f, 255.f });
+            // position at left edge
+            sq.get<PositionComponent>()->setX((rand() % (int)leftCount ) * size - leftCount * size);
+            sq.get<PositionComponent>()->setY((rand() % (int)H - size ));
+            // collision + tag
+            sq.entity->attach<CollisionComponent>(1, 1.0f, layer);
+
+            sq.entity->attach<InstaFlag>();
+            // move to right edge
+            sq.entity->attach<MoveDirComponent>(constant::Vector2D{1.f, 0.f}, speed);
+        }
+
+        // spawn right→left
+        for (int i = 0; i < rightCount; ++i)
+        {
+            auto sq = makeSimple2DShape(ecsRef, Shape2D::Square, size, size, {255.f, 0.f, 0.f, 255.f});
+
+            // position at right edge
+            sq.get<PositionComponent>()->setX((rand() % (int)rightCount ) * size + W);
+            sq.get<PositionComponent>()->setY((rand() % (int)H - size ));
+
+            // collision + tag
+            sq.entity->attach<CollisionComponent>(1, 1.0f, layer);
+            sq.entity->attach<TikTokFlag>();
+            // move to left edge
+            sq.entity->attach<MoveDirComponent>(constant::Vector2D{-1.f, 0.f}, speed);
+        }
+
+        auto line = makeSimple2DShape(ecsRef, Shape2D::Square, 4, H, { 0.f, 0.f, 0.f, 255.f });
+
+        line.get<PositionComponent>()->setX(W / 2.f);
+
+        line.entity->attach<CollisionComponent>(2);
+
+        line.entity->attach<WallFlag>();
+
+        makeCollisionHandlePair(ecsRef, [&](InstaFlag* insta, WallFlag* wall) {
+            auto wallEnt = ecsRef->getEntity(wall->entityId);
+
+            wallEnt->get<PositionComponent>()->setX(wallEnt->get<PositionComponent>()->x + 4.f);
+
+            ecsRef->removeEntity(insta->entityId);
+        });
+
+        makeCollisionHandlePair(ecsRef, [&](TikTokFlag* tiktok, WallFlag* wall) {
+            auto wallEnt = ecsRef->getEntity(wall->entityId);
+
+            wallEnt->get<PositionComponent>()->setX(wallEnt->get<PositionComponent>()->x - 4.f);
+
+            ecsRef->removeEntity(tiktok->entityId);
+        });
+
+    }
+
+    int   leftCount, rightCount;
+    float speed, size;
+};
 
 GameApp::GameApp(const std::string &appName) : appName(appName) {
     LOG_THIS_MEMBER(DOM);
@@ -69,11 +165,30 @@ struct ScreenSaverSystem : public System<Listener<SavedFrameData>, StoragePolicy
         std::string frameName = ss.str();
 
         // std::string frameName = "res/savedFrames/frame_" + std::to_string(i++) + ".png";
-
+        LOG_INFO("ScreenSaverSystem", "Saving frame to " << frameName);
         stbi_write_png(frameName.c_str(), event.width, event.height, 4, pixels.data(), event.width * 4);
+        LOG_INFO("ScreenSaverSystem", "Frame saved");
     }
 
     size_t i = 0;
+};
+
+struct VideoCreatorSystem : public System<Listener<SavedFrameData>, StoragePolicy>
+{
+    virtual void onEvent(const SavedFrameData &event)
+    {
+        LOG_INFO("ScreenSaverSystem", "Saving frame");
+
+        auto pixels = event.pixels;
+
+        flipImageVertically(pixels.data(), event.width, event.height);
+
+        size_t written = fwrite(pixels.data(), 1, pixels.size(), ffmpeg);
+
+        if (written != pixels.size()) {
+            fprintf(stderr, "Short write to ffmpeg pipe\n");
+        }
+    }
 };
 
 std::thread *initThread;
@@ -81,6 +196,7 @@ pg::Window *mainWindow = nullptr;
 std::atomic<bool> initialized = {false};
 bool init = false;
 bool running = true;
+
 
 void initWindow(const std::string &appName) {
 #ifdef __EMSCRIPTEN__
@@ -139,23 +255,28 @@ void initGame() {
 
     mainWindow->ecs.succeed<CollisionHandlerSystem, CollisionSystem>();
 
-    mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
+    mainWindow->ecs.succeed<PositionComponent, MoveDirSystem>();
 
     // mainWindow->ecs.succeed<CollisionSystem, PositionComponent>();
-    mainWindow->ecs.succeed<PositionComponent, CollisionSystem>();
+    mainWindow->ecs.succeed<CollisionSystem, PositionComponent>();
     mainWindow->ecs.succeed<MasterRenderer, CollisionSystem>();
 
     // mainWindow->ecs.createSystem<ContextMenu>();
     // mainWindow->ecs.createSystem<InspectorSystem>();
     auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
     mainWindow->masterRenderer->processTextureRegister();
 
     mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
+
+    // mainWindow->ecs.createSystem<FlagSystem>();
+    // mainWindow->ecs.registerFlagComponent<InstaFlag>();
+    // mainWindow->ecs.registerFlagComponent<TikTokFlag>();
+    // mainWindow->ecs.registerFlagComponent<WallFlag>();
 
     mainWindow->ecs.dumbTaskflow();
 
@@ -163,9 +284,37 @@ void initGame() {
 
     // mainWindow->ecs.start();
 
-    mainWindow->ecs.createSystem<ScreenSaverSystem>();
+    ffmpeg = popen(
+        ("ffmpeg -y "
+         "-f rawvideo "
+         "-pixel_format rgba "
+         "-video_size " + std::to_string(int(W)) + "x" + std::to_string(int(H)) + " "
+         "-framerate " + std::to_string(FPS) + " "
+         "-i - "
+         "-c:v libx264 "
+         "-pix_fmt yuv420p "
+         "output.mp4").c_str(),
+        "w"
+    );
+
+    if (not ffmpeg) {
+        fprintf(stderr, "Failed to open ffmpeg pipe\n");
+        std::exit(1);
+    }
+
+    srand(time(nullptr));
+
+    // mainWindow->ecs.createSystem<ScreenSaverSystem>();
+    mainWindow->ecs.createSystem<VideoCreatorSystem>();
+
+    mainWindow->ecs.createSystem<MoveDirSystem>();
+
+    mainWindow->ecs.createSystem<TugOfWarSystem>(270, 270, 45, 20);
 
     auto* ecsRef = &mainWindow->ecs;
+
+    // Pause the ticking system so that we can feed our own delta
+    ecsRef->getSystem<TickingSystem>()->pause();
 
     auto square = makeSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {255.0f, 0.0f, 0.0f, 255.0f});
 
@@ -176,75 +325,22 @@ void initGame() {
 
     mainWindow->resize(820, 640);
 
-    for (int i = 0; i < 60; i++)
+    // mainWindow->ecs.start();
+
+    int nbVideoSeconds = 1;
+
+    for (int i = 0; i < FPS * nbVideoSeconds; i++)
     {
         mainWindow->ecs.sendEvent(SaveCurrentFrameEvent{});
 
         mainWindow->ecs.executeOnce();
 
-        square.get<PositionComponent>()->setX(square.get<PositionComponent>()->x + 10);
-        square.get<PositionComponent>()->setY(square.get<PositionComponent>()->y + 10);
-
         mainWindow->render();
 
-        std::cout << "here: " << i << std::endl;
+        ecsRef->sendEvent(TickEvent{1000 / FPS});
     }
 
-    // Tunable parameters:
-    const int runsRight = 3;     // how many times to spawn at left and go right
-    const int runsLeft  = 2;     // how many times to spawn at right and go left
-    const float speed   = 300;   // pixels per second
-
-    // Inside initGame(), after you’ve set up `square` and resized the window:
-    int windowW = 820;
-    int windowH = 640;
-
-    // width of your square (as used in makeSimple2DShape)
-    const float squareSize = 50;
-
-    // helper to perform one “run” in a given direction, capturing frames:
-    auto doRun = [&](float startX, float endX, float dirSign, int runIndex){
-        square.get<PositionComponent>()->setX(startX);
-        square.get<PositionComponent>()->setY(windowH/2 - squareSize/2);
-
-        // until we reach (or pass) endX:
-        while ((dirSign > 0 && square.get<PositionComponent>()->x < endX) ||
-            (dirSign < 0 && square.get<PositionComponent>()->x > endX))
-        {
-            // send frame‑save event
-            mainWindow->ecs.sendEvent(SaveCurrentFrameEvent{});
-            mainWindow->ecs.executeOnce();
-
-            // advance position by speed·dt (we’ll just pick a fixed dt based on your target FPS)
-            const float dt = 1.0f / 30.0f;  // 30 FPS
-            float delta = speed * dt * dirSign;
-            square.get<PositionComponent>()->setX(square.get<PositionComponent>()->x + delta);
-
-            mainWindow->render();
-        }
-    };
-
-    // now loop the runs:
-    for (int i = 0; i < runsRight; ++i) {
-        // spawn at left edge, go to right edge
-        doRun(
-        /*startX=*/ 0.0f,
-        /*endX  =*/ windowW - squareSize,
-        /*dirSign=*/ +1.0f,
-        /*runIndex=*/ i
-        );
-    }
-
-    for (int i = 0; i < runsLeft; ++i) {
-        // spawn at right edge, go to left edge
-        doRun(
-        /*startX=*/ windowW - squareSize,
-        /*endX  =*/ 0.0f,
-        /*dirSign=*/ -1.0f,
-        /*runIndex=*/ i
-        );
-    }
-    
+    pclose(ffmpeg);
 
     printf("Engine initialized\n");
 }

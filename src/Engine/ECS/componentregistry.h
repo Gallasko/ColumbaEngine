@@ -16,6 +16,19 @@
 
 #include "Memory/elementtype.h"
 
+/**
+ * Macro that add all default members to a component
+ *
+ * @param TypeName Name of the type to add the members to
+ */
+#define DEFAULT_COMPONENT_MEMBERS(TypeName)             \
+    TypeName()                               = default; \
+    TypeName(const TypeName&)                = default; \
+    TypeName(TypeName&&) noexcept            = default; \
+    TypeName& operator=(const TypeName&)     = default; \
+    TypeName& operator=(TypeName&&) noexcept = default; \
+    ~TypeName() override                     = default;
+
 namespace pg
 {
     class InputSystem;
@@ -82,6 +95,9 @@ namespace pg
 
         EntitySystem* ecsRef = nullptr;
         _unique_id entityId = 0;
+
+        template <typename Type>
+        void setValue(Type& currentValue, const Type& value);
     };
 
     /**
@@ -184,6 +200,9 @@ namespace pg
          */
         template <typename Type>
         void unstore(Own<Type>* owner) noexcept;
+
+        template <typename Type>
+        auto registerFlagComponent();
 
         template <typename Type>
         Own<Type>* retrieve() const
@@ -308,6 +327,10 @@ namespace pg
 
             const auto& id = getTypeId<Event>();
 
+#ifdef PROFILE
+            eventCountMap[id]++;
+#endif
+
             for (auto& eventListener : eventStorageMap[id])
             {
                 eventListener.second(a);
@@ -361,6 +384,16 @@ namespace pg
 #endif
 
             return static_cast<Group<Type, Types...>*>(groupStorageMap.at(id));
+        }
+
+        template <typename Type>
+        bool hasTypeId() const noexcept
+        {
+            auto globalId = getGlobalGenericId<Type>();
+
+            auto it = idMap.find(globalId);
+
+            return it != idMap.end();
         }
 
         template <typename Type>
@@ -476,6 +509,10 @@ namespace pg
     public:
         mutable UniqueIdGenerator idGenerator;
 
+#ifdef PROFILE
+        std::map<_unique_id, size_t> eventCountMap;
+#endif
+
     public:
         inline size_t componentStorageMapSize() const noexcept     { return componentStorageMap.size(); }
         inline size_t componentDeleteMapSize() const noexcept      { return componentDeleteMap.size(); }
@@ -547,6 +584,20 @@ namespace pg
         void setRegistry(ComponentRegistry* registry)
         {
             LOG_THIS_MEMBER("Ref");
+
+            if (not registry)
+            {
+                LOG_ERROR("ECS", "Cannot set a null registry");
+                return;
+            }
+
+            if (not registry->hasTypeId<Type>())
+            {
+                LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
+                LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
+
+                registry->registerFlagComponent<Type>();
+            }
 
             ref = registry->retrieve<Type>();
         }

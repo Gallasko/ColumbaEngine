@@ -227,11 +227,7 @@ namespace pg
             normalizeDirection();
         }
 
-        MoveDirComponent(const MoveDirComponent& other)
-            : direction(other.direction), speed(other.speed), distanceTraveled(other.distanceTraveled),
-            maxDistance(other.maxDistance), destroyAfter(other.destroyAfter), callback(other.callback),
-            callbackCalled(other.callbackCalled)
-        {}
+        DEFAULT_COMPONENT_MEMBERS(MoveDirComponent)
 
         void setDirection(const constant::Vector2D& dir)
         {

@@ -162,7 +162,7 @@ namespace pg
 
         virtual void onEvent(const EntityChangedEvent& event) override;
 
-        void registerFont(const std::string& fontPath, int size = 48);
+        void registerFont(const std::string& fontPath, const std::string& fontName = "", int size = 48);
 
         void onEventUpdate(_unique_id entityId);
 
@@ -200,6 +200,7 @@ namespace pg
     CompList<PositionComponent, UiAnchor, TTFText> makeTTFText(Type *ecs, float x, float y, float z, const std::string& fontPath, const std::string& text, float scale = 1.0f, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f})
     {
         LOG_THIS("TTFText System");
+        // Todo add an error when trying to create a ttf with a non existing font
 
         auto entity = ecs->createEntity();
 

@@ -1,0 +1,326 @@
+# PgEngine Installation Guide
+
+This guide provides automated installation scripts for PgEngine with all dependencies and a working test application.
+
+## Quick Start
+
+### Native Desktop Installation
+
+```bash
+# Download and run the installer
+curl -fsSL https://raw.githubusercontent.com/Gallasko/PgEngine/main/scripts/install/install-pgengine.sh | bash
+
+# Or download and run with options
+wget https://raw.githubusercontent.com/Gallasko/PgEngine/main/scripts/install/install-pgengine.sh
+chmod +x install-pgengine.sh
+./install-pgengine.sh --help
+```
+
+### Web/Emscripten Installation
+
+```bash
+# First install the native version, then:
+wget https://raw.githubusercontent.com/Gallasko/PgEngine/main/scripts/install/install-emscripten.sh
+./install-emscripten.sh
+```
+
+## Installation Options
+
+### Native Installation Script (`install-pgengine.sh`)
+
+**What it does:**
+- Installs system dependencies (SDL2, OpenGL, build tools)
+- Downloads PgEngine source code
+- Builds PgEngine as a static library
+- Installs PgEngine system-wide or to custom location
+- Creates a working test application
+- Tests the installation
+
+**Usage:**
+```bash
+# Default installation to /usr/local
+./install-pgengine.sh
+
+# Install specific version
+./install-pgengine.sh -v v1.0.0
+
+# Install to custom location (no sudo required)
+./install-pgengine.sh -p ~/.local
+
+# Use different repository
+./install-pgengine.sh -r https://github.com/Gallasko/PgEngine.git
+
+# Custom working directory
+./install-pgengine.sh -d ~/my-pgengine-install
+
+# Parallel build with specific job count
+./install-pgengine.sh -j 4
+```
+
+**Environment Variables:**
+```bash
+# Set before running the script
+export PGENGINE_VERSION="v1.0.0"
+export INSTALL_PREFIX="$HOME/.local"
+export BUILD_JOBS=8
+./install-pgengine.sh
+```
+
+### Emscripten Installation Script (`install-emscripten.sh`)
+
+**What it does:**
+- Installs Emscripten SDK
+- Builds PgEngine for WebAssembly
+- Creates web test application
+- Sets up shell environment
+
+**Usage:**
+```bash
+# Use default PgEngine location
+./install-emscripten.sh
+
+# Specify PgEngine directory
+./install-emscripten.sh /path/to/pgengine
+
+# Custom Emscripten location
+EMSDK_DIR=~/my-emsdk ./install-emscripten.sh
+```
+
+## Supported Platforms
+
+### Native Platforms
+- **Ubuntu/Debian** - Full automatic dependency installation
+- **Fedora/RHEL/CentOS** - Full automatic dependency installation
+- **Arch Linux** - Full automatic dependency installation
+- **Other Linux** - Manual dependency installation required
+- **Windows** - Partial support (dependencies must be installed manually)
+- **macOS** - Partial support (use Homebrew for dependencies)
+
+### Web Platform
+- **Emscripten** - Full support for WebAssembly builds
+
+## What Gets Installed
+
+### System Dependencies
+- Build tools (gcc, g++, make, cmake, git)
+- OpenGL development libraries
+- X11 development libraries (Linux)
+- Audio libraries (ALSA, PulseAudio)
+- SDL2 development headers (for reference)
+
+### PgEngine Components
+- Static library (`libPgEngine.a`)
+- All bundled dependencies (SDL2, GLEW, FreeType, etc.)
+- Header files
+- CMake configuration files
+
+### File Locations
+```
+/usr/local/lib/libPgEngine.a              # Main engine library
+/usr/local/lib/lib*.a                     # Bundled dependencies
+/usr/local/include/PgEngine/              # Engine headers
+/usr/local/lib/cmake/PgEngine/            # CMake config files
+```
+
+### Test Application
+```
+~/pgengine-install/
+├── pgengine/                   # Engine source code
+│   ├── build/                  # Native build
+│   └── build-emscripten/       # Web build (if installed)
+├── test-app/                   # Native test application
+│   ├── src/
+│   │   ├── main.cpp
+│   │   ├── application.h
+│   │   └── application.cpp
+│   ├── build/
+│   │   └── PgEngineTestApp     # Executable
+│   ├── CMakeLists.txt
+│   ├── build.sh
+│   └── README.md
+└── web-test/                   # Web test application (if installed)
+    ├── src/
+    ├── build-web/
+    │   ├── PgEngineWebTest.html
+    │   ├── PgEngineWebTest.js
+    │   └── PgEngineWebTest.wasm
+    ├── CMakeLists.txt
+    └── build-web.sh
+```
+
+## Using PgEngine in Your Projects
+
+### CMake Integration
+
+```cmake
+# In your CMakeLists.txt
+cmake_minimum_required(VERSION 3.18)
+project(MyGame)
+
+set(CMAKE_CXX_STANDARD 17)
+
+# Find PgEngine
+find_package(PgEngine REQUIRED)
+
+# Create your executable
+add_executable(MyGame src/main.cpp)
+
+# Link with PgEngine
+target_link_libraries(MyGame PRIVATE PgEngine::PgEngine)
+```
+
+### Build Your Project
+
+```bash
+mkdir build && cd build
+cmake ..
+make
+```
+
+### Cross-Platform Building
+
+**Native:**
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
+
+**Web/Emscripten:**
+```bash
+# Make sure Emscripten is in PATH
+source ~/emsdk/emsdk_env.sh
+
+mkdir build-web && cd build-web
+emcmake cmake .. -DCMAKE_BUILD_TYPE=Release
+emmake make -j$(nproc)
+
+# Serve the web application
+python3 -m http.server 8000
+# Open http://localhost:8000/MyGame.html
+```
+
+## Example Project Structure
+
+```
+MyGame/
+├── CMakeLists.txt
+├── src/
+│   ├── main.cpp
+│   ├── game.h
+│   └── game.cpp
+├── assets/          # Game assets
+├── build/           # Native build
+└── build-web/       # Web build
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**CMake can't find PgEngine:**
+```bash
+# Specify the path explicitly
+cmake .. -DPgEngine_DIR=/usr/local/lib/cmake/PgEngine
+```
+
+**Permission denied during installation:**
+```bash
+# For system installation, use sudo or install to user directory
+./install-pgengine.sh -p ~/.local
+```
+
+**Missing dependencies on unsupported systems:**
+- Install build tools manually (gcc, g++, make, cmake, git)
+- Install OpenGL development libraries
+- Install X11 development libraries (Linux)
+- Install audio development libraries
+
+**Web build fails:**
+```bash
+# Make sure Emscripten is properly sourced
+source ~/emsdk/emsdk_env.sh
+which emcc  # Should show emcc path
+```
+
+**Runtime errors:**
+- Check that all required assets are in the correct paths
+- For web builds, ensure you're serving files from a web server
+- Check console/terminal for error messages
+
+### Getting Help
+
+1. **Check the test application** - If it works, your installation is correct
+2. **Verify installation** - Check that files exist in expected locations
+3. **Check build logs** - Look for specific error messages
+4. **Environment** - Ensure PATH and environment variables are set
+5. **Permissions** - Check file permissions and installation directories
+
+### Manual Installation
+
+If the automatic scripts don't work for your system:
+
+```bash
+# 1. Install dependencies manually
+# 2. Clone PgEngine
+git clone --recursive https://github.com/Gallasko/PgEngine.git
+cd PgEngine
+
+# 3. Build
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local
+make -j$(nproc)
+
+# 4. Install
+sudo make install
+```
+
+## Updating PgEngine
+
+To update to a newer version:
+
+```bash
+# Re-run the installer with new version
+./install-pgengine.sh -v v1.1.0
+
+# Or manually update
+cd ~/pgengine-install/pgengine
+git fetch origin
+git checkout v1.1.0
+cd build
+make clean
+cmake ..
+make -j$(nproc)
+sudo make install
+```
+
+## Uninstalling
+
+To remove PgEngine:
+
+```bash
+# Remove installed files
+sudo rm -rf /usr/local/lib/libPgEngine.a
+sudo rm -rf /usr/local/lib/lib*{SDL2,glew,freetype}*.a
+sudo rm -rf /usr/local/include/PgEngine
+sudo rm -rf /usr/local/lib/cmake/PgEngine
+
+# Remove working directory
+rm -rf ~/pgengine-install
+
+# Update library cache
+sudo ldconfig
+```
+
+## Contributing
+
+If you improve the installation scripts or find issues:
+
+1. Fork the repository
+2. Create a feature branch
+3. Test your changes on multiple platforms
+4. Submit a pull request
+
+## License
+
+These installation scripts are provided under the same license as PgEngine.

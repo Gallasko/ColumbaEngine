@@ -8,9 +8,6 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
-
 #include "logger.h"
 
 #include "Helpers/openglobject.h"
@@ -285,13 +282,49 @@ namespace pg
         std::vector<RenderCall> merged;
         merged.reserve(renderCallList[tempRenderList].size());
 
-        // Todo we can break early when the key visibility is set to false
-        // as all the element after the first invisible element will be invisible
-
         for (auto& pair : buckets)
         {
+            // After this point all the render calls are invisible so we don't need to process them
+            if (pair.first > (static_cast<uint64_t>(1) << 63))
+            {
+                break;
+            }
+
+            // Pre process the render calls before passing them to the render stage
             for (auto& call : pair.second)
             {
+                auto materialId = call.getMaterialId();
+
+                if (materialId >= materialList.size())
+                {
+                    LOG_ERROR(DOM, "Unknown material id: " << materialId);
+                    continue;
+                }
+
+                const auto& material = getMaterial(materialId);
+
+                // If the mesh is not set we use the one from the material
+                if (not call.mesh)
+                {
+                    call.mesh = material.mesh;
+                }
+
+                // We get the number of elements to render
+                if (material.nbAttributes == 0)
+                {
+                    call.nbElements = 1;
+                }
+                else
+                {
+                    call.nbElements = call.data.size() / material.nbAttributes;
+
+                    if (call.nbElements == 0)
+                    {
+                        LOG_ERROR(DOM, "No elements in the render call should be impossible !");
+                        continue;
+                    }
+                }
+
                 merged.emplace_back(std::move(call));
             }
         }
@@ -385,9 +418,13 @@ namespace pg
             }
         }
 
+        const auto& rTable = getParameter();
+        const int screenWidth = rTable.at("ScreenWidth").get<int>();
+        const int screenHeight = rTable.at("ScreenHeight").get<int>();
+
         for (const auto& call : renderCallList[currentRenderList])
         {
-            processRenderCall(call);
+            processRenderCall(call, rTable, screenWidth, screenHeight);
         }
 
         if (saveCurrentFrame)
@@ -574,44 +611,26 @@ namespace pg
 #endif
     }
 
-    void MasterRenderer::processRenderCall(const RenderCall& call)
+    void MasterRenderer::processRenderCall(const RenderCall& call, const RefracRef& rTable, unsigned int screenWidth, unsigned int screenHeight)
     {
-        if (not call.getVisibility())
-            return;
+        // This should never happens anymore
+        // if (not call.getVisibility())
+        //     return;
+
+        // Todo initialize material in another call !
+        if (not call.mesh->initialized)
+        {
+            LOG_MILE(DOM, "Generating mesh");
+            call.mesh->generateMesh();
+        }
 
         auto materialId = call.getMaterialId();
 
-        if (materialId >= materialList.size())
-        {
-            LOG_ERROR(DOM, "Unknown material id: " << materialId);
-            return;
-        }
-
         const auto& material = getMaterial(materialId);
-
-        if (material.nbAttributes == 0)
-        {
-            LOG_ERROR(DOM, "No attributes for this render call");
-            return;
-        }
-
-        // Todo this should never happens if the material has some attributes
-        // if (material.mesh == nullptr)
-        // {
-        //     LOG_ERROR(DOM, "Mesh not found");
-        //     return;
-        // }
-
-        // Todo initialize material in another call !
-        if (not material.mesh->initialized)
-        {
-            LOG_MILE(DOM, "Generating mesh");
-            material.mesh->generateMesh();
-        }
 
         auto shaderProgram = material.shader;
 
-        if (not shaderProgram)
+        if (not shaderProgram or shaderProgram->ID < 0)
         {
             LOG_ERROR(DOM, "Shader not found");
 
@@ -659,10 +678,6 @@ namespace pg
             shaderProgram->setUniformValue("texture" + std::to_string(i), static_cast<int>(i));
         }
 
-        auto& rTable = getParameter();
-        const int screenWidth = rTable["ScreenWidth"].get<int>();
-        const int screenHeight = rTable["ScreenHeight"].get<int>();
-
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 scale = glm::mat4(1.0f);
 
@@ -696,7 +711,7 @@ namespace pg
                 {
                     std::string id = std::get<std::string>(uniform.second.value);
 
-                    const auto& value = rTable[id];
+                    const auto& value = rTable.at(id);
 
                     switch(value.type)
                     {
@@ -725,26 +740,17 @@ namespace pg
         shaderProgram->setUniformValue("scale", scale);
         shaderProgram->setUniformValue("view", view);
 
-        material.mesh->bind();
-
-        unsigned int nbElements = call.data.size() / material.nbAttributes;
-
-        if (nbElements == 0)
+        if (not call.mesh)
         {
-            LOG_ERROR(DOM, "No elements in the render call should be impossible !");
+            LOG_ERROR(DOM, "Mesh not set for render call with key: " << call.key);
             return;
         }
 
-        material.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
+        call.mesh->bind();
 
-        if (call.batchable)
-        {
-            glDrawElementsInstanced(GL_TRIANGLES, material.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0, nbElements);
-        }
-        else
-        {
-            glDrawElements(GL_TRIANGLES, material.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0);
-        }
+        call.mesh->openGLMesh.instanceVBO->allocate(call.data.data(), call.data.size() * sizeof(float));
+
+        glDrawElementsInstanced(GL_TRIANGLES, call.mesh->modelInfo.nbIndices, GL_UNSIGNED_INT, 0, call.nbElements);
 
         // Todo only release if the shader need to change
         shaderProgram->release();

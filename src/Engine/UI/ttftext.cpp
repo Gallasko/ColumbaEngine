@@ -21,8 +21,6 @@
 #include <GL/gl.h>
 #endif
 
-#include <glm.hpp>
-
 namespace pg
 {
     namespace
@@ -128,9 +126,9 @@ namespace pg
         onEventUpdate(event.id);
     }
 
-    void TTFTextSystem::registerFont(const std::string& fontPath, int size)
+    void TTFTextSystem::registerFont(const std::string& fontPath, const std::string& fontName, int size)
     {
-        auto f = [fontPath, size, this](size_t oldId)
+        auto f = [fontPath, fontName, size, this](size_t oldId)
         {
             // Initialize and load a font face.
             FT_Face face;
@@ -152,6 +150,8 @@ namespace pg
             int currentX = 0;
             int currentY = 0;
             int rowHeight = 0;
+
+            auto texName = (fontName == "" ? fontPath : fontName);
 
             // For each glyph in the chosen character set:
             for (unsigned char c = 32; c < 127; c++) {
@@ -194,7 +194,7 @@ namespace pg
                 character.uvTopLeft = glm::vec2(u1, v1);
                 character.uvBottomRight = glm::vec2(u2, v2);
 
-                charactersMap[fontPath][c] = character;
+                charactersMap[texName][c] = character;
 
                 // Update currentX and rowHeight.
                 currentX += face->glyph->bitmap.width;
@@ -215,7 +215,12 @@ namespace pg
                 glBindTexture(GL_TEXTURE_2D, texture);
             }
 
+            // glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth, atlasHeight, 0, GL_RED, GL_UNSIGNED_BYTE, atlasBuffer.data());
+#ifdef __EMSCRIPTEN__
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE, atlasWidth, atlasHeight, 0, GL_LUMINANCE, GL_UNSIGNED_BYTE, atlasBuffer.data());
+#else
             glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, atlasWidth, atlasHeight, 0, GL_RED, GL_UNSIGNED_BYTE, atlasBuffer.data());
+#endif
             // Set texture parameters.
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
@@ -234,7 +239,7 @@ namespace pg
             return fontTexture;
         };
 
-        auto textureName = "TTFText_" + fontPath;
+        auto textureName = "TTFText_" + (fontName == "" ? fontPath : fontName);
 
         LOG_INFO(DOM, "Registering texture: " << textureName);
 
@@ -304,7 +309,7 @@ namespace pg
             }
             else
             {
-                ecsRef->attachGeneric<TTFTextCall>(entity, createRenderCall(ui, obj));
+                ecsRef->_attach<TTFTextCall>(entity, createRenderCall(ui, obj));
             }
 
             textUpdateQueue.pop();

@@ -11,6 +11,8 @@ loadShader("gui", "shader/default.vs", "shader/default.fs");
 loadShader("text", "shader/textrendering.vs", "shader/textrendering.fs");
 loadShader("2DShapes", "shader/simpleshapes.vs", "shader/simpleshapes.fs");
 loadShader("progressBar", "shader/progressbar.vs", "shader/progressbar.fs");
+loadShader("lineShader", "shader/lineshader.vs", "shader/lineshader.fs");
+loadShader("polygonShader", "shader/polygonshader.vs", "shader/polygonshader.fs");
 
 print("Shaders loaded successfully.")
 

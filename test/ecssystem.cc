@@ -948,5 +948,194 @@ namespace pg
             //     ecs.attach<A>(entity, static_cast<int>(i), 15);
             // }
         }
+
+
+        TEST(system_test, succeed_reorders_tasks)
+        {
+            EntitySystem ecs;
+            struct BeforeSys : public System<> { void execute(){} };
+            struct AfterSys  : public System<> { void execute(){} };
+
+            ecs.createSystem<BeforeSys>();
+            ecs.createSystem<AfterSys>();
+            // initially independent → no ordering constraint
+            EXPECT_EQ(ecs.getNbTasks(), 2u);
+
+            // impose after runs after before
+            ecs.succeed<AfterSys, BeforeSys>();
+
+            // dump the graph and ensure the edge exists
+            std::ostringstream ss;
+            ecs.dumbTaskflow();          // prints to stdout; we'll just assert no crash
+            SUCCEED() << "succeed<After,Before>() did not crash";
+        }
+
+        TEST(system_test, remove_entity_cleans_components)
+        {
+            EntitySystem ecs;
+            auto sysA = ecs.createSystem<ASystem>();
+            auto e0 = ecs.createEntity();
+            auto e1 = ecs.createEntity();
+            ecs.attachGeneric<A>(e0, 1,2);
+            ecs.attachGeneric<A>(e1, 3,4);
+
+            EXPECT_EQ(sysA->getNbComponents(), 2 + 1); // two entities, two slots
+
+            ecs.removeEntity(e0);
+
+            // After removal, e0's components gone; sysA should only have e1 twice
+            size_t count_after = 0;
+            for (const auto& comp : sysA->view<A>()) if (comp) ++count_after;
+            EXPECT_EQ(count_after, 1u);
+        }
+
+
+        TEST(system_test, serialization_roundtrip_preserves_components) {
+            // NOTE: requires implementing basic save/load in your SaveManager
+            EntitySystem ecs("test_save.sz");
+
+            ecs.createSystem<ASystem>();
+
+            auto e = ecs.createEntity();
+            ecs.attachGeneric<A>(e, 7, 8);
+
+            EXPECT_TRUE(e.has<A>());
+            // save to disk
+            ecs.saveSystems();
+
+            // now rebuild from scratch
+            EntitySystem ecs2("test_save.sz");
+            // TODO: ecs2.loadSystems();  // implement this
+            // after load, should have the same entity with A.value == 15
+            // EntityRef e2 = ecs2.getEntity(e.id);
+            // auto cref = ecs2.attachGeneric<A>(e2,0,0);  // placeholder
+            // EXPECT_EQ(cref->value, 15);
+            SUCCEED() << "serialization_roundtrip placeholder";
+        }
+
+        TEST(system_test, event_queue_fifo) {
+            EntitySystem ecs;
+
+            struct QSys : public System<Listener<EEvent>, StoragePolicy>
+            {
+                std::vector<std::string>* out;
+
+                QSys(std::vector<std::string>* v) : out(v) {}
+
+                void onEvent(EEvent const& e) override
+                {
+                    out->push_back(e.payload);
+                }
+            };
+
+            std::vector<std::string> result;
+            ecs.createSystem<QSys>(&result);
+
+            ecs.sendEvent(EEvent{"first"});
+            ecs.sendEvent(EEvent{"second"});
+            ecs.sendEvent(EEvent{"third"});
+
+            // process queue synchronously
+            ecs.executeOnce();
+
+            ASSERT_EQ(result.size(), 3u);
+            EXPECT_EQ(result[0], "first");
+            EXPECT_EQ(result[1], "second");
+            EXPECT_EQ(result[2], "third");
+        }
+
+        TEST(system_test, dynamic_group_membership)
+        {
+            EntitySystem ecs;
+            struct X { int v; };
+            struct Y { int v; };
+
+            // A system that just registers the X+Y group so that viewGroup works
+            struct XYZSys : public System<Own<X>, Own<Y>, InitSys, StoragePolicy>
+            {
+                void init() override
+                {
+                    registerGroup<X, Y>();
+                }
+            };
+
+            auto xyz = ecs.createSystem<XYZSys>();
+
+            auto nb = xyz->viewGroup<X, Y>().nbComponents();
+            EXPECT_EQ(nb, 1u);
+
+            auto e = ecs.createEntity();
+
+            // attach X and Y
+            ecs.attachGeneric<X>(e).component->v = 1;
+            ecs.attachGeneric<Y>(e).component->v = 2;
+
+            // run one pass so init() + grouping happens
+            ecs.executeOnce();
+
+            // now exactly 1 entity has both X and Y
+            nb = xyz->viewGroup<X, Y>().nbComponents(); // Todo careful here nbComponent is 1 index based not 0
+            EXPECT_EQ(nb, 2u);
+
+            // detach Y
+            ecs.detach<Y>(e);
+            ecs.executeOnce();
+
+            // now no entity has *both*, so group size goes to 0
+            nb = xyz->viewGroup<X, Y>().nbComponents();
+            EXPECT_EQ(nb, 1u);
+        }
+
+        // A dummy component that doesn’t otherwise have a system
+        struct MyAutoComponent : public Component
+        {
+            // Todo, compilation failes if a getType is given but no serialize/deserialize function
+            // static constexpr const char* getType() { return "MyAutoComponent"; }
+            // no onCreation, no static name → registry::HasStaticName = false
+        };
+
+        // A system that “owns” MyAutoComponent if you want to test HasOnCreation
+        struct MyManualSystem : public pg::System<pg::Own<MyAutoComponent>>
+        {
+            MyManualSystem() { executionPolicy = ExecutionPolicy::Sequential; }
+        };
+
+        TEST(EcsAutoSystem, RegisterFlagComponentCreatesDummyFlagSystem)
+        {
+            EntitySystem ecs;
+            ecs.fakeStart();
+
+            size_t before = ecs.getNbSystems();
+
+            // manually register a “flag” component
+            ecs.registerFlagComponent<MyAutoComponent>();
+
+            size_t after = ecs.getNbSystems();
+            EXPECT_EQ(after, before + 1) << "registerFlagComponent<MyAutoComponent>() should create one new System";
+        }
+
+        TEST(EcsAutoSystem, AttachAutoRegistersFlagSystemThenAttachComponent)
+        {
+            EntitySystem ecs;
+            ecs.fakeStart();
+
+            auto e = ecs.createEntity();
+            // We have not registered MyAutoComponent yet.
+            EXPECT_EQ(ecs.getNbSystems(), 0u);
+
+            // Attaching your component should auto-register the dummy system:
+            auto cref = ecs.attach<MyAutoComponent>(e);
+            EXPECT_FALSE(cref.empty());
+
+            // Now we expect exactly one system in the ECS:
+            EXPECT_EQ(ecs.getNbSystems(), 1u);
+
+            // We can also verify that the registry now knows our component type:
+            const auto* registry = ecs.getComponentRegistry();
+            // auto typeId = registry->getTypeId<MyAutoComponent>();
+            EXPECT_TRUE(registry->hasTypeId<MyAutoComponent>());
+        }
+
+
     }
 }

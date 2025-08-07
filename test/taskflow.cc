@@ -4,8 +4,8 @@
 
 #include "gtest/gtest.h"
 
-#include <taskflow.hpp>
-#include <algorithm/pipeline.hpp>
+#include "taskflow/taskflow.hpp"
+#include "taskflow/algorithm/pipeline.hpp"
 
 namespace
 {

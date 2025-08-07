@@ -15,3 +15,4 @@ CMakeCache.txt
 /debug*
 /linux*
 .idea*
+/clang*

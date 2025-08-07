@@ -355,7 +355,7 @@ namespace pg
         ecs->template attach<MouseLeftClickComponent>(slider.entity, makeCallable<OnFocus>(slider.entity.id), MouseStateTrigger::OnPress);
 
         auto bodySizer = makeAnchoredPosition(ecs);
-        ecs->template attachGeneric<ListViewBodySizer>(bodySizer.entity, entity->id);
+        ecs->template _attach<ListViewBodySizer>(bodySizer.entity, entity->id);
 
         view->cursor = cursor.entity;
 

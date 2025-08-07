@@ -108,6 +108,12 @@ namespace pg
             return ecsRef->attachGeneric<Type>(entity, args...);
         }
 
+        template <typename Type, typename... Args>
+        CompRef<Type> _attach(EntityRef entity, Args&&... args) noexcept
+        {
+            return ecsRef->_attach<Type>(entity, args...);
+        }
+
         template <typename Type>
         Type* getSystem() const { return ecsRef->getSystem<Type>(); }
 

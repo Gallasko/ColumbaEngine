@@ -132,7 +132,7 @@ namespace pg
 		}
 	}
 
-	Input::InputState Input::registerMouseMove(const MousePos& mousePos, const MousePos& mouseDelta)
+	Input::InputState Input::registerMouseMove(const Point2D& mousePos, const Point2D& mouseDelta)
 	{
 		LOG_THIS_MEMBER(DOM);
 
@@ -214,14 +214,14 @@ namespace pg
 		return buttonState(button) == Input::InputState::MOUSERELEASE;
 	}
 
-	const MousePos& Input::getMousePos() const
+	const Point2D& Input::getMousePos() const
 	{
 		LOG_THIS_MEMBER(DOM);
 
 		return this->mousePos;
 	}
 
-	const MousePos& Input::getMouseDelta() const
+	const Point2D& Input::getMouseDelta() const
 	{
 		LOG_THIS_MEMBER(DOM);
 

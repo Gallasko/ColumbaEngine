@@ -4,7 +4,7 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include <taskflow.hpp>
+#include "taskflow/taskflow.hpp"
 
 #include "componentregistry.h"
 #include "entity.h"
@@ -27,12 +27,8 @@ extern std::unordered_map<std::string, long long> _systemExecutionTimes;
 extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
 #endif
 
-#define _PGSTRINGIZE_DETAIL(x) #x
-#define _PGSTRINGIZE(x)        _PGSTRINGIZE_DETAIL(x)
 namespace pg
 {
-
-
     // Todo create a queue that hold all entity id that got deleted to reattribute them later on
 
     // Todo Create a different id gen for systems so that components id are smaller and more packed
@@ -205,13 +201,13 @@ namespace pg
          * @param args The arguments to pass to the ctor of the newly created system
          * @return Sys* A pointer to the newly created system
          */
-        template <class Sys, typename... Args>
+        template <class Sys, bool Bypass = false, typename... Args>
         Sys* createSystem(const Args&... args)
         {
             LOG_THIS_MEMBER("ECS");
 
             // Todo: add support for system creation during runtime
-            if (running)
+            if (not Bypass and running)
             {
                 LOG_ERROR("ECS", "System creation during runtime is not supported");
                 return nullptr;
@@ -518,11 +514,13 @@ namespace pg
             }
         }
 
-        // Todo add a Component struct that add the onCreation()-> entityid adding
-        // and make the attach warn with this: #pragma message ("Warning goes here")
-        // if you try to attach a type that doesn't derive from component
-
         // Todo fix attach doesn't work if an args is a const std::string&
+
+        template <typename Type>
+        auto registerFlagComponent()
+        {
+            return registry.registerFlagComponent<Type>();
+        }
 
         template <typename Type, typename... Args>
         CompRef<Type> attach(EntityRef entity, Args&&... args)
@@ -541,6 +539,20 @@ namespace pg
 
         template <typename Type, typename... Args>
         CompRef<Type> attachGeneric(EntityRef entity, Args&&... args) noexcept
+        {
+            if (not registry.hasTypeId<Type>())
+            {
+                LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
+                LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
+
+                registerFlagComponent<Type>();
+            }
+
+            return _attach<Type>(entity, std::forward<Args>(args)...);
+        }
+
+        template <typename Type, typename... Args>
+        CompRef<Type> _attach(EntityRef entity, Args&&... args) noexcept
         {
             try
             {
@@ -591,6 +603,12 @@ namespace pg
         {
             if (not entity)
                 return;
+
+            if (not registry.hasTypeId<Type>())
+            {
+                LOG_ERROR("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS");
+                return;
+            }
 
             auto id = registry.getTypeId<Type>();
 
@@ -864,7 +882,12 @@ namespace pg
             // Try to find the entity in the ecs to update this ref
             auto ent = ecsRef->getEntity(id);
 
-            return ent->template get<Comp>();
+            if (ent)
+                return ent->template get<Comp>();
+            else
+            {
+                return entity->template get<Comp>();
+            }
         }
     }
 
@@ -1024,6 +1047,14 @@ namespace pg
         removeTypeId<Type>();
     }
 
+    template <typename Type>
+    auto ComponentRegistry::registerFlagComponent()
+    {
+        struct DummyFlagSys : public System<Own<Type>, StoragePolicy> {};
+
+        return ecsRef->createSystem<DummyFlagSys, true>();
+    }
+
     template <typename Comp>
     void CompRef<Comp>::operator=(const CompRef& rhs)
     {
@@ -1138,6 +1169,8 @@ namespace pg
         if (this->registry == nullptr)
             return;
 
+        checkGroupTypeExistence<Type, Types...>();
+
         populateList(setList, 0, registry->retrieve<Type>(), registry->retrieve<Types>()...);
 
         size_t smallestSetIndex = 0;
@@ -1198,6 +1231,22 @@ namespace pg
         //std::remove_if(it.begin(), it.end(), [](const GroupElement<Type, Types...>& element) { return element.toBeDeleted; });
 
         // Todo sort the group
+    }
+
+    template <typename Type>
+    void Component::setValue(Type& currentValue, const Type& value)
+    {
+        LOG_THIS_MEMBER("Component");
+
+        if (currentValue != value)
+        {
+            currentValue = value;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(EntityChangedEvent{entityId});
+            }
+        }
     }
 
     template <typename Type>

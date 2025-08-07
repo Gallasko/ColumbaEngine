@@ -1,8 +1,6 @@
-#version 330 core
-
-out vec4 FragColor;  
+out vec4 FragColor;
 in vec4 ourColor;
-  
+
 void main()
 {
     FragColor = vec4(ourColor.x / 255.0, ourColor.y / 255.0, ourColor.z / 255.0, ourColor.w / 255.0);

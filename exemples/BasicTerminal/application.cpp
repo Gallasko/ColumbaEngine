@@ -1,0 +1,669 @@
+#include "application.h"
+
+#include "logger.h"
+
+#include "UI/prefab.h"
+#include "UI/textinput.h"
+#include "UI/sizer.h"
+#include "2D/simple2dobject.h"
+
+#include "Helpers/tinyfiledialogs.h"
+
+#include "Systems/basicsystems.h"
+
+using namespace pg;
+
+namespace {
+    static const char *const DOM = "App";
+}
+
+GameApp::GameApp(const std::string &appName) : appName(appName) {
+    LOG_THIS_MEMBER(DOM);
+}
+
+GameApp::~GameApp() {
+    LOG_THIS_MEMBER(DOM);
+}
+
+std::thread *initThread;
+pg::Window *mainWindow = nullptr;
+std::atomic<bool> initialized = {false};
+bool init = false;
+bool running = true;
+
+void initWindow(const std::string &appName) {
+#ifdef __EMSCRIPTEN__
+    mainWindow = new pg::Window(appName, "/save/savedData.sz");
+#else
+    mainWindow = new pg::Window(appName);
+#endif
+
+    LOG_INFO(DOM, "Window init...");
+
+    initialized = true;
+}
+
+constant::Vector4D getLineTextBgColor(size_t lineNumber)
+{
+    return (lineNumber % 2) ? constant::Vector4D{167.f, 167.f, 167.f, 255.f} : constant::Vector4D{218.f, 218.f, 218.f, 255.f};
+}
+
+struct PrefabClickedEvent
+{
+    PrefabClickedEvent(_unique_id id) : id(id) {}
+    PrefabClickedEvent(const PrefabClickedEvent& other) : id(other.id) {}
+
+    PrefabClickedEvent& operator=(const PrefabClickedEvent& other)
+    {
+        id = other.id;
+        return *this;
+    }
+
+    _unique_id id;
+};
+
+CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
+{
+    auto prefabEnt = makeAnchoredPrefab(ecsRef);
+    auto prefab = prefabEnt.get<Prefab>();
+    auto prefabAnchor = prefabEnt.get<UiAnchor>();
+
+    auto color = getLineTextBgColor(lineNumber);
+
+    auto square = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, color);
+    auto squareAnchor = square.get<UiAnchor>();
+
+    prefabAnchor->setHeightConstrain(PosConstrain{square.entity.id, AnchorType::Height});
+    prefabEnt.get<PositionComponent>()->setWidth(50);
+
+    squareAnchor->setTopAnchor(prefabAnchor->top);
+    squareAnchor->setLeftAnchor(prefabAnchor->left);
+
+    // Todo replace the -50 here by an actual masking until ready of the ttf text component
+    auto lineText = makeTTFText(ecsRef, 0, -50, 4, "light", std::to_string(lineNumber), 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+
+    auto textAnchor = lineText.get<UiAnchor>();
+    textAnchor->centeredIn(squareAnchor);
+    textAnchor->setZConstrain(PosConstrain{square.entity.id, AnchorType::Z, PosOpType::Add, 1});
+
+    auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    auto s2Bg = s2.get<Simple2DObject>();
+    auto s2Anchor = s2.get<UiAnchor>();
+
+    s2Anchor->setTopAnchor(prefabAnchor->top);
+    s2Anchor->setLeftAnchor(prefabAnchor->left);
+    s2Anchor->setLeftMargin(30);
+    s2Anchor->setRightAnchor(anchor->right);
+
+    prefabAnchor->setWidthConstrain(PosConstrain{s2.entity.id, AnchorType::Width});
+
+    auto inputText = makeTTFText(ecsRef, 0, 0, 4, "light", "", 0.4, constant::Vector4D{255.f, 255.f, 255.f, 255.f});
+    auto inputTTFText = inputText.get<TTFText>();
+    auto inputTextAnchor = inputText.get<UiAnchor>();
+
+    inputTextAnchor->setLeftAnchor(s2Anchor->left);
+    inputTextAnchor->setBottomAnchor(s2Anchor->bottom);
+    inputTextAnchor->setBottomMargin(5);
+
+    prefab->addToPrefab(square.entity, "LineTextBg");
+    prefab->addToPrefab(lineText.entity, "LineText");
+    prefab->addToPrefab(s2.entity, "TextBg");
+    prefab->addToPrefab(inputText.entity, "Text");
+
+    prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
+
+    prefab->addHelper("UpdateLineText", [](Prefab *prefab, size_t newLineValue) {
+        prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+        prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+    });
+
+    prefab->addHelper("GetCurrentText", [](Prefab *prefab) -> std::string {
+        return prefab->getEntity("Text")->get<TTFText>()->text;
+    });
+
+    prefab->addHelper("SetCurrentText", [](Prefab *prefab, const std::string& newText) {
+        prefab->getEntity("Text")->get<TTFText>()->setText(newText);
+    });
+
+    prefab->addHelper("SetAsFocusLine", [](Prefab *prefab) {
+        prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+    });
+
+    prefab->addHelper("UnfocusLine", [](Prefab *prefab) {
+        prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    });
+
+    return {prefabEnt.entity, prefab, s2Bg, inputTTFText};
+    // return prefabEnt.entity;
+}
+
+struct OpenFileAction {};
+
+struct SaveFileAction {};
+
+struct TextHandlingSys : public System<
+    QueuedListener<OnSDLTextInput>,
+    QueuedListener<OnSDLScanCode>,
+    QueuedListener<OnSDLScanCodeReleased>,
+    QueuedListener<PrefabClickedEvent>,
+    Listener<OpenFileAction>,
+    Listener<SaveFileAction>,
+    InitSys>
+{
+    virtual void onProcessEvent(const PrefabClickedEvent& event) override
+    {
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (not ent or not ent->has<Prefab>())
+        {
+            LOG_ERROR(DOM, "Clicked on a non-prefab entity " << event.id);
+            return;
+        }
+
+        auto prefab = ent->get<Prefab>();
+
+        auto lineText = prefab->getEntity("LineText");
+
+        auto lineNumber = lineText->get<TTFText>()->text;
+
+        LOG_INFO(DOM, "Clicked on line: " << lineNumber);
+
+        focusLine(std::stoul(lineNumber));
+    }
+
+    virtual void onProcessEvent(const OnSDLTextInput& event) override
+    {
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+        auto ent = listViewComp->entities[currentLine - 1];
+        auto prefab = ent.get<Prefab>();
+
+        auto currentText = prefab->callHelper<std::string>("GetCurrentText");
+
+        prefab->callHelper("SetCurrentText", currentText + event.text);
+    }
+
+    void focusLine(size_t lineNumber)
+    {
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+        auto entBefore = listViewComp->entities[currentLine - 1];
+        auto prefabBefore = entBefore.get<Prefab>();
+        prefabBefore->callHelper("UnfocusLine");
+
+        currentLine = lineNumber;
+
+        auto entAfter = listViewComp->entities[currentLine - 1];
+        auto prefabAfter = entAfter.get<Prefab>();
+
+        prefabAfter->callHelper("SetAsFocusLine");
+    }
+
+    virtual void onProcessEvent(const OnSDLScanCode& event) override
+    {
+        if (event.key == SDL_SCANCODE_RETURN)
+        {
+            auto anchor = textInputEnt.get<UiAnchor>();
+
+            auto oldLine = currentLine++;
+            lineNumber++;
+
+            auto linePrefab = makeLinePrefab(ecsRef, anchor, currentLine);
+
+            auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+            // Remove the old higlighted line
+            if (oldLine > 0)
+            {
+                auto entBefore = listViewComp->entities[oldLine - 1];
+                auto prefabBefore = entBefore.get<Prefab>();
+                prefabBefore->callHelper("UnfocusLine");
+            }
+
+            // Todo We should be able to do this
+            // auto prefab = linePrefab.get<Prefab>();
+
+            // auto ent = prefab->getEntity("TextBg");
+            // // Todo fix this (An entity here has a empty comp list as their comp are not materialized yet !)
+            // auto shape = ent->get<Simple2DObject>();
+            // shape->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+
+            // Todo fix this
+            // Higlight the new line
+            linePrefab.get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+
+            // Update the line text for all the line after the inserted line
+            for (size_t i = currentLine - 1; i < lineNumber - 2; ++i)
+            {
+                auto ent = listViewComp->entities[i];
+                auto prefab = ent.get<Prefab>();
+
+                auto newLineValue = i + 2;
+
+                prefab->callHelper("UpdateLineText", newLineValue);
+
+                // prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+                // prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+            }
+
+            listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
+        }
+        else if (event.key == SDL_SCANCODE_BACKSPACE)
+        {
+            auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+            auto ent = listViewComp->entities[currentLine - 1];
+
+            auto pf = ent->get<Prefab>();
+
+            auto text = pf->callHelper<std::string>("GetCurrentText");
+
+            if (not text.empty())
+            {
+                text.pop_back();
+
+                // If control is held try to remove everything till the beginning or till another space is found
+                if (lcontrolPressed or rcontrolPressed)
+                {
+                    while (not text.empty() and not (text.back() == ' '))
+                    {
+                        text.pop_back();
+                    }
+                }
+
+                pf->callHelper("SetCurrentText", text);
+
+                return;
+            }
+            // else do the line removal logic down here
+
+            if (currentLine <= 1)
+                return;
+
+            if (currentLine - 2 >= 0)
+            {
+                auto entBefore = listViewComp->entities[currentLine - 2];
+                auto prefabBefore = entBefore.get<Prefab>();
+                prefabBefore->callHelper("UnfocusLine");
+            }
+
+            // Update the line text for all the line after the inserted line
+            for (size_t i = currentLine; i < lineNumber - 1; ++i)
+            {
+                auto ent = listViewComp->entities[i];
+                auto prefab = ent.get<Prefab>();
+
+                auto newLineValue = i;
+
+                prefab->callHelper("UpdateLineText", newLineValue);
+
+                // prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+
+                // prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+            }
+
+            listViewComp->removeAt(currentLine - 1);
+
+            lineNumber--;
+            currentLine--;
+        }
+        else if (event.key == SDL_SCANCODE_UP)
+        {
+            if (currentLine > 1)
+            {
+                focusLine(currentLine - 1);
+            }
+        }
+        else if (event.key == SDL_SCANCODE_DOWN)
+        {
+            if (currentLine < lineNumber - 1)
+            {
+                focusLine(currentLine + 1);
+            }
+        }
+        else if (event.key == SDL_SCANCODE_LCTRL)
+        {
+            lcontrolPressed = true;
+        }
+        else if (event.key == SDL_SCANCODE_RCTRL)
+        {
+            rcontrolPressed = true;
+        }
+    }
+
+    virtual void onProcessEvent(const OnSDLScanCodeReleased& event) override
+    {
+        if (event.key == SDL_SCANCODE_LCTRL)
+        {
+            lcontrolPressed = false;
+        }
+        else if (event.key == SDL_SCANCODE_RCTRL)
+        {
+            rcontrolPressed = false;
+        }
+    }
+
+    virtual void init() override
+    {
+        textInputEnt = ecsRef->createEntity();
+
+        auto ui = ecsRef->attach<PositionComponent>(textInputEnt);
+
+        auto anchor = ecsRef->attach<UiAnchor>(textInputEnt);
+
+        auto windowAnchor = ecsRef->getEntity("__MainWindow")->get<UiAnchor>();
+
+        anchor->fillIn(windowAnchor);
+
+        auto focused = ecsRef->attach<FocusableComponent>(textInputEnt);
+
+        ecsRef->attach<MouseLeftClickComponent>(textInputEnt, makeCallable<OnFocus>(OnFocus{textInputEnt.id}) );
+
+        StandardEvent event {"TerminalNewLine"};
+
+        auto textInputComp = ecsRef->attach<TextInputComponent>(textInputEnt, event, "");
+
+        auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500, true);
+
+        // listView.attach<Simple2DObject>(Shape2D::Square, constant::Vector4D{0.f, 192.f, 0.f, 255.f});
+
+        auto listViewAnchor = listView.get<UiAnchor>();
+        listViewAnchor->setTopMargin(90);
+
+        listViewAnchor->fillIn(anchor);
+
+        auto listViewComp = listView.get<VerticalLayout>();
+
+        auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+        auto linePrefab2 = makeLinePrefab(ecsRef, anchor, lineNumber++);
+        auto linePrefab3 = makeLinePrefab(ecsRef, anchor, lineNumber++);
+
+        linePrefab3.get<Prefab>()->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+
+        // listViewComp->addEntity(linePrefab);
+
+        // auto testCube = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, constant::Vector4D{192.f, 0.f, 0.f, 255.f});
+
+        // listViewComp->addEntity(testCube.entity);
+
+        listViewComp->addEntity(linePrefab.entity);
+        listViewComp->addEntity(linePrefab2.entity);
+        listViewComp->addEntity(linePrefab3.entity);
+
+        currentLine = 3;
+
+        listViewEnt = listView.entity;
+
+        auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
+        ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFileAction>());
+
+        auto save = makeTTFText(ecsRef, 70.0f, 5.0f, 12.0f, "light", "Save", 0.5);
+        ecsRef->attach<MouseLeftClickComponent>(save.entity, makeCallable<SaveFileAction>());
+    }
+
+    virtual void onEvent(const OpenFileAction& event) override
+    {
+        LOG_INFO("Context Menu", "Open file");
+
+        char * lTheOpenFileName;
+    	// char const * lFilterPatterns[1] = { "*.sc" };
+
+        lTheOpenFileName = tinyfd_openFileDialog(
+            "Open a scene file",
+            "", // Starting path
+            0, // Number of patterns
+            nullptr, // List of patterns
+            "file",
+            1);
+
+        if (lTheOpenFileName)
+        {
+            LOG_INFO("Context Menu", lTheOpenFileName);
+
+            auto file = FileAccessor::openTextFile(lTheOpenFileName);
+
+            auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+            listViewComp->clear();
+
+            lineNumber = 1;
+            currentLine = 1;
+
+            fillText(file.data);
+            // ecsRef->sendEvent(LoadScene{lTheOpenFileName});
+        }
+    }
+
+    void fillText(std::string_view sv)
+    {
+        auto anchor = textInputEnt.get<UiAnchor>();
+
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+        while (not sv.empty())
+        {
+            // Find the next newline character
+            size_t pos = sv.find_first_of("\n\r");
+
+            // Extract the line (no copy, still a view)
+            std::string_view line = sv.substr(0, pos);
+
+            // Expand tabs into 4 spaces (requires building a string)
+            std::string expandedLine;
+            expandedLine.reserve(line.size() + 4); // rough guess to avoid frequent reallocs
+
+            for (char ch : line)
+            {
+                if (ch == '\t') {
+                    expandedLine += "    "; // replace tab with 4 spaces
+                } else {
+                    expandedLine += ch;
+                }
+            }
+
+            auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
+
+            linePrefab.get<TTFText>()->setText(expandedLine);
+
+            listViewComp->addEntity(linePrefab.entity);
+
+            if (pos == std::string_view::npos) break;
+
+            // Handle CRLF (\r\n): if \r is found and followed by \n, skip both
+            if (sv[pos] == '\r' && pos + 1 < sv.size() && sv[pos + 1] == '\n') {
+                sv.remove_prefix(pos + 2);
+            } else {
+                sv.remove_prefix(pos + 1);
+            }
+        }
+
+    }
+
+    virtual void onEvent(const SaveFileAction& event) override
+    {
+        LOG_INFO("Context Menu", "Save file");
+
+        char * lTheSaveFileName;
+    	// char const * lFilterPatterns[1] = { "*.sc" };
+
+        lTheSaveFileName = tinyfd_saveFileDialog(
+            "Save a scene file",
+            "./file.tx",
+            0,
+            NULL,
+            NULL);
+
+        if (lTheSaveFileName)
+        {
+            LOG_INFO("Context Menu", lTheSaveFileName);
+            // ecsRef->sendEvent(SaveScene{lTheSaveFileName});
+        }
+    }
+
+    EntityRef textInputEnt;
+
+    EntityRef listViewEnt;
+
+    bool lcontrolPressed = false;
+    bool rcontrolPressed = false;
+
+    size_t lineNumber = 1;
+    size_t currentLine = 1;
+};
+
+void initGame() {
+    printf("Initializing engine ...\n");
+
+#ifdef __EMSCRIPTEN__
+        EM_ASM(
+            console.error("Syncing... !");
+            FS.mkdir('/save');
+            console.error("Syncing... !");
+            FS.mount(IDBFS, {autoPersist: true}, '/save');
+            console.error("Syncing... !");
+            FS.syncfs(true, function (err) {
+                console.error("Synced !");
+                if (err) {
+                    console.error("Initial sync error:", err);
+                }
+            });
+            console.error("Syncing... !");
+        );
+#endif
+
+    mainWindow->initEngine();
+
+    printf("Engine initialized ...\n");
+
+    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+
+    // Need to fix this
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+
+    // mainWindow->masterRenderer->processTextureRegister();
+
+    mainWindow->ecs.createSystem<FpsSystem>();
+
+    mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
+
+    mainWindow->ecs.createSystem<TextHandlingSys>();
+
+    mainWindow->ecs.dumbTaskflow();
+
+    mainWindow->render();
+
+    mainWindow->resize(820, 640);
+
+    mainWindow->ecs.start();
+
+    printf("Engine initialized\n");
+}
+
+// New function for syncing manually when needed
+void syncFilesystem() {
+#ifdef __EMSCRIPTEN__
+    EM_ASM(
+        FS.syncfs(false, function (err) {
+            if (err) {
+                console.error("Sync error:", err);
+            } else {
+                console.log("Filesystem synced.");
+            }
+        });
+    );
+#endif
+}
+
+void mainloop(void *arg) {
+    if (not initialized.load())
+        return;
+
+    if (not init) {
+        if (initThread) {
+            printf("Joining thread...\n");
+
+            initThread->join();
+
+            delete initThread;
+
+            printf("Thread joined...\n");
+        }
+
+        init = true;
+
+        mainWindow->init(820, 640, false, static_cast<SDL_Window *>(arg));
+
+        printf("Window init done !\n");
+
+        initGame();
+    }
+
+    SDL_Event event;
+
+    while (SDL_PollEvent(&event)) {
+        mainWindow->processEvents(event);
+    }
+
+    mainWindow->render();
+
+#ifdef __EMSCRIPTEN__
+    // Sync file system at a specific point instead of every frame
+    if (event.type == SDL_QUIT)
+    {
+        syncFilesystem();
+    }
+#endif
+
+    if (mainWindow->requestQuit()) {
+        LOG_ERROR("Window", "RequestQuit");
+        std::terminate();
+    }
+}
+
+int GameApp::exec() {
+#ifdef __EMSCRIPTEN__
+    printf("Start init thread...\n");
+    initThread = new std::thread(initWindow, appName);
+    printf("Detach init thread...\n");
+
+    SDL_Window *pWindow =
+    SDL_CreateWindow("Hello Triangle Minimal",
+                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                        820, 640,
+                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
+
+    emscripten_set_main_loop_arg(mainloop, pWindow, 0, 1);
+
+#else
+    LOG_THIS_MEMBER(DOM);
+
+    initWindow(appName);
+
+    mainWindow->init(820, 640, false);
+
+    LOG_INFO(DOM, "Window init done !");
+
+    initGame();
+
+    while (running) {
+        SDL_Event event;
+
+        while (SDL_PollEvent(&event)) {
+            mainWindow->processEvents(event);
+        }
+
+        mainWindow->render();
+
+        if (mainWindow->requestQuit())
+            break;
+    }
+
+    delete mainWindow;
+#endif
+
+    return 0;
+}

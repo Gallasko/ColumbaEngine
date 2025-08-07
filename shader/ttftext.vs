@@ -1,5 +1,3 @@
-#version 330 core
-
 // Original vertex attributes
 layout (location = 0) in vec3 aPos;
 // Although aTexCoord is declared, we now compute final UV from the atlas region.

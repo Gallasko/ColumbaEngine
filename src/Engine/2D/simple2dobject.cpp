@@ -4,8 +4,7 @@
 
 #include "simple2dobject.h"
 
-#include <glm.hpp>
-#include <gtc/matrix_transform.hpp>
+#include "glm/gtc/matrix_transform.hpp"
 
 #include "logger.h"
 
@@ -193,7 +192,7 @@ namespace pg
             }
             else
             {
-                ecsRef->attachGeneric<Simple2DRenderCall>(entity, createRenderCall(ui, obj));
+                ecsRef->_attach<Simple2DRenderCall>(entity, createRenderCall(ui, obj));
             }
 
             shapeUpdateQueue.pop();

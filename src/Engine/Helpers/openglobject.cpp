@@ -59,8 +59,23 @@ namespace pg
             return;
         }
 
-        const char* vShaderCode = vertexFile.data.c_str();
-        const char * fShaderCode = fragmentFile.data.c_str();
+        std::string extraString;
+
+#if defined(__EMSCRIPTEN__)
+        // Modern Windows drivers support 330 core or higher
+        extraString = "#version 300 es\nprecision mediump float;\n"; // For WebGL or embedded
+#else
+        extraString = "#version 330 core\n";
+#endif
+
+        LOG_INFO(DOM, "Creating shader program from files: '" << vertexPath << ", " << fragmentPath << "'");
+        printf("Creating shader program from files: '%s, %s'\n", vertexPath.c_str(), fragmentPath.c_str());
+
+        auto vertexCode = extraString + vertexFile.data;
+        auto fragmentCode = extraString + fragmentFile.data;
+
+        const char* vShaderCode = vertexCode.c_str();
+        const char * fShaderCode = fragmentCode.c_str();
         // 2. compile shaders
         unsigned int vertex, fragment;
         // vertex shader
@@ -82,6 +97,9 @@ namespace pg
         // delete the shaders as they're linked into our program now and no longer necessary
         glDeleteShader(vertex);
         glDeleteShader(fragment);
+
+        LOG_INFO(DOM, "Shader program created with ID: " << ID);
+        printf("Shader program created with ID: %u\n", ID);
 
     }
     // activate the shader
@@ -193,7 +211,11 @@ namespace pg
             {
                 glGetShaderInfoLog(shader, 1024, NULL, infoLog);
 
-                LOG_ERROR(DOM, "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << &infoLog[0] << "\n -- --------------------------------------------------- -- ");
+                Strfy error;
+                error << "ERROR::SHADER_COMPILATION_ERROR of type: " << type << "\n" << &infoLog[0] << "\n -- --------------------------------------------------- -- ";
+
+                printf("%s", error.getData().c_str());
+                LOG_ERROR(DOM, error);
             }
         }
         else
@@ -204,7 +226,11 @@ namespace pg
             {
                 glGetProgramInfoLog(shader, 1024, NULL, infoLog);
 
-                LOG_ERROR(DOM, "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << &infoLog[0] << "\n -- --------------------------------------------------- -- ");
+                Strfy error;
+                error << "ERROR::PROGRAM_LINKING_ERROR of type: " << type << "\n" << &infoLog[0] << "\n -- --------------------------------------------------- -- ";
+
+                printf("%s", error.getData().c_str());
+                LOG_ERROR(DOM, error);
             }
         }
     }

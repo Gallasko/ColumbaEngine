@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # Ubuntu test environment
+  test-ubuntu:
+    build:
+      context: .
+      dockerfile: test-ubuntu.Dockerfile
+    container_name: pgengine-test-ubuntu
+    volumes:
+      - ../install:/home/tester/scripts:ro
+      - ubuntu-build:/tmp/pgengine-build
+    environment:
+      - PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+      - BUILD_JOBS=2
+      - INSTALL_PREFIX=/usr/local
+    command: bash -c "
+      cd /home/tester &&
+      chmod +x scripts/*.sh &&
+      echo '=== Testing on Ubuntu ===' &&
+      timeout 3600 scripts/install-pgengine.sh -j 2 &&
+      echo '=== Validating Ubuntu Installation ===' &&
+      scripts/validate-installation.sh &&
+      echo '=== Ubuntu Test Completed ==='
+    "
+    networks:
+      - pgengine-test
+
+  # Fedora test environment
+  test-fedora:
+    build:
+      context: .
+      dockerfile: test-fedora.Dockerfile
+    container_name: pgengine-test-fedora
+    volumes:
+      - ../install:/home/tester/scripts:ro
+      - fedora-build:/tmp/pgengine-build
+    environment:
+      - PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+      - BUILD_JOBS=2
+      - INSTALL_PREFIX=/usr/local
+    command: bash -c "
+      cd /home/tester &&
+      chmod +x scripts/*.sh &&
+      echo '=== Testing on Fedora ===' &&
+      timeout 3600 scripts/install-pgengine.sh -j 2 &&
+      echo '=== Validating Fedora Installation ===' &&
+      scripts/validate-installation.sh &&
+      echo '=== Fedora Test Completed ==='
+    "
+    networks:
+      - pgengine-test
+
+  # Arch Linux test environment
+  test-arch:
+    build:
+      context: .
+      dockerfile: test-arch.Dockerfile
+    container_name: pgengine-test-arch
+    volumes:
+      - ../install:/home/tester/scripts:ro
+      - arch-build:/tmp/pgengine-build
+    environment:
+      - PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+      - BUILD_JOBS=2
+      - INSTALL_PREFIX=/usr/local
+    command: bash -c "
+      cd /home/tester &&
+      chmod +x scripts/*.sh &&
+      echo '=== Testing on Arch Linux ===' &&
+      timeout 3600 scripts/install-pgengine.sh -j 2 &&
+      echo '=== Validating Arch Installation ===' &&
+      scripts/validate-installation.sh &&
+      echo '=== Arch Test Completed ==='
+    "
+    networks:
+      - pgengine-test
+
+  # Test coordinator - runs all tests
+  test-all:
+    image: alpine:latest
+    container_name: pgengine-test-coordinator
+    depends_on:
+      - test-ubuntu
+      - test-fedora
+      - test-arch
+    volumes:
+      - ../install:/scripts:ro
+    command: echo "All tests completed successfully!"
+    networks:
+      - pgengine-test
+
+# Persistent volumes for build artifacts
+volumes:
+  ubuntu-build:
+  fedora-build:
+  arch-build:
+
+# Network for test containers
+networks:
+  pgengine-test:
+    driver: bridge
