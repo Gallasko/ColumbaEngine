@@ -176,8 +176,8 @@ set(ENGINESOURCE
 # Create the static library
 add_library(PgEngine STATIC ${ENGINESOURCE})
 
-# Set precompiled headers
-target_precompile_headers(PgEngine PUBLIC src/Engine/stdafx.h)
+# Set precompiled headers - but don't make them public for consumers
+target_precompile_headers(PgEngine PRIVATE src/Engine/stdafx.h)
 
 # Include directories - ONLY use generator expressions for proper build/install interface
 target_include_directories(PgEngine PUBLIC
@@ -188,6 +188,8 @@ target_include_directories(PgEngine PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLTF_DIR}/include>
     $<INSTALL_INTERFACE:include/PgEngine>
     $<INSTALL_INTERFACE:include/PgEngine/GameElements>
+    $<INSTALL_INTERFACE:include/glm>
+    $<INSTALL_INTERFACE:include/taskflow>
     $<INSTALL_INTERFACE:include>
 )
 
