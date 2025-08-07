@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Quick Docker Test for PgEngine Installation Scripts
+# Quick Docker Test for ColumbaEngine Installation Scripts
 # Tests scripts in a single Ubuntu container for rapid development
 
 set -e
@@ -22,8 +22,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 INSTALL_SCRIPTS_DIR="$PROJECT_ROOT/scripts/install"
 DOCKER_SCRIPTS_DIR="$PROJECT_ROOT/scripts/testdockers"
 
-CONTAINER_NAME="pgengine-quick-test-$$"
-PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/Gallasko/PgEngine.git}"
+CONTAINER_NAME="ColumbaEngine-quick-test-$$"
+ColumbaEngine_REPO="${ColumbaEngine_REPO:-https://github.com/Gallasko/ColumbaEngine.git}"
 TEST_PHASE="${1:-all}"
 
 cleanup() {
@@ -41,7 +41,7 @@ trap cleanup EXIT
 run_quick_test() {
     log_info "Starting quick test in Ubuntu container..."
     log_info "Container: $CONTAINER_NAME"
-    log_info "Repository: $PGENGINE_REPO"
+    log_info "Repository: $ColumbaEngine_REPO"
     log_info "Test phase: $TEST_PHASE"
     log_info "Install scripts: $INSTALL_SCRIPTS_DIR"
     echo
@@ -50,7 +50,7 @@ run_quick_test() {
     docker run -it --name "$CONTAINER_NAME" \
         --rm \
         -v "$INSTALL_SCRIPTS_DIR:/home/tester/scripts:ro" \
-        -e "PGENGINE_REPO=$PGENGINE_REPO" \
+        -e "ColumbaEngine_REPO=$ColumbaEngine_REPO" \
         -e "BUILD_JOBS=2" \
         ubuntu:22.04 bash -c "
 
@@ -69,13 +69,13 @@ cd /home/tester
 chmod +x scripts/*.sh
 
 # Set writable install directory
-export INSTALL_DIR=/home/tester/pgengine-install
+export INSTALL_DIR=/home/tester/ColumbaEngine-install
 
 echo '========================================'
-echo 'PgEngine Quick Test'
+echo 'ColumbaEngine Quick Test'
 echo '========================================'
 echo 'Phase: $TEST_PHASE'
-echo 'Repo: $PGENGINE_REPO'
+echo 'Repo: $ColumbaEngine_REPO'
 echo 'Install Dir: $INSTALL_DIR'
 echo
 
@@ -83,19 +83,19 @@ case '$TEST_PHASE' in
     'deps'|'dependencies')
         echo '=== Testing Dependency Installation ==='
         # Test just the dependency installation part
-        timeout 600 scripts/install-pgengine.sh --help
+        timeout 600 scripts/install-ColumbaEngine.sh --help
         echo 'Dependencies check completed'
         ;;
 
     'build')
         echo '=== Testing Build Process ==='
         # Run installation but stop before final validation
-        timeout 1800 scripts/install-pgengine.sh -j 2 || echo 'Build test completed'
+        timeout 1800 scripts/install-ColumbaEngine.sh -j 2 || echo 'Build test completed'
         ;;
 
     'validate')
         echo '=== Testing Validation Only ==='
-        # Assume PgEngine is already installed, just validate
+        # Assume ColumbaEngine is already installed, just validate
         timeout 300 scripts/validate-installation.sh || echo 'Validation test completed'
         ;;
 
@@ -107,8 +107,8 @@ case '$TEST_PHASE' in
     'all'|*)
         echo '=== Full Installation Test ==='
 
-        echo '--- Phase 1: Installing PgEngine ---'
-        if timeout 2400 scripts/install-pgengine.sh -j 2; then
+        echo '--- Phase 1: Installing ColumbaEngine ---'
+        if timeout 2400 scripts/install-ColumbaEngine.sh -j 2; then
             echo 'Installation completed successfully'
         else
             echo 'Installation failed, checking what we got...'
@@ -122,8 +122,8 @@ case '$TEST_PHASE' in
         if [[ -d \$INSTALL_DIR/test-app ]]; then
             cd \$INSTALL_DIR/test-app
             ./build.sh
-        elif [[ -d /home/tester/pgengine-install/test-app ]]; then
-            cd /home/tester/pgengine-install/test-app
+        elif [[ -d /home/tester/ColumbaEngine-install/test-app ]]; then
+            cd /home/tester/ColumbaEngine-install/test-app
             ./build.sh
         else
             echo 'Test app directory not found, listing available directories:'
@@ -146,7 +146,7 @@ USEREOF
 usage() {
     echo "Usage: $0 [phase]"
     echo
-    echo "Quick test PgEngine installation scripts in Docker"
+    echo "Quick test ColumbaEngine installation scripts in Docker"
     echo
     echo "Phases:"
     echo "  deps       Test dependency installation only"
@@ -156,13 +156,13 @@ usage() {
     echo "  all        Full installation test (default)"
     echo
     echo "Environment variables:"
-    echo "  PGENGINE_REPO  Repository URL to test"
+    echo "  ColumbaEngine_REPO  Repository URL to test"
     echo
     echo "Examples:"
     echo "  $0                    # Full test"
     echo "  $0 deps               # Test dependencies only"
     echo "  $0 build              # Test build process"
-    echo "  PGENGINE_REPO=https://github.com/user/fork.git $0"
+    echo "  ColumbaEngine_REPO=https://github.com/user/fork.git $0"
     echo
     echo "Paths:"
     echo "  Install scripts: $INSTALL_SCRIPTS_DIR"
@@ -187,7 +187,7 @@ if [[ "$1" == "-h" || "$1" == "--help" ]]; then
 fi
 
 # Check if scripts exist
-required_scripts=("install-pgengine.sh" "validate-installation.sh")
+required_scripts=("install-ColumbaEngine.sh" "validate-installation.sh")
 for script in "${required_scripts[@]}"; do
     if [[ ! -f "$INSTALL_SCRIPTS_DIR/$script" ]]; then
         log_error "Required script not found: $INSTALL_SCRIPTS_DIR/$script"

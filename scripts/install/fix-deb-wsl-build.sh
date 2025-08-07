@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Fix WSL Build Environment for PgEngine
+# Fix WSL Build Environment for ColumbaEngine
 # Fixes missing build tools and repository issues
 
 set -e
@@ -40,4 +40,4 @@ echo "GCC version: $(gcc --version | head -n1)"
 echo "Ninja version: $(ninja --version)"
 
 echo "=== WSL Build Environment Fixed! ==="
-echo "You can now run the PgEngine installation script."
+echo "You can now run the ColumbaEngine installation script."

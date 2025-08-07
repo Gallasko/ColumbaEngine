@@ -1,13 +1,13 @@
-# PgEngine Scripts Directory
+# ColumbaEngine Scripts Directory
 
-This directory contains installation and testing scripts for PgEngine.
+This directory contains installation and testing scripts for ColumbaEngine.
 
 ## Directory Structure
 
 ```
 scripts/
 ├── install/                    # Installation scripts
-│   ├── install-pgengine.sh     # Main installation script
+│   ├── install-ColumbaEngine.sh     # Main installation script
 │   ├── install-emscripten.sh   # Emscripten/WebAssembly support
 │   ├── validate-installation.sh # Installation validator
 │   └── INSTALLATION.md         # Detailed installation guide
@@ -24,14 +24,14 @@ scripts/
 
 ## Quick Start
 
-### Install PgEngine
+### Install ColumbaEngine
 
 ```bash
 # Run the installation script
-./install/install-pgengine.sh
+./install/install-ColumbaEngine.sh
 
 # Or with custom options
-./install/install-pgengine.sh -v v1.0.0 -p ~/.local -j 4
+./install/install-ColumbaEngine.sh -v v1.0.0 -p ~/.local -j 4
 ```
 
 ### Test Installation Scripts
@@ -56,9 +56,9 @@ scripts/
 
 ## For Users
 
-If you just want to install PgEngine, you only need the files in `install/`:
+If you just want to install ColumbaEngine, you only need the files in `install/`:
 
-- **`install-pgengine.sh`** - Main installation script
+- **`install-ColumbaEngine.sh`** - Main installation script
 - **`validate-installation.sh`** - Verify your installation works
 - **`install-emscripten.sh`** - Add WebAssembly support (optional)
 
@@ -96,7 +96,7 @@ The Docker testing framework provides:
 ### Basic Installation
 ```bash
 cd scripts/install
-./install-pgengine.sh
+./install-ColumbaEngine.sh
 ```
 
 ### Development Testing
@@ -114,12 +114,12 @@ cd scripts/testdockers
 ### Custom Installation
 ```bash
 cd scripts/install
-./install-pgengine.sh --prefix ~/my-engine --version v2.0.0 --jobs 8
+./install-ColumbaEngine.sh --prefix ~/my-engine --version v2.0.0 --jobs 8
 ```
 
 ## Environment Variables
 
-- `PGENGINE_REPO` - Repository URL to install from
+- `ColumbaEngine_REPO` - Repository URL to install from
 - `INSTALL_PREFIX` - Installation directory (default: /usr/local)
 - `BUILD_JOBS` - Number of parallel build jobs
 

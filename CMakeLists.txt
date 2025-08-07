@@ -1,6 +1,6 @@
 # Pure vendoring approach - everything is self-contained
 cmake_minimum_required(VERSION 3.18)
-project(PgEngine VERSION 1.0)
+project(ColumbaEngine VERSION 1.0)
 
 # Options remain the same
 option(UseGDB "UseGDB" OFF)
@@ -174,20 +174,20 @@ set(ENGINESOURCE
 )
 
 # Create the static library
-add_library(PgEngine STATIC ${ENGINESOURCE})
+add_library(ColumbaEngine STATIC ${ENGINESOURCE})
 
 # Set precompiled headers - but don't make them public for consumers
-target_precompile_headers(PgEngine PRIVATE src/Engine/stdafx.h)
+target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 
 # Include directories - ONLY use generator expressions for proper build/install interface
-target_include_directories(PgEngine PUBLIC
+target_include_directories(ColumbaEngine PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/GameElements>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLTF_DIR}/include>
-    $<INSTALL_INTERFACE:include/PgEngine>
-    $<INSTALL_INTERFACE:include/PgEngine/GameElements>
+    $<INSTALL_INTERFACE:include/ColumbaEngine>
+    $<INSTALL_INTERFACE:include/ColumbaEngine/GameElements>
     $<INSTALL_INTERFACE:include/glm>
     $<INSTALL_INTERFACE:include/taskflow>
     $<INSTALL_INTERFACE:include>
@@ -195,7 +195,7 @@ target_include_directories(PgEngine PUBLIC
 
 # Add platform-specific build interface includes
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_include_directories(PgEngine PUBLIC
+    target_include_directories(ColumbaEngine PUBLIC
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${SDL2_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${SDL2MIXER_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${SDL2NET_DIR}>
@@ -207,15 +207,15 @@ endif()
 # Platform-specific linking - Keep dependencies PUBLIC since we're exporting them
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # Emscripten - link publicly so they get exported
-    target_link_libraries(PgEngine PUBLIC glm)
+    target_link_libraries(ColumbaEngine PUBLIC glm)
 else()
     # Native platforms - link publicly so they get exported
     if (TARGET SDL2::SDL2main)
-        target_link_libraries(PgEngine PUBLIC SDL2::SDL2main)
+        target_link_libraries(ColumbaEngine PUBLIC SDL2::SDL2main)
     endif()
 
-    target_link_options(PgEngine PRIVATE -static-libgcc -static-libstdc++)
-    
+    target_link_options(ColumbaEngine PRIVATE -static-libgcc -static-libstdc++)
+
     # Check for target name variations and use the correct ones
     set(SDL2_TARGETS)
     if(TARGET SDL2::SDL2-static)
@@ -223,7 +223,7 @@ else()
     elseif(TARGET SDL2-static)
         list(APPEND SDL2_TARGETS SDL2-static)
     endif()
-    
+
     # Handle SDL2_mixer target name variations - use the actual target name, not alias
     if(TARGET SDL2_mixer)
         list(APPEND SDL2_TARGETS SDL2_mixer)
@@ -232,7 +232,7 @@ else()
     elseif(TARGET SDL2_mixer-static)
         list(APPEND SDL2_TARGETS SDL2_mixer-static)
     endif()
-    
+
     # Handle SDL2_net target name variations - use the actual target name
     if(TARGET SDL2_net)
         list(APPEND SDL2_TARGETS SDL2_net)
@@ -241,13 +241,13 @@ else()
     elseif(TARGET SDL2_net-static)
         list(APPEND SDL2_TARGETS SDL2_net-static)
     endif()
-    
+
     message(STATUS "SDL2 targets to link: ${SDL2_TARGETS}")
-    
-    target_link_libraries(PgEngine PUBLIC 
+
+    target_link_libraries(ColumbaEngine PUBLIC
         ${SDL2_TARGETS}
-        glm 
-        libglew_static 
+        glm
+        libglew_static
         freetype
         OpenGL::GL
     )
@@ -275,11 +275,11 @@ foreach(target IN ITEMS "SDL2_mixer::SDL2_mixer-static" "SDL2_mixer::SDL2_mixer"
     endif()
 endforeach()
 
-# Installation - Install PgEngine and all its static dependencies
+# Installation - Install ColumbaEngine and all its static dependencies
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    # Emscripten build - only install PgEngine and glm
-    install(TARGETS PgEngine glm
-        EXPORT PgEngineTargets
+    # Emscripten build - only install ColumbaEngine and glm
+    install(TARGETS ColumbaEngine glm
+        EXPORT ColumbaEngineTargets
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
@@ -287,50 +287,50 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 else()
     # Native build - install all static dependencies
     # First check which targets actually exist
-    set(TARGETS_TO_INSTALL PgEngine)
-    
+    set(TARGETS_TO_INSTALL ColumbaEngine)
+
     # Add targets that exist (check for both alias and direct names)
     if(TARGET SDL2-static)
         list(APPEND TARGETS_TO_INSTALL SDL2-static)
     endif()
-    
+
     if(TARGET SDL2main)
         list(APPEND TARGETS_TO_INSTALL SDL2main)
     endif()
-    
+
     if(TARGET SDL2_mixer-static)
         list(APPEND TARGETS_TO_INSTALL SDL2_mixer-static)
     elseif(TARGET SDL2_mixer)
         list(APPEND TARGETS_TO_INSTALL SDL2_mixer)
     endif()
-    
+
     if(TARGET SDL2_net-static)
         list(APPEND TARGETS_TO_INSTALL SDL2_net-static)
     elseif(TARGET SDL2_net)
         list(APPEND TARGETS_TO_INSTALL SDL2_net)
     endif()
-    
+
     if(TARGET glm)
         list(APPEND TARGETS_TO_INSTALL glm)
     endif()
-    
+
     if(TARGET libglew_static)
         list(APPEND TARGETS_TO_INSTALL libglew_static)
     endif()
-    
+
     if(TARGET freetype)
         list(APPEND TARGETS_TO_INSTALL freetype)
     endif()
-    
+
     if(TARGET tinygltf)
         list(APPEND TARGETS_TO_INSTALL tinygltf)
     endif()
-    
+
     # Debug: Print what targets we're installing
     message(STATUS "Installing targets: ${TARGETS_TO_INSTALL}")
-    
+
     install(TARGETS ${TARGETS_TO_INSTALL}
-        EXPORT PgEngineTargets
+        EXPORT ColumbaEngineTargets
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
@@ -340,20 +340,20 @@ endif()
 
 # Install ALL headers including dependencies
 install(DIRECTORY src/Engine/
-    DESTINATION include/PgEngine
+    DESTINATION include/ColumbaEngine
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
 
 install(DIRECTORY src/GameElements/
-    DESTINATION include/PgEngine/GameElements
+    DESTINATION include/ColumbaEngine/GameElements
     FILES_MATCHING PATTERN "*.h" PATTERN "*.hpp"
 )
 
-# Export targets - this creates the PgEngineTargets.cmake file
-install(EXPORT PgEngineTargets
-    FILE PgEngineTargets.cmake
-    NAMESPACE PgEngine::
-    DESTINATION lib/cmake/PgEngine
+# Export targets - this creates the ColumbaEngineTargets.cmake file
+install(EXPORT ColumbaEngineTargets
+    FILE ColumbaEngineTargets.cmake
+    NAMESPACE ColumbaEngine::
+    DESTINATION lib/cmake/ColumbaEngine
 )
 
 # Install vendored dependencies headers
@@ -379,12 +379,12 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
-    
+
     # Install SDL2_mixer headers - be explicit about the path
     install(FILES ${SDL2MIXER_DIR}/include/SDL_mixer.h
         DESTINATION include
     )
-    
+
     # Install SDL2_net headers
     install(DIRECTORY ${SDL2NET_DIR}/
         DESTINATION include
@@ -393,13 +393,13 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         PATTERN "*.c" EXCLUDE
         PATTERN "*.cpp" EXCLUDE
     )
-    
+
     # Install GLEW headers
     install(DIRECTORY ${GLEW_DIR}/include/
         DESTINATION include
         FILES_MATCHING PATTERN "*.h"
     )
-    
+
     # Install FreeType headers
     install(DIRECTORY ${TTF_DIR}/include/
         DESTINATION include
@@ -411,21 +411,21 @@ endif()
 include(CMakePackageConfigHelpers)
 
 write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/PgEngineConfigVersion.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/ColumbaEngineConfigVersion.cmake"
     VERSION ${PROJECT_VERSION}
     COMPATIBILITY AnyNewerVersion
 )
 
 configure_package_config_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PgEngineConfig.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/PgEngineConfig.cmake"
-    INSTALL_DESTINATION lib/cmake/PgEngine
+    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/ColumbaEngineConfig.cmake.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/ColumbaEngineConfig.cmake"
+    INSTALL_DESTINATION lib/cmake/ColumbaEngine
 )
 
 install(FILES
-    "${CMAKE_CURRENT_BINARY_DIR}/PgEngineConfig.cmake"
-    "${CMAKE_CURRENT_BINARY_DIR}/PgEngineConfigVersion.cmake"
-    DESTINATION lib/cmake/PgEngine
+    "${CMAKE_CURRENT_BINARY_DIR}/ColumbaEngineConfig.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/ColumbaEngineConfigVersion.cmake"
+    DESTINATION lib/cmake/ColumbaEngine
 )
 
 # Only build examples if not building static lib only
@@ -441,18 +441,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/GMTK2025/polygonmesh.cpp
         )
 
-        target_link_libraries(GMTK2025 PRIVATE PgEngine)
+        target_link_libraries(GMTK2025 PRIVATE ColumbaEngine)
 
         set_target_properties(GMTK2025
             PROPERTIES SUFFIX ".html"
             LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
     else()
-        add_executable(PgEngineEditor src/main.cpp)
+        add_executable(ColumbaEngineEditor src/main.cpp)
 
-        target_include_directories(PgEngineEditor PUBLIC src/Editor)
+        target_include_directories(ColumbaEngineEditor PUBLIC src/Editor)
 
-        target_sources(PgEngineEditor PRIVATE
+        target_sources(ColumbaEngineEditor PRIVATE
             src/application.cpp
             src/application.h
             src/Editor/Gui/contextmenu.cpp
@@ -460,7 +460,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             src/Editor/Gui/projectmanager.cpp
         )
 
-        target_link_libraries(PgEngineEditor PRIVATE PgEngine)
+        target_link_libraries(ColumbaEngineEditor PRIVATE ColumbaEngine)
 
         add_executable(GameOff exemples/GameOff/main.cpp)
 
@@ -488,7 +488,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/GameOff/theme.cpp
         )
 
-        target_link_libraries(GameOff PRIVATE PgEngine)
+        target_link_libraries(GameOff PRIVATE ColumbaEngine)
 
         add_executable(PixelJam exemples/PixelJam/main.cpp)
 
@@ -506,7 +506,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PixelJam/Room/room.cpp
         )
 
-        target_link_libraries(PixelJam PRIVATE PgEngine)
+        target_link_libraries(PixelJam PRIVATE ColumbaEngine)
 
         add_executable(TugOfWar exemples/TugOfWar/main.cpp)
 
@@ -516,7 +516,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/TugOfWar/application.cpp
         )
 
-        target_link_libraries(TugOfWar PRIVATE PgEngine)
+        target_link_libraries(TugOfWar PRIVATE ColumbaEngine)
 
         ###
 
@@ -526,7 +526,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/SimpleClientServer/application.cpp
         )
 
-        target_link_libraries(SimpleClientServer PRIVATE PgEngine)
+        target_link_libraries(SimpleClientServer PRIVATE ColumbaEngine)
 
         ###
 
@@ -538,7 +538,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/BasicTerminal/application.cpp
         )
 
-        target_link_libraries(BasicTerminal PRIVATE PgEngine)
+        target_link_libraries(BasicTerminal PRIVATE ColumbaEngine)
 
         ###
 
@@ -550,7 +550,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/EmptyAppTemplate/application.cpp
         )
 
-        target_link_libraries(EmptyApp PRIVATE PgEngine)
+        target_link_libraries(EmptyApp PRIVATE ColumbaEngine)
 
         ###
 
@@ -564,7 +564,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/GMTK2025/polygonmesh.cpp
         )
 
-        target_link_libraries(GMTK2025 PRIVATE PgEngine)
+        target_link_libraries(GMTK2025 PRIVATE ColumbaEngine)
 
         # Only build tests if not building static lib only
         enable_testing()
@@ -600,7 +600,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/uisystemtest.cc
         )
 
-        target_link_libraries(t1 PRIVATE gtest gtest_main PgEngine)
+        target_link_libraries(t1 PRIVATE gtest gtest_main ColumbaEngine)
 
         add_custom_command(TARGET t1 PRE_BUILD
                            COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -619,21 +619,21 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             benchmark/memorypool.cc
         )
 
-        target_link_libraries(bench PRIVATE gtest gtest_main PgEngine)
+        target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)
     endif()
 endif()
 
 # CPack configuration for creating installers
-set(CPACK_PACKAGE_NAME "PgEngine")
+set(CPACK_PACKAGE_NAME "ColumbaEngine")
 set(CPACK_PACKAGE_VENDOR "PigeonCodeur")
 set(CPACK_PACKAGE_VERSION_MAJOR "1")
 set(CPACK_PACKAGE_VERSION_MINOR "0")
 set(CPACK_PACKAGE_VERSION_PATCH "0")
 set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
-set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "PgEngine - A modern C++ game engine")
-set(CPACK_PACKAGE_DESCRIPTION "PgEngine is a feature-rich game engine with 2D/3D rendering, ECS architecture, audio system, and scripting capabilities.")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "ColumbaEngine - A modern C++ game engine")
+set(CPACK_PACKAGE_DESCRIPTION "ColumbaEngine is a feature-rich game engine with 2D/3D rendering, ECS architecture, audio system, and scripting capabilities.")
 set(CPACK_PACKAGE_CONTACT "pigeoncodeur@gmail.com")
-set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Gallasko/PgEngine")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/Gallasko/ColumbaEngine")
 
 # DEB package specific settings
 set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgl1-mesa-dev, libfreetype6-dev")

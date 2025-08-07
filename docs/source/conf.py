@@ -6,7 +6,7 @@
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'PgEngine'
+project = 'ColumbaEngine'
 copyright = '2025, PigeonCodeur'
 author = 'PigeonCodeur'
 

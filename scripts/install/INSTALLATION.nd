@@ -1,6 +1,6 @@
-# PgEngine Installation Guide
+# ColumbaEngine Installation Guide
 
-This guide provides automated installation scripts for PgEngine with all dependencies and a working test application.
+This guide provides automated installation scripts for ColumbaEngine with all dependencies and a working test application.
 
 ## Quick Start
 
@@ -8,79 +8,79 @@ This guide provides automated installation scripts for PgEngine with all depende
 
 ```bash
 # Download and run the installer
-curl -fsSL https://raw.githubusercontent.com/Gallasko/PgEngine/main/scripts/install/install-pgengine.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Gallasko/ColumbaEngine/main/scripts/install/install-ColumbaEngine.sh | bash
 
 # Or download and run with options
-wget https://raw.githubusercontent.com/Gallasko/PgEngine/main/scripts/install/install-pgengine.sh
-chmod +x install-pgengine.sh
-./install-pgengine.sh --help
+wget https://raw.githubusercontent.com/Gallasko/ColumbaEngine/main/scripts/install/install-ColumbaEngine.sh
+chmod +x install-ColumbaEngine.sh
+./install-ColumbaEngine.sh --help
 ```
 
 ### Web/Emscripten Installation
 
 ```bash
 # First install the native version, then:
-wget https://raw.githubusercontent.com/Gallasko/PgEngine/main/scripts/install/install-emscripten.sh
+wget https://raw.githubusercontent.com/Gallasko/ColumbaEngine/main/scripts/install/install-emscripten.sh
 ./install-emscripten.sh
 ```
 
 ## Installation Options
 
-### Native Installation Script (`install-pgengine.sh`)
+### Native Installation Script (`install-ColumbaEngine.sh`)
 
 **What it does:**
 - Installs system dependencies (SDL2, OpenGL, build tools)
-- Downloads PgEngine source code
-- Builds PgEngine as a static library
-- Installs PgEngine system-wide or to custom location
+- Downloads ColumbaEngine source code
+- Builds ColumbaEngine as a static library
+- Installs ColumbaEngine system-wide or to custom location
 - Creates a working test application
 - Tests the installation
 
 **Usage:**
 ```bash
 # Default installation to /usr/local
-./install-pgengine.sh
+./install-ColumbaEngine.sh
 
 # Install specific version
-./install-pgengine.sh -v v1.0.0
+./install-ColumbaEngine.sh -v v1.0.0
 
 # Install to custom location (no sudo required)
-./install-pgengine.sh -p ~/.local
+./install-ColumbaEngine.sh -p ~/.local
 
 # Use different repository
-./install-pgengine.sh -r https://github.com/Gallasko/PgEngine.git
+./install-ColumbaEngine.sh -r https://github.com/Gallasko/ColumbaEngine.git
 
 # Custom working directory
-./install-pgengine.sh -d ~/my-pgengine-install
+./install-ColumbaEngine.sh -d ~/my-ColumbaEngine-install
 
 # Parallel build with specific job count
-./install-pgengine.sh -j 4
+./install-ColumbaEngine.sh -j 4
 ```
 
 **Environment Variables:**
 ```bash
 # Set before running the script
-export PGENGINE_VERSION="v1.0.0"
+export ColumbaEngine_VERSION="v1.0.0"
 export INSTALL_PREFIX="$HOME/.local"
 export BUILD_JOBS=8
-./install-pgengine.sh
+./install-ColumbaEngine.sh
 ```
 
 ### Emscripten Installation Script (`install-emscripten.sh`)
 
 **What it does:**
 - Installs Emscripten SDK
-- Builds PgEngine for WebAssembly
+- Builds ColumbaEngine for WebAssembly
 - Creates web test application
 - Sets up shell environment
 
 **Usage:**
 ```bash
-# Use default PgEngine location
+# Use default ColumbaEngine location
 ./install-emscripten.sh
 
-# Specify PgEngine directory
-./install-emscripten.sh /path/to/pgengine
+# Specify ColumbaEngine directory
+./install-emscripten.sh /path/to/ColumbaEngine
 
 # Custom Emscripten location
 EMSDK_DIR=~/my-emsdk ./install-emscripten.sh
@@ -108,24 +108,24 @@ EMSDK_DIR=~/my-emsdk ./install-emscripten.sh
 - Audio libraries (ALSA, PulseAudio)
 - SDL2 development headers (for reference)
 
-### PgEngine Components
-- Static library (`libPgEngine.a`)
+### ColumbaEngine Components
+- Static library (`libColumbaEngine.a`)
 - All bundled dependencies (SDL2, GLEW, FreeType, etc.)
 - Header files
 - CMake configuration files
 
 ### File Locations
 ```
-/usr/local/lib/libPgEngine.a              # Main engine library
+/usr/local/lib/libColumbaEngine.a              # Main engine library
 /usr/local/lib/lib*.a                     # Bundled dependencies
-/usr/local/include/PgEngine/              # Engine headers
-/usr/local/lib/cmake/PgEngine/            # CMake config files
+/usr/local/include/ColumbaEngine/              # Engine headers
+/usr/local/lib/cmake/ColumbaEngine/            # CMake config files
 ```
 
 ### Test Application
 ```
-~/pgengine-install/
-├── pgengine/                   # Engine source code
+~/ColumbaEngine-install/
+├── ColumbaEngine/                   # Engine source code
 │   ├── build/                  # Native build
 │   └── build-emscripten/       # Web build (if installed)
 ├── test-app/                   # Native test application
@@ -134,21 +134,21 @@ EMSDK_DIR=~/my-emsdk ./install-emscripten.sh
 │   │   ├── application.h
 │   │   └── application.cpp
 │   ├── build/
-│   │   └── PgEngineTestApp     # Executable
+│   │   └── ColumbaEngineTestApp     # Executable
 │   ├── CMakeLists.txt
 │   ├── build.sh
 │   └── README.md
 └── web-test/                   # Web test application (if installed)
     ├── src/
     ├── build-web/
-    │   ├── PgEngineWebTest.html
-    │   ├── PgEngineWebTest.js
-    │   └── PgEngineWebTest.wasm
+    │   ├── ColumbaEngineWebTest.html
+    │   ├── ColumbaEngineWebTest.js
+    │   └── ColumbaEngineWebTest.wasm
     ├── CMakeLists.txt
     └── build-web.sh
 ```
 
-## Using PgEngine in Your Projects
+## Using ColumbaEngine in Your Projects
 
 ### CMake Integration
 
@@ -159,14 +159,14 @@ project(MyGame)
 
 set(CMAKE_CXX_STANDARD 17)
 
-# Find PgEngine
-find_package(PgEngine REQUIRED)
+# Find ColumbaEngine
+find_package(ColumbaEngine REQUIRED)
 
 # Create your executable
 add_executable(MyGame src/main.cpp)
 
-# Link with PgEngine
-target_link_libraries(MyGame PRIVATE PgEngine::PgEngine)
+# Link with ColumbaEngine
+target_link_libraries(MyGame PRIVATE ColumbaEngine::ColumbaEngine)
 ```
 
 ### Build Your Project
@@ -218,16 +218,16 @@ MyGame/
 
 ### Common Issues
 
-**CMake can't find PgEngine:**
+**CMake can't find ColumbaEngine:**
 ```bash
 # Specify the path explicitly
-cmake .. -DPgEngine_DIR=/usr/local/lib/cmake/PgEngine
+cmake .. -DColumbaEngine_DIR=/usr/local/lib/cmake/ColumbaEngine
 ```
 
 **Permission denied during installation:**
 ```bash
 # For system installation, use sudo or install to user directory
-./install-pgengine.sh -p ~/.local
+./install-ColumbaEngine.sh -p ~/.local
 ```
 
 **Missing dependencies on unsupported systems:**
@@ -262,9 +262,9 @@ If the automatic scripts don't work for your system:
 
 ```bash
 # 1. Install dependencies manually
-# 2. Clone PgEngine
-git clone --recursive https://github.com/Gallasko/PgEngine.git
-cd PgEngine
+# 2. Clone ColumbaEngine
+git clone --recursive https://github.com/Gallasko/ColumbaEngine.git
+cd ColumbaEngine
 
 # 3. Build
 mkdir build && cd build
@@ -275,16 +275,16 @@ make -j$(nproc)
 sudo make install
 ```
 
-## Updating PgEngine
+## Updating ColumbaEngine
 
 To update to a newer version:
 
 ```bash
 # Re-run the installer with new version
-./install-pgengine.sh -v v1.1.0
+./install-ColumbaEngine.sh -v v1.1.0
 
 # Or manually update
-cd ~/pgengine-install/pgengine
+cd ~/ColumbaEngine-install/ColumbaEngine
 git fetch origin
 git checkout v1.1.0
 cd build
@@ -296,17 +296,17 @@ sudo make install
 
 ## Uninstalling
 
-To remove PgEngine:
+To remove ColumbaEngine:
 
 ```bash
 # Remove installed files
-sudo rm -rf /usr/local/lib/libPgEngine.a
+sudo rm -rf /usr/local/lib/libColumbaEngine.a
 sudo rm -rf /usr/local/lib/lib*{SDL2,glew,freetype}*.a
-sudo rm -rf /usr/local/include/PgEngine
-sudo rm -rf /usr/local/lib/cmake/PgEngine
+sudo rm -rf /usr/local/include/ColumbaEngine
+sudo rm -rf /usr/local/lib/cmake/ColumbaEngine
 
 # Remove working directory
-rm -rf ~/pgengine-install
+rm -rf ~/ColumbaEngine-install
 
 # Update library cache
 sudo ldconfig
@@ -323,4 +323,4 @@ If you improve the installation scripts or find issues:
 
 ## License
 
-These installation scripts are provided under the same license as PgEngine.
+These installation scripts are provided under the same license as ColumbaEngine.

@@ -6,80 +6,80 @@ services:
     build:
       context: .
       dockerfile: test-ubuntu.Dockerfile
-    container_name: pgengine-test-ubuntu
+    container_name: ColumbaEngine-test-ubuntu
     volumes:
       - ../install:/home/tester/scripts:ro
-      - ubuntu-build:/tmp/pgengine-build
+      - ubuntu-build:/tmp/ColumbaEngine-build
     environment:
-      - PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+      - ColumbaEngine_REPO=https://github.com/Gallasko/ColumbaEngine.git
       - BUILD_JOBS=2
       - INSTALL_PREFIX=/usr/local
     command: bash -c "
       cd /home/tester &&
       chmod +x scripts/*.sh &&
       echo '=== Testing on Ubuntu ===' &&
-      timeout 3600 scripts/install-pgengine.sh -j 2 &&
+      timeout 3600 scripts/install-ColumbaEngine.sh -j 2 &&
       echo '=== Validating Ubuntu Installation ===' &&
       scripts/validate-installation.sh &&
       echo '=== Ubuntu Test Completed ==='
     "
     networks:
-      - pgengine-test
+      - ColumbaEngine-test
 
   # Fedora test environment
   test-fedora:
     build:
       context: .
       dockerfile: test-fedora.Dockerfile
-    container_name: pgengine-test-fedora
+    container_name: ColumbaEngine-test-fedora
     volumes:
       - ../install:/home/tester/scripts:ro
-      - fedora-build:/tmp/pgengine-build
+      - fedora-build:/tmp/ColumbaEngine-build
     environment:
-      - PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+      - ColumbaEngine_REPO=https://github.com/Gallasko/ColumbaEngine.git
       - BUILD_JOBS=2
       - INSTALL_PREFIX=/usr/local
     command: bash -c "
       cd /home/tester &&
       chmod +x scripts/*.sh &&
       echo '=== Testing on Fedora ===' &&
-      timeout 3600 scripts/install-pgengine.sh -j 2 &&
+      timeout 3600 scripts/install-ColumbaEngine.sh -j 2 &&
       echo '=== Validating Fedora Installation ===' &&
       scripts/validate-installation.sh &&
       echo '=== Fedora Test Completed ==='
     "
     networks:
-      - pgengine-test
+      - ColumbaEngine-test
 
   # Arch Linux test environment
   test-arch:
     build:
       context: .
       dockerfile: test-arch.Dockerfile
-    container_name: pgengine-test-arch
+    container_name: ColumbaEngine-test-arch
     volumes:
       - ../install:/home/tester/scripts:ro
-      - arch-build:/tmp/pgengine-build
+      - arch-build:/tmp/ColumbaEngine-build
     environment:
-      - PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+      - ColumbaEngine_REPO=https://github.com/Gallasko/ColumbaEngine.git
       - BUILD_JOBS=2
       - INSTALL_PREFIX=/usr/local
     command: bash -c "
       cd /home/tester &&
       chmod +x scripts/*.sh &&
       echo '=== Testing on Arch Linux ===' &&
-      timeout 3600 scripts/install-pgengine.sh -j 2 &&
+      timeout 3600 scripts/install-ColumbaEngine.sh -j 2 &&
       echo '=== Validating Arch Installation ===' &&
       scripts/validate-installation.sh &&
       echo '=== Arch Test Completed ==='
     "
     networks:
-      - pgengine-test
+      - ColumbaEngine-test
 
   # Test coordinator - runs all tests
   test-all:
     image: alpine:latest
-    container_name: pgengine-test-coordinator
+    container_name: ColumbaEngine-test-coordinator
     depends_on:
       - test-ubuntu
       - test-fedora
@@ -88,7 +88,7 @@ services:
       - ../install:/scripts:ro
     command: echo "All tests completed successfully!"
     networks:
-      - pgengine-test
+      - ColumbaEngine-test
 
 # Persistent volumes for build artifacts
 volumes:
@@ -98,5 +98,5 @@ volumes:
 
 # Network for test containers
 networks:
-  pgengine-test:
+  ColumbaEngine-test:
     driver: bridge

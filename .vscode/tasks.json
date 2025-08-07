@@ -86,8 +86,8 @@
                 "command": "powershell",
                 "args": [
                     "-c",
-                    // "cmake --build x:/Document/GitHub/TeclaEatsDesktop/release --config Release --target PgEngine TetrisClone -j 22 --"
-                    // "cmake --build ${workspaceFolder}/release --config Release --target PgEngine TetrisClone -j 22 --"
+                    // "cmake --build x:/Document/GitHub/TeclaEatsDesktop/release --config Release --target ColumbaEngine TetrisClone -j 22 --"
+                    // "cmake --build ${workspaceFolder}/release --config Release --target ColumbaEngine TetrisClone -j 22 --"
                     "cmake --build ${workspaceFolder}/release --config Release --target PixelJam -j 22 --"
                 ]
             },
@@ -101,7 +101,7 @@
                     "Release",
                     "--target",
                     "GMTK2025",
-                    // "PgEngineEditor",
+                    // "ColumbaEngineEditor",
                     // "PixelJam",
                     "-j",
                     "8"

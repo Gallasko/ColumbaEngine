@@ -5,7 +5,7 @@ The **PositionComponent** is responsible for managing the position and visibilit
 
 This component is essential for creating and positioning UI elements dynamically within a game or application.
 
-Main implementation file: `position.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.h>`_, `position.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.cpp>`_
+Main implementation file: `position.h <https://github.com/Gallasko/ColumbaEngine/tree/main/src/Engine/2D/position.h>`_, `position.cpp <https://github.com/Gallasko/ColumbaEngine/tree/main/src/Engine/2D/position.cpp>`_
 
 Attributes
 ----------

@@ -29,7 +29,7 @@
             // "preLaunchTask": "build"
         },
         {
-            "name": "PgEngine",
+            "name": "ColumbaEngine",
             "type": "cppdbg",
             "request": "launch",
             "args": [],

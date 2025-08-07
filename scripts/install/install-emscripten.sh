@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Emscripten Installation Script for PgEngine
-# Installs Emscripten SDK and builds PgEngine for web
+# Emscripten Installation Script for ColumbaEngine
+# Installs Emscripten SDK and builds ColumbaEngine for web
 
 set -e
 
 # Configuration
 EMSDK_DIR="${EMSDK_DIR:-$HOME/emsdk}"
-PGENGINE_DIR="${1:-./pgengine}"
+ColumbaEngine_DIR="${1:-./ColumbaEngine}"
 
 # Colors
 RED='\033[0;31m'
@@ -61,16 +61,16 @@ install_emscripten() {
     log_success "Emscripten SDK installed"
 }
 
-build_pgengine_web() {
-    log_info "Building PgEngine for web..."
+build_ColumbaEngine_web() {
+    log_info "Building ColumbaEngine for web..."
 
-    if [[ ! -d "$PGENGINE_DIR" ]]; then
-        log_error "PgEngine directory not found: $PGENGINE_DIR"
-        log_info "Please run the main install script first or specify PgEngine directory"
+    if [[ ! -d "$ColumbaEngine_DIR" ]]; then
+        log_error "ColumbaEngine directory not found: $ColumbaEngine_DIR"
+        log_info "Please run the main install script first or specify ColumbaEngine directory"
         exit 1
     fi
 
-    cd "$PGENGINE_DIR"
+    cd "$ColumbaEngine_DIR"
 
     mkdir -p build-emscripten
     cd build-emscripten
@@ -82,20 +82,20 @@ build_pgengine_web() {
 
     emmake make -j$(nproc)
 
-    log_success "PgEngine built for web"
+    log_success "ColumbaEngine built for web"
 }
 
 create_web_test() {
     log_info "Creating web test application..."
 
-    local test_dir="$PGENGINE_DIR/web-test"
+    local test_dir="$ColumbaEngine_DIR/web-test"
     mkdir -p "$test_dir/src"
     cd "$test_dir"
 
     # Create CMakeLists.txt for web
     cat > CMakeLists.txt << 'EOF'
 cmake_minimum_required(VERSION 3.18)
-project(PgEngineWebTest VERSION 1.0)
+project(ColumbaEngineWebTest VERSION 1.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -113,26 +113,26 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 
-    # Build PgEngine as subdirectory for Emscripten
-    add_subdirectory(../build-emscripten pgengine_web)
-    set(PGENGINE_TARGET PgEngine)
+    # Build ColumbaEngine as subdirectory for Emscripten
+    add_subdirectory(../build-emscripten ColumbaEngine_web)
+    set(ColumbaEngine_TARGET ColumbaEngine)
 else()
-    find_package(PgEngine REQUIRED)
-    set(PGENGINE_TARGET PgEngine::PgEngine)
+    find_package(ColumbaEngine REQUIRED)
+    set(ColumbaEngine_TARGET ColumbaEngine::ColumbaEngine)
 endif()
 
 # Create executable
-add_executable(PgEngineWebTest
+add_executable(ColumbaEngineWebTest
     src/main.cpp
     src/application.cpp
 )
 
-# Link with PgEngine
-target_link_libraries(PgEngineWebTest PRIVATE ${PGENGINE_TARGET})
+# Link with ColumbaEngine
+target_link_libraries(ColumbaEngineWebTest PRIVATE ${ColumbaEngine_TARGET})
 
 # Emscripten-specific settings
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set_target_properties(PgEngineWebTest PROPERTIES
+    set_target_properties(ColumbaEngineWebTest PROPERTIES
         SUFFIX ".html"
         LINK_FLAGS "${CMAKE_EXE_LINKER_FLAGS}"
     )
@@ -150,7 +150,7 @@ EOF
 #include <SDL.h>
 
 int main() {
-    std::cout << "PgEngine Web Test - Hello World!" << std::endl;
+    std::cout << "ColumbaEngine Web Test - Hello World!" << std::endl;
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0) {
         std::cout << "SDL_Init failed: " << SDL_GetError() << std::endl;
@@ -158,7 +158,7 @@ int main() {
     }
 
     SDL_Window* window = SDL_CreateWindow(
-        "PgEngine Web Test",
+        "ColumbaEngine Web Test",
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
         800, 600,
         SDL_WINDOW_SHOWN
@@ -194,7 +194,7 @@ else
     exit 1
 fi
 
-echo "Building PgEngine Web Test..."
+echo "Building ColumbaEngine Web Test..."
 
 mkdir -p build-web
 cd build-web
@@ -204,12 +204,12 @@ emmake make -j$(nproc)
 
 echo "Build complete!"
 echo "Files generated:"
-ls -la PgEngineWebTest.*
+ls -la ColumbaEngineWebTest.*
 
 echo ""
 echo "To run the web application:"
 echo "1. Start a web server: python3 -m http.server 8000"
-echo "2. Open http://localhost:8000/PgEngineWebTest.html"
+echo "2. Open http://localhost:8000/ColumbaEngineWebTest.html"
 EOF
     chmod +x build-web.sh
 
@@ -239,14 +239,14 @@ setup_shell_profile() {
 }
 
 main() {
-    log_info "PgEngine Emscripten Setup"
+    log_info "ColumbaEngine Emscripten Setup"
     log_info "========================="
     log_info "Emscripten SDK directory: $EMSDK_DIR"
-    log_info "PgEngine directory: $PGENGINE_DIR"
+    log_info "ColumbaEngine directory: $ColumbaEngine_DIR"
     echo
 
     install_emscripten
-    build_pgengine_web
+    build_ColumbaEngine_web
     create_web_test
     setup_shell_profile
 
@@ -254,7 +254,7 @@ main() {
     log_success "Emscripten setup completed successfully!"
     echo
     log_info "To build the web test:"
-    log_info "  cd $PGENGINE_DIR/web-test"
+    log_info "  cd $ColumbaEngine_DIR/web-test"
     log_info "  ./build-web.sh"
     echo
     log_info "To run web applications, use: python3 -m http.server 8000"
@@ -262,12 +262,12 @@ main() {
 }
 
 usage() {
-    echo "Usage: $0 [pgengine_directory]"
+    echo "Usage: $0 [ColumbaEngine_directory]"
     echo
-    echo "Install Emscripten SDK and build PgEngine for web"
+    echo "Install Emscripten SDK and build ColumbaEngine for web"
     echo
     echo "Arguments:"
-    echo "  pgengine_directory   Path to PgEngine source (default: ./pgengine)"
+    echo "  ColumbaEngine_directory   Path to ColumbaEngine source (default: ./ColumbaEngine)"
     echo
     echo "Environment variables:"
     echo "  EMSDK_DIR           Emscripten SDK directory (default: ~/emsdk)"

@@ -1,9 +1,9 @@
-.. PgEngine documentation master file, created by
+.. ColumbaEngine documentation master file, created by
    sphinx-quickstart on Fri Mar 14 10:59:18 2025.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-PgEngine documentation
+ColumbaEngine documentation
 ======================
 
 Add your content using ``reStructuredText`` syntax. See the

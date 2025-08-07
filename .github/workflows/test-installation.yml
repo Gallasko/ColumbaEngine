@@ -33,7 +33,7 @@ jobs:
 
     - name: Build test image
       run: |
-        docker build -t pgengine-test-${{ matrix.distro }} \
+        docker build -t ColumbaEngine-test-${{ matrix.distro }} \
           -f scripts/testdockers/test-${{ matrix.distro }}.Dockerfile scripts/testdockers/
 
     - name: Run installation test
@@ -41,22 +41,22 @@ jobs:
       run: |
         docker run --rm \
           -v ${{ github.workspace }}/scripts/install:/home/tester/scripts:ro \
-          -e "PGENGINE_REPO=${{ github.server_url }}/${{ github.repository }}.git" \
+          -e "ColumbaEngine_REPO=${{ github.server_url }}/${{ github.repository }}.git" \
           -e "BUILD_JOBS=2" \
-          pgengine-test-${{ matrix.distro }} \
+          ColumbaEngine-test-${{ matrix.distro }} \
           bash -c "
             cd /home/tester
             chmod +x scripts/*.sh
 
-            echo '=== Installing PgEngine on ${{ matrix.distro }} ==='
-            timeout 2700 scripts/install-pgengine.sh -j 2
+            echo '=== Installing ColumbaEngine on ${{ matrix.distro }} ==='
+            timeout 2700 scripts/install-ColumbaEngine.sh -j 2
 
             echo '=== Validating Installation ==='
             timeout 300 scripts/validate-installation.sh
 
             echo '=== Testing Example Project ==='
-            cd ~/pgengine-install/test-app/build
-            ./PgEngineTestApp --help || echo 'Test app created successfully'
+            cd ~/ColumbaEngine-install/test-app/build
+            ./ColumbaEngineTestApp --help || echo 'Test app created successfully'
           "
 
     - name: Upload build logs on failure
@@ -65,7 +65,7 @@ jobs:
       with:
         name: build-logs-${{ matrix.distro }}
         path: |
-          /tmp/pgengine-*
+          /tmp/ColumbaEngine-*
         retention-days: 7
 
   test-emscripten:
@@ -81,7 +81,7 @@ jobs:
 
     - name: Build Ubuntu test image
       run: |
-        docker build -t pgengine-test-ubuntu \
+        docker build -t ColumbaEngine-test-ubuntu \
           -f scripts/testdockers/test-ubuntu.Dockerfile scripts/testdockers/
 
     - name: Test Emscripten installation
@@ -89,17 +89,17 @@ jobs:
       run: |
         docker run --rm \
           -v ${{ github.workspace }}/scripts/install:/home/tester/scripts:ro \
-          -e "PGENGINE_REPO=${{ github.server_url }}/${{ github.repository }}.git" \
-          pgengine-test-ubuntu \
+          -e "ColumbaEngine_REPO=${{ github.server_url }}/${{ github.repository }}.git" \
+          ColumbaEngine-test-ubuntu \
           bash -c "
             cd /home/tester
             chmod +x scripts/*.sh
 
-            echo '=== First install native PgEngine ==='
-            timeout 1800 scripts/install-pgengine.sh -j 2
+            echo '=== First install native ColumbaEngine ==='
+            timeout 1800 scripts/install-ColumbaEngine.sh -j 2
 
             echo '=== Testing Emscripten installation ==='
-            timeout 1800 scripts/install-emscripten.sh ~/pgengine-install/pgengine || {
+            timeout 1800 scripts/install-emscripten.sh ~/ColumbaEngine-install/ColumbaEngine || {
               echo 'Emscripten installation failed (expected in CI)'
               exit 0
             }
@@ -148,7 +148,7 @@ jobs:
       run: |
         cd scripts/install
         chmod +x validate-installation.sh
-        ./validate-installation.sh || echo "Validation correctly detected missing PgEngine"
+        ./validate-installation.sh || echo "Validation correctly detected missing ColumbaEngine"
 
   integration-test:
     name: Full Integration Test
@@ -179,13 +179,13 @@ jobs:
         export BUILD_JOBS=2
 
         echo '=== Full Integration Test ==='
-        ./install-pgengine.sh -p "$INSTALL_PREFIX" -j 2
+        ./install-ColumbaEngine.sh -p "$INSTALL_PREFIX" -j 2
 
         echo '=== Validating Installation ==='
         ./validate-installation.sh -p "$INSTALL_PREFIX"
 
         echo '=== Testing Created Project ==='
-        cd ~/pgengine-install/test-app
+        cd ~/ColumbaEngine-install/test-app
         ./build.sh
 
         echo '=== Integration test completed ==='
@@ -196,9 +196,9 @@ jobs:
       with:
         name: integration-test-results
         path: |
-          ~/pgengine-install/
-          ~/.local/lib/libPgEngine.a
-          ~/.local/include/PgEngine/
+          ~/ColumbaEngine-install/
+          ~/.local/lib/libColumbaEngine.a
+          ~/.local/include/ColumbaEngine/
         retention-days: 3
 
   summarize-results:
@@ -211,7 +211,7 @@ jobs:
     steps:
     - name: Display test results
       run: |
-        echo "## PgEngine Installation Script Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "## ColumbaEngine Installation Script Test Results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
 
         if [[ "${{ needs.test-installation.result }}" == "success" ]]; then

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 
-project(PgEngineSrc VERSION 1.0)
+project(ColumbaEngineSrc VERSION 1.0)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
@@ -17,8 +17,8 @@ endif()
 
 # include(GNUInstallDirs)
 
-# install(TARGETS PgEngineSrc
-#         EXPORT PgEngineSrcTargets
+# install(TARGETS ColumbaEngineSrc
+#         EXPORT ColumbaEngineSrcTargets
 #         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
 #         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
 #         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -26,7 +26,7 @@ endif()
 
 # # install(FILES Engine/window.h DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-# install(EXPORT PgEngineSrcTargets
-#         FILE PgEngineSrcTargets.cmake
+# install(EXPORT ColumbaEngineSrcTargets
+#         FILE ColumbaEngineSrcTargets.cmake
 #         NAMESPACE pg::
-#         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PgEngineSrc)
+#         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/ColumbaEngineSrc)

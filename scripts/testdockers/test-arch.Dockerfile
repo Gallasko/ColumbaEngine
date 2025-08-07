@@ -1,4 +1,4 @@
-# Arch Linux test environment for PgEngine installation
+# Arch Linux test environment for ColumbaEngine installation
 FROM archlinux:latest
 
 # Update system and install minimal dependencies
@@ -20,7 +20,7 @@ USER tester
 WORKDIR /home/tester
 
 # Set environment variables for testing
-ENV PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+ENV ColumbaEngine_REPO=https://github.com/Gallasko/ColumbaEngine.git
 ENV INSTALL_PREFIX=/usr/local
 ENV BUILD_JOBS=2
 
