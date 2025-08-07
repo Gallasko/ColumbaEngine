@@ -332,7 +332,6 @@ else()
         ARCHIVE DESTINATION lib
         LIBRARY DESTINATION lib
         RUNTIME DESTINATION bin
-        PUBLIC_HEADER DESTINATION include
         INCLUDES DESTINATION include
     )
 endif()
@@ -379,44 +378,10 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         FILES_MATCHING PATTERN "*.h"
     )
     
-    # Install SDL2_mixer headers - comprehensive search
-    message(STATUS "Looking for SDL2_mixer headers in: ${SDL2MIXER_DIR}")
-    
-    # Check common locations for SDL_mixer.h
-    set(MIXER_HEADER_PATHS
-        "${CMAKE_CURRENT_SOURCE_DIR}/${SDL2MIXER_DIR}/include/SDL_mixer.h"
-        "${CMAKE_CURRENT_SOURCE_DIR}/${SDL2MIXER_DIR}/SDL_mixer.h"
-        "${CMAKE_CURRENT_SOURCE_DIR}/${SDL2MIXER_DIR}/src/SDL_mixer.h"
+    # Install SDL2_mixer headers - be explicit about the path
+    install(FILES ${SDL2MIXER_DIR}/include/SDL_mixer.h
+        DESTINATION include
     )
-    
-    set(MIXER_HEADER_FOUND FALSE)
-    foreach(header_path ${MIXER_HEADER_PATHS})
-        if(EXISTS "${header_path}")
-            message(STATUS "Found SDL_mixer.h at: ${header_path}")
-            install(FILES "${header_path}" DESTINATION include)
-            set(MIXER_HEADER_FOUND TRUE)
-            break()
-        endif()
-    endforeach()
-    
-    # If not found in common locations, search recursively
-    if(NOT MIXER_HEADER_FOUND)
-        file(GLOB_RECURSE SDL_MIXER_HEADERS "${CMAKE_CURRENT_SOURCE_DIR}/${SDL2MIXER_DIR}/**/SDL_mixer.h")
-        if(SDL_MIXER_HEADERS)
-            list(GET SDL_MIXER_HEADERS 0 FIRST_HEADER)
-            message(STATUS "Found SDL_mixer.h via recursive search at: ${FIRST_HEADER}")
-            install(FILES "${FIRST_HEADER}" DESTINATION include)
-        else()
-            message(WARNING "SDL_mixer.h not found anywhere in ${SDL2MIXER_DIR}")
-            # Install the whole include directory if it exists
-            if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/${SDL2MIXER_DIR}/include")
-                install(DIRECTORY ${SDL2MIXER_DIR}/include/
-                    DESTINATION include
-                    FILES_MATCHING PATTERN "*.h"
-                )
-            endif()
-        endif()
-    endif()
     
     # Install SDL2_net headers
     install(DIRECTORY ${SDL2NET_DIR}/
