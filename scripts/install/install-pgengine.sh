@@ -12,6 +12,7 @@ PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/Gallasko/PgEngine.git}"  # Up
 INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
 INSTALL_DIR="${INSTALL_DIR:-$HOME/pgengine-install}"
 BUILD_JOBS="${BUILD_JOBS:-$(nproc)}"
+BUILD_TYPE="${BUILD_TYPE:-Release}"  # Default to Release build
 
 # Colors for output
 RED='\033[0;31m'
@@ -160,7 +161,7 @@ download_pgengine() {
 
 # Build PgEngine
 build_pgengine() {
-    log_info "Building PgEngine..."
+    log_info "Building PgEngine in $BUILD_TYPE mode..."
     
     cd "$INSTALL_DIR/pgengine"
     mkdir -p build
@@ -169,14 +170,14 @@ build_pgengine() {
     # Use Unix Makefiles instead of Ninja to avoid dependency issues
     cmake .. \
         -G "Unix Makefiles" \
-        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_BUILD_TYPE="$BUILD_TYPE" \
         -DCMAKE_INSTALL_PREFIX="$INSTALL_PREFIX" \
         -DBUILD_EXAMPLES=OFF \
         -DBUILD_STATIC_LIB=ON
     
     make -j"$BUILD_JOBS"
     
-    log_success "PgEngine built successfully"
+    log_success "PgEngine built successfully in $BUILD_TYPE mode"
 }
 
 # Install PgEngine
@@ -507,21 +508,124 @@ message(STATUS "PgEngine include dir: ${PgEngine_INCLUDE_DIR}")
 message(STATUS "PgEngine library: ${PgEngine_LIBRARY}")
 EOF
 
-    # Create build script
+    # Create enhanced build script with debug/release options
     cat > build.sh << 'EOF'
 #!/bin/bash
 
-set -e
+# PgEngine Test App Build Script
+# Usage: ./build.sh [debug|release] [clean]
 
-echo "Building PgEngine Test App..."
+set -e  # Exit on any error
 
+# Default build type
+BUILD_TYPE="Release"
+CLEAN_BUILD=false
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+print_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+print_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+print_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Parse command line arguments
+for arg in "$@"; do
+    case $arg in
+        debug|Debug|DEBUG)
+            BUILD_TYPE="Debug"
+            print_info "Building in Debug mode"
+            ;;
+        release|Release|RELEASE)
+            BUILD_TYPE="Release"
+            print_info "Building in Release mode"
+            ;;
+        clean|Clean|CLEAN)
+            CLEAN_BUILD=true
+            print_info "Clean build requested"
+            ;;
+        help|--help|-h)
+            echo "Usage: $0 [debug|release] [clean]"
+            echo ""
+            echo "Options:"
+            echo "  debug    - Build in Debug mode"
+            echo "  release  - Build in Release mode (default)"
+            echo "  clean    - Clean build directory before building"
+            echo "  help     - Show this help message"
+            echo ""
+            echo "Examples:"
+            echo "  $0              # Release build"
+            echo "  $0 debug        # Debug build"
+            echo "  $0 release clean # Clean release build"
+            exit 0
+            ;;
+        *)
+            print_warning "Unknown argument: $arg (ignored)"
+            ;;
+    esac
+done
+
+print_info "Building PgEngine Test App in $BUILD_TYPE mode..."
+
+# Create build directory if it doesn't exist
 mkdir -p build
+
+# Clean build if requested
+if [ "$CLEAN_BUILD" = true ]; then
+    print_info "Cleaning build directory..."
+    rm -rf build/*
+fi
+
+# Navigate to build directory
 cd build
 
-cmake .. -DCMAKE_BUILD_TYPE=Release
+# Configure with CMake
+print_info "Configuring CMake..."
+cmake -DCMAKE_BUILD_TYPE=$BUILD_TYPE ..
+
+# Build the project
+print_info "Building project..."
 make -j$(nproc)
 
-echo "Build complete! Run with: ./PgEngineTestApp"
+# Check if build was successful
+if [ $? -eq 0 ]; then
+    print_success "Build completed successfully!"
+    print_info "Executable: $(pwd)/PgEngineTestApp"
+    
+    # Show build info
+    echo ""
+    echo "Build Information:"
+    echo "  Build Type: $BUILD_TYPE"
+    echo "  Build Directory: $(pwd)"
+    
+    # Offer to run the application
+    echo ""
+    read -p "Do you want to run the application? [y/N]: " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        print_info "Running application..."
+        ./PgEngineTestApp
+    fi
+else
+    print_error "Build failed!"
+    exit 1
+fi
 EOF
     chmod +x build.sh
 
@@ -534,7 +638,17 @@ This is a basic test application created by the PgEngine installation script.
 ## Building
 
 ```bash
+# Release build (default)
 ./build.sh
+
+# Debug build
+./build.sh debug
+
+# Clean build
+./build.sh clean
+
+# Clean debug build
+./build.sh debug clean
 ```
 
 ## Running
@@ -551,7 +665,7 @@ The application will create a window using PgEngine. Press ESC or close the wind
 - `src/main.cpp` - Entry point
 - `src/application.h/cpp` - Main application class
 - `CMakeLists.txt` - CMake configuration
-- `build.sh` - Build script
+- `build.sh` - Build script with debug/release options
 
 ## Modifying
 
@@ -615,6 +729,7 @@ main() {
     log_info "PgEngine Installation Script"
     log_info "============================="
     log_info "Version: $PGENGINE_VERSION"
+    log_info "Build type: $BUILD_TYPE"
     log_info "Install prefix: $INSTALL_PREFIX"
     log_info "Working directory: $INSTALL_DIR"
     echo
@@ -647,6 +762,7 @@ main() {
     log_success "PgEngine installation completed successfully!"
     echo
     log_info "Installation summary:"
+    log_info "- PgEngine built in: $BUILD_TYPE mode"
     log_info "- PgEngine installed to: $INSTALL_PREFIX"
     log_info "- Test application: $INSTALL_DIR/test-app"
     log_info "- Source code: $INSTALL_DIR/pgengine"
@@ -669,16 +785,20 @@ usage() {
     echo "  -p, --prefix PATH    Install prefix (default: /usr/local)"
     echo "  -d, --dir PATH       Working directory (default: ~/pgengine-install)"
     echo "  -j, --jobs N         Number of build jobs (default: nproc)"
+    echo "  --debug              Build PgEngine in Debug mode"
+    echo "  --release            Build PgEngine in Release mode (default)"
     echo
     echo "Environment variables:"
     echo "  PGENGINE_VERSION     Engine version to install"
     echo "  PGENGINE_REPO        Repository URL"
     echo "  INSTALL_PREFIX       Installation prefix"
+    echo "  BUILD_TYPE           Build type (Debug or Release)"
     echo
     echo "Examples:"
-    echo "  $0                                    # Install latest from main branch"
-    echo "  $0 -v v1.0.0                        # Install specific version"
-    echo "  $0 -p ~/.local                       # Install to user directory"
+    echo "  $0                                    # Install latest release build"
+    echo "  $0 --debug                           # Install latest debug build"
+    echo "  $0 -v v1.0.0 --release              # Install specific version in release mode"
+    echo "  $0 -p ~/.local --debug               # Install debug build to user directory"
     echo "  $0 -r https://github.com/user/repo   # Use different repository"
 }
 
@@ -708,6 +828,14 @@ while [[ $# -gt 0 ]]; do
         -j|--jobs)
             BUILD_JOBS="$2"
             shift 2
+            ;;
+        --debug)
+            BUILD_TYPE="Debug"
+            shift
+            ;;
+        --release)
+            BUILD_TYPE="Release"
+            shift
             ;;
         *)
             log_error "Unknown option: $1"
