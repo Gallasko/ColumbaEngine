@@ -204,7 +204,8 @@ jobs:
   summarize-results:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [test-installation, test-emscripten, test-quick-scenarios, test-validation-script]
+    # needs: [test-installation, test-emscripten, test-quick-scenarios, test-validation-script]
+    needs: [test-installation, test-emscripten, test-validation-script]
     if: always()
 
     steps:
