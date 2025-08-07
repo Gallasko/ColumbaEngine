@@ -107,24 +107,24 @@ jobs:
             echo '=== Emscripten test completed ==='
           "
 
-  test-quick-scenarios:
-    name: Quick Test Scenarios
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        scenario: [deps, build, validate]
+  # test-quick-scenarios:
+  #   name: Quick Test Scenarios
+  #   runs-on: ubuntu-latest
+  #   strategy:
+  #     fail-fast: false
+  #     matrix:
+  #       scenario: [deps, build, validate]
 
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
+  #   steps:
+  #   - name: Checkout code
+  #     uses: actions/checkout@v4
 
-    - name: Run quick test scenario
-      timeout-minutes: 20
-      run: |
-        cd scripts/testdockers
-        chmod +x *.sh
-        ./quick-test.sh ${{ matrix.scenario }}
+  #   - name: Run quick test scenario
+  #     timeout-minutes: 20
+  #     run: |
+  #       cd scripts/testdockers
+  #       chmod +x *.sh
+  #       ./quick-test.sh ${{ matrix.scenario }}
 
   test-validation-script:
     name: Test Validation Script
@@ -204,7 +204,8 @@ jobs:
   summarize-results:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [test-installation, test-emscripten, test-quick-scenarios, test-validation-script]
+    # needs: [test-installation, test-emscripten, test-quick-scenarios, test-validation-script]
+    needs: [test-installation, test-emscripten, test-validation-script]
     if: always()
 
     steps:

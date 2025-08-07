@@ -176,8 +176,8 @@ set(ENGINESOURCE
 # Create the static library
 add_library(PgEngine STATIC ${ENGINESOURCE})
 
-# Set precompiled headers
-target_precompile_headers(PgEngine PUBLIC src/Engine/stdafx.h)
+# Set precompiled headers - but don't make them public for consumers
+target_precompile_headers(PgEngine PRIVATE src/Engine/stdafx.h)
 
 # Include directories - ONLY use generator expressions for proper build/install interface
 target_include_directories(PgEngine PUBLIC
@@ -188,6 +188,8 @@ target_include_directories(PgEngine PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLTF_DIR}/include>
     $<INSTALL_INTERFACE:include/PgEngine>
     $<INSTALL_INTERFACE:include/PgEngine/GameElements>
+    $<INSTALL_INTERFACE:include/glm>
+    $<INSTALL_INTERFACE:include/taskflow>
     $<INSTALL_INTERFACE:include>
 )
 
@@ -214,11 +216,36 @@ else()
 
     target_link_options(PgEngine PRIVATE -static-libgcc -static-libstdc++)
     
-    # All dependencies as PUBLIC since we're exporting them
+    # Check for target name variations and use the correct ones
+    set(SDL2_TARGETS)
+    if(TARGET SDL2::SDL2-static)
+        list(APPEND SDL2_TARGETS SDL2::SDL2-static)
+    elseif(TARGET SDL2-static)
+        list(APPEND SDL2_TARGETS SDL2-static)
+    endif()
+    
+    # Handle SDL2_mixer target name variations - use the actual target name, not alias
+    if(TARGET SDL2_mixer)
+        list(APPEND SDL2_TARGETS SDL2_mixer)
+    elseif(TARGET SDL2_mixer::SDL2_mixer-static)
+        list(APPEND SDL2_TARGETS SDL2_mixer::SDL2_mixer-static)
+    elseif(TARGET SDL2_mixer-static)
+        list(APPEND SDL2_TARGETS SDL2_mixer-static)
+    endif()
+    
+    # Handle SDL2_net target name variations - use the actual target name
+    if(TARGET SDL2_net)
+        list(APPEND SDL2_TARGETS SDL2_net)
+    elseif(TARGET SDL2_net::SDL2_net-static)
+        list(APPEND SDL2_TARGETS SDL2_net::SDL2_net-static)
+    elseif(TARGET SDL2_net-static)
+        list(APPEND SDL2_TARGETS SDL2_net-static)
+    endif()
+    
+    message(STATUS "SDL2 targets to link: ${SDL2_TARGETS}")
+    
     target_link_libraries(PgEngine PUBLIC 
-        SDL2::SDL2-static 
-        SDL2_mixer::SDL2_mixer-static 
-        SDL2_net::SDL2_net-static 
+        ${SDL2_TARGETS}
         glm 
         libglew_static 
         freetype
@@ -230,12 +257,21 @@ endif()
 get_property(ALL_TARGETS DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY BUILDSYSTEM_TARGETS)
 message(STATUS "All available targets: ${ALL_TARGETS}")
 
-# Check specific targets
-foreach(target IN ITEMS SDL2main SDL2-static SDL2_net SDL2_mixer-static glm libglew_static freetype)
+# Check specific targets and their actual names
+foreach(target IN ITEMS SDL2main SDL2-static SDL2_mixer-static SDL2_mixer SDL2_net glm libglew_static freetype)
     if(TARGET ${target})
         message(STATUS "Target ${target} exists")
     else()
         message(STATUS "Target ${target} does NOT exist")
+    endif()
+endforeach()
+
+# Also check for SDL2_mixer target variations
+foreach(target IN ITEMS "SDL2_mixer::SDL2_mixer-static" "SDL2_mixer::SDL2_mixer" "SDL2_mixer-static" "SDL2_mixer")
+    if(TARGET ${target})
+        message(STATUS "SDL2_mixer target ${target} exists")
+    else()
+        message(STATUS "SDL2_mixer target ${target} does NOT exist")
     endif()
 endforeach()
 
@@ -253,7 +289,7 @@ else()
     # First check which targets actually exist
     set(TARGETS_TO_INSTALL PgEngine)
     
-    # Add targets that exist
+    # Add targets that exist (check for both alias and direct names)
     if(TARGET SDL2-static)
         list(APPEND TARGETS_TO_INSTALL SDL2-static)
     endif()
@@ -264,13 +300,13 @@ else()
     
     if(TARGET SDL2_mixer-static)
         list(APPEND TARGETS_TO_INSTALL SDL2_mixer-static)
+    elseif(TARGET SDL2_mixer)
+        list(APPEND TARGETS_TO_INSTALL SDL2_mixer)
     endif()
     
     if(TARGET SDL2_net-static)
         list(APPEND TARGETS_TO_INSTALL SDL2_net-static)
-    endif()
-    
-    if(TARGET SDL2_net)
+    elseif(TARGET SDL2_net)
         list(APPEND TARGETS_TO_INSTALL SDL2_net)
     endif()
     
@@ -344,10 +380,9 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         FILES_MATCHING PATTERN "*.h"
     )
     
-    # Install SDL2_mixer headers
-    install(DIRECTORY ${SDL2MIXER_DIR}/include/
+    # Install SDL2_mixer headers - be explicit about the path
+    install(FILES ${SDL2MIXER_DIR}/include/SDL_mixer.h
         DESTINATION include
-        FILES_MATCHING PATTERN "*.h"
     )
     
     # Install SDL2_net headers
