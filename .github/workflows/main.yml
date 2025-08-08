@@ -67,10 +67,16 @@ jobs:
         if: matrix.os == 'windows-latest' && matrix.compiler == 'msvc'
         uses: ilammy/msvc-dev-cmd@v1
 
+      # Clean build directory to avoid stale cache issues
+      - name: Clean build directory
+        shell: bash
+        run: |
+          rm -rf build
+          mkdir -p build
+
       - name: Configure with CMake
         shell: bash
         run: |
-          mkdir -p build
           cd build
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             cmake \
@@ -100,13 +106,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-ccache-${{ matrix.compiler }}-
 
+      # Remove or update the CMake build cache to use new cache keys
       - name: Cache CMake build
         uses: actions/cache@v3
         with:
           path: build
-          key: ${{ runner.os }}-cmake-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
+          key: columbaengine-${{ runner.os }}-cmake-${{ matrix.compiler }}-${{ hashFiles('**/CMakeLists.txt') }}
           restore-keys: |
-            ${{ runner.os }}-cmake-${{ matrix.compiler }}-
+            columbaengine-${{ runner.os }}-cmake-${{ matrix.compiler }}-
 
       - name: Verify SDL2 installation (Linux only)
         if: matrix.os == 'ubuntu-latest'

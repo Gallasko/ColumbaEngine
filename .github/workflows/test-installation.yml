@@ -33,7 +33,7 @@ jobs:
 
     - name: Build test image
       run: |
-        docker build -t ColumbaEngine-test-${{ matrix.distro }} \
+        docker build -t columbaengine-test-${{ matrix.distro }} \
           -f scripts/testdockers/test-${{ matrix.distro }}.Dockerfile scripts/testdockers/
 
     - name: Run installation test
@@ -43,7 +43,7 @@ jobs:
           -v ${{ github.workspace }}/scripts/install:/home/tester/scripts:ro \
           -e "ColumbaEngine_REPO=${{ github.server_url }}/${{ github.repository }}.git" \
           -e "BUILD_JOBS=2" \
-          ColumbaEngine-test-${{ matrix.distro }} \
+          columbaengine-test-${{ matrix.distro }} \
           bash -c "
             cd /home/tester
             chmod +x scripts/*.sh
@@ -81,7 +81,7 @@ jobs:
 
     - name: Build Ubuntu test image
       run: |
-        docker build -t ColumbaEngine-test-ubuntu \
+        docker build -t columbaengine-test-ubuntu \
           -f scripts/testdockers/test-ubuntu.Dockerfile scripts/testdockers/
 
     - name: Test Emscripten installation
@@ -90,7 +90,7 @@ jobs:
         docker run --rm \
           -v ${{ github.workspace }}/scripts/install:/home/tester/scripts:ro \
           -e "ColumbaEngine_REPO=${{ github.server_url }}/${{ github.repository }}.git" \
-          ColumbaEngine-test-ubuntu \
+          columbaengine-test-ubuntu \
           bash -c "
             cd /home/tester
             chmod +x scripts/*.sh
