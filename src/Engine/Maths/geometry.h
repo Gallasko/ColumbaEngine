@@ -16,9 +16,17 @@ namespace pg
         Point2D(float x, float y) : x(x), y(y) {}
         Point2D(const Point2D& other) : x(other.x), y(other.y) {}
 
+        Point2D& operator=(const Point2D& other)
+        {
+            x = other.x;
+            y = other.y;
+
+            return *this;
+        }
+
         /**
          * @brief Equality operator to compare two points.
-         * 
+         *
          * @param other The point to compare with.
          * @return true if both points are equal, false otherwise.
          */
@@ -29,7 +37,7 @@ namespace pg
 
         /**
          * @brief Inequality operator to compare two points.
-         * 
+         *
          * @param other The point to compare with.
          * @return true if both points are not equal, false otherwise.
          */
@@ -57,7 +65,7 @@ namespace pg
 
         /**
          * @brief Equality operator to compare two segments.
-         * 
+         *
          * @param other The segment to compare with.
          * @return true if both segments are equal, false otherwise.
          */
@@ -68,7 +76,7 @@ namespace pg
 
         /**
          * @brief Inequality operator to compare two segments.
-         * 
+         *
          * @param other The segment to compare with.
          * @return true if both segments are not equal, false otherwise.
          */
@@ -79,7 +87,7 @@ namespace pg
 
         /**
          * @brief Get the length of the segment.
-         * 
+         *
          * @return The length of the segment.
          */
         float length() const
@@ -89,29 +97,29 @@ namespace pg
 
         /**
          * @brief Get the direction vector of the segment.
-         * 
+         *
          * @return A Point2D representing the direction vector of the segment.
          */
         Point2D direction() const
         {
             return Point2D(end.x - start.x, end.y - start.y);
-        }   
+        }
 
         /**
          * @brief Get the normal vector of the segment.
-         * 
+         *
          * @return A Point2D representing the normal vector of the segment.
          */
         Point2D normal() const
         {
             Point2D dir = direction();
-        
+
             return Point2D(-dir.y, dir.x); // Rotate 90 degrees
         }
 
         /**
          * @brief Get the normalized direction vector of the segment.
-         * 
+         *
          * @return A Point2D representing the normalized direction vector of the segment.
          */
         Point2D normalizedDirection() const
@@ -119,7 +127,7 @@ namespace pg
             float len = length();
             if (len == 0.0f)
                 return Point2D(0.0f, 0.0f);
-            
+
             return Point2D((end.x - start.x) / len, (end.y - start.y) / len);
         }
     };

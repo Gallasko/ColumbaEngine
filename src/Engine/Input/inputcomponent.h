@@ -23,8 +23,7 @@ namespace pg
     struct MouseLeftClickComponent : public Component
     {
         MouseLeftClickComponent(CallablePtr callback, const MouseStateTrigger& trigger = MouseStateTrigger::OnRelease) : callback(callback), trigger(trigger) { LOG_THIS_MEMBER("MouseLeftClickComponent"); }
-        MouseLeftClickComponent(const MouseLeftClickComponent& rhs) : callback(rhs.callback), trigger(rhs.trigger) { LOG_THIS_MEMBER("MouseLeftClickComponent"); }
-        virtual ~MouseLeftClickComponent() { LOG_THIS_MEMBER("MouseLeftClickComponent"); }
+        DEFAULT_COMPONENT_MEMBERS(MouseLeftClickComponent)
 
         CallablePtr callback;
         MouseStateTrigger trigger;
@@ -36,8 +35,7 @@ namespace pg
     struct MouseRightClickComponent : public Component
     {
         MouseRightClickComponent(CallablePtr callback, const MouseStateTrigger& trigger = MouseStateTrigger::OnRelease) : callback(callback), trigger(trigger) { LOG_THIS_MEMBER("MouseRightClickComponent"); }
-        MouseRightClickComponent(const MouseRightClickComponent& rhs) : callback(rhs.callback), trigger(rhs.trigger) { LOG_THIS_MEMBER("MouseRightClickComponent"); }
-        virtual ~MouseRightClickComponent() { LOG_THIS_MEMBER("MouseRightClickComponent"); }
+        DEFAULT_COMPONENT_MEMBERS(MouseRightClickComponent)
 
         CallablePtr callback;
         MouseStateTrigger trigger;
@@ -46,8 +44,7 @@ namespace pg
     struct MouseLeaveClickComponent : public Component
     {
         MouseLeaveClickComponent(CallablePtr callback) : callback(callback) { LOG_THIS_MEMBER("MouseLeaveClickComponent"); }
-        MouseLeaveClickComponent(const MouseLeaveClickComponent& rhs) : callback(rhs.callback) { LOG_THIS_MEMBER("MouseLeaveClickComponent"); }
-        virtual ~MouseLeaveClickComponent() { LOG_THIS_MEMBER("MouseLeaveClickComponent"); }
+        DEFAULT_COMPONENT_MEMBERS(MouseLeaveClickComponent)
 
         CallablePtr callback;
     };
@@ -55,8 +52,7 @@ namespace pg
     struct MouseWheelComponent : public Component
     {
         MouseWheelComponent(const StandardEvent& event) : event(event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
-        MouseWheelComponent(const MouseWheelComponent& rhs) : event(rhs.event) { LOG_THIS_MEMBER("MouseWheelComponent"); }
-        virtual ~MouseWheelComponent() { LOG_THIS_MEMBER("MouseWheelComponent"); }
+        DEFAULT_COMPONENT_MEMBERS(MouseWheelComponent)
 
         StandardEvent event;
     };
@@ -64,15 +60,8 @@ namespace pg
     struct OnMouseClick : public Component
     {
         OnMouseClick(const Point2D& pos, const MouseButton& button) : pos(pos), button(button) { }
-        OnMouseClick(const OnMouseClick& other) : pos(other.pos), button(other.button) { }
 
-        OnMouseClick& operator=(const OnMouseClick& other)
-        {
-            pos = other.pos;
-            button = other.button;
-
-            return *this;
-        }
+        DEFAULT_COMPONENT_MEMBERS(OnMouseClick)
 
         Point2D pos;
         MouseButton button;
@@ -81,15 +70,7 @@ namespace pg
     struct OnMouseRelease : public Component
     {
         OnMouseRelease(const Point2D& pos, const MouseButton& button) : pos(pos), button(button) { }
-        OnMouseRelease(const OnMouseRelease& other) : pos(other.pos), button(other.button) { }
-
-        OnMouseRelease& operator=(const OnMouseRelease& other)
-        {
-            pos = other.pos;
-            button = other.button;
-
-            return *this;
-        }
+        DEFAULT_COMPONENT_MEMBERS(OnMouseRelease)
 
         Point2D pos;
         MouseButton button;
@@ -99,13 +80,7 @@ namespace pg
     struct MouseEnterComponent : public Component
     {
         MouseEnterComponent(CallablePtr callback) : callback(callback) { }
-        MouseEnterComponent(const MouseEnterComponent& other) : callback(other.callback) { }
-
-        MouseEnterComponent& operator=(const MouseEnterComponent& other)
-        {
-            callback = other.callback;
-            return *this;
-        }
+        DEFAULT_COMPONENT_MEMBERS(MouseEnterComponent)
 
         CallablePtr callback;
     };
@@ -114,13 +89,7 @@ namespace pg
     struct MouseLeaveComponent : public Component
     {
         MouseLeaveComponent(CallablePtr callback) : callback(callback) { }
-        MouseLeaveComponent(const MouseLeaveComponent& other) : callback(other.callback) { }
-
-        MouseLeaveComponent& operator=(const MouseLeaveComponent& other)
-        {
-            callback = other.callback;
-            return *this;
-        }
+        DEFAULT_COMPONENT_MEMBERS(MouseLeaveComponent)
 
         CallablePtr callback;
     };

@@ -122,6 +122,9 @@ namespace pg
         template <typename Comp, typename... Args>
         CompRef<Comp> attach(Args&&... args);
 
+        template <typename Comp, typename... Args>
+        CompRef<Comp> attachGeneric(Args&&... args);
+
         _unique_id id;
 
         // Todo make this mutable because it is only used for memoisation purposes
@@ -174,6 +177,9 @@ namespace pg
         template <typename Comp, typename... Args>
         CompRef<Comp> attach(Args&&... args);
 
+        template <typename Comp, typename... Args>
+        CompRef<Comp> attachGeneric(Args&&... args);
+
         Entity* operator->();
 
         operator Entity*();
@@ -206,6 +212,9 @@ namespace pg
 
         template <typename Comp, typename... Args>
         CompRef<Comp> attach(Args&&... args) { return entity->template attach<Comp>(std::forward<Args>(args)...); }
+
+        template <typename Comp, typename... Args>
+        CompRef<Comp> attachGeneric(Args&&... args) { return entity->template attachGeneric<Comp>(std::forward<Args>(args)...); }
 
         EntityRef entity;
     };
