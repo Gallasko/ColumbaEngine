@@ -40,14 +40,18 @@ find_package(OpenGL REQUIRED)
 
 # Emscripten-specific setup
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(USE_FLAGS "-O3 -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${USE_FLAGS} --use-preload-plugins \
+    # Set flags separately to avoid concatenation issues
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -O3 -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1 --use-preload-plugins \
         --preload-file res \
         --preload-file scripts \
         --preload-file shader \
         --preload-file setupRenderer.pg \
         --preload-file sysRegister.pg \
         --preload-file logManager.pg")
+
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 else()
     # Add all subdirectories for native builds
@@ -85,18 +89,18 @@ endif()
 
 # Debug Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG ${USE_FLAGS}")
-    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG ${USE_FLAGS}")
+    set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
 else()
     set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
 endif()
 
 # Release Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
-    set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -m32 ${USE_FLAGS}")
+    set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+    set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
 else()
-    # Release flags for native builds can be set here if needed
+# Release flags for native builds can be set here if needed
 endif()
 
 message("Current c++ debug flags used: '${CMAKE_CXX_FLAGS_DEBUG}'")
@@ -209,6 +213,8 @@ endif()
 if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # Emscripten - link publicly so they get exported
     target_link_libraries(ColumbaEngine PUBLIC glm)
+
+    target_compile_options(ColumbaEngine PRIVATE ${USE_FLAGS})
 else()
     # Native platforms - link publicly so they get exported
     if (TARGET SDL2::SDL2main)
@@ -447,6 +453,23 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         set_target_properties(GMTK2025
             PROPERTIES SUFFIX ".html"
             LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
+        add_executable(BoxBouncer exemples/SimpleBoxBouncer/main.cpp)
+
+        target_include_directories(BoxBouncer PUBLIC exemples/SimpleBoxBouncer)
+
+        target_sources(BoxBouncer PRIVATE
+            exemples/SimpleBoxBouncer/application.cpp
+        )
+
+        target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
+
+        set_target_properties(BoxBouncer
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
 
     else()
         add_executable(ColumbaEngineEditor src/main.cpp)
