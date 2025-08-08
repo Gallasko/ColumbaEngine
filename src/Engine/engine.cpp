@@ -2,7 +2,7 @@
 
 #include "engine.h"
 
-#include "application.h"
+#include "window.h"
 #include "logger.h"
 #include "Systems/basicsystems.h"
 
@@ -61,7 +61,8 @@ Engine& Engine::setInitializer(std::unique_ptr<AppInitializer> init)
 Engine& Engine::setSetupFunction(
     std::function<void(EntitySystem&, Window&)> setup,
     std::function<void(EntitySystem&, Window&)> postInit
-) {
+)
+{
     initializer = std::make_unique<FunctionInitializer>(setup, postInit);
     return *this;
 }

@@ -567,6 +567,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_link_libraries(GMTK2025 PRIVATE ColumbaEngine)
 
+        ###
+
+        add_executable(BoxBouncer exemples/SimpleBoxBouncer/main.cpp)
+
+        target_include_directories(BoxBouncer PUBLIC exemples/SimpleBoxBouncer)
+
+        target_sources(BoxBouncer PRIVATE
+            exemples/SimpleBoxBouncer/application.cpp
+        )
+
+        target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
+
         # Only build tests if not building static lib only
         enable_testing()
 

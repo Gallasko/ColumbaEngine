@@ -61,7 +61,7 @@ namespace pg
         void postInit(EntitySystem& ecs, Window& window) override
         {
             if (postInitFunc)
-            postInitFunc(ecs, window);
+                postInitFunc(ecs, window);
         }
     };
 
