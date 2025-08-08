@@ -1,6 +1,6 @@
 [![CI](https://github.com/Gallasko/ColumbaEngine/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Gallasko/ColumbaEngine/actions/workflows/main.yml)
 
-# Pg Engine
+# ColumbaEngine
 
 A pure Entity Component System based Graphical Engine
 
