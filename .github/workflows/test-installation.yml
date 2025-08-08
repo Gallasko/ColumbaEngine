@@ -49,7 +49,7 @@ jobs:
             chmod +x scripts/*.sh
 
             echo '=== Installing ColumbaEngine on ${{ matrix.distro }} ==='
-            timeout 2700 scripts/install-ColumbaEngine.sh -j 2
+            timeout 2700 scripts/install-engine.sh -j 2
 
             echo '=== Validating Installation ==='
             timeout 300 scripts/validate-installation.sh
@@ -96,7 +96,7 @@ jobs:
             chmod +x scripts/*.sh
 
             echo '=== First install native ColumbaEngine ==='
-            timeout 1800 scripts/install-ColumbaEngine.sh -j 2
+            timeout 1800 scripts/install-engine.sh -j 2
 
             echo '=== Testing Emscripten installation ==='
             timeout 1800 scripts/install-emscripten.sh ~/ColumbaEngine-install/ColumbaEngine || {
@@ -179,7 +179,7 @@ jobs:
         export BUILD_JOBS=2
 
         echo '=== Full Integration Test ==='
-        ./install-ColumbaEngine.sh -p "$INSTALL_PREFIX" -j 2
+        ./install-engine.sh -p "$INSTALL_PREFIX" -j 2
 
         echo '=== Validating Installation ==='
         ./validate-installation.sh -p "$INSTALL_PREFIX"

@@ -103,6 +103,7 @@ message("Current c++ debug flags used: '${CMAKE_CXX_FLAGS_DEBUG}'")
 message("Current c++ release flags used: '${CMAKE_CXX_FLAGS_RELEASE}'")
 
 set(ENGINESOURCE
+    src/Engine/engine.cpp
     src/Engine/window.cpp
     src/Engine/configuration.cpp
     src/Engine/logger.cpp
