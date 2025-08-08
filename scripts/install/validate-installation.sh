@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# PgEngine Installation Validator
-# Checks if PgEngine is properly installed and working
+# ColumbaEngine Installation Validator
+# Checks if ColumbaEngine is properly installed and working
 
 set -e
 
@@ -19,7 +19,7 @@ log_error() { echo -e "${RED}[✗]${NC} $1"; }
 
 # Configuration
 INSTALL_PREFIX="${INSTALL_PREFIX:-/usr/local}"
-TEST_DIR="/tmp/pgengine-validation-$$"
+TEST_DIR="/tmp/ColumbaEngine-validation-$$"
 ERRORS=0
 
 # Increment error counter
@@ -55,35 +55,35 @@ check_system_dependencies() {
     fi
 }
 
-check_pgengine_files() {
-    log_info "Checking PgEngine installation files..."
+check_ColumbaEngine_files() {
+    log_info "Checking ColumbaEngine installation files..."
 
     # Check library
-    if [[ -f "$INSTALL_PREFIX/lib/libPgEngine.a" ]]; then
-        log_success "PgEngine library found"
+    if [[ -f "$INSTALL_PREFIX/lib/libColumbaEngine.a" ]]; then
+        log_success "ColumbaEngine library found"
     else
-        error "PgEngine library not found at $INSTALL_PREFIX/lib/libPgEngine.a"
+        error "ColumbaEngine library not found at $INSTALL_PREFIX/lib/libColumbaEngine.a"
     fi
 
     # Check headers
-    if [[ -d "$INSTALL_PREFIX/include/PgEngine" ]]; then
-        log_success "PgEngine headers found"
+    if [[ -d "$INSTALL_PREFIX/include/ColumbaEngine" ]]; then
+        log_success "ColumbaEngine headers found"
 
         # Check for key headers
         local headers=("window.h" "logger.h" "ECS/entitysystem.h")
         for header in "${headers[@]}"; do
-            if [[ -f "$INSTALL_PREFIX/include/PgEngine/$header" ]]; then
+            if [[ -f "$INSTALL_PREFIX/include/ColumbaEngine/$header" ]]; then
                 log_success "Header $header found"
             else
                 error "Header $header not found"
             fi
         done
     else
-        error "PgEngine headers not found at $INSTALL_PREFIX/include/PgEngine"
+        error "ColumbaEngine headers not found at $INSTALL_PREFIX/include/ColumbaEngine"
     fi
 
     # Check CMake config
-    if [[ -f "$INSTALL_PREFIX/lib/cmake/PgEngine/PgEngineConfig.cmake" ]]; then
+    if [[ -f "$INSTALL_PREFIX/lib/cmake/ColumbaEngine/ColumbaEngineConfig.cmake" ]]; then
         log_success "CMake configuration found"
     else
         error "CMake configuration not found"
@@ -109,33 +109,33 @@ check_cmake_integration() {
     # Create minimal test project
     cat > CMakeLists.txt << 'EOF'
 cmake_minimum_required(VERSION 3.18)
-project(PgEngineValidationTest)
+project(ColumbaEngineValidationTest)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(PgEngine REQUIRED)
+find_package(ColumbaEngine REQUIRED)
 
 add_executable(ValidationTest main.cpp)
-target_link_libraries(ValidationTest PRIVATE PgEngine::PgEngine)
+target_link_libraries(ValidationTest PRIVATE ColumbaEngine::ColumbaEngine)
 EOF
 
     cat > main.cpp << 'EOF'
 #include <iostream>
 
-// Test basic PgEngine includes
+// Test basic ColumbaEngine includes
 #include "stdafx.h"
 #include "logger.h"
 #include "configuration.h"
 
 int main() {
-    std::cout << "PgEngine validation test" << std::endl;
+    std::cout << "ColumbaEngine validation test" << std::endl;
 
     try {
         // Test basic functionality
         pg::Logger logger;
         pg::ConfigurationManager config;
 
-        std::cout << "✓ Basic PgEngine classes instantiated successfully" << std::endl;
+        std::cout << "✓ Basic ColumbaEngine classes instantiated successfully" << std::endl;
         std::cout << "✓ Headers included without errors" << std::endl;
         std::cout << "✓ Libraries linked successfully" << std::endl;
 
@@ -250,7 +250,7 @@ cleanup() {
 
 main() {
     echo
-    log_info "PgEngine Installation Validator"
+    log_info "ColumbaEngine Installation Validator"
     log_info "==============================="
     echo
 
@@ -262,7 +262,7 @@ main() {
     check_system_dependencies
     echo
 
-    check_pgengine_files
+    check_ColumbaEngine_files
     echo
 
     check_cmake_integration
@@ -276,13 +276,13 @@ main() {
 
     # Summary
     if [[ $ERRORS -eq 0 ]]; then
-        log_success "Validation completed successfully! PgEngine is ready to use."
+        log_success "Validation completed successfully! ColumbaEngine is ready to use."
         echo
         log_info "Next steps:"
         log_info "1. Create a new project directory"
-        log_info "2. Add find_package(PgEngine REQUIRED) to your CMakeLists.txt"
-        log_info "3. Link with target_link_libraries(your_target PRIVATE PgEngine::PgEngine)"
-        log_info "4. Include PgEngine headers and start coding!"
+        log_info "2. Add find_package(ColumbaEngine REQUIRED) to your CMakeLists.txt"
+        log_info "3. Link with target_link_libraries(your_target PRIVATE ColumbaEngine::ColumbaEngine)"
+        log_info "4. Include ColumbaEngine headers and start coding!"
         echo
         log_info "Example project template:"
         log_info "  mkdir my-game && cd my-game"
@@ -307,7 +307,7 @@ main() {
 usage() {
     echo "Usage: $0 [options]"
     echo
-    echo "Validate PgEngine installation and test basic functionality"
+    echo "Validate ColumbaEngine installation and test basic functionality"
     echo
     echo "Options:"
     echo "  -h, --help           Show this help"

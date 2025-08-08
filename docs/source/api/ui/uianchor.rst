@@ -4,8 +4,8 @@ UiAnchor Component
 The **UiAnchor** component provides a flexible anchoring mechanism for UI elements in the ECS (Entity-Component-System) framework. It enables dynamic positioning by anchoring one element relative to another, thereby ensuring responsive layouts. The **UiAnchor** works closely with the **PositionComponent** to update element positions based on defined anchors, margins, and constraints.
 
 Main implementation files:
-`position.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.h>`_,
-`position.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.cpp>`_
+`position.h <https://github.com/Gallasko/ColumbaEngine/tree/main/src/Engine/2D/position.h>`_,
+`position.cpp <https://github.com/Gallasko/ColumbaEngine/tree/main/src/Engine/2D/position.cpp>`_
 
 Attributes
 ----------
@@ -197,5 +197,5 @@ Conclusion
 ----------
 
 The **UiAnchor** component is a key element in creating dynamic UI layouts in the ECS framework. It works in tandem with the **PositionComponent** to provide relative positioning and responsive UI designs. For more details, please refer to the source files:
-`position.h <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.h>`_ and
-`position.cpp <https://github.com/Gallasko/PgEngine/tree/main/src/Engine/2D/position.cpp>`_.
+`position.h <https://github.com/Gallasko/ColumbaEngine/tree/main/src/Engine/2D/position.h>`_ and
+`position.cpp <https://github.com/Gallasko/ColumbaEngine/tree/main/src/Engine/2D/position.cpp>`_.

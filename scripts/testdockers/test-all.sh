@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Master Test Script for PgEngine Installation
+# Master Test Script for ColumbaEngine Installation
 # Orchestrates all testing: quick tests, Docker tests, validation
 
 set -e
@@ -26,7 +26,7 @@ INSTALL_SCRIPTS_DIR="$PROJECT_ROOT/scripts/install"
 DOCKER_SCRIPTS_DIR="$PROJECT_ROOT/scripts/testdockers"
 
 TEST_LEVEL="${1:-quick}"
-PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/Gallasko/PgEngine.git}"
+ColumbaEngine_REPO="${ColumbaEngine_REPO:-https://github.com/Gallasko/ColumbaEngine.git}"
 DISTROS=("ubuntu" "fedora" "arch")
 
 # Test results tracking
@@ -66,7 +66,7 @@ check_prerequisites() {
 
     # Check required scripts
     local required_scripts=(
-        "install-pgengine.sh"
+        "install-ColumbaEngine.sh"
         "install-emscripten.sh"
         "validate-installation.sh"
     )
@@ -141,7 +141,7 @@ run_smoke_tests() {
 
     # Test 2: Help text
     log_info "Testing help text..."
-    if "$INSTALL_SCRIPTS_DIR/install-pgengine.sh" --help &> /dev/null; then
+    if "$INSTALL_SCRIPTS_DIR/install-ColumbaEngine.sh" --help &> /dev/null; then
         track_test "Help Text" "PASS"
     else
         track_test "Help Text" "FAIL"
@@ -149,9 +149,9 @@ run_smoke_tests() {
 
     # Test 3: Docker build test
     log_info "Testing Docker build..."
-    if docker build -t pgengine-smoke-test -f "$DOCKER_SCRIPTS_DIR/test-ubuntu.Dockerfile" "$DOCKER_SCRIPTS_DIR" &> /dev/null; then
+    if docker build -t ColumbaEngine-smoke-test -f "$DOCKER_SCRIPTS_DIR/test-ubuntu.Dockerfile" "$DOCKER_SCRIPTS_DIR" &> /dev/null; then
         track_test "Docker Build" "PASS"
-        docker rmi pgengine-smoke-test &> /dev/null || true
+        docker rmi ColumbaEngine-smoke-test &> /dev/null || true
     else
         track_test "Docker Build" "FAIL"
     fi
@@ -166,7 +166,7 @@ run_smoke_tests() {
 
     # Test 2: Help text
     log_info "Testing help text..."
-    if "$INSTALL_SCRIPTS_DIR/install-pgengine.sh" --help &> /dev/null; then
+    if "$INSTALL_SCRIPTS_DIR/install-ColumbaEngine.sh" --help &> /dev/null; then
         track_test "Help Text" "PASS"
     else
         track_test "Help Text" "FAIL"
@@ -174,9 +174,9 @@ run_smoke_tests() {
 
     # Test 3: Docker build test
     log_info "Testing Docker build..."
-    if docker build -t pgengine-smoke-test -f "$DOCKER_SCRIPTS_DIR/test-ubuntu.Dockerfile" "$DOCKER_SCRIPTS_DIR" &> /dev/null; then
+    if docker build -t ColumbaEngine-smoke-test -f "$DOCKER_SCRIPTS_DIR/test-ubuntu.Dockerfile" "$DOCKER_SCRIPTS_DIR" &> /dev/null; then
         track_test "Docker Build" "PASS"
-        docker rmi pgengine-smoke-test &> /dev/null || true
+        docker rmi ColumbaEngine-smoke-test &> /dev/null || true
     else
         track_test "Docker Build" "FAIL"
     fi
@@ -293,12 +293,12 @@ generate_report() {
     echo
 
     # Generate JSON report
-    local json_report="/tmp/pgengine-test-report.json"
+    local json_report="/tmp/ColumbaEngine-test-report.json"
     cat > "$json_report" << EOF
 {
   "test_run": {
     "timestamp": "$(date -Iseconds)",
-    "repository": "$PGENGINE_REPO",
+    "repository": "$ColumbaEngine_REPO",
     "test_level": "$TEST_LEVEL",
     "total_tests": $total_tests,
     "passed_tests": $passed_tests,
@@ -329,7 +329,7 @@ EOF
     if [[ $passed_tests -eq $total_tests ]]; then
         echo
         log_success "🎉 ALL TESTS PASSED! 🎉"
-        log_info "PgEngine installation scripts are working correctly!"
+        log_info "ColumbaEngine installation scripts are working correctly!"
         return 0
     else
         echo
@@ -341,10 +341,10 @@ EOF
 
 # Main test runner
 main() {
-    log_header "PgEngine Installation Script Test Suite"
+    log_header "ColumbaEngine Installation Script Test Suite"
 
     log_info "Test level: $TEST_LEVEL"
-    log_info "Repository: $PGENGINE_REPO"
+    log_info "Repository: $ColumbaEngine_REPO"
     log_info "Install scripts: $INSTALL_SCRIPTS_DIR"
     log_info "Docker scripts: $DOCKER_SCRIPTS_DIR"
     echo
@@ -411,7 +411,7 @@ Test levels:
   all           All available tests
 
 Environment variables:
-  PGENGINE_REPO    Repository URL to test
+  ColumbaEngine_REPO    Repository URL to test
 
 Examples:
   $0                    # Run quick tests
@@ -419,9 +419,9 @@ Examples:
   $0 full               # Run comprehensive tests
   $0 all                # Run everything including performance tests
 
-  PGENGINE_REPO=https://github.com/user/fork.git $0 docker
+  ColumbaEngine_REPO=https://github.com/user/fork.git $0 docker
 
-Test logs are saved to /tmp/pgengine-test-*.log
+Test logs are saved to /tmp/ColumbaEngine-test-*.log
 EOF
 }
 

@@ -1,6 +1,6 @@
-[![CI](https://github.com/Gallasko/PgEngine/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Gallasko/PgEngine/actions/workflows/main.yml)
+[![CI](https://github.com/Gallasko/ColumbaEngine/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Gallasko/ColumbaEngine/actions/workflows/main.yml)
 
-# Pg Engine
+# ColumbaEngine
 
 A pure Entity Component System based Graphical Engine
 
@@ -30,7 +30,7 @@ You can find all the game that I made using this engine at:
 https://pigeoncodeur.itch.io/
 
 ## Warning
-PGEngine is still in the early stage of development, important features are missing and expect some code bracking update changes happening with some migration guides provided !
+ColumbaEngine is still in the early stage of development, important features are missing and expect some code bracking update changes happening with some migration guides provided !
 
 # How to build
 
@@ -81,7 +81,7 @@ then:
 - `cmake --build . --target all -j 11`
 
 To test and deploy web build
-- `emrun .\PgEngine.html`
+- `emrun .\ColumbaEngine.html`
 
 ## Profiling App
 

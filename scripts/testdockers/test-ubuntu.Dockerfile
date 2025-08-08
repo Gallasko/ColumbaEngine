@@ -1,11 +1,11 @@
-# Ubuntu test environment for PgEngine installation
+# Ubuntu test environment for ColumbaEngine installation
 FROM ubuntu:22.04
 
 # Avoid interactive prompts during package installation
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
-# Install minimal dependencies for testing (not PgEngine deps - let script install them)
+# Install minimal dependencies for testing (not ColumbaEngine deps - let script install them)
 RUN apt-get update && apt-get install -y \
     curl \
     wget \
@@ -23,12 +23,12 @@ USER tester
 WORKDIR /home/tester
 
 # Set environment variables for testing
-ENV PGENGINE_REPO=https://github.com/Gallasko/PgEngine.git
+ENV ColumbaEngine_REPO=https://github.com/Gallasko/ColumbaEngine.git
 ENV INSTALL_PREFIX=/usr/local
 ENV BUILD_JOBS=2
 
 # Copy test scripts (will be mounted from host)
-# COPY --chown=tester:tester install-pgengine.sh .
+# COPY --chown=tester:tester install-ColumbaEngine.sh .
 # COPY --chown=tester:tester install-emscripten.sh .
 # COPY --chown=tester:tester validate-installation.sh .
 

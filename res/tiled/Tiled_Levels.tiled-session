@@ -154,9 +154,9 @@
         }
     },
     "last.exportedFilePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/Pixel_Jam_2025/Pixel_Jam_Levels/LEVELS",
-    "last.externalTilesetPath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/res/tiled/SOURCES/Prod",
-    "last.imagePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/res/tiled/SOURCES/Prod",
-    "last.objectTemplatePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/PgEngine/PgEngine/res/tiled/TEMPLATES",
+    "last.externalTilesetPath": "C:/Users/nicol/Desktop/Projets/Big_Catto/ColumbaEngine/ColumbaEngine/res/tiled/SOURCES/Prod",
+    "last.imagePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/ColumbaEngine/ColumbaEngine/res/tiled/SOURCES/Prod",
+    "last.objectTemplatePath": "C:/Users/nicol/Desktop/Projets/Big_Catto/ColumbaEngine/ColumbaEngine/res/tiled/TEMPLATES",
     "map.height": 50,
     "map.lastUsedExportFilter": "JSON map files (*.tmj *.json)",
     "map.lastUsedFormat": "json",

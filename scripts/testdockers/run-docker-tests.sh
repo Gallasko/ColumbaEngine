@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Docker Test Runner for PgEngine Installation Scripts
+# Docker Test Runner for ColumbaEngine Installation Scripts
 # Builds and runs tests in fresh Docker containers
 
 set -e
@@ -19,11 +19,11 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SCRIPTS_TO_TEST=("install-pgengine.sh" "install-emscripten.sh" "validate-installation.sh")
+SCRIPTS_TO_TEST=("install-ColumbaEngine.sh" "install-emscripten.sh" "validate-installation.sh")
 DISTROS=("ubuntu" "fedora" "arch")
 TEST_TIMEOUT=3600  # 1 hour timeout
 CLEANUP_CONTAINERS=true
-PGENGINE_REPO="${PGENGINE_REPO:-https://github.com/Gallasko/PgEngine.git}"
+ColumbaEngine_REPO="${ColumbaEngine_REPO:-https://github.com/Gallasko/ColumbaEngine.git}"
 
 # Parse command line options
 while [[ $# -gt 0 ]]; do
@@ -41,7 +41,7 @@ while [[ $# -gt 0 ]]; do
             shift 2
             ;;
         --repo)
-            PGENGINE_REPO="$2"
+            ColumbaEngine_REPO="$2"
             shift 2
             ;;
         -h|--help)
@@ -50,7 +50,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --no-cleanup      Don't remove containers after testing"
             echo "  --timeout SECS    Set test timeout (default: 3600)"
             echo "  --distro DISTRO   Test only specific distro (ubuntu/fedora/arch)"
-            echo "  --repo URL        PgEngine repository URL"
+            echo "  --repo URL        ColumbaEngine repository URL"
             echo "  -h, --help        Show this help"
             exit 0
             ;;
@@ -105,7 +105,7 @@ check_prerequisites() {
 # Build Docker image for testing
 build_test_image() {
     local distro="$1"
-    local image_name="pgengine-test-$distro"
+    local image_name="ColumbaEngine-test-$distro"
 
     log_info "Building Docker image for $distro..."
 
@@ -121,8 +121,8 @@ build_test_image() {
 # Run installation test in container
 run_installation_test() {
     local distro="$1"
-    local image_name="pgengine-test-$distro"
-    local container_name="pgengine-test-$distro-$$"
+    local image_name="ColumbaEngine-test-$distro"
+    local container_name="ColumbaEngine-test-$distro-$$"
 
     log_info "Running installation test on $distro..."
 
@@ -132,7 +132,7 @@ run_installation_test() {
         --name "$container_name"
         --rm
         -v "$SCRIPT_DIR:/home/tester/scripts:ro"
-        -e "PGENGINE_REPO=$PGENGINE_REPO"
+        -e "ColumbaEngine_REPO=$ColumbaEngine_REPO"
         -e "BUILD_JOBS=2"
         -e "INSTALL_PREFIX=/usr/local"
         "$image_name"
@@ -143,17 +143,17 @@ run_installation_test() {
 set -e
 export PATH="/home/tester/scripts:$PATH"
 
-echo "=== Starting PgEngine Installation Test ==="
+echo "=== Starting ColumbaEngine Installation Test ==="
 echo "Distribution: '$distro'"
-echo "Repository: $PGENGINE_REPO"
+echo "Repository: $ColumbaEngine_REPO"
 echo "Build Jobs: $BUILD_JOBS"
 echo
 
 # Make scripts executable
 chmod +x /home/tester/scripts/*.sh
 
-echo "=== Phase 1: Installing PgEngine ==="
-timeout 2700 bash /home/tester/scripts/install-pgengine.sh -v main -j $BUILD_JOBS || {
+echo "=== Phase 1: Installing ColumbaEngine ==="
+timeout 2700 bash /home/tester/scripts/install-ColumbaEngine.sh -v main -j $BUILD_JOBS || {
     echo "Installation failed or timed out"
     exit 1
 }
@@ -167,7 +167,7 @@ timeout 300 bash /home/tester/scripts/validate-installation.sh || {
 
 echo
 echo "=== Phase 3: Testing Emscripten Support (Optional) ==="
-if timeout 1800 bash /home/tester/scripts/install-emscripten.sh ~/pgengine-install/pgengine 2>&1; then
+if timeout 1800 bash /home/tester/scripts/install-emscripten.sh ~/ColumbaEngine-install/ColumbaEngine 2>&1; then
     echo "Emscripten installation successful"
 else
     echo "Emscripten installation failed (this is optional)"
@@ -175,7 +175,7 @@ fi
 
 echo
 echo "=== Test Completed Successfully ==="
-echo "PgEngine installation and validation passed on '"$distro"'"
+echo "ColumbaEngine installation and validation passed on '"$distro"'"
 '
 
     # Run the test with timeout
@@ -191,8 +191,8 @@ echo "PgEngine installation and validation passed on '"$distro"'"
 # Run quick validation test
 run_validation_test() {
     local distro="$1"
-    local image_name="pgengine-test-$distro"
-    local container_name="pgengine-validation-$distro-$$"
+    local image_name="ColumbaEngine-test-$distro"
+    local container_name="ColumbaEngine-validation-$distro-$$"
 
     log_info "Running quick validation test on $distro..."
 
@@ -240,7 +240,7 @@ cleanup_containers() {
         log_info "Cleaning up Docker containers and images..."
 
         for distro in "${DISTROS[@]}"; do
-            local image_name="pgengine-test-$distro"
+            local image_name="ColumbaEngine-test-$distro"
             if docker images -q "$image_name" &> /dev/null; then
                 docker rmi "$image_name" &> /dev/null || true
             fi
@@ -253,10 +253,10 @@ cleanup_containers() {
 
 # Main test runner
 main() {
-    log_info "PgEngine Docker Test Runner"
+    log_info "ColumbaEngine Docker Test Runner"
     log_info "============================"
     log_info "Testing distributions: ${DISTROS[*]}"
-    log_info "Repository: $PGENGINE_REPO"
+    log_info "Repository: $ColumbaEngine_REPO"
     log_info "Timeout: ${TEST_TIMEOUT}s"
     echo
 
@@ -321,16 +321,16 @@ main() {
     else
         echo
         log_success "🎉 ALL TESTS PASSED! 🎉"
-        log_info "PgEngine installation scripts work correctly on all tested distributions"
+        log_info "ColumbaEngine installation scripts work correctly on all tested distributions"
         exit 0
     fi
 }
 
 # Show usage if no arguments and not in CI
 if [[ $# -eq 0 && -t 1 ]]; then
-    echo "PgEngine Docker Test Runner"
+    echo "ColumbaEngine Docker Test Runner"
     echo
-    echo "This script tests the PgEngine installation scripts in fresh Docker containers"
+    echo "This script tests the ColumbaEngine installation scripts in fresh Docker containers"
     echo "for multiple Linux distributions to ensure they work correctly."
     echo
     echo "Usage: $0 [options]"

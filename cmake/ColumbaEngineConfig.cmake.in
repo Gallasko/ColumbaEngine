@@ -6,7 +6,7 @@ include(CMakeFindDependencyMacro)
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     find_dependency(OpenGL REQUIRED)
     find_dependency(Threads REQUIRED)
-    
+
     # Find X11 libraries for SDL2
     find_package(X11 QUIET)
     if(X11_FOUND)
@@ -18,7 +18,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
                 INTERFACE_INCLUDE_DIRECTORIES "${X11_X11_INCLUDE_PATH}"
             )
         endif()
-        
+
         if(NOT TARGET X11::Xext AND X11_Xext_FOUND)
             add_library(X11::Xext UNKNOWN IMPORTED)
             set_target_properties(X11::Xext PROPERTIES
@@ -27,7 +27,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
             )
         endif()
     endif()
-    
+
     # Find other system dependencies that SDL2 might need
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
@@ -36,21 +36,21 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     endif()
 endif()
 
-# Include the targets file - this brings in all the PgEngine:: targets
-include("${CMAKE_CURRENT_LIST_DIR}/PgEngineTargets.cmake")
+# Include the targets file - this brings in all the ColumbaEngine:: targets
+include("${CMAKE_CURRENT_LIST_DIR}/ColumbaEngineTargets.cmake")
 
 # Provide variables for backward compatibility
-set(PgEngine_LIBRARIES PgEngine::PgEngine)
+set(ColumbaEngine_LIBRARIES ColumbaEngine::ColumbaEngine)
 
 # Set include directories based on the imported target
-get_target_property(PgEngine_INCLUDE_DIRS PgEngine::PgEngine INTERFACE_INCLUDE_DIRECTORIES)
+get_target_property(ColumbaEngine_INCLUDE_DIRS ColumbaEngine::ColumbaEngine INTERFACE_INCLUDE_DIRECTORIES)
 
 # Create an alias for easier consumption if it doesn't exist
-if(NOT TARGET PgEngine)
-    add_library(PgEngine ALIAS PgEngine::PgEngine)
+if(NOT TARGET ColumbaEngine)
+    add_library(ColumbaEngine ALIAS ColumbaEngine::ColumbaEngine)
 endif()
 
 # Set found flag
-set(PgEngine_FOUND TRUE)
+set(ColumbaEngine_FOUND TRUE)
 
-check_required_components(PgEngine)
+check_required_components(ColumbaEngine)

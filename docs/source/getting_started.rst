@@ -4,7 +4,7 @@ Getting Started
 .. autosummary::
     :toctree: generated
 
-Welcome to the **PgEngine** project! This guide will help you get started with setting up and using the engine. Whether you're a contributor or just interested in testing out the engine, this section will cover everything you need to know to get up and running.
+Welcome to the **ColumbaEngine** project! This guide will help you get started with setting up and using the engine. Whether you're a contributor or just interested in testing out the engine, this section will cover everything you need to know to get up and running.
 
 Prerequisites
 -------------
@@ -18,7 +18,7 @@ Before you begin, ensure you have the following installed on your machine:
     You'll need CMake to configure and build the engine. Download and install CMake from `https://cmake.org/download/`.
 
 3. **OpenGL**
-    PgEngine uses OpenGL for rendering. Ensure your system has a compatible GPU and OpenGL drivers installed.
+    ColumbaEngine uses OpenGL for rendering. Ensure your system has a compatible GPU and OpenGL drivers installed.
 
 You can install most of these dependencies using a package manager (like `apt`, `brew`, or `vcpkg`) or by following individual library instructions.
 
@@ -29,8 +29,8 @@ Start by cloning the repository to your local machine:
 
 .. code-block:: bash
 
-    git clone https://github.com/Gallasko/PgEngine.git
-    cd PgEngine
+    git clone https://github.com/Gallasko/ColumbaEngine.git
+    cd ColumbaEngine
 
 
 Build Instructions
@@ -72,7 +72,7 @@ To run the engine, simply execute the compiled binary:
 
 .. code-block:: bash
 
-    ./PgEngine
+    ./ColumbaEngine
 
 This will launch the engine, and you'll be able to start testing your game projects or use the editor.
 
@@ -104,9 +104,9 @@ This will generate the HTML version of the documentation in the `_build/html/` d
 Contributing
 ------------
 
-If you'd like to contribute to **PgEngine**, you're welcome to open issues, submit pull requests, or provide feedback!
+If you'd like to contribute to **ColumbaEngine**, you're welcome to open issues, submit pull requests, or provide feedback!
 
-To get started with development, clone the repository, and make sure to follow the **contributing guidelines** outlined in the `CONTRIBUTING.md <https://github.com/Gallasko/PgEngine/blob/main/CONTRIBUTING.md>`_.
+To get started with development, clone the repository, and make sure to follow the **contributing guidelines** outlined in the `CONTRIBUTING.md <https://github.com/Gallasko/ColumbaEngine/blob/main/CONTRIBUTING.md>`_.
 
 Common Issues
 -------------
@@ -131,4 +131,4 @@ Common Issues
 Contact and Support
 -------------------
 
-If you have questions or run into issues, feel free to open an issue on the `GitHub Issues page <https://github.com/Gallasko/PgEngine/issues>`_ or reach out to the maintainers for help.
+If you have questions or run into issues, feel free to open an issue on the `GitHub Issues page <https://github.com/Gallasko/ColumbaEngine/issues>`_ or reach out to the maintainers for help.
