@@ -34,6 +34,9 @@ public:
     BoxBouncerSystem(float width = 820.0f, float height = 640.0f)
         : screenWidth(width), screenHeight(height), rng(std::random_device{}()), colorDist(0.0f, 255.0f) {}
 
+    // Name of the system so it is easier to debug the taskflow
+    virtual std::string getSystemName() const override { return "Box Bouncer System"; }
+    
     void init() override
     {
         // Create a 2D square
@@ -56,7 +59,7 @@ public:
         ent = shape.entity;
     }
 
-    virtual void onEvent(const TickEvent& event)
+    virtual void onEvent(const TickEvent& event) override
     {
         deltaTime += event.tick / 1000.0f;
     }

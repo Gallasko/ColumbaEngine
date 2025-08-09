@@ -457,8 +457,8 @@ namespace pg
         // Script to configure all the users systems
         interpreter->interpretFromFile("sysRegister.pg");
 
-        // Log taskflow for this window
-        ecs.dumbTaskflow();
+        // // Log taskflow for this window
+        // ecs.dumbTaskflow();
 
         screenEntity = ecs.createEntity();
         // Todo remove this

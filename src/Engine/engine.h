@@ -81,9 +81,8 @@ namespace pg
         Engine(const std::string& appName, const EngineConfig& config = {});
         ~Engine();
 
-        Engine& setInitializer(std::unique_ptr<AppInitializer> init);
-        Engine& setSetupFunction(std::function<void(EntitySystem&, Window&)> setup,
-            std::function<void(EntitySystem&, Window&)> postInit = nullptr);
+        Engine& setSetupFunction(std::function<void(EntitySystem&, Window&)> setup);
+        Engine& setPostInitFunction(std::function<void(EntitySystem&, Window&)> postInit);
 
         int exec();
 
@@ -99,7 +98,9 @@ namespace pg
     public:
         std::string appName;
         EngineConfig config;
-        std::unique_ptr<AppInitializer> initializer;
+
+        std::function<void(EntitySystem&, Window&)> setup = nullptr;
+        std::function<void(EntitySystem&, Window&)> postInit = nullptr;
 
         Window* mainWindow = nullptr;
         std::atomic<bool> windowReady{false};
@@ -112,7 +113,7 @@ namespace pg
         void setupFilesystem();
         std::string constructSavePath() const;
         void windowInitCallback();
-        void mainLoopCallback(void* arg);
+        // void mainLoopCallback(void* arg);
 
     #ifdef __EMSCRIPTEN__
         std::thread* initThread = nullptr;

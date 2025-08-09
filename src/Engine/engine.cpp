@@ -17,12 +17,6 @@ using namespace pg;
 namespace
 {
     static const char* const DOM = "Engine";
-    
-#ifdef __EMSCRIPTEN__
-    // Global static variables for Emscripten callback
-    static Engine* g_engine = nullptr;
-    static SDL_Window* g_window = nullptr;
-#endif
 }
 
 Engine::Engine(const std::string& name, const EngineConfig& engineConfig)
@@ -30,10 +24,6 @@ Engine::Engine(const std::string& name, const EngineConfig& engineConfig)
 {
     LOG_THIS_MEMBER(DOM);
     savePath = constructSavePath();
-    
-#ifdef __EMSCRIPTEN__
-    g_engine = this; // Set global reference for callbacks
-#endif
 }
 
 Engine::~Engine()
@@ -51,7 +41,6 @@ Engine::~Engine()
         initThread->join();
         delete initThread;
     }
-    g_engine = nullptr; // Clear global reference
 #endif
 }
 
@@ -64,18 +53,15 @@ std::string Engine::constructSavePath() const
 #endif
 }
 
-Engine& Engine::setInitializer(std::unique_ptr<AppInitializer> init)
+Engine& Engine::setSetupFunction(std::function<void(EntitySystem&, Window&)> setup)
 {
-    initializer = std::move(init);
+    this->setup = setup;
     return *this;
 }
 
-Engine& Engine::setSetupFunction(
-    std::function<void(EntitySystem&, Window&)> setup,
-    std::function<void(EntitySystem&, Window&)> postInit
-)
+Engine& Engine::setPostInitFunction(std::function<void(EntitySystem&, Window&)> postInit)
 {
-    initializer = std::make_unique<FunctionInitializer>(setup, postInit);
+    this->postInit = postInit;
     return *this;
 }
 
@@ -142,21 +128,30 @@ void Engine::initializeECS()
     try {
         mainWindow->initEngine();
 
-        if (initializer)
+        printf("Config: %dx%d", config.width, config.height);
+
+        if (setup)
         {
             printf("Setting up systems...\n");
-            initializer->setupSystems(mainWindow->ecs, *mainWindow);
+            setup(mainWindow->ecs, *mainWindow);
+        }
+        else
+        {
+            printf("No initializer provided, using default systems...\n");
         }
 
         printf("Starting ECS...\n");
         mainWindow->ecs.start();
         ecsReady = true;
 
-        if (initializer)
+        if (postInit)
         {
             printf("Running post-init...\n");
-            initializer->postInit(mainWindow->ecs, *mainWindow);
+            postInit(mainWindow->ecs, *mainWindow);
         }
+
+        // Log taskflow for this window
+        mainWindow->ecs.dumbTaskflow();
 
         printf("Engine initialized successfully\n");
     } catch (const std::exception& e) {
@@ -165,65 +160,104 @@ void Engine::initializeECS()
     }
 }
 
-#ifdef __EMSCRIPTEN__
-// Static callback function for Emscripten
-static void emscripten_main_loop()
+static void mainLoopCallback(void* arg)
 {
-    if (!g_engine) {
-        printf("Error: g_engine is null in main loop\n");
+    void** args = static_cast<void**>(arg);
+    Engine * engine = static_cast<Engine*>(args[0]);
+
+    printf("mainLoopCallback called, windowReady: %s, initialized: %s\n", 
+           engine->windowReady.load() ? "true" : "false", 
+           engine->initialized ? "true" : "false");
+
+    if (not engine->windowReady.load()) {
+        printf("Window not ready, returning early\n");
         return;
     }
-    
-    g_engine->mainLoopCallback(g_window);
-}
-#endif
 
-void Engine::mainLoopCallback(void* arg)
-{
-    if (not windowReady.load())
-        return;
-
-    if (not initialized)
+    if (not engine->initialized)
     {
+        printf("Starting initialization sequence...\n");
+
 #ifdef __EMSCRIPTEN__
         printf("Completing Emscripten initialization...\n");
         
-        if (initThread)
-        {
-            printf("Joining init thread...\n");
-            initThread->join();
-            delete initThread;
-            initThread = nullptr;
-            printf("Init thread joined\n");
-        }
+        // if (engine->initThread)
+        // {
+        //     printf("Init thread exists, checking if joinable...\n");
+            
+        //     try {
+        //         if (engine->initThread->joinable()) {
+        //             printf("Thread is joinable, attempting join...\n");
+        //             engine->initThread->join();
+        //             printf("Thread joined successfully\n");
+        //         } else {
+        //             printf("Thread is not joinable\n");
+        //         }
+                
+        //         printf("Deleting thread object...\n");
+        //         delete engine->initThread;
+        //         engine->initThread = nullptr;
+        //         printf("Thread object deleted\n");
+        //     } catch (const std::exception& e) {
+        //         printf("Exception during thread join: %s\n", e.what());
+        //         return;
+        //     } catch (...) {
+        //         printf("Unknown exception during thread join\n");
+        //         return;
+        //     }
+        // } else {
+        //     printf("No init thread to join\n");
+        // }
 
-        if (mainWindow && arg) {
+        if (engine->mainWindow && args[1]) {
             printf("Initializing window with SDL context...\n");
-            mainWindow->init(config.width, config.height, config.fullscreen, static_cast<SDL_Window*>(arg));
+            try {
+                engine->mainWindow->init(engine->config.width, engine->config.height, engine->config.fullscreen, static_cast<SDL_Window*>(args[1]));
+                printf("Window SDL init completed\n");
+            } catch (const std::exception& e) {
+                printf("Exception during window init: %s\n", e.what());
+                return;
+            }
+        } else {
+            printf("Cannot init window: mainWindow=%p, arg=%p\n", engine->mainWindow, args[1]);
         }
 #endif
 
         printf("Initializing ECS...\n");
-        initializeECS();
-        
-        if (mainWindow) {
-            printf("Resizing window to %dx%d...\n", config.width, config.height);
-            mainWindow->resize(config.width, config.height);
+        try {
+            engine->initializeECS();
+            printf("ECS initialization completed\n");
+        } catch (const std::exception& e) {
+            printf("Exception during ECS init: %s\n", e.what());
+            return;
         }
         
-        initialized = true;
-        printf("Full initialization complete\n");
+        if (engine->mainWindow) {
+            printf("Resizing window to %dx%d...\n", engine->config.width, engine->config.height);
+            try {
+                engine->mainWindow->resize(engine->config.width, engine->config.height);
+                printf("Window resize completed\n");
+            } catch (const std::exception& e) {
+                printf("Exception during window resize: %s\n", e.what());
+                return;
+            }
+        }
+        
+        engine->initialized = true;
+        printf("Full initialization complete - entering main loop\n");
     }
 
-    if (!mainWindow) {
+    if (!engine->mainWindow) {
         printf("Error: mainWindow is null in main loop\n");
         return;
     }
 
+    // printf("Processing events and rendering...\n"); // Uncomment for frame-by-frame debugging
+
     SDL_Event event;
     while (SDL_PollEvent(&event))
     {
-        mainWindow->processEvents(event);
+        engine->mainWindow->processEvents(event);
 
 #ifdef __EMSCRIPTEN__
         if (event.type == SDL_QUIT)
@@ -240,14 +274,14 @@ void Engine::mainLoopCallback(void* arg)
                         console.log("Filesystem synced on quit for folder: /" + saveFolder);
                     }
                 });
-            }, config.saveFolder.c_str());
+            }, engine->config.saveFolder.c_str());
         }
 #endif
     }
 
-    mainWindow->render();
+    engine->mainWindow->render();
 
-    if (mainWindow->requestQuit())
+    if (engine->mainWindow->requestQuit())
     {
 #ifdef __EMSCRIPTEN__
         printf("Quit requested, cancelling main loop\n");
@@ -264,16 +298,14 @@ int Engine::exec()
     setupFilesystem();
 
 #ifdef __EMSCRIPTEN__
-    printf("Starting Emscripten build (no threading)...\n");
+    printf("Starting Emscripten build...\n");
     
-    // Initialize window immediately without threading
-    printf("Initializing window directly...\n");
-    initializeWindow();
-    
-    if (!mainWindow) {
-        printf("Failed to create window\n");
-        return -1;
-    }
+    // Start window creation in separate thread
+    initThread = new std::thread([this](){ 
+        printf("Window init thread started...\n");
+        this->initializeWindow(); 
+        printf("Window init thread completed\n");
+    });
 
     // Create SDL window for Emscripten
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
@@ -282,6 +314,7 @@ int Engine::exec()
     if (config.fullscreen)
         windowFlags |= SDL_WINDOW_FULLSCREEN;
 
+    printf("Creating SDL window...\n");
     SDL_Window* pWindow = SDL_CreateWindow(
         appName.c_str(),
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -294,21 +327,17 @@ int Engine::exec()
         return -1;
     }
 
-    printf("SDL window created, starting main loop...\n");
+    // g_window = pWindow; // Store globally for callback
+    // printf("SDL window created, g_engine = %p, starting main loop...\n", g_engine);
 
-    // Use the array-based callback approach
-    emscripten_set_main_loop_arg([](void* arg) {
-        void** args = static_cast<void**>(arg);
-        SDL_Window* window = static_cast<SDL_Window*>(args[0]);
-        Engine* engine = static_cast<Engine*>(args[1]);
-        
-        if (!engine) {
-            printf("Error: Engine pointer is null in callback\n");
-            return;
-        }
-        
-        engine->mainLoopCallback(window);
-    }, new void*[2]{pWindow, this}, 0, 1);
+    // // Ensure g_engine is set before starting main loop
+    // if (!g_engine) {
+    //     printf("ERROR: g_engine is null before starting main loop!\n");
+    //     return -1;
+    // }
+
+    // Use simplified callback approach
+    emscripten_set_main_loop_arg(mainLoopCallback, new void*[2]{this, pWindow}, 0, 1);
 
 #else
     printf("Starting desktop build...\n");
