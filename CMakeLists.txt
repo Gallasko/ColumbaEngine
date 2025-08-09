@@ -181,6 +181,11 @@ set(ENGINESOURCE
 # Create the static library
 add_library(ColumbaEngine STATIC ${ENGINESOURCE})
 
+# Todo find why the pch doesn't work on windows
+if(MINGW)
+    set_target_properties(ColumbaEngine PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+endif()
+
 # Set precompiled headers - but don't make them public for consumers
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 

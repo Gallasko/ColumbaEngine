@@ -1,5 +1,15 @@
 #pragma once
 
+#ifdef __EMSCRIPTEN__
+    #include <SDL2/SDL.h>
+#else
+    #ifdef __linux__
+    #include <SDL2/SDL.h>
+    #elif _WIN32
+    #include <SDL.h>
+    #endif
+#endif
+
 #include <functional>
 #include <memory>
 #include <string>
@@ -86,7 +96,7 @@ namespace pg
         bool isECSReady() const { return ecsReady.load(); }
         bool isFullyInitialized() const { return initialized; }
 
-    private:
+    public:
         std::string appName;
         EngineConfig config;
         std::unique_ptr<AppInitializer> initializer;
