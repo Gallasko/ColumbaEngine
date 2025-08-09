@@ -34,43 +34,6 @@ namespace pg
         int targetFPS = 60;
     };
 
-    // Base interface for app initialization callbacks
-    class AppInitializer
-    {
-    public:
-        virtual ~AppInitializer() = default;
-        virtual void setupSystems(EntitySystem& ecs, Window& window) = 0;
-        virtual void postInit(EntitySystem& ecs, Window& window) = 0;
-    };
-
-    // Simple function-based initializer
-    class FunctionInitializer : public AppInitializer
-    {
-    private:
-        std::function<void(EntitySystem&, Window&)> setupFunc;
-        std::function<void(EntitySystem&, Window&)> postInitFunc;
-
-    public:
-        FunctionInitializer(
-            std::function<void(EntitySystem&, Window&)> setup,
-            std::function<void(EntitySystem&, Window&)> postInit = nullptr) :
-            setupFunc(setup), postInitFunc(postInit)
-        {
-        }
-
-        void setupSystems(EntitySystem& ecs, Window& window) override
-        {
-            if (setupFunc)
-                setupFunc(ecs, window);
-        }
-
-        void postInit(EntitySystem& ecs, Window& window) override
-        {
-            if (postInitFunc)
-                postInitFunc(ecs, window);
-        }
-    };
-
     class Engine
     {
     public:
@@ -102,13 +65,18 @@ namespace pg
         bool initialized = false;
         std::string savePath;
 
-    #ifdef __EMSCRIPTEN__
+#ifdef __EMSCRIPTEN__
         std::thread* initThread = nullptr;
-    #endif
+
+    public:
+        void initializeECS();
+#else
+    private:
+        void initializeECS();
+#endif
 
     private:
         void initializeWindow();
-        void initializeECS();
         void setupFilesystem();
         std::string constructSavePath() const;
     };

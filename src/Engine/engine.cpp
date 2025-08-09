@@ -36,7 +36,16 @@ Engine::~Engine()
 #ifdef __EMSCRIPTEN__
     if (initThread)
     {
-        initThread->join();
+        try
+        {
+            if (initThread->joinable())
+                initThread->join();
+        }
+        catch (const std::exception& e)
+        {
+            printf("Error joining init thread: %s\n", e.what());
+        }
+
         delete initThread;
     }
 #endif
@@ -54,12 +63,14 @@ std::string Engine::constructSavePath() const
 Engine& Engine::setSetupFunction(std::function<void(EntitySystem&, Window&)> setup)
 {
     this->setup = setup;
+
     return *this;
 }
 
 Engine& Engine::setPostInitFunction(std::function<void(EntitySystem&, Window&)> postInit)
 {
     this->postInit = postInit;
+
     return *this;
 }
 
@@ -77,7 +88,7 @@ void Engine::setupFilesystem()
             var saveFolder = UTF8ToString($0);
             console.log("Creating save folder:", saveFolder);
             
-            if (!FS.analyzePath('/' + saveFolder).exists) {
+            if (! FS.analyzePath('/' + saveFolder).exists) {
                 FS.mkdir('/' + saveFolder);
             }
             
@@ -103,11 +114,14 @@ void Engine::initializeWindow()
 {
     printf("Creating window: %s (%dx%d)\n", appName.c_str(), config.width, config.height);
 
-    try {
+    try
+    {
         mainWindow = new pg::Window(appName, savePath);
         printf("Window created successfully with save path: %s\n", savePath.c_str());
         windowReady = true;
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e)
+    {
         printf("Failed to create window: %s\n", e.what());
         windowReady = false;
     }
@@ -115,7 +129,7 @@ void Engine::initializeWindow()
 
 void Engine::initializeECS()
 {
-    if (!mainWindow)
+    if (not mainWindow)
     {
         printf("Cannot initialize ECS without window\n");
         return;
@@ -123,9 +137,11 @@ void Engine::initializeECS()
 
     printf("Initializing engine...\n");
     
-    try {
+    try
+    {
         mainWindow->initEngine();
-        printf("Config: %dx%d", config.width, config.height);
+
+        printf("Config: %dx%d\n", config.width, config.height);
 
         if (setup)
         {
@@ -138,6 +154,7 @@ void Engine::initializeECS()
         }
 
         printf("Starting ECS...\n");
+
         mainWindow->ecs.start();
         ecsReady = true;
 
@@ -146,75 +163,95 @@ void Engine::initializeECS()
             printf("Running post-init...\n");
             postInit(mainWindow->ecs, *mainWindow);
         }
+        else
+        {
+            printf("No post-init provided, nothing to be done...\n");
+        }
 
         mainWindow->ecs.dumbTaskflow();
         printf("Engine initialized successfully\n");
-    } catch (const std::exception& e) {
+    }
+    catch (const std::exception& e)
+    {
         printf("ECS initialization failed: %s\n", e.what());
         ecsReady = false;
     }
 }
 
+#ifdef __EMSCRIPTEN__
 static void mainLoopCallback(void* arg)
 {
     void** args = static_cast<void**>(arg);
     Engine* engine = static_cast<Engine*>(args[0]);
 
-    printf("mainLoopCallback called, windowReady: %s, initialized: %s\n", 
-           engine->windowReady.load() ? "true" : "false", 
-           engine->initialized ? "true" : "false");
-
-    if (!engine->windowReady.load()) {
+    if (not engine->windowReady.load())
+    {
         printf("Window not ready, returning early\n");
         return;
     }
 
-    if (!engine->initialized)
+    if (not engine->initialized)
     {
         printf("Starting initialization sequence...\n");
 
-#ifdef __EMSCRIPTEN__
-        printf("Completing Emscripten initialization...\n");
-
-        if (engine->mainWindow && args[1]) {
+        if (engine->mainWindow && args[1])
+        {
             printf("Initializing window with SDL context...\n");
-            try {
+            try
+            {
                 engine->mainWindow->init(engine->config.width, engine->config.height, engine->config.fullscreen, static_cast<SDL_Window*>(args[1]));
+
                 printf("Window SDL init completed\n");
-            } catch (const std::exception& e) {
+            }
+            catch (const std::exception& e)
+            {
                 printf("Exception during window init: %s\n", e.what());
+
                 return;
             }
-        } else {
+        }
+        else
+        {
             printf("Cannot init window: mainWindow=%p, arg=%p\n", engine->mainWindow, args[1]);
         }
-#endif
 
         printf("Initializing ECS...\n");
-        try {
+
+        try
+        {
             engine->initializeECS();
+
             printf("ECS initialization completed\n");
-        } catch (const std::exception& e) {
+        }
+        catch (const std::exception& e)
+        {
             printf("Exception during ECS init: %s\n", e.what());
             return;
         }
         
-        if (engine->mainWindow) {
+        if (engine->mainWindow)
+        {
             printf("Resizing window to %dx%d...\n", engine->config.width, engine->config.height);
-            try {
+
+            try
+            {
                 engine->mainWindow->resize(engine->config.width, engine->config.height);
                 printf("Window resize completed\n");
-            } catch (const std::exception& e) {
+            }
+            catch (const std::exception& e)
+            {
                 printf("Exception during window resize: %s\n", e.what());
                 return;
             }
         }
         
         engine->initialized = true;
+
         printf("Full initialization complete - entering main loop\n");
     }
 
-    if (!engine->mainWindow) {
+    if (not engine->mainWindow)
+    {
         printf("Error: mainWindow is null in main loop\n");
         return;
     }
@@ -224,36 +261,37 @@ static void mainLoopCallback(void* arg)
     {
         engine->mainWindow->processEvents(event);
 
-#ifdef __EMSCRIPTEN__
         if (event.type == SDL_QUIT)
         {
             printf("Quit event received, syncing filesystem...\n");
+
             EM_ASM({
                 var saveFolder = UTF8ToString($0);
 
                 FS.syncfs(false, function (err)
                 {
-                    if (err) {
+                    if (err)
+                    {
                         console.error("Final filesystem sync error:", err);
-                    } else {
+                    }
+                    else
+                    {
                         console.log("Filesystem synced on quit for folder: /" + saveFolder);
                     }
                 });
             }, engine->config.saveFolder.c_str());
         }
-#endif
     }
 
     engine->mainWindow->render();
 
     if (engine->mainWindow->requestQuit())
     {
-#ifdef __EMSCRIPTEN__
         printf("Quit requested, cancelling main loop\n");
         emscripten_cancel_main_loop();
-#endif
     }
 }
+#endif
 
 int Engine::exec()
 {
@@ -265,19 +303,24 @@ int Engine::exec()
 #ifdef __EMSCRIPTEN__
     printf("Starting Emscripten build...\n");
     
-    initThread = new std::thread([this](){ 
+    initThread = new std::thread([this]()
+    { 
         printf("Window init thread started...\n");
+
         this->initializeWindow(); 
+
         printf("Window init thread completed\n");
     });
 
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
+
     if (config.resizable)
         windowFlags |= SDL_WINDOW_RESIZABLE;
     if (config.fullscreen)
         windowFlags |= SDL_WINDOW_FULLSCREEN;
 
     printf("Creating SDL window...\n");
+
     SDL_Window* pWindow = SDL_CreateWindow(
         appName.c_str(),
         SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -285,18 +328,22 @@ int Engine::exec()
         windowFlags
     );
 
-    if (!pWindow) {
+    if (not pWindow)
+    {
         printf("Failed to create SDL window for Emscripten\n");
         return -1;
     }
 
-    emscripten_set_main_loop_arg(mainLoopCallback, new void*[2]{this, pWindow}, 0, 1);
+    auto args = new void*[2]{this, pWindow};
+
+    emscripten_set_main_loop_arg(mainLoopCallback, args, 0, 1);
 
 #else
     printf("Starting desktop build...\n");
     
     initializeWindow();
-    if (!mainWindow) {
+    if (not mainWindow)
+    {
         printf("Failed to create window on desktop\n");
         return -1;
     }
