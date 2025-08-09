@@ -1,8 +1,6 @@
 // Fixed engine.cpp
 #include "stdafx.h"
-
 #include "engine.h"
-
 #include "window.h"
 #include "logger.h"
 #include "Systems/basicsystems.h"
@@ -117,7 +115,7 @@ void Engine::initializeWindow()
 
 void Engine::initializeECS()
 {
-    if (not mainWindow)
+    if (!mainWindow)
     {
         printf("Cannot initialize ECS without window\n");
         return;
@@ -127,7 +125,6 @@ void Engine::initializeECS()
     
     try {
         mainWindow->initEngine();
-
         printf("Config: %dx%d", config.width, config.height);
 
         if (setup)
@@ -150,9 +147,7 @@ void Engine::initializeECS()
             postInit(mainWindow->ecs, *mainWindow);
         }
 
-        // Log taskflow for this window
         mainWindow->ecs.dumbTaskflow();
-
         printf("Engine initialized successfully\n");
     } catch (const std::exception& e) {
         printf("ECS initialization failed: %s\n", e.what());
@@ -163,51 +158,23 @@ void Engine::initializeECS()
 static void mainLoopCallback(void* arg)
 {
     void** args = static_cast<void**>(arg);
-    Engine * engine = static_cast<Engine*>(args[0]);
+    Engine* engine = static_cast<Engine*>(args[0]);
 
     printf("mainLoopCallback called, windowReady: %s, initialized: %s\n", 
            engine->windowReady.load() ? "true" : "false", 
            engine->initialized ? "true" : "false");
 
-    if (not engine->windowReady.load()) {
+    if (!engine->windowReady.load()) {
         printf("Window not ready, returning early\n");
         return;
     }
 
-    if (not engine->initialized)
+    if (!engine->initialized)
     {
         printf("Starting initialization sequence...\n");
 
 #ifdef __EMSCRIPTEN__
         printf("Completing Emscripten initialization...\n");
-        
-        // if (engine->initThread)
-        // {
-        //     printf("Init thread exists, checking if joinable...\n");
-            
-        //     try {
-        //         if (engine->initThread->joinable()) {
-        //             printf("Thread is joinable, attempting join...\n");
-        //             engine->initThread->join();
-        //             printf("Thread joined successfully\n");
-        //         } else {
-        //             printf("Thread is not joinable\n");
-        //         }
-                
-        //         printf("Deleting thread object...\n");
-        //         delete engine->initThread;
-        //         engine->initThread = nullptr;
-        //         printf("Thread object deleted\n");
-        //     } catch (const std::exception& e) {
-        //         printf("Exception during thread join: %s\n", e.what());
-        //         return;
-        //     } catch (...) {
-        //         printf("Unknown exception during thread join\n");
-        //         return;
-        //     }
-        // } else {
-        //     printf("No init thread to join\n");
-        // }
 
         if (engine->mainWindow && args[1]) {
             printf("Initializing window with SDL context...\n");
@@ -251,8 +218,6 @@ static void mainLoopCallback(void* arg)
         printf("Error: mainWindow is null in main loop\n");
         return;
     }
-
-    // printf("Processing events and rendering...\n"); // Uncomment for frame-by-frame debugging
 
     SDL_Event event;
     while (SDL_PollEvent(&event))
@@ -300,14 +265,12 @@ int Engine::exec()
 #ifdef __EMSCRIPTEN__
     printf("Starting Emscripten build...\n");
     
-    // Start window creation in separate thread
     initThread = new std::thread([this](){ 
         printf("Window init thread started...\n");
         this->initializeWindow(); 
         printf("Window init thread completed\n");
     });
 
-    // Create SDL window for Emscripten
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
     if (config.resizable)
         windowFlags |= SDL_WINDOW_RESIZABLE;
@@ -322,21 +285,11 @@ int Engine::exec()
         windowFlags
     );
 
-    if (not pWindow) {
+    if (!pWindow) {
         printf("Failed to create SDL window for Emscripten\n");
         return -1;
     }
 
-    // g_window = pWindow; // Store globally for callback
-    // printf("SDL window created, g_engine = %p, starting main loop...\n", g_engine);
-
-    // // Ensure g_engine is set before starting main loop
-    // if (!g_engine) {
-    //     printf("ERROR: g_engine is null before starting main loop!\n");
-    //     return -1;
-    // }
-
-    // Use simplified callback approach
     emscripten_set_main_loop_arg(mainLoopCallback, new void*[2]{this, pWindow}, 0, 1);
 
 #else

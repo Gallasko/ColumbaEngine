@@ -4,9 +4,9 @@
     #include <SDL2/SDL.h>
 #else
     #ifdef __linux__
-    #include <SDL2/SDL.h>
+        #include <SDL2/SDL.h>
     #elif _WIN32
-    #include <SDL.h>
+        #include <SDL.h>
     #endif
 #endif
 
@@ -26,13 +26,10 @@ namespace pg
     {
         int width = 800;
         int height = 600;
-
         bool resizable = true;
         bool fullscreen = false;
-
         std::string saveFolder = "save";
         std::string saveSystemFile = "system.sz";
-
         bool vsync = true;
         int targetFPS = 60;
     };
@@ -59,7 +56,6 @@ namespace pg
             std::function<void(EntitySystem&, Window&)> postInit = nullptr) :
             setupFunc(setup), postInitFunc(postInit)
         {
-
         }
 
         void setupSystems(EntitySystem& ecs, Window& window) override
@@ -95,29 +91,26 @@ namespace pg
         bool isECSReady() const { return ecsReady.load(); }
         bool isFullyInitialized() const { return initialized; }
 
-    public:
+        // Public for callback access
         std::string appName;
         EngineConfig config;
-
         std::function<void(EntitySystem&, Window&)> setup = nullptr;
         std::function<void(EntitySystem&, Window&)> postInit = nullptr;
-
         Window* mainWindow = nullptr;
         std::atomic<bool> windowReady{false};
         std::atomic<bool> ecsReady{false};
         bool initialized = false;
         std::string savePath;
 
+    #ifdef __EMSCRIPTEN__
+        std::thread* initThread = nullptr;
+    #endif
+
+    private:
         void initializeWindow();
         void initializeECS();
         void setupFilesystem();
         std::string constructSavePath() const;
-        void windowInitCallback();
-        // void mainLoopCallback(void* arg);
-
-    #ifdef __EMSCRIPTEN__
-        std::thread* initThread = nullptr;
-    #endif
     };
 
 } // namespace pg
