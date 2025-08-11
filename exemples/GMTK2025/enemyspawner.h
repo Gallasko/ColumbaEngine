@@ -160,8 +160,8 @@ namespace pg
         float spawnInterval = 4.0f;          // seconds between spawn waves (increased from 3.0f)
         int enemiesPerSpawn = 3;             // number of enemies to spawn per wave (reduced from 6)
         float enemySpeed = 120.0f;           // pixels per second (reduced from 150.0f)
-        float centerWFrac = 0.8f;            // target area width fraction
-        float centerHFrac = 0.8f;            // target area height fraction
+        float centerWFrac = 0.2f;            // target area width fraction (VERY SMALL - enemies go to center!)
+        float centerHFrac = 0.2f;            // target area height fraction (VERY SMALL - enemies go to center!)
         float edgePadding = 100.0f;          // distance off-screen to spawn
         int maxHp = 1;                       // default HP for enemies
 
@@ -241,8 +241,8 @@ namespace pg
             spawnInterval = 4.0f;
             enemiesPerSpawn = 3;
             enemySpeed = 120.0f;
-            centerWFrac = 0.8f;
-            centerHFrac = 0.8f;
+            centerWFrac = 0.2f;            // Start very focused!
+            centerHFrac = 0.2f;            // Start very focused!
             maxHp = 1;
 
             // Reset HP introduction system
@@ -311,7 +311,7 @@ namespace pg
             }
         }
 
-        // Improved curved difficulty with HP introduction system
+        // Improved curved difficulty with HP introduction system and expanding target area
         void increaseDifficulty() {
             // Use logarithmic scaling to slow down difficulty increases over time
             float difficultyFactor = 1.0f + std::log(currentWave) * 0.08f;
@@ -326,7 +326,7 @@ namespace pg
                 justIncreasedHP = true;
                 hpIntroWaves = 0;
                 LOG_INFO("EnemySpawnerSystem", "NEW ENEMY TYPE! HP increased to " << maxHp
-                        << " - Next 2 waves will only spawn " << maxHp << "-HP enemies");
+                        << " - Next 2 waves will only spawn 1-2 " << maxHp << "-HP enemies");
             }
 
             // Handle HP introduction waves (2 waves with only the new HP enemies)
@@ -352,21 +352,37 @@ namespace pg
             float targetInterval = 4.0f - (std::log(currentWave + 1) * 0.25f);
             spawnInterval = std::max(targetInterval, 1.5f);
 
+            // GRADUALLY EXPAND TARGET AREA - Start focused, become more spread out
+            float targetCenterWFrac = std::min(0.2f + (currentWave - 1) * 0.025f, 0.7f);
+            float targetCenterHFrac = std::min(0.2f + (currentWave - 1) * 0.025f, 0.7f);
+
+            centerWFrac = targetCenterWFrac;
+            centerHFrac = targetCenterHFrac;
+
             LOG_INFO("EnemySpawnerSystem", "Curved difficulty - Wave: " << currentWave
                     << ", Factor: " << difficultyFactor
                     << ", Enemies: " << enemiesPerSpawn
                     << ", Speed: " << enemySpeed << " px/s"
                     << ", Interval: " << spawnInterval << "s"
                     << ", HP: " << maxHp
+                    << ", Target: " << centerWFrac << "x" << centerHFrac
                     << (justIncreasedHP ? " (INTRO MODE)" : ""));
         }
 
         void spawnEnemyWave() {
-            for (int i = 0; i < enemiesPerSpawn; ++i) {
+            // Special handling for HP introduction waves - spawn only 1-2 enemies
+            int enemiesToSpawn = enemiesPerSpawn;
+
+            if (justIncreasedHP && hpIntroWaves <= 2) {
+                enemiesToSpawn = (hpIntroWaves == 1) ? 1 : 2;  // Wave 1: 1 enemy, Wave 2: 2 enemies
+                LOG_INFO("EnemySpawnerSystem", "HP Introduction wave - spawning only " << enemiesToSpawn << " enemies");
+            }
+
+            for (int i = 0; i < enemiesToSpawn; ++i) {
                 spawnSingleEnemy();
             }
 
-            LOG_INFO("EnemySpawnerSystem", "Spawned wave of " << enemiesPerSpawn << " enemies");
+            LOG_INFO("EnemySpawnerSystem", "Spawned wave of " << enemiesToSpawn << " enemies");
         }
 
         void spawnSingleEnemy() {
@@ -519,8 +535,8 @@ namespace pg
             spawnInterval = 4.0f;
             enemiesPerSpawn = 3;
             enemySpeed = 120.0f;
-            centerWFrac = 0.8f;
-            centerHFrac = 0.8f;
+            centerWFrac = 0.2f;            // Start very focused!
+            centerHFrac = 0.2f;            // Start very focused!
             maxHp = 1;
 
             // Reset HP introduction system
