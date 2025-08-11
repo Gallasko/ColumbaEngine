@@ -283,7 +283,7 @@ namespace pg {
     // that we need to wait before the event becomes triggerable again.
 
     struct PointAggregator : public System<InitSys,
-        QueuedListener<OnMouseMove>, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<TickEvent>, QueuedListener<RemoveEntityEvent>,
+        QueuedListener<OnMouseMove>, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<StartGame>, QueuedListener<TickEvent>, QueuedListener<RemoveEntityEvent>,
         QueuedListener<EnemyLoopHitEvent>, QueuedListener<OnSDLScanCode>>
     {
         CompRef<PositionComponent> obscurerPos;
@@ -317,8 +317,10 @@ namespace pg {
             obscurer.get<PositionComponent>()->setVisibility(false);
 
             obscurerPos = obscurer.get<PositionComponent>();
+        }
 
-            // Todo set started to true when they circle the first enemy
+        virtual void onProcessEvent(const StartGame&) override
+        {
             startGame();
         }
 
@@ -417,7 +419,7 @@ namespace pg {
         {
             LOG_INFO("PointAggregator", "Mouse clicked");
 
-            if (not running)
+            if (started and not running)
             {
                 LOG_INFO("PointAggregator", "Game not running, ignoring mouse click");
                 return;
