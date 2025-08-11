@@ -1,7 +1,7 @@
-
 #include <random>
 #include <cmath>
 #include <vector>
+#include <iomanip>
 
 #include "Systems/basicsystems.h"
 
@@ -156,10 +156,10 @@ namespace pg
         float screenWidth = 820.0f;
         float screenHeight = 640.0f;
 
-        // Spawn parameters - can be changed during gameplay
-        float spawnInterval = 3.0f;          // seconds between spawn waves
-        int enemiesPerSpawn = 6;            // number of enemies to spawn per wave
-        float enemySpeed = 150.0f;           // pixels per second
+        // BALANCED SPAWN PARAMETERS - Toned down for gentler start
+        float spawnInterval = 4.0f;          // seconds between spawn waves (increased from 3.0f)
+        int enemiesPerSpawn = 3;             // number of enemies to spawn per wave (reduced from 6)
+        float enemySpeed = 120.0f;           // pixels per second (reduced from 150.0f)
         float centerWFrac = 0.8f;            // target area width fraction
         float centerHFrac = 0.8f;            // target area height fraction
         float edgePadding = 100.0f;          // distance off-screen to spawn
@@ -173,10 +173,11 @@ namespace pg
         float waveTimer = 0.0f;
         float waveInterval = 3.0f;           // 3 seconds per wave
 
-        bool justIncreasedHP = true;
-        size_t hpIntroWaves = 0;
+        // HP introduction system
+        bool justIncreasedHP = false;        // flag to track when HP was just increased
+        int hpIntroWaves = 0;                // counter for waves with only new HP enemies
 
-        bool paused = false;               // Pause state
+        bool paused = false;                 // Pause state
 
         virtual void onProcessEvent(const PauseGame&) override
         {
@@ -203,14 +204,13 @@ namespace pg
             // Register groups for entities with velocity and enemy components
             registerGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>();
 
-            LOG_INFO("EnemySpawnerSystem", "Edge-to-center spawn system initialized - Interval: " << spawnInterval
+            LOG_INFO("EnemySpawnerSystem", "Balanced spawn system initialized - Interval: " << spawnInterval
                     << "s, Enemies per spawn: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s");
         }
 
         virtual void onProcessEvent(const TickEvent& event) override
         {
-            if (paused)
-                return; // Skip updates if paused
+            if (paused) return; // Skip updates if paused
 
             float deltaTime = event.tick / 1000.0f; // Convert to seconds if needed
 
@@ -237,15 +237,16 @@ namespace pg
             currentWave = 1;
             waveTimer = 0.0f;
 
-            // Reset spawn parameters to defaults
-            spawnInterval = 3.0f;
-            enemiesPerSpawn = 6;
-            enemySpeed = 150.0f;
+            // Reset spawn parameters to balanced defaults
+            spawnInterval = 4.0f;
+            enemiesPerSpawn = 3;
+            enemySpeed = 120.0f;
             centerWFrac = 0.8f;
             centerHFrac = 0.8f;
             maxHp = 1;
 
-            justIncreasedHP = true;
+            // Reset HP introduction system
+            justIncreasedHP = false;
             hpIntroWaves = 0;
 
             std::vector<_unique_id> enemyIds;
@@ -378,12 +379,18 @@ namespace pg
                 enemySpeed
             );
 
-            std::uniform_int_distribution<int> hpGen(1, maxHp);
-            int hp = hpGen(gen);
+            int hp;
 
-            // If justIncreasedHp == true, it means that we are in a tutorial wave
-            if (justIncreasedHP)
-                hp = maxHp;
+            // HP introduction system: spawn only new HP enemies for 2 waves after HP increase
+            if (justIncreasedHP && hpIntroWaves < 2) {
+                hp = maxHp;  // Only spawn enemies with the new HP level
+                LOG_INFO("EnemySpawnerSystem", "Spawning intro enemy with " << hp << " HP (intro wave " << hpIntroWaves + 1 << "/2)");
+            }
+            else {
+                // Normal spawning: random HP between 1 and maxHp
+                std::uniform_int_distribution<int> hpGen(1, maxHp);
+                hp = hpGen(gen);
+            }
 
             // Create enemy entity using your existing shape creation
             auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, enemyColors[hp - 1]);
@@ -426,7 +433,7 @@ namespace pg
                 {
                     loopHit = true;
                     enemiesToDestroy.push_back(ent->entityId);
-                    LOG_INFO("EnemySpawnerSystem", "Enemy hit the looped after " << meta->timeAlive << "s");
+                    LOG_INFO("EnemySpawnerSystem", "Enemy hit the loop after " << meta->timeAlive << "s");
                     continue; // Skip further processing if hit
                 }
 
@@ -498,20 +505,29 @@ namespace pg
         float getEnemySpeed() const { return enemySpeed; }
         float getCenterWFrac() const { return centerWFrac; }
         float getCenterHFrac() const { return centerHFrac; }
+        int getMaxHp() const { return maxHp; }
+        bool isInIntroMode() const { return justIncreasedHP; }
+        int getIntroWavesRemaining() const { return justIncreasedHP ? (2 - hpIntroWaves) : 0; }
 
         // Reset game state
         void resetGame() {
             currentWave = 1;
             waveTimer = 0.0f;
             timeSinceLastSpawn = 0.0f;
-            spawnInterval = 3.0f;
-            enemiesPerSpawn = 1;
-            enemySpeed = 100.0f;
-            centerWFrac = 0.5f;
-            centerHFrac = 0.5f;
+
+            // Reset to balanced initial parameters
+            spawnInterval = 4.0f;
+            enemiesPerSpawn = 3;
+            enemySpeed = 120.0f;
+            centerWFrac = 0.8f;
+            centerHFrac = 0.8f;
             maxHp = 1;
 
-            LOG_INFO("EnemySpawnerSystem", "Game reset to initial parameters");
+            // Reset HP introduction system
+            justIncreasedHP = false;
+            hpIntroWaves = 0;
+
+            LOG_INFO("EnemySpawnerSystem", "Game reset to balanced initial parameters");
         }
 
         // Get count of active enemies (for debugging/UI)
