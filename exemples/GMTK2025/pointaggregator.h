@@ -288,6 +288,7 @@ namespace pg {
     {
         CompRef<PositionComponent> obscurerPos;
         CompRef<TTFText> pauseText;
+        CompRef<PositionComponent> pausePos;
         EntityRef scoreText;
 
         std::string getSystemName() const override { return "Point Aggregator"; }
@@ -306,6 +307,9 @@ namespace pg {
 
             auto pText = makeTTFText(ecsRef, 15, 595, 3, "light", "Press P to Pause", 1.0f, {255.0f, 255.0f, 255.0f, 185.0f});
             pauseText = pText.get<TTFText>();
+            pausePos = pText.get<PositionComponent>();
+
+            pausePos->setVisibility(false);
 
             auto score = makeTTFText(ecsRef, 340, 240, 1, "light", "Score: 0", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
             scoreText = score.entity;
@@ -332,6 +336,7 @@ namespace pg {
             running = true;
 
             obscurerPos->setVisibility(false);
+            pausePos->setVisibility(true);
 
             deltaTime = 0.0f;
 
@@ -367,8 +372,13 @@ namespace pg {
 
                     ecsRef->sendEvent(RestartGame{});
 
-                    startGame();
+                    started = false;
                     lost = false;
+
+                    pausePos->setVisibility(false);
+
+                    timerTime = 30000.0f; // 30 seconds
+                    updateTimer();
                 }
 
                 return;
