@@ -173,6 +173,9 @@ namespace pg
         float waveTimer = 0.0f;
         float waveInterval = 3.0f;           // 3 seconds per wave
 
+        bool justIncreasedHP = true;
+        size_t hpIntroWaves = 0;
+
         bool paused = false;               // Pause state
 
         virtual void onProcessEvent(const PauseGame&) override
@@ -206,7 +209,8 @@ namespace pg
 
         virtual void onProcessEvent(const TickEvent& event) override
         {
-            if (paused) return; // Skip updates if paused
+            if (paused)
+                return; // Skip updates if paused
 
             float deltaTime = event.tick / 1000.0f; // Convert to seconds if needed
 
@@ -240,6 +244,9 @@ namespace pg
             centerWFrac = 0.8f;
             centerHFrac = 0.8f;
             maxHp = 1;
+
+            justIncreasedHP = true;
+            hpIntroWaves = 0;
 
             std::vector<_unique_id> enemyIds;
             // Clear existing enemies
@@ -303,27 +310,54 @@ namespace pg
             }
         }
 
+        // Improved curved difficulty with HP introduction system
         void increaseDifficulty() {
-            // Each wave: slightly more enemies, slightly faster speed
-            if (currentWave % 3 == 0) {
-                enemiesPerSpawn = std::min(enemiesPerSpawn + 1, 12); // Cap at 8 enemies per spawn
+            // Use logarithmic scaling to slow down difficulty increases over time
+            float difficultyFactor = 1.0f + std::log(currentWave) * 0.08f;
+
+            // Check if we need to increase HP (every 12 waves instead of 8)
+            int targetHp = 1 + ((currentWave - 1) / 12);
+            targetHp = std::min(targetHp, 3);
+
+            // HP introduction system
+            if (targetHp > maxHp) {
+                maxHp = targetHp;
+                justIncreasedHP = true;
+                hpIntroWaves = 0;
+                LOG_INFO("EnemySpawnerSystem", "NEW ENEMY TYPE! HP increased to " << maxHp
+                        << " - Next 2 waves will only spawn " << maxHp << "-HP enemies");
             }
 
-            if (currentWave % 3 == 0) {
-                enemySpeed = std::max(enemySpeed + 15.0f, 350.0f); // Increase speed by 20 px/s each time
+            // Handle HP introduction waves (2 waves with only the new HP enemies)
+            if (justIncreasedHP && hpIntroWaves < 2) {
+                hpIntroWaves++;
+                if (hpIntroWaves >= 2) {
+                    justIncreasedHP = false;
+                    LOG_INFO("EnemySpawnerSystem", "HP introduction complete - normal mixed spawning resumed");
+                }
             }
 
-            if (currentWave % 5 == 0) {
-                spawnInterval = std::max(spawnInterval - 0.5f, 0.8f); // Minimum 0.8 seconds between spawns
+            // Enemy count follows a gentler stepped curve (starts at 3, caps at 8)
+            int targetEnemies = std::min(3 + (currentWave / 5), 8);
+            if (enemiesPerSpawn < targetEnemies) {
+                enemiesPerSpawn = targetEnemies;
             }
 
-            if (currentWave % 8 == 0) {
-                maxHp = std::max(maxHp + 1, 3); // Minimum 0.8 seconds between spawns
-            }
+            // Speed follows a more gradual logarithmic curve
+            float targetSpeed = 120.0f + std::log(currentWave + 1) * 20.0f;
+            enemySpeed = std::min(targetSpeed, 250.0f);
 
-            LOG_INFO("EnemySpawnerSystem", "Difficulty increased - Wave: " << currentWave
-                    << ", Enemies: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s"
-                    << ", Spawn interval: " << spawnInterval);
+            // Spawn interval follows a gentler inverse logarithmic curve
+            float targetInterval = 4.0f - (std::log(currentWave + 1) * 0.25f);
+            spawnInterval = std::max(targetInterval, 1.5f);
+
+            LOG_INFO("EnemySpawnerSystem", "Curved difficulty - Wave: " << currentWave
+                    << ", Factor: " << difficultyFactor
+                    << ", Enemies: " << enemiesPerSpawn
+                    << ", Speed: " << enemySpeed << " px/s"
+                    << ", Interval: " << spawnInterval << "s"
+                    << ", HP: " << maxHp
+                    << (justIncreasedHP ? " (INTRO MODE)" : ""));
         }
 
         void spawnEnemyWave() {
@@ -346,6 +380,10 @@ namespace pg
 
             std::uniform_int_distribution<int> hpGen(1, maxHp);
             int hp = hpGen(gen);
+
+            // If justIncreasedHp == true, it means that we are in a tutorial wave
+            if (justIncreasedHP)
+                hp = maxHp;
 
             // Create enemy entity using your existing shape creation
             auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, enemyColors[hp - 1]);
