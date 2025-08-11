@@ -1,7 +1,7 @@
-
 #include <random>
 #include <cmath>
 #include <vector>
+#include <iomanip>
 
 #include "Systems/basicsystems.h"
 
@@ -46,6 +46,15 @@ namespace pg
         Vector2D direction;
         float speed;
         float totalDistance;
+    };
+
+    // Generalize this strat of creating a Dtor or a Ctor to be able to send event on entity deletion/creation
+    struct CenterEnemyDeath : public Dtor
+    {
+        virtual void onDeletion(EntityRef entity)
+        {
+            entity->world()->sendEvent(StartGame{});
+        }
     };
 
     // Random number generator - static to maintain state
@@ -147,7 +156,7 @@ namespace pg
     };
 
     // Enhanced enemy spawning system that spawns enemies crossing the full screen
-    struct EnemySpawnerSystem : public System<InitSys, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>,
+    struct EnemySpawnerSystem : public System<InitSys, QueuedListener<StartGame>, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>,
         QueuedListener<PauseGame>, QueuedListener<ResumeGame>, QueuedListener<RestartGame>>
     {
         std::string getSystemName() const override { return "Enemy Spawner System"; }
@@ -156,12 +165,12 @@ namespace pg
         float screenWidth = 820.0f;
         float screenHeight = 640.0f;
 
-        // Spawn parameters - can be changed during gameplay
-        float spawnInterval = 3.0f;          // seconds between spawn waves
-        int enemiesPerSpawn = 6;            // number of enemies to spawn per wave
-        float enemySpeed = 150.0f;           // pixels per second
-        float centerWFrac = 0.8f;            // target area width fraction
-        float centerHFrac = 0.8f;            // target area height fraction
+        // BALANCED SPAWN PARAMETERS - Toned down for gentler start
+        float spawnInterval = 4.0f;          // seconds between spawn waves (increased from 3.0f)
+        int enemiesPerSpawn = 3;             // number of enemies to spawn per wave (reduced from 6)
+        float enemySpeed = 120.0f;           // pixels per second (reduced from 150.0f)
+        float centerWFrac = 0.2f;            // target area width fraction (VERY SMALL - enemies go to center!)
+        float centerHFrac = 0.2f;            // target area height fraction (VERY SMALL - enemies go to center!)
         float edgePadding = 100.0f;          // distance off-screen to spawn
         int maxHp = 1;                       // default HP for enemies
 
@@ -173,7 +182,12 @@ namespace pg
         float waveTimer = 0.0f;
         float waveInterval = 3.0f;           // 3 seconds per wave
 
-        bool paused = false;               // Pause state
+        // HP introduction system
+        bool justIncreasedHP = false;        // flag to track when HP was just increased
+        int hpIntroWaves = 0;                // counter for waves with only new HP enemies
+
+        bool started = false;
+        bool paused = false;                 // Pause state
 
         virtual void onProcessEvent(const PauseGame&) override
         {
@@ -200,20 +214,34 @@ namespace pg
             // Register groups for entities with velocity and enemy components
             registerGroup<PositionComponent, VelocityComponent, EnemyMeta, EnemyFlag>();
 
-            LOG_INFO("EnemySpawnerSystem", "Edge-to-center spawn system initialized - Interval: " << spawnInterval
+            LOG_INFO("EnemySpawnerSystem", "Balanced spawn system initialized - Interval: " << spawnInterval
                     << "s, Enemies per spawn: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s");
+
+            spawnCenterEnemy();
+        }
+
+        virtual void onProcessEvent(const StartGame&) override
+        {
+            start();
+        }
+
+        void start()
+        {
+            started = true;
+            timeSinceLastSpawn = spawnInterval;
         }
 
         virtual void onProcessEvent(const TickEvent& event) override
         {
-            if (paused) return; // Skip updates if paused
+            if (paused or not started)
+                return; // Skip updates if paused
 
             float deltaTime = event.tick / 1000.0f; // Convert to seconds if needed
 
             // Update wave progression
             updateWaves(deltaTime);
 
-            // Handle spawning
+            // Handle spawning - only if wave is ready to start
             timeSinceLastSpawn += deltaTime;
             if (timeSinceLastSpawn >= spawnInterval) {
                 spawnEnemyWave();
@@ -229,17 +257,7 @@ namespace pg
             LOG_INFO("EnemySpawnerSystem", "Restarting enemy spawner");
 
             // Reset state
-            timeSinceLastSpawn = 0.0f;
-            currentWave = 1;
-            waveTimer = 0.0f;
-
-            // Reset spawn parameters to defaults
-            spawnInterval = 3.0f;
-            enemiesPerSpawn = 6;
-            enemySpeed = 150.0f;
-            centerWFrac = 0.8f;
-            centerHFrac = 0.8f;
-            maxHp = 1;
+            resetGame();
 
             std::vector<_unique_id> enemyIds;
             // Clear existing enemies
@@ -296,42 +314,124 @@ namespace pg
                 currentWave++;
                 waveTimer = 0.0f;
 
+                // Only spawn center enemy on the very first wave
+                if (currentWave == 1)
+                {
+                    spawnCenterEnemy();
+                    LOG_INFO("EnemySpawnerSystem", "Wave " << currentWave << " - Center enemy spawned! Kill it to start the wave!");
+                }
+                else
+                {
+                    // For all other waves, start immediately
+                    LOG_INFO("EnemySpawnerSystem", "Wave " << currentWave << " started!");
+                }
+
                 // Increase difficulty each wave
                 increaseDifficulty();
-
-                LOG_INFO("EnemySpawnerSystem", "Wave " << currentWave << " started!");
             }
         }
 
+        // Improved curved difficulty with HP introduction system and expanding target area
         void increaseDifficulty() {
-            // Each wave: slightly more enemies, slightly faster speed
-            if (currentWave % 3 == 0) {
-                enemiesPerSpawn = std::min(enemiesPerSpawn + 1, 12); // Cap at 8 enemies per spawn
+            // Use logarithmic scaling to slow down difficulty increases over time
+            float difficultyFactor = 1.0f + std::log(currentWave) * 0.08f;
+
+            // Check if we need to increase HP (every 12 waves instead of 8)
+            int targetHp = 1 + ((currentWave - 1) / 12);
+            targetHp = std::min(targetHp, 3);
+
+            // HP introduction system
+            if (targetHp > maxHp) {
+                maxHp = targetHp;
+                justIncreasedHP = true;
+                hpIntroWaves = 0;
+                LOG_INFO("EnemySpawnerSystem", "NEW ENEMY TYPE! HP increased to " << maxHp
+                        << " - Next 2 waves will only spawn 1-2 " << maxHp << "-HP enemies");
             }
 
-            if (currentWave % 3 == 0) {
-                enemySpeed = std::max(enemySpeed + 15.0f, 350.0f); // Increase speed by 20 px/s each time
+            // Handle HP introduction waves (2 waves with only the new HP enemies)
+            if (justIncreasedHP && hpIntroWaves < 2) {
+                hpIntroWaves++;
+                if (hpIntroWaves >= 2) {
+                    justIncreasedHP = false;
+                    LOG_INFO("EnemySpawnerSystem", "HP introduction complete - normal mixed spawning resumed");
+                }
             }
 
-            if (currentWave % 5 == 0) {
-                spawnInterval = std::max(spawnInterval - 0.5f, 0.8f); // Minimum 0.8 seconds between spawns
+            // Enemy count follows a gentler stepped curve (starts at 3, caps at 8)
+            int targetEnemies = std::min(3 + (currentWave / 5), 8);
+            if (enemiesPerSpawn < targetEnemies) {
+                enemiesPerSpawn = targetEnemies;
             }
 
-            if (currentWave % 8 == 0) {
-                maxHp = std::max(maxHp + 1, 3); // Minimum 0.8 seconds between spawns
-            }
+            // Speed follows a more gradual logarithmic curve
+            float targetSpeed = 120.0f + std::log(currentWave + 1) * 20.0f;
+            enemySpeed = std::min(targetSpeed, 250.0f);
 
-            LOG_INFO("EnemySpawnerSystem", "Difficulty increased - Wave: " << currentWave
-                    << ", Enemies: " << enemiesPerSpawn << ", Speed: " << enemySpeed << " px/s"
-                    << ", Spawn interval: " << spawnInterval);
+            // Spawn interval follows a gentler inverse logarithmic curve
+            float targetInterval = 4.0f - (std::log(currentWave + 1) * 0.25f);
+            spawnInterval = std::max(targetInterval, 1.5f);
+
+            // GRADUALLY EXPAND TARGET AREA - Start focused, become more spread out
+            float targetCenterWFrac = std::min(0.2f + (currentWave - 1) * 0.025f, 0.7f);
+            float targetCenterHFrac = std::min(0.2f + (currentWave - 1) * 0.025f, 0.7f);
+
+            centerWFrac = targetCenterWFrac;
+            centerHFrac = targetCenterHFrac;
+
+            LOG_INFO("EnemySpawnerSystem", "Curved difficulty - Wave: " << currentWave
+                    << ", Factor: " << difficultyFactor
+                    << ", Enemies: " << enemiesPerSpawn
+                    << ", Speed: " << enemySpeed << " px/s"
+                    << ", Interval: " << spawnInterval << "s"
+                    << ", HP: " << maxHp
+                    << ", Target: " << centerWFrac << "x" << centerHFrac
+                    << (justIncreasedHP ? " (INTRO MODE)" : ""));
+        }
+
+        void spawnCenterEnemy() {
+            // Spawn an enemy at the center of the screen
+            Vector2D centerPos(screenWidth * 0.5f, screenHeight * 0.5f);
+
+            // Determine HP for center enemy
+            int hp = maxHp; // Center enemy always has max HP for current wave
+
+            // Create center enemy entity
+            auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, enemyColors[hp - 1]);
+
+            // Set position to screen center (accounting for 50x50 size)
+            shape.get<PositionComponent>()->setX(centerPos.x - 25.0f);
+            shape.get<PositionComponent>()->setY(centerPos.y - 25.0f);
+
+            // Center enemy has no velocity (stationary)
+            shape.attach<VelocityComponent>(Vector2D(0.0f, 0.0f));
+
+            // Attach enemy metadata with same center target point
+            shape.attach<EnemyMeta>(centerPos);
+
+            // Attach enemy flag
+            shape.attach<EnemyFlag>(hp);
+
+            // Enable the game start once the center enemy dies
+            shape.attachGeneric<CenterEnemyDeath>();
+
+            LOG_INFO("EnemySpawnerSystem", "Center enemy spawned with " << hp << " HP at screen center");
         }
 
         void spawnEnemyWave() {
-            for (int i = 0; i < enemiesPerSpawn; ++i) {
+            // Special handling for HP introduction waves - spawn only 1-2 enemies
+            int enemiesToSpawn = enemiesPerSpawn;
+
+            if (justIncreasedHP && hpIntroWaves <= 2) {
+                enemiesToSpawn = (hpIntroWaves == 1) ? 1 : 2;  // Wave 1: 1 enemy, Wave 2: 2 enemies
+                LOG_INFO("EnemySpawnerSystem", "HP Introduction wave - spawning only " << enemiesToSpawn << " enemies");
+            }
+
+            for (int i = 0; i < enemiesToSpawn; ++i) {
                 spawnSingleEnemy();
             }
 
-            LOG_INFO("EnemySpawnerSystem", "Spawned wave of " << enemiesPerSpawn << " enemies");
+            LOG_INFO("EnemySpawnerSystem", "Spawned wave of " << enemiesToSpawn << " enemies");
         }
 
         void spawnSingleEnemy() {
@@ -344,8 +444,18 @@ namespace pg
                 enemySpeed
             );
 
-            std::uniform_int_distribution<int> hpGen(1, maxHp);
-            int hp = hpGen(gen);
+            int hp;
+
+            // HP introduction system: spawn only new HP enemies for 2 waves after HP increase
+            if (justIncreasedHP && hpIntroWaves < 2) {
+                hp = maxHp;  // Only spawn enemies with the new HP level
+                LOG_INFO("EnemySpawnerSystem", "Spawning intro enemy with " << hp << " HP (intro wave " << hpIntroWaves + 1 << "/2)");
+            }
+            else {
+                // Normal spawning: random HP between 1 and maxHp
+                std::uniform_int_distribution<int> hpGen(1, maxHp);
+                hp = hpGen(gen);
+            }
 
             // Create enemy entity using your existing shape creation
             auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 50.0f, 50.0f, enemyColors[hp - 1]);
@@ -388,11 +498,11 @@ namespace pg
                 {
                     loopHit = true;
                     enemiesToDestroy.push_back(ent->entityId);
-                    LOG_INFO("EnemySpawnerSystem", "Enemy hit the looped after " << meta->timeAlive << "s");
+                    LOG_INFO("EnemySpawnerSystem", "Enemy hit the loop after " << meta->timeAlive << "s");
                     continue; // Skip further processing if hit
                 }
 
-                // Update position by velocity * deltaTime
+                // Update position by velocity * deltaTime (center enemies have 0 velocity)
                 pos->setX(pos->x + vel->velocity.x * deltaTime);
                 pos->setY(pos->y + vel->velocity.y * deltaTime);
 
@@ -418,7 +528,7 @@ namespace pg
                 }
             }
 
-            // Destroy enemies that have left the screen
+            // Destroy enemies that have left the screen or been hit
             for (auto entityId : enemiesToDestroy) {
                 ecsRef->removeEntity(entityId);
             }
@@ -460,20 +570,32 @@ namespace pg
         float getEnemySpeed() const { return enemySpeed; }
         float getCenterWFrac() const { return centerWFrac; }
         float getCenterHFrac() const { return centerHFrac; }
+        int getMaxHp() const { return maxHp; }
+        bool isInIntroMode() const { return justIncreasedHP; }
+        int getIntroWavesRemaining() const { return justIncreasedHP ? (2 - hpIntroWaves) : 0; }
 
         // Reset game state
         void resetGame() {
             currentWave = 1;
             waveTimer = 0.0f;
             timeSinceLastSpawn = 0.0f;
-            spawnInterval = 3.0f;
-            enemiesPerSpawn = 1;
-            enemySpeed = 100.0f;
-            centerWFrac = 0.5f;
-            centerHFrac = 0.5f;
+
+            // Reset to balanced initial parameters
+            spawnInterval = 4.0f;
+            enemiesPerSpawn = 3;
+            enemySpeed = 120.0f;
+            centerWFrac = 0.2f;            // Start very focused!
+            centerHFrac = 0.2f;            // Start very focused!
             maxHp = 1;
 
-            LOG_INFO("EnemySpawnerSystem", "Game reset to initial parameters");
+            // Reset HP introduction system
+            justIncreasedHP = false;
+            hpIntroWaves = 0;
+
+            started = false;
+            spawnCenterEnemy();
+
+            LOG_INFO("EnemySpawnerSystem", "Game reset to balanced initial parameters");
         }
 
         // Get count of active enemies (for debugging/UI)

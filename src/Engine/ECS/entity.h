@@ -205,7 +205,7 @@ namespace pg
     template <typename... Comps>
     struct CompList : public CompListGetter<Comps>...
     {
-        CompList(EntityRef entity, CompRef<Comps>... comps) : CompListGetter<Comps>(comps)..., entity(entity) { }
+        CompList(EntityRef entity, CompRef<Comps>... comps) : CompListGetter<Comps>(comps)..., entity(entity), id(entity.id) { }
 
         template <typename Comp>
         inline CompRef<Comp> get() const { return static_cast<const CompListGetter<Comp>*>(this)->get(); }
@@ -216,6 +216,12 @@ namespace pg
         template <typename Comp, typename... Args>
         CompRef<Comp> attachGeneric(Args&&... args) { return entity->template attachGeneric<Comp>(std::forward<Args>(args)...); }
 
+        operator EntityRef()
+        {
+            return entity;
+        }
+
         EntityRef entity;
+        _unique_id id;
     };
 }

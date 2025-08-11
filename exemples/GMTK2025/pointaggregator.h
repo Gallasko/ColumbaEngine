@@ -271,22 +271,26 @@ namespace pg {
 
     struct EnemyLoopHitEvent {};
 
+    struct StartGame {};
+
     struct PauseGame {};
 
     struct ResumeGame {};
 
-    struct RestartGame{};
+    struct RestartGame {};
 
     // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
     // that we need to wait before the event becomes triggerable again.
 
     struct PointAggregator : public System<InitSys,
-        QueuedListener<OnMouseMove>, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<TickEvent>, QueuedListener<RemoveEntityEvent>,
+        QueuedListener<OnMouseMove>, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<StartGame>, QueuedListener<TickEvent>, QueuedListener<RemoveEntityEvent>,
         QueuedListener<EnemyLoopHitEvent>, QueuedListener<OnSDLScanCode>>
     {
         CompRef<PositionComponent> obscurerPos;
         CompRef<TTFText> pauseText;
+        CompRef<PositionComponent> pausePos;
         EntityRef scoreText;
+        EntityRef tutoText;
 
         std::string getSystemName() const override { return "Point Aggregator"; }
 
@@ -304,19 +308,28 @@ namespace pg {
 
             auto pText = makeTTFText(ecsRef, 15, 595, 3, "light", "Press P to Pause", 1.0f, {255.0f, 255.0f, 255.0f, 185.0f});
             pauseText = pText.get<TTFText>();
+            pausePos = pText.get<PositionComponent>();
 
-            auto score = makeTTFText(ecsRef, 340, 240, 1, "light", "Score: 0", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
+            pausePos->setVisibility(false);
+
+            auto score = makeTTFText(ecsRef, 340, 240, 4, "light", "Score: 0", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
             scoreText = score.entity;
 
             scoreText.get<PositionComponent>()->setVisibility(false);
+
+            auto tuto = makeTTFText(ecsRef, 50, 245, 1, "light", "Circle enemies to get time:", 0.6);
+
+            tutoText = tuto;
 
             auto obscurer = makeSimple2DShape(ecsRef, Shape2D::Square, 820.0f, 640.0f, {0.0f, 0.0f, 0.0f, 130.0f});
             obscurer.get<PositionComponent>()->setZ(2.0f);
             obscurer.get<PositionComponent>()->setVisibility(false);
 
             obscurerPos = obscurer.get<PositionComponent>();
+        }
 
-            // Todo set started to true when they circle the first enemy
+        virtual void onProcessEvent(const StartGame&) override
+        {
             startGame();
         }
 
@@ -328,6 +341,7 @@ namespace pg {
             running = true;
 
             obscurerPos->setVisibility(false);
+            pausePos->setVisibility(true);
 
             deltaTime = 0.0f;
 
@@ -337,6 +351,8 @@ namespace pg {
             mousePosList.clear();
 
             pressed = false;
+
+            tutoText->get<PositionComponent>()->setVisibility(false);
 
             updateTimer();
         }
@@ -363,8 +379,15 @@ namespace pg {
 
                     ecsRef->sendEvent(RestartGame{});
 
-                    startGame();
+                    started = false;
                     lost = false;
+
+                    pausePos->setVisibility(false);
+
+                    tutoText->get<PositionComponent>()->setVisibility(true);
+
+                    timerTime = 30000.0f; // 30 seconds
+                    updateTimer();
                 }
 
                 return;
@@ -415,7 +438,7 @@ namespace pg {
         {
             LOG_INFO("PointAggregator", "Mouse clicked");
 
-            if (not running)
+            if (started and not running)
             {
                 LOG_INFO("PointAggregator", "Game not running, ignoring mouse click");
                 return;
