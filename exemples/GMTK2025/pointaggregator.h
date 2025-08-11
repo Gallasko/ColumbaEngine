@@ -271,11 +271,13 @@ namespace pg {
 
     struct EnemyLoopHitEvent {};
 
+    struct StartGame {};
+
     struct PauseGame {};
 
     struct ResumeGame {};
 
-    struct RestartGame{};
+    struct RestartGame {};
 
     // Todo add an integer to Listener and QueuedListener (Listener<Event, N>) with the N being the number of cycle or time
     // that we need to wait before the event becomes triggerable again.

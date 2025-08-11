@@ -48,6 +48,15 @@ namespace pg
         float totalDistance;
     };
 
+    // Generalize this strat of creating a Dtor or a Ctor to be able to send event on entity deletion/creation
+    struct CenterEnemyDeath : public Dtor
+    {
+        virtual void onDeletion(EntityRef entity)
+        {
+            entity->world()->sendEvent(StartGame{});
+        }
+    };
+
     // Random number generator - static to maintain state
     static std::random_device rd;
     static std::mt19937 gen(rd());
@@ -147,7 +156,7 @@ namespace pg
     };
 
     // Enhanced enemy spawning system that spawns enemies crossing the full screen
-    struct EnemySpawnerSystem : public System<InitSys, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>,
+    struct EnemySpawnerSystem : public System<InitSys, QueuedListener<StartGame>, QueuedListener<TickEvent>, QueuedListener<UpdateSpawnParamsEvent>,
         QueuedListener<PauseGame>, QueuedListener<ResumeGame>, QueuedListener<RestartGame>>
     {
         std::string getSystemName() const override { return "Enemy Spawner System"; }
@@ -211,9 +220,15 @@ namespace pg
             spawnCenterEnemy();
         }
 
+        virtual void onProcessEvent(const StartGame&) override
+        {
+            start();
+        }
+
         void start()
         {
             started = true;
+            timeSinceLastSpawn = spawnInterval;
         }
 
         virtual void onProcessEvent(const TickEvent& event) override
@@ -396,6 +411,9 @@ namespace pg
 
             // Attach enemy flag
             shape.attach<EnemyFlag>(hp);
+
+            // Enable the game start once the center enemy dies
+            shape.attachGeneric<CenterEnemyDeath>();
 
             LOG_INFO("EnemySpawnerSystem", "Center enemy spawned with " << hp << " HP at screen center");
         }
