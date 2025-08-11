@@ -216,6 +216,11 @@ namespace pg
         template <typename Comp, typename... Args>
         CompRef<Comp> attachGeneric(Args&&... args) { return entity->template attachGeneric<Comp>(std::forward<Args>(args)...); }
 
+        operator EntityRef()
+        {
+            return entity;
+        }
+
         EntityRef entity;
         _unique_id id;
     };

@@ -290,6 +290,7 @@ namespace pg {
         CompRef<TTFText> pauseText;
         CompRef<PositionComponent> pausePos;
         EntityRef scoreText;
+        EntityRef tutoText;
 
         std::string getSystemName() const override { return "Point Aggregator"; }
 
@@ -311,10 +312,14 @@ namespace pg {
 
             pausePos->setVisibility(false);
 
-            auto score = makeTTFText(ecsRef, 340, 240, 1, "light", "Score: 0", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
+            auto score = makeTTFText(ecsRef, 340, 240, 4, "light", "Score: 0", 1.0f, {255.0f, 255.0f, 255.0f, 255.0f});
             scoreText = score.entity;
 
             scoreText.get<PositionComponent>()->setVisibility(false);
+
+            auto tuto = makeTTFText(ecsRef, 50, 245, 1, "light", "Circle enemies to get time:", 0.6);
+
+            tutoText = tuto;
 
             auto obscurer = makeSimple2DShape(ecsRef, Shape2D::Square, 820.0f, 640.0f, {0.0f, 0.0f, 0.0f, 130.0f});
             obscurer.get<PositionComponent>()->setZ(2.0f);
@@ -347,6 +352,8 @@ namespace pg {
 
             pressed = false;
 
+            tutoText->get<PositionComponent>()->setVisibility(false);
+
             updateTimer();
         }
 
@@ -376,6 +383,8 @@ namespace pg {
                     lost = false;
 
                     pausePos->setVisibility(false);
+
+                    tutoText->get<PositionComponent>()->setVisibility(true);
 
                     timerTime = 30000.0f; // 30 seconds
                     updateTimer();
