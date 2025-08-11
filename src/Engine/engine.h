@@ -24,8 +24,8 @@ namespace pg
 
     struct EngineConfig
     {
-        int width = 800;
-        int height = 600;
+        int width = 820;
+        int height = 640;
         bool resizable = true;
         bool fullscreen = false;
         std::string saveFolder = "save";
