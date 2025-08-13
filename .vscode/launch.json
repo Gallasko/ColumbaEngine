@@ -34,13 +34,13 @@
             "request": "launch",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/release",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/TugOfWar"
+                "program": "${workspaceFolder}/release/InvadersBreaker"
             },
             "osx": {
                 "MIMode": "lldb",

@@ -44,9 +44,9 @@ struct AlienFormation : public Component
     DEFAULT_COMPONENT_MEMBERS(AlienFormation)
 
     float moveTimer = 0.0f;
-    float moveInterval = 1000.0f;  // milliseconds between moves
+    float moveInterval = 1500.0f;  // milliseconds between moves
     int direction = 1;              // 1 = right, -1 = left
-    float dropDistance = 30.0f;
+    float dropDistance = 25.0f;
     int totalAliens = 0;
 };
 

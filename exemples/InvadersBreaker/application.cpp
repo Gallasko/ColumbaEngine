@@ -32,6 +32,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<EntityCollisionSystem>();
         ecs.createSystem<AlienCollisionSystem>(); // Everything else
 
+        ecs.createSystem<DangerZoneVisualSystem>();
+
         ecs.createSystem<GameStateSystem>();
     });
 }

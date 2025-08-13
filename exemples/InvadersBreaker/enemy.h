@@ -13,7 +13,8 @@ class AlienFormationSystem : public System<InitSys, Listener<TickEvent>> {
 private:
     float deltaTime = 0.0f;
     const float SCREEN_WIDTH = 820.0f;
-    const float FORMATION_STEP = 40.0f;  // Pixels to move each step
+    const float FORMATION_STEP = 40.0f;
+    const float DANGER_ZONE_Y = 420.0f;  // Aliens stop here - still plenty of room to play
 
 public:
     std::string getSystemName() const override {
@@ -32,7 +33,6 @@ public:
     void execute() override {
         if (deltaTime == 0.0f) return;
 
-        // Find the formation controller (singleton entity)
         for (auto formationEntity : viewGroup<AlienFormation>()) {
             auto formation = formationEntity->get<AlienFormation>();
 
@@ -42,13 +42,14 @@ public:
                 formation->moveTimer = 0;
                 moveFormation(formation);
 
-                // Speed up as aliens die (classic Space Invaders)
+                // Speed scaling - but less aggressive
                 int aliensLeft = countAliveAliens();
                 if (aliensLeft < formation->totalAliens) {
-                    // Exponential speedup as aliens die
-                    float speedMultiplier = (float)formation->totalAliens / (float)std::max(1, aliensLeft);
-                    formation->moveInterval = 1000.0f / speedMultiplier;
-                    formation->moveInterval = std::max(200.0f, formation->moveInterval); // Cap at 200ms
+                    // Gentler curve - aliens don't become cocaine-fueled
+                    float speedRatio = (float)aliensLeft / (float)formation->totalAliens;
+                    // Inverse curve: fewer aliens = faster, but not crazy fast
+                    formation->moveInterval = 800.0f + (speedRatio * 700.0f);  // Range: 800ms to 1500ms
+                    formation->moveInterval = std::max(400.0f, formation->moveInterval); // Never faster than 400ms
                 }
             }
         }
@@ -59,32 +60,51 @@ public:
 private:
     void moveFormation(AlienFormation* formation) {
         bool hitEdge = false;
+        bool atDangerZone = false;
 
-        // First pass: check if any alien would hit the edge
+        // Check if we're at the danger zone
         for (auto alienEntity : viewGroup<PositionComponent, Alien>()) {
             auto pos = alienEntity->get<PositionComponent>();
-
-            float nextX = pos->x + (formation->direction * FORMATION_STEP);
-            if (nextX <= 20 || nextX + pos->width >= SCREEN_WIDTH - 20) {
-                hitEdge = true;
+            if (pos->y >= DANGER_ZONE_Y) {
+                atDangerZone = true;
                 break;
             }
         }
 
-        // Second pass: actually move them
+        // If at danger zone, only move horizontally
+        if (!atDangerZone) {
+            // Normal movement checks
+            for (auto alienEntity : viewGroup<PositionComponent, Alien>()) {
+                auto pos = alienEntity->get<PositionComponent>();
+
+                float nextX = pos->x + (formation->direction * FORMATION_STEP);
+                if (nextX <= 20 || nextX + pos->width >= SCREEN_WIDTH - 20) {
+                    hitEdge = true;
+                    break;
+                }
+            }
+        } else {
+            // At danger zone - still check horizontal edges but no dropping
+            for (auto alienEntity : viewGroup<PositionComponent, Alien>()) {
+                auto pos = alienEntity->get<PositionComponent>();
+
+                float nextX = pos->x + (formation->direction * FORMATION_STEP);
+                if (nextX <= 20 || nextX + pos->width >= SCREEN_WIDTH - 20) {
+                    hitEdge = true;
+                    break;
+                }
+            }
+        }
+
+        // Move all aliens
         for (auto alienEntity : viewGroup<PositionComponent, Alien>()) {
             auto pos = alienEntity->get<PositionComponent>();
 
-            if (hitEdge) {
-                // Drop down
-                pos->setY(pos->y + formation->dropDistance);
-
-                // Check for invasion (game over condition)
-                if (pos->y > 500) {  // Too close to paddle
-                    printf("INVASION! Aliens reached the bottom!\n");
-                    // TODO: Trigger game over
-                }
-            } else {
+            if (hitEdge && !atDangerZone) {
+                // Drop down - but slower than before
+                float dropAmount = formation->dropDistance * 0.6f;  // 60% of original drop
+                pos->setY(std::min(pos->y + dropAmount, DANGER_ZONE_Y + 30.0f)); // Cap at danger zone
+            } else if (!hitEdge) {
                 // Move horizontally
                 pos->setX(pos->x + formation->direction * FORMATION_STEP);
             }
@@ -94,8 +114,6 @@ private:
         if (hitEdge) {
             formation->direction *= -1;
         }
-
-        // TODO: Play step sound here
     }
 
     int countAliveAliens() {
@@ -107,14 +125,15 @@ private:
     }
 };
 
-// Alien Shooting - Keep it simple, front row only
-// ------------------------------------------------
-
+// More Aggressive Shooting When in Danger Zone
+// ---------------------------------------------
 class AlienShootingSystem : public System<InitSys, Listener<TickEvent>> {
 private:
     float shootTimer = 0.0f;
-    float shootInterval = 2000.0f;  // Base interval between shots
+    float baseShootInterval = 2000.0f;
+    float currentShootInterval = 2000.0f;
     std::mt19937 rng{std::random_device{}()};
+    const float DANGER_ZONE_Y = 420.0f;
 
 public:
     std::string getSystemName() const override {
@@ -130,49 +149,71 @@ public:
     }
 
     void execute() override {
-        if (shootTimer < shootInterval) return;
+        if (shootTimer < currentShootInterval) return;
 
         shootTimer = 0;
 
-        // Find front-row aliens (highest Y per column)
-        std::map<int, EntityRef> frontRowAliens;  // col -> entity
+        // Check if any aliens are in danger zone
+        bool inDangerZone = false;
+        for (auto alienEntity : viewGroup<PositionComponent, Alien>()) {
+            auto pos = alienEntity->get<PositionComponent>();
+            if (pos->y >= DANGER_ZONE_Y) {
+                inDangerZone = true;
+                break;
+            }
+        }
+
+        // THE FIX: Store the actual entity wrapper, not raw pointers
+        // Use the same type throughout - no mixing!
+        std::map<int, std::pair<float, float>> frontRowPositions;  // col -> (x, y)
 
         for (auto alienEntity : viewGroup<PositionComponent, Alien>()) {
             auto alien = alienEntity->get<Alien>();
             auto pos = alienEntity->get<PositionComponent>();
 
-            // Is this alien in front for its column?
-            if (frontRowAliens.find(alien->col) == frontRowAliens.end() ||
-                frontRowAliens[alien->col]->get<PositionComponent>()->y < pos->y) {
-                frontRowAliens[alien->col] = alienEntity->entity;
+            // Track front row by position, not entity reference
+            if (frontRowPositions.find(alien->col) == frontRowPositions.end() ||
+                frontRowPositions[alien->col].second < pos->y) {
+                // Store position data, not entity references
+                frontRowPositions[alien->col] = {
+                    pos->x + pos->width/2,  // Center X for bullet spawn
+                    pos->y + pos->height     // Bottom Y for bullet spawn
+                };
             }
         }
 
-        // Pick 1-2 random shooters from front row
-        if (!frontRowAliens.empty()) {
-            std::vector<Entity*> shooters;
-            for (auto& [col, entity] : frontRowAliens) {
-                shooters.push_back(entity);
+        // Now work with positions, not entities
+        if (!frontRowPositions.empty()) {
+            std::vector<std::pair<float, float>> shootPositions;
+            for (auto& [col, pos] : frontRowPositions) {
+                shootPositions.push_back(pos);
             }
 
-            std::uniform_int_distribution<> dis(0, shooters.size() - 1);
-            int shooterCount = std::min(2, (int)shooters.size());
+            // Shuffle the positions for random selection
+            std::shuffle(shootPositions.begin(), shootPositions.end(), rng);
+
+            // Fire bullets from selected positions
+            int shooterCount = inDangerZone ?
+                std::min(4, (int)shootPositions.size()) :
+                std::min(2, (int)shootPositions.size());
 
             for (int i = 0; i < shooterCount; i++) {
-                auto shooter = shooters[dis(rng)];
-                auto pos = shooter->get<PositionComponent>();
-                spawnBullet(pos->x + pos->width/2, pos->y + pos->height);
+                spawnBullet(shootPositions[i].first, shootPositions[i].second);
             }
         }
 
-        // Randomize next shot interval
-        std::uniform_real_distribution<> intervalDis(1500.0f, 3000.0f);
-        shootInterval = intervalDis(rng);
+        // Adjust fire rate based on danger zone
+        if (inDangerZone) {
+            std::uniform_real_distribution<> intervalDis(800.0f, 1500.0f);
+            currentShootInterval = intervalDis(rng);
+        } else {
+            std::uniform_real_distribution<> intervalDis(1500.0f, 3000.0f);
+            currentShootInterval = intervalDis(rng);
+        }
     }
 
 private:
     void spawnBullet(float x, float y) {
-        // Create bullet using shape system
         auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, 4, 12);
         auto pos = bullet.get<PositionComponent>();
 
@@ -180,16 +221,13 @@ private:
         pos->setY(y);
 
         auto vel = bullet.attach<Velocity>();
-        vel->dy = 200.0f;  // Downward speed
+        vel->dy = 250.0f;
 
         bullet.attach<AlienBullet>();
 
-        // Make it visually distinct
         if (auto shape = bullet.get<Simple2DObject>()) {
-            shape->setColors({255, 255, 100, 255});  // Yellow bullets
+            shape->setColors({255, 255, 100, 255});
         }
-
-        printf("Alien fired from (%.1f, %.1f)\n", x, y);
     }
 };
 
@@ -292,9 +330,8 @@ private:
                     ecsRef->removeEntity(bulletEntity->entity);
 
                     // Lose life
-                    for (auto scoreEntity : view<GameScore>())
+                    for (auto score : view<GameScore>())
                     {
-                        auto score = scoreEntity->get<GameScore>();
                         score->lives--;
                         printf("Hit! Lives: %d\n", score->lives);
 
@@ -367,5 +404,61 @@ public:
         }
 
         deltaTime = 0.0f;
+    }
+};
+
+class DangerZoneVisualSystem : public System<InitSys>
+{
+private:
+    const float DANGER_ZONE_Y = 420.0f;
+    bool wasInDangerZone = false;
+
+public:
+    std::string getSystemName() const override {
+        return "Danger Zone Visual System";
+    }
+
+    void init() override {
+        registerGroup<PositionComponent, Alien, Simple2DObject>();
+    }
+
+    void execute() override {
+        bool inDangerZone = false;
+
+        // Check if any alien is in danger zone
+        for (auto alienEntity : viewGroup<PositionComponent, Alien, Simple2DObject>())
+        {
+            auto pos = alienEntity->get<PositionComponent>();
+
+            if (pos->y >= DANGER_ZONE_Y)
+            {
+                inDangerZone = true;
+
+                // Make aliens flash or pulse when in danger zone
+                auto shape = alienEntity->get<Simple2DObject>();
+
+                // Simple pulsing effect using time
+                static float pulseTimer = 0;
+                pulseTimer += 0.1f;
+
+                // Preserve original color but add red tint
+                float redBoost = std::sin(pulseTimer * 5.0f) * 30 + 30;
+                auto alien = alienEntity->get<Alien>();
+
+                // Recolor based on row but with danger tint
+                switch(alien->row) {
+                    case 0: shape->setColors({255.0f, 100.0f - redBoost, 100.0f - redBoost, 255.0f}); break;
+                    case 1: shape->setColors({255.0f, 200.0f - redBoost, 100.0f - redBoost, 255.0f}); break;
+                    case 2: shape->setColors({100.0f + redBoost, 255.0f, 100.0f, 255.0f}); break;
+                    case 3: shape->setColors({100.0f + redBoost, 100.0f, 255.0f, 255.0f}); break;
+                }
+            }
+        }
+
+        // Log transition (once)
+        if (inDangerZone && !wasInDangerZone) {
+            printf("WARNING: Aliens entered danger zone! Increased aggression!\n");
+        }
+        wasInDangerZone = inDangerZone;
     }
 };
