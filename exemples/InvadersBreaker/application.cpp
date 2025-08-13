@@ -5,6 +5,8 @@
 #include "enemy.h"
 #include "gamestate.h"
 
+#include "bgscroller.h"
+
 using namespace pg;
 
 namespace
@@ -18,6 +20,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
     {
         // ecs.createSystem<FpsSystem>();
 
+        ecs.createSystem<BackgroundScrollerSystem>();
+
         // auto config = engine.getConfig();
         ecs.createSystem<PaddleControlSystem>();
 
@@ -29,8 +33,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<AlienFormationSystem>();
         ecs.createSystem<AlienShootingSystem>();
 
+        // Collision
         ecs.createSystem<EntityCollisionSystem>();
-        ecs.createSystem<AlienCollisionSystem>(); // Everything else
+        ecs.createSystem<AlienCollisionSystem>();
 
         ecs.createSystem<DangerZoneVisualSystem>();
 
