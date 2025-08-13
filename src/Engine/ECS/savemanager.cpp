@@ -22,7 +22,7 @@
 
 #include "logger.h"
 #include "serialization.h"
-#include "constant.h"
+#include "pgconstant.h"
 
 #include "Files/filemanager.h"
 #include "Files/fileparser.h"

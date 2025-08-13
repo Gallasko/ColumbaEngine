@@ -13,7 +13,7 @@
 
 #include "ECS/entitysystem.h"
 
-#include "constant.h"
+#include "pgconstant.h"
 
 #include "enemy.h"
 #include "pointaggregator.h"

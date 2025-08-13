@@ -14,10 +14,11 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
-        ecs.createSystem<FpsSystem>();
+        // ecs.createSystem<FpsSystem>();
 
-        auto config = engine.getConfig();
-        ecs.createSystem<PlayerInputSystem>(config.width, config.height);
+        // auto config = engine.getConfig();
+        ecs.createSystem<PaddleControlSystem>();
+        ecs.createSystem<GameStateSystem>();
     });
 }
 

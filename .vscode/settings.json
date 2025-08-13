@@ -118,7 +118,15 @@
         "tensor": "cpp",
         "ciso646": "cpp",
         "matrixfunctions": "cpp",
-        "ranges": "cpp"
+        "ranges": "cpp",
+        "__bit_reference": "cpp",
+        "__hash_table": "cpp",
+        "__locale": "cpp",
+        "__node_handle": "cpp",
+        "__tree": "cpp",
+        "__verbose_abort": "cpp",
+        "execution": "cpp",
+        "print": "cpp"
     },
     "files.exclude": {
         "**/*.o": true,

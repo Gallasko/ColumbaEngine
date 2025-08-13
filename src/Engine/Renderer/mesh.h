@@ -3,7 +3,7 @@
 #include <memory>
 #include <unordered_map>
 
-#include "constant.h"
+#include "pgconstant.h"
 #include "logger.h"
 
 namespace pg
@@ -46,10 +46,10 @@ namespace pg
     struct SimpleSquareMesh : public Mesh
     {
         SimpleSquareMesh(const std::vector<size_t>& attributes) : Mesh(), attributes(attributes)
-        { 
+        {
             LOG_THIS_MEMBER("Simple square mesh");
             modelInfo.vertices = new float[12];
-            //              x                     y                              z  
+            //              x                     y                              z
             modelInfo.vertices[0] =   0.0f; modelInfo.vertices[1] =   0.0f; modelInfo.vertices[2] =  1.0f;
             modelInfo.vertices[3] =   1.0f; modelInfo.vertices[4] =   0.0f; modelInfo.vertices[5] =  1.0f;
             modelInfo.vertices[6] =   0.0f; modelInfo.vertices[7] =  -1.0f; modelInfo.vertices[8] =  1.0f;
@@ -69,8 +69,8 @@ namespace pg
 
         /**
          * @brief Vector responsible of generating the vertex attributes pointer of the instance VBO
-         * 
-         * The size of the vector dictate the number of vertex attributes and the value of each entry dictate the size and the offset of the vertex attribute 
+         *
+         * The size of the vector dictate the number of vertex attributes and the value of each entry dictate the size and the offset of the vertex attribute
          * E.G
          * if attibutes = {3, 2, 3}
          * then when the mesh is generated (through a call to generate mesh)
@@ -82,7 +82,7 @@ namespace pg
          * glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
          * glEnableVertexAttribArray(3);
          * glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5 * sizeof(float)));
-         * 
+         *
          * glBindBuffer(GL_ARRAY_BUFFER, 0);
          * glVertexAttribDivisor(1, 1); // tell OpenGL this is an instanced vertex attribute.
          * glVertexAttribDivisor(2, 1); // tell OpenGL this is an instanced vertex attribute.
@@ -94,7 +94,7 @@ namespace pg
     struct SimpleTexturedSquareMesh : public Mesh
     {
         SimpleTexturedSquareMesh(const std::vector<size_t>& attributes) : Mesh(), attributes(attributes)
-        { 
+        {
             LOG_THIS_MEMBER("Simple square mesh");
             modelInfo = constant::SquareInfo{};
         }
@@ -105,8 +105,8 @@ namespace pg
 
         /**
          * @brief Vector responsible of generating the vertex attributes pointer of the instance VBO
-         * 
-         * The size of the vector dictate the number of vertex attributes and the value of each entry dictate the size and the offset of the vertex attribute 
+         *
+         * The size of the vector dictate the number of vertex attributes and the value of each entry dictate the size and the offset of the vertex attribute
          * E.G
          * if attibutes = {3, 2, 3}
          * then when the mesh is generated (through a call to generate mesh)
@@ -118,7 +118,7 @@ namespace pg
          * glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
          * glEnableVertexAttribArray(3);
          * glVertexAttribPointer(3, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(5 * sizeof(float)));
-         * 
+         *
          * glBindBuffer(GL_ARRAY_BUFFER, 0);
          * glVertexAttribDivisor(1, 1); // tell OpenGL this is an instanced vertex attribute.
          * glVertexAttribDivisor(2, 1); // tell OpenGL this is an instanced vertex attribute.

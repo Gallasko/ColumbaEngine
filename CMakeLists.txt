@@ -597,6 +597,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(InvadersBreaker exemples/InvadersBreaker/main.cpp)
+
+        target_include_directories(InvadersBreaker PUBLIC exemples/InvadersBreaker)
+
+        target_sources(InvadersBreaker PRIVATE
+            exemples/InvadersBreaker/application.cpp
+        )
+
+        target_link_libraries(InvadersBreaker PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(BoxBouncer exemples/SimpleBoxBouncer/main.cpp)
 
         target_include_directories(BoxBouncer PUBLIC exemples/SimpleBoxBouncer)

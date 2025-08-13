@@ -2,7 +2,7 @@
 
 #include <string>
 #include "ECS/system.h"
-#include "constant.h"
+#include "pgconstant.h"
 
 namespace pg
 {

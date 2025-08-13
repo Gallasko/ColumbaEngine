@@ -8,7 +8,7 @@
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
 #include "ECS/entitysystem.h"
-#include "constant.h"
+#include "pgconstant.h"
 
 namespace pg
 {

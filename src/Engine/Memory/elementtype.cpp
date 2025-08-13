@@ -4,7 +4,7 @@
 
 #include "logger.h"
 
-#include "constant.h"
+#include "pgconstant.h"
 
 namespace pg
 {

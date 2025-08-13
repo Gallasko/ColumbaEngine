@@ -6,7 +6,7 @@
 #include "uisystem.h"
 #include "Loaders/atlasloader.h"
 #include "Renderer/renderer.h"
-#include "constant.h"
+#include "pgconstant.h"
 
 #include "serialization.h"
 
@@ -52,10 +52,10 @@ namespace pg
 
         EntitySystem *ecsRef = nullptr;
 
-        inline static std::string getType() { return "SentenceText"; } 
+        inline static std::string getType() { return "SentenceText"; }
 
         SentenceText() {}
-        SentenceText(const SentenceText& other) : 
+        SentenceText(const SentenceText& other) :
             text(other.text),
             scale(other.scale),
             mainColor(other.mainColor),
