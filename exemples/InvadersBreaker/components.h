@@ -20,3 +20,12 @@ struct Paddle : public Component
 
     float speed = 400.0f;
 };
+
+struct Ball : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(Ball)
+
+    float radius = 8.0f;      // Visual size
+    float speed = 350.0f;     // Base speed when launched
+    bool launched = false;    // Still attached to paddle?
+};

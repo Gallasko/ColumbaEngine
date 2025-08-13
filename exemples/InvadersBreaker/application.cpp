@@ -18,6 +18,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // auto config = engine.getConfig();
         ecs.createSystem<PaddleControlSystem>();
+        ecs.createSystem<BallPhysicsSystem>();
+        ecs.createSystem<EntityCollisionSystem>();
         ecs.createSystem<GameStateSystem>();
     });
 }
