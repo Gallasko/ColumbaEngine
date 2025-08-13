@@ -2,13 +2,25 @@
 
 #include "player.h"
 #include "enemy.h"
+#include "events.h"
 
 using namespace pg;
 
-class GameStateSystem : public System<InitSys>
+enum class GamePhase
+{
+    MENU,
+    PLAYING,
+    PAUSED,
+    GAME_OVER,
+    VICTORY
+};
+
+class GameStateSystem : public System<InitSys, Listener<OnSDLScanCode>>
 {
 private:
     bool initialized = false;
+
+    GamePhase currentPhase = GamePhase::MENU;
 
 public:
     std::string getSystemName() const override
@@ -20,10 +32,64 @@ public:
     {
         spawnPaddle();
         spawnBall();
-        spawnAlienFormation();
         spawnScoreKeeper();
         // Grab ECS reference if available in init
         // ecs = getECS(); // or however you access it
+    }
+
+    void onEvent(const OnSDLScanCode& event) override
+    {
+        if (event.key == SDL_SCANCODE_SPACE)
+        {
+            switch(currentPhase)
+            {
+                case GamePhase::MENU:
+                case GamePhase::GAME_OVER:
+                    restartGame();
+                    break;
+            }
+        }
+        
+        if (event.key == SDL_SCANCODE_ESCAPE && currentPhase == GamePhase::PLAYING)
+        {
+            currentPhase = GamePhase::PAUSED;
+            // Pause all physics systems
+        }
+    }
+
+    void restartGame()
+    {
+        // Nuclear option: destroy everything except paddle
+        for (auto alien : viewGroup<Alien>())
+        {
+            ecsRef->removeEntity(alien->entity);
+        }
+
+        for (auto bullet : viewGroup<AlienBullet>())
+        {
+            ecsRef->removeEntity(bullet->entity);
+        }
+        
+        // Reset ball
+        for (auto ball : viewGroup<Ball>())
+        {
+            ball->get<Ball>()->launched = false;
+            // Reset position
+        }
+
+        ecsRef->sendEvent(GameStart{});
+
+        // Respawn aliens
+        spawnAlienFormation();  // Your existing spawn code
+        
+        // Reset score
+        for (auto score : viewGroup<GameScore>())
+        {
+            score->get<GameScore>()->lives = 3;
+            score->get<GameScore>()->score = 0;
+        }
+        
+        currentPhase = GamePhase::PLAYING;
     }
 
     void execute() override

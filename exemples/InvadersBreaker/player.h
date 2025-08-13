@@ -3,6 +3,7 @@
 #include <random>
 
 #include "components.h"
+#include "events.h"
 
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
@@ -97,9 +98,11 @@ public:
     }
 };
 
-class BallPhysicsSystem : public System<InitSys, Listener<TickEvent>, Listener<OnSDLScanCode>>
+class BallPhysicsSystem : public System<InitSys, Listener<GameStart>, Listener<GameEnd>, Listener<TickEvent>, Listener<OnSDLScanCode>>
 {
 private:
+    bool gameStarted = false;
+
     float deltaTime = 0.0f;
     const float SCREEN_WIDTH = 820.0f;
     const float SCREEN_HEIGHT = 640.0f;
@@ -113,6 +116,16 @@ public:
         registerGroup<PositionComponent, Paddle>();  // Need paddle position for following
     }
 
+    void onEvent(const GameStart&) override
+    {
+        gameStarted = true;
+    }
+
+    void onEvent(const GameEnd&) override
+    {
+        gameStarted = false;
+    }
+
     void onEvent(const TickEvent& event) override
     {
         deltaTime += event.tick;
@@ -120,6 +133,9 @@ public:
 
     void onEvent(const OnSDLScanCode& event) override
     {
+        if (not gameStarted)
+            return;
+
         if (event.key == SDL_SCANCODE_SPACE)
         {
             launchBall();

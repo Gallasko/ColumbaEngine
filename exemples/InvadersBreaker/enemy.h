@@ -17,16 +17,19 @@ private:
     const float DANGER_ZONE_Y = 420.0f;  // Aliens stop here - still plenty of room to play
 
 public:
-    std::string getSystemName() const override {
+    std::string getSystemName() const override
+    {
         return "Alien Formation System";
     }
 
-    void init() override {
+    void init() override
+    {
         registerGroup<AlienFormation>();
         registerGroup<PositionComponent, Alien>();
     }
 
-    void onEvent(const TickEvent& event) override {
+    void onEvent(const TickEvent& event) override
+    {
         deltaTime += event.tick;
     }
 
