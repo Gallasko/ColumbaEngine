@@ -29,3 +29,39 @@ struct Ball : public Component
     float speed = 350.0f;     // Base speed when launched
     bool launched = false;    // Still attached to paddle?
 };
+
+struct Alien : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(Alien)
+
+    int row;     // Which row in formation (0-3)
+    int col;     // Which column (0-6)
+    int points = 100;  // Score value
+};
+
+struct AlienFormation : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(AlienFormation)
+
+    float moveTimer = 0.0f;
+    float moveInterval = 1000.0f;  // milliseconds between moves
+    int direction = 1;              // 1 = right, -1 = left
+    float dropDistance = 30.0f;
+    int totalAliens = 0;
+};
+
+struct AlienBullet : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(AlienBullet)
+
+    float speed = 200.0f;
+};
+
+struct GameScore : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(GameScore)
+
+    int score = 0;
+    int lives = 3;
+    int aliensRemaining = 0;
+};
