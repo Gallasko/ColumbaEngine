@@ -85,9 +85,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
     engine.setPostInitFunction([this](EntitySystem& ecs, Window& window) {
 #ifdef __EMSCRIPTEN__
-        ecs.sendEvent(StartAudio{"/res/audio/gm.mp3", -1});
+        ecs.sendEvent(StartAudio{"/res/audio/gm.ogg", -1});
 #else
-        ecs.sendEvent(StartAudio{"res/audio/gm.mp3", -1});
+        ecs.sendEvent(StartAudio{"res/audio/gm.ogg", -1});
 #endif
         
     });
