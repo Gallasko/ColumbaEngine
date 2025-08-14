@@ -98,6 +98,14 @@ struct PowerUpEffect : public Component
     float value;         // Generic value (multiplier, etc)
 };
 
+struct PulseEffect : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(PulseEffect)
+
+    float time = 0;
+    float speed = 3.0f;
+};
+
 struct Barrier : public Component
 {
     DEFAULT_COMPONENT_MEMBERS(Barrier)
@@ -130,4 +138,12 @@ struct FlashEffect : public Component
     float duration = 200.0f;  // milliseconds
     float elapsed = 0.0f;
     constant::Vector4D originalColor;
+};
+
+struct Trail : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(Trail)
+
+    std::deque<std::pair<float, float>> positions;
+    int maxLength = 10;
 };

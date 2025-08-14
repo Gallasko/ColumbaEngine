@@ -9,6 +9,8 @@
 #include "gamestate.h"
 #include "hud.h"
 
+#include "powerups.h"
+
 #include "simplescreenshake.h"
 #include "simpleparticle.h"
 #include "simpleflash.h"

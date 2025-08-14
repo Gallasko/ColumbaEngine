@@ -7,7 +7,7 @@
 
 using namespace pg;
 
-class ScreenShakeSystem : public System<InitSys, QueuedListener<TickEvent>, Listener<AlienDestroyedEvent>, Listener<PlayerHitEvent>>
+class ScreenShakeSystem : public System<InitSys, QueuedListener<TickEvent>, Listener<ScreenShakeEvent>, Listener<AlienDestroyedEvent>, Listener<PlayerHitEvent>>
 {
 private:
     EntityRef camera;
@@ -26,6 +26,11 @@ public:
 
     void onEvent(const PlayerHitEvent& event) override {
         addTrauma(0.5f);
+    }
+
+    void onEvent(const ScreenShakeEvent& event) override
+    {
+        addTrauma(event.trauma);
     }
 
     void onProcessEvent(const TickEvent& event) override {
