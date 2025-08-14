@@ -66,9 +66,20 @@ struct GameScore : public Component
     int aliensRemaining = 0;
 };
 
+// === JUICER COMPONENTS ===
+
 struct ScreenShake : public Component
 {
     DEFAULT_COMPONENT_MEMBERS(ScreenShake)
+
     float trauma = 0.0f;
     float maxOffset = 10.0f;
+};
+
+struct Particle : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(Particle)
+
+    float lifetime = 500.0f;  // milliseconds
+    float elapsed = 0.0f;
 };

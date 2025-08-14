@@ -10,6 +10,7 @@
 #include "hud.h"
 
 #include "simplescreenshake.h"
+#include "simpleparticle.h"
 
 #include "bgscroller.h"
 
@@ -63,6 +64,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<HUDSystem>();
 
         ecs.createSystem<ScreenShakeSystem>();
+        ecs.createSystem<SimpleParticleSystem>();
     });
 }
 

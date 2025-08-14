@@ -8,6 +8,10 @@ struct GameResume {};
 
 struct GameEnd { bool won = true; };
 
-struct AlienDestroyedEvent {};
+struct AlienDestroyedEvent
+{
+    float x, y;
+    int points;
+};
 
 struct PlayerHitEvent {};

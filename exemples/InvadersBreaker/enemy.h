@@ -328,7 +328,10 @@ private:
                     // Destroy alien
                     ecsRef->removeEntity(alienEntity->entity);
 
-                    ecsRef->sendEvent(AlienDestroyedEvent{});
+                    ecsRef->sendEvent(AlienDestroyedEvent {
+                        alienPos->x + alienPos->width / 2.0f,
+                        alienPos->y + alienPos->height / 2.0f,
+                        alien->points} );
 
                     // Bounce ball
                     ballVel->dy = -ballVel->dy;
