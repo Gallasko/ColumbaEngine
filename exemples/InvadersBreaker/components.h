@@ -66,6 +66,44 @@ struct GameScore : public Component
     int aliensRemaining = 0;
 };
 
+// === POWER UPS COMPONENTS ===
+
+enum class PowerUpType
+{
+    HEALTH,      // Restore 1 life
+    MULTIBALL,   // Spawn 2 extra balls
+    FASTBALL,    // 1.5x ball speed (risk/reward)
+    BARRIER,     // Bottom barrier for 10 seconds
+    WIDE_PADDLE, // 1.5x paddle width for 15 seconds
+    TINY_PADDLE  // 0.7x paddle width but 2x points for 15 seconds
+};
+
+struct PowerUp : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(PowerUp)
+
+    PowerUpType type;
+    float fallSpeed = 100.0f;
+};
+
+struct PowerUpEffect : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(PowerUpEffect)
+
+    PowerUpType type;
+
+    float duration;      // milliseconds (-1 for permanent)
+    float elapsed = 0;
+    float value;         // Generic value (multiplier, etc)
+};
+
+struct Barrier : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(Barrier)
+
+    float health = 3;  // Can take 3 hits
+};
+
 // === JUICER COMPONENTS ===
 
 struct ScreenShake : public Component
