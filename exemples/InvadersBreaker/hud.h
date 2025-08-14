@@ -6,7 +6,7 @@
 
 using namespace pg;
 
-class HUDSystem : public System<InitSys, Listener<TickEvent>>
+class HUDSystem : public System<InitSys>
 {
     EntityRef scoreDisplay;
     EntityRef livesDisplay;
