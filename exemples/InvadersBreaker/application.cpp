@@ -2,6 +2,8 @@
 
 #include "window.h"
 
+#include "Audio/audiosystem.h"
+
 #include "Systems/basicsystems.h"
 
 #include "player.h"
@@ -79,6 +81,15 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<ScreenShakeSystem>();
         ecs.createSystem<SimpleParticleSystem>();
         ecs.createSystem<FlashEffectSystem>();
+    });
+
+    engine.setPostInitFunction([this](EntitySystem& ecs, Window& window) {
+#ifdef __EMSCRIPTEN__
+        ecs.sendEvent(StartAudio{"/res/audio/gm.mp3", -1});
+#else
+        ecs.sendEvent(StartAudio{"res/audio/gm.mp3", -1});
+#endif
+        
     });
 }
 

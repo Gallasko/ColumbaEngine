@@ -6,6 +6,7 @@
 
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
+#include "Audio/audiosystem.h"
 
 using namespace pg;
 
@@ -333,6 +334,11 @@ private:
                         alienPos->y + alienPos->height / 2.0f,
                         alien->points} );
 
+#ifdef __EMSCRIPTEN__
+                    ecsRef->sendEvent(PlaySoundEffect{"/res/audio/SFX/Enemy_Hurt.ogg"});
+#else
+                    ecsRef->sendEvent(PlaySoundEffect{"res/audio/SFX/Enemy_Hurt.ogg"});
+#endif
                     // Bounce ball
                     ballVel->dy = -ballVel->dy;
 
@@ -380,6 +386,12 @@ private:
                     {
                         score->lives--;
                         printf("Hit! Lives: %d\n", score->lives);
+
+#ifdef __EMSCRIPTEN__
+                        ecsRef->sendEvent(PlaySoundEffect{"/res/audio/SFX/Player_Hurt.ogg"});
+#else
+                        ecsRef->sendEvent(PlaySoundEffect{"res/audio/SFX/Player_Hurt.ogg"});
+#endif
 
                         if (score->lives <= 0)
                         {

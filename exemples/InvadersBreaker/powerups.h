@@ -5,6 +5,7 @@
 
 #include "2D/simple2dobject.h"
 #include "Systems/basicsystems.h"
+#include "Audio/audiosystem.h"
 
 using namespace pg;
 
@@ -151,6 +152,12 @@ private:
         }
 
         ecsRef->sendEvent(AppliedPowerUp{getPowerUpName(type)});
+
+#ifdef __EMSCRIPTEN__
+        ecsRef->sendEvent(PlaySoundEffect{"/res/audio/powerup.ogg"});
+#else
+        ecsRef->sendEvent(PlaySoundEffect{"res/audio/powerup.ogg"});
+#endif
         
         printf("Applied power-up: %s\n", getPowerUpName(type).c_str());
     }
