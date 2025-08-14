@@ -4,6 +4,8 @@
 #include "enemy.h"
 #include "events.h"
 
+#include "UI/ttftext.h"
+
 using namespace pg;
 
 enum class GamePhase
@@ -15,12 +17,20 @@ enum class GamePhase
     VICTORY
 };
 
-class GameStateSystem : public System<InitSys, Listener<OnSDLScanCode>>
+class GameStateSystem : public System<InitSys, Listener<OnSDLScanCode>, Own<GameScore>,
+    Listener<GameEnd>>
 {
 private:
     bool initialized = false;
 
     GamePhase currentPhase = GamePhase::MENU;
+
+    EntityRef menuText;
+    EntityRef menuSubText;
+    EntityRef gameOverText;
+    EntityRef victoryText;
+    EntityRef restartText;
+    EntityRef finalScoreText;
 
 public:
     std::string getSystemName() const override
@@ -30,6 +40,23 @@ public:
 
     void init() override
     {
+        menuText = makeTTFText(ecsRef, 300, 300, 6, "bold", "SPACE BREAKER", 1.0);
+        menuSubText = makeTTFText(ecsRef, 250, 350, 4, "light", "Press SPACE to Start", 0.8);
+
+        gameOverText = makeTTFText(ecsRef, 280, 280, 6, "bold", "GAME OVER", 1.0);
+        gameOverText->get<TTFText>()->setColor({255, 0, 0, 255});
+        gameOverText->get<PositionComponent>()->setVisibility(false);
+
+        victoryText = makeTTFText(ecsRef, 320, 280, 6, "bold", "VICTORY!", 1.0);
+        victoryText->get<TTFText>()->setColor({0, 255, 0, 255});
+        victoryText->get<PositionComponent>()->setVisibility(false);
+
+        restartText = makeTTFText(ecsRef, 250, 380, 3, "light", "Press SPACE to Try Again", 0.7);
+        restartText->get<PositionComponent>()->setVisibility(false);
+
+        finalScoreText = makeTTFText(ecsRef, 280, 330, 4, "light", "Final Score: 0", 0.8);
+        finalScoreText->get<PositionComponent>()->setVisibility(false);
+
         spawnPaddle();
         spawnBall();
         spawnScoreKeeper();
@@ -45,6 +72,7 @@ public:
             {
                 case GamePhase::MENU:
                 case GamePhase::GAME_OVER:
+                case GamePhase::VICTORY:
                     restartGame();
                     break;
             }
@@ -68,8 +96,21 @@ public:
         }
     }
 
+    void onEvent(const GameEnd& event)
+    {
+        if (event.won)
+            triggerVictory();
+        else
+            triggerGameOver();
+    }
+
     void restartGame()
     {
+        currentPhase = GamePhase::PLAYING;
+
+        updateUIVisibility();
+        clearEndScreen();
+
         // Nuclear option: destroy everything except paddle
         for (auto alien : viewGroup<Alien>())
         {
@@ -99,15 +140,61 @@ public:
             score->get<GameScore>()->lives = 3;
             score->get<GameScore>()->score = 0;
         }
-
-        currentPhase = GamePhase::PLAYING;
-    }
-
-    void execute() override
-    {
     }
 
 private:
+    void clearEndScreen()
+    {
+        gameOverText->get<PositionComponent>()->setVisibility(false);
+        victoryText->get<PositionComponent>()->setVisibility(false);
+
+        finalScoreText->get<PositionComponent>()->setVisibility(false);
+
+        restartText->get<PositionComponent>()->setVisibility(false);
+    }
+
+    void triggerGameOver()
+    {
+        currentPhase = GamePhase::GAME_OVER;
+        gameOverText->get<PositionComponent>()->setVisibility(true);
+
+        // Show final score
+        for (auto score : view<GameScore>())
+        {
+            finalScoreText->get<TTFText>()->setText("Final Score: " + std::to_string(score->score));
+            finalScoreText->get<PositionComponent>()->setVisibility(true);
+        }
+
+        restartText->get<PositionComponent>()->setVisibility(true);
+    }
+
+    void triggerVictory() {
+        currentPhase = GamePhase::VICTORY;
+        victoryText->get<PositionComponent>()->setVisibility(true);
+
+        for (auto score : view<GameScore>())
+        {
+            finalScoreText->get<TTFText>()->setText("Final Score: " + std::to_string(score->score));
+            finalScoreText->get<PositionComponent>()->setVisibility(true);
+        }
+
+        restartText->get<PositionComponent>()->setVisibility(true);
+    }
+
+    void updateUIVisibility()
+    {
+        // Hide/show menu based on state
+        if (menuText)
+        {
+            menuText->get<PositionComponent>()->setVisibility(currentPhase == GamePhase::MENU);
+        }
+
+        if (menuSubText)
+        {
+            menuSubText->get<PositionComponent>()->setVisibility(currentPhase == GamePhase::MENU);
+        }
+    }
+
     void spawnPaddle()
     {
         // Position at bottom center of screen

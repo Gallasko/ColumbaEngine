@@ -340,8 +340,7 @@ private:
 
                         if (score->aliensRemaining <= 0)
                         {
-                            printf("VICTORY! All aliens destroyed!\n");
-                            // TODO: Trigger win state
+                            ecsRef->sendEvent(GameEnd{true});
                         }
                     }
 
@@ -376,8 +375,7 @@ private:
 
                         if (score->lives <= 0)
                         {
-                            printf("GAME OVER!\n");
-                            // TODO: Trigger game over
+                            ecsRef->sendEvent(GameEnd{false});
                         }
                     }
 
