@@ -11,6 +11,7 @@
 
 #include "simplescreenshake.h"
 #include "simpleparticle.h"
+#include "simpleflash.h"
 
 #include "bgscroller.h"
 
@@ -65,6 +66,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<ScreenShakeSystem>();
         ecs.createSystem<SimpleParticleSystem>();
+        ecs.createSystem<FlashEffectSystem>();
     });
 }
 

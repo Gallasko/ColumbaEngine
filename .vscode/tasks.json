@@ -131,7 +131,7 @@
                 "showOutput": "always",
                 "args": [
                     "-c",
-                    "cd ${workspaceFolder}/em; emcmake cmake .; cmake --build . --config Release --target BoxBouncer -j 10 --"
+                    "cd ${workspaceFolder}/em; emcmake cmake .; cmake --build . --config Release --target InvadersBreaker -j 10 --"
                 ]
             },
             "linux": {

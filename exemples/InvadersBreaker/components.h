@@ -83,3 +83,12 @@ struct Particle : public Component
     float lifetime = 500.0f;  // milliseconds
     float elapsed = 0.0f;
 };
+
+struct FlashEffect : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(FlashEffect)
+
+    float duration = 200.0f;  // milliseconds
+    float elapsed = 0.0f;
+    constant::Vector4D originalColor;
+};
