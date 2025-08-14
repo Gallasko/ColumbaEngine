@@ -327,6 +327,8 @@ private:
                     // Destroy alien
                     ecsRef->removeEntity(alienEntity->entity);
 
+                    ecsRef->sendEvent(AlienDestroyedEvent{});
+
                     // Bounce ball
                     ballVel->dy = -ballVel->dy;
 
@@ -366,6 +368,8 @@ private:
                 {
                     // Destroy bullet
                     ecsRef->removeEntity(bulletEntity->entity);
+
+                    ecsRef->sendEvent(PlayerHitEvent{});
 
                     // Lose life
                     for (auto score : view<GameScore>())

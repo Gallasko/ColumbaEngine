@@ -3,10 +3,13 @@
 #include "window.h"
 
 #include "Systems/basicsystems.h"
+
 #include "player.h"
 #include "enemy.h"
 #include "gamestate.h"
 #include "hud.h"
+
+#include "simplescreenshake.h"
 
 #include "bgscroller.h"
 
@@ -58,6 +61,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<GameStateSystem>();
 
         ecs.createSystem<HUDSystem>();
+
+        ecs.createSystem<ScreenShakeSystem>();
     });
 }
 

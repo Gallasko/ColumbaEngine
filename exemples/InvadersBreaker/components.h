@@ -65,3 +65,10 @@ struct GameScore : public Component
     int lives = 3;
     int aliensRemaining = 0;
 };
+
+struct ScreenShake : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(ScreenShake)
+    float trauma = 0.0f;
+    float maxOffset = 10.0f;
+};
