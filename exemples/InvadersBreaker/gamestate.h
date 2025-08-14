@@ -297,6 +297,7 @@ private:
         score->aliensRemaining = 28;  // 4x7 grid
         score->lives = 3;
         score->score = 0;
+        score->scoreMultiplier = 1.0f;
 
         printf("Game initialized: 3 lives, 28 aliens\n");
     }

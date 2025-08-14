@@ -64,6 +64,7 @@ struct GameScore : public Component
     int score = 0;
     int lives = 3;
     int aliensRemaining = 0;
+    float scoreMultiplier = 1.0f;
 };
 
 // === POWER UPS COMPONENTS ===

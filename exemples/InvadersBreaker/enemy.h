@@ -340,7 +340,7 @@ private:
                     for (auto scoreEntity : viewGroup<GameScore>())
                     {
                         auto score = scoreEntity->get<GameScore>();
-                        score->score += alien->points;
+                        score->score += alien->points * score->scoreMultiplier;
                         score->aliensRemaining--;
                         printf("Score: %d | Aliens left: %d\n", score->score, score->aliensRemaining);
 

@@ -15,3 +15,7 @@ struct AlienDestroyedEvent
 };
 
 struct PlayerHitEvent {};
+
+struct PowerUpCollectedEvent { PowerUpType type; };
+
+struct ScreenFlashEvent { constant::Vector4D color; float duration; };
