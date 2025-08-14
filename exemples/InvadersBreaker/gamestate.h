@@ -39,7 +39,7 @@ public:
 
     void init() override
     {
-        menuText = makeTTFText(ecsRef, 300, 300, 6, "bold", "SPACE BREAKER", 1.0);
+        menuText = makeTTFText(ecsRef, 160, 190, 6, "bold", "INVADERS BREAKER", 1.0);
         menuSubText = makeTTFText(ecsRef, 250, 350, 4, "light", "Press SPACE to Start", 0.8);
 
         gameOverText = makeTTFText(ecsRef, 280, 280, 6, "bold", "GAME OVER", 1.0);

@@ -36,3 +36,5 @@ struct RemoveEntityEvent
 
     _unique_id prefabId;
 };
+
+struct AppliedPowerUp { std::string name; };

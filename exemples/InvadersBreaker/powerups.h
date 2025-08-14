@@ -13,21 +13,21 @@ class PowerUpSystem : public System<InitSys, Listener<TickEvent>, Listener<Alien
 private:
     // Drop rates for each power-up type (must sum to less than 1.0)
     std::map<PowerUpType, float> dropRates = {
-        {PowerUpType::HEALTH,      0.05f},  // 5% - rare, valuable
-        {PowerUpType::MULTIBALL,   0.08f},  // 8% - chaos maker
-        {PowerUpType::FASTBALL,    0.06f},  // 6% - risk/reward
-        {PowerUpType::BARRIER,     0.04f},  // 4% - very rare, powerful
-        {PowerUpType::WIDE_PADDLE, 0.10f},  // 10% - common, helpful
-        {PowerUpType::TINY_PADDLE, 0.03f}   // 3% - rare, expert mode
+        {PowerUpType::HEALTH,      0.095f},  // 8% - rare, valuable
+        {PowerUpType::MULTIBALL,   0.02f},  // 2% - chaos maker
+        {PowerUpType::FASTBALL,    0.03f},  // 3% - risk/reward
+        {PowerUpType::BARRIER,     0.06f},  // 7% - very rare, powerful
+        {PowerUpType::WIDE_PADDLE, 0.04f},  // 3% - common, helpful
+        {PowerUpType::TINY_PADDLE, 0.04f}   // 3% - rare, expert mode
     };
     
     // Visual properties for each power-up
     std::map<PowerUpType, constant::Vector4D> powerUpColors = {
         {PowerUpType::HEALTH,      {255, 100, 100, 255}},  // Red
         {PowerUpType::MULTIBALL,   {255, 100, 255, 255}},  // Purple
-        {PowerUpType::FASTBALL,    {255, 200, 100, 255}},  // Orange
+        {PowerUpType::FASTBALL,    {125, 125, 125, 255}},  // Gray
         {PowerUpType::BARRIER,     {100, 255, 255, 255}},  // Cyan
-        {PowerUpType::WIDE_PADDLE, {100, 100, 255, 255}},  // Blue
+        {PowerUpType::WIDE_PADDLE, {100, 255, 100, 255}},  // Green
         {PowerUpType::TINY_PADDLE, {255, 255, 100, 255}}   // Yellow
     };
         
@@ -149,6 +149,8 @@ private:
                 applyTinyPaddle(paddle);
                 break;
         }
+
+        ecsRef->sendEvent(AppliedPowerUp{getPowerUpName(type)});
         
         printf("Applied power-up: %s\n", getPowerUpName(type).c_str());
     }
@@ -245,7 +247,7 @@ private:
 
         if (oldBarrier)
         {
-            oldBarrier->get<PowerUpEffect>()->duration = 10000;
+            oldBarrier->get<PowerUpEffect>()->duration = 15000;
             return;
         }
         
@@ -261,7 +263,7 @@ private:
         // Add timer to remove it
         auto effect = barrierEntity.attach<PowerUpEffect>();
         effect->type = PowerUpType::BARRIER;
-        effect->duration = 10000;  // 10 seconds
+        effect->duration = 15000;  // 10 seconds
     }
     
     void applyWidePaddle(EntityRef paddle) {
@@ -280,7 +282,7 @@ private:
             // paddleComp->maxX = 820 - pos->width - 10;  // Update boundaries
             
             // Visual feedback - make it blue
-            paddle->get<Simple2DObject>()->setColors({100, 100, 255, 255});
+            paddle->get<Simple2DObject>()->setColors({100, 255, 100, 255});
 
             // Add score multiplier
             for (auto score : viewGroup<GameScore>()) {
@@ -388,12 +390,12 @@ private:
     
     std::string getPowerUpName(PowerUpType type) {
         switch(type) {
-            case PowerUpType::HEALTH: return "Extra Life";
-            case PowerUpType::MULTIBALL: return "Multi-Ball";
-            case PowerUpType::FASTBALL: return "Speed Ball";
-            case PowerUpType::BARRIER: return "Safety Barrier";
-            case PowerUpType::WIDE_PADDLE: return "Wide Paddle";
-            case PowerUpType::TINY_PADDLE: return "Tiny Paddle";
+            case PowerUpType::HEALTH:       return "Extra Life";
+            case PowerUpType::MULTIBALL:    return "Multi-Ball";
+            case PowerUpType::FASTBALL:     return "Speed Ball";
+            case PowerUpType::BARRIER:      return "Safety Barrier";
+            case PowerUpType::WIDE_PADDLE:  return "Wide Paddle";
+            case PowerUpType::TINY_PADDLE:  return "Tiny Paddle";
         }
         return "Unknown";
     }

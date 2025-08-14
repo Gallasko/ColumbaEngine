@@ -111,7 +111,7 @@ struct Barrier : public Component
 {
     DEFAULT_COMPONENT_MEMBERS(Barrier)
 
-    float health = 3;  // Can take 3 hits
+    float health = 3;  // Can take 1 hits
 };
 
 // === JUICER COMPONENTS ===
