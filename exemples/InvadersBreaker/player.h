@@ -115,9 +115,10 @@ public:
     }
 };
 
-class BallPhysicsSystem : public System<InitSys, Listener<GameStart>, Listener<GameEnd>,
+class BallPhysicsSystem : public System<InitSys, Listener<OnSDLScanCode>,
+    Listener<GameStart>, Listener<GameEnd>,
     Listener<GamePaused>, Listener<GameResume>,
-    Listener<TickEvent>, Listener<OnSDLScanCode>>
+    Listener<TickEvent>>
 {
 private:
     bool gameStarted = false;
@@ -139,6 +140,8 @@ public:
     void onEvent(const GameStart&) override
     {
         gameStarted = true;
+
+        resetBall();
     }
 
     void onEvent(const GameEnd&) override
@@ -204,6 +207,19 @@ public:
     }
 
 private:
+    void resetBall()
+    {
+        for (auto ballEntity : viewGroup<PositionComponent, Velocity, Ball>())
+        {
+            auto ball = ballEntity->get<Ball>();
+
+            if (ball->launched)
+            {
+                ball->launched = false;
+            }
+        }
+    }
+
     void followPaddle(PositionComponent* ballPos, Velocity* ballVel)
     {
         // Find paddle and stick ball to it

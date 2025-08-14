@@ -9,7 +9,9 @@
 
 using namespace pg;
 
-class AlienFormationSystem : public System<InitSys, Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>> {
+class AlienFormationSystem : public System<InitSys, Own<AlienFormation>, Own<Alien>,
+    Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>>
+{
 private:
     float deltaTime = 0.0f;
     const float SCREEN_WIDTH = 820.0f;
@@ -26,7 +28,6 @@ public:
 
     void init() override
     {
-        registerGroup<AlienFormation>();
         registerGroup<PositionComponent, Alien>();
     }
 
@@ -56,9 +57,8 @@ public:
         if (paused)
             return;
 
-        for (auto formationEntity : viewGroup<AlienFormation>()) {
-            auto formation = formationEntity->get<AlienFormation>();
-
+        for (auto formation : view<AlienFormation>())
+        {
             formation->moveTimer += dt;
 
             if (formation->moveTimer >= formation->moveInterval) {
@@ -150,7 +150,8 @@ private:
 
 // More Aggressive Shooting When in Danger Zone
 // ---------------------------------------------
-class AlienShootingSystem : public System<InitSys, Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>>
+class AlienShootingSystem : public System<InitSys, Own<AlienBullet>,
+    Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>>
 {
 private:
     float shootTimer = 0.0f;

@@ -18,6 +18,7 @@ enum class GamePhase
 };
 
 class GameStateSystem : public System<InitSys, Listener<OnSDLScanCode>, Own<GameScore>,
+    Ref<AlienBullet>, Ref<Alien>,
     Listener<GameEnd>>
 {
 private:
@@ -112,15 +113,18 @@ public:
         clearEndScreen();
 
         // Nuclear option: destroy everything except paddle
-        for (auto alien : viewGroup<Alien>())
+        for (auto alien : view<Alien>())
         {
-            ecsRef->removeEntity(alien->entity);
+            ecsRef->removeEntity(alien->entityId);
         }
 
-        for (auto bullet : viewGroup<AlienBullet>())
+        for (auto bullet : view<AlienBullet>())
         {
-            ecsRef->removeEntity(bullet->entity);
+            ecsRef->removeEntity(bullet->entityId);
         }
+
+        if (auto ent = ecsRef->getEntity("FormationController"))
+            ecsRef->removeEntity(ent);
 
         // Reset ball
         for (auto ball : viewGroup<Ball>())
@@ -129,17 +133,13 @@ public:
             // Reset position
         }
 
+
         ecsRef->sendEvent(GameStart{});
 
         // Respawn aliens
         spawnAlienFormation();  // Your existing spawn code
 
-        // Reset score
-        for (auto score : viewGroup<GameScore>())
-        {
-            score->get<GameScore>()->lives = 3;
-            score->get<GameScore>()->score = 0;
-        }
+        resetScoreKeeper();
     }
 
 private:
@@ -283,6 +283,17 @@ private:
     {
         auto scoreKeeper = ecsRef->createEntity("ScoreKeeper");
         auto score = scoreKeeper.attach<GameScore>();
+        score->aliensRemaining = 28;  // 4x7 grid
+        score->lives = 3;
+        score->score = 0;
+
+        printf("Game initialized: 3 lives, 28 aliens\n");
+    }
+
+    void resetScoreKeeper()
+    {
+        auto scoreKeeper = ecsRef->getEntity("ScoreKeeper");
+        auto score = scoreKeeper->get<GameScore>();
         score->aliensRemaining = 28;  // 4x7 grid
         score->lives = 3;
         score->score = 0;

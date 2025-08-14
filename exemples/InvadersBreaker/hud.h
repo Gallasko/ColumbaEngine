@@ -32,6 +32,10 @@ class HUDSystem : public System<InitSys>
             {
                 livesDisplay->get<TTFText>()->setColor({255.0f, 0.0f, 0.0f, 255.0f});
             }
+            else
+            {
+                livesDisplay->get<TTFText>()->setColor({255.0f, 255.0f, 255.0f, 255.0f});
+            }
         }
     }
 };
