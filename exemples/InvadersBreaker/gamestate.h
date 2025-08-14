@@ -49,11 +49,22 @@ public:
                     break;
             }
         }
-        
-        if (event.key == SDL_SCANCODE_ESCAPE && currentPhase == GamePhase::PLAYING)
+
+        if (event.key == SDL_SCANCODE_ESCAPE)
         {
-            currentPhase = GamePhase::PAUSED;
-            // Pause all physics systems
+            if (currentPhase == GamePhase::PLAYING)
+            {
+                currentPhase = GamePhase::PAUSED;
+
+                ecsRef->sendEvent(GamePaused{});
+            }
+            else if (currentPhase == GamePhase::PAUSED)
+            {
+                currentPhase = GamePhase::PLAYING;
+
+                ecsRef->sendEvent(GameResume{});
+            }
+
         }
     }
 
@@ -69,7 +80,7 @@ public:
         {
             ecsRef->removeEntity(bullet->entity);
         }
-        
+
         // Reset ball
         for (auto ball : viewGroup<Ball>())
         {
@@ -81,14 +92,14 @@ public:
 
         // Respawn aliens
         spawnAlienFormation();  // Your existing spawn code
-        
+
         // Reset score
         for (auto score : viewGroup<GameScore>())
         {
             score->get<GameScore>()->lives = 3;
             score->get<GameScore>()->score = 0;
         }
-        
+
         currentPhase = GamePhase::PLAYING;
     }
 

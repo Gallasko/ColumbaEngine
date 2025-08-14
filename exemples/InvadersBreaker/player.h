@@ -10,11 +10,15 @@
 
 using namespace pg;
 
-class PaddleControlSystem : public System<InitSys, Listener<TickEvent>, Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>>
+class PaddleControlSystem : public System<InitSys, Listener<TickEvent>,
+    Listener<GamePaused>, Listener<GameResume>,
+    Listener<OnSDLScanCode>, Listener<OnSDLScanCodeReleased>>
 {
 private:
     // Register the group we'll query
     float deltaTime = 0.0f;
+
+    bool paused = false;
 
     std::vector<bool> keyPressed = {false, false};
 
@@ -30,6 +34,16 @@ public:
     void onEvent(const TickEvent& event) override
     {
         deltaTime += event.tick;
+    }
+
+    void onEvent(const GamePaused&) override
+    {
+        paused = true;
+    }
+
+    void onEvent(const GameResume&) override
+    {
+        paused = false;
     }
 
     void onEvent(const OnSDLScanCode& event) override
@@ -58,6 +72,9 @@ public:
         // Get delta time
         float dt = deltaTime / 1000;
         deltaTime = 0.0f;
+
+        if (paused)
+            return;
 
         // Iterate through our registered group
         for (auto entity : viewGroup<PositionComponent, Velocity, Paddle>())
@@ -98,10 +115,13 @@ public:
     }
 };
 
-class BallPhysicsSystem : public System<InitSys, Listener<GameStart>, Listener<GameEnd>, Listener<TickEvent>, Listener<OnSDLScanCode>>
+class BallPhysicsSystem : public System<InitSys, Listener<GameStart>, Listener<GameEnd>,
+    Listener<GamePaused>, Listener<GameResume>,
+    Listener<TickEvent>, Listener<OnSDLScanCode>>
 {
 private:
     bool gameStarted = false;
+    bool paused = false;
 
     float deltaTime = 0.0f;
     const float SCREEN_WIDTH = 820.0f;
@@ -124,6 +144,16 @@ public:
     void onEvent(const GameEnd&) override
     {
         gameStarted = false;
+    }
+
+    void onEvent(const GamePaused&) override
+    {
+        paused = true;
+    }
+
+    void onEvent(const GameResume&) override
+    {
+        paused = false;
     }
 
     void onEvent(const TickEvent& event) override
@@ -149,6 +179,9 @@ public:
 
         float dt = deltaTime / 1000.0f;
         deltaTime = 0.0f;
+
+        if (paused)
+            return;
 
         // Process each ball
         for (auto ballEntity : viewGroup<PositionComponent, Velocity, Ball>())

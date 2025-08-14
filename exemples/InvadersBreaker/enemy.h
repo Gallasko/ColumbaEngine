@@ -9,12 +9,14 @@
 
 using namespace pg;
 
-class AlienFormationSystem : public System<InitSys, Listener<TickEvent>> {
+class AlienFormationSystem : public System<InitSys, Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>> {
 private:
     float deltaTime = 0.0f;
     const float SCREEN_WIDTH = 820.0f;
     const float FORMATION_STEP = 40.0f;
     const float DANGER_ZONE_Y = 420.0f;  // Aliens stop here - still plenty of room to play
+
+    bool paused = false;
 
 public:
     std::string getSystemName() const override
@@ -33,13 +35,31 @@ public:
         deltaTime += event.tick;
     }
 
+    void onEvent(const GamePaused&) override
+    {
+        paused = true;
+    }
+
+    void onEvent(const GameResume&) override
+    {
+        paused = false;
+    }
+
     void execute() override {
-        if (deltaTime == 0.0f) return;
+        if (deltaTime == 0.0f)
+            return;
+
+        auto dt = deltaTime;
+
+        deltaTime = 0.0f;
+
+        if (paused)
+            return;
 
         for (auto formationEntity : viewGroup<AlienFormation>()) {
             auto formation = formationEntity->get<AlienFormation>();
 
-            formation->moveTimer += deltaTime;
+            formation->moveTimer += dt;
 
             if (formation->moveTimer >= formation->moveInterval) {
                 formation->moveTimer = 0;
@@ -57,7 +77,7 @@ public:
             }
         }
 
-        deltaTime = 0.0f;
+
     }
 
 private:
@@ -130,7 +150,8 @@ private:
 
 // More Aggressive Shooting When in Danger Zone
 // ---------------------------------------------
-class AlienShootingSystem : public System<InitSys, Listener<TickEvent>> {
+class AlienShootingSystem : public System<InitSys, Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>>
+{
 private:
     float shootTimer = 0.0f;
     float baseShootInterval = 2000.0f;
@@ -138,23 +159,38 @@ private:
     std::mt19937 rng{std::random_device{}()};
     const float DANGER_ZONE_Y = 420.0f;
 
-public:
-    std::string getSystemName() const override {
-        return "Alien Shooting System";
-    }
+    bool paused = false;
 
-    void init() override {
+public:
+    std::string getSystemName() const override { return "Alien Shooting System"; }
+
+    void init() override
+    {
         registerGroup<PositionComponent, Alien>();
     }
 
-    void onEvent(const TickEvent& event) override {
+    void onEvent(const TickEvent& event) override
+    {
         shootTimer += event.tick;
+    }
+
+    void onEvent(const GamePaused&) override
+    {
+        paused = true;
+    }
+
+    void onEvent(const GameResume&) override
+    {
+        paused = false;
     }
 
     void execute() override {
         if (shootTimer < currentShootInterval) return;
 
         shootTimer = 0;
+
+        if (paused)
+            return;
 
         // Check if any aliens are in danger zone
         bool inDangerZone = false;
@@ -377,9 +413,12 @@ private:
 };
 
 // Update bullet physics (they just fall)
-class BulletPhysicsSystem : public System<InitSys, Listener<TickEvent>> {
+class BulletPhysicsSystem : public System<InitSys, Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>>
+{
 private:
     float deltaTime = 0.0f;
+
+    bool paused = false;
 
 public:
     std::string getSystemName() const override {
@@ -394,10 +433,27 @@ public:
         deltaTime += event.tick;
     }
 
-    void execute() override {
-        if (deltaTime == 0.0f) return;
+    void onEvent(const GamePaused&) override
+    {
+        paused = true;
+    }
+
+    void onEvent(const GameResume&) override
+    {
+        paused = false;
+    }
+
+    void execute() override
+    {
+        if (deltaTime == 0.0f)
+            return;
 
         float dt = deltaTime / 1000.0f;
+
+        deltaTime = 0.0f;
+
+        if (paused)
+            return;
 
         for (auto bulletEntity : viewGroup<PositionComponent, AlienBullet, Velocity>()) {
             auto pos = bulletEntity->get<PositionComponent>();
@@ -405,8 +461,6 @@ public:
 
             pos->setY(pos->y + vel->dy * dt);
         }
-
-        deltaTime = 0.0f;
     }
 };
 
@@ -417,9 +471,7 @@ private:
     bool wasInDangerZone = false;
 
 public:
-    std::string getSystemName() const override {
-        return "Danger Zone Visual System";
-    }
+    std::string getSystemName() const override { return "Danger Zone Visual System"; }
 
     void init() override {
         registerGroup<PositionComponent, Alien, Simple2DObject>();
