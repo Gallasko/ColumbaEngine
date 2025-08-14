@@ -27,7 +27,8 @@ struct Ball : public Component
 
     float radius = 8.0f;      // Visual size
     float speed = 350.0f;     // Base speed when launched
-    bool launched = false;    // Still attached to paddle?
+    bool launched = false;    // Still attached to paddle ?
+    bool isExtra = false;     // Spawn via multiball ?
 };
 
 struct Alien : public Component

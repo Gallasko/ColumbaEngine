@@ -9,6 +9,7 @@ using namespace pg;
 class HUDSystem : public System<InitSys>
 {
     EntityRef scoreDisplay;
+    EntityRef scoreMultiplierDisplay;
     EntityRef livesDisplay;
 
     void init() override
@@ -16,6 +17,7 @@ class HUDSystem : public System<InitSys>
         // Create text entities at top of screen
         // Use your Simple2DObject system or whatever text rendering you have
         scoreDisplay = makeTTFText(ecsRef, 10, 10, 4, "light", "Score: 0", 0.5);
+        scoreMultiplierDisplay = makeTTFText(ecsRef, 10, 30, 4, "light", "Multiplier: x1.0", 0.4);
         livesDisplay = makeTTFText(ecsRef, 700, 10, 4, "light", "Lives: 3", 0.5);
     }
 
@@ -25,6 +27,7 @@ class HUDSystem : public System<InitSys>
             auto score = gameScore->get<GameScore>();
 
             scoreDisplay->get<TTFText>()->setText("Score: " + std::to_string(score->score));
+            scoreMultiplierDisplay->get<TTFText>()->setText("Multiplier: x" + std::to_string(score->scoreMultiplier) + ".0");            
             livesDisplay->get<TTFText>()->setText("Lives: " + std::to_string(score->lives));
 
             // Flash lives text when hit

@@ -200,12 +200,12 @@ private:
                 float angle = (j == 0) ? -25 : 25;  // Degrees
                 float rad = angle * 3.14159f / 180.0f;
                 
-                vel->dx = ballVelocities[i].first * cos(rad) - ballVelocities[i].second * sin(rad);
-                vel->dy = ballVelocities[i].first * sin(rad) + ballVelocities[i].second * cos(rad);
+                vel->dx = ballVelocities[i].first * std::cos(rad) - ballVelocities[i].second * std::sin(rad);
+                vel->dy = ballVelocities[i].first * std::sin(rad) + ballVelocities[i].second * std::cos(rad);
                 
                 auto ballComp = ball.attach<Ball>();
                 ballComp->launched = true;
-                // ballComp->isExtra = true;  // Mark for potential cleanup
+                ballComp->isExtra = true; 
             }
         }
         
@@ -232,13 +232,16 @@ private:
         auto eff = effect.attach<PowerUpEffect>();
         eff->type = PowerUpType::FASTBALL;
         eff->duration = 10000;  // 10 seconds
-        eff->value = 1.5f;  // 1.5x score multiplier
+        
+        for (auto score : viewGroup<GameScore>())
+        {
+            score->get<GameScore>()->scoreMultiplier *= 2.0f;
+        }
     }
     
     void applyBarrier() {
         // Remove old barrier if exists
         auto oldBarrier = ecsRef->getEntity("Barrier");
-
 
         if (oldBarrier)
         {
@@ -281,7 +284,7 @@ private:
 
             // Add score multiplier
             for (auto score : viewGroup<GameScore>()) {
-                score->get<GameScore>()->scoreMultiplier = 2.0f;
+                score->get<GameScore>()->scoreMultiplier *= 2.0f;
             }
 
         }
@@ -306,7 +309,7 @@ private:
 
             // Add score multiplier
             for (auto score : viewGroup<GameScore>()) {
-                score->get<GameScore>()->scoreMultiplier = 2.0f;
+                score->get<GameScore>()->scoreMultiplier *= 2.0f;
             }
         }
     }
@@ -343,10 +346,9 @@ private:
                     // entity->get<Paddle>()->maxX = 820 - effect->value - 10;
                     entity->get<Simple2DObject>()->setColors({255, 255, 255, 255});
                     
-                    if (effect->type == PowerUpType::WIDE_PADDLE) {
-                        for (auto score : viewGroup<GameScore>()) {
-                            score->get<GameScore>()->scoreMultiplier = 1.0f;
-                        }
+                    for (auto score : viewGroup<GameScore>())
+                    {
+                        score->get<GameScore>()->scoreMultiplier /= 2.0f;
                     }
                 }
                 break;
@@ -362,11 +364,17 @@ private:
                     auto vel = ball->get<Velocity>();
                     vel->dx /= 1.5f;
                     vel->dy /= 1.5f;
+
+                    if (ball->entity->has<Trail>())
+                        ecsRef->detach<Trail>(ball->entity);
                 }
+                
                 // Reset score multiplier
-                for (auto score : viewGroup<GameScore>()) {
-                    score->get<GameScore>()->scoreMultiplier = 1.0f;
+                for (auto score : viewGroup<GameScore>())
+                {
+                    score->get<GameScore>()->scoreMultiplier /= 2.0f;
                 }
+
                 break;
         }
     }

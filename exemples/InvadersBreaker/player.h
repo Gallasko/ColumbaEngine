@@ -296,6 +296,9 @@ private:
             // Reset ball
             ball->launched = false;
             printf("Ball lost! Resetting...\n");
+
+            if (ball->isExtra)
+                ecsRef->sendEvent(RemoveEntityEvent{ball->entityId});
             // TODO: Trigger life loss event
         }
 

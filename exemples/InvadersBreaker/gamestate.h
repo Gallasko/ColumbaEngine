@@ -22,8 +22,6 @@ class GameStateSystem : public System<InitSys, Listener<OnSDLScanCode>, Own<Game
     Listener<GameEnd>>
 {
 private:
-    bool initialized = false;
-
     GamePhase currentPhase = GamePhase::MENU;
 
     EntityRef menuText;
