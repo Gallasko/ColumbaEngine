@@ -30,9 +30,7 @@ private:
         {PowerUpType::WIDE_PADDLE, {100, 100, 255, 255}},  // Blue
         {PowerUpType::TINY_PADDLE, {255, 255, 100, 255}}   // Yellow
     };
-    
-    EntityRef barrierEntity;
-    
+        
 public:
     std::string getSystemName() const override { return "Power-Up System"; }
     
@@ -239,17 +237,22 @@ private:
     
     void applyBarrier() {
         // Remove old barrier if exists
-        if (barrierEntity)
+        auto oldBarrier = ecsRef->getEntity("Barrier");
+
+
+        if (oldBarrier)
         {
-            ecsRef->removeEntity(barrierEntity.entity);
+            oldBarrier->get<PowerUpEffect>()->duration = 10000;
+            return;
         }
         
         // Create barrier entity at bottom of screen
-        barrierEntity = makeSimple2DShape(ecsRef, Shape2D::Square, 820, 10, {100, 255, 255, 200});
+        auto barrierEntity = makeSimple2DShape(ecsRef, Shape2D::Square, 820, 10, {100, 255, 255, 200});
         auto pos = barrierEntity.get<PositionComponent>();
         pos->setX(0);
         pos->setY(620);  // Just below paddle level
         
+        barrierEntity.attach<EntityName>("Barrier");
         barrierEntity.attach<Barrier>();
         
         // Add timer to remove it
@@ -275,9 +278,12 @@ private:
             
             // Visual feedback - make it blue
             paddle->get<Simple2DObject>()->setColors({100, 100, 255, 255});
-        } else {
-            // Extend duration if already wide
-            paddle->get<PowerUpEffect>()->duration = 15000;
+
+            // Add score multiplier
+            for (auto score : viewGroup<GameScore>()) {
+                score->get<GameScore>()->scoreMultiplier = 2.0f;
+            }
+
         }
     }
     
@@ -297,7 +303,7 @@ private:
             
             // Visual feedback - golden paddle for high risk/reward
             paddle->get<Simple2DObject>()->setColors({255, 215, 0, 255});
-            
+
             // Add score multiplier
             for (auto score : viewGroup<GameScore>()) {
                 score->get<GameScore>()->scoreMultiplier = 2.0f;
@@ -337,8 +343,7 @@ private:
                     // entity->get<Paddle>()->maxX = 820 - effect->value - 10;
                     entity->get<Simple2DObject>()->setColors({255, 255, 255, 255});
                     
-                    // Reset score multiplier if tiny paddle
-                    if (effect->type == PowerUpType::TINY_PADDLE) {
+                    if (effect->type == PowerUpType::WIDE_PADDLE) {
                         for (auto score : viewGroup<GameScore>()) {
                             score->get<GameScore>()->scoreMultiplier = 1.0f;
                         }
@@ -348,10 +353,7 @@ private:
                 
             case PowerUpType::BARRIER:
                 // Barrier entity destroys itself
-                if (entity == barrierEntity) {
-                    ecsRef->removeEntity(entity.entity);
-                    barrierEntity = EntityRef();
-                }
+                ecsRef->sendEvent(RemoveEntityEvent{entity.id});
                 break;
                 
             case PowerUpType::FASTBALL:
@@ -392,7 +394,8 @@ private:
 // Barrier Collision System
 // ------------------------
 
-class BarrierSystem : public System<InitSys, Listener<TickEvent>> {
+class BarrierSystem : public System<InitSys>
+{
 public:
     void init() override {
         registerGroup<Barrier, PositionComponent>();

@@ -144,6 +144,7 @@ struct Trail : public Component
 {
     DEFAULT_COMPONENT_MEMBERS(Trail)
 
-    std::deque<std::pair<float, float>> positions;
+    bool hasLastPosition = false;
+    std::pair<float, float> lastPosition = { 0.0f, 0.0f};
     int maxLength = 10;
 };

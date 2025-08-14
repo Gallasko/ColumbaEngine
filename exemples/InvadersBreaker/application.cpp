@@ -11,6 +11,7 @@
 
 #include "powerups.h"
 
+#include "simpletrail.h"
 #include "simplescreenshake.h"
 #include "simpleparticle.h"
 #include "simpleflash.h"
@@ -43,6 +44,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // ecs.createSystem<FpsSystem>();
 
+        // Basic systems
+        ecs.createSystem<TweenSystem>();
+
         ecs.createSystem<BackgroundScrollerSystem>();
 
         // auto config = engine.getConfig();
@@ -66,6 +70,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<HUDSystem>();
 
+        ecs.createSystem<PowerUpSystem>();
+        ecs.createSystem<BarrierSystem>();
+
+        ecs.createSystem<TrailSystem>();
         ecs.createSystem<ScreenShakeSystem>();
         ecs.createSystem<SimpleParticleSystem>();
         ecs.createSystem<FlashEffectSystem>();
