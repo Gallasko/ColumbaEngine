@@ -42,6 +42,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
         #endif
 
+        window.masterRenderer->processTextureRegister();
+
         // ecs.createSystem<FpsSystem>();
 
         // Basic systems
