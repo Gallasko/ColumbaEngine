@@ -144,9 +144,10 @@ public:
         resetBall();
     }
 
-    void onEvent(const GameEnd&) override
+    void onEvent(const GameEnd& event) override
     {
-        gameStarted = false;
+        if (not event.won)
+            gameStarted = false;
     }
 
     void onEvent(const GamePaused&) override

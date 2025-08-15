@@ -535,3 +535,4 @@ public:
         wasInDangerZone = inDangerZone;
     }
 };
+

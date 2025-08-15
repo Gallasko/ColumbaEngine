@@ -126,7 +126,8 @@
         "__tree": "cpp",
         "__verbose_abort": "cpp",
         "execution": "cpp",
-        "print": "cpp"
+        "print": "cpp",
+        "*.expression": "cpp"
     },
     "files.exclude": {
         "**/*.o": true,
