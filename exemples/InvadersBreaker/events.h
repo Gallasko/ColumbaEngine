@@ -38,3 +38,5 @@ struct RemoveEntityEvent
 };
 
 struct AppliedPowerUp { std::string name; };
+
+struct NewWaveStarted { int waveNumber; };

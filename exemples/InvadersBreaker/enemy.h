@@ -152,7 +152,9 @@ private:
 // More Aggressive Shooting When in Danger Zone
 // ---------------------------------------------
 class AlienShootingSystem : public System<InitSys, Own<AlienBullet>,
-    Listener<TickEvent>, Listener<GamePaused>, Listener<GameResume>>
+    Listener<TickEvent>,
+    Listener<GamePaused>, Listener<GameResume>,
+    Listener<NewWaveStarted>>
 {
 private:
     float shootTimer = 0.0f;
@@ -160,6 +162,8 @@ private:
     float currentShootInterval = 2000.0f;
     std::mt19937 rng{std::random_device{}()};
     const float DANGER_ZONE_Y = 420.0f;
+
+    int shotNumber = 2;
 
     bool paused = false;
 
@@ -184,6 +188,28 @@ public:
     void onEvent(const GameResume&) override
     {
         paused = false;
+    }
+
+    void onEvent(const NewWaveStarted& event) override
+    {
+        if (event.waveNumber == 1)
+        {
+            shootTimer = 0.0f;
+            baseShootInterval = 2000.0f;
+            currentShootInterval = 2000.0f;
+            shotNumber = 2;
+        }
+        else
+        {
+            baseShootInterval -= 150;
+
+            baseShootInterval = std::max(baseShootInterval, 1000.0f);
+
+            if (event.waveNumber % 4 == 0)
+                shotNumber++;
+
+            shotNumber = std::min(4, shotNumber);
+        }
     }
 
     void execute() override {
@@ -235,8 +261,8 @@ public:
 
             // Fire bullets from selected positions
             int shooterCount = inDangerZone ?
-                std::min(4, (int)shootPositions.size()) :
-                std::min(2, (int)shootPositions.size());
+                std::min(shotNumber + 2, (int)shootPositions.size()) :
+                std::min(shotNumber, (int)shootPositions.size());
 
             for (int i = 0; i < shooterCount; i++) {
                 spawnBullet(shootPositions[i].first, shootPositions[i].second);
@@ -245,10 +271,10 @@ public:
 
         // Adjust fire rate based on danger zone
         if (inDangerZone) {
-            std::uniform_real_distribution<> intervalDis(800.0f, 1500.0f);
+            std::uniform_real_distribution<> intervalDis(baseShootInterval * 0.7, baseShootInterval * 0.7 + 350);
             currentShootInterval = intervalDis(rng);
         } else {
-            std::uniform_real_distribution<> intervalDis(1500.0f, 3000.0f);
+            std::uniform_real_distribution<> intervalDis(baseShootInterval, baseShootInterval + 500);
             currentShootInterval = intervalDis(rng);
         }
     }

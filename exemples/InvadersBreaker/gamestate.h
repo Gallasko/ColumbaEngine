@@ -150,6 +150,8 @@ public:
         spawnAlienFormation();  // Your existing spawn code
 
         resetScoreKeeper();
+
+        ecsRef->sendEvent(NewWaveStarted{currentWave});
     }
 
 private:
@@ -359,7 +361,7 @@ private:
         }
 
         // Show wave announcement
-        auto waveText = makeTTFText(ecsRef, 220, 190, 8, "bold", 
+        auto waveText = makeTTFText(ecsRef, 315, 265, 12, "bold", 
             "WAVE " + std::to_string(currentWave), 1.0);
 
         waveText.attach<TweenComponent>(TweenComponent {
@@ -375,5 +377,7 @@ private:
         
         // Spawn new formation with modifications
         spawnAlienFormation();
+
+        ecsRef->sendEvent(NewWaveStarted{currentWave});
     }
 };
