@@ -141,6 +141,11 @@ public:
 
         ecsRef->sendEvent(GameStart{});
 
+        currentWave = 1;
+        speedMultiplier = 1.0f;
+        bulletSpeedMultiplier = 1.0f;
+        dropDistance = 25.0f;
+
         // Respawn aliens
         spawnAlienFormation();  // Your existing spawn code
 
@@ -289,6 +294,7 @@ private:
             auto formation = formationController->get<AlienFormation>();
 
             formation->moveInterval = 1500 * speedMultiplier;
+            formation->dropDistance = dropDistance;
 
             formation->totalAliens = alienCount;
         }
@@ -330,6 +336,8 @@ private:
     float speedMultiplier = 1.0f;
     float bulletSpeedMultiplier = 1.0f;
 
+    float dropDistance = 25.0f;
+
     void spawnNextWave()
     {
         for (auto ball : viewGroup<Ball>())
@@ -342,6 +350,13 @@ private:
         // Difficulty scaling
         speedMultiplier *= 0.85f;  // 15% faster each wave
         bulletSpeedMultiplier *= 1.1f;  // 10% faster bullets
+
+        if (currentWave % 2 == 0)
+        {
+            dropDistance += 8;
+
+            dropDistance = std::max(60.0f, dropDistance);
+        }
 
         // Show wave announcement
         auto waveText = makeTTFText(ecsRef, 220, 190, 8, "bold", 

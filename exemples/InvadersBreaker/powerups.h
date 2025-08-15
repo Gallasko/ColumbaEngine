@@ -9,7 +9,8 @@
 
 using namespace pg;
 
-class PowerUpSystem : public System<InitSys, Listener<TickEvent>, Listener<AlienDestroyedEvent>>
+class PowerUpSystem : public System<InitSys, QueuedListener<TickEvent>, Listener<AlienDestroyedEvent>,
+    Listener<GamePaused>, Listener<GameResume>>
 {
 private:
     // Drop rates for each power-up type (must sum to less than 1.0)
@@ -31,6 +32,8 @@ private:
         {PowerUpType::WIDE_PADDLE, {100, 255, 100, 255}},  // Green
         {PowerUpType::TINY_PADDLE, {255, 255, 100, 255}}   // Yellow
     };
+
+    bool gamePaused = false;
         
 public:
     std::string getSystemName() const override { return "Power-Up System"; }
@@ -45,8 +48,15 @@ public:
     void onEvent(const AlienDestroyedEvent& event) override {
         trySpawnPowerUp(event.x, event.y);
     }
+
+    void onEvent(const GamePaused&) override { gamePaused = true; }
+
+    void onEvent(const GameResume&) override { gamePaused = false; }
     
-    void onEvent(const TickEvent& event) override {
+    void onProcessEvent(const TickEvent& event) override {
+        if (gamePaused)
+            return;
+
         updatePowerUpPhysics(event.tick);
         checkPowerUpCollection();
         updateActiveEffects(event.tick);
