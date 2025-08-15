@@ -32,6 +32,9 @@ private:
     EntityRef restartText;
     EntityRef finalScoreText;
 
+    EntityRef obscure;
+    EntityRef pauseText;
+
 public:
     std::string getSystemName() const override
     {
@@ -56,6 +59,13 @@ public:
 
         finalScoreText = makeTTFText(ecsRef, 280, 330, 4, "light", "Final Score: 0", 0.8);
         finalScoreText->get<PositionComponent>()->setVisibility(false);
+
+        pauseText = makeTTFText(ecsRef, 315, 265, 12, "bold", "Paused", 1.0);
+        pauseText->get<PositionComponent>()->setVisibility(false);
+
+        obscure = makeSimple2DShape(ecsRef, Shape2D::Square, 820, 640, {0.0f, 0.0f, 0.0f, 125.0f});
+        obscure.get<PositionComponent>()->setZ(7);
+        obscure->get<PositionComponent>()->setVisibility(false);
 
         spawnPaddle();
         spawnBall();
@@ -84,15 +94,20 @@ public:
             {
                 currentPhase = GamePhase::PAUSED;
 
+                pauseText->get<PositionComponent>()->setVisibility(true);
+                obscure->get<PositionComponent>()->setVisibility(true);
+
                 ecsRef->sendEvent(GamePaused{});
             }
             else if (currentPhase == GamePhase::PAUSED)
             {
                 currentPhase = GamePhase::PLAYING;
 
+                pauseText->get<PositionComponent>()->setVisibility(false);
+                obscure->get<PositionComponent>()->setVisibility(false);
+
                 ecsRef->sendEvent(GameResume{});
             }
-
         }
     }
 
