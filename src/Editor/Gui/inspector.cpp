@@ -169,7 +169,7 @@ namespace pg
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
+            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "bold", textTemp, 0.4);
 
             auto sentUi = sentence.get<PositionComponent>();
 
@@ -304,7 +304,7 @@ namespace pg
             row.get<HorizontalLayout>()->spacing  = 8.f;
 
             // label
-            auto label = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", "Add Component", 0.4f);
+            auto label = makeTTFText(ecsRef, 0,0, 1, "bold", "Add Component", 0.4f);
             view->addEntity(label.entity);
 //
             // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
@@ -328,7 +328,7 @@ namespace pg
                 {
                     const auto& name = pair.first;
 
-                    auto item = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", name, 0.35f);
+                    auto item = makeTTFText(ecsRef, 0,0, 1, "light", name, 0.35f);
                     // indent it a bit
                     // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
 
@@ -403,7 +403,7 @@ namespace pg
             rowView->fitToAxis = true;
 
             // Label
-            auto labelEnt = makeTTFText(ecs, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4f);
+            auto labelEnt = makeTTFText(ecs, 0, 0, 1, "bold", textTemp, 0.4f);
             // auto labelPos = labelEnt.get<PositionComponent>();
             rowView->addEntity(labelEnt.entity);
 
@@ -418,7 +418,7 @@ namespace pg
 
             prefab->setMainEntity(background.entity);
 
-            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "res/font/Inter/static/Inter_28pt-Light.ttf", { boundValue }, 0.4f);
+            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "light", { boundValue }, 0.4f);
             auto input = inputEnt.get<TextInputComponent>();
             auto inputPos = inputEnt.get<PositionComponent>();
             auto inputAnchor = inputEnt.get<UiAnchor>();

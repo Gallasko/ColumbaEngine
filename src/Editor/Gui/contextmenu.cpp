@@ -40,10 +40,10 @@ namespace editor
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Open", 0.5);
+        auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFile>());
 
-        auto save = makeTTFText(ecsRef, 70.0f, 5.0f, 12.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "Save", 0.5);
+        auto save = makeTTFText(ecsRef, 70.0f, 5.0f, 12.0f, "light", "Save", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(save.entity, makeCallable<SaveFile>());
 
         parent = ecsRef->createEntity();
@@ -101,7 +101,7 @@ namespace editor
 
     void ContextMenu::addItemInContextMenu(const std::string& text, CallablePtr callable)
     {
-        auto addItem = makeTTFText(ecsRef, 0, 0, 11.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", text, 0.5);
+        auto addItem = makeTTFText(ecsRef, 0, 0, 11.0f, "light", text, 0.5);
         auto addItemEntity = addItem.entity;
 
         ecsRef->attach<MouseLeftClickComponent>(addItemEntity, callable);
@@ -162,7 +162,7 @@ namespace editor
             case UiComponentType::TEXT:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
-                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "light", "New Text", 1);
                     ecsRef->attach<SceneElement>(newElement.entity);
 
                     return newElement.entity.id;
@@ -173,7 +173,7 @@ namespace editor
             case UiComponentType::TTFTEXT:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
-                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "res/font/Inter/static/Inter_28pt-Light.ttf", "New Text", 1);
+                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "light", "New Text", 1);
                     ecsRef->attach<SceneElement>(newElement.entity);
 
                     return newElement.entity.id;

@@ -101,9 +101,9 @@
                     "Release",
                     "--target",
                     // "BoxBouncer",
-                    "InvadersBreaker",
+                    // "InvadersBreaker",
                     // "GMTK2025",
-                    // "ColumbaEngineEditor",
+                    "ColumbaEngineEditor",
                     // "PixelJam",
                     "-j",
                     "8"
