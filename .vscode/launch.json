@@ -13,7 +13,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/GMTK2025"
+                "program": "${workspaceFolder}/release/InvadersBreaker"
             },
             "osx": {
                 "MIMode": "lldb",

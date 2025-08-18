@@ -5,6 +5,7 @@
 #include "events.h"
 
 #include "UI/ttftext.h"
+#include "Systems/tween.h"
 
 using namespace pg;
 
@@ -22,8 +23,6 @@ class GameStateSystem : public System<InitSys, Listener<OnSDLScanCode>, Own<Game
     Listener<GameEnd>>
 {
 private:
-    bool initialized = false;
-
     GamePhase currentPhase = GamePhase::MENU;
 
     EntityRef menuText;
@@ -33,6 +32,9 @@ private:
     EntityRef restartText;
     EntityRef finalScoreText;
 
+    EntityRef obscure;
+    EntityRef pauseText;
+
 public:
     std::string getSystemName() const override
     {
@@ -41,7 +43,7 @@ public:
 
     void init() override
     {
-        menuText = makeTTFText(ecsRef, 300, 300, 6, "bold", "SPACE BREAKER", 1.0);
+        menuText = makeTTFText(ecsRef, 160, 190, 6, "bold", "INVADERS BREAKER", 1.0);
         menuSubText = makeTTFText(ecsRef, 250, 350, 4, "light", "Press SPACE to Start", 0.8);
 
         gameOverText = makeTTFText(ecsRef, 280, 280, 6, "bold", "GAME OVER", 1.0);
@@ -57,6 +59,13 @@ public:
 
         finalScoreText = makeTTFText(ecsRef, 280, 330, 4, "light", "Final Score: 0", 0.8);
         finalScoreText->get<PositionComponent>()->setVisibility(false);
+
+        pauseText = makeTTFText(ecsRef, 315, 265, 12, "bold", "Paused", 1.0);
+        pauseText->get<PositionComponent>()->setVisibility(false);
+
+        obscure = makeSimple2DShape(ecsRef, Shape2D::Square, 820, 640, {0.0f, 0.0f, 0.0f, 125.0f});
+        obscure.get<PositionComponent>()->setZ(7);
+        obscure->get<PositionComponent>()->setVisibility(false);
 
         spawnPaddle();
         spawnBall();
@@ -85,22 +94,27 @@ public:
             {
                 currentPhase = GamePhase::PAUSED;
 
+                pauseText->get<PositionComponent>()->setVisibility(true);
+                obscure->get<PositionComponent>()->setVisibility(true);
+
                 ecsRef->sendEvent(GamePaused{});
             }
             else if (currentPhase == GamePhase::PAUSED)
             {
                 currentPhase = GamePhase::PLAYING;
 
+                pauseText->get<PositionComponent>()->setVisibility(false);
+                obscure->get<PositionComponent>()->setVisibility(false);
+
                 ecsRef->sendEvent(GameResume{});
             }
-
         }
     }
 
     void onEvent(const GameEnd& event)
     {
         if (event.won)
-            triggerVictory();
+            spawnNextWave();
         else
             triggerGameOver();
     }
@@ -129,17 +143,30 @@ public:
         // Reset ball
         for (auto ball : viewGroup<Ball>())
         {
-            ball->get<Ball>()->launched = false;
+            if (ball->get<Ball>()->isExtra)
+            {
+                ecsRef->sendEvent(RemoveEntityEvent{ball->entityId});
+            }
+            else
+            {
+                ball->get<Ball>()->launched = false;
+            }
             // Reset position
         }
 
-
         ecsRef->sendEvent(GameStart{});
+
+        currentWave = 1;
+        speedMultiplier = 1.0f;
+        bulletSpeedMultiplier = 1.0f;
+        dropDistance = 25.0f;
 
         // Respawn aliens
         spawnAlienFormation();  // Your existing spawn code
 
         resetScoreKeeper();
+
+        ecsRef->sendEvent(NewWaveStarted{currentWave});
     }
 
 private:
@@ -230,8 +257,11 @@ private:
 
     void spawnAlienFormation()
     {
-        const int ROWS = 4;
-        const int COLS = 7;
+        int ROWS = 4 + (currentWave / 3);  // Add row every 3 waves
+        int COLS = 7;
+        
+        ROWS = std::min(ROWS, 6);  // Cap at 6 rows
+
         const float START_X = 110.0f;
         const float START_Y = 60.0f;
         const float SPACING_X = 80.0f;
@@ -271,10 +301,27 @@ private:
             }
         }
 
+        auto scoreKeeper = ecsRef->getEntity("ScoreKeeper");
+        auto score = scoreKeeper->get<GameScore>();
+        score->aliensRemaining = alienCount;  // 4x7 grid
+
         // Create formation controller
-        auto formationController = ecsRef->createEntity("FormationController");
-        auto formation = formationController.attach<AlienFormation>();
-        formation->totalAliens = alienCount;
+        if (auto formationController = ecsRef->getEntity("FormationController"))
+        {
+            auto formation = formationController->get<AlienFormation>();
+
+            formation->moveInterval = 1500 * speedMultiplier;
+            formation->dropDistance = dropDistance;
+
+            formation->totalAliens = alienCount;
+        }
+        else
+        {
+            auto fc = ecsRef->createEntity("FormationController");
+            auto formation = fc.attach<AlienFormation>();
+
+            formation->totalAliens = alienCount;
+        }
 
         printf("Spawned %d aliens in %dx%d formation\n", alienCount, COLS, ROWS);
     }
@@ -297,7 +344,55 @@ private:
         score->aliensRemaining = 28;  // 4x7 grid
         score->lives = 3;
         score->score = 0;
+        score->scoreMultiplier = 1.0f;
 
         printf("Game initialized: 3 lives, 28 aliens\n");
+    }
+
+    int currentWave = 1;
+    float speedMultiplier = 1.0f;
+    float bulletSpeedMultiplier = 1.0f;
+
+    float dropDistance = 25.0f;
+
+    void spawnNextWave()
+    {
+        for (auto ball : viewGroup<Ball>())
+        {
+            ball->get<Ball>()->launched = false;
+        }
+
+        currentWave++;
+            
+        // Difficulty scaling
+        speedMultiplier *= 0.85f;  // 15% faster each wave
+        bulletSpeedMultiplier *= 1.1f;  // 10% faster bullets
+
+        if (currentWave % 2 == 0)
+        {
+            dropDistance += 8;
+
+            dropDistance = std::max(60.0f, dropDistance);
+        }
+
+        // Show wave announcement
+        auto waveText = makeTTFText(ecsRef, 315, 265, 12, "bold", 
+            "WAVE " + std::to_string(currentWave), 1.0);
+
+        waveText.attach<TweenComponent>(TweenComponent {
+            255.0f, // Start opacity
+            0.0f, // End opacity
+            1000.0f, // Duration in milliseconds
+            [waveText](const TweenValue& value) {
+                auto v = std::get<float>(value);
+                waveText.get<TTFText>()->setColor({255.0, 255.0, 255.0, v});
+            },
+            makeCallable<RemoveEntityEvent>(waveText.entity.id)
+        });
+        
+        // Spawn new formation with modifications
+        spawnAlienFormation();
+
+        ecsRef->sendEvent(NewWaveStarted{currentWave});
     }
 };

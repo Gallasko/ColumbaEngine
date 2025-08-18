@@ -27,7 +27,8 @@ struct Ball : public Component
 
     float radius = 8.0f;      // Visual size
     float speed = 350.0f;     // Base speed when launched
-    bool launched = false;    // Still attached to paddle?
+    bool launched = false;    // Still attached to paddle ?
+    bool isExtra = false;     // Spawn via multiball ?
 };
 
 struct Alien : public Component
@@ -64,6 +65,53 @@ struct GameScore : public Component
     int score = 0;
     int lives = 3;
     int aliensRemaining = 0;
+    float scoreMultiplier = 1.0f;
+};
+
+// === POWER UPS COMPONENTS ===
+
+enum class PowerUpType
+{
+    HEALTH,      // Restore 1 life
+    MULTIBALL,   // Spawn 2 extra balls
+    FASTBALL,    // 1.5x ball speed (risk/reward)
+    BARRIER,     // Bottom barrier for 10 seconds
+    WIDE_PADDLE, // 1.5x paddle width for 15 seconds
+    TINY_PADDLE  // 0.7x paddle width but 2x points for 15 seconds
+};
+
+struct PowerUp : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(PowerUp)
+
+    PowerUpType type;
+    float fallSpeed = 100.0f;
+};
+
+struct PowerUpEffect : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(PowerUpEffect)
+
+    PowerUpType type;
+
+    float duration;      // milliseconds (-1 for permanent)
+    float elapsed = 0;
+    float value;         // Generic value (multiplier, etc)
+};
+
+struct PulseEffect : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(PulseEffect)
+
+    float time = 0;
+    float speed = 3.0f;
+};
+
+struct Barrier : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(Barrier)
+
+    float health = 3;  // Can take 1 hits
 };
 
 // === JUICER COMPONENTS ===
@@ -91,4 +139,13 @@ struct FlashEffect : public Component
     float duration = 200.0f;  // milliseconds
     float elapsed = 0.0f;
     constant::Vector4D originalColor;
+};
+
+struct Trail : public Component
+{
+    DEFAULT_COMPONENT_MEMBERS(Trail)
+
+    bool hasLastPosition = false;
+    std::pair<float, float> lastPosition = { 0.0f, 0.0f};
+    int maxLength = 10;
 };

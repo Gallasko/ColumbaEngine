@@ -144,9 +144,10 @@ public:
         resetBall();
     }
 
-    void onEvent(const GameEnd&) override
+    void onEvent(const GameEnd& event) override
     {
-        gameStarted = false;
+        if (not event.won)
+            gameStarted = false;
     }
 
     void onEvent(const GamePaused&) override
@@ -296,6 +297,9 @@ private:
             // Reset ball
             ball->launched = false;
             printf("Ball lost! Resetting...\n");
+
+            if (ball->isExtra)
+                ecsRef->sendEvent(RemoveEntityEvent{ball->entityId});
             // TODO: Trigger life loss event
         }
 

@@ -2,6 +2,8 @@
 
 #include "window.h"
 
+#include "Audio/audiosystem.h"
+
 #include "Systems/basicsystems.h"
 
 #include "player.h"
@@ -9,6 +11,9 @@
 #include "gamestate.h"
 #include "hud.h"
 
+#include "powerups.h"
+
+#include "simpletrail.h"
 #include "simplescreenshake.h"
 #include "simpleparticle.h"
 #include "simpleflash.h"
@@ -39,7 +44,12 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
         #endif
 
+        window.masterRenderer->processTextureRegister();
+
         // ecs.createSystem<FpsSystem>();
+
+        // Basic systems
+        ecs.createSystem<TweenSystem>();
 
         ecs.createSystem<BackgroundScrollerSystem>();
 
@@ -64,9 +74,22 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<HUDSystem>();
 
+        ecs.createSystem<PowerUpSystem>();
+        ecs.createSystem<BarrierSystem>();
+
+        ecs.createSystem<TrailSystem>();
         ecs.createSystem<ScreenShakeSystem>();
         ecs.createSystem<SimpleParticleSystem>();
         ecs.createSystem<FlashEffectSystem>();
+    });
+
+    engine.setPostInitFunction([this](EntitySystem& ecs, Window& window) {
+#ifdef __EMSCRIPTEN__
+        ecs.sendEvent(StartAudio{"/res/audio/gm.ogg", -1});
+#else
+        ecs.sendEvent(StartAudio{"res/audio/gm.ogg", -1});
+#endif
+        
     });
 }
 

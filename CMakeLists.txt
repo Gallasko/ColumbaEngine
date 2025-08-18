@@ -475,6 +475,23 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             PROPERTIES SUFFIX ".html"
             LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
+        ###
+
+        add_executable(InvadersBreaker exemples/InvadersBreaker/main.cpp)
+
+        target_include_directories(InvadersBreaker PUBLIC exemples/InvadersBreaker)
+
+        target_sources(InvadersBreaker PRIVATE
+            exemples/InvadersBreaker/application.cpp
+        )
+
+        target_link_libraries(InvadersBreaker PRIVATE ColumbaEngine)
+
+        set_target_properties(InvadersBreaker
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
 
     else()
         add_executable(ColumbaEngineEditor src/main.cpp)
