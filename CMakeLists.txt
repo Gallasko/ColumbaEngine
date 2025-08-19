@@ -167,6 +167,7 @@ set(ENGINESOURCE
     src/Engine/UI/button.cpp
     src/Engine/UI/focusable.cpp
     src/Engine/UI/listview.cpp
+    src/Engine/UI/namedanchor.cpp
     src/Engine/UI/progressbar.cpp
     src/Engine/UI/scrollable.cpp
     src/Engine/UI/sentencesystem.cpp

@@ -25,6 +25,7 @@
 #include "UI/prefab.h"
 #include "UI/sizer.h"
 #include "UI/animation.h"
+#include "UI/namedanchor.h"
 
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
@@ -388,6 +389,7 @@ namespace pg
         ecs.createSystem<UiComponentSystem>();
 
         ecs.createSystem<PositionComponentSystem>();
+        ecs.createSystem<NamedUiAnchorSystem>();
 
         ecs.createSystem<Simple2DObjectSystem>(masterRenderer);
 
@@ -435,6 +437,7 @@ namespace pg
         ecs.succeed<UiComponentSystem, PrefabSystem>();
         ecs.succeed<UiComponentSystem, MouseClickSystem>();
 
+        ecs.succeed<PositionComponentSystem, NamedUiAnchorSystem>();
         ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs.succeed<PositionComponentSystem, ListViewSystem>();
         ecs.succeed<PositionComponentSystem, LayoutSystem>();

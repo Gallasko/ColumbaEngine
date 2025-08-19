@@ -40,7 +40,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/InvadersBreaker"
+                "program": "${workspaceFolder}/release/ColumbaEngineEditor"
             },
             "osx": {
                 "MIMode": "lldb",

@@ -3,6 +3,7 @@
 #include "Scene/scenemanager.h"
 
 #include "UI/prefab.h"
+#include "UI/namedanchor.h"
 #include "2D/simple2dobject.h"
 
 #include "Systems/coresystems.h"
@@ -115,6 +116,8 @@ namespace pg
             inspectorSys->nbEntity++;
 
             ecsRef->attach<EntityName>(ent, name);
+
+            ecsRef->attach<NamedUiAnchor>(ent);
 
             id = ent.id;
 
