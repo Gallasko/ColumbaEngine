@@ -242,7 +242,6 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<EntityFinder>();
         ecs.createSystem<DragSystem>();
-
     });
 }
 

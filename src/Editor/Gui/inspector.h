@@ -293,6 +293,8 @@ namespace pg
             std::vector<EntityRef> attachMenuItems;
 
             _unique_id currentId = 0;
+
+            size_t nbEntity = 0;
         };
 
         void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent);

@@ -29,30 +29,11 @@ namespace pg
         _unique_id id;
     };
 
-    struct TextInputComponent : public Ctor
+    struct TextInputComponent : public Component
     {
+        DEFAULT_COMPONENT_MEMBERS(Component)
+
         TextInputComponent(StandardEvent event, const std::string& defaultText = "") : event(event), text(defaultText) { LOG_THIS_MEMBER("TextInputComponent"); }
-        TextInputComponent(const TextInputComponent& rhs) :
-            event(rhs.event),
-            text(rhs.text),
-            returnText(rhs.returnText),
-            clearTextAfterEnter(rhs.clearTextAfterEnter),
-            acceptMultilines(rhs.acceptMultilines),
-            minWidth(rhs.minWidth), minHeight(rhs.minHeight),
-            acceptableInput(rhs.acceptableInput),
-            ecsRef(rhs.ecsRef),
-            entityId(rhs.entityId)
-        {
-            LOG_THIS_MEMBER("TextInputComponent");
-        }
-
-        virtual ~TextInputComponent() { LOG_THIS_MEMBER("TextInputComponent"); }
-
-        virtual void onCreation(EntityRef entity) override
-        {
-            ecsRef = entity->world();
-            entityId = entity->id;
-        }
 
         void setText(const std::string& text)
         {
@@ -72,9 +53,6 @@ namespace pg
         size_t minHeight = 10;
 
         AcceptableTextInput acceptableInput = AcceptableTextInput::AllCharacters;
-
-        EntitySystem *ecsRef = nullptr;
-        _unique_id entityId = 0;
     };
 
     struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, QueuedListener<__InternalCurrentTextInputTextChanged>, InitSys>

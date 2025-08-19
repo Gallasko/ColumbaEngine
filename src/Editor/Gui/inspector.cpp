@@ -5,6 +5,8 @@
 #include "UI/prefab.h"
 #include "2D/simple2dobject.h"
 
+#include "Systems/coresystems.h"
+
 namespace pg
 {
 
@@ -107,6 +109,12 @@ namespace pg
             auto ent = callback(ecsRef);
 
             ecsRef->attach<SceneElement>(ent);
+
+            std::string name = "Entity_" + std::to_string(inspectorSys->nbEntity);
+
+            inspectorSys->nbEntity++;
+
+            ecsRef->attach<EntityName>(ent, name);
 
             id = ent.id;
 
