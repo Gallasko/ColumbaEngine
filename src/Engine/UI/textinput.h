@@ -31,7 +31,7 @@ namespace pg
 
     struct TextInputComponent : public Component
     {
-        DEFAULT_COMPONENT_MEMBERS(Component)
+        DEFAULT_COMPONENT_MEMBERS(TextInputComponent)
 
         TextInputComponent(StandardEvent event, const std::string& defaultText = "") : event(event), text(defaultText) { LOG_THIS_MEMBER("TextInputComponent"); }
 
@@ -55,7 +55,9 @@ namespace pg
         AcceptableTextInput acceptableInput = AcceptableTextInput::AllCharacters;
     };
 
-    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>, Listener<OnSDLTextInput>, Listener<OnSDLScanCode>, QueuedListener<__InternalCurrentTextInputTextChanged>, InitSys>
+    struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>,
+        Listener<OnSDLTextInput>, Listener<OnSDLScanCode>,
+        Listener<EntityChangedEvent>, QueuedListener<__InternalCurrentTextInputTextChanged>, InitSys>
     {
         TextInputSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("Text Input System"); }
 
@@ -69,6 +71,23 @@ namespace pg
         virtual void onEvent(const OnSDLTextInput& event) override;
 
         virtual void onEvent(const OnSDLScanCode& event) override;
+
+        virtual void onEvent(const EntityChangedEvent& event) override
+        {
+            auto ent = ecsRef->getEntity(event.id);
+
+            if (not ent or not ent->has<TextInputComponent>() or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+            auto input = ent->get<TextInputComponent>();
+
+            if (pos->width < input->minWidth)
+                pos->setWidth(input->minWidth);
+
+            if (pos->height < input->minHeight)
+                pos->setHeight(input->minHeight);
+        }
 
         virtual void onProcessEvent(const __InternalCurrentTextInputTextChanged& event) override
         {
