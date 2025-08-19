@@ -119,6 +119,10 @@ namespace pg
             id = ent.id;
 
             inspectorSys->currentId = id;
+
+            // Need to redraw the inspector
+            inspectorSys->event.entity = ent;
+            inspectorSys->eventRequested = true;
         }
 
         void CreateEntityCommand::undo()
