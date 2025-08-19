@@ -140,14 +140,14 @@ namespace pg
 
         struct CreateEntityCommand : public InspectorCommands
         {
-            CreateEntityCommand(InspectorSystem *inspectorSys, EntitySystem *ecsRef, std::function<_unique_id(EntitySystem *)> callbackCreated) : inspectorSys(inspectorSys), ecsRef(ecsRef), callback(callbackCreated) { }
+            CreateEntityCommand(InspectorSystem *inspectorSys, EntitySystem *ecsRef, std::function<EntityRef(EntitySystem *)> callbackCreated) : inspectorSys(inspectorSys), ecsRef(ecsRef), callback(callbackCreated) { }
 
             virtual void execute() override;
             virtual void undo() override;
 
             InspectorSystem *inspectorSys;
             EntitySystem *ecsRef;
-            std::function<_unique_id(EntitySystem *)> callback;
+            std::function<EntityRef(EntitySystem *)> callback;
             _unique_id id;
             _unique_id lastFocusedId;
         };
@@ -160,7 +160,7 @@ namespace pg
                 this->callback = callback;
             }
 
-            CreateInspectorEntityEvent(std::function<_unique_id(EntitySystem *)> callback) : callback(callback) {}
+            CreateInspectorEntityEvent(std::function<EntityRef(EntitySystem *)> callback) : callback(callback) {}
             CreateInspectorEntityEvent(const CreateInspectorEntityEvent& other) : callback(other.callback) {}
 
             CreateInspectorEntityEvent& operator=(const CreateInspectorEntityEvent& other)
@@ -170,7 +170,7 @@ namespace pg
                 return *this;
             }
 
-            std::function<_unique_id(EntitySystem *)> callback;
+            std::function<EntityRef(EntitySystem *)> callback;
         };
 
         struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, InitSys>

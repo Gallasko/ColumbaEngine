@@ -104,7 +104,11 @@ namespace pg
         {
             lastFocusedId = inspectorSys->currentId;
 
-            id = callback(ecsRef);
+            auto ent = callback(ecsRef);
+
+            ecsRef->attach<SceneElement>(ent);
+
+            id = ent.id;
 
             inspectorSys->currentId = id;
         }

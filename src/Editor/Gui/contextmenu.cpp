@@ -161,35 +161,32 @@ namespace editor
         {
             case UiComponentType::TEXT:
             {
-                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
                     auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "light", "New Text", 1);
-                    ecsRef->attach<SceneElement>(newElement.entity);
 
-                    return newElement.entity.id;
+                    return newElement;
                 }});
                 break;
             }
 
             case UiComponentType::TTFTEXT:
             {
-                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
                     auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "light", "New Text", 1);
-                    ecsRef->attach<SceneElement>(newElement.entity);
 
-                    return newElement.entity.id;
+                    return newElement;
                 }});
                 break;
             }
 
             case UiComponentType::TEXTURE:
             {
-                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
                     auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
                     newElement.get<PositionComponent>()->setX(cX);
                     newElement.get<PositionComponent>()->setY(cY);
-                    ecsRef->attach<SceneElement>(newElement.entity);
 
-                    return newElement.entity.id;
+                    return newElement;
                 }});
 
                 break;
@@ -197,13 +194,12 @@ namespace editor
 
             case UiComponentType::SHAPE2D:
             {
-                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
                     auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
                     newElement.get<PositionComponent>()->setX(cX);
                     newElement.get<PositionComponent>()->setY(cY);
-                    ecsRef->attach<SceneElement>(newElement.entity);
 
-                    return newElement.entity.id;
+                    return newElement;
                 }});
 
                 break;
@@ -211,11 +207,10 @@ namespace editor
 
             case UiComponentType::TEXTINPUT:
             {
-                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> _unique_id {
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
                     auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
-                    ecsRef->attach<SceneElement>(newElement.entity);
 
-                    return newElement.entity.id;
+                    return newElement;
                 }});
 
                 break;
