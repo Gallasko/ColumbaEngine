@@ -97,6 +97,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 {
     _unique_id draggingEntity = 0;
     float offsetX = 0.f, offsetY = 0.f;
+    bool lockX = false;  // Lock X-axis movement when left/right anchors are set
+    bool lockY = false;  // Lock Y-axis movement when top/bottom anchors are set
 
     virtual std::string getSystemName() const override { return "Drag System"; }
 
@@ -109,7 +111,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
     virtual void onEvent(const OnMouseClick& e) override
     {
         // only start drag on left button
-        if (e.button != SDL_BUTTON_LEFT) return;
+        if (e.button != SDL_BUTTON_LEFT)
+            return;
 
         // find topmost element under cursor
         for (const auto& elem : viewGroup<PositionComponent, SceneElement>())
@@ -126,6 +129,34 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
                 // remember offset so entity doesn't jump under cursor
                 offsetX = e.pos.x - pos->x;
                 offsetY = e.pos.y - pos->y;
+
+                // Check for UiAnchor constraints
+                lockX = false;
+                lockY = false;
+                
+                auto anchor = elem->entity->get<UiAnchor>();
+                if (anchor)
+                {
+                    // If top or bottom anchor is set, lock Y movement
+                    if (anchor->hasTopAnchor || anchor->hasBottomAnchor)
+                    {
+                        lockY = true;
+                        LOG_INFO(DOM, "Y-axis locked due to top/bottom anchor");
+                    }
+                    
+                    // If left or right anchor is set, lock X movement
+                    if (anchor->hasLeftAnchor || anchor->hasRightAnchor)
+                    {
+                        lockX = true;
+                        LOG_INFO(DOM, "X-axis locked due to left/right anchor");
+                    }
+                    
+                    if (lockX && lockY)
+                    {
+                        LOG_INFO(DOM, "Entity fully constrained - no dragging allowed");
+                    }
+                }
+                
                 break;
             }
         }
@@ -133,14 +164,20 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
     virtual void onEvent(const OnMouseMove& e) override
     {
-        if (draggingEntity == 0) return;
+        if (draggingEntity == 0)
+            return;
 
         // update position each frame
         auto pos = ecsRef->getComponent<PositionComponent>(draggingEntity);
-        if (not pos) return;
+        if (not pos)
+            return;
 
-        pos->setX(e.pos.x - offsetX);
-        pos->setY(e.pos.y - offsetY);
+        // Apply movement constraints based on UiAnchor settings
+        float newX = lockX ? pos->x : (e.pos.x - offsetX);
+        float newY = lockY ? pos->y : (e.pos.y - offsetY);
+        
+        pos->setX(newX);
+        pos->setY(newY);
 
         auto ent = ecsRef->getEntity("SelectionOutline");
         if (not ent) return;
@@ -161,7 +198,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
     virtual void onEvent(const OnMouseRelease& e) override
     {
         // only stop drag on left button
-        if (e.button != SDL_BUTTON_LEFT) return;
+        if (e.button != SDL_BUTTON_LEFT)
+            return;
 
         if (draggingEntity != 0)
         {

@@ -416,14 +416,6 @@ namespace pg
         
         auto uiAnchor = entity->get<UiAnchor>();
 
-        // Todo change this (this is a dirty hack the entity system should put it correctly)
-        uiAnchor->entityId = entityId;
-        uiAnchor->ecsRef = ecsRef;
-        
-        // Clear existing anchors first
-        // uiAnchor->clearAnchors();
-
-        // Resolve and set anchors
         // Resolve and set anchors
         struct AnchorInfo 
         {
@@ -450,8 +442,8 @@ namespace pg
 
             if (targetId != 0)
                 (uiAnchor->*(anchor.setFunc))(PosAnchor{targetId, anchor.type});
-            // else
-            //     (uiAnchor->*(anchor.clearFunc))();
+            else
+                (uiAnchor->*(anchor.clearFunc))();
         }
         
         // Set margins
