@@ -17,6 +17,7 @@
 #include "Scene/scenemanager.h"
 
 #include "UI/ttftext.h"
+#include "UI/namedanchor.h"
 
 #include "UI/utils.h"
 
@@ -262,6 +263,40 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&) {
             LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
+        });
+
+        inspector->registerCustomDrawer<NamedUiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent) {
+            // If no class name then we got an attribute
+            if (parent.className == "")
+            {
+                sys->addNewAttribute(parent.name, parent.type, parent.value);
+            }
+            // We got a class name then it is a class ! So no type nor value
+            else
+            {
+                sys->addNewText(parent.className);
+            }
+
+            // Process children but skip internal flags
+            for (auto& child : parent.children)
+            {
+                // Skip all the internal has* flags
+                if (child.name == "hasTopAnchor" ||
+                    child.name == "hasLeftAnchor" ||
+                    child.name == "hasRightAnchor" ||
+                    child.name == "hasBottomAnchor" ||
+                    child.name == "hasVerticalCenter" ||
+                    child.name == "hasHorizontalCenter" ||
+                    child.name == "hasWidthConstrain" ||
+                    child.name == "hasHeightConstrain" ||
+                    child.name == "hasZConstrain")
+                {
+                    continue; // Skip these internal flags
+                }
+                
+                // Draw everything else normally
+                sys->printChildren(child);
+            }
         });
 
         // mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
