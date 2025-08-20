@@ -415,6 +415,10 @@ namespace pg
         auto namedAnchor = entity->get<NamedUiAnchor>();
         
         auto uiAnchor = entity->get<UiAnchor>();
+
+        // Todo change this (this is a dirty hack the entity system should put it correctly)
+        uiAnchor->entityId = entityId;
+        uiAnchor->ecsRef = ecsRef;
         
         // Clear existing anchors first
         // uiAnchor->clearAnchors();
@@ -442,6 +446,8 @@ namespace pg
         for (const auto& anchor : anchors)
         {
             _unique_id targetId = getEntityIdByName(anchor.name);
+            LOG_INFO("NamedAnchor", "Anchor: " << anchor.name << " has id: " << targetId);
+
             if (targetId != 0)
                 (uiAnchor->*(anchor.setFunc))(PosAnchor{targetId, anchor.type});
             // else

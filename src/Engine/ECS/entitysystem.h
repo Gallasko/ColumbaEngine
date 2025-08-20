@@ -788,12 +788,6 @@ namespace pg
                 {
                     LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
                 }
-
-                if constexpr(std::is_base_of_v<Component, Type>)
-                {
-                    component->entityId = entity.id;
-                    component->ecsRef = entity.ecsRef;
-                }
             }
         }
 
