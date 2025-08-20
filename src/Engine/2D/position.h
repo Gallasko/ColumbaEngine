@@ -88,8 +88,10 @@ namespace pg
     // Todo add a Dtor that remove any parenting
     // Be careful on edge case such as being anchored and clipped at the same time to the same entity
     // Need to count the number of time a child is parented to another entity
-    struct UiAnchor : public Ctor, Dtor
+    struct UiAnchor : public Component, Dtor
     {
+        DEFAULT_COMPONENT_MEMBERS(UiAnchor)
+
         // Current Anchor of this component
         PosAnchor top;
         PosAnchor left;
@@ -178,12 +180,6 @@ namespace pg
         bool update(CompRef<PositionComponent> positionComp);
 
         inline static std::string getType() { return "UiAnchor"; }
-
-        // Private:
-
-        _unique_id id = 0;
-
-        EntitySystem *ecsRef = nullptr;
     };
 
     // Todo add a Dtor that remove any parenting

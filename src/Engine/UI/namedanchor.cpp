@@ -16,7 +16,7 @@ namespace pg
     void NamedUiAnchor::onCreation(EntityRef entity)
     {
         ecsRef = entity->world();
-        id = entity->id;
+        entityId = entity->id;
         
         // Todo
         // Ensure the entity has a UiAnchor component
@@ -26,7 +26,7 @@ namespace pg
         // }
         
         // Trigger resolution of named anchors
-        ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+        ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setTopAnchor(const std::string& entityName, AnchorType type)
@@ -36,7 +36,7 @@ namespace pg
         hasTopAnchor = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setLeftAnchor(const std::string& entityName, AnchorType type)
@@ -46,7 +46,7 @@ namespace pg
         hasLeftAnchor = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setRightAnchor(const std::string& entityName, AnchorType type)
@@ -56,7 +56,7 @@ namespace pg
         hasRightAnchor = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setBottomAnchor(const std::string& entityName, AnchorType type)
@@ -66,7 +66,7 @@ namespace pg
         hasBottomAnchor = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setVerticalCenter(const std::string& entityName, AnchorType type)
@@ -76,7 +76,7 @@ namespace pg
         hasVerticalCenter = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setHorizontalCenter(const std::string& entityName, AnchorType type)
@@ -86,7 +86,7 @@ namespace pg
         hasHorizontalCenter = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::clearTopAnchor()
@@ -95,7 +95,7 @@ namespace pg
         topAnchorName.clear();
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::clearLeftAnchor()
@@ -104,7 +104,7 @@ namespace pg
         leftAnchorName.clear();
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::clearRightAnchor()
@@ -113,7 +113,7 @@ namespace pg
         rightAnchorName.clear();
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::clearBottomAnchor()
@@ -122,7 +122,7 @@ namespace pg
         bottomAnchorName.clear();
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::clearVerticalCenter()
@@ -131,7 +131,7 @@ namespace pg
         verticalCenterAnchorName.clear();
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::clearHorizontalCenter()
@@ -140,7 +140,7 @@ namespace pg
         horizontalCenterAnchorName.clear();
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::clearAnchors()
@@ -172,7 +172,7 @@ namespace pg
         topMargin = value;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setLeftMargin(float value)
@@ -180,7 +180,7 @@ namespace pg
         leftMargin = value;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setRightMargin(float value)
@@ -188,7 +188,7 @@ namespace pg
         rightMargin = value;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setBottomMargin(float value)
@@ -196,7 +196,7 @@ namespace pg
         bottomMargin = value;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setWidthConstrain(const std::string& entityName, AnchorType type, PosOpType opType, float opValue)
@@ -208,7 +208,7 @@ namespace pg
         hasWidthConstrain = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setHeightConstrain(const std::string& entityName, AnchorType type, PosOpType opType, float opValue)
@@ -220,7 +220,7 @@ namespace pg
         hasHeightConstrain = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     void NamedUiAnchor::setZConstrain(const std::string& entityName, AnchorType type, PosOpType opType, float opValue)
@@ -232,7 +232,7 @@ namespace pg
         hasZConstrain = true;
         
         if (ecsRef)
-            ecsRef->sendEvent(ResolveNamedAnchorsEvent{id});
+            ecsRef->sendEvent(ResolveNamedAnchorsEvent{entityId});
     }
     
     // Serialization functions
@@ -443,12 +443,9 @@ namespace pg
         {
             _unique_id targetId = getEntityIdByName(anchor.name);
             if (targetId != 0)
-            {
-                if (anchor.hasAnchor)
-                    (uiAnchor->*(anchor.setFunc))(PosAnchor{targetId, anchor.type});
-                else
-                    (uiAnchor->*(anchor.clearFunc))();
-            }
+                (uiAnchor->*(anchor.setFunc))(PosAnchor{targetId, anchor.type});
+            // else
+            //     (uiAnchor->*(anchor.clearFunc))();
         }
         
         // Set margins

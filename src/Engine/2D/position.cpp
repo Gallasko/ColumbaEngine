@@ -369,12 +369,12 @@ namespace pg
         LOG_THIS(DOM);
 
         if (hasTopAnchor)
-            ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, entityId});
 
         topAnchor = anchor;
         hasTopAnchor = true;
-        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{anchor.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::clearTopAnchor()
@@ -383,10 +383,10 @@ namespace pg
         {
             LOG_THIS(DOM);
 
-            ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{topAnchor.id, entityId});
 
             hasTopAnchor = false;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -398,12 +398,12 @@ namespace pg
         LOG_THIS(DOM);
 
         if (hasLeftAnchor)
-            ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, entityId});
 
         leftAnchor = anchor;
         hasLeftAnchor = true;
-        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{anchor.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::clearLeftAnchor()
@@ -412,10 +412,10 @@ namespace pg
         {
             LOG_THIS(DOM);
 
-            ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{leftAnchor.id, entityId});
 
             hasLeftAnchor = false;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -427,12 +427,12 @@ namespace pg
         LOG_THIS(DOM);
 
         if (hasRightAnchor)
-            ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, entityId});
 
         rightAnchor = anchor;
         hasRightAnchor = true;
-        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{anchor.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::clearRightAnchor()
@@ -441,10 +441,10 @@ namespace pg
         {
             LOG_THIS(DOM);
 
-            ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{rightAnchor.id, entityId});
 
             hasRightAnchor = false;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -456,12 +456,12 @@ namespace pg
         LOG_THIS(DOM);
 
         if (hasBottomAnchor)
-            ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, entityId});
 
         bottomAnchor = anchor;
         hasBottomAnchor = true;
-        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{anchor.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::clearBottomAnchor()
@@ -470,10 +470,10 @@ namespace pg
         {
             LOG_THIS(DOM);
 
-            ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{bottomAnchor.id, entityId});
 
             hasBottomAnchor = false;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -486,8 +486,8 @@ namespace pg
 
         verticalCenterAnchor = anchor;
         hasVerticalCenter = true;
-        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{anchor.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::clearVerticalCenter()
@@ -496,10 +496,10 @@ namespace pg
         {
             LOG_THIS(DOM);
 
-            ecsRef->sendEvent(ClearParentingEvent{verticalCenterAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{verticalCenterAnchor.id, entityId});
 
             hasVerticalCenter = false;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -512,8 +512,8 @@ namespace pg
 
         horizontalCenterAnchor = anchor;
         hasHorizontalCenter = true;
-        ecsRef->sendEvent(ParentingEvent{anchor.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{anchor.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::clearHorizontalCenter()
@@ -522,39 +522,39 @@ namespace pg
         {
             LOG_THIS(DOM);
 
-            ecsRef->sendEvent(ClearParentingEvent{horizontalCenterAnchor.id, id});
+            ecsRef->sendEvent(ClearParentingEvent{horizontalCenterAnchor.id, entityId});
 
             hasHorizontalCenter = false;
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
     void UiAnchor::fillIn(const UiAnchor& anchor)
     {
-        setTopAnchor(PosAnchor{anchor.id, AnchorType::Top});
-        setLeftAnchor(PosAnchor{anchor.id, AnchorType::Left});
-        setRightAnchor(PosAnchor{anchor.id, AnchorType::Right});
-        setBottomAnchor(PosAnchor{anchor.id, AnchorType::Bottom});
+        setTopAnchor(PosAnchor{anchor.entityId, AnchorType::Top});
+        setLeftAnchor(PosAnchor{anchor.entityId, AnchorType::Left});
+        setRightAnchor(PosAnchor{anchor.entityId, AnchorType::Right});
+        setBottomAnchor(PosAnchor{anchor.entityId, AnchorType::Bottom});
     }
 
     void UiAnchor::fillIn(const UiAnchor* anchor)
     {
-        setTopAnchor(PosAnchor{anchor->id, AnchorType::Top});
-        setLeftAnchor(PosAnchor{anchor->id, AnchorType::Left});
-        setRightAnchor(PosAnchor{anchor->id, AnchorType::Right});
-        setBottomAnchor(PosAnchor{anchor->id, AnchorType::Bottom});
+        setTopAnchor(PosAnchor{anchor->entityId, AnchorType::Top});
+        setLeftAnchor(PosAnchor{anchor->entityId, AnchorType::Left});
+        setRightAnchor(PosAnchor{anchor->entityId, AnchorType::Right});
+        setBottomAnchor(PosAnchor{anchor->entityId, AnchorType::Bottom});
     }
 
     void UiAnchor::centeredIn(const UiAnchor& anchor)
     {
-        setVerticalCenter(PosAnchor{anchor.id, AnchorType::VerticalCenter});
-        setHorizontalCenter(PosAnchor{anchor.id, AnchorType::HorizontalCenter});
+        setVerticalCenter(PosAnchor{anchor.entityId, AnchorType::VerticalCenter});
+        setHorizontalCenter(PosAnchor{anchor.entityId, AnchorType::HorizontalCenter});
     }
 
     void UiAnchor::centeredIn(const UiAnchor* anchor)
     {
-        setVerticalCenter(PosAnchor{anchor->id, AnchorType::VerticalCenter});
-        setHorizontalCenter(PosAnchor{anchor->id, AnchorType::HorizontalCenter});
+        setVerticalCenter(PosAnchor{anchor->entityId, AnchorType::VerticalCenter});
+        setHorizontalCenter(PosAnchor{anchor->entityId, AnchorType::HorizontalCenter});
     }
 
     void UiAnchor::clearAnchors()
@@ -575,7 +575,7 @@ namespace pg
 
             topMargin = value;
 
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -587,7 +587,7 @@ namespace pg
 
             leftMargin = value;
 
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -599,7 +599,7 @@ namespace pg
 
             rightMargin = value;
 
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -611,7 +611,7 @@ namespace pg
 
             bottomMargin = value;
 
-            ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
         }
     }
 
@@ -625,8 +625,8 @@ namespace pg
 
         widthConstrain = constrain;
         hasWidthConstrain = true;
-        ecsRef->sendEvent(ParentingEvent{constrain.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{constrain.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::setHeightConstrain(const PosConstrain& constrain)
@@ -638,8 +638,8 @@ namespace pg
 
         heightConstrain = constrain;
         hasHeightConstrain = true;
-        ecsRef->sendEvent(ParentingEvent{constrain.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{constrain.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::setZConstrain(const PosConstrain& constrain)
@@ -651,23 +651,23 @@ namespace pg
 
         zConstrain = constrain;
         hasZConstrain = true;
-        ecsRef->sendEvent(ParentingEvent{constrain.id, id});
-        ecsRef->sendEvent(PositionComponentChangedEvent{id});
+        ecsRef->sendEvent(ParentingEvent{constrain.id, entityId});
+        ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
     }
 
     void UiAnchor::onCreation(EntityRef entity)
     {
         ecsRef = entity->world();
 
-        id = entity->id;
+        entityId = entity->id;
 
-        top = PosAnchor{id, AnchorType::Top, 0.0f};
-        left = PosAnchor{id, AnchorType::Left, 0.0f};
-        right = PosAnchor{id, AnchorType::Right, 0.0f};
-        bottom = PosAnchor{id, AnchorType::Bottom, 0.0f};
+        top = PosAnchor{entityId, AnchorType::Top, 0.0f};
+        left = PosAnchor{entityId, AnchorType::Left, 0.0f};
+        right = PosAnchor{entityId, AnchorType::Right, 0.0f};
+        bottom = PosAnchor{entityId, AnchorType::Bottom, 0.0f};
 
-        verticalCenter = PosAnchor{id, AnchorType::VerticalCenter, 0.0f};
-        horizontalCenter = PosAnchor{id, AnchorType::HorizontalCenter, 0.0f};
+        verticalCenter = PosAnchor{entityId, AnchorType::VerticalCenter, 0.0f};
+        horizontalCenter = PosAnchor{entityId, AnchorType::HorizontalCenter, 0.0f};
     }
 
     void UiAnchor::onDeletion(EntityRef)

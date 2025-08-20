@@ -8,100 +8,9 @@
 namespace pg
 {
 
-    struct NamedUiAnchor : public Ctor
+    struct NamedUiAnchor : public Component
     {
-        NamedUiAnchor() {}
-
-        // Copy constructor
-        NamedUiAnchor(const NamedUiAnchor& other) :
-            topAnchorName(other.topAnchorName),
-            leftAnchorName(other.leftAnchorName),
-            rightAnchorName(other.rightAnchorName),
-            bottomAnchorName(other.bottomAnchorName),
-            verticalCenterAnchorName(other.verticalCenterAnchorName),
-            horizontalCenterAnchorName(other.horizontalCenterAnchorName),
-            hasTopAnchor(other.hasTopAnchor),
-            hasLeftAnchor(other.hasLeftAnchor),
-            hasRightAnchor(other.hasRightAnchor),
-            hasBottomAnchor(other.hasBottomAnchor),
-            hasVerticalCenter(other.hasVerticalCenter),
-            hasHorizontalCenter(other.hasHorizontalCenter),
-            topAnchorType(other.topAnchorType),
-            leftAnchorType(other.leftAnchorType),
-            rightAnchorType(other.rightAnchorType),
-            bottomAnchorType(other.bottomAnchorType),
-            verticalCenterAnchorType(other.verticalCenterAnchorType),
-            horizontalCenterAnchorType(other.horizontalCenterAnchorType),
-            topMargin(other.topMargin),
-            leftMargin(other.leftMargin),
-            rightMargin(other.rightMargin),
-            bottomMargin(other.bottomMargin),
-            widthConstrainName(other.widthConstrainName),
-            heightConstrainName(other.heightConstrainName),
-            zConstrainName(other.zConstrainName),
-            hasWidthConstrain(other.hasWidthConstrain),
-            hasHeightConstrain(other.hasHeightConstrain),
-            hasZConstrain(other.hasZConstrain),
-            widthConstrainType(other.widthConstrainType),
-            heightConstrainType(other.heightConstrainType),
-            zConstrainType(other.zConstrainType),
-            widthConstrainOpType(other.widthConstrainOpType),
-            heightConstrainOpType(other.heightConstrainOpType),
-            zConstrainOpType(other.zConstrainOpType),
-            widthConstrainOpValue(other.widthConstrainOpValue),
-            heightConstrainOpValue(other.heightConstrainOpValue),
-            zConstrainOpValue(other.zConstrainOpValue),
-            id(other.id),
-            ecsRef(other.ecsRef)
-        {}
-
-        // Copy assignment operator
-        NamedUiAnchor& operator=(const NamedUiAnchor& other)
-        {
-            if (this == &other) return *this;
-
-            topAnchorName = other.topAnchorName;
-            leftAnchorName = other.leftAnchorName;
-            rightAnchorName = other.rightAnchorName;
-            bottomAnchorName = other.bottomAnchorName;
-            verticalCenterAnchorName = other.verticalCenterAnchorName;
-            horizontalCenterAnchorName = other.horizontalCenterAnchorName;
-            hasTopAnchor = other.hasTopAnchor;
-            hasLeftAnchor = other.hasLeftAnchor;
-            hasRightAnchor = other.hasRightAnchor;
-            hasBottomAnchor = other.hasBottomAnchor;
-            hasVerticalCenter = other.hasVerticalCenter;
-            hasHorizontalCenter = other.hasHorizontalCenter;
-            topAnchorType = other.topAnchorType;
-            leftAnchorType = other.leftAnchorType;
-            rightAnchorType = other.rightAnchorType;
-            bottomAnchorType = other.bottomAnchorType;
-            verticalCenterAnchorType = other.verticalCenterAnchorType;
-            horizontalCenterAnchorType = other.horizontalCenterAnchorType;
-            topMargin = other.topMargin;
-            leftMargin = other.leftMargin;
-            rightMargin = other.rightMargin;
-            bottomMargin = other.bottomMargin;
-            widthConstrainName = other.widthConstrainName;
-            heightConstrainName = other.heightConstrainName;
-            zConstrainName = other.zConstrainName;
-            hasWidthConstrain = other.hasWidthConstrain;
-            hasHeightConstrain = other.hasHeightConstrain;
-            hasZConstrain = other.hasZConstrain;
-            widthConstrainType = other.widthConstrainType;
-            heightConstrainType = other.heightConstrainType;
-            zConstrainType = other.zConstrainType;
-            widthConstrainOpType = other.widthConstrainOpType;
-            heightConstrainOpType = other.heightConstrainOpType;
-            zConstrainOpType = other.zConstrainOpType;
-            widthConstrainOpValue = other.widthConstrainOpValue;
-            heightConstrainOpValue = other.heightConstrainOpValue;
-            zConstrainOpValue = other.zConstrainOpValue;
-            id = other.id;
-            ecsRef = other.ecsRef;
-
-            return *this;
-        }
+        DEFAULT_COMPONENT_MEMBERS(NamedUiAnchor);
 
         // Named anchors for basic cardinal directions
         std::string topAnchorName;
@@ -191,10 +100,6 @@ namespace pg
         virtual void onCreation(EntityRef entity) override;
         
         inline static std::string getType() { return "NamedUiAnchor"; }
-        
-    private:
-        _unique_id id = 0;
-        EntitySystem* ecsRef = nullptr;
     };
 
     template <>
