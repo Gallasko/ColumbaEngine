@@ -488,6 +488,8 @@ namespace pg
                 hConstrained = anchor->hasHeightConstrain or (anchor->hasTopAnchor and anchor->hasBottomAnchor);
             }
 
+            LOG_INFO("Sizer", "Has constrains ? w: " << wConstrained << ", h: " << hConstrained << " size: w=" << view->contentWidth << " h=" << view->contentHeight);
+
             if (not wConstrained)
                 viewUi->setWidth(view->contentWidth);
 

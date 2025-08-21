@@ -286,7 +286,7 @@ namespace pg
 
             auto prefab = prefabEnt->get<Prefab>();
 
-            prefab->addToPrefab(ent);
+            prefab->addToPrefab(ent, "MainEntity");
         }
 
         virtual void execute() override

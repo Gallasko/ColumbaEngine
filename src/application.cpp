@@ -252,6 +252,75 @@ EntityRef make9squarePrefab(EntitySystem* ecsRef)
     return prefabEnt;
 }
 
+struct FoldCardEvent
+{
+    _unique_id id;
+};
+
+struct FoldCardSystem : public System<Listener<FoldCardEvent>>
+{
+    void onEvent(const FoldCardEvent& event)
+    {
+        auto ent = ecsRef->getEntity(event.id);
+
+        if (not ent or not ent->has<Prefab>())
+            return;
+
+        ent->get<Prefab>()->callHelper("toggleCard");
+    }
+};
+
+CompList<Prefab, UiAnchor, VerticalLayout> makeFoldableCard(EntitySystem* ecsRef)
+{
+    auto prefabEnt = makeAnchoredPrefab(ecsRef, 100, 100, 1);
+    auto prefab = prefabEnt.get<Prefab>();
+    auto prefabAnchor = prefabEnt.get<UiAnchor>();
+
+    auto mainLayoutEnt = makeVerticalLayout(ecsRef, 0, 0, 250, 0);
+    auto mainLayout = mainLayoutEnt.get<VerticalLayout>();
+
+    prefab->setMainEntity(mainLayoutEnt);
+
+    auto titleBg = makeUiSimple2DShape(ecsRef, Shape2D::Square, 250, 50, {55, 55, 125, 255});
+    titleBg.attach<MouseLeftClickComponent>(makeCallable<FoldCardEvent>(FoldCardEvent{prefabEnt.id}));
+    auto titleBgAnchor = titleBg.get<UiAnchor>();
+
+    auto title = makeTTFText(ecsRef, 0, 0, 2, "light", "Card Name", 0.4f);
+    auto titleAnchor = title.get<UiAnchor>();
+
+    titleAnchor->setVerticalCenter(titleBgAnchor->verticalCenter);
+    titleAnchor->setLeftAnchor(titleBgAnchor->left);
+    titleAnchor->setLeftMargin(5);
+
+    auto layoutEnt = makeVerticalLayout(ecsRef, 0, 0, 250, 100);
+    auto layout = layoutEnt.get<VerticalLayout>();
+    // layout->fitToAxis = true;
+    layout->scrollable = false;
+    auto layoutAnchor = layoutEnt.get<UiAnchor>();
+
+    auto test1 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 1", 0.5);
+    auto test2 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 2", 0.5);
+
+    layout->addEntity(test1);
+    layout->addEntity(test2);
+
+    mainLayout->addEntity(titleBg);
+    mainLayout->addEntity(layoutEnt);
+
+    prefab->addHelper("toggleCard", [](Prefab *prefab) -> void {
+        LOG_INFO("Foldable card", "Fold");
+        auto vLayoutEnt = prefab->getEntity("MainEntity")->get<VerticalLayout>()->entities[1];
+
+        auto vLayoutPos = vLayoutEnt->get<PositionComponent>();
+
+        auto visible = vLayoutPos->isVisible();
+
+        vLayoutPos->setVisibility(not visible);
+    });
+
+    return {prefabEnt, prefab, prefabAnchor, layout};
+}
+
 EditorApp::EditorApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -314,6 +383,8 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
             auto ent = make9squarePrefab(sys->ecsRef);
 
+            sys->view->addEntity(makeFoldableCard(sys->ecsRef));
+
             LOG_INFO("Inspector", "Ent: " << ent.id);
 
             sys->view->addEntity(ent);
@@ -357,7 +428,15 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
         ecs.createSystem<EntityFinder>();
         ecs.createSystem<DragSystem>();
 
-        make9squarePrefab(&ecs);
+        ecs.createSystem<FoldCardSystem>();
+        auto fCard = makeFoldableCard(&ecs);
+        auto fCardAnchor = fCard.get<UiAnchor>();
+
+        auto testSquare = makeUiSimple2DShape(&ecs, Shape2D::Square, 40, 40);
+        auto testSquareAnchor = testSquare.get<UiAnchor>();
+
+        testSquareAnchor->setTopAnchor(fCardAnchor->bottom);
+        testSquareAnchor->setLeftAnchor(fCardAnchor->left);
     });
 }
 
