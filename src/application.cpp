@@ -278,8 +278,17 @@ CompList<Prefab, UiAnchor, VerticalLayout> makeFoldableCard(EntitySystem* ecsRef
 
     auto mainLayoutEnt = makeVerticalLayout(ecsRef, 0, 0, 250, 0);
     auto mainLayout = mainLayoutEnt.get<VerticalLayout>();
+    auto mainLayoutAnchor = mainLayoutEnt.get<UiAnchor>();
+    mainLayout->setScrollable(false);
 
-    prefab->setMainEntity(mainLayoutEnt);
+    prefabAnchor->setWidthConstrain(PosConstrain{mainLayout.entityId, AnchorType::Width});
+    prefabAnchor->setHeightConstrain(PosConstrain{mainLayout.entityId, AnchorType::Height});
+
+    mainLayoutAnchor->setTopAnchor(prefabAnchor->top);
+    mainLayoutAnchor->setLeftAnchor(prefabAnchor->left);
+    mainLayoutAnchor->setZConstrain(PosConstrain{prefabEnt.id, AnchorType::Z});
+
+    prefab->addToPrefab(mainLayoutEnt, "MainEntity");
 
     auto titleBg = makeUiSimple2DShape(ecsRef, Shape2D::Square, 250, 50, {55, 55, 125, 255});
     titleBg.attach<MouseLeftClickComponent>(makeCallable<FoldCardEvent>(FoldCardEvent{prefabEnt.id}));
@@ -295,7 +304,7 @@ CompList<Prefab, UiAnchor, VerticalLayout> makeFoldableCard(EntitySystem* ecsRef
     auto layoutEnt = makeVerticalLayout(ecsRef, 0, 0, 250, 100);
     auto layout = layoutEnt.get<VerticalLayout>();
     // layout->fitToAxis = true;
-    layout->scrollable = false;
+    layout->setScrollable(false);
     auto layoutAnchor = layoutEnt.get<UiAnchor>();
 
     auto test1 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 1", 0.5);
