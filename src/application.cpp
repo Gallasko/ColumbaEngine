@@ -134,7 +134,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
                 // Check for UiAnchor constraints
                 lockX = false;
                 lockY = false;
-                
+
                 auto anchor = elem->entity->get<UiAnchor>();
                 if (anchor)
                 {
@@ -144,20 +144,20 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
                         lockY = true;
                         LOG_INFO(DOM, "Y-axis locked due to top/bottom anchor");
                     }
-                    
+
                     // If left or right anchor is set, lock X movement
                     if (anchor->hasLeftAnchor || anchor->hasRightAnchor)
                     {
                         lockX = true;
                         LOG_INFO(DOM, "X-axis locked due to left/right anchor");
                     }
-                    
+
                     if (lockX && lockY)
                     {
                         LOG_INFO(DOM, "Entity fully constrained - no dragging allowed");
                     }
                 }
-                
+
                 break;
             }
         }
@@ -176,7 +176,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         // Apply movement constraints based on UiAnchor settings
         float newX = lockX ? pos->x : (e.pos.x - offsetX);
         float newY = lockY ? pos->y : (e.pos.y - offsetY);
-        
+
         pos->setX(newX);
         pos->setY(newY);
 
@@ -216,6 +216,41 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
     float startX = 0.f, startY = 0.f;
 };
+
+EntityRef make9squarePrefab(EntitySystem* ecsRef)
+{
+    float margin = 5;
+
+    auto prefabEnt = makeAnchoredPrefab(ecsRef, 10, 10, 1);
+    auto prefab = prefabEnt.get<Prefab>();
+
+    auto bg = makeUiSimple2DShape(ecsRef, Shape2D::Square, 150 + margin * 4, 150 + margin * 4, {155.0, 55.0, 55.0, 255.0});
+    auto bgAnchor = bg.get<UiAnchor>();
+
+    prefab->setMainEntity(bg);
+
+    auto top  = bgAnchor->top;
+    auto left = bgAnchor->left;
+
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 3; j++)
+        {
+            auto sq = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50);
+            auto sqAnchor = sq.get<UiAnchor>();
+            sq.get<PositionComponent>()->setZ(10);
+
+            sqAnchor->setTopAnchor(top);
+            sqAnchor->setTopMargin(margin + (50 + margin) * i);
+            sqAnchor->setLeftAnchor(left);
+            sqAnchor->setLeftMargin(margin + (50 + margin) * j);
+
+            prefab->addToPrefab(sq);
+        }
+    }
+
+    return prefabEnt;
+}
 
 EditorApp::EditorApp(const std::string &appName) : engine(appName)
 {
@@ -277,6 +312,12 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
                 sys->addNewText(parent.className);
             }
 
+            auto ent = make9squarePrefab(sys->ecsRef);
+
+            LOG_INFO("Inspector", "Ent: " << ent.id);
+
+            sys->view->addEntity(ent);
+
             // Process children but skip internal flags
             for (auto& child : parent.children)
             {
@@ -293,7 +334,7 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
                 {
                     continue; // Skip these internal flags
                 }
-                
+
                 // Draw everything else normally
                 sys->printChildren(child);
             }
@@ -315,6 +356,8 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<EntityFinder>();
         ecs.createSystem<DragSystem>();
+
+        make9squarePrefab(&ecs);
     });
 }
 
