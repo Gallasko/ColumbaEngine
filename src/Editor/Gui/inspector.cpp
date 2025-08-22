@@ -221,7 +221,7 @@ namespace pg
 
         void InspectorSystem::processEntityChanged(const EntityChangedEvent& event)
         {
-            if (currentId == 0 or event.id != currentId)
+            if (event.id == 0 or currentId == 0 or event.id != currentId)
                 return;
 
             auto pos = ecsRef->getComponent<PositionComponent>(currentId);

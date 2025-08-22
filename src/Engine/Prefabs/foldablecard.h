@@ -67,6 +67,7 @@ namespace pg
         layout->setScrollable(false);
         // auto layoutAnchor = layoutEnt.template get<UiAnchor>();
 
+        // Todo fix this (without the test here the child of the layout are invisible !)
         auto test1 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 1", 0.5);
         // auto test2 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 2", 0.5);
 
