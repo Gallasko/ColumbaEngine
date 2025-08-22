@@ -55,6 +55,8 @@ namespace pg
         auto title = makeTTFText(ecsRef, 0, 0, 2, "light", cardTitle, 0.4f);
         auto titleAnchor = title.template get<UiAnchor>();
 
+        prefab->addToPrefab(title, "CardTitle");
+
         titleAnchor->setVerticalCenter(titleBgAnchor->verticalCenter);
         titleAnchor->setLeftAnchor(titleBgAnchor->left);
         titleAnchor->setLeftMargin(5);
@@ -71,13 +73,12 @@ namespace pg
         layout->addEntity(test1);
         // layout->addEntity(test2);
 
-        mainLayout->addEntity(title);
         mainLayout->addEntity(titleBg);
         mainLayout->addEntity(layoutEnt);
 
         prefab->addHelper("toggleCard", [](Prefab *prefab) -> void {
             LOG_INFO("Foldable card", "Fold");
-            auto vLayoutEnt = prefab->getEntity("MainEntity")->template get<VerticalLayout>()->entities[2];
+            auto vLayoutEnt = prefab->getEntity("MainEntity")->template get<VerticalLayout>()->entities[1];
 
             auto vLayoutPos = vLayoutEnt->template get<PositionComponent>();
 
