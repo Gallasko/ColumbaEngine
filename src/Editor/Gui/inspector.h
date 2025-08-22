@@ -179,11 +179,11 @@ namespace pg
 
             virtual void init() override;
 
-            void addNewText(const std::string& text);
+            CompRef<VerticalLayout> addNewText(const std::string& text, CompRef<VerticalLayout> currentView);
 
-            void addNewAttribute(const std::string& text, const std::string& type, std::string& value);
+            void addNewAttribute(const std::string& text, std::string& value, CompRef<VerticalLayout> currentView);
 
-            void printChildren(SerializedInfoHolder& parent);
+            void printChildren(SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView);
 
             virtual void onProcessEvent(const EntityChangedEvent& event) override;
 
@@ -223,7 +223,7 @@ namespace pg
             }
 
             template <typename Comp>
-            void registerCustomDrawer(std::function<void(InspectorSystem*, SerializedInfoHolder&)> drawer)
+            void registerCustomDrawer(std::function<void(InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>)> drawer)
             {
                 if constexpr(HasStaticName<Comp>::value)
                 {
@@ -235,7 +235,7 @@ namespace pg
                 }
             }
 
-            void registerCustomDrawer(const std::string& type, std::function<void(InspectorSystem*, SerializedInfoHolder&)> drawer)
+            void registerCustomDrawer(const std::string& type, std::function<void(InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>)> drawer)
             {
                 customDrawers.emplace(type, drawer);
             }
@@ -286,7 +286,7 @@ namespace pg
 
             bool needClear = false;
 
-            std::map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&)>> customDrawers;
+            std::map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>)>> customDrawers;
 
             std::map<std::string, std::function<void(EntityRef)>> attachableComponentMap;
             bool showAttachMenu = false;
@@ -297,7 +297,7 @@ namespace pg
             size_t nbEntity = 0;
         };
 
-        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent);
+        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView);
 
         /**
          * Helper functions for building common Inspector UI widgets as prefabs.

@@ -282,14 +282,14 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         auto inspector = ecs.createSystem<InspectorSystem>();
 
-        inspector->registerCustomDrawer("Entity", [](InspectorSystem* sys, SerializedInfoHolder& parent) {
+        inspector->registerCustomDrawer("Entity", [](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
             LOG_INFO("Inspector", "Custom drawer for Entity");
 
             for (auto& child : parent.children)
             {
                 if (child.className != "")
                 {
-                    sys->printChildren(child);
+                    sys->printChildren(child, view);
                 }
                 else
                 {
@@ -298,20 +298,20 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
             }
         });
 
-        inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&) {
+        inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>) {
             LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
         });
 
-        inspector->registerCustomDrawer<NamedUiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent) {
+        inspector->registerCustomDrawer<NamedUiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
             // If no class name then we got an attribute
             if (parent.className == "")
             {
-                sys->addNewAttribute(parent.name, parent.type, parent.value);
+                sys->addNewAttribute(parent.name, parent.value, view);
             }
             // We got a class name then it is a class ! So no type nor value
             else
             {
-                sys->addNewText(parent.className);
+                view = sys->addNewText(parent.className, view);
             }
 
             auto ent = make9squarePrefab(sys->ecsRef);
@@ -340,7 +340,7 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
                 }
 
                 // Draw everything else normally
-                sys->printChildren(child);
+                sys->printChildren(child, view);
             }
         });
 

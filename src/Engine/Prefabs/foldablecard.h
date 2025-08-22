@@ -28,7 +28,7 @@ namespace pg
 
 
     template <typename Type>
-    CompList<Prefab, UiAnchor, VerticalLayout> makeFoldableCard(Type *ecsRef)
+    CompList<Prefab, UiAnchor, VerticalLayout> makeFoldableCard(Type *ecsRef, const std::string& cardTitle = "New Card")
     {
         auto prefabEnt = makeAnchoredPrefab(ecsRef, 100, 100, 1);
         auto prefab = prefabEnt.template get<Prefab>();
@@ -52,7 +52,7 @@ namespace pg
         titleBg.template attach<MouseLeftClickComponent>(makeCallable<FoldCardEvent>(FoldCardEvent{prefabEnt.id}));
         auto titleBgAnchor = titleBg.template get<UiAnchor>();
 
-        auto title = makeTTFText(ecsRef, 0, 0, 2, "light", "Card Name", 0.4f);
+        auto title = makeTTFText(ecsRef, 0, 0, 2, "light", cardTitle, 0.4f);
         auto titleAnchor = title.template get<UiAnchor>();
 
         titleAnchor->setVerticalCenter(titleBgAnchor->verticalCenter);
@@ -63,20 +63,21 @@ namespace pg
         auto layout = layoutEnt.template get<VerticalLayout>();
         // layout->fitToAxis = true;
         layout->setScrollable(false);
-        auto layoutAnchor = layoutEnt.template get<UiAnchor>();
+        // auto layoutAnchor = layoutEnt.template get<UiAnchor>();
 
         auto test1 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 1", 0.5);
-        auto test2 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 2", 0.5);
+        // auto test2 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 2", 0.5);
 
         layout->addEntity(test1);
-        layout->addEntity(test2);
+        // layout->addEntity(test2);
 
+        mainLayout->addEntity(title);
         mainLayout->addEntity(titleBg);
         mainLayout->addEntity(layoutEnt);
 
         prefab->addHelper("toggleCard", [](Prefab *prefab) -> void {
             LOG_INFO("Foldable card", "Fold");
-            auto vLayoutEnt = prefab->getEntity("MainEntity")->template get<VerticalLayout>()->entities[1];
+            auto vLayoutEnt = prefab->getEntity("MainEntity")->template get<VerticalLayout>()->entities[2];
 
             auto vLayoutPos = vLayoutEnt->template get<PositionComponent>();
 

@@ -8,6 +8,8 @@
 
 #include "Systems/coresystems.h"
 
+#include "Prefabs/foldablecard.h"
+
 namespace pg
 {
 
@@ -182,37 +184,37 @@ namespace pg
             registerAttachableComponent<Simple2DObject>(Shape2D::Square);
         }
 
-        void InspectorSystem::addNewText(const std::string& text)
+        CompRef<VerticalLayout> InspectorSystem::addNewText(const std::string& text, CompRef<VerticalLayout> currentView)
         {
             std::string textTemp = text;
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "bold", textTemp, 0.4);
+            auto fold = makeFoldableCard(ecsRef, textTemp);
 
-            auto sentUi = sentence.get<PositionComponent>();
+            currentView->addEntity(fold);
 
-            view->addEntity(sentence.entity);
+            return fold.get<VerticalLayout>();
         }
 
         // Todo to remove type
-        void InspectorSystem::addNewAttribute(const std::string& text, const std::string&, std::string& value)
+        void InspectorSystem::addNewAttribute(const std::string& text, std::string& value, CompRef<VerticalLayout> currentView)
         {
-            InspectorWidgets::makeLabeledTextInput(ecsRef, view, text, value, this);
+            InspectorWidgets::makeLabeledTextInput(ecsRef, currentView, text, value, this);
         }
 
-        void InspectorSystem::printChildren(SerializedInfoHolder& parent)
+        void InspectorSystem::printChildren(SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView)
         {
             auto it = customDrawers.find(parent.className);
 
             if (it != customDrawers.end())
             {
-                it->second(this, parent);
+                it->second(this, parent, currentView);
                 return;
             }
             else
             {
-                defaultInspectWidget(this, parent);
+                defaultInspectWidget(this, parent, currentView);
             }
         }
 
@@ -313,7 +315,7 @@ namespace pg
 
             for (auto& child : archive.mainNode.children)
             {
-                printChildren(child);
+                printChildren(child, view);
             }
 
             eventRequested = false;
@@ -386,22 +388,22 @@ namespace pg
             }
         }
 
-        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent)
+        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView)
         {
             // If no class name then we got an attribute
             if (parent.className == "")
             {
-                sys->addNewAttribute(parent.name, parent.type, parent.value);
+                sys->addNewAttribute(parent.name, parent.value, currentView);
             }
             // We got a class name then it is a class ! So no type nor value
             else
             {
-                sys->addNewText(parent.className);
+                currentView = sys->addNewText(parent.className, currentView);
             }
 
             for (auto& child : parent.children)
             {
-                sys->printChildren(child);
+                sys->printChildren(child, currentView);
             }
         }
 
