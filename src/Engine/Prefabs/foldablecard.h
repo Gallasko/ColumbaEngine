@@ -61,31 +61,52 @@ namespace pg
         titleAnchor->setLeftAnchor(titleBgAnchor->left);
         titleAnchor->setLeftMargin(5);
 
+        auto leftLineEnt = makeUiSimple2DShape(ecsRef, Shape2D::Square, 2, 2, {180, 180, 180, 255});
+        auto leftLineAnchor = leftLineEnt.template get<UiAnchor>();
+
         auto layoutEnt = makeVerticalLayout(ecsRef, 0, 0, 250, 100);
         auto layout = layoutEnt.template get<VerticalLayout>();
         // layout->fitToAxis = true;
         layout->setScrollable(false);
-        // auto layoutAnchor = layoutEnt.template get<UiAnchor>();
+        auto layoutAnchor = layoutEnt.template get<UiAnchor>();
+
+        layoutAnchor->setZConstrain(PosConstrain{mainLayoutEnt.entity.id, AnchorType::Z, PosOpType::Add, 1});
+
+        leftLineAnchor->setHeightConstrain(PosConstrain{layoutEnt.entity.id, AnchorType::Height});
+
+        layoutAnchor->setTopAnchor(titleBgAnchor->bottom);
+        layoutAnchor->setLeftAnchor(leftLineAnchor->right);
+        layoutAnchor->setLeftMargin(5);
+
+        prefab->addToPrefab(layoutEnt, "Layout");
 
         // Todo fix this (without the test here the child of the layout are invisible !)
-        auto test1 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 1", 0.5);
+        // auto test1 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 1", 0.5);
         // auto test2 = makeTTFText(ecsRef, 0, 0, 2, "light", "Test 2", 0.5);
 
-        layout->addEntity(test1);
+        // layout->addEntity(test1);
         // layout->addEntity(test2);
 
         mainLayout->addEntity(titleBg);
-        mainLayout->addEntity(layoutEnt);
+        mainLayout->addEntity(leftLineEnt);
+        // mainLayout->addEntity(layoutEnt);
 
         prefab->addHelper("toggleCard", [](Prefab *prefab) -> void {
             LOG_INFO("Foldable card", "Fold");
-            auto vLayoutEnt = prefab->getEntity("MainEntity")->template get<VerticalLayout>()->entities[1];
+
+            auto leftLine = prefab->getEntity("MainEntity")->get<VerticalLayout>()->entities[1];
+
+            auto leftLinePos = leftLine->template get<PositionComponent>();
+
+            auto visi = leftLinePos->isVisible();
+
+            leftLinePos->setVisibility(not visi);
+
+            auto vLayoutEnt = prefab->getEntity("Layout");
 
             auto vLayoutPos = vLayoutEnt->template get<PositionComponent>();
 
-            auto visible = vLayoutPos->isVisible();
-
-            vLayoutPos->setVisibility(not visible);
+            vLayoutPos->setVisibility(not visi);
         });
 
         return {prefabEnt, prefab, prefabAnchor, layout};
