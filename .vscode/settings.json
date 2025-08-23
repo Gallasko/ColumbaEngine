@@ -149,5 +149,6 @@
         "plaintext": false,
         "markdown": false,
         "scminput": false
-    }
+    },
+    "CodeGPT.apiKey": "Claude Code"
 }
