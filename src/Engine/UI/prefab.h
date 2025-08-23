@@ -42,14 +42,11 @@ namespace pg
 
             auto pos = entity->get<PositionComponent>();
 
-            if (pos->visible != visible)
-            {
-                pos->setVisibility(visible);
-            }
+            bool renderable = visible and observable;
 
-            if (pos->observable != observable)
+            if (pos->observable != renderable)
             {
-                pos->setObservable(observable);
+                pos->setObservable(renderable);
             }
 
             if (isClippedToWindow)

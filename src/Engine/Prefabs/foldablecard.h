@@ -87,6 +87,9 @@ namespace pg
         // layout->addEntity(test1);
         // layout->addEntity(test2);
 
+        // Todo fix this this is a dirty fix for now
+        layout->addEntity(makeSimple2DShape(ecsRef, Shape2D::Square, 1, 1));
+
         mainLayout->addEntity(titleBg);
         mainLayout->addEntity(leftLineEnt);
         // mainLayout->addEntity(layoutEnt);

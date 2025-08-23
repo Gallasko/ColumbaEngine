@@ -314,26 +314,26 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
                 view = sys->addNewText(parent.className, view);
             }
 
-            auto ent = make9squarePrefab(sys->ecsRef);
+            // auto ent = make9squarePrefab(sys->ecsRef);
 
-            sys->view->addEntity(makeFoldableCard(sys->ecsRef));
+            // sys->view->addEntity(makeFoldableCard(sys->ecsRef));
 
-            LOG_INFO("Inspector", "Ent: " << ent.id);
+            // LOG_INFO("Inspector", "Ent: " << ent.id);
 
-            sys->view->addEntity(ent);
+            // sys->view->addEntity(ent);
 
             // Process children but skip internal flags
             for (auto& child : parent.children)
             {
                 // Skip all the internal has* flags
-                if (child.name == "hasTopAnchor" ||
-                    child.name == "hasLeftAnchor" ||
-                    child.name == "hasRightAnchor" ||
-                    child.name == "hasBottomAnchor" ||
-                    child.name == "hasVerticalCenter" ||
-                    child.name == "hasHorizontalCenter" ||
-                    child.name == "hasWidthConstrain" ||
-                    child.name == "hasHeightConstrain" ||
+                if (child.name == "hasTopAnchor"        or
+                    child.name == "hasLeftAnchor"       or
+                    child.name == "hasRightAnchor"      or
+                    child.name == "hasBottomAnchor"     or
+                    child.name == "hasVerticalCenter"   or
+                    child.name == "hasHorizontalCenter" or
+                    child.name == "hasWidthConstrain"   or
+                    child.name == "hasHeightConstrain"  or
                     child.name == "hasZConstrain")
                 {
                     continue; // Skip these internal flags
