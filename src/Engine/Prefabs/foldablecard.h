@@ -144,6 +144,8 @@ namespace pg
         auto title = makeTTFText(ecsRef, 0, 0, 2, "light", cardTitle, 0.4f);
         auto titleAnchor = title.template get<UiAnchor>();
 
+        titleAnchor->setZConstrain(PosConstrain{prefabEnt.id, AnchorType::Z, PosOpType::Add, 1});
+
         prefab->addToPrefab(title, "CardTitle");
 
         titleAnchor->setVerticalCenter(titleBgAnchor->verticalCenter);
@@ -159,7 +161,7 @@ namespace pg
         layout->setScrollable(false);
         auto layoutAnchor = layoutEnt.template get<UiAnchor>();
 
-        layoutAnchor->setZConstrain(PosConstrain{mainLayoutEnt.entity.id, AnchorType::Z, PosOpType::Add, 1});
+        layoutAnchor->setZConstrain(PosConstrain{prefabEnt.id, AnchorType::Z, PosOpType::Add, 1});
 
         leftLineAnchor->setHeightConstrain(PosConstrain{layoutEnt.entity.id, AnchorType::Height});
 

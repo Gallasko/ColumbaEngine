@@ -398,7 +398,8 @@ namespace pg
             // We got a class name then it is a class ! So no type nor value
             else
             {
-                currentView = sys->addNewText(parent.className, currentView);
+                auto name = parent.name == "" ? parent.className : parent.name;
+                currentView = sys->addNewText(name, currentView);
             }
 
             for (auto& child : parent.children)
@@ -441,12 +442,9 @@ namespace pg
 
             auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "light", { boundValue }, 0.4f);
             auto input = inputEnt.get<TextInputComponent>();
-            auto inputPos = inputEnt.get<PositionComponent>();
             auto inputAnchor = inputEnt.get<UiAnchor>();
 
             input->clearTextAfterEnter = false;
-
-            inputPos->setZ(2);
 
             backgroundAnchor->setHeightConstrain(PosConstrain{inputEnt.entity.id, AnchorType::Height, PosOpType::Add, 4.f});
 
@@ -456,6 +454,7 @@ namespace pg
             inputAnchor->setLeftMargin(2.f);
             inputAnchor->setRightAnchor(backgroundAnchor->right);
             inputAnchor->setRightMargin(2.f);
+            inputAnchor->setZConstrain(PosConstrain{background.entity.id, AnchorType::Z, PosOpType::Add, 1.f});
 
             prefab->addToPrefab(inputEnt.entity);
             rowView->addEntity(prefabEnt.entity);
