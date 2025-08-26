@@ -32,6 +32,8 @@ namespace pg
             float endX, endY;
         };
 
+        struct ToggleInspectorEvent {};
+
         struct EditorAttachComponent
         {
             EditorAttachComponent(const std::string& name, _unique_id id) : name(name), id(id) {}
@@ -193,7 +195,7 @@ namespace pg
             std::function<EntityRef(EntitySystem *)> callback;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -249,6 +251,11 @@ namespace pg
                 history.execute(std::make_unique<CreateEntityCommand>(this, ecsRef, event.callback));
             }
 
+            virtual void onEvent(const ToggleInspectorEvent&) override
+            {
+                toggleInspectorVisibility();
+            }
+
             template <typename Comp>
             void registerCustomDrawer(std::function<void(InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>)> drawer)
             {
@@ -293,6 +300,8 @@ namespace pg
 
             void deserializeCurrentEntity();
 
+            void toggleInspectorVisibility();
+
             InspectorCommandHistory history;
 
             InspectorArchive archive;
@@ -322,6 +331,12 @@ namespace pg
             _unique_id currentId = 0;
 
             size_t nbEntity = 0;
+
+            // Inspector visibility state
+            bool isInspectorVisible = true;
+            EntityRef inspectorPanel;
+            EntityRef toggleButton;
+            EntityRef toggleButtonText;
         };
 
         void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView);

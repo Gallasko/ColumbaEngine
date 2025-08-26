@@ -179,6 +179,34 @@ namespace pg
 
             view = listView.get<VerticalLayout>();
 
+            // Store reference to the inspector panel for visibility toggling
+            inspectorPanel = listView.entity;
+
+            // Create toggle button on left side of inspector, vertically centered
+            auto toggleButtonShape = makeUiSimple2DShape(ecsRef, Shape2D::Square, 20, 20, {200, 200, 200, 255});
+            toggleButton = toggleButtonShape.entity;
+            
+            auto toggleButtonPos = toggleButtonShape.get<PositionComponent>();
+            toggleButtonPos->setZ(3); // Above background and content
+            
+            auto toggleButtonUi = toggleButtonShape.get<UiAnchor>();
+            toggleButtonUi->setLeftAnchor(listViewUi->left);
+            toggleButtonUi->setVerticalCenter(listViewUi->verticalCenter);
+            toggleButtonUi->setLeftMargin(-25); // Position outside the inspector panel
+
+            // Create toggle button text
+            auto toggleText = makeTTFText(ecsRef, 0, 0, 12.0f, "light", "◀", 0.5);
+            toggleButtonText = toggleText.entity;
+            
+            auto toggleTextPos = toggleText.get<PositionComponent>();
+            toggleTextPos->setZ(4); // Above button
+            
+            auto toggleTextUi = toggleText.get<UiAnchor>();
+            toggleTextUi->centeredIn(toggleButtonUi);
+
+            // Add click handler to toggle button
+            ecsRef->attach<MouseLeftClickComponent>(toggleButton, makeCallable<ToggleInspectorEvent>());
+
             registerAttachableComponent<PositionComponent>();
             registerAttachableComponent<UiAnchor>();
             registerAttachableComponent<Simple2DObject>(Shape2D::Square);
@@ -497,6 +525,54 @@ namespace pg
             pos->setHeight(startHeight);
 
             ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        void InspectorSystem::toggleInspectorVisibility()
+        {
+            if (inspectorPanel.empty() || toggleButtonText.empty())
+                return;
+
+            isInspectorVisible = !isInspectorVisible;
+
+            auto panelPos = inspectorPanel.get<PositionComponent>();
+            auto buttonTextComp = ecsRef->getComponent<TTFText>(toggleButtonText.id);
+
+            if (not panelPos || not buttonTextComp)
+                return;
+
+            if (isInspectorVisible)
+            {
+                // Show: restore normal position
+                panelPos->setVisibility(true);
+                buttonTextComp->text = "◀";
+                
+                LOG_INFO("Inspector", "Inspector panel shown");
+            }
+            else
+            {
+                // Hide: make panel invisible but keep toggle button visible
+                panelPos->setVisibility(false);
+                buttonTextComp->text = "▶";
+                
+                // Keep toggle button visible
+                auto buttonPos = toggleButton.get<PositionComponent>();
+                if (buttonPos)
+                {
+                    buttonPos->setVisibility(true);
+                }
+                
+                auto buttonTextPos = toggleButtonText.get<PositionComponent>();
+                if (buttonTextPos)
+                {
+                    buttonTextPos->setVisibility(true);
+                }
+                
+                LOG_INFO("Inspector", "Inspector panel hidden");
+            }
+
+            // Send update events to refresh display
+            ecsRef->sendEvent(EntityChangedEvent{toggleButtonText.id});
+            ecsRef->sendEvent(EntityChangedEvent{inspectorPanel.id});
         }
     }
 }
