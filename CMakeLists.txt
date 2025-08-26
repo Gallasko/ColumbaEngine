@@ -504,6 +504,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             src/application.h
             src/Editor/Gui/contextmenu.cpp
             src/Editor/Gui/inspector.cpp
+            src/Editor/Gui/entitylist.cpp
             src/Editor/Gui/projectmanager.cpp
         )
 

@@ -13,6 +13,7 @@
 #include "Gui/contextmenu.h"
 #include "Gui/inspector.h"
 #include "Gui/projectmanager.h"
+#include "Gui/entitylist.h"
 
 #include "Scene/scenemanager.h"
 
@@ -94,6 +95,9 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
 
                 // send inspect event
                 ecsRef->sendEvent(InspectEvent{ elem->entity });
+                
+                // send selection event to entity list
+                ecsRef->sendEvent(SelectEntityEvent{ elem->entity.id });
 
                 // position & size our outline to wrap this entity
                 auto pos = elem->get<PositionComponent>();
@@ -518,6 +522,7 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<EntityFinder>();
         ecs.createSystem<DragSystem>();
+        ecs.createSystem<EntityListSystem>();
 
         ecs.createSystem<FoldCardSystem>();
     });

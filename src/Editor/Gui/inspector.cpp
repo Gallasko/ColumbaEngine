@@ -329,7 +329,7 @@ namespace pg
 
                 archive.mainNode.children.clear();
 
-                ecsRef->sendEvent(SkipRenderPass{3});
+                ecsRef->sendEvent(SkipRenderPass{8});
 
                 needClear = false;
             }
