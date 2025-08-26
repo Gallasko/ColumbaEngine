@@ -46,6 +46,15 @@ namespace editor
         actionTab.get<PositionComponent>()->setZ(11);
         actionTab.attach<EntityName>("__ActionTab");
 
+        auto windowEnt = ecsRef->getEntity("__MainWindow");
+        auto windowUi = windowEnt->get<UiAnchor>();
+
+        auto actionAnchor = actionTab.get<UiAnchor>();
+
+        actionAnchor->setTopAnchor(windowUi->top);
+        actionAnchor->setLeftAnchor(windowUi->left);
+        actionAnchor->setRightAnchor(windowUi->right);
+
         auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFile>());
 
