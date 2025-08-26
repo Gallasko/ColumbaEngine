@@ -137,6 +137,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 outlinePos->setZ(pos->z + 1);
                 outlinePos->setWidth(pos->width + 4.0f);
                 outlinePos->setHeight(pos->height + 4.0f);
+                outlinePos->setRotation(pos->rotation);
 
                 // show it
                 selectionOutline.get<Prefab>()->setVisibility(true);
@@ -325,6 +326,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             outlinePos->setY(pos->y - 2.f);
             outlinePos->setWidth(pos->width + 4.f);
             outlinePos->setHeight(pos->height + 4.f);
+            // Maintain rotation during drag
+            outlinePos->setRotation(pos->rotation);
         }
 
         ecsRef->sendEvent(EntityChangedEvent{ draggingEntity });
@@ -404,6 +407,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             outlinePos->setY(newY - 2.f);
             outlinePos->setWidth(newWidth + 4.f);
             outlinePos->setHeight(newHeight + 4.f);
+            // Maintain rotation during resize
+            outlinePos->setRotation(pos->rotation);
         }
 
         ecsRef->sendEvent(EntityChangedEvent{ resizingEntity });
@@ -434,6 +439,14 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         while (newRotation >= 360.0f) newRotation -= 360.0f;
 
         pos->setRotation(newRotation);
+
+        // Update selection outline rotation
+        auto ent = ecsRef->getEntity("SelectionOutline");
+        if (ent && ent->get<SelectedEntity>()->id == rotatingEntity)
+        {
+            auto outlinePos = ent->get<PositionComponent>();
+            outlinePos->setRotation(newRotation);
+        }
 
         ecsRef->sendEvent(EntityChangedEvent{ rotatingEntity });
     }

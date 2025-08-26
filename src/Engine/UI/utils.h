@@ -115,6 +115,7 @@ namespace pg
         // Create the base outline
         auto outline = makeSelectionOutlinePrefab(ecs, thickness, outlineColor, visible);
         auto outlinePrefab = outline.get<Prefab>();
+        auto outlineAnchor = outline.get<UiAnchor>();
 
         // Helper function to create a resize handle
         auto createResizeHandle = [&](ResizeHandle handleType, AnchorType anchorX, AnchorType anchorY) {
@@ -174,11 +175,12 @@ namespace pg
         auto rotHandleComp = ecs->attach<RotationHandleComponent>(rotationHandle.entity);
         rotHandleComp->handle = RotationHandle::Rotation;
         rotHandleComp->handleSize = handleSize;
-        rotHandleComp->distance = 40.0f;
+        rotHandleComp->distance = 20.0f;
 
-        // Position rotation handle above the top center (above the top resize handle)
+        // Position rotation handle above the top resize handle
         rotHandleAnchor->setHorizontalCenter({outline.entity.id, AnchorType::HorizontalCenter});
-        rotHandleAnchor->setTopAnchor({outline.entity.id, AnchorType::Top, -rotHandleComp->distance - handleSize});
+        rotHandleAnchor->setBottomAnchor(outlineAnchor->top);
+        rotHandleAnchor->setBottomMargin(15);
         rotHandleAnchor->setZConstrain(PosConstrain{outline.entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
         outlinePrefab->addToPrefab(rotationHandle.entity);
 
