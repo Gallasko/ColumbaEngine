@@ -536,23 +536,43 @@ namespace pg
 
             auto panelPos = inspectorPanel.get<PositionComponent>();
             auto buttonTextComp = ecsRef->getComponent<TTFText>(toggleButtonText.id);
+            auto toggleButtonUi = toggleButton.get<UiAnchor>();
 
-            if (not panelPos || not buttonTextComp)
+            if (not panelPos || not buttonTextComp || not toggleButtonUi)
+                return;
+
+            auto windowEnt = ecsRef->getEntity("__MainWindow");
+            auto windowUi = windowEnt->get<UiAnchor>();
+            auto inspectorUi = inspectorPanel.get<UiAnchor>();
+
+            if (not windowUi || not inspectorUi)
                 return;
 
             if (isInspectorVisible)
             {
-                // Show: restore normal position
+                // Show: restore inspector panel and reposition button to inspector left
                 panelPos->setVisibility(true);
                 buttonTextComp->text = "◀";
+                
+                // Reposition button to left of inspector panel
+                toggleButtonUi->clearRightAnchor();
+                toggleButtonUi->setLeftAnchor(inspectorUi->left);
+                toggleButtonUi->setVerticalCenter(inspectorUi->verticalCenter);
+                toggleButtonUi->setLeftMargin(-25);
                 
                 LOG_INFO("Inspector", "Inspector panel shown");
             }
             else
             {
-                // Hide: make panel invisible but keep toggle button visible
+                // Hide: make panel invisible and reposition button to main window right edge
                 panelPos->setVisibility(false);
                 buttonTextComp->text = "▶";
+                
+                // Reposition button to right edge of main window
+                toggleButtonUi->clearLeftAnchor();
+                toggleButtonUi->setRightAnchor(windowUi->right);
+                toggleButtonUi->setVerticalCenter(windowUi->verticalCenter);
+                toggleButtonUi->setRightMargin(5);
                 
                 // Keep toggle button visible
                 auto buttonPos = toggleButton.get<PositionComponent>();
@@ -567,11 +587,12 @@ namespace pg
                     buttonTextPos->setVisibility(true);
                 }
                 
-                LOG_INFO("Inspector", "Inspector panel hidden");
+                LOG_INFO("Inspector", "Inspector panel hidden, button moved to window edge");
             }
 
             // Send update events to refresh display
             ecsRef->sendEvent(EntityChangedEvent{toggleButtonText.id});
+            ecsRef->sendEvent(EntityChangedEvent{toggleButton.id});
             ecsRef->sendEvent(EntityChangedEvent{inspectorPanel.id});
         }
     }

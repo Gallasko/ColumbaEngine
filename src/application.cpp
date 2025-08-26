@@ -520,14 +520,6 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
         ecs.createSystem<DragSystem>();
 
         ecs.createSystem<FoldCardSystem>();
-        auto fCard = makeFoldableCard(&ecs);
-        auto fCardAnchor = fCard.get<UiAnchor>();
-
-        auto testSquare = makeUiSimple2DShape(&ecs, Shape2D::Square, 40, 40);
-        auto testSquareAnchor = testSquare.get<UiAnchor>();
-
-        testSquareAnchor->setTopAnchor(fCardAnchor->bottom);
-        testSquareAnchor->setLeftAnchor(fCardAnchor->left);
     });
 }
 
