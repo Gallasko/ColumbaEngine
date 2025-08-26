@@ -162,6 +162,26 @@ namespace pg
         createResizeHandle(ResizeHandle::Bottom, AnchorType::HorizontalCenter, AnchorType::Bottom);
         createResizeHandle(ResizeHandle::BottomRight, AnchorType::Right, AnchorType::Bottom);
 
+        // Create rotation handle above the entity
+        auto rotationHandle = makeUiSimple2DShape(
+            ecs,
+            Shape2D::Square,
+            handleSize,
+            handleSize,
+            {100.0f, 200.0f, 100.0f, 255.0f}); // Green color for rotation
+        rotationHandle.get<PositionComponent>()->setVisibility(visible);
+        auto rotHandleAnchor = rotationHandle.get<UiAnchor>();
+        auto rotHandleComp = ecs->attach<RotationHandleComponent>(rotationHandle.entity);
+        rotHandleComp->handle = RotationHandle::Rotation;
+        rotHandleComp->handleSize = handleSize;
+        rotHandleComp->distance = 40.0f;
+
+        // Position rotation handle above the top center (above the top resize handle)
+        rotHandleAnchor->setHorizontalCenter({outline.entity.id, AnchorType::HorizontalCenter});
+        rotHandleAnchor->setTopAnchor({outline.entity.id, AnchorType::Top, -rotHandleComp->distance - handleSize});
+        rotHandleAnchor->setZConstrain(PosConstrain{outline.entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
+        outlinePrefab->addToPrefab(rotationHandle.entity);
+
         return outline;
     }
 }

@@ -531,6 +531,28 @@ namespace pg
             ecsRef->sendEvent(EntityChangedEvent{entityId});
         }
 
+        void RotationCommand::execute()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+                
+            auto pos = ent->get<PositionComponent>();
+            pos->setRotation(endRotation);
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        void RotationCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+                
+            auto pos = ent->get<PositionComponent>();
+            pos->setRotation(startRotation);
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
         void InspectorSystem::toggleInspectorVisibility()
         {
             if (inspectorPanel.empty() || toggleButtonText.empty())

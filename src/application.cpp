@@ -1,5 +1,11 @@
 #include "stdafx.h"
 
+#include <cmath>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include "application.h"
 
 #include "window.h"
@@ -40,7 +46,7 @@ struct SelectedEntity
     _unique_id id;
 };
 
-struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>, Ref<PositionComponent>, Ref<SceneElement>, Ref<ResizeHandleComponent>, InitSys>
+struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>, Ref<PositionComponent>, Ref<SceneElement>, Ref<ResizeHandleComponent>, Ref<RotationHandleComponent>, InitSys>
 {
     EntityRef selectionOutline;
 
@@ -48,6 +54,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     {
         registerGroup<PositionComponent, SceneElement>();
         registerGroup<PositionComponent, ResizeHandleComponent>();
+        registerGroup<PositionComponent, RotationHandleComponent>();
 
         auto outline = makeResizableSelectionOutline(ecsRef, 2.f, 8.f, {255.0f, 255.0f, 0.0f, 255.0f}, {255.0f, 255.0f, 255.0f, 255.0f}, true);
 
@@ -62,8 +69,30 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     {
         bool hit = false;
 
-        // First, check for resize handle clicks (highest priority)
-        for (const auto& elem : viewGroup<PositionComponent, ResizeHandleComponent>())
+        // First, check for rotation handle clicks (highest priority)
+        for (const auto& elem : viewGroup<PositionComponent, RotationHandleComponent>())
+        {
+            if (inClipBound(elem->entity, event.pos.x, event.pos.y))
+            {
+                hit = true;
+
+                LOG_INFO(DOM, "Clicked on rotation handle");
+
+                auto selectedId = selectionOutline.get<SelectedEntity>()->id;
+                if (selectedId != 0)
+                {
+                    // Send rotation start event
+                    ecsRef->sendEvent(StartRotation{ selectedId, elem->get<RotationHandleComponent>()->handle, event.pos.x, event.pos.y });
+                }
+
+                break;
+            }
+        }
+
+        // Second, check for resize handle clicks
+        if (not hit)
+        {
+            for (const auto& elem : viewGroup<PositionComponent, ResizeHandleComponent>())
         {
             if (inClipBound(elem->entity, event.pos.x, event.pos.y))
             {
@@ -81,8 +110,9 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 break;
             }
         }
+        }
 
-        // If no resize handle was clicked, scan all scene elements under the click
+        // If no handles were clicked, scan all scene elements under the click
         if (not hit)
         {
             for (const auto& elem : viewGroup<PositionComponent, SceneElement>())
@@ -125,7 +155,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     }
 };
 
-struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Listener<StartResize>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
+struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Listener<StartResize>, Listener<StartRotation>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
 {
     _unique_id draggingEntity = 0;
     float offsetX = 0.f, offsetY = 0.f;
@@ -138,6 +168,13 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
     ResizeHandle activeHandle = ResizeHandle::None;
     float resizeStartWidth = 0.f, resizeStartHeight = 0.f, resizeStartX = 0.f, resizeStartY = 0.f;
     float initialMouseX = 0.f, initialMouseY = 0.f;
+
+    // Rotation-related fields
+    bool isRotating = false;
+    _unique_id rotatingEntity = 0;
+    RotationHandle activeRotationHandle = RotationHandle::None;
+    float rotationStartAngle = 0.f;
+    float entityCenterX = 0.f, entityCenterY = 0.f;
     
     float startX = 0.f, startY = 0.f;  // For dragging
 
@@ -167,6 +204,26 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             resizeStartHeight = pos->height;
             resizeStartX = pos->x;
             resizeStartY = pos->y;
+        }
+    }
+
+    virtual void onEvent(const StartRotation& e) override
+    {
+        LOG_INFO(DOM, "Starting rotation on entity: " << e.entityId);
+        
+        isRotating = true;
+        rotatingEntity = e.entityId;
+        activeRotationHandle = e.handle;
+        initialMouseX = e.startX;
+        initialMouseY = e.startY;
+
+        // Store initial rotation and entity center
+        auto pos = ecsRef->getComponent<PositionComponent>(e.entityId);
+        if (pos)
+        {
+            rotationStartAngle = pos->rotation;
+            entityCenterX = pos->x + pos->width / 2.0f;
+            entityCenterY = pos->y + pos->height / 2.0f;
         }
     }
 
@@ -233,6 +290,12 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         if (isResizing)
         {
             performResize(e.pos.x, e.pos.y);
+            return;
+        }
+
+        if (isRotating)
+        {
+            performRotation(e.pos.x, e.pos.y);
             return;
         }
 
@@ -346,6 +409,35 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         ecsRef->sendEvent(EntityChangedEvent{ resizingEntity });
     }
 
+    void performRotation(float mouseX, float mouseY)
+    {
+        auto pos = ecsRef->getComponent<PositionComponent>(rotatingEntity);
+        if (not pos)
+            return;
+
+        // Calculate angle from entity center to mouse position
+        float deltaX = mouseX - entityCenterX;
+        float deltaY = mouseY - entityCenterY;
+        float currentAngle = std::atan2(deltaY, deltaX) * 180.0f / M_PI;  // Convert to degrees
+
+        // Calculate initial angle from entity center to initial mouse position
+        float initialDeltaX = initialMouseX - entityCenterX;
+        float initialDeltaY = initialMouseY - entityCenterY;
+        float initialAngle = std::atan2(initialDeltaY, initialDeltaX) * 180.0f / M_PI;  // Convert to degrees
+
+        // Calculate rotation difference and apply to entity
+        float angleDelta = currentAngle - initialAngle;
+        float newRotation = rotationStartAngle + angleDelta;
+
+        // Normalize rotation to 0-360 degrees
+        while (newRotation < 0.0f) newRotation += 360.0f;
+        while (newRotation >= 360.0f) newRotation -= 360.0f;
+
+        pos->setRotation(newRotation);
+
+        ecsRef->sendEvent(EntityChangedEvent{ rotatingEntity });
+    }
+
     virtual void onEvent(const OnMouseRelease& e) override
     {
         // only stop drag on left button
@@ -366,6 +458,21 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             isResizing = false;
             resizingEntity = 0;
             activeHandle = ResizeHandle::None;
+        }
+
+        if (isRotating)
+        {
+            auto pos = ecsRef->getComponent<PositionComponent>(rotatingEntity);
+            if (pos)
+            {
+                // send event to notify that rotation has ended
+                ecsRef->sendEvent(EndRotation{ rotatingEntity, activeRotationHandle, 
+                    rotationStartAngle, pos->rotation });
+            }
+
+            isRotating = false;
+            rotatingEntity = 0;
+            activeRotationHandle = RotationHandle::None;
         }
 
         if (draggingEntity != 0)

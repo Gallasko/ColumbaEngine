@@ -1056,4 +1056,37 @@ namespace pg
 
         return data;
     }
+
+    // Serialize function for RotationHandleComponent
+    template <>
+    void serialize(Archive& archive, const RotationHandleComponent& value)
+    {
+        archive.startSerialization("RotationHandleComponent");
+
+        serialize(archive, "handle", static_cast<int>(value.handle));
+        serialize(archive, "handleSize", value.handleSize);
+        serialize(archive, "distance", value.distance);
+        serialize(archive, "isHovered", value.isHovered);
+        serialize(archive, "isDragging", value.isDragging);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for RotationHandleComponent
+    template <>
+    RotationHandleComponent deserialize(const UnserializedObject& serializedString)
+    {
+        RotationHandleComponent data;
+
+        int handleValue = 0;
+        defaultDeserialize(serializedString, "handle", handleValue);
+        data.handle = static_cast<RotationHandle>(handleValue);
+
+        defaultDeserialize(serializedString, "handleSize", data.handleSize);
+        defaultDeserialize(serializedString, "distance", data.distance);
+        defaultDeserialize(serializedString, "isHovered", data.isHovered);
+        defaultDeserialize(serializedString, "isDragging", data.isDragging);
+
+        return data;
+    }
 }

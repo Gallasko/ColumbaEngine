@@ -174,6 +174,23 @@ namespace pg
             float endWidth, endHeight, endX, endY;
         };
 
+        struct RotationCommand : public InspectorCommands
+        {
+            RotationCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, RotationHandle handle, 
+                           float startRotation, float endRotation) :
+                inspectorSys(inspectorSys), ecsRef(ecsRef), entityId(entityId), handle(handle),
+                startRotation(startRotation), endRotation(endRotation) {}
+
+            virtual void execute() override;
+            virtual void undo() override;
+
+            InspectorSystem *inspectorSys;
+            EntitySystem *ecsRef;
+            _unique_id entityId;
+            RotationHandle handle;
+            float startRotation, endRotation;
+        };
+
         struct CreateInspectorEntityEvent
         {
             template <typename Func>
@@ -195,7 +212,7 @@ namespace pg
             std::function<EntityRef(EntitySystem *)> callback;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, QueuedListener<EndRotation>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -223,6 +240,12 @@ namespace pg
                 history.execute(std::make_unique<ResizeCommand>(this, ecsRef, event.entityId, event.handle, 
                     event.startWidth, event.startHeight, event.startX, event.startY,
                     event.endWidth, event.endHeight, event.endX, event.endY));
+            }
+
+            virtual void onProcessEvent(const EndRotation& event) override
+            {
+                history.execute(std::make_unique<RotationCommand>(this, ecsRef, event.entityId, event.handle, 
+                    event.startRotation, event.endRotation));
             }
 
             virtual void onEvent(const ConfiguredKeyEvent<EditorKeyConfig>& e) override

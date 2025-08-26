@@ -39,6 +39,12 @@ namespace pg
         BottomRight
     };
 
+    enum class RotationHandle : uint8_t
+    {
+        None = 0,
+        Rotation
+    };
+
     struct PositionComponentChangedEvent
     {
         _unique_id id = 0;
@@ -110,6 +116,21 @@ namespace pg
         float endWidth = 0.0f, endHeight = 0.0f, endX = 0.0f, endY = 0.0f;
     };
 
+    struct StartRotation
+    {
+        _unique_id entityId = 0;
+        RotationHandle handle = RotationHandle::None;
+        float startX = 0.0f, startY = 0.0f;
+    };
+
+    struct EndRotation
+    {
+        _unique_id entityId = 0;
+        RotationHandle handle = RotationHandle::None;
+        float startRotation = 0.0f;
+        float endRotation = 0.0f;
+    };
+
     struct ResizeHandleComponent : public Component
     {
         DEFAULT_COMPONENT_MEMBERS(ResizeHandleComponent)
@@ -120,6 +141,19 @@ namespace pg
         bool isDragging = false;
 
         inline static std::string getType() { return "ResizeHandleComponent"; }
+    };
+
+    struct RotationHandleComponent : public Component
+    {
+        DEFAULT_COMPONENT_MEMBERS(RotationHandleComponent)
+
+        RotationHandle handle = RotationHandle::None;
+        float handleSize = 8.0f;
+        float distance = 30.0f; // Distance above the entity
+        bool isHovered = false;
+        bool isDragging = false;
+
+        inline static std::string getType() { return "RotationHandleComponent"; }
     };
 
     // Forward declaration
@@ -309,6 +343,9 @@ namespace pg
     void serialize(Archive& archive, const ResizeHandleComponent& value);
 
     template <>
+    void serialize(Archive& archive, const RotationHandleComponent& value);
+
+    template <>
     PositionComponent deserialize(const UnserializedObject& serializedString);
 
     template <>
@@ -322,6 +359,9 @@ namespace pg
 
     template <>
     ResizeHandleComponent deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    RotationHandleComponent deserialize(const UnserializedObject& serializedString);
 
     // Todo add Listener<ResizeEvent>,
     struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, QueuedListener<PositionComponentChangedEvent>>
