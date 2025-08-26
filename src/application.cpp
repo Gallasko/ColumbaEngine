@@ -39,15 +39,16 @@ struct SelectedEntity
     _unique_id id;
 };
 
-struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
+struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>, Ref<PositionComponent>, Ref<SceneElement>, Ref<ResizeHandleComponent>, InitSys>
 {
     EntityRef selectionOutline;
 
     virtual void init() override
     {
         registerGroup<PositionComponent, SceneElement>();
+        registerGroup<PositionComponent, ResizeHandleComponent>();
 
-        auto outline = makeSelectionOutlinePrefab(ecsRef, 2.f, {255.0f, 255.0f, 0.0f, 255.0f}, true);
+        auto outline = makeResizableSelectionOutline(ecsRef, 2.f, 8.f, {255.0f, 255.0f, 0.0f, 255.0f}, {255.0f, 255.0f, 255.0f, 255.0f}, true);
 
         outline.get<PositionComponent>()->setZ(25.f);
 
@@ -60,10 +61,32 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     {
         bool hit = false;
 
-        // scan all scene elements under the click
-        for (const auto& elem : viewGroup<PositionComponent, SceneElement>())
+        // First, check for resize handle clicks (highest priority)
+        for (const auto& elem : viewGroup<PositionComponent, ResizeHandleComponent>())
         {
             if (inClipBound(elem->entity, event.pos.x, event.pos.y))
+            {
+                hit = true;
+
+                LOG_INFO(DOM, "Clicked on resize handle: " << static_cast<int>(elem->get<ResizeHandleComponent>()->handle));
+
+                auto selectedId = selectionOutline.get<SelectedEntity>()->id;
+                if (selectedId != 0)
+                {
+                    // Send resize start event
+                    ecsRef->sendEvent(StartResize{ selectedId, elem->get<ResizeHandleComponent>()->handle, event.pos.x, event.pos.y });
+                }
+
+                break;
+            }
+        }
+
+        // If no resize handle was clicked, scan all scene elements under the click
+        if (not hit)
+        {
+            for (const auto& elem : viewGroup<PositionComponent, SceneElement>())
+            {
+                if (inClipBound(elem->entity, event.pos.x, event.pos.y))
             {
                 hit = true;
 
@@ -86,6 +109,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 selectionOutline.get<SelectedEntity>()->id = elem->entity.id;
 
                 break;
+                }
             }
         }
 
@@ -97,25 +121,59 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     }
 };
 
-struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
+struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>, Listener<OnMouseRelease>, Listener<StartResize>, Ref<PositionComponent>, Ref<SceneElement>, InitSys>
 {
     _unique_id draggingEntity = 0;
     float offsetX = 0.f, offsetY = 0.f;
     bool lockX = false;  // Lock X-axis movement when left/right anchors are set
     bool lockY = false;  // Lock Y-axis movement when top/bottom anchors are set
 
+    // Resize-related fields
+    bool isResizing = false;
+    _unique_id resizingEntity = 0;
+    ResizeHandle activeHandle = ResizeHandle::None;
+    float resizeStartWidth = 0.f, resizeStartHeight = 0.f, resizeStartX = 0.f, resizeStartY = 0.f;
+    float initialMouseX = 0.f, initialMouseY = 0.f;
+    
+    float startX = 0.f, startY = 0.f;  // For dragging
+
     virtual std::string getSystemName() const override { return "Drag System"; }
 
     virtual void init() override
     {
-        // we’ll want to query all draggable scene elements
+        // we'll want to query all draggable scene elements
         registerGroup<PositionComponent, SceneElement>();
+    }
+
+    virtual void onEvent(const StartResize& e) override
+    {
+        LOG_INFO(DOM, "Starting resize on entity: " << e.entityId << " with handle: " << static_cast<int>(e.handle));
+        
+        isResizing = true;
+        resizingEntity = e.entityId;
+        activeHandle = e.handle;
+        initialMouseX = e.startX;
+        initialMouseY = e.startY;
+
+        // Store initial dimensions
+        auto pos = ecsRef->getComponent<PositionComponent>(e.entityId);
+        if (pos)
+        {
+            resizeStartWidth = pos->width;
+            resizeStartHeight = pos->height;
+            resizeStartX = pos->x;
+            resizeStartY = pos->y;
+        }
     }
 
     virtual void onEvent(const OnMouseClick& e) override
     {
         // only start drag on left button
         if (e.button != SDL_BUTTON_LEFT)
+            return;
+
+        // Skip dragging if we're already resizing
+        if (isResizing)
             return;
 
         // find topmost element under cursor
@@ -168,6 +226,12 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
     virtual void onEvent(const OnMouseMove& e) override
     {
+        if (isResizing)
+        {
+            performResize(e.pos.x, e.pos.y);
+            return;
+        }
+
         if (draggingEntity == 0)
             return;
 
@@ -199,11 +263,106 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         ecsRef->sendEvent(EntityChangedEvent{ draggingEntity });
     }
 
+    void performResize(float mouseX, float mouseY)
+    {
+        auto pos = ecsRef->getComponent<PositionComponent>(resizingEntity);
+        if (not pos)
+            return;
+
+        float deltaX = mouseX - initialMouseX;
+        float deltaY = mouseY - initialMouseY;
+
+        float newX = resizeStartX;
+        float newY = resizeStartY;
+        float newWidth = resizeStartWidth;
+        float newHeight = resizeStartHeight;
+
+        // Apply resize based on handle type
+        switch (activeHandle)
+        {
+            case ResizeHandle::TopLeft:
+                newX = resizeStartX + deltaX;
+                newY = resizeStartY + deltaY;
+                newWidth = resizeStartWidth - deltaX;
+                newHeight = resizeStartHeight - deltaY;
+                break;
+            case ResizeHandle::Top:
+                newY = resizeStartY + deltaY;
+                newHeight = resizeStartHeight - deltaY;
+                break;
+            case ResizeHandle::TopRight:
+                newY = resizeStartY + deltaY;
+                newWidth = resizeStartWidth + deltaX;
+                newHeight = resizeStartHeight - deltaY;
+                break;
+            case ResizeHandle::Left:
+                newX = resizeStartX + deltaX;
+                newWidth = resizeStartWidth - deltaX;
+                break;
+            case ResizeHandle::Right:
+                newWidth = resizeStartWidth + deltaX;
+                break;
+            case ResizeHandle::BottomLeft:
+                newX = resizeStartX + deltaX;
+                newWidth = resizeStartWidth - deltaX;
+                newHeight = resizeStartHeight + deltaY;
+                break;
+            case ResizeHandle::Bottom:
+                newHeight = resizeStartHeight + deltaY;
+                break;
+            case ResizeHandle::BottomRight:
+                newWidth = resizeStartWidth + deltaX;
+                newHeight = resizeStartHeight + deltaY;
+                break;
+            default:
+                return;
+        }
+
+        // Enforce minimum size
+        constexpr float minSize = 10.0f;
+        if (newWidth < minSize || newHeight < minSize)
+            return;
+
+        pos->setX(newX);
+        pos->setY(newY);
+        pos->setWidth(newWidth);
+        pos->setHeight(newHeight);
+
+        // Update selection outline
+        auto ent = ecsRef->getEntity("SelectionOutline");
+        if (ent && ent->get<SelectedEntity>()->id == resizingEntity)
+        {
+            auto outlinePos = ent->get<PositionComponent>();
+            outlinePos->setX(newX - 2.f);
+            outlinePos->setY(newY - 2.f);
+            outlinePos->setWidth(newWidth + 4.f);
+            outlinePos->setHeight(newHeight + 4.f);
+        }
+
+        ecsRef->sendEvent(EntityChangedEvent{ resizingEntity });
+    }
+
     virtual void onEvent(const OnMouseRelease& e) override
     {
         // only stop drag on left button
         if (e.button != SDL_BUTTON_LEFT)
             return;
+
+        if (isResizing)
+        {
+            auto pos = ecsRef->getComponent<PositionComponent>(resizingEntity);
+            if (pos)
+            {
+                // send event to notify that resizing has ended
+                ecsRef->sendEvent(EndResize{ resizingEntity, activeHandle, 
+                    resizeStartWidth, resizeStartHeight, resizeStartX, resizeStartY,
+                    pos->width, pos->height, pos->x, pos->y });
+            }
+
+            isResizing = false;
+            resizingEntity = 0;
+            activeHandle = ResizeHandle::None;
+        }
 
         if (draggingEntity != 0)
         {
@@ -216,8 +375,6 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
         draggingEntity = 0;
     }
-
-    float startX = 0.f, startY = 0.f;
 };
 
 EntityRef make9squarePrefab(EntitySystem* ecsRef)

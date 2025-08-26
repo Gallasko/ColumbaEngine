@@ -152,6 +152,26 @@ namespace pg
             _unique_id lastFocusedId;
         };
 
+        struct ResizeCommand : public InspectorCommands
+        {
+            ResizeCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, ResizeHandle handle, 
+                         float startWidth, float startHeight, float startX, float startY,
+                         float endWidth, float endHeight, float endX, float endY) :
+                inspectorSys(inspectorSys), ecsRef(ecsRef), entityId(entityId), handle(handle),
+                startWidth(startWidth), startHeight(startHeight), startX(startX), startY(startY),
+                endWidth(endWidth), endHeight(endHeight), endX(endX), endY(endY) {}
+
+            virtual void execute() override;
+            virtual void undo() override;
+
+            InspectorSystem *inspectorSys;
+            EntitySystem *ecsRef;
+            _unique_id entityId;
+            ResizeHandle handle;
+            float startWidth, startHeight, startX, startY;
+            float endWidth, endHeight, endX, endY;
+        };
+
         struct CreateInspectorEntityEvent
         {
             template <typename Func>
@@ -173,7 +193,7 @@ namespace pg
             std::function<EntityRef(EntitySystem *)> callback;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -194,6 +214,13 @@ namespace pg
             virtual void onProcessEvent(const EndDragging& event) override
             {
                 history.execute(std::make_unique<DraggingCommand>(this, ecsRef, event.startX, event.startY, event.endX, event.endY));
+            }
+
+            virtual void onProcessEvent(const EndResize& event) override
+            {
+                history.execute(std::make_unique<ResizeCommand>(this, ecsRef, event.entityId, event.handle, 
+                    event.startWidth, event.startHeight, event.startX, event.startY,
+                    event.endWidth, event.endHeight, event.endX, event.endY));
             }
 
             virtual void onEvent(const ConfiguredKeyEvent<EditorKeyConfig>& e) override

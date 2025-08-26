@@ -26,6 +26,19 @@ namespace pg
         HorizontalCenter
     };
 
+    enum class ResizeHandle : uint8_t
+    {
+        None = 0,
+        TopLeft,
+        Top,
+        TopRight,
+        Left,
+        Right,
+        BottomLeft,
+        Bottom,
+        BottomRight
+    };
+
     struct PositionComponentChangedEvent
     {
         _unique_id id = 0;
@@ -80,6 +93,33 @@ namespace pg
     {
         _unique_id parent = 0;
         _unique_id id = 0;
+    };
+
+    struct StartResize
+    {
+        _unique_id entityId = 0;
+        ResizeHandle handle = ResizeHandle::None;
+        float startX = 0.0f, startY = 0.0f;
+    };
+
+    struct EndResize
+    {
+        _unique_id entityId = 0;
+        ResizeHandle handle = ResizeHandle::None;
+        float startWidth = 0.0f, startHeight = 0.0f, startX = 0.0f, startY = 0.0f;
+        float endWidth = 0.0f, endHeight = 0.0f, endX = 0.0f, endY = 0.0f;
+    };
+
+    struct ResizeHandleComponent : public Component
+    {
+        DEFAULT_COMPONENT_MEMBERS(ResizeHandleComponent)
+
+        ResizeHandle handle = ResizeHandle::None;
+        float handleSize = 8.0f;
+        bool isHovered = false;
+        bool isDragging = false;
+
+        inline static std::string getType() { return "ResizeHandleComponent"; }
     };
 
     // Forward declaration
@@ -266,6 +306,9 @@ namespace pg
     void serialize(Archive& archive, const PosConstrain& value);
 
     template <>
+    void serialize(Archive& archive, const ResizeHandleComponent& value);
+
+    template <>
     PositionComponent deserialize(const UnserializedObject& serializedString);
 
     template <>
@@ -276,6 +319,9 @@ namespace pg
 
     template <>
     PosConstrain deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    ResizeHandleComponent deserialize(const UnserializedObject& serializedString);
 
     // Todo add Listener<ResizeEvent>,
     struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, QueuedListener<PositionComponentChangedEvent>>

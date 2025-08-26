@@ -464,5 +464,39 @@ namespace pg
             // Add the row into the parent vertical layout
             parentLayout->addEntity(row.entity);
         }
+
+        void ResizeCommand::execute()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(endX);
+            pos->setY(endY);
+            pos->setWidth(endWidth);
+            pos->setHeight(endHeight);
+
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        void ResizeCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(startX);
+            pos->setY(startY);
+            pos->setWidth(startWidth);
+            pos->setHeight(startHeight);
+
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
     }
 }

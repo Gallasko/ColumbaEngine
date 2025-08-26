@@ -1025,4 +1025,35 @@ namespace pg
 
         return inBound(clipper, x, y);
     }
+
+    // Serialize function for ResizeHandleComponent
+    template <>
+    void serialize(Archive& archive, const ResizeHandleComponent& value)
+    {
+        archive.startSerialization("ResizeHandleComponent");
+
+        serialize(archive, "handle", static_cast<int>(value.handle));
+        serialize(archive, "handleSize", value.handleSize);
+        serialize(archive, "isHovered", value.isHovered);
+        serialize(archive, "isDragging", value.isDragging);
+
+        archive.endSerialization();
+    }
+
+    // Deserialize function for ResizeHandleComponent
+    template <>
+    ResizeHandleComponent deserialize(const UnserializedObject& serializedString)
+    {
+        ResizeHandleComponent data;
+
+        int handleValue = 0;
+        defaultDeserialize(serializedString, "handle", handleValue);
+        data.handle = static_cast<ResizeHandle>(handleValue);
+
+        defaultDeserialize(serializedString, "handleSize", data.handleSize);
+        defaultDeserialize(serializedString, "isHovered", data.isHovered);
+        defaultDeserialize(serializedString, "isDragging", data.isDragging);
+
+        return data;
+    }
 }
