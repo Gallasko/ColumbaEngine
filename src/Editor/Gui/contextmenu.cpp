@@ -15,6 +15,8 @@
 
 #include "inspector.h"
 
+#include "Systems/coresystems.h"
+
 namespace pg
 {
     namespace
@@ -39,6 +41,10 @@ namespace editor
     void ContextMenu::init()
     {
         LOG_THIS_MEMBER(DOM);
+
+        auto actionTab = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1, 38, { 20, 20, 20, 255 });
+        actionTab.get<PositionComponent>()->setZ(11);
+        actionTab.attach<EntityName>("__ActionTab");
 
         auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFile>());

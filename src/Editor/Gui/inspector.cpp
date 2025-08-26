@@ -163,12 +163,16 @@ namespace pg
 
             auto windowUi = windowEnt->get<UiAnchor>();
 
+            auto actionEnt = ecsRef->getEntity("__ActionTab");
+
+            auto actionUi = actionEnt->get<UiAnchor>();
+
             auto listView = makeVerticalLayout(ecsRef, 1, 1, 300, 1, true);
 
             listView.get<PositionComponent>()->setZ(1);
             auto listViewUi = listView.get<UiAnchor>();
 
-            listViewUi->setTopAnchor(windowUi->top);
+            listViewUi->setTopAnchor(actionUi->bottom);
             listViewUi->setBottomAnchor(windowUi->bottom);
             listViewUi->setRightAnchor(windowUi->right);
 

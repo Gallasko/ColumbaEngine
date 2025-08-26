@@ -15,12 +15,15 @@ namespace pg
             auto windowEnt = ecsRef->getEntity("__MainWindow");
             auto windowUi = windowEnt->get<UiAnchor>();
 
+            auto actionEnt = ecsRef->getEntity("__ActionTab");
+            auto actionUi = actionEnt->get<UiAnchor>();
+
             // Create entity list panel (200px wide, left-anchored)
             auto listPanel = makeVerticalLayout(ecsRef, 1, 1, 200, 1, true);
             listPanel.get<PositionComponent>()->setZ(1);
             
             auto listPanelUi = listPanel.get<UiAnchor>();
-            listPanelUi->setTopAnchor(windowUi->top);
+            listPanelUi->setTopAnchor(actionUi->bottom);
             listPanelUi->setBottomAnchor(windowUi->bottom);
             listPanelUi->setLeftAnchor(windowUi->left);
 
