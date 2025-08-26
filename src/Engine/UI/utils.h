@@ -5,6 +5,8 @@
 #include "2D/position.h"
 #include "2D/simple2dobject.h"
 
+// Todo add this in /Prefab instead
+
 namespace pg
 {
     /// Creates a 1‑entity prefab that draws a hollow rectangle by

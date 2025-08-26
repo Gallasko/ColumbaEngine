@@ -47,7 +47,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
     {
         registerGroup<PositionComponent, SceneElement>();
 
-        auto outline = makeSelectionOutlinePrefab(ecsRef, 2.f, {255.0f, 255.0f, 0.0f, 255.0f}, false);
+        auto outline = makeSelectionOutlinePrefab(ecsRef, 2.f, {255.0f, 255.0f, 0.0f, 255.0f}, true);
 
         outline.get<PositionComponent>()->setZ(25.f);
 
@@ -77,6 +77,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 auto outlinePos = selectionOutline.get<PositionComponent>();
                 outlinePos->setX(pos->x - 2.0f);
                 outlinePos->setY(pos->y - 2.0f);
+                outlinePos->setZ(pos->z + 1);
                 outlinePos->setWidth(pos->width + 4.0f);
                 outlinePos->setHeight(pos->height + 4.0f);
 
