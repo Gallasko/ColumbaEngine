@@ -2,9 +2,13 @@
 
 #include "Scene/scenemanager.h"
 
+// UI includes moved from header
 #include "UI/prefab.h"
 #include "UI/namedanchor.h"
+#include "UI/sizer.h"
+#include "UI/textinput.h"
 #include "2D/simple2dobject.h"
+#include "2D/texture.h"
 
 #include "Systems/coresystems.h"
 
@@ -352,7 +356,7 @@ namespace pg
 
             eventRequested = false;
 
-            auto row = makeHorizontalLayout(ecsRef, 0,0, 0,0);
+            auto row = makeHorizontalLayout(ecsRef, 0, 0, 300, 30, true);
             row.get<HorizontalLayout>()->fitToAxis = true;
             row.get<HorizontalLayout>()->spacing  = 8.f;
 
@@ -447,7 +451,7 @@ namespace pg
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
             // Horizontal row
-            auto row = makeHorizontalLayout(ecs, 0, 0, 0, 0);
+            auto row = makeHorizontalLayout(ecs, 0, 0, 300, 30, true);
             auto rowAnchor = row.get<UiAnchor>();
             auto rowView = row.get<HorizontalLayout>();
 

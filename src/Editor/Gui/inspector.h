@@ -1,14 +1,9 @@
 #pragma once
 
 #include "serialization.h"
-
 #include "ECS/system.h"
-
-#include "2D/texture.h"
-
 #include "UI/sizer.h"
 #include "UI/textinput.h"
-
 #include "Input/keyconfig.h"
 
 namespace pg
