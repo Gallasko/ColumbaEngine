@@ -7,8 +7,10 @@
 #include <string>
 #include <chrono>
 
-#include "ECS/loggersystem.h"
+#include "ECS/entitysystem.h"
+#include "ECS/loggersystem.h" 
 #include "ECS/ecsmodule.h"
+#include "Input/inputcomponent.h"
 
 #include "Renderer/renderer.h"
 #include "Renderer/renderermodule.h"
@@ -131,8 +133,9 @@ namespace pg
     }
 
     // Todo better define save path
-    Window::Window(const std::string &title, const std::string& savePath) : ecs(savePath), title(title)
+    Window::Window(const std::string &title, const std::string& savePath) : title(title)
     {
+        ecs = new EntitySystem(savePath);
         terminalSink = pg::Logger::registerSink<pg::TerminalSink>();
 
         LOG_THIS_MEMBER(DOM);
@@ -144,23 +147,23 @@ namespace pg
         LOG_INFO(DOM, "Initializing interpreter");
 
         // [Start] Interpreter definition
-        interpreter = ecs.createSystem<PgInterpreter>();
+        interpreter = ecs->createSystem<PgInterpreter>();
 
         interpreter->addSystemFunction<TestPrint>("print");
         interpreter->addSystemFunction<DebugPrint>("debugPrint");
         interpreter->addSystemFunction<ToString>("toString");
 
         interpreter->addSystemModule("log", LogModule{terminalSink});
-        interpreter->addSystemModule("ui", UiModule{&ecs});
-        interpreter->addSystemModule("2Dshapes", Shape2DModule{&ecs});
-        interpreter->addSystemModule("2Dtexture", Texture2DModule{&ecs});
-        interpreter->addSystemModule("time", TimeModule{&ecs});
-        interpreter->addSystemModule("ecs", EcsModule{&ecs});
-        interpreter->addSystemModule("core", CoreModule{&ecs});
-        interpreter->addSystemModule("input", InputModule{&ecs});
-        interpreter->addSystemModule("uitext", SentenceModule{&ecs});
-        interpreter->addSystemModule("scene", SceneModule{&ecs});
-        interpreter->addSystemModule("audio", AudioModule{&ecs});
+        interpreter->addSystemModule("ui", UiModule{ecs});
+        interpreter->addSystemModule("2Dshapes", Shape2DModule{ecs});
+        interpreter->addSystemModule("2Dtexture", Texture2DModule{ecs});
+        interpreter->addSystemModule("time", TimeModule{ecs});
+        interpreter->addSystemModule("ecs", EcsModule{ecs});
+        interpreter->addSystemModule("core", CoreModule{ecs});
+        interpreter->addSystemModule("input", InputModule{ecs});
+        interpreter->addSystemModule("uitext", SentenceModule{ecs});
+        interpreter->addSystemModule("scene", SceneModule{ecs});
+        interpreter->addSystemModule("audio", AudioModule{ecs});
 
         // Script to configure the logger
         interpreter->interpretFromFile("logManager.pg");
@@ -175,7 +178,8 @@ namespace pg
 
         LOG_INFO(DOM, "Window destruction...");
 
-        ecs.stop();
+        ecs->stop();
+        delete ecs;
 
         LOG_INFO(DOM, "ECS stopped");
 
@@ -362,19 +366,19 @@ namespace pg
 
         // glViewport(0, 0, width, height);
 
-        ecs.createSystem<EntityNameSystem>();
+        ecs->createSystem<EntityNameSystem>();
 
-        ecs.createSystem<TickingSystem>();
+        ecs->createSystem<TickingSystem>();
 
-        ecs.createSystem<TimerSystem>();
+        ecs->createSystem<TimerSystem>();
 
-        ecs.createSystem<TerminalLogSystem>();
+        ecs->createSystem<TerminalLogSystem>();
 
-        ecs.createSystem<FocusableSystem>();
+        ecs->createSystem<FocusableSystem>();
 
         // [Start] Master render definition
 
-        masterRenderer = ecs.createSystem<MasterRenderer>("res/None.png");
+        masterRenderer = ecs->createSystem<MasterRenderer>("res/None.png");
         interpreter->addSystemModule("renderer", RendererModule{masterRenderer});
 
         // Configure the master renderer system
@@ -384,106 +388,106 @@ namespace pg
 
         // [End] Master render definition
 
-        ecs.createSystem<OnEventComponentSystem>();
+        ecs->createSystem<OnEventComponentSystem>();
 
-        ecs.createSystem<UiComponentSystem>();
+        ecs->createSystem<UiComponentSystem>();
 
-        ecs.createSystem<PositionComponentSystem>();
-        ecs.createSystem<NamedUiAnchorSystem>();
+        ecs->createSystem<PositionComponentSystem>();
+        ecs->createSystem<NamedUiAnchorSystem>();
 
-        ecs.createSystem<Simple2DObjectSystem>(masterRenderer);
+        ecs->createSystem<Simple2DObjectSystem>(masterRenderer);
 
-        ecs.createSystem<Texture2DComponentSystem>(masterRenderer);
+        ecs->createSystem<Texture2DComponentSystem>(masterRenderer);
 
-        ecs.createSystem<ProgressBarComponentSystem>(masterRenderer);
+        ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);
 
-        ecs.createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
+        ecs->createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
 
-        ecs.createSystem<AnimationPositionSystem>();
+        ecs->createSystem<AnimationPositionSystem>();
 
         // Todo fix for emscripten
-        audioSystem = ecs.createSystem<AudioSystem>();
+        audioSystem = ecs->createSystem<AudioSystem>();
 
-        // ecs.createSystem<FpsSystem>();
+        // ecs->createSystem<FpsSystem>();
 
-        ecs.createSystem<MouseClickSystem>(inputHandler);
+        ecs->createSystem<MouseClickSystem>(inputHandler);
 
-        ecs.createSystem<MouseLeaveClickSystem>(inputHandler);
+        ecs->createSystem<MouseLeaveClickSystem>(inputHandler);
 
-        ecs.createSystem<MouseWheelSystem>(inputHandler);
+        ecs->createSystem<MouseWheelSystem>(inputHandler);
 
-        ecs.createSystem<MouseHoverSystem>();
+        ecs->createSystem<MouseHoverSystem>();
 
-        ecs.createSystem<TextInputSystem>(inputHandler);
+        ecs->createSystem<TextInputSystem>(inputHandler);
 
-        ecs.createSystem<RunScriptFromTextInputSystem>();
+        ecs->createSystem<RunScriptFromTextInputSystem>();
 
-        ecs.createSystem<SceneElementSystem>();
+        ecs->createSystem<SceneElementSystem>();
 
-        ecs.createSystem<PrefabSystem>();
+        ecs->createSystem<PrefabSystem>();
 
-        ecs.createSystem<LayoutSystem>();
+        ecs->createSystem<LayoutSystem>();
 
-        ecs.createSystem<ListViewSystem>();
+        ecs->createSystem<ListViewSystem>();
 
         // Ecs task scheduling
 
-        ecs.succeed<TickingSystem, PgInterpreter>();
+        ecs->succeed<TickingSystem, PgInterpreter>();
 
-        ecs.succeed<TimerSystem, TickingSystem>();
+        ecs->succeed<TimerSystem, TickingSystem>();
 
-        ecs.succeed<MouseClickSystem, TickingSystem>();
+        ecs->succeed<MouseClickSystem, TickingSystem>();
 
-        ecs.succeed<UiComponentSystem, PrefabSystem>();
-        ecs.succeed<UiComponentSystem, MouseClickSystem>();
+        ecs->succeed<UiComponentSystem, PrefabSystem>();
+        ecs->succeed<UiComponentSystem, MouseClickSystem>();
 
-        ecs.succeed<PositionComponentSystem, NamedUiAnchorSystem>();
-        ecs.succeed<PositionComponentSystem, ProgressBarComponentSystem>();
-        ecs.succeed<PositionComponentSystem, ListViewSystem>();
-        ecs.succeed<PositionComponentSystem, LayoutSystem>();
-        ecs.succeed<PositionComponentSystem, TextInputComponent>();
+        ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();
+        ecs->succeed<PositionComponentSystem, ProgressBarComponentSystem>();
+        ecs->succeed<PositionComponentSystem, ListViewSystem>();
+        ecs->succeed<PositionComponentSystem, LayoutSystem>();
+        ecs->succeed<PositionComponentSystem, TextInputComponent>();
 
-        ecs.succeed<AnimationPositionSystem, PositionComponentSystem>();
+        ecs->succeed<AnimationPositionSystem, PositionComponentSystem>();
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
-        ecs.succeed<MasterRenderer, Simple2DObjectSystem>();
-        ecs.succeed<MasterRenderer, Texture2DComponentSystem>();
-        ecs.succeed<MasterRenderer, SentenceSystem>();
-        ecs.succeed<MasterRenderer, ProgressBarComponentSystem>();
-        ecs.succeed<MasterRenderer, PrefabSystem>();
+        ecs->succeed<MasterRenderer, Simple2DObjectSystem>();
+        ecs->succeed<MasterRenderer, Texture2DComponentSystem>();
+        ecs->succeed<MasterRenderer, SentenceSystem>();
+        ecs->succeed<MasterRenderer, ProgressBarComponentSystem>();
+        ecs->succeed<MasterRenderer, PrefabSystem>();
 
-        ecs.succeed<MasterRenderer, UiComponentSystem>();
-        ecs.succeed<MasterRenderer, PositionComponentSystem>();
+        ecs->succeed<MasterRenderer, UiComponentSystem>();
+        ecs->succeed<MasterRenderer, PositionComponentSystem>();
 
-        ecs.succeed<SceneElementSystem, MasterRenderer>();
+        ecs->succeed<SceneElementSystem, MasterRenderer>();
 
         // Script to configure all the users systems
         interpreter->interpretFromFile("sysRegister.pg");
 
         // // Log taskflow for this window
-        // ecs.dumbTaskflow();
+        // ecs->dumbTaskflow();
 
-        screenEntity = ecs.createEntity();
+        screenEntity = ecs->createEntity();
         // Todo remove this
-        screenUi = ecs.attach<UiComponent>(screenEntity);
+        screenUi = ecs->attach<UiComponent>(screenEntity);
         screenUi->width = width;
         screenUi->height = height;
         screenUi->setZ(-1);
 
-        auto screenPos = ecs.attach<PositionComponent>(screenEntity);
+        auto screenPos = ecs->attach<PositionComponent>(screenEntity);
         screenPos->setWidth(width);
         screenPos->setHeight(height);
         screenPos->setZ(-1);
 
-        ecs.attach<UiAnchor>(screenEntity);
+        ecs->attach<UiAnchor>(screenEntity);
 
-        ecs.attach<FocusableComponent>(screenEntity);
+        ecs->attach<FocusableComponent>(screenEntity);
 
-        ecs.attach<MouseLeftClickComponent>(screenEntity, makeCallable<OnFocus>(screenEntity.id));
+        ecs->attach<MouseLeftClickComponent>(screenEntity, makeCallable<OnFocus>(screenEntity.id));
 
         screenUi->update();
 
-        ecs.attach<EntityName>(screenEntity, "__MainWindow");
+        ecs->attach<EntityName>(screenEntity, "__MainWindow");
 
         return true;
     }
@@ -516,7 +520,7 @@ namespace pg
                 char* dropFile = event.drop.file;
                 LOG_INFO(DOM, "User dropped a file: "<< dropFile);
 
-                ecs.sendEvent(DropFileEvent{dropFile});
+                ecs->sendEvent(DropFileEvent{dropFile});
 
                 SDL_free(dropFile);
                 break;
@@ -524,13 +528,13 @@ namespace pg
 
             case SDL_KEYUP:
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYRELEASED);
-                ecs.sendEvent(OnSDLScanCodeReleased{event.key.keysym.scancode, event.key.keysym.mod});
+                ecs->sendEvent(OnSDLScanCodeReleased{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
 
             case SDL_KEYDOWN:
                 LOG_MILE(DOM, "Key pressed : " << event.key.keysym.scancode);
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYPRESSED);
-                ecs.sendEvent(OnSDLScanCode{event.key.keysym.scancode, event.key.keysym.mod});
+                ecs->sendEvent(OnSDLScanCode{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
 
             case SDL_MOUSEBUTTONDOWN:
@@ -565,25 +569,25 @@ namespace pg
 
             case SDL_CONTROLLERBUTTONDOWN:
                 LOG_INFO(DOM, "Gamepad Button pressed : " << event.cbutton.button);
-                ecs.sendEvent(OnSDLGamepadPressed{event.cbutton.which, event.cbutton.button});
+                ecs->sendEvent(OnSDLGamepadPressed{event.cbutton.which, event.cbutton.button});
                 break;
 
             case SDL_CONTROLLERBUTTONUP:
-                ecs.sendEvent(OnSDLGamepadReleased{event.cbutton.which, event.cbutton.button});
+                ecs->sendEvent(OnSDLGamepadReleased{event.cbutton.which, event.cbutton.button});
                 break;
 
             case SDL_CONTROLLERAXISMOTION:
-                ecs.sendEvent(OnSDLGamepadAxisChanged{event.caxis.which, event.caxis.axis, event.caxis.value});
+                ecs->sendEvent(OnSDLGamepadAxisChanged{event.caxis.which, event.caxis.axis, event.caxis.value});
                 break;
 
             case SDL_TEXTINPUT:
                 LOG_MILE(DOM, "MESSAGE: Text input: " << std::string(event.text.text));
-                ecs.sendEvent(OnSDLTextInput{std::string(event.text.text)});
+                ecs->sendEvent(OnSDLTextInput{std::string(event.text.text)});
                 break;
 
             case SDL_MOUSEWHEEL:
                 LOG_MILE(DOM, "MESSAGE: Mouse wheel scrolled: " << event.wheel.y);
-                ecs.sendEvent(OnSDLMouseWheel{event.wheel.x, event.wheel.y});
+                ecs->sendEvent(OnSDLMouseWheel{event.wheel.x, event.wheel.y});
                 break;
         }
     }
@@ -599,7 +603,7 @@ namespace pg
 
         glViewport(0, 0, width, height);
 
-        auto ent = ecs.getEntity("__MainWindow");
+        auto ent = ecs->getEntity("__MainWindow");
         if (ent and ent->has<PositionComponent>())
         {
             auto pos = ent->get<PositionComponent>();
@@ -619,7 +623,7 @@ namespace pg
             screenUi->setHeight(height);
         }
 
-        ecs.sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});
+        ecs->sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});
     }
 
     void Window::render()

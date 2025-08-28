@@ -13,6 +13,7 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <variant>
 
 #include "Maths/geometry.h"
 

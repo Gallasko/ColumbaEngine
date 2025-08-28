@@ -76,7 +76,7 @@ Engine& Engine::setPostInitFunction(std::function<void(EntitySystem&, Window&)> 
 
 EntitySystem* Engine::getECS() const
 {
-    return mainWindow ? &mainWindow->ecs : nullptr;
+    return mainWindow ? mainWindow->ecs : nullptr;
 }
 
 void Engine::setupFilesystem()
@@ -146,7 +146,7 @@ void Engine::initializeECS()
         if (setup)
         {
             printf("Setting up systems...\n");
-            setup(mainWindow->ecs, *mainWindow);
+            setup(*mainWindow->ecs, *mainWindow);
         }
         else
         {
@@ -155,20 +155,20 @@ void Engine::initializeECS()
 
         printf("Starting ECS...\n");
 
-        mainWindow->ecs.start();
+        mainWindow->ecs->start();
         ecsReady = true;
 
         if (postInit)
         {
             printf("Running post-init...\n");
-            postInit(mainWindow->ecs, *mainWindow);
+            postInit(*mainWindow->ecs, *mainWindow);
         }
         else
         {
             printf("No post-init provided, nothing to be done...\n");
         }
 
-        mainWindow->ecs.dumbTaskflow();
+        mainWindow->ecs->dumbTaskflow();
         printf("Engine initialized successfully\n");
     }
     catch (const std::exception& e)
