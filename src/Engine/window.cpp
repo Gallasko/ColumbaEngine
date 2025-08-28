@@ -136,7 +136,10 @@ namespace pg
     Window::Window(const std::string &title, const std::string& savePath) : title(title)
     {
         ecs = new EntitySystem(savePath);
-        terminalSink = pg::Logger::registerSink<pg::TerminalSink>();
+        screenEntity = nullptr;
+        screenUi = nullptr;
+        mousePos = new Point2D();
+        terminalSink = new std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
 
         LOG_THIS_MEMBER(DOM);
 
@@ -153,7 +156,7 @@ namespace pg
         interpreter->addSystemFunction<DebugPrint>("debugPrint");
         interpreter->addSystemFunction<ToString>("toString");
 
-        interpreter->addSystemModule("log", LogModule{terminalSink});
+        interpreter->addSystemModule("log", LogModule{*static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink)});
         interpreter->addSystemModule("ui", UiModule{ecs});
         interpreter->addSystemModule("2Dshapes", Shape2DModule{ecs});
         interpreter->addSystemModule("2Dtexture", Texture2DModule{ecs});
@@ -180,6 +183,11 @@ namespace pg
 
         ecs->stop();
         delete ecs;
+        
+        delete screenEntity;
+        delete screenUi;
+        delete mousePos;
+        delete static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink);
 
         LOG_INFO(DOM, "ECS stopped");
 
@@ -467,27 +475,29 @@ namespace pg
         // // Log taskflow for this window
         // ecs->dumbTaskflow();
 
-        screenEntity = ecs->createEntity();
+        delete screenEntity;
+        screenEntity = new EntityRef(ecs->createEntity());
         // Todo remove this
-        screenUi = ecs->attach<UiComponent>(screenEntity);
-        screenUi->width = width;
-        screenUi->height = height;
-        screenUi->setZ(-1);
+        delete screenUi;
+        screenUi = new CompRef<UiComponent>(ecs->attach<UiComponent>(*screenEntity));
+        (*screenUi)->width = width;
+        (*screenUi)->height = height;
+        (*screenUi)->setZ(-1);
 
-        auto screenPos = ecs->attach<PositionComponent>(screenEntity);
+        auto screenPos = ecs->attach<PositionComponent>(*screenEntity);
         screenPos->setWidth(width);
         screenPos->setHeight(height);
         screenPos->setZ(-1);
 
-        ecs->attach<UiAnchor>(screenEntity);
+        ecs->attach<UiAnchor>(*screenEntity);
 
-        ecs->attach<FocusableComponent>(screenEntity);
+        ecs->attach<FocusableComponent>(*screenEntity);
 
-        ecs->attach<MouseLeftClickComponent>(screenEntity, makeCallable<OnFocus>(screenEntity.id));
+        ecs->attach<MouseLeftClickComponent>(*screenEntity, makeCallable<OnFocus>(screenEntity->id));
 
-        screenUi->update();
+        (*screenUi)->update();
 
-        ecs->attach<EntityName>(screenEntity, "__MainWindow");
+        ecs->attach<EntityName>(*screenEntity, "__MainWindow");
 
         return true;
     }
@@ -549,11 +559,11 @@ namespace pg
             case SDL_MOUSEMOTION:
             {
                 Point2D currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
-                Point2D mouseDelta {(mousePos.x - currentPos.x) * xSensitivity, (currentPos.y - mousePos.y) * ySensitivity};
+                Point2D mouseDelta {(mousePos->x - currentPos.x) * xSensitivity, (currentPos.y - mousePos->y) * ySensitivity};
 
                 inputHandler->registerMouseMove(currentPos, mouseDelta);
 
-                mousePos = currentPos;
+                *mousePos = currentPos;
                 break;
             }
 
@@ -613,14 +623,14 @@ namespace pg
             pos->setHeight(height);
         }
 
-        if (areNotAlmostEqual(screenUi->width, width))
+        if (areNotAlmostEqual((*screenUi)->width, width))
         {
-            screenUi->setWidth(width);
+            (*screenUi)->setWidth(width);
         }
 
-        if (areNotAlmostEqual(screenUi->height, height))
+        if (areNotAlmostEqual((*screenUi)->height, height))
         {
-            screenUi->setHeight(height);
+            (*screenUi)->setHeight(height);
         }
 
         ecs->sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});

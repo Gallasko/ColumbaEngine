@@ -81,16 +81,16 @@ namespace pg
         Input *inputHandler = nullptr;
         AudioSystem *audioSystem = nullptr;
 
-        EntityRef screenEntity;
-        CompRef<UiComponent> screenUi;
+        EntityRef* screenEntity;
+        CompRef<UiComponent>* screenUi;
 
-        Point2D mousePos;
+        Point2D* mousePos;
 
         std::mutex renderMutex;
 
         float xSensitivity = 1.0f;
         float ySensitivity = 1.0f;
 
-        std::shared_ptr<Logger::LogSink> terminalSink;
+        void* terminalSink; // std::shared_ptr<Logger::LogSink>
     };
 }

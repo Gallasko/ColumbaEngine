@@ -458,19 +458,19 @@ void initGame()
 
     printf("Engine initialized ...\n");
 
-    mainWindow->ecs.createSystem<ThemeSystem>();
+    mainWindow->ecs->createSystem<ThemeSystem>();
 
-    mainWindow->ecs.createSystem<FpsSystem>();
+    mainWindow->ecs->createSystem<FpsSystem>();
 
-    mainWindow->ecs.createSystem<InventorySystem>();
+    mainWindow->ecs->createSystem<InventorySystem>();
 
-    mainWindow->ecs.createSystem<MoveToSystem>();
+    mainWindow->ecs->createSystem<MoveToSystem>();
 
-    mainWindow->ecs.createSystem<TweenSystem>();
+    mainWindow->ecs->createSystem<TweenSystem>();
 
-    // mainWindow->ecs.createSystem<ContextMenu>();
-    // mainWindow->ecs.createSystem<InspectorSystem>();
-    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+    // mainWindow->ecs->createSystem<ContextMenu>();
+    // mainWindow->ecs->createSystem<InspectorSystem>();
+    auto ttfSys = mainWindow->ecs->createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
@@ -478,35 +478,35 @@ void initGame()
 
     mainWindow->masterRenderer->processTextureRegister();
 
-    auto sTreeDatas = mainWindow->ecs.createSystem<SkillTreeDatabase>();
+    auto sTreeDatas = mainWindow->ecs->createSystem<SkillTreeDatabase>();
 
     sTreeDatas->addSkillTree(AdventurerTree{});
     sTreeDatas->addSkillTree(MageTree{});
     sTreeDatas->addSkillTree(WarriorTree{});
 
-    mainWindow->ecs.createSystem<FightSystem>();
+    mainWindow->ecs->createSystem<FightSystem>();
 
-    mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
+    mainWindow->ecs->succeed<MasterRenderer, TTFTextSystem>();
 
-    auto pDatas = mainWindow->ecs.createSystem<PassiveDatabase>();
+    auto pDatas = mainWindow->ecs->createSystem<PassiveDatabase>();
 
     pDatas->storePassive(BurnPassive{});
 
-    mainWindow->ecs.createSystem<PlayerHandlingSystem>();
+    mainWindow->ecs->createSystem<PlayerHandlingSystem>();
 
-    mainWindow->ecs.createSystem<LocationSystem>();
+    mainWindow->ecs->createSystem<LocationSystem>();
 
-    mainWindow->ecs.createSystem<SceneLoader>();
+    mainWindow->ecs->createSystem<SceneLoader>();
 
-    // mainWindow->ecs.createSystem<PortraitLoader>(mainWindow->masterRenderer);
+    // mainWindow->ecs->createSystem<PortraitLoader>(mainWindow->masterRenderer);
 
-    auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
+    auto worldFacts = mainWindow->ecs->createSystem<WorldFacts>();
 
     worldFacts->setDefaultFact("startTuto", true);
     worldFacts->setDefaultFact("altar_touched", false);
     worldFacts->setDefaultFact("mage_tier", 0);
 
-    auto achievementSys = mainWindow->ecs.createSystem<AchievementSys>();
+    auto achievementSys = mainWindow->ecs->createSystem<AchievementSys>();
 
     Achievement slimeSlayed;
 
@@ -531,17 +531,17 @@ void initGame()
 
     achievementSys->setDefaultAchievement(knowledgeFirstCap);
 
-    mainWindow->ecs.createSystem<GameLog>();
+    mainWindow->ecs->createSystem<GameLog>();
 
-    mainWindow->ecs.createSystem<RessourceGeneratorSystem>();
-    mainWindow->ecs.createSystem<ConverterSystem>();
-    mainWindow->ecs.createSystem<NexusSystem>();
+    mainWindow->ecs->createSystem<RessourceGeneratorSystem>();
+    mainWindow->ecs->createSystem<ConverterSystem>();
+    mainWindow->ecs->createSystem<NexusSystem>();
 
-    mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
+    mainWindow->ecs->succeed<AchievementSys, WorldFacts>();
 
-    mainWindow->ecs.dumbTaskflow();
+    mainWindow->ecs->dumbTaskflow();
 
-    mainWindow->interpreter->addSystemModule("game", GameModule{&mainWindow->ecs});
+    mainWindow->interpreter->addSystemModule("game", GameModule{mainWindow->ecs});
 
     mainWindow->interpreter->interpretFromFile("main.pg");
 
@@ -550,9 +550,9 @@ void initGame()
     // hLayout.get<HorizontalLayout>()->addEntity(s4.entity);
     // hLayout.get<HorizontalLayout>()->addEntity(s5.entity);
 
-    // mainWindow->ecs.getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
+    // mainWindow->ecs->getSystem<SceneElementSystem>()->loadSystemScene<NexusScene>();
 
-    mainWindow->ecs.start();
+    mainWindow->ecs->start();
 
     mainWindow->render();
 

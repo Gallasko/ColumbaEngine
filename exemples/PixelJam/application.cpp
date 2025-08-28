@@ -607,52 +607,52 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
-    mainWindow->ecs.createSystem<Texture2DAnimatorSystem>();
+    mainWindow->ecs->createSystem<Texture2DAnimatorSystem>();
 
-    mainWindow->ecs.createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
-    mainWindow->ecs.createSystem<CameraShakeSystem>();
+    mainWindow->ecs->createSystem<FollowCamera2DSystem>(mainWindow->masterRenderer);
+    mainWindow->ecs->createSystem<CameraShakeSystem>();
 
-    mainWindow->ecs.succeed<FollowCamera2DSystem, CameraShakeSystem>();
-    mainWindow->ecs.succeed<FollowCamera2DSystem, PositionComponent>();
-    mainWindow->ecs.succeed<MasterRenderer, FollowCamera2DSystem>();
+    mainWindow->ecs->succeed<FollowCamera2DSystem, CameraShakeSystem>();
+    mainWindow->ecs->succeed<FollowCamera2DSystem, PositionComponent>();
+    mainWindow->ecs->succeed<MasterRenderer, FollowCamera2DSystem>();
 
-    // mainWindow->ecs.createSystem<FlagSystem>();
-    // mainWindow->ecs.registerFlagComponent<TestGridFlag>();
-    // mainWindow->ecs.registerFlagComponent<SpikeFlag>();
-    // mainWindow->ecs.registerFlagComponent<WallFlag>();
-    // mainWindow->ecs.registerFlagComponent<CollectibleFlag>();
-    // mainWindow->ecs.registerFlagComponent<EnemyFlag>();
-    // mainWindow->ecs.registerFlagComponent<AllyBulletFlag>();
-    // mainWindow->ecs.registerFlagComponent<EnemyBulletFlag>();
-    // mainWindow->ecs.registerFlagComponent<WeaponComponent>();
-    // mainWindow->ecs.registerFlagComponent<PlayerFlag>();
-    // mainWindow->ecs.registerFlagComponent<HoleFlag>();
+    // mainWindow->ecs->createSystem<FlagSystem>();
+    // mainWindow->ecs->registerFlagComponent<TestGridFlag>();
+    // mainWindow->ecs->registerFlagComponent<SpikeFlag>();
+    // mainWindow->ecs->registerFlagComponent<WallFlag>();
+    // mainWindow->ecs->registerFlagComponent<CollectibleFlag>();
+    // mainWindow->ecs->registerFlagComponent<EnemyFlag>();
+    // mainWindow->ecs->registerFlagComponent<AllyBulletFlag>();
+    // mainWindow->ecs->registerFlagComponent<EnemyBulletFlag>();
+    // mainWindow->ecs->registerFlagComponent<WeaponComponent>();
+    // mainWindow->ecs->registerFlagComponent<PlayerFlag>();
+    // mainWindow->ecs->registerFlagComponent<HoleFlag>();
 
-    mainWindow->ecs.createSystem<FpsSystem>();
+    mainWindow->ecs->createSystem<FpsSystem>();
 
-    mainWindow->ecs.createSystem<MoveToSystem>();
+    mainWindow->ecs->createSystem<MoveToSystem>();
 
-    mainWindow->ecs.createSystem<MoveDirSystem>();
+    mainWindow->ecs->createSystem<MoveDirSystem>();
 
-    mainWindow->ecs.createSystem<TweenSystem>();
+    mainWindow->ecs->createSystem<TweenSystem>();
 
-    mainWindow->ecs.createSystem<ConfiguredKeySystem<GameKeyConfig>>(scancodeMap);
+    mainWindow->ecs->createSystem<ConfiguredKeySystem<GameKeyConfig>>(scancodeMap);
 
-    mainWindow->ecs.createSystem<CollisionSystem>();
+    mainWindow->ecs->createSystem<CollisionSystem>();
 
-    mainWindow->ecs.createSystem<CollisionHandlerSystem>();
+    mainWindow->ecs->createSystem<CollisionHandlerSystem>();
 
-    mainWindow->ecs.succeed<CollisionHandlerSystem, CollisionSystem>();
+    mainWindow->ecs->succeed<CollisionHandlerSystem, CollisionSystem>();
 
-    mainWindow->ecs.succeed<MoveToSystem, CollisionSystem>();
+    mainWindow->ecs->succeed<MoveToSystem, CollisionSystem>();
 
-    // mainWindow->ecs.succeed<CollisionSystem, PositionComponent>();
-    mainWindow->ecs.succeed<PositionComponent, CollisionSystem>();
-    mainWindow->ecs.succeed<MasterRenderer, CollisionSystem>();
+    // mainWindow->ecs->succeed<CollisionSystem, PositionComponent>();
+    mainWindow->ecs->succeed<PositionComponent, CollisionSystem>();
+    mainWindow->ecs->succeed<MasterRenderer, CollisionSystem>();
 
-    // mainWindow->ecs.createSystem<ContextMenu>();
-    // mainWindow->ecs.createSystem<InspectorSystem>();
-    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+    // mainWindow->ecs->createSystem<ContextMenu>();
+    // mainWindow->ecs->createSystem<InspectorSystem>();
+    auto ttfSys = mainWindow->ecs->createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf");
@@ -660,9 +660,9 @@ void initGame() {
 
     mainWindow->masterRenderer->processTextureRegister();
 
-    mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
+    mainWindow->ecs->succeed<MasterRenderer, TTFTextSystem>();
 
-    mainWindow->ecs.createSystem<SceneLoader>();
+    mainWindow->ecs->createSystem<SceneLoader>();
 
     AsepriteLoader aseprite_loader;
 
@@ -682,16 +682,16 @@ void initGame() {
 
 
 
-    mainWindow->ecs.createSystem<PlayerSystem>(anims["main-char"]);
+    mainWindow->ecs->createSystem<PlayerSystem>(anims["main-char"]);
 
-    mainWindow->ecs.createSystem<EnemyAISystem>();
-    mainWindow->ecs.createSystem<EnemySpawnSystem>(anims);
+    mainWindow->ecs->createSystem<EnemyAISystem>();
+    mainWindow->ecs->createSystem<EnemySpawnSystem>(anims);
 
-    // auto worldFacts = mainWindow->ecs.createSystem<WorldFacts>();
+    // auto worldFacts = mainWindow->ecs->createSystem<WorldFacts>();
 
     // worldFacts->setDefaultFact("startTuto", true);
 
-    // auto achievementSys = mainWindow->ecs.createSystem<AchievementSys>();
+    // auto achievementSys = mainWindow->ecs->createSystem<AchievementSys>();
 
     // Achievement slimeSlayed;
 
@@ -701,16 +701,16 @@ void initGame() {
     // achievementSys->setDefaultAchievement(slimeSlayed);
 
 
-    // mainWindow->ecs.succeed<AchievementSys, WorldFacts>();
+    // mainWindow->ecs->succeed<AchievementSys, WorldFacts>();
 
-    mainWindow->ecs.dumbTaskflow();
+    mainWindow->ecs->dumbTaskflow();
 
     // mainWindow->interpreter->interpretFromFile("main.pg");
 
-    auto weaponDb = mainWindow->ecs.createSystem<WeaponDatabase>();
-    auto enemyDb = mainWindow->ecs.createSystem<EnemyDatabase>();
+    auto weaponDb = mainWindow->ecs->createSystem<WeaponDatabase>();
+    auto enemyDb = mainWindow->ecs->createSystem<EnemyDatabase>();
 
-    auto roomSystem = mainWindow->ecs.createSystem<RoomSystem>(weaponDb, enemyDb);
+    auto roomSystem = mainWindow->ecs->createSystem<RoomSystem>(weaponDb, enemyDb);
 
     //MapData map;
     TiledLoader loader;
@@ -770,9 +770,9 @@ void initGame() {
 
     roomSystem->startLevel();
 
-    mainWindow->ecs.createSystem<TestSystem>(map, anims);
+    mainWindow->ecs->createSystem<TestSystem>(map, anims);
 
-    mainWindow->ecs.start();
+    mainWindow->ecs->start();
 
     mainWindow->render();
 
