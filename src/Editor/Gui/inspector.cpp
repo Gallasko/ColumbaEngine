@@ -7,6 +7,7 @@
 #include "UI/namedanchor.h"
 #include "UI/sizer.h"
 #include "UI/textinput.h"
+#include "UI/thememanager.h"
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 
@@ -180,7 +181,8 @@ namespace pg
             listViewUi->setBottomAnchor(windowUi->bottom);
             listViewUi->setRightAnchor(windowUi->right);
 
-            auto listViewBackground = makeUiTexture(ecsRef, 0, 0, "TabTexture");
+            auto themeManager = ecsRef->getSystem<ThemeManager>();
+            auto listViewBackground = makeEditorPanel(ecsRef, themeManager, 0, 0);
 
             auto listViewBackgroundUi = listViewBackground.get<UiAnchor>();
             listViewBackgroundUi->fillIn(listViewUi);
@@ -191,24 +193,24 @@ namespace pg
             inspectorPanel = listView.entity;
 
             // Create toggle button on left side of inspector, vertically centered
-            auto toggleButtonShape = makeUiSimple2DShape(ecsRef, Shape2D::Square, 20, 20, {200, 200, 200, 255});
+            auto toggleButtonShape = makeEditorButton(ecsRef, themeManager, 20, 20);
             toggleButton = toggleButtonShape.entity;
-            
+
             auto toggleButtonPos = toggleButtonShape.get<PositionComponent>();
             toggleButtonPos->setZ(3); // Above background and content
-            
+
             auto toggleButtonUi = toggleButtonShape.get<UiAnchor>();
             toggleButtonUi->setLeftAnchor(listViewUi->left);
             toggleButtonUi->setVerticalCenter(listViewUi->verticalCenter);
             toggleButtonUi->setLeftMargin(-25); // Position outside the inspector panel
 
             // Create toggle button text
-            auto toggleText = makeTTFText(ecsRef, 0, 0, 12.0f, "light", "◀", 0.5);
+            auto toggleText = makeEditorText(ecsRef, themeManager, 0, 0, 12.0f, "light", "◀", 0.5);
             toggleButtonText = toggleText.entity;
-            
+
             auto toggleTextPos = toggleText.get<PositionComponent>();
             toggleTextPos->setZ(4); // Above button
-            
+
             auto toggleTextUi = toggleText.get<UiAnchor>();
             toggleTextUi->centeredIn(toggleButtonUi);
 
@@ -361,7 +363,8 @@ namespace pg
             row.get<HorizontalLayout>()->spacing  = 8.f;
 
             // label
-            auto label = makeTTFText(ecsRef, 0,0, 1, "bold", "Add Component", 0.4f);
+            auto themeManager = ecsRef->getSystem<ThemeManager>();
+            auto label = makeEditorHeaderText(ecsRef, themeManager, 0, 0, 1, "bold", "Add Component", 0.4f);
             view->addEntity(label.entity);
 //
             // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
@@ -385,7 +388,7 @@ namespace pg
                 {
                     const auto& name = pair.first;
 
-                    auto item = makeTTFText(ecsRef, 0,0, 1, "light", name, 0.35f);
+                    auto item = makeEditorText(ecsRef, themeManager, 0, 0, 1, "light", name, 0.35f);
                     // indent it a bit
                     // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
 
@@ -461,7 +464,8 @@ namespace pg
             rowView->fitToAxis = true;
 
             // Label
-            auto labelEnt = makeTTFText(ecs, 0, 0, 1, "bold", textTemp, 0.4f);
+            auto themeManager = ecs->getSystem<ThemeManager>();
+            auto labelEnt = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", textTemp, 0.4f);
             // auto labelPos = labelEnt.get<PositionComponent>();
             rowView->addEntity(labelEnt.entity);
 
@@ -470,7 +474,7 @@ namespace pg
             auto prefab = prefabEnt.get<Prefab>();
 
             // Text input
-            auto background = makeUiSimple2DShape(ecs, Shape2D::Square, 140, 0, {55.f, 55.f, 55.f, 255.f});
+            auto background = makeEditorInputBackground(ecs, themeManager, 140, 0);
             // auto backgroundPos = background.get<PositionComponent>();
             auto backgroundAnchor = background.get<UiAnchor>();
 
@@ -540,7 +544,7 @@ namespace pg
             auto ent = ecsRef->getEntity(entityId);
             if (not ent or not ent->has<PositionComponent>())
                 return;
-                
+
             auto pos = ent->get<PositionComponent>();
             pos->setRotation(endRotation);
             ecsRef->sendEvent(EntityChangedEvent{entityId});
@@ -551,7 +555,7 @@ namespace pg
             auto ent = ecsRef->getEntity(entityId);
             if (not ent or not ent->has<PositionComponent>())
                 return;
-                
+
             auto pos = ent->get<PositionComponent>();
             pos->setRotation(startRotation);
             ecsRef->sendEvent(EntityChangedEvent{entityId});
@@ -583,13 +587,13 @@ namespace pg
                 // Show: restore inspector panel and reposition button to inspector left
                 panelPos->setVisibility(true);
                 buttonTextComp->text = "◀";
-                
+
                 // Reposition button to left of inspector panel
                 toggleButtonUi->clearRightAnchor();
                 toggleButtonUi->setLeftAnchor(inspectorUi->left);
                 toggleButtonUi->setVerticalCenter(inspectorUi->verticalCenter);
                 toggleButtonUi->setLeftMargin(-25);
-                
+
                 LOG_INFO("Inspector", "Inspector panel shown");
             }
             else
@@ -597,26 +601,26 @@ namespace pg
                 // Hide: make panel invisible and reposition button to main window right edge
                 panelPos->setVisibility(false);
                 buttonTextComp->text = "▶";
-                
+
                 // Reposition button to right edge of main window
                 toggleButtonUi->clearLeftAnchor();
                 toggleButtonUi->setRightAnchor(windowUi->right);
                 toggleButtonUi->setVerticalCenter(windowUi->verticalCenter);
                 toggleButtonUi->setRightMargin(5);
-                
+
                 // Keep toggle button visible
                 auto buttonPos = toggleButton.get<PositionComponent>();
                 if (buttonPos)
                 {
                     buttonPos->setVisibility(true);
                 }
-                
+
                 auto buttonTextPos = toggleButtonText.get<PositionComponent>();
                 if (buttonTextPos)
                 {
                     buttonTextPos->setVisibility(true);
                 }
-                
+
                 LOG_INFO("Inspector", "Inspector panel hidden, button moved to window edge");
             }
 

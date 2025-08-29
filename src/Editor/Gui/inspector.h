@@ -151,7 +151,7 @@ namespace pg
 
         struct ResizeCommand : public InspectorCommands
         {
-            ResizeCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, ResizeHandle handle, 
+            ResizeCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, ResizeHandle handle,
                          float startWidth, float startHeight, float startX, float startY,
                          float endWidth, float endHeight, float endX, float endY) :
                 inspectorSys(inspectorSys), ecsRef(ecsRef), entityId(entityId), handle(handle),
@@ -171,7 +171,7 @@ namespace pg
 
         struct RotationCommand : public InspectorCommands
         {
-            RotationCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, RotationHandle handle, 
+            RotationCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, RotationHandle handle,
                            float startRotation, float endRotation) :
                 inspectorSys(inspectorSys), ecsRef(ecsRef), entityId(entityId), handle(handle),
                 startRotation(startRotation), endRotation(endRotation) {}
@@ -232,14 +232,14 @@ namespace pg
 
             virtual void onProcessEvent(const EndResize& event) override
             {
-                history.execute(std::make_unique<ResizeCommand>(this, ecsRef, event.entityId, event.handle, 
+                history.execute(std::make_unique<ResizeCommand>(this, ecsRef, event.entityId, event.handle,
                     event.startWidth, event.startHeight, event.startX, event.startY,
                     event.endWidth, event.endHeight, event.endX, event.endY));
             }
 
             virtual void onProcessEvent(const EndRotation& event) override
             {
-                history.execute(std::make_unique<RotationCommand>(this, ecsRef, event.entityId, event.handle, 
+                history.execute(std::make_unique<RotationCommand>(this, ecsRef, event.entityId, event.handle,
                     event.startRotation, event.endRotation));
             }
 
