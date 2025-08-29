@@ -173,6 +173,7 @@ set(ENGINESOURCE
     src/Engine/UI/sentencesystem.cpp
     src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
+    src/Engine/UI/thememanager.cpp
     src/Engine/UI/ttftext.cpp
     src/Engine/UI/uianimation.cpp
     src/Engine/UI/uiconstant.cpp

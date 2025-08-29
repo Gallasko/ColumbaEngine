@@ -26,6 +26,9 @@
 #include "UI/ttftext.h"
 #include "UI/namedanchor.h"
 
+#include "Systems/thememodule.h"
+#include "UI/thememanager.h"
+
 #include "UI/utils.h"
 
 #include "Prefabs/foldablecard.h"
@@ -125,7 +128,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
 
                 // send inspect event
                 ecsRef->sendEvent(InspectEvent{ elem->entity });
-                
+
                 // send selection event to entity list
                 ecsRef->sendEvent(SelectEntityEvent{ elem->entity.id });
 
@@ -176,7 +179,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
     RotationHandle activeRotationHandle = RotationHandle::None;
     float rotationStartAngle = 0.f;
     float entityCenterX = 0.f, entityCenterY = 0.f;
-    
+
     float startX = 0.f, startY = 0.f;  // For dragging
 
     virtual std::string getSystemName() const override { return "Drag System"; }
@@ -190,7 +193,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
     virtual void onEvent(const StartResize& e) override
     {
         LOG_INFO(DOM, "Starting resize on entity: " << e.entityId << " with handle: " << static_cast<int>(e.handle));
-        
+
         isResizing = true;
         resizingEntity = e.entityId;
         activeHandle = e.handle;
@@ -211,7 +214,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
     virtual void onEvent(const StartRotation& e) override
     {
         LOG_INFO(DOM, "Starting rotation on entity: " << e.entityId);
-        
+
         isRotating = true;
         rotatingEntity = e.entityId;
         activeRotationHandle = e.handle;
@@ -463,7 +466,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             if (pos)
             {
                 // send event to notify that resizing has ended
-                ecsRef->sendEvent(EndResize{ resizingEntity, activeHandle, 
+                ecsRef->sendEvent(EndResize{ resizingEntity, activeHandle,
                     resizeStartWidth, resizeStartHeight, resizeStartX, resizeStartY,
                     pos->width, pos->height, pos->x, pos->y });
             }
@@ -479,7 +482,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
             if (pos)
             {
                 // send event to notify that rotation has ended
-                ecsRef->sendEvent(EndRotation{ rotatingEntity, activeRotationHandle, 
+                ecsRef->sendEvent(EndRotation{ rotatingEntity, activeRotationHandle,
                     rotationStartAngle, pos->rotation });
             }
 
@@ -540,6 +543,10 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
+        auto thema = ecs.createSystem<ThemeManager>();
+
+        window.interpreter->addSystemModule("theme", ThemeModule{thema});
+
         auto ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
 
         #ifdef __EMSCRIPTEN__
