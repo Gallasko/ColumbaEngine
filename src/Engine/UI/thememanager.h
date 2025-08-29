@@ -2,6 +2,9 @@
 
 #include "ECS/system.h"
 #include "Memory/elementtype.h"
+#include "2D/simple2dobject.h"
+#include "2D/texture.h"
+#include "UI/ttftext.h"
 
 namespace pg
 {
@@ -128,6 +131,89 @@ namespace pg
                 return value.get<std::string>();
         }
         return defaultValue;
+    }
+
+    // Theme-aware UI creation helpers
+    template<typename T>
+    inline auto makeThemedUiShape(T* ecsRef, const ThemeManager* themeManager, Shape2D shape, float width, float height, const std::string& colorKey)
+    {
+        float r = getThemeFloat(themeManager, colorKey + ".r", 128.0f);
+        float g = getThemeFloat(themeManager, colorKey + ".g", 128.0f);
+        float b = getThemeFloat(themeManager, colorKey + ".b", 128.0f);
+        float a = getThemeFloat(themeManager, colorKey + ".a", 255.0f);
+        return makeUiSimple2DShape(ecsRef, shape, width, height, {r, g, b, a});
+    }
+
+    template<typename T>
+    inline auto makeThemedUiTexture(T* ecsRef, const ThemeManager* themeManager, float width, float height, const std::string& textureKey)
+    {
+        std::string textureName = getThemeString(themeManager, textureKey, "TabTexture");
+        return makeUiTexture(ecsRef, width, height, textureName);
+    }
+
+    template<typename T>
+    inline auto makeThemedTTFText(T* ecsRef, const ThemeManager* themeManager, float x, float y, float z, const std::string& font, const std::string& text, float scale, const std::string& colorKey)
+    {
+        float r = getThemeFloat(themeManager, colorKey + ".r", 255.0f);
+        float g = getThemeFloat(themeManager, colorKey + ".g", 255.0f);
+        float b = getThemeFloat(themeManager, colorKey + ".b", 255.0f);
+        float a = getThemeFloat(themeManager, colorKey + ".a", 255.0f);
+        return makeTTFText(ecsRef, x, y, z, font, text, scale, {r, g, b, a});
+    }
+
+    // Editor-specific themed UI helpers
+    template<typename T>
+    inline auto makeEditorPanel(T* ecsRef, const ThemeManager* themeManager, float width, float height)
+    {
+        return makeThemedUiTexture(ecsRef, themeManager, width, height, "editor.panel.texture");
+    }
+
+    template<typename T>
+    inline auto makeEditorButton(T* ecsRef, const ThemeManager* themeManager, float width, float height)
+    {
+        return makeThemedUiShape(ecsRef, themeManager, Shape2D::Square, width, height, "editor.button.normal");
+    }
+
+    template<typename T>
+    inline auto makeEditorText(T* ecsRef, const ThemeManager* themeManager, float x, float y, float z, const std::string& font, const std::string& text, float scale)
+    {
+        return makeThemedTTFText(ecsRef, themeManager, x, y, z, font, text, scale, "editor.text.primary");
+    }
+
+    template<typename T>
+    inline auto makeEditorSecondaryText(T* ecsRef, const ThemeManager* themeManager, float x, float y, float z, const std::string& font, const std::string& text, float scale)
+    {
+        return makeThemedTTFText(ecsRef, themeManager, x, y, z, font, text, scale, "editor.text.secondary");
+    }
+
+    template<typename T>
+    inline auto makeEditorHeaderText(T* ecsRef, const ThemeManager* themeManager, float x, float y, float z, const std::string& font, const std::string& text, float scale)
+    {
+        return makeThemedTTFText(ecsRef, themeManager, x, y, z, font, text, scale, "editor.text.header");
+    }
+
+    template<typename T>
+    inline auto makeEditorAccentText(T* ecsRef, const ThemeManager* themeManager, float x, float y, float z, const std::string& font, const std::string& text, float scale)
+    {
+        return makeThemedTTFText(ecsRef, themeManager, x, y, z, font, text, scale, "editor.text.accent");
+    }
+
+    template<typename T>
+    inline auto makeEditorInputBackground(T* ecsRef, const ThemeManager* themeManager, float width, float height)
+    {
+        return makeThemedUiShape(ecsRef, themeManager, Shape2D::Square, width, height, "editor.input.background");
+    }
+
+    template<typename T>
+    inline auto makeEditorMenuItem(T* ecsRef, const ThemeManager* themeManager, float width, float height)
+    {
+        return makeThemedUiShape(ecsRef, themeManager, Shape2D::Square, width, height, "editor.menu.item");
+    }
+
+    template<typename T>
+    inline auto makeEditorMenuBackground(T* ecsRef, const ThemeManager* themeManager, float width, float height)
+    {
+        return makeThemedUiShape(ecsRef, themeManager, Shape2D::Square, width, height, "editor.menu.background");
     }
 
     // Forward declarations for serialization

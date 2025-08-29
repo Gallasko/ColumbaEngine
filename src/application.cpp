@@ -547,6 +547,8 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         window.interpreter->addSystemModule("theme", ThemeModule{thema});
 
+        window.interpreter->interpretFromFile("sysThema.pg");
+
         auto ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
 
         #ifdef __EMSCRIPTEN__

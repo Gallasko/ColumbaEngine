@@ -102,6 +102,103 @@ namespace pg
         values["tooltipCostValues.leftMargin"] = 12.0f;
         values["tooltipCostValues.rightMargin"] = 5.0f;
 
+        // EDITOR-SPECIFIC THEME PROPERTIES
+        // Editor Panel Backgrounds & Colors
+        values["editor.panel.background.r"] = 55.0f;
+        values["editor.panel.background.g"] = 55.0f;
+        values["editor.panel.background.b"] = 55.0f;
+        values["editor.panel.background.a"] = 255.0f;
+        
+        values["editor.panel.border.r"] = 200.0f;
+        values["editor.panel.border.g"] = 200.0f;
+        values["editor.panel.border.b"] = 200.0f;
+        values["editor.panel.border.a"] = 255.0f;
+
+        // Editor Buttons & Interactive Elements
+        values["editor.button.normal.r"] = 200.0f;
+        values["editor.button.normal.g"] = 200.0f;
+        values["editor.button.normal.b"] = 200.0f;
+        values["editor.button.normal.a"] = 255.0f;
+        
+        values["editor.button.hover.r"] = 220.0f;
+        values["editor.button.hover.g"] = 220.0f;
+        values["editor.button.hover.b"] = 220.0f;
+        values["editor.button.hover.a"] = 255.0f;
+        
+        values["editor.button.pressed.r"] = 180.0f;
+        values["editor.button.pressed.g"] = 180.0f;
+        values["editor.button.pressed.b"] = 180.0f;
+        values["editor.button.pressed.a"] = 255.0f;
+
+        // Editor Text & Typography
+        values["editor.text.primary.r"] = 255.0f;
+        values["editor.text.primary.g"] = 255.0f;
+        values["editor.text.primary.b"] = 255.0f;
+        values["editor.text.primary.a"] = 255.0f;
+        
+        values["editor.text.secondary.r"] = 200.0f;
+        values["editor.text.secondary.g"] = 200.0f;
+        values["editor.text.secondary.b"] = 200.0f;
+        values["editor.text.secondary.a"] = 255.0f;
+        
+        values["editor.text.header.r"] = 255.0f;
+        values["editor.text.header.g"] = 255.0f;
+        values["editor.text.header.b"] = 255.0f;
+        values["editor.text.header.a"] = 255.0f;
+        
+        values["editor.text.accent.r"] = 255.0f;
+        values["editor.text.accent.g"] = 100.0f;
+        values["editor.text.accent.b"] = 100.0f;
+        values["editor.text.accent.a"] = 255.0f;
+
+        // Editor List Items
+        values["editor.item.background.r"] = 70.0f;
+        values["editor.item.background.g"] = 70.0f;
+        values["editor.item.background.b"] = 70.0f;
+        values["editor.item.background.a"] = 255.0f;
+        
+        values["editor.item.selected.r"] = 100.0f;
+        values["editor.item.selected.g"] = 150.0f;
+        values["editor.item.selected.b"] = 200.0f;
+        values["editor.item.selected.a"] = 255.0f;
+        
+        values["editor.item.hover.r"] = 90.0f;
+        values["editor.item.hover.g"] = 90.0f;
+        values["editor.item.hover.b"] = 90.0f;
+        values["editor.item.hover.a"] = 255.0f;
+
+        // Editor Input Fields
+        values["editor.input.background.r"] = 55.0f;
+        values["editor.input.background.g"] = 55.0f;
+        values["editor.input.background.b"] = 55.0f;
+        values["editor.input.background.a"] = 255.0f;
+        
+        values["editor.input.border.r"] = 150.0f;
+        values["editor.input.border.g"] = 150.0f;
+        values["editor.input.border.b"] = 150.0f;
+        values["editor.input.border.a"] = 255.0f;
+        
+        values["editor.input.text.r"] = 255.0f;
+        values["editor.input.text.g"] = 255.0f;
+        values["editor.input.text.b"] = 255.0f;
+        values["editor.input.text.a"] = 255.0f;
+
+        // Editor Context Menu
+        values["editor.menu.background.r"] = 20.0f;
+        values["editor.menu.background.g"] = 20.0f;
+        values["editor.menu.background.b"] = 20.0f;
+        values["editor.menu.background.a"] = 255.0f;
+        
+        values["editor.menu.item.r"] = 40.0f;
+        values["editor.menu.item.g"] = 40.0f;
+        values["editor.menu.item.b"] = 40.0f;
+        values["editor.menu.item.a"] = 255.0f;
+
+        // Editor Texture Names
+        values["editor.panel.texture"] = std::string("TabTexture");
+        values["editor.input.texture"] = std::string("TabTexture");
+        values["editor.button.texture"] = std::string("TabTexture");
+
         loadedThemes["default"] = defaultTheme;
     }
 

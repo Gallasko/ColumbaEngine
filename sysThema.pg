@@ -1,0 +1,5 @@
+import "theme"
+
+print(getCurrentTheme())
+
+print(getThemeProperty())

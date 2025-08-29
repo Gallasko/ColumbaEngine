@@ -42,7 +42,8 @@ namespace editor
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto actionTab = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1, 38, { 20, 20, 20, 255 });
+        auto themeManager = ecsRef->getSystem<ThemeManager>();
+        auto actionTab = makeEditorMenuBackground(ecsRef, themeManager, 1, 38);
         actionTab.get<PositionComponent>()->setZ(11);
         actionTab.attach<EntityName>("__ActionTab");
 
@@ -55,10 +56,10 @@ namespace editor
         actionAnchor->setLeftAnchor(windowUi->left);
         actionAnchor->setRightAnchor(windowUi->right);
 
-        auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
+        auto file = makeEditorText(ecsRef, themeManager, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFile>());
 
-        auto save = makeTTFText(ecsRef, 70.0f, 5.0f, 12.0f, "light", "Save", 0.5);
+        auto save = makeEditorText(ecsRef, themeManager, 70.0f, 5.0f, 12.0f, "light", "Save", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(save.entity, makeCallable<SaveFile>());
 
         parent = ecsRef->createEntity();
@@ -73,7 +74,7 @@ namespace editor
         parentUi = ecsRef->attach<UiAnchor>(parent);
         ecsRef->attach<MouseLeaveClickComponent>(parent, makeCallable<HideContextMenu>());
 
-        auto backTexture = makeUiTexture(ecsRef, 1, 1, "TabTexture");
+        auto backTexture = makeEditorPanel(ecsRef, themeManager, 1, 1);
         auto background = backTexture.entity;
         backgroundPos = backTexture.get<PositionComponent>();
         backgroundPos->setZ(10);
@@ -116,7 +117,8 @@ namespace editor
 
     void ContextMenu::addItemInContextMenu(const std::string& text, CallablePtr callable)
     {
-        auto addItem = makeTTFText(ecsRef, 0, 0, 11.0f, "light", text, 0.5);
+        auto themeManager = ecsRef->getSystem<ThemeManager>();
+        auto addItem = makeEditorText(ecsRef, themeManager, 0, 0, 11.0f, "light", text, 0.5);
         auto addItemEntity = addItem.entity;
 
         ecsRef->attach<MouseLeftClickComponent>(addItemEntity, callable);
@@ -177,7 +179,8 @@ namespace editor
             case UiComponentType::TEXT:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "light", "New Text", 1);
+                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto newElement = makeEditorText(ecsRef, themeManager, cX, cY, 0.0f, "light", "New Text", 1);
 
                     return newElement;
                 }});
@@ -187,7 +190,8 @@ namespace editor
             case UiComponentType::TTFTEXT:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto newElement = makeTTFText(ecsRef, cX, cY, 0.0f, "light", "New Text", 1);
+                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto newElement = makeEditorText(ecsRef, themeManager, cX, cY, 0.0f, "light", "New Text", 1);
 
                     return newElement;
                 }});
@@ -197,7 +201,8 @@ namespace editor
             case UiComponentType::TEXTURE:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto newElement = makeUiTexture(ecsRef, 50, 50, "TabTexture");
+                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto newElement = makeEditorPanel(ecsRef, themeManager, 50, 50);
                     newElement.get<PositionComponent>()->setX(cX);
                     newElement.get<PositionComponent>()->setY(cY);
 
@@ -210,7 +215,8 @@ namespace editor
             case UiComponentType::SHAPE2D:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto newElement = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, {0.f, 192.f, 0.f, 255.f});
+                    auto themeManager = ecsRef->getSystem<ThemeManager>();
+                    auto newElement = makeEditorButton(ecsRef, themeManager, 50, 50);
                     newElement.get<PositionComponent>()->setX(cX);
                     newElement.get<PositionComponent>()->setY(cY);
 
