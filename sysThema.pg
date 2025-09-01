@@ -2,6 +2,6 @@ import "theme"
 
 print(getCurrentTheme())
 
-setCurrentTheme("white")
+setCurrentTheme("default")
 
 print(getCurrentTheme())
