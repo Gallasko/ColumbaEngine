@@ -116,6 +116,9 @@ namespace pg
         virtual void onEvent(const TickEvent& event) override
         {
             deltaTime += event.tick;
+            
+            // Track playtime statistics
+            ecsRef->sendEvent(IncreaseFact{"stat_playtime_seconds", event.tick / 1000.0f});
         }
 
         virtual void execute() override;

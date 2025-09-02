@@ -733,6 +733,10 @@ namespace pg
 
             if (currentActiveButton->activeTime >= currentActiveButton->activationTime)
             {
+                // Track task completion statistics
+                ecsRef->sendEvent(IncreaseFact{"stat_tasks_completed", 1.0f});
+                ecsRef->sendEvent(IncreaseFact{"stat_task_completions_" + currentActiveButton->id, 1.0f});
+
                 // Todo check if all the conditions are met
                 for (auto it2 : currentActiveButton->outcome)
                 {
@@ -1107,6 +1111,8 @@ namespace pg
                 hasMax = true;
             }
 
+            float v = 0.0f;
+
             if (hasMax)
             {
                 auto availableSpace = maxValue - value;
@@ -1119,14 +1125,19 @@ namespace pg
 
                 availableSpace = std::min(availableSpace, givenValue.get<float>());
 
-                ecsRef->sendEvent(IncreaseFact{res, availableSpace});
-                ecsRef->sendEvent(IncreaseFact{"total_" + res, availableSpace});
+                v = availableSpace;
             }
             else
             {
-                ecsRef->sendEvent(IncreaseFact{res, givenValue});
-                ecsRef->sendEvent(IncreaseFact{"total_" + res, givenValue});
+                v = givenValue.get<float>();
             }
+
+            ecsRef->sendEvent(IncreaseFact{res, v});
+            ecsRef->sendEvent(IncreaseFact{"total_" + res, v});
+
+            // Track resource generation statistics
+            ecsRef->sendEvent(IncreaseFact{"stat_total_resources_generated", v});
+            ecsRef->sendEvent(IncreaseFact{"stat_" + res + "_generated", v});
         });
 
         listenToEvent<UpdateGenView>([this](const UpdateGenView&) {
@@ -1378,6 +1389,10 @@ namespace pg
                     return;
                 }
 
+                // Track button click statistics
+                ecsRef->sendEvent(IncreaseFact{"stat_total_button_clicks", 1.0f});
+                ecsRef->sendEvent(IncreaseFact{"stat_clicks_" + buttonId, 1.0f});
+
                 // Todo check if all the conditions are met
                 for (auto it2 : it->outcome)
                 {
@@ -1608,7 +1623,7 @@ namespace pg
         if (button.activable)
         {
             auto nexusSys = ecsRef->getSystem<NexusSystem>();
-            
+
             // If this button is currently active, show remaining time
             if (nexusSys && nexusSys->activeButton && nexusSys->currentActiveButton &&
                 nexusSys->currentActiveButton->id == button.id)
