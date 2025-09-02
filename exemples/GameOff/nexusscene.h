@@ -122,17 +122,17 @@ namespace pg
 
         virtual void onRegisterFinished() override
         {
-            for (const auto& button : savedButtons)
+            for (auto& button : savedButtons)
             {
                 auto id = button.id;
                 auto it = std::find_if(initButtons.begin(), initButtons.end(), [id](const DynamicNexusButton& button) { return button.id == id; });
 
                 if (it != initButtons.end())
                 {
-                    it->archived = button.archived;
-                    it->nbClick = button.nbClick;
-                    it->active = button.active;
-                    it->activeTime = button.activeTime;
+                    button.archived = it->archived;
+                    button.nbClick = it->nbClick;
+                    button.active = it->active;
+                    button.activeTime = it->activeTime;
                 }
 
                 categories.insert(button.category);
