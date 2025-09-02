@@ -496,7 +496,7 @@ button.outcome =
 
 button.costs = [ ButtonCost("knowledge", 50), ButtonCost("scroll", 10), ButtonCost("mana", 100) ]
 
-button.description = "Specialize yourself in tbe creation of magical scroll.\nA major step in the mage process (Mutually exclusive with other spcialization !)\nKnowledge cap +100\nMana cap +50"
+button.description = "Specialize yourself in the creation of magical scroll.\nA major \c{255, 0, 0, 255}step\c{} in the mage process (Mutually exclusive with other spcialization !)\nKnowledge cap +100\nMana cap +50"
 button.nbClickBeforeArchive = 1
 
 registerNexusButton(button)
