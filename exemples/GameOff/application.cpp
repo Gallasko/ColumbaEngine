@@ -174,76 +174,76 @@ struct SceneLoader : public System<Listener<SceneToLoad>, Listener<TickEvent>, S
         t3Anchor->setLeftMargin(8);
         t3Anchor->setBottomAnchor(t1Anchor->bottom);
 
-        auto tweenTest = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
-        tweenTest.get<PositionComponent>()->setX(30);
-        tweenTest.get<PositionComponent>()->setY(120);
+        // auto tweenTest = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        // tweenTest.get<PositionComponent>()->setX(30);
+        // tweenTest.get<PositionComponent>()->setY(120);
 
-        ecsRef->attach<TweenComponent>(tweenTest.entity, TweenComponent {
-            255.0f,
-            0.0f,
-            2000.0f,
-            [tweenTest](const TweenValue& value){ tweenTest.get<Simple2DObject>()->setColors({0.0f, 196.0f, 0.0f, std::get<float>(value)}); },
-            makeCallable<StandardEvent>("gamelog", "message", "Tween complete !")
-        });
+        // ecsRef->attach<TweenComponent>(tweenTest.entity, TweenComponent {
+        //     255.0f,
+        //     0.0f,
+        //     2000.0f,
+        //     [tweenTest](const TweenValue& value){ tweenTest.get<Simple2DObject>()->setColors({0.0f, 196.0f, 0.0f, std::get<float>(value)}); },
+        //     makeCallable<StandardEvent>("gamelog", "message", "Tween complete !")
+        // });
 
-        auto tweenRotationTest = makeUiTexture(ecsRef, 60, 60, "NoneIcon");
-        tweenRotationTest.get<PositionComponent>()->setX(30);
-        tweenRotationTest.get<PositionComponent>()->setY(300);
+        // auto tweenRotationTest = makeUiTexture(ecsRef, 60, 60, "NoneIcon");
+        // tweenRotationTest.get<PositionComponent>()->setX(30);
+        // tweenRotationTest.get<PositionComponent>()->setY(300);
 
-        ecsRef->attach<TweenComponent>(tweenRotationTest.entity, TweenComponent {
-            0.0f,
-            360.0f,
-            4000.0f,
-            [tweenRotationTest](const TweenValue& value){ tweenRotationTest.get<PositionComponent>()->setRotation(std::get<float>(value)); },
-            makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
-            5
-        });
+        // ecsRef->attach<TweenComponent>(tweenRotationTest.entity, TweenComponent {
+        //     0.0f,
+        //     360.0f,
+        //     4000.0f,
+        //     [tweenRotationTest](const TweenValue& value){ tweenRotationTest.get<PositionComponent>()->setRotation(std::get<float>(value)); },
+        //     makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
+        //     5
+        // });
 
-        auto tweenRotationTest2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {192.0f, 0.0f, 0.0f, 255.0f});
-        tweenRotationTest2.get<PositionComponent>()->setX(110);
-        tweenRotationTest2.get<PositionComponent>()->setY(300);
+        // auto tweenRotationTest2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {192.0f, 0.0f, 0.0f, 255.0f});
+        // tweenRotationTest2.get<PositionComponent>()->setX(110);
+        // tweenRotationTest2.get<PositionComponent>()->setY(300);
 
-        ecsRef->attach<TweenComponent>(tweenRotationTest2.entity, TweenComponent {
-            360.0f,
-            0.0f,
-            4000.0f,
-            [tweenRotationTest2](const TweenValue& value){ tweenRotationTest2.get<PositionComponent>()->setRotation(std::get<float>(value)); },
-            makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
-            5
-        });
+        // ecsRef->attach<TweenComponent>(tweenRotationTest2.entity, TweenComponent {
+        //     360.0f,
+        //     0.0f,
+        //     4000.0f,
+        //     [tweenRotationTest2](const TweenValue& value){ tweenRotationTest2.get<PositionComponent>()->setRotation(std::get<float>(value)); },
+        //     makeCallable<StandardEvent>("gamelog", "message", "Tween Rotation complete !"),
+        //     5
+        // });
 
 
-        auto layout = makeVerticalLayout(ecsRef, 0, 0, 100, 100, true);
+        // auto layout = makeVerticalLayout(ecsRef, 0, 0, 100, 100, true);
 
-        auto layoutComp = layout.get<VerticalLayout>();
+        // auto layoutComp = layout.get<VerticalLayout>();
 
-        layoutComp->spacing = 5;
+        // layoutComp->spacing = 5;
 
-        auto boxT1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-        auto boxT2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
-        auto boxT3 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-        auto boxT4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        // auto boxT1 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        // auto boxT2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        // auto boxT3 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        // auto boxT4 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
 
-        layoutComp->addEntity(boxT1.entity);
-        layoutComp->addEntity(boxT2.entity);
-        layoutComp->addEntity(boxT3.entity);
-        layoutComp->addEntity(boxT4.entity);
+        // layoutComp->addEntity(boxT1.entity);
+        // layoutComp->addEntity(boxT2.entity);
+        // layoutComp->addEntity(boxT3.entity);
+        // layoutComp->addEntity(boxT4.entity);
 
-        auto layout2 = makeVerticalLayout(ecsRef, 0, 0, 100, 100);
+        // auto layout2 = makeVerticalLayout(ecsRef, 0, 0, 100, 100);
 
-        auto layoutComp2 = layout2.get<VerticalLayout>();
+        // auto layoutComp2 = layout2.get<VerticalLayout>();
 
-        auto boxT5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-        auto boxT6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
-        auto boxT7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
-        auto boxT8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        // auto boxT5 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        // auto boxT6 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
+        // auto boxT7 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60);
+        // auto boxT8 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 60, 60, {0.0f, 196.0f, 0.0f, 255.0f});
 
-        layoutComp2->addEntity(boxT5.entity);
-        layoutComp2->addEntity(boxT6.entity);
-        layoutComp2->addEntity(boxT7.entity);
-        layoutComp2->addEntity(boxT8.entity);
+        // layoutComp2->addEntity(boxT5.entity);
+        // layoutComp2->addEntity(boxT6.entity);
+        // layoutComp2->addEntity(boxT7.entity);
+        // layoutComp2->addEntity(boxT8.entity);
 
-        layoutComp->addEntity(layout2.entity);
+        // layoutComp->addEntity(layout2.entity);
 
         /* Clipped progress bar exemple:
         auto spacer = ecsRef->createEntity();

@@ -39,9 +39,9 @@ namespace pg
 
             logView->stickToEnd = true;
 
-            auto test = makeUiSimple2DShape(ecsRef, Shape2D::Square, 70, 70, {0.f, 192.f, 0.f, 255.f});
+            // auto test = makeUiSimple2DShape(ecsRef, Shape2D::Square, 70, 70, {0.f, 192.f, 0.f, 255.f});
 
-            logView->addEntity(test.entity);
+            // logView->addEntity(test.entity);
 
             logView->spacing = 5;
 
