@@ -1604,19 +1604,29 @@ namespace pg
     {
         std::string description = button.description;
 
-        // Check if this button is currently active
-        auto nexusSys = ecsRef->getSystem<NexusSystem>();
-        if (nexusSys && nexusSys->activeButton && nexusSys->currentActiveButton &&
-            nexusSys->currentActiveButton->id == button.id)
+        // Check if this is an activable button (has duration)
+        if (button.activable)
         {
-            float remainingTime = button.activationTime - nexusSys->currentActiveButton->activeTime;
-            if (remainingTime > 0)
+            auto nexusSys = ecsRef->getSystem<NexusSystem>();
+            
+            // If this button is currently active, show remaining time
+            if (nexusSys && nexusSys->activeButton && nexusSys->currentActiveButton &&
+                nexusSys->currentActiveButton->id == button.id)
             {
-                description += "\n\n\\c{255, 165, 0, 255}Time Remaining: " + formatTimeRemaining(remainingTime) + "\\c{}";
+                float remainingTime = button.activationTime - nexusSys->currentActiveButton->activeTime;
+                if (remainingTime > 0)
+                {
+                    description += "\n\n\\c{255, 165, 0, 255}Time Remaining: " + formatTimeRemaining(remainingTime) + "\\c{}";
+                }
+                else
+                {
+                    description += "\n\n\\c{0, 255, 0, 255}Completing...\\c{}";
+                }
             }
             else
             {
-                description += "\n\n\\c{0, 255, 0, 255}Completing...\\c{}";
+                // Show total duration for inactive activable buttons
+                description += "\n\n\\c{100, 149, 237, 255}Task Duration: " + formatTimeRemaining(button.activationTime) + "\\c{}";
             }
         }
 
