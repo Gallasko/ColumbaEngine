@@ -1204,6 +1204,8 @@ namespace pg
 
                         bool addEscape = false;
 
+                        WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+
                         for (size_t i = 0; i < it->costs.size(); ++i)
                         {
                             if (addEscape)
@@ -1223,7 +1225,31 @@ namespace pg
                                 value = value * std::pow(it->costIncrease[i], it->nbClick);
                             }
 
-                            costText << str << ": " << value;
+                            // Check if player has enough resources
+                            bool hasEnoughResources = true;
+                            if (wf)
+                            {
+                                auto resourceIt = wf->factMap.find(cost.resourceId);
+                                if (resourceIt != wf->factMap.end())
+                                {
+                                    float currentAmount = resourceIt->second.get<float>();
+                                    hasEnoughResources = currentAmount >= value;
+                                }
+                                else
+                                {
+                                    hasEnoughResources = false; // Resource doesn't exist
+                                }
+                            }
+
+                            // Add color coding: green if available, red if missing
+                            if (hasEnoughResources)
+                            {
+                                costText << "\\c{0, 255, 0, 255}" << str << ": " << value << "\\c{}";
+                            }
+                            else
+                            {
+                                costText << "\\c{255, 0, 0, 255}" << str << ": " << value << "\\c{}";
+                            }
 
                             addEscape = true;
                         }
@@ -1395,7 +1421,28 @@ namespace pg
                             value = value * std::pow(it->costIncrease[i], it->nbClick + 1);
                         }
 
-                        costText << str << ": " << value;
+                        // Check if player has enough resources for next click
+                        bool hasEnoughResources = true;
+                        auto resourceIt = wf->factMap.find(cost.resourceId);
+                        if (resourceIt != wf->factMap.end())
+                        {
+                            float currentAmount = resourceIt->second.get<float>();
+                            hasEnoughResources = currentAmount >= value;
+                        }
+                        else
+                        {
+                            hasEnoughResources = false; // Resource doesn't exist
+                        }
+
+                        // Add color coding: green if available, red if missing
+                        if (hasEnoughResources)
+                        {
+                            costText << "\\c{0, 255, 0, 255}" << str << ": " << value << "\\c{}";
+                        }
+                        else
+                        {
+                            costText << "\\c{255, 0, 0, 255}" << str << ": " << value << "\\c{}";
+                        }
 
                         addEscape = true;
                     }
