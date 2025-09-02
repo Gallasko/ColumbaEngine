@@ -1172,6 +1172,9 @@ namespace pg
 
                 if (event.state)
                 {
+                    // Track which button is being hovered for periodic updates
+                    currentHoveredButtonId = buttonId;
+
                     tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(true);
                     tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(true);
 
@@ -1189,7 +1192,10 @@ namespace pg
                     if (it->description != "")
                     {
                         tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(true);
-                        tooltipsEntities["desc"]->get<TTFText>()->setText(it->description);
+
+                        // Use enhanced description with time remaining for active buttons
+                        std::string enhancedDesc = getEnhancedDescription(*it);
+                        tooltipsEntities["desc"]->get<TTFText>()->setText(enhancedDesc);
 
                         tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["desc"]->get<UiAnchor>()->bottom);
                     }
@@ -1258,6 +1264,11 @@ namespace pg
 
                         tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["costValues"]->get<UiAnchor>()->bottom);
                     }
+                }
+                else
+                {
+                    // Clear the hovered button ID when hover ends
+                    currentHoveredButtonId = "";
                 }
 
                 if (not it->clickable)
@@ -1537,7 +1548,79 @@ namespace pg
             newRes = true;
         }
 
+        // Update tooltip for active button every 4-5 ticks
+        tooltipUpdateTicks++;
+        if (tooltipUpdateTicks >= 4 && !currentHoveredButtonId.empty())
+        {
+            tooltipUpdateTicks = 0;
+
+            // Find the currently hovered button
+            auto it = std::find_if(visibleButtons.begin(), visibleButtons.end(),
+                [this](const DynamicNexusButton& button) {
+                    return button.id == currentHoveredButtonId;
+                });
+
+            if (it != visibleButtons.end() && it->activable)
+            {
+                // Check if tooltip is currently visible
+                if (tooltipsEntities["desc"]->get<PositionComponent>()->visible)
+                {
+                    // Update the description with current time remaining
+                    std::string enhancedDesc = getEnhancedDescription(*it);
+                    tooltipsEntities["desc"]->get<TTFText>()->setText(enhancedDesc);
+                }
+            }
+        }
+
         // This scene could be extended to update UI, handle animations, etc.
+    }
+
+    std::string NexusScene::formatTimeRemaining(float remainingMs)
+    {
+        if (remainingMs <= 0) return "0:00:00:00";
+
+        // Convert milliseconds to seconds
+        int totalSeconds = static_cast<int>(std::ceil(remainingMs / 1000.0f));
+
+        int days = totalSeconds / (24 * 3600);
+        totalSeconds %= (24 * 3600);
+
+        int hours = totalSeconds / 3600;
+        totalSeconds %= 3600;
+
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+
+        std::ostringstream oss;
+        oss << days << ":"
+            << std::setfill('0') << std::setw(2) << hours << ":"
+            << std::setfill('0') << std::setw(2) << minutes << ":"
+            << std::setfill('0') << std::setw(2) << seconds;
+
+        return oss.str();
+    }
+
+    std::string NexusScene::getEnhancedDescription(const DynamicNexusButton& button)
+    {
+        std::string description = button.description;
+
+        // Check if this button is currently active
+        auto nexusSys = ecsRef->getSystem<NexusSystem>();
+        if (nexusSys && nexusSys->activeButton && nexusSys->currentActiveButton &&
+            nexusSys->currentActiveButton->id == button.id)
+        {
+            float remainingTime = button.activationTime - nexusSys->currentActiveButton->activeTime;
+            if (remainingTime > 0)
+            {
+                description += "\n\n\\c{255, 165, 0, 255}Time Remaining: " + formatTimeRemaining(remainingTime) + "\\c{}";
+            }
+            else
+            {
+                description += "\n\n\\c{0, 255, 0, 255}Completing...\\c{}";
+            }
+        }
+
+        return description;
     }
 
     EntityRef createButtonPrefab(NexusScene *scene, const std::string& text, const std::string& id, DynamicNexusButton* button)

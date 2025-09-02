@@ -213,6 +213,14 @@ namespace pg
         // A vector storing all resource display entries.
         std::vector<ResourceDisplayEntry> resourceList;
 
+        // Helper functions for active button time display
+        std::string formatTimeRemaining(float remainingMs);
+        std::string getEnhancedDescription(const DynamicNexusButton& button);
+        
+        // Tick counter for periodic tooltip updates
+        size_t tooltipUpdateTicks = 0;
+        std::string currentHoveredButtonId = "";
+
         ThemeInfo theme;
     };
 }
