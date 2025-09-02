@@ -510,21 +510,21 @@ registerNexusButton(button)
 quickButton("TestQuick", "Quick Test", [req("mana>=50")], [gamelog("Quick button works!")], "A test button using the new simplified syntax")
 
 // Resource conversion button with category
-//quickButton("QuickScrapConvert", "Quick Convert",
-//    [req("scrapper_on")],
-//    [resource("scrap", 2)],
-//    "Quickly convert mana to scrap", "Task", 0)  // 0 = repeatable
-//
-//// Complex requirements with multiple conditions
-//quickButton("QuickComplexTest", "Complex Test",
-//    [req("!complex_test_done"), req("total_scrap>=5"), req("mana>=25")],
-//    [fact("complex_test_done", true), increase("mana_max_value", 10), gamelog("Complex test completed!")],
-//    "A complex test showing multiple requirements and outcomes", "Main", 1)
-//
-//// Button with costs (using existing ButtonCost syntax for now)
-//quickButton("QuickUpgrade", "Quick Upgrade",
-//    [req("first_altar_upgrade")],
-//    [increase("mana_max_value", 30)],
-//    "Quick upgrade test", "Upgrade", 1,
-//    [ButtonCost("mana", 50), ButtonCost("rune", 3)])
+quickButton("QuickScrapConvert", "Quick Convert",
+    [req("scrapper_on")],
+    [resource("scrap", 2)],
+    "Quickly convert mana to scrap", "Task", 0);  // 0 = repeatable
+
+// Complex requirements with multiple conditions
+quickButton("QuickComplexTest", "Complex Test",
+    [req("!complex_test_done"), req("total_scrap>=5"), req("mana>=25")],
+    [fact("complex_test_done", true), increase("mana_max_value", 10), gamelog("Complex test completed!")],
+    "A complex test showing multiple requirements and outcomes", "Main", 1)
+
+// Button with costs (using existing ButtonCost syntax for now)
+quickButton("QuickUpgrade", "Quick Upgrade",
+    [req("first_altar_upgrade")],
+    [increase("mana_max_value", 30)],
+    "Quick upgrade test", "Upgrade", 1,
+    [ButtonCost("mana", 50), ButtonCost("rune", 3)])
 

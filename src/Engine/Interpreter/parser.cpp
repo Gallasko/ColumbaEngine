@@ -73,6 +73,7 @@ namespace pg
         {
             do
             {
+                skipEOL();
                 arguments.push(expression());
                 skipEOL();
             } while (match(TokenType::COMMA));
@@ -428,6 +429,8 @@ namespace pg
             {
                 auto token = previousToken;
 
+                skipEOL();
+
                 expr = std::make_shared<Get>(expr, Token{TokenType::EXPRESSION, "at", token.line, token.column});
 
                 skipEOL();
@@ -535,6 +538,7 @@ namespace pg
         {
             do
             {
+                skipEOL();
                 parameters.push(expression());
                 skipEOL();
             } while (match(TokenType::COMMA));
