@@ -168,7 +168,7 @@ button.id = "ScrapConverter"
 button.label = "Convert [Scrap]"
 button.category = "Task"
 
-button.conditions = [FactChecker("scrapper_on", true, "Equal")]
+button.conditions = [req(scrapper_on)]
 button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1) ]
 
 button.description = "Convert Mana to Scrap"

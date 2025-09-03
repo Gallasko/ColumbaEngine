@@ -264,10 +264,9 @@ namespace pg
                                 float requiredAmount = cost.value;
                                 if (!cost.valueId.empty())
                                 {
-                                    requiredAmount = wf->factMap.count(cost.valueId) ?
-                                                   wf->factMap.at(cost.valueId).get<float>() : cost.value;
+                                    requiredAmount = wf->getFact(cost.valueId, cost.value);
                                 }
-                                ecsRef->sendEvent(IncreaseFact{cost.resourceId, ElementType(-requiredAmount)});
+                                wf->spendResource(cost.resourceId, requiredAmount);
                             }
                         }
 
@@ -291,8 +290,8 @@ namespace pg
                         ecsRef->sendEvent(NexusButtonStateChange{buttonCopy});
 
                         // Update statistics
-                        ecsRef->sendEvent(IncreaseFact{"stat_total_button_clicks", ElementType(1.0f)});
-                        ecsRef->sendEvent(IncreaseFact{"stat_clicks_" + buttonCopy.id, ElementType(1.0f)});
+                        wf->incrementStat("stat_total_button_clicks");
+                        wf->incrementStat("stat_clicks_" + buttonCopy.id);
 
                         LOG_INFO("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " clicked button: " << event.targetButtonId);
                     }
@@ -1646,8 +1645,9 @@ namespace pg
 
                     // Update statistics
                     clicker.clickCount++;
-                    ecsRef->sendEvent(IncreaseFact{"stat_autoclicker_clicks_" + clicker.id, ElementType(1.0f)});
-                    ecsRef->sendEvent(IncreaseFact{"stat_total_autoclicker_clicks", ElementType(1.0f)});
+                    auto* factSys = ecsRef->getSystem<WorldFacts>();
+                    factSys->incrementStat("stat_autoclicker_clicks_" + clicker.id);
+                    factSys->incrementStat("stat_total_autoclicker_clicks");
                 }
             }
         }
@@ -1738,7 +1738,7 @@ namespace pg
                     ownedAutoClickers.push_back(ownedClicker);
 
                     // Set ownership fact
-                    ecsRef->sendEvent(AddFact{it->id + "_owned", ElementType(true)});
+                    factSys->setFact(it->id + "_owned", true);
 
                     // Create auto-clicker specific facts
                     createAutoClickerFacts(ownedClicker);
