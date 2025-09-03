@@ -226,4 +226,7 @@ namespace pg
 
         ThemeInfo theme;
     };
+
+    // Forward declarations for shared functions
+    std::string floatToString(float value, int decimalPlaces = 2);
 }

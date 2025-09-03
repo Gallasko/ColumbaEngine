@@ -530,6 +530,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/GameOff/locationscene.cpp
             exemples/GameOff/mainscene.cpp
             exemples/GameOff/managenerator.cpp
+            exemples/GameOff/nexusbindings.cpp
+            exemples/GameOff/nexusmodule.cpp
             exemples/GameOff/nexusscene.cpp
             exemples/GameOff/skilltree.cpp
             exemples/GameOff/passives.cpp
