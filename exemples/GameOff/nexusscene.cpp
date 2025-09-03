@@ -200,7 +200,7 @@ namespace pg
     void NexusSystem::onEvent(const AutoClickerAction& event)
     {
         LOG_INFO("AutoClickerAction", "Auto-clicker " << event.autoClickerId << " trying to click button: " << event.targetButtonId);
-        
+
         // Find the button that the auto-clicker is targeting
         auto it = std::find_if(savedButtons.begin(), savedButtons.end(),
                               [&event](const DynamicNexusButton& button) { return button.id == event.targetButtonId; });
@@ -232,6 +232,7 @@ namespace pg
                     // Regular button - trigger immediately
 
                     // Check and deduct costs
+                    LOG_INFO("AutoClickerAction", "Button " << buttonCopy.id << " has " << buttonCopy.costs.size() << " costs to check");
                     bool canAfford = true;
                     for (const auto& cost : buttonCopy.costs)
                     {
@@ -252,6 +253,7 @@ namespace pg
                         }
                     }
 
+                    LOG_INFO("AutoClickerAction", "Button " << buttonCopy.id << " canAfford: " << canAfford);
                     if (canAfford)
                     {
                         // Deduct costs
@@ -270,9 +272,11 @@ namespace pg
                         }
 
                         // Execute outcomes
+                        LOG_INFO("AutoClickerAction", "Executing " << buttonCopy.outcome.size() << " outcomes for button: " << buttonCopy.id);
                         for (const auto& outcome : buttonCopy.outcome)
                         {
-                            ecsRef->sendEvent(outcome);
+                            outcome.call(ecsRef);
+                            // ecsRef->sendEvent(outcome);
                         }
 
                         // Update button state
@@ -1623,7 +1627,7 @@ namespace pg
 
     void AutoClickerSystem::execute()
     {
-        // Process owned auto-clickers that are active  
+        // Process owned auto-clickers that are active
         for (auto& clicker : ownedAutoClickers)
         {
             if (clicker.active && clicker.owned)
@@ -1636,7 +1640,7 @@ namespace pg
                     // Send auto-click event
                     LOG_INFO("AutoClickerSystem", "Auto-clicker " << clicker.id << " firing! Timer: " << clicker.timer << ", Interval: " << interval);
                     ecsRef->sendEvent(AutoClickerAction{clicker.id, clicker.targetButtonId});
-                    
+
                     // Reset timer AFTER logging
                     clicker.timer = 0.0f;
 
@@ -1647,7 +1651,7 @@ namespace pg
                 }
             }
         }
-        
+
         // Reset deltaTime after processing all auto-clickers
         deltaTime = 0;
     }

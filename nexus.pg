@@ -557,7 +557,8 @@ quickButton("toggle_basic_clicker", "Toggle Basic Auto-Clicker",
     [req("basic_clicker_owned")],
     [toggleAutoClicker("basic_clicker"), gamelog("Toggled Basic Auto-Clicker!")],
     "Enable/disable the Basic Auto-Clicker",
-    "AutoClickers")
+    "AutoClickers",
+    0)
 
 quickButton("toggle_advanced_clicker", "Toggle Advanced Auto-Clicker",
     [req("advanced_clicker_owned==true")],
