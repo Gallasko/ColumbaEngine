@@ -452,9 +452,113 @@ namespace pg
         NexusSystem *sys;
     };
 
+    class CreateAutoClicker : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(AutoClickerSystem *sys)
+        {
+            this->sys = sys;
+            setArity(3, 5); // id, targetButtonId, baseInterval, [costs[]], [unlockConditions[]]
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            AutoClicker clicker;
+
+            clicker.id = args.front()->getElement().toString();
+            args.pop();
+            clicker.targetButtonId = args.front()->getElement().toString();
+            args.pop();
+            clicker.baseInterval = args.front()->getElement().get<float>();
+            args.pop();
+
+            // Optional costs array
+            if (!args.empty())
+            {
+                auto costsArg = args.front();
+                args.pop();
+                if (costsArg->getType() == "ClassInstance")
+                {
+                    auto costList = std::static_pointer_cast<ClassInstance>(costsArg);
+                    for (const auto& field : costList->getFields())
+                    {
+                        auto cost = deserializeTo<NexusButtonCost>(field.value);
+                        clicker.costs.push_back(cost);
+                    }
+                }
+            }
+
+            // Optional unlock conditions array
+            if (!args.empty())
+            {
+                auto conditionsArg = args.front();
+                args.pop();
+                if (conditionsArg->getType() == "ClassInstance")
+                {
+                    auto conditionList = std::static_pointer_cast<ClassInstance>(conditionsArg);
+                    for (const auto& field : conditionList->getFields())
+                    {
+                        auto condition = deserializeTo<FactChecker>(field.value);
+                        clicker.unlockConditions.push_back(condition);
+                    }
+                }
+            }
+
+            // Add to available auto-clickers
+            sys->availableAutoClickers.push_back(clicker);
+
+            // Create the auto-clicker facts immediately
+            sys->createAutoClickerFacts(clicker);
+
+            return nullptr;
+        }
+
+        AutoClickerSystem *sys;
+    };
+
+    class PurchaseAutoClickerReward : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(1, 1); }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto autoClickerId = args.front()->getElement().toString();
+            args.pop();
+
+            auto event = StandardEvent("purchase_autoclicker", "id", autoClickerId);
+            return serializeToInterpreter(this, AchievementReward(event));
+        }
+    };
+
+    class ToggleAutoClickerReward : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(1, 2); } // autoClickerId, [enable]
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto autoClickerId = args.front()->getElement().toString();
+            args.pop();
+
+            bool enable = true; // Default to enable
+            if (!args.empty())
+            {
+                enable = args.front()->getElement().get<bool>();
+                args.pop();
+            }
+
+            auto event = StandardEvent("toggle_autoclicker", "id", autoClickerId, "enable", ElementType(enable));
+            return serializeToInterpreter(this, AchievementReward(event));
+        }
+    };
+
     struct NexusModule : public SysModule
     {
-        NexusModule(NexusSystem *sys)
+        NexusModule(NexusSystem *sys, AutoClickerSystem *autoClickerSys)
         {
             // Existing functions
             addSystemFunction<CreateNexusButton>("NexusButton");
@@ -473,6 +577,11 @@ namespace pg
             addSystemFunction<CreateResource>("resource");
             addSystemFunction<CreateIncrease>("increase");
 
+            // AutoClicker functions
+            addSystemFunction<CreateAutoClicker>("createAutoClicker", autoClickerSys);
+            addSystemFunction<PurchaseAutoClickerReward>("purchaseAutoClicker");
+            addSystemFunction<ToggleAutoClickerReward>("toggleAutoClicker");
+
             //Todo add basic generator / converter ids as system vars
             //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
         }
@@ -482,7 +591,10 @@ namespace pg
     {
         PgInterpreter interpreter;
 
-        interpreter.addSystemModule("nexus", NexusModule{this});
+        // Get the AutoClickerSystem reference
+        auto* autoClickerSystem = ecsRef->getSystem<AutoClickerSystem>();
+
+        interpreter.addSystemModule("nexus", NexusModule{this, autoClickerSystem});
         interpreter.addSystemModule("log", LogModule{nullptr});
         interpreter.addSystemModule("achievement", AchievementModule{});
 

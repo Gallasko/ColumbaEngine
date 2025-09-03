@@ -21,6 +21,40 @@ namespace pg
         bool consumed = true;
     };
 
+    // AutoClicker system structures
+    struct AutoClicker
+    {
+        std::string id;                         // Unique identifier
+        std::string targetButtonId;            // Button to auto-click
+        float baseInterval = 5000.0f;          // Base time between clicks (ms)
+        bool active = false;                   // Is the auto-clicker running
+        float timer = 0.0f;                    // Current timer countdown
+        size_t clickCount = 0;                 // Statistics tracking
+        
+        // Purchase/unlock system
+        std::vector<NexusButtonCost> costs = {};        // Cost to buy this auto-clicker
+        std::vector<FactChecker> unlockConditions = {}; // Conditions to unlock
+        bool owned = false;                             // Player owns this auto-clicker
+    };
+
+    // AutoClicker events
+    struct PurchaseAutoClicker
+    {
+        std::string autoClickerId;
+    };
+
+    struct ToggleAutoClicker
+    {
+        std::string autoClickerId;
+        bool enable = true;  // true = enable, false = disable
+    };
+
+    struct AutoClickerAction
+    {
+        std::string autoClickerId;
+        std::string targetButtonId;  // For statistics tracking
+    };
+
     // A data‐driven UI button definition.
     struct DynamicNexusButton
     {
@@ -65,6 +99,8 @@ namespace pg
     template <>
     void serialize(Archive& archive, const DynamicNexusButton& value);
 
+    template <>
+    void serialize(Archive& archive, const AutoClicker& value);
 
     struct NexusButtonStateChange
     {
@@ -76,7 +112,7 @@ namespace pg
         std::vector<std::string> ids;
     };
 
-    struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, SaveSys, InitSys>
+    struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, Listener<AutoClickerAction>, SaveSys, InitSys>
     {
         virtual std::string getSystemName() const override { return "NexusSystem"; }
 
@@ -120,6 +156,8 @@ namespace pg
             // Track playtime statistics
             ecsRef->sendEvent(IncreaseFact{"stat_playtime_seconds", event.tick / 1000.0f});
         }
+
+        virtual void onEvent(const AutoClickerAction& event) override;
 
         virtual void execute() override;
 
@@ -166,6 +204,34 @@ namespace pg
 
         bool activeButton = false;
         DynamicNexusButton* currentActiveButton;
+    };
+
+    struct AutoClickerSystem : public System<
+        Listener<TickEvent>, 
+        Listener<StandardEvent>,
+        SaveSys, 
+        InitSys
+    >
+    {
+        virtual std::string getSystemName() const override { return "AutoClickerSystem"; }
+
+        virtual void init() override;
+        virtual void execute() override;
+
+        virtual void onEvent(const StandardEvent& event) override;
+        virtual void onEvent(const TickEvent& event) override;
+
+        virtual void save(Archive& archive) override;
+        virtual void load(const UnserializedObject& serializedString) override;
+
+        std::vector<AutoClicker> availableAutoClickers;  // Defined auto-clickers
+        std::vector<AutoClicker> ownedAutoClickers;      // Player's auto-clickers
+
+        void createAutoClickerFacts(const AutoClicker& clicker); // Auto-generates WorldFacts
+
+    private:
+        float getClickInterval(const AutoClicker& clicker); // Gets speed from WorldFact
+        float deltaTime = 0.0f;  // Accumulated delta time from TickEvent
     };
 
     struct NexusScene : public Scene

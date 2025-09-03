@@ -197,6 +197,122 @@ namespace pg
 
     }
 
+    void NexusSystem::onEvent(const AutoClickerAction& event)
+    {
+        LOG_INFO("AutoClickerAction", "Auto-clicker " << event.autoClickerId << " trying to click button: " << event.targetButtonId);
+        
+        // Find the button that the auto-clicker is targeting
+        auto it = std::find_if(savedButtons.begin(), savedButtons.end(),
+                              [&event](const DynamicNexusButton& button) { return button.id == event.targetButtonId; });
+
+        if (it != savedButtons.end())
+        {
+            LOG_INFO("AutoClickerAction", "Found target button: " << it->id << " (activable: " << it->activable << ", archived: " << it->archived << ")");
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+
+            // Check if the button is clickable (visibility and conditions)
+            if (isButtonClickable(wf->factMap, *it) && !it->archived)
+            {
+                // Simulate clicking the button
+                auto buttonCopy = *it;
+
+                // Check if it's an activable button and not already active
+                if (buttonCopy.activable && !buttonCopy.active && !activeButton)
+                {
+                    // Activate the button
+                    buttonCopy.active = true;
+                    buttonCopy.activeTime = 0.0f;
+
+                    ecsRef->sendEvent(NexusButtonStateChange{buttonCopy});
+
+                    LOG_INFO("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " activated button: " << event.targetButtonId);
+                }
+                else if (!buttonCopy.activable)
+                {
+                    // Regular button - trigger immediately
+
+                    // Check and deduct costs
+                    bool canAfford = true;
+                    for (const auto& cost : buttonCopy.costs)
+                    {
+                        float currentAmount = wf->factMap.count(cost.resourceId) ?
+                                            wf->factMap.at(cost.resourceId).get<float>() : 0.0f;
+                        float requiredAmount = cost.value;
+
+                        if (!cost.valueId.empty())
+                        {
+                            requiredAmount = wf->factMap.count(cost.valueId) ?
+                                           wf->factMap.at(cost.valueId).get<float>() : cost.value;
+                        }
+
+                        if (currentAmount < requiredAmount)
+                        {
+                            canAfford = false;
+                            break;
+                        }
+                    }
+
+                    if (canAfford)
+                    {
+                        // Deduct costs
+                        for (const auto& cost : buttonCopy.costs)
+                        {
+                            if (cost.consumed)
+                            {
+                                float requiredAmount = cost.value;
+                                if (!cost.valueId.empty())
+                                {
+                                    requiredAmount = wf->factMap.count(cost.valueId) ?
+                                                   wf->factMap.at(cost.valueId).get<float>() : cost.value;
+                                }
+                                ecsRef->sendEvent(IncreaseFact{cost.resourceId, ElementType(-requiredAmount)});
+                            }
+                        }
+
+                        // Execute outcomes
+                        for (const auto& outcome : buttonCopy.outcome)
+                        {
+                            ecsRef->sendEvent(outcome);
+                        }
+
+                        // Update button state
+                        buttonCopy.nbClick++;
+
+                        // Check if button should be archived
+                        if (buttonCopy.nbClickBeforeArchive > 0 && buttonCopy.nbClick >= buttonCopy.nbClickBeforeArchive)
+                        {
+                            buttonCopy.archived = true;
+                        }
+
+                        ecsRef->sendEvent(NexusButtonStateChange{buttonCopy});
+
+                        // Update statistics
+                        ecsRef->sendEvent(IncreaseFact{"stat_total_button_clicks", ElementType(1.0f)});
+                        ecsRef->sendEvent(IncreaseFact{"stat_clicks_" + buttonCopy.id, ElementType(1.0f)});
+
+                        LOG_INFO("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " clicked button: " << event.targetButtonId);
+                    }
+                    else
+                    {
+                        LOG_WARNING("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " cannot afford button: " << event.targetButtonId);
+                    }
+                }
+                else
+                {
+                    LOG_WARNING("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " cannot activate button " << event.targetButtonId << " - button already active or another is active");
+                }
+            }
+            else
+            {
+                LOG_WARNING("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " cannot click button " << event.targetButtonId << " - button not clickable or archived");
+            }
+        }
+        else
+        {
+            LOG_ERROR("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " target button not found: " << event.targetButtonId);
+        }
+    }
+
     void NexusScene::init()
     {
         auto themeSys = ecsRef->getSystem<ThemeSystem>();
@@ -1487,6 +1603,234 @@ namespace pg
                     // prefab->get<PositionComponent>()->setVisibility(false);
                 }
             }
+        }
+    }
+
+    // AutoClickerSystem implementation
+    void AutoClickerSystem::init()
+    {
+        // Register StandardEvent types we listen to
+        addListenerToStandardEvent("purchase_autoclicker");
+        addListenerToStandardEvent("toggle_autoclicker");
+
+        // Initialize global auto-clicker multiplier if it doesn't exist
+        auto* factSys = ecsRef->getSystem<WorldFacts>();
+        if (factSys->factMap.find("autoclicker_global_multiplier") == factSys->factMap.end())
+        {
+            ecsRef->sendEvent(AddFact{"autoclicker_global_multiplier", ElementType(1.0f)});
+        }
+    }
+
+    void AutoClickerSystem::execute()
+    {
+        // Process owned auto-clickers that are active  
+        for (auto& clicker : ownedAutoClickers)
+        {
+            if (clicker.active && clicker.owned)
+            {
+                clicker.timer += deltaTime;
+
+                float interval = getClickInterval(clicker);
+                if (clicker.timer >= interval)
+                {
+                    // Send auto-click event
+                    LOG_INFO("AutoClickerSystem", "Auto-clicker " << clicker.id << " firing! Timer: " << clicker.timer << ", Interval: " << interval);
+                    ecsRef->sendEvent(AutoClickerAction{clicker.id, clicker.targetButtonId});
+                    
+                    // Reset timer AFTER logging
+                    clicker.timer = 0.0f;
+
+                    // Update statistics
+                    clicker.clickCount++;
+                    ecsRef->sendEvent(IncreaseFact{"stat_autoclicker_clicks_" + clicker.id, ElementType(1.0f)});
+                    ecsRef->sendEvent(IncreaseFact{"stat_total_autoclicker_clicks", ElementType(1.0f)});
+                }
+            }
+        }
+        
+        // Reset deltaTime after processing all auto-clickers
+        deltaTime = 0;
+    }
+
+    void AutoClickerSystem::onEvent(const StandardEvent& event)
+    {
+        if (event.name == "purchase_autoclicker")
+        {
+            auto autoClickerId = event.values.at("id").get<std::string>();
+
+            // Find the auto-clicker definition
+            auto it = std::find_if(availableAutoClickers.begin(), availableAutoClickers.end(),
+                                  [&autoClickerId](const AutoClicker& clicker) { return clicker.id == autoClickerId; });
+
+            if (it != availableAutoClickers.end())
+            {
+                auto* factSys = ecsRef->getSystem<WorldFacts>();
+
+                // Check if already owned
+                auto ownedFactName = it->id + "_owned";
+                if (factSys->factMap.count(ownedFactName) && factSys->factMap.at(ownedFactName).get<bool>())
+                {
+                    LOG_WARNING("AutoClickerSystem", "Auto-clicker " << it->id << " is already owned");
+                    return;
+                }
+
+                // Check costs and conditions
+                bool canPurchase = true;
+
+                // Check unlock conditions
+                for (const auto& condition : it->unlockConditions)
+                {
+                    if (!condition.check(factSys->factMap))
+                    {
+                        canPurchase = false;
+                        break;
+                    }
+                }
+
+                // Check costs
+                if (canPurchase)
+                {
+                    for (const auto& cost : it->costs)
+                    {
+                        float currentAmount = factSys->factMap.count(cost.resourceId) ?
+                                            factSys->factMap.at(cost.resourceId).get<float>() : 0.0f;
+                        float requiredAmount = cost.value;
+
+                        if (!cost.valueId.empty())
+                        {
+                            requiredAmount = factSys->factMap.count(cost.valueId) ?
+                                           factSys->factMap.at(cost.valueId).get<float>() : cost.value;
+                        }
+
+                        if (currentAmount < requiredAmount)
+                        {
+                            canPurchase = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (canPurchase)
+                {
+                    // Deduct costs
+                    for (const auto& cost : it->costs)
+                    {
+                        if (cost.consumed)
+                        {
+                            float requiredAmount = cost.value;
+                            if (!cost.valueId.empty())
+                            {
+                                requiredAmount = factSys->factMap.count(cost.valueId) ?
+                                               factSys->factMap.at(cost.valueId).get<float>() : cost.value;
+                            }
+                            ecsRef->sendEvent(IncreaseFact{cost.resourceId, ElementType(-requiredAmount)});
+                        }
+                    }
+
+                    // Add to owned auto-clickers
+                    AutoClicker ownedClicker = *it;
+                    ownedClicker.owned = true;
+                    ownedClicker.active = true; // Start active by default!
+                    ownedAutoClickers.push_back(ownedClicker);
+
+                    // Set ownership fact
+                    ecsRef->sendEvent(AddFact{it->id + "_owned", ElementType(true)});
+
+                    // Create auto-clicker specific facts
+                    createAutoClickerFacts(ownedClicker);
+
+                    LOG_INFO("AutoClickerSystem", "Purchased and activated auto-clicker: " << it->id << " (targeting: " << it->targetButtonId << ")");
+                }
+                else
+                {
+                    LOG_WARNING("AutoClickerSystem", "Cannot purchase auto-clicker " << it->id << " - requirements not met");
+                }
+            }
+            else
+            {
+                LOG_ERROR("AutoClickerSystem", "Auto-clicker definition not found: " << autoClickerId);
+            }
+        }
+        else if (event.name == "toggle_autoclicker")
+        {
+            auto autoClickerId = event.values.at("id").get<std::string>();
+            bool enable = event.values.at("enable").get<bool>();
+
+            auto it = std::find_if(ownedAutoClickers.begin(), ownedAutoClickers.end(),
+                                  [&autoClickerId](const AutoClicker& clicker) { return clicker.id == autoClickerId; });
+
+            if (it != ownedAutoClickers.end())
+            {
+                if (it->owned)
+                {
+                    it->active = enable;
+                    it->timer = 0.0f; // Reset timer when toggling
+
+                    LOG_INFO("AutoClickerSystem", "Auto-clicker " << it->id << " is now " << (it->active ? "active" : "inactive") << " (targeting: " << it->targetButtonId << ")");
+                }
+                else
+                {
+                    LOG_WARNING("AutoClickerSystem", "Cannot toggle auto-clicker " << it->id << " - not owned");
+                }
+            }
+            else
+            {
+                LOG_ERROR("AutoClickerSystem", "Owned auto-clicker not found: " << autoClickerId);
+            }
+        }
+    }
+
+    void AutoClickerSystem::onEvent(const TickEvent& event)
+    {
+        deltaTime += event.tick; // event.tick is already in milliseconds
+    }
+
+    void AutoClickerSystem::save(Archive& archive)
+    {
+        serialize(archive, "availableAutoClickers", availableAutoClickers);
+        serialize(archive, "ownedAutoClickers", ownedAutoClickers);
+    }
+
+    void AutoClickerSystem::load(const UnserializedObject& serializedString)
+    {
+        defaultDeserialize(serializedString, "availableAutoClickers", availableAutoClickers);
+        defaultDeserialize(serializedString, "ownedAutoClickers", ownedAutoClickers);
+    }
+
+    float AutoClickerSystem::getClickInterval(const AutoClicker& clicker)
+    {
+        auto* factSys = ecsRef->getSystem<WorldFacts>();
+
+        float baseInterval = factSys->factMap.count("autoclicker_interval_" + clicker.id) ?
+                           factSys->factMap.at("autoclicker_interval_" + clicker.id).get<float>() : clicker.baseInterval;
+        float individualMultiplier = factSys->factMap.count("autoclicker_multiplier_" + clicker.id) ?
+                                   factSys->factMap.at("autoclicker_multiplier_" + clicker.id).get<float>() : 1.0f;
+        float globalMultiplier = factSys->factMap.count("autoclicker_global_multiplier") ?
+                               factSys->factMap.at("autoclicker_global_multiplier").get<float>() : 1.0f;
+
+        return baseInterval / (individualMultiplier * globalMultiplier);  // Smaller = faster
+    }
+
+    void AutoClickerSystem::createAutoClickerFacts(const AutoClicker& clicker)
+    {
+        auto* factSys = ecsRef->getSystem<WorldFacts>();
+
+        // Create interval fact if it doesn't exist
+        if (factSys->factMap.find("autoclicker_interval_" + clicker.id) == factSys->factMap.end())
+        {
+            ecsRef->sendEvent(AddFact{"autoclicker_interval_" + clicker.id, ElementType(clicker.baseInterval)});
+        }
+
+        // Create multiplier fact if it doesn't exist
+        if (factSys->factMap.find("autoclicker_multiplier_" + clicker.id) == factSys->factMap.end())
+        {
+            ecsRef->sendEvent(AddFact{"autoclicker_multiplier_" + clicker.id, ElementType(1.0f)});
+        }
+
+        // Initialize statistics
+        if (factSys->factMap.find("stat_autoclicker_clicks_" + clicker.id) == factSys->factMap.end())
+        {
+            ecsRef->sendEvent(AddFact{"stat_autoclicker_clicks_" + clicker.id, ElementType(0.0f)});
         }
     }
 }

@@ -119,4 +119,55 @@ namespace pg
         out << std::fixed << std::setprecision(decimalPlaces) << value;
         return out.str();
     }
+
+    template <>
+    void serialize(Archive& archive, const AutoClicker& value)
+    {
+        archive.startSerialization("AutoClicker");
+
+        serialize(archive, "id", value.id);
+        serialize(archive, "targetButtonId", value.targetButtonId);
+        serialize(archive, "baseInterval", value.baseInterval);
+        serialize(archive, "active", value.active);
+        serialize(archive, "timer", value.timer);
+        serialize(archive, "clickCount", value.clickCount);
+        serialize(archive, "costs", value.costs);
+        serialize(archive, "unlockConditions", value.unlockConditions);
+        serialize(archive, "owned", value.owned);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    AutoClicker deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("AutoClicker");
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("AutoClicker", "Element is null");
+        }
+        else
+        {
+            LOG_MILE("AutoClicker", "Deserializing AutoClicker");
+
+            AutoClicker data;
+
+            defaultDeserialize(serializedString, "id", data.id);
+            defaultDeserialize(serializedString, "targetButtonId", data.targetButtonId);
+            defaultDeserialize(serializedString, "baseInterval", data.baseInterval);
+            defaultDeserialize(serializedString, "active", data.active);
+            defaultDeserialize(serializedString, "timer", data.timer);
+            defaultDeserialize(serializedString, "clickCount", data.clickCount);
+            defaultDeserialize(serializedString, "costs", data.costs);
+            defaultDeserialize(serializedString, "unlockConditions", data.unlockConditions);
+            defaultDeserialize(serializedString, "owned", data.owned);
+
+            return data;
+        }
+
+        return AutoClicker{};
+    }
 }
