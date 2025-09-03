@@ -39,6 +39,65 @@ namespace pg
 
         struct UpdateGenView {};
 
+        // Helper function to check if button costs can be afforded
+        bool checkButtonCosts(WorldFacts* wf, const DynamicNexusButton& button)
+        {
+            for (size_t i = 0; i < button.costs.size(); ++i)
+            {
+                const auto& cost = button.costs[i];
+
+                float requiredAmount = cost.value;
+                if (!cost.valueId.empty())
+                {
+                    requiredAmount = wf->getFact<float>(cost.valueId, cost.value);
+                }
+
+                if (button.costIncrease.size() > i)
+                {
+                    requiredAmount *= std::pow(button.costIncrease[i], button.nbClick);
+                }
+
+                if (!wf->canAfford(cost.resourceId, requiredAmount))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Helper function to deduct button costs
+        void deductButtonCosts(WorldFacts* wf, const DynamicNexusButton& button)
+        {
+            for (size_t i = 0; i < button.costs.size(); ++i)
+            {
+                const auto& cost = button.costs[i];
+
+                if (cost.consumed)
+                {
+                    float requiredAmount = cost.value;
+                    if (!cost.valueId.empty())
+                    {
+                        requiredAmount = wf->getFact<float>(cost.valueId, cost.value);
+                    }
+
+                    if (button.costIncrease.size() > i)
+                    {
+                        requiredAmount *= std::pow(button.costIncrease[i], button.nbClick);
+                    }
+
+                    wf->spendResource(cost.resourceId, requiredAmount);
+                }
+            }
+        }
+
+        // Helper function to get resource with optional max value
+        std::pair<float, float> getResourceWithMax(WorldFacts* wf, const std::string& resourceName)
+        {
+            float value = wf->getResource(resourceName);
+            float maxValue = wf->getFact<float>(resourceName + "_max_value", 0.0f);
+            return {value, maxValue};
+        }
+
         constant::Vector4D getButtonColors(ThemeInfo& info, bool clickable, bool activable, bool highlight = false)
         {
             if (clickable)
@@ -81,9 +140,9 @@ namespace pg
 
         bool isButtonClickable(const std::unordered_map<std::string, ElementType>& factMap, const DynamicNexusButton& button)
         {
-            for (const auto& it : button.conditions)
+            for (const auto& condition : button.conditions)
             {
-                if (not it.check(factMap))
+                if (!condition.check(factMap))
                 {
                     return false;
                 }
@@ -91,27 +150,27 @@ namespace pg
 
             for (size_t i = 0; i < button.costs.size(); ++i)
             {
-                auto it = button.costs[i];
+                const auto& cost = button.costs[i];
 
                 auto fc = FactChecker();
-                fc.name = it.resourceId;
+                fc.name = cost.resourceId;
                 fc.equality = FactCheckEquality::GreaterEqual;
 
-                if (it.valueId != "" and factMap.find(it.valueId) != factMap.end())
+                if (!cost.valueId.empty() && factMap.find(cost.valueId) != factMap.end())
                 {
-                    fc.value = factMap.at(it.valueId);
+                    fc.value = factMap.at(cost.valueId);
                 }
                 else
                 {
-                    fc.value = it.value;
+                    fc.value = cost.value;
                 }
 
-                if (button.costIncrease.size() > i and fc.value.isNumber())
+                if (button.costIncrease.size() > i && fc.value.isNumber())
                 {
                     fc.value = ElementType{fc.value.get<float>() * std::pow(button.costIncrease[i], button.nbClick)};
                 }
 
-                if (not fc.check(factMap))
+                if (!fc.check(factMap))
                 {
                     return false;
                 }
@@ -143,38 +202,19 @@ namespace pg
             if (currentActiveButton->activeTime >= currentActiveButton->activationTime)
             {
                 // Track task completion statistics
-                ecsRef->sendEvent(IncreaseFact{"stat_tasks_completed", 1.0f});
-                ecsRef->sendEvent(IncreaseFact{"stat_task_completions_" + currentActiveButton->id, 1.0f});
+                wf->incrementStat("stat_tasks_completed");
+                wf->incrementStat("stat_task_completions_" + currentActiveButton->id);
 
-                // Todo check if all the conditions are met
-                for (auto it2 : currentActiveButton->outcome)
+                // Execute outcomes
+                for (const auto& outcome : currentActiveButton->outcome)
                 {
-                    it2.call(ecsRef);
+                    outcome.call(ecsRef);
                 }
 
-                if (not currentActiveButton->costs.empty())
+                // Deduct costs using helper function
+                if (!currentActiveButton->costs.empty())
                 {
-                    for (size_t i = 0; i < currentActiveButton->costs.size(); ++i)
-                    {
-                        auto it3 = currentActiveButton->costs[i];
-
-                        if (it3.consumed)
-                        {
-                            auto cost = IncreaseFact(it3.resourceId, -it3.value);
-
-                            if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
-                            {
-                                cost.value = -wf->factMap.at(it3.valueId);
-                            }
-
-                            if (currentActiveButton->costIncrease.size() > i and cost.value.isNumber())
-                            {
-                                cost.value = ElementType{cost.value.get<float>() * std::pow(currentActiveButton->costIncrease[i], currentActiveButton->nbClick)};
-                            }
-
-                            ecsRef->sendEvent(cost);
-                        }
-                    }
+                    deductButtonCosts(wf, *currentActiveButton);
                 }
 
                 currentActiveButton->nbClick++;
@@ -230,52 +270,22 @@ namespace pg
                 else if (!buttonCopy.activable)
                 {
                     // Regular button - trigger immediately
-
-                    // Check and deduct costs
                     LOG_INFO("AutoClickerAction", "Button " << buttonCopy.id << " has " << buttonCopy.costs.size() << " costs to check");
-                    bool canAfford = true;
-                    for (const auto& cost : buttonCopy.costs)
-                    {
-                        float currentAmount = wf->factMap.count(cost.resourceId) ?
-                                            wf->factMap.at(cost.resourceId).get<float>() : 0.0f;
-                        float requiredAmount = cost.value;
 
-                        if (!cost.valueId.empty())
-                        {
-                            requiredAmount = wf->factMap.count(cost.valueId) ?
-                                           wf->factMap.at(cost.valueId).get<float>() : cost.value;
-                        }
-
-                        if (currentAmount < requiredAmount)
-                        {
-                            canAfford = false;
-                            break;
-                        }
-                    }
-
+                    // Check costs using helper function
+                    bool canAfford = checkButtonCosts(wf, buttonCopy);
                     LOG_INFO("AutoClickerAction", "Button " << buttonCopy.id << " canAfford: " << canAfford);
+
                     if (canAfford)
                     {
-                        // Deduct costs
-                        for (const auto& cost : buttonCopy.costs)
-                        {
-                            if (cost.consumed)
-                            {
-                                float requiredAmount = cost.value;
-                                if (!cost.valueId.empty())
-                                {
-                                    requiredAmount = wf->getFact(cost.valueId, cost.value);
-                                }
-                                wf->spendResource(cost.resourceId, requiredAmount);
-                            }
-                        }
+                        // Deduct costs using helper function
+                        deductButtonCosts(wf, buttonCopy);
 
                         // Execute outcomes
                         LOG_INFO("AutoClickerAction", "Executing " << buttonCopy.outcome.size() << " outcomes for button: " << buttonCopy.id);
                         for (const auto& outcome : buttonCopy.outcome)
                         {
                             outcome.call(ecsRef);
-                            // ecsRef->sendEvent(outcome);
                         }
 
                         // Update button state
@@ -289,7 +299,7 @@ namespace pg
 
                         ecsRef->sendEvent(NexusButtonStateChange{buttonCopy});
 
-                        // Update statistics
+                        // Update statistics using helper methods
                         wf->incrementStat("stat_total_button_clicks");
                         wf->incrementStat("stat_clicks_" + buttonCopy.id);
 
@@ -596,24 +606,20 @@ namespace pg
 
             auto res = event.values.at("res").get<std::string>();
 
-            ElementType givenValue;
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+            if (!wf) return;
 
+            ElementType givenValue;
             if (event.values.find("value") != event.values.end())
             {
                 givenValue = event.values.at("value");
             }
-
-            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
-            if (not wf) return;
-
-            if (event.values.find("valueId") != event.values.end())
+            else if (event.values.find("valueId") != event.values.end())
             {
                 auto valueId = event.values.at("valueId").get<std::string>();
-
-                auto it = wf->factMap.find(valueId);
-                if (it != wf->factMap.end())
+                if (wf->hasFact(valueId))
                 {
-                    givenValue = it->second;
+                    givenValue = ElementType{wf->getFact<float>(valueId, 0.0f)};
                 }
                 else
                 {
@@ -622,22 +628,9 @@ namespace pg
                 }
             }
 
-            float value = 0.0f;
-            float maxValue = 0.0f;
-            bool hasMax = false;
-
-            auto it = wf->factMap.find(res);
-            if (it != wf->factMap.end())
-            {
-                value = it->second.get<float>();
-            }
-
-            auto itMax = wf->factMap.find(res + "_max_value");
-            if (itMax != wf->factMap.end())
-            {
-                maxValue = itMax->second.get<float>();
-                hasMax = true;
-            }
+            // Use helper function to get resource with max value
+            auto [value, maxValue] = getResourceWithMax(wf, res);
+            bool hasMax = maxValue > 0.0f;
 
             float v = 0.0f;
 
@@ -651,21 +644,20 @@ namespace pg
                     return;
                 }
 
-                availableSpace = std::min(availableSpace, givenValue.get<float>());
-
-                v = availableSpace;
+                v = std::min(availableSpace, givenValue.get<float>());
             }
             else
             {
                 v = givenValue.get<float>();
             }
 
-            ecsRef->sendEvent(IncreaseFact{res, v});
-            ecsRef->sendEvent(IncreaseFact{"total_" + res, v});
+            // Use WorldFacts helpers for resource updates
+            wf->addResource(res, v);
+            wf->addResource("total_" + res, v);
 
             // Track resource generation statistics
-            ecsRef->sendEvent(IncreaseFact{"stat_total_resources_generated", v});
-            ecsRef->sendEvent(IncreaseFact{"stat_" + res + "_generated", v});
+            wf->incrementStat("stat_total_resources_generated", v);
+            wf->incrementStat("stat_" + res + "_generated", v);
         });
 
         listenToEvent<UpdateGenView>([this](const UpdateGenView&) {
@@ -770,21 +762,8 @@ namespace pg
                                 value = value * std::pow(it->costIncrease[i], it->nbClick);
                             }
 
-                            // Check if player has enough resources
-                            bool hasEnoughResources = true;
-                            if (wf)
-                            {
-                                auto resourceIt = wf->factMap.find(cost.resourceId);
-                                if (resourceIt != wf->factMap.end())
-                                {
-                                    float currentAmount = resourceIt->second.get<float>();
-                                    hasEnoughResources = currentAmount >= value;
-                                }
-                                else
-                                {
-                                    hasEnoughResources = false; // Resource doesn't exist
-                                }
-                            }
+                            // Check if player has enough resources using helper
+                            bool hasEnoughResources = wf ? wf->canAfford(cost.resourceId, value) : false;
 
                             // Add color coding: green if available, red if missing
                             if (hasEnoughResources)
@@ -917,9 +896,10 @@ namespace pg
                     return;
                 }
 
-                // Track button click statistics
-                ecsRef->sendEvent(IncreaseFact{"stat_total_button_clicks", 1.0f});
-                ecsRef->sendEvent(IncreaseFact{"stat_clicks_" + buttonId, 1.0f});
+                // Track button click statistics using WorldFacts helpers
+                WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+                wf->incrementStat("stat_total_button_clicks");
+                wf->incrementStat("stat_clicks_" + buttonId);
 
                 // Todo check if all the conditions are met
                 for (auto it2 : it->outcome)
@@ -927,31 +907,10 @@ namespace pg
                     it2.call(ecsRef);
                 }
 
-                if (not it->costs.empty())
+                if (!it->costs.empty())
                 {
-                    WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
-
-                    for (size_t i = 0; i < it->costs.size(); ++i)
-                    {
-                        auto it3 = it->costs[i];
-
-                        if (it3.consumed)
-                        {
-                            auto cost = IncreaseFact(it3.resourceId, -it3.value);
-
-                            if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
-                            {
-                                cost.value = -wf->factMap.at(it3.valueId);
-                            }
-
-                            if (it->costIncrease.size() > i and cost.value.isNumber())
-                            {
-                                cost.value = ElementType{cost.value.get<float>() * std::pow(it->costIncrease[i], it->nbClick)};
-                            }
-
-                            ecsRef->sendEvent(cost);
-                        }
-                    }
+                    // Deduct costs using helper function
+                    deductButtonCosts(wf, *it);
 
                     std::ostringstream costText;
                     bool addEscape = false;
@@ -975,18 +934,8 @@ namespace pg
                             value = value * std::pow(it->costIncrease[i], it->nbClick + 1);
                         }
 
-                        // Check if player has enough resources for next click
-                        bool hasEnoughResources = true;
-                        auto resourceIt = wf->factMap.find(cost.resourceId);
-                        if (resourceIt != wf->factMap.end())
-                        {
-                            float currentAmount = resourceIt->second.get<float>();
-                            hasEnoughResources = currentAmount >= value;
-                        }
-                        else
-                        {
-                            hasEnoughResources = false; // Resource doesn't exist
-                        }
+                        // Check if player has enough resources for next click using helper
+                        bool hasEnoughResources = wf->canAfford(cost.resourceId, value);
 
                         // Add color coding: green if available, red if missing
                         if (hasEnoughResources)
@@ -1008,7 +957,7 @@ namespace pg
 
                 it->nbClick++;
 
-                LOG_ERROR("NexusScene", "Button clicked: " << buttonId << ", clicked: " << it->nbClick << ", it->id: " << it->id);
+                LOG_INFO("NexusScene", "Button clicked: " << buttonId << ", clicked: " << it->nbClick << ", it->id: " << it->id);
 
                 if (it->nbClickBeforeArchive != 0 and it->nbClick >= it->nbClickBeforeArchive)
                 {
@@ -1434,22 +1383,9 @@ namespace pg
 
         for (auto& entry : resourceList)
         {
-            float value = 0.0f;
-            float maxValue = 0.0f;
-            bool hasMax = false;
-
-            auto it = wf->factMap.find(entry.resourceName);
-            if (it != wf->factMap.end())
-            {
-                value = it->second.get<float>();
-            }
-
-            auto itMax = wf->factMap.find(entry.resourceName + "_max_value");
-            if (itMax != wf->factMap.end())
-            {
-                maxValue = itMax->second.get<float>();
-                hasMax = true;
-            }
+            // Use helper function to get resource with max value
+            auto [value, maxValue] = getResourceWithMax(wf, entry.resourceName);
+            bool hasMax = maxValue > 0.0f;
 
             std::ostringstream oss;
             oss << entry.resourceName << ": " << value;
@@ -1618,10 +1554,7 @@ namespace pg
 
         // Initialize global auto-clicker multiplier if it doesn't exist
         auto* factSys = ecsRef->getSystem<WorldFacts>();
-        if (factSys->factMap.find("autoclicker_global_multiplier") == factSys->factMap.end())
-        {
-            ecsRef->sendEvent(AddFact{"autoclicker_global_multiplier", ElementType(1.0f)});
-        }
+        factSys->setFactIfNotExists("autoclicker_global_multiplier", 1.0f);
     }
 
     void AutoClickerSystem::execute()
@@ -1670,9 +1603,8 @@ namespace pg
             {
                 auto* factSys = ecsRef->getSystem<WorldFacts>();
 
-                // Check if already owned
-                auto ownedFactName = it->id + "_owned";
-                if (factSys->factMap.count(ownedFactName) && factSys->factMap.at(ownedFactName).get<bool>())
+                // Check if already owned using WorldFacts helper
+                if (factSys->getFact<bool>(it->id + "_owned", false))
                 {
                     LOG_WARNING("AutoClickerSystem", "Auto-clicker " << it->id << " is already owned");
                     return;
@@ -1691,22 +1623,18 @@ namespace pg
                     }
                 }
 
-                // Check costs
+                // Check costs using WorldFacts helpers
                 if (canPurchase)
                 {
                     for (const auto& cost : it->costs)
                     {
-                        float currentAmount = factSys->factMap.count(cost.resourceId) ?
-                                            factSys->factMap.at(cost.resourceId).get<float>() : 0.0f;
                         float requiredAmount = cost.value;
-
                         if (!cost.valueId.empty())
                         {
-                            requiredAmount = factSys->factMap.count(cost.valueId) ?
-                                           factSys->factMap.at(cost.valueId).get<float>() : cost.value;
+                            requiredAmount = factSys->getFact<float>(cost.valueId, cost.value);
                         }
 
-                        if (currentAmount < requiredAmount)
+                        if (!factSys->canAfford(cost.resourceId, requiredAmount))
                         {
                             canPurchase = false;
                             break;
@@ -1716,7 +1644,7 @@ namespace pg
 
                 if (canPurchase)
                 {
-                    // Deduct costs
+                    // Deduct costs using WorldFacts helpers
                     for (const auto& cost : it->costs)
                     {
                         if (cost.consumed)
@@ -1724,10 +1652,9 @@ namespace pg
                             float requiredAmount = cost.value;
                             if (!cost.valueId.empty())
                             {
-                                requiredAmount = factSys->factMap.count(cost.valueId) ?
-                                               factSys->factMap.at(cost.valueId).get<float>() : cost.value;
+                                requiredAmount = factSys->getFact<float>(cost.valueId, cost.value);
                             }
-                            ecsRef->sendEvent(IncreaseFact{cost.resourceId, ElementType(-requiredAmount)});
+                            factSys->spendResource(cost.resourceId, requiredAmount);
                         }
                     }
 
@@ -1805,12 +1732,9 @@ namespace pg
     {
         auto* factSys = ecsRef->getSystem<WorldFacts>();
 
-        float baseInterval = factSys->factMap.count("autoclicker_interval_" + clicker.id) ?
-                           factSys->factMap.at("autoclicker_interval_" + clicker.id).get<float>() : clicker.baseInterval;
-        float individualMultiplier = factSys->factMap.count("autoclicker_multiplier_" + clicker.id) ?
-                                   factSys->factMap.at("autoclicker_multiplier_" + clicker.id).get<float>() : 1.0f;
-        float globalMultiplier = factSys->factMap.count("autoclicker_global_multiplier") ?
-                               factSys->factMap.at("autoclicker_global_multiplier").get<float>() : 1.0f;
+        float baseInterval = factSys->getFact<float>("autoclicker_interval_" + clicker.id, clicker.baseInterval);
+        float individualMultiplier = factSys->getFact<float>("autoclicker_multiplier_" + clicker.id, 1.0f);
+        float globalMultiplier = factSys->getFact<float>("autoclicker_global_multiplier", 1.0f);
 
         return baseInterval / (individualMultiplier * globalMultiplier);  // Smaller = faster
     }
@@ -1819,22 +1743,9 @@ namespace pg
     {
         auto* factSys = ecsRef->getSystem<WorldFacts>();
 
-        // Create interval fact if it doesn't exist
-        if (factSys->factMap.find("autoclicker_interval_" + clicker.id) == factSys->factMap.end())
-        {
-            ecsRef->sendEvent(AddFact{"autoclicker_interval_" + clicker.id, ElementType(clicker.baseInterval)});
-        }
-
-        // Create multiplier fact if it doesn't exist
-        if (factSys->factMap.find("autoclicker_multiplier_" + clicker.id) == factSys->factMap.end())
-        {
-            ecsRef->sendEvent(AddFact{"autoclicker_multiplier_" + clicker.id, ElementType(1.0f)});
-        }
-
-        // Initialize statistics
-        if (factSys->factMap.find("stat_autoclicker_clicks_" + clicker.id) == factSys->factMap.end())
-        {
-            ecsRef->sendEvent(AddFact{"stat_autoclicker_clicks_" + clicker.id, ElementType(0.0f)});
-        }
+        // Create auto-clicker facts using WorldFacts helpers
+        factSys->setFactIfNotExists("autoclicker_interval_" + clicker.id, clicker.baseInterval);
+        factSys->setFactIfNotExists("autoclicker_multiplier_" + clicker.id, 1.0f);
+        factSys->setFactIfNotExists("stat_autoclicker_clicks_" + clicker.id, 0.0f);
     }
 }
