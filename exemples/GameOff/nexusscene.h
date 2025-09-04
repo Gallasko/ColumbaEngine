@@ -85,6 +85,9 @@ namespace pg
 
         _unique_id entityId = 0;                // Entity identifier
         _unique_id backgroundId = 0;            // Background identifier
+
+        // Prestige system fields
+        std::vector<std::string> prestigeTags = {}; // Tags for prestige system (e.g., ["basic", "reset", "tutorial"])
     };
 
     struct ResourceDisplayEntry
@@ -199,6 +202,10 @@ namespace pg
         std::vector<std::string> resourceToBeDisplayed;
 
         std::set<std::string> categories;
+
+        // Prestige tag system state
+        std::vector<std::string> defaultPrestigeTags;
+        std::stack<std::vector<std::string>> prestigeTagStack;
 
         size_t deltaTime = 0;
 

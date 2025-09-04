@@ -68,6 +68,7 @@ namespace pg
         serialize(archive, "active", value.active);
         serialize(archive, "activeTime", value.activeTime);
         serialize(archive, "activationTime", value.activationTime);
+        serialize(archive, "prestigeTags", value.prestigeTags);
 
         archive.endSerialization();
     }
@@ -105,6 +106,7 @@ namespace pg
             defaultDeserialize(serializedString, "active", data.active);
             defaultDeserialize(serializedString, "activeTime", data.activeTime);
             defaultDeserialize(serializedString, "activationTime", data.activationTime);
+            defaultDeserialize(serializedString, "prestigeTags", data.prestigeTags);
 
             return data;
         }

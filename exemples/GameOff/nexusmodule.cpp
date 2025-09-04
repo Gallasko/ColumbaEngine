@@ -357,6 +357,122 @@ namespace pg
         }
     };
 
+    class SetDefaultTags : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusSystem *sys)
+        {
+            this->sys = sys;
+            setArity(1, 1); // Array of tags
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Clear both tags and stack to prevent bugs
+            sys->defaultPrestigeTags.clear();
+            while (!sys->prestigeTagStack.empty()) {
+                sys->prestigeTagStack.pop();
+            }
+
+            auto tagsArg = args.front();
+            args.pop();
+
+            if (tagsArg->getType() == "ClassInstance")
+            {
+                auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
+                for (const auto& field : tagList->getFields())
+                {
+                    sys->defaultPrestigeTags.push_back(field.value->getElement().toString());
+                }
+            }
+
+            return nullptr;
+        }
+
+        NexusSystem* sys;
+    };
+
+    class PushDefaultTags : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusSystem *sys)
+        {
+            this->sys = sys;
+            setArity(1, 1); // Array of additional tags
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Save current tags to stack
+            sys->prestigeTagStack.push(sys->defaultPrestigeTags);
+
+            auto tagsArg = args.front();
+            args.pop();
+
+            if (tagsArg->getType() == "ClassInstance")
+            {
+                auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
+                for (const auto& field : tagList->getFields())
+                {
+                    sys->defaultPrestigeTags.push_back(field.value->getElement().toString());
+                }
+            }
+
+            return nullptr;
+        }
+
+        NexusSystem* sys;
+    };
+
+    class PopDefaultTags : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusSystem *sys)
+        {
+            this->sys = sys;
+            setArity(0, 0);
+        }
+
+        virtual ValuablePtr call(ValuableQueue&) override
+        {
+            if (!sys->prestigeTagStack.empty())
+            {
+                sys->defaultPrestigeTags = sys->prestigeTagStack.top();
+                sys->prestigeTagStack.pop();
+            }
+
+            return nullptr;
+        }
+
+        NexusSystem* sys;
+    };
+
+    class ClearDefaultTags : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusSystem *sys)
+        {
+            this->sys = sys;
+            setArity(0, 0);
+        }
+
+        virtual ValuablePtr call(ValuableQueue&) override
+        {
+            // Clear both tags and stack to prevent bugs
+            sys->defaultPrestigeTags.clear();
+            while (!sys->prestigeTagStack.empty()) {
+                sys->prestigeTagStack.pop();
+            }
+            return nullptr;
+        }
+
+        NexusSystem* sys;
+    };
+
     class QuickButton : public Function
     {
         using Function::Function;
@@ -364,7 +480,7 @@ namespace pg
         void setUp(NexusSystem *sys)
         {
             this->sys = sys;
-            setArity(5, 8); // id, label, requirements[], outcomes[], description, [category], [clicks], [costs[]]
+            setArity(5, 9); // id, label, requirements[], outcomes[], description, [category], [clicks], [costs[]], [tags[]]
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
@@ -441,6 +557,26 @@ namespace pg
                         button.costs.push_back(cost);
                     }
                 }
+            }
+
+            // Optional prestige tags array (9th parameter) - if not provided, use defaults
+            if (!args.empty())
+            {
+                auto tagsArg = args.front();
+                args.pop();
+                if (tagsArg->getType() == "ClassInstance")
+                {
+                    auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
+                    for (const auto& field : tagList->getFields())
+                    {
+                        button.prestigeTags.push_back(field.value->getElement().toString());
+                    }
+                }
+            }
+            else
+            {
+                // Use default tags from NexusSystem
+                button.prestigeTags = sys->defaultPrestigeTags;
             }
 
             // Auto-register the button
@@ -568,6 +704,12 @@ namespace pg
             addSystemFunction<CreateButtonCost>("ButtonCost");
             addSystemFunction<CreateConverter>("Converter");
             addSystemFunction<RegisterConverter>("registerConverter", sys);
+
+            // Tag system functions
+            addSystemFunction<SetDefaultTags>("setDefaultTags", sys);
+            addSystemFunction<PushDefaultTags>("pushDefaultTags", sys);
+            addSystemFunction<PopDefaultTags>("popDefaultTags", sys);
+            addSystemFunction<ClearDefaultTags>("clearDefaultTags", sys);
 
             // New helper functions for simplified button creation
             addSystemFunction<QuickButton>("quickButton", sys);

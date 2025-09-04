@@ -291,29 +291,7 @@ namespace pg
      */
     struct ConverterComponent : public Component
     {
-        ConverterComponent() {}
-        ConverterComponent(const std::string& id, const std::vector<std::string>& input, const std::vector<std::string>& output, const std::vector<float>& cost, const std::vector<float>& yield, bool active = false)
-            : id(id), input(input), output(output), cost(cost), yield(yield), active(active) {}
-
-        ConverterComponent(const ConverterComponent& other) : id(other.id), input(other.input), output(other.output), cost(other.cost), yield(other.yield), active(other.active) {}
-
-        /**
-         * @brief Assignment operator for the ConverterComponent class.
-         *
-         * @param other The ConverterComponent instance to copy from.
-         * @return A reference to the current instance after assignment.
-         */
-        ConverterComponent& operator=(const ConverterComponent& other)
-        {
-            id = other.id;
-            input = other.input;
-            output = other.output;
-            cost = other.cost;
-            yield = other.yield;
-            active = other.active;
-
-            return *this;
-        }
+        DEFAULT_COMPONENT_MEMBERS(ConverterComponent)
 
         /** Name of the converter */
         std::string id = "converter";
