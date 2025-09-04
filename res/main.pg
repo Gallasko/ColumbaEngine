@@ -47,17 +47,6 @@ button.nbClickBeforeArchive = 0
 
 registerNexusButton(button)
 
-
-var scrapConverter = Converter("scrap_converter")
-
-scrapConverter.input = ["mana"]
-scrapConverter.output = ["scrap"]
-scrapConverter.cost = [5.0]
-scrapConverter.yield = [1.0]
-
-var scrapConverterId = registerConverter(scrapConverter)
-
-
 // Todo use that back (right now it doesn't work as we can overcap on resources)
 //var button = NexusButton()
 //
