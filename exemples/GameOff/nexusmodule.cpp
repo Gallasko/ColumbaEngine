@@ -463,6 +463,70 @@ namespace pg
         }
     };
 
+    // Prestige system helper functions
+    class CreatePrestige : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(1, 1); } // prestigeLevel
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            int prestigeLevel = args.front()->getElement().get<int>();
+            args.pop();
+
+            // Create StandardEvent with perform_prestige
+            StandardEvent ev("perform_prestige", "level", ElementType(prestigeLevel));
+            AchievementReward reward(ev);
+
+            return serializeToInterpreter(this, reward);
+        }
+    };
+
+    class SetTagTier : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusSystem *sys) {
+            this->sys = sys;
+            setArity(2, 2); // tag, tier
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override {
+            std::string tag = args.front()->getElement().toString();
+            args.pop();
+            int tier = args.front()->getElement().get<int>();
+            args.pop();
+
+            sys->setTagToTierMapping(tag, tier);
+            return nullptr;
+        }
+
+    private:
+        NexusSystem *sys;
+    };
+
+    class GetTagTier : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(NexusSystem *sys) {
+            this->sys = sys;
+            setArity(1, 1); // tag
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override {
+            std::string tag = args.front()->getElement().toString();
+            args.pop();
+
+            int tier = sys->getTagTier(tag);
+            return makeVar(tier);
+        }
+
+    private:
+        NexusSystem *sys;
+    };
+
     class SetDefaultTags : public Function
     {
         using Function::Function;
@@ -586,7 +650,7 @@ namespace pg
         void setUp(NexusSystem *sys)
         {
             this->sys = sys;
-            setArity(5, 9); // id, label, requirements[], outcomes[], description, [category], [clicks], [costs[]], [tags[]]
+            setArity(5, 11); // id, label, requirements[], outcomes[], description, [category], [clicks], [costs[]], [tags[]]
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
@@ -685,7 +749,7 @@ namespace pg
             {
                 button.activationTime = args.front()->getElement().get<float>();
                 args.pop();
-                
+
                 // If activationTime is provided and > 0, make button activable
                 if (button.activationTime > 0.0f)
                 {
@@ -715,6 +779,26 @@ namespace pg
             {
                 // Use default tags from NexusSystem
                 button.prestigeTags = sys->defaultPrestigeTags;
+            }
+
+            // Create metadata for this button
+            FactMetadata buttonMetadata;
+            buttonMetadata.meta["buttonId"] = ElementType(button.id);
+            buttonMetadata.meta["nbTags"] = ElementType((int)button.prestigeTags.size());
+            for (size_t i = 0; i < button.prestigeTags.size(); i++) {
+                buttonMetadata.meta["tag" + std::to_string(i)] = ElementType(button.prestigeTags[i]);
+            }
+
+            // Inject metadata into AddFact and IncreaseFact events in outcomes
+            for (auto& outcome : button.outcome) {
+                if (outcome.type == AchievementRewardType::Add) {
+                    auto& addFact = std::get<AddFact>(outcome.reward);
+                    addFact.metadata = buttonMetadata;
+                }
+                else if (outcome.type == AchievementRewardType::Increase) {
+                    auto& increaseFact = std::get<IncreaseFact>(outcome.reward);
+                    increaseFact.metadata = buttonMetadata;
+                }
             }
 
             // Auto-register the button
@@ -868,6 +952,11 @@ namespace pg
             addSystemFunction<PurchaseAutoClickerReward>("purchaseAutoClicker");
             addSystemFunction<ToggleAutoClickerReward>("toggleAutoClicker");
 
+            // Prestige system functions
+            addSystemFunction<CreatePrestige>("prestige");
+            addSystemFunction<SetTagTier>("setTagTier", sys);
+            addSystemFunction<GetTagTier>("getTagTier", sys);
+
             //Todo add basic generator / converter ids as system vars
             //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
         }
@@ -875,6 +964,9 @@ namespace pg
 
     void NexusSystem::init()
     {
+        // Register StandardEvent types we listen to
+        addListenerToStandardEvent("perform_prestige");
+
         PgInterpreter interpreter;
 
         // Get the AutoClickerSystem reference

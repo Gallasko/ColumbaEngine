@@ -172,4 +172,32 @@ namespace pg
 
         return AutoClicker{};
     }
+
+    // FactMetadata serialization
+    template <>
+    void serialize(Archive& archive, const FactMetadata& value)
+    {
+        archive.startSerialization("FactMetadata");
+        serialize(archive, "meta", value.meta);
+        archive.endSerialization();
+    }
+
+    template <>
+    FactMetadata deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("FactMetadata");
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("FactMetadata", "Element is null");
+            return FactMetadata{};
+        }
+
+        LOG_MILE("FactMetadata", "Deserializing FactMetadata");
+
+        FactMetadata data;
+        defaultDeserialize(serializedString, "meta", data.meta);
+
+        return data;
+    }
 }

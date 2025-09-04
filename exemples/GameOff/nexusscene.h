@@ -115,7 +115,7 @@ namespace pg
         std::vector<std::string> ids;
     };
 
-    struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, Listener<AutoClickerAction>, SaveSys, InitSys>
+    struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, Listener<AutoClickerAction>, Listener<StandardEvent>, SaveSys, InitSys>
     {
         virtual std::string getSystemName() const override { return "NexusSystem"; }
 
@@ -161,6 +161,8 @@ namespace pg
         }
 
         virtual void onEvent(const AutoClickerAction& event) override;
+        
+        virtual void onEvent(const StandardEvent& event) override;
 
         virtual void execute() override;
 
@@ -187,15 +189,27 @@ namespace pg
         {
             serialize(archive, "nexusbuttons", savedButtons);
             serialize(archive, "resourceToBeDisplayed", resourceToBeDisplayed);
+            serialize(archive, "tagToTierMap", tagToTierMap);
         }
 
         virtual void load(const UnserializedObject& serializedString) override
         {
             defaultDeserialize(serializedString, "nexusbuttons", initButtons);
             defaultDeserialize(serializedString, "resourceToBeDisplayed", resourceToBeDisplayed);
+            defaultDeserialize(serializedString, "tagToTierMap", tagToTierMap);
         }
 
         virtual void addResourceDisplay(const std::string& res) { resourceToBeDisplayed.push_back(res); }
+        
+        // Prestige system methods
+        void resetByPrestigeLevel(int prestigeLevel);
+        void resetFactsByTags(const std::vector<std::string>& tagsToReset);
+        std::vector<std::string> getFactsCreatedByTags(const std::vector<std::string>& tags) const;
+        void setTagToTierMapping(const std::string& tag, int tier) { tagToTierMap[tag] = tier; }
+        int getTagTier(const std::string& tag) const { 
+            auto it = tagToTierMap.find(tag); 
+            return (it != tagToTierMap.end()) ? it->second : -1; 
+        }
 
         std::vector<DynamicNexusButton> initButtons;
         std::vector<DynamicNexusButton> savedButtons;
@@ -206,6 +220,13 @@ namespace pg
         // Prestige tag system state
         std::vector<std::string> defaultPrestigeTags;
         std::stack<std::vector<std::string>> prestigeTagStack;
+        
+        // Prestige tier mapping
+        std::unordered_map<std::string, int> tagToTierMap = {
+            {"tier0", 0},
+            {"tier1", 1},
+            {"tier2", 2}
+        };
 
         size_t deltaTime = 0;
 

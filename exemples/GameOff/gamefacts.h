@@ -9,11 +9,18 @@
 
 namespace pg
 {
+    struct FactMetadata
+    {
+        std::unordered_map<std::string, ElementType> meta;
+    };
+
     struct AddFact
     {
         std::string name;
 
         ElementType value;
+
+        FactMetadata metadata = {};
     };
 
     struct RemoveFact
@@ -25,13 +32,14 @@ namespace pg
     {
         IncreaseFact(const std::string& name = "Noop") : name(name), value(1) {}
         template <typename Type>
-        IncreaseFact(const std::string& name, Type value = 1) : name(name), value(value) {} 
-        IncreaseFact(const IncreaseFact& other) : name(other.name), value(other.value) {}
+        IncreaseFact(const std::string& name, Type value = 1) : name(name), value(value) {}
+        IncreaseFact(const IncreaseFact& other) : name(other.name), value(other.value), metadata(other.metadata) {}
 
         IncreaseFact& operator=(const IncreaseFact& other)
         {
             name = other.name;
             value = other.value;
+            metadata = other.metadata;
 
             return *this;
         }
@@ -39,7 +47,12 @@ namespace pg
         std::string name;
 
         ElementType value{1};
+
+        FactMetadata metadata = {};
     };
+
+    template <>
+    void serialize(Archive& archive, const FactMetadata& value);
 
     template <>
     void serialize(Archive& archive, const AddFact& value);
@@ -163,16 +176,19 @@ namespace pg
         virtual void save(Archive& archive) override
         {
             serialize(archive, "worldFacts", factMap);
+            serialize(archive, "factMetadata", factMetadata);
         }
 
         virtual void load(const UnserializedObject& serializedString) override
         {
             defaultDeserialize(serializedString, "worldFacts", factMap);
+            defaultDeserialize(serializedString, "factMetadata", factMetadata);
         }
 
         virtual void onEvent(const AddFact& event) override
         {
             factMap[event.name] = event.value;
+            factMetadata[event.name] = event.metadata;
 
             changedFacts.push_back(event.name);
 
@@ -186,6 +202,7 @@ namespace pg
             if (it != factMap.end())
             {
                 factMap.erase(it);
+                factMetadata.erase(event.name);
             }
 
             changedFacts.push_back(event.name);
@@ -202,6 +219,7 @@ namespace pg
                 try
                 {
                     factMap[event.name] = it->second + event.value;
+                    // Keep existing metadata, don't update it
                 }
                 catch (const std::exception& e)
                 {
@@ -211,7 +229,9 @@ namespace pg
             }
             else
             {
+                // Fact doesn't exist - create with provided metadata
                 factMap[event.name] = event.value;
+                factMetadata[event.name] = event.metadata;
             }
 
             changedFacts.push_back(event.name);
@@ -252,70 +272,72 @@ namespace pg
 
         std::unordered_map<std::string, ElementType> factMap;
 
+        std::unordered_map<std::string, FactMetadata> factMetadata;
+
         // ===== HELPER METHODS =====
 
         // READ operations (direct access, fast)
         template<typename T>
-        T getFact(const std::string& name, T defaultValue = T{}) const 
+        T getFact(const std::string& name, T defaultValue = T{}) const
         {
             auto it = factMap.find(name);
             return (it != factMap.end()) ? it->second.get<T>() : defaultValue;
         }
-        
-        bool hasFact(const std::string& name) const 
+
+        bool hasFact(const std::string& name) const
         {
             return factMap.find(name) != factMap.end();
         }
-        
+
         // WRITE operations (use events, reactive)
         template<typename T>
-        void setFact(const std::string& name, T value) 
+        void setFact(const std::string& name, T value)
         {
             ecsRef->sendEvent(AddFact{name, ElementType(value)});
         }
-        
+
         template<typename T>
-        void increaseFact(const std::string& name, T amount) 
+        void increaseFact(const std::string& name, T amount)
         {
             ecsRef->sendEvent(IncreaseFact{name, ElementType(amount)});
         }
-        
+
         template<typename T>
-        void setFactIfNotExists(const std::string& name, T value) 
+        void setFactIfNotExists(const std::string& name, T value)
         {
             if (!hasFact(name)) {
                 setFact(name, value);
             }
         }
-        
+
         // Generic resource operations (no game-specific logic)
-        float getResource(const std::string& resource) const 
+        float getResource(const std::string& resource) const
         {
             return getFact<float>(resource, 0.0f);
         }
-        
-        bool canAfford(const std::string& resource, float cost) const 
+
+        bool canAfford(const std::string& resource, float cost) const
         {
             return getResource(resource) >= cost;
         }
-        
-        void spendResource(const std::string& resource, float cost) 
+
+        void spendResource(const std::string& resource, float cost)
         {
             increaseFact(resource, -cost);
         }
-        
-        void addResource(const std::string& resource, float amount) 
+
+        void addResource(const std::string& resource, float amount)
         {
             increaseFact(resource, amount);
         }
-        
+
         // Generic statistics operations
-        void incrementStat(const std::string& statName, float amount = 1.0f) 
+        void incrementStat(const std::string& statName, float amount = 1.0f)
         {
             increaseFact(statName, amount);
         }
-        
-        float getStat(const std::string& statName) const 
+
+        float getStat(const std::string& statName) const
         {
             return getFact<float>(statName, 0.0f);
         }

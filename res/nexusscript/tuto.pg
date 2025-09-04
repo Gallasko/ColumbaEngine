@@ -5,7 +5,7 @@ import "log"
 setDefaultTags(["tutorial", "tier0", "basic"])
 
 quickButton("TouchAltar", "Touch Altar",
-    [req("!altar_touched"), req("startTuto")],
+    [req("startTuto")],
     [fact("altar_touched", true), gamelog("Altar is coming back to life...")],
     "A pretty dusty altar...")
 
@@ -59,3 +59,10 @@ scrapConverter.cost = [5.0]
 scrapConverter.yield = [1.0]
 
 var scrapConverterId = registerConverter(scrapConverter)
+
+quickButton("Prestige1", "First Prestige",
+      [req("total_knowledge>=5")],
+      [prestige(1),                    // Clean helper function!
+       fact("prestige_level", 1),
+       fact("prestige_points", 50)],
+      "Reset progress for prestige currency!")

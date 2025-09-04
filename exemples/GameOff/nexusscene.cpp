@@ -326,6 +326,118 @@ namespace pg
         }
     }
 
+    void NexusSystem::onEvent(const StandardEvent& event)
+    {
+        if (event.name == "perform_prestige")
+        {
+            // Extract prestige level from the event
+            auto levelIt = event.values.find("level");
+            if (levelIt != event.values.end()) {
+                int prestigeLevel = levelIt->second.get<int>();
+                resetByPrestigeLevel(prestigeLevel);
+            }
+        }
+    }
+
+    void NexusSystem::resetByPrestigeLevel(int prestigeLevel)
+    {
+        LOG_INFO("NexusSystem", "Performing prestige level " << prestigeLevel);
+
+        // Get all tags that should be reset (current tier and below)
+        std::vector<std::string> tagsToReset;
+        for (const auto& [tag, tier] : tagToTierMap) {
+            if (tier <= prestigeLevel) {
+                tagsToReset.push_back(tag);
+                LOG_INFO("NexusSystem", "Adding tag '" << tag << "' (tier " << tier << ") to reset list");
+            }
+        }
+
+        // Reset WorldFacts
+        resetFactsByTags(tagsToReset);
+
+        // Reset button states
+        int buttonsReset = 0;
+        for (auto& button : savedButtons) {
+            bool shouldReset = false;
+            for (const auto& buttonTag : button.prestigeTags) {
+                if (std::find(tagsToReset.begin(), tagsToReset.end(), buttonTag) != tagsToReset.end()) {
+                    shouldReset = true;
+                    break;
+                }
+            }
+
+            if (shouldReset) {
+                LOG_INFO("NexusSystem", "Resetting button: " << button.id);
+                button.nbClick = 0;
+                button.archived = false;
+                button.active = false;
+                button.activeTime = 0.0f;
+                buttonsReset++;
+            }
+        }
+
+        LOG_INFO("NexusSystem", "Prestige complete! Reset " << buttonsReset << " buttons and WorldFacts with tags: " << tagsToReset.size());
+    }
+
+    void NexusSystem::resetFactsByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+        std::vector<std::string> factsToRemove;
+
+        for (const auto& [factName, metadata] : worldFacts->factMetadata) {
+            // Check if this fact was created by a button with any of the reset tags
+            auto nbTagsIt = metadata.meta.find("nbTags");
+            if (nbTagsIt != metadata.meta.end()) {
+                int nbTags = nbTagsIt->second.get<int>();
+
+                for (int i = 0; i < nbTags; i++) {
+                    auto tagIt = metadata.meta.find("tag" + std::to_string(i));
+                    if (tagIt != metadata.meta.end()) {
+                        std::string tag = tagIt->second.toString();
+
+                        if (std::find(tagsToReset.begin(), tagsToReset.end(), tag) != tagsToReset.end()) {
+                            factsToRemove.push_back(factName);
+                            break; // Found matching tag, no need to check more
+                        }
+                    }
+                }
+            }
+        }
+
+        // Remove the facts using WorldFacts events
+        for (const std::string& factName : factsToRemove) {
+            ecsRef->sendEvent(RemoveFact{factName});
+            LOG_INFO("NexusSystem", "Removed fact: " << factName);
+        }
+    }
+
+    std::vector<std::string> NexusSystem::getFactsCreatedByTags(const std::vector<std::string>& tags) const
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+        std::vector<std::string> matchingFacts;
+
+        for (const auto& [factName, metadata] : worldFacts->factMetadata) {
+            auto nbTagsIt = metadata.meta.find("nbTags");
+            if (nbTagsIt != metadata.meta.end()) {
+                int nbTags = nbTagsIt->second.get<int>();
+
+                for (int i = 0; i < nbTags; i++) {
+                    auto tagIt = metadata.meta.find("tag" + std::to_string(i));
+                    if (tagIt != metadata.meta.end()) {
+                        std::string tag = tagIt->second.toString();
+
+                        if (std::find(tags.begin(), tags.end(), tag) != tags.end()) {
+                            matchingFacts.push_back(factName);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        return matchingFacts;
+    }
+
     void NexusScene::init()
     {
         auto themeSys = ecsRef->getSystem<ThemeSystem>();
