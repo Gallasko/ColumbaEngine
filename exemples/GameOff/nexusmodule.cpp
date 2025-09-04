@@ -427,6 +427,23 @@ namespace pg
         }
     };
 
+    class CreateHarvest : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(1, 1); } // generatorId
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto generatorId = args.front()->getElement().toString();
+            args.pop();
+
+            // Create res_harvest event
+            auto event = StandardEvent("res_harvest", "id", generatorId);
+            return serializeToInterpreter(this, AchievementReward(event));
+        }
+    };
+
     class SetDefaultTags : public Function
     {
         using Function::Function;
@@ -602,17 +619,6 @@ namespace pg
                 button.category = "Main";
             }
 
-            // Optional number of clicks before archive
-            if (!args.empty())
-            {
-                button.nbClickBeforeArchive = args.front()->getElement().get<size_t>();
-                args.pop();
-            }
-            else
-            {
-                button.nbClickBeforeArchive = 1;
-            }
-
             // Optional costs array
             if (!args.empty())
             {
@@ -627,6 +633,17 @@ namespace pg
                         button.costs.push_back(cost);
                     }
                 }
+            }
+
+            // Optional number of clicks before archive
+            if (!args.empty())
+            {
+                button.nbClickBeforeArchive = args.front()->getElement().get<size_t>();
+                args.pop();
+            }
+            else
+            {
+                button.nbClickBeforeArchive = 1;
             }
 
             // Optional prestige tags array (9th parameter) - if not provided, use defaults
@@ -792,6 +809,7 @@ namespace pg
             // Simple helper functions
             addSystemFunction<CreateReward>("reward");
             addSystemFunction<CreateCost>("cost");
+            addSystemFunction<CreateHarvest>("harvest");
 
             // AutoClicker functions
             addSystemFunction<CreateAutoClicker>("createAutoClicker", autoClickerSys);

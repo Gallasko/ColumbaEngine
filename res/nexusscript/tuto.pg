@@ -22,8 +22,31 @@ setDefaultTags(["tier0", "basic"])
 
 quickButton("BasicHarvest", "Harvest Altar",
     [req("false_harvest_clicked")],
-    [ reward("res_harvest", "id", "altar"),
-      reward("one_shot_res", "res", "mana", "value", 0.5) ],
+    [ harvest("altar"),
+      resource("mana", 0.5) ],
     "Harvest the mana stored in the altar",
     "Harvest",
+    [],
     0)
+
+quickButton("PowerOnScrapper", "Touch Black Box",
+    [req("false_harvest_clicked")],
+    [ gamelog("Black box is turning on! Weird scraps comes out of it..."),
+      fact("scrapper_on", true),
+      reward("add_res_display", "res", "scrap"),
+      resource("scrap", 1),
+      fact("scrap_max_value", 5) ],
+    "A weird black box near the altar, it should be useful...",
+    "Main",
+    [cost("mana", 10)])
+
+quickButton("BasicReadingTools", "Reading Tools",
+    [req("total_scrap>=2")],
+    [ gamelog("Books around you start to make some sense."),
+      fact("basic_reading_tools", true),
+      fact("knowledge_max_value", 10),
+      fact("knowledge_per_completion", 0.5),
+      reward("add_res_display", "res", "knowledge") ],
+    "A weird black box near the altar, it should be useful...",
+    "Main",
+    [cost("mana", 20), cost("scrap", 5)])

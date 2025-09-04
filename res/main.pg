@@ -31,26 +31,6 @@ import "log"
 
 import "nexusscript/tuto.pg"
 
-
-var button = NexusButton()
-
-button.id = "PowerOnScrapper"
-button.label = "Touch Black Box"
-
-button.conditions = [FactChecker("altar_touched", true, "Equal")]
-button.outcome =
-    [ AchievementRewardEvent("gamelog", "message", "Black box is turning on! Weird scraps comes out of it...")
-    , AddFact("scrapper_on", true)
-    , AchievementRewardEvent("add_res_display", "res", "scrap")
-    , AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1)
-    , AddFact("scrap_max_value", 5.0)]
-
-button.description = "A weird black box near the altar, it should be useful..."
-button.costs = [ ButtonCost("mana", 10) ]
-
-registerNexusButton(button)
-
-
 var button = NexusButton()
 
 button.id = "ScrapBox"
@@ -64,25 +44,6 @@ button.description = "Use some scrap and forge them into a scrap box using some 
 button.costs = [ ButtonCost("mana", 5), ButtonCost("scrap", 3) ]
 button.costIncrease = [1.3, 1.3]
 button.nbClickBeforeArchive = 0
-
-registerNexusButton(button)
-
-
-var button = NexusButton()
-
-button.id = "BasicReadingTools"
-button.label = "Reading Tools"
-
-button.conditions = [FactChecker("total_scrap", 1, "GreaterEqual")]
-button.outcome =
-    [ AchievementRewardEvent("gamelog", "message", "Books around you start to make some sense.")
-    , AddFact("basic_reading_tools", true)
-    , AddFact("knowledge_max_value", 10)
-    , AddFact("knowledge_per_completion", 0.5)
-    , AchievementRewardEvent("add_res_display", "res", "knowledge") ]
-
-button.description = "A weird black box near the altar, it should be useful..."
-button.costs = [ ButtonCost("mana", 10), ButtonCost("scrap", 5), ButtonCost("mana", 1) ]
 
 registerNexusButton(button)
 
@@ -464,19 +425,19 @@ quickButton("TestQuick", "Quick Test", [req("mana>=50")], [gamelog("Quick button
 quickButton("QuickScrapConvert", "Quick Convert",
     [req("scrapper_on")],
     [resource("scrap", 2)],
-    "Quickly convert mana to scrap", "Task", 0);  // 0 = repeatable
+    "Quickly convert mana to scrap", "Task", [], 0);  // 0 = repeatable
 
 // Complex requirements with multiple conditions
 quickButton("QuickComplexTest", "Complex Test",
     [req("!complex_test_done"), req("total_scrap>=5"), req("mana>=25")],
     [fact("complex_test_done", true), increase("mana_max_value", 10), gamelog("Complex test completed!")],
-    "A complex test showing multiple requirements and outcomes", "Main", 1)
+    "A complex test showing multiple requirements and outcomes", "Main")
 
 // Button with costs (using existing ButtonCost syntax for now)
 quickButton("QuickUpgrade", "Quick Upgrade",
     [req("first_altar_upgrade")],
     [increase("mana_max_value", 30)],
-    "Quick upgrade test", "Upgrade", 1,
+    "Quick upgrade test", "Upgrade",
     [ButtonCost("mana", 50), ButtonCost("rune", 3)])
 
 
@@ -494,7 +455,6 @@ quickButton("buy_basic_autoclicker", "Buy Basic Auto-Clicker",
     [purchaseAutoClicker("basic_clicker"), gamelog("Purchased Basic Auto-Clicker! It will click 'Harvest Altar' every 5 seconds.")],
     "Automatically clicks the Harvest Altar button every 5 seconds",
     "AutoClickers",
-    1,
     [ButtonCost("mana", 10)])
 
 quickButton("buy_advanced_autoclicker", "Buy Advanced Auto-Clicker",
@@ -509,6 +469,7 @@ quickButton("toggle_basic_clicker", "Toggle Basic Auto-Clicker",
     [toggleAutoClicker("basic_clicker"), gamelog("Toggled Basic Auto-Clicker!")],
     "Enable/disable the Basic Auto-Clicker",
     "AutoClickers",
+    [],
     0)
 
 quickButton("toggle_advanced_clicker", "Toggle Advanced Auto-Clicker",
