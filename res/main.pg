@@ -2,15 +2,15 @@ import "nexus"
 import "achievement"
 import "log"
 
-var button = NexusButton()
-
-button.id = "Test"
-button.label = "Test"
-
-button.conditions = [FactChecker("mana", 25, "GreaterEqual")]
-button.outcome = [AchievementRewardEvent("gamelog", "message", "Mana threshold reached!")]
-
-registerNexusButton(button)
+// var button = NexusButton()
+//
+// button.id = "Test"
+// button.label = "Test"
+//
+// button.conditions = [FactChecker("mana", 25, "GreaterEqual")]
+// button.outcome = [AchievementRewardEvent("gamelog", "message", "Mana threshold reached!")]
+//
+// registerNexusButton(button)
 
 //
 //var gen = createGenerator("gold_gen", "gold", 0, 1, 5)
@@ -29,56 +29,7 @@ registerNexusButton(button)
 //registerNexusButton(button)
 //
 
-
-var button = NexusButton()
-
-button.id = "TouchAltar"
-button.label = "Touch Altar"
-
-button.conditions = [FactChecker("altar_touched", false, "Equal"), FactChecker("startTuto", true, "Equal")]
-button.outcome =
-    [ AchievementRewardEvent("gamelog", "message", "Altar is coming back to life...")
-    , AddFact("altar_touched", true) ]
-
-button.description = "A pretty dusty altar..."
-
-registerNexusButton(button)
-
-
-var button = NexusButton()
-
-button.id = "FalseBasicHarvest"
-button.label = "Harvest Altar"
-button.category = "Harvest"
-
-button.conditions = [FactChecker("altar_touched", true, "Equal")]
-button.outcome =
-    [ AchievementRewardEvent("add_res_display", "res", "mana")
-    , AchievementRewardEvent("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0)
-    , AddFact("mana_max_value", 20.0)
-    , AddFact("false_harvest_clicked", true) ]
-
-button.description = "Harvest the mana stored in the altar"
-button.nbClickBeforeArchive = 1
-
-registerNexusButton(button)
-
-
-var button = NexusButton()
-
-button.id = "BasicHarvest"
-button.label = "Harvest Altar"
-button.category = "Harvest"
-
-button.conditions = [FactChecker("false_harvest_clicked", true, "Equal")]
-button.outcome =
-    [ AchievementRewardEvent("res_harvest", "id", "altar")
-    , AchievementRewardEvent("one_shot_res", "res", "mana", "value", 0.5) ]
-
-button.description = "Harvest the mana stored in the altar"
-button.nbClickBeforeArchive = 0
-
-registerNexusButton(button)
+import "nexusscript/tuto.pg"
 
 
 var button = NexusButton()
@@ -168,7 +119,7 @@ button.id = "ScrapConverter"
 button.label = "Convert [Scrap]"
 button.category = "Task"
 
-button.conditions = [req(scrapper_on)]
+button.conditions = [req("scrapper_on")]
 button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1) ]
 
 button.description = "Convert Mana to Scrap"
@@ -465,7 +416,7 @@ button.id = "ManaReserveUpgrade1"
 button.label = "Mana Reservoir"
 button.category = "Storage"
 
-button.conditions = [ FactChecker("mana_reservoir_1_researched", True, "Equal") ]
+button.conditions = [ FactChecker("mana_reservoir_1_researched", true, "Equal") ]
 
 button.outcome = [ AddFact("mana_reservoir_1_researched", true) ]
 

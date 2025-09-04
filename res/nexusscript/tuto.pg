@@ -1,0 +1,29 @@
+import "nexus"
+import "achievement"
+import "log"
+
+setDefaultTags(["tutorial", "tier0", "basic"])
+
+quickButton("TouchAltar", "Touch Altar",
+    [req("!altar_touched"), req("startTuto")],
+    [fact("altar_touched", true), gamelog("Altar is coming back to life...")],
+    "A pretty dusty altar...")
+
+quickButton("FalseBasicHarvest", "Harvest Altar",
+    [req("altar_touched")],
+    [reward("add_res_display", "res", "mana"),
+     reward("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0),
+     fact("mana_max_value", 20.0),
+     fact("false_harvest_clicked", true)],
+    "Harvest the mana stored in the altar",
+    "Harvest")
+
+setDefaultTags(["tier0", "basic"])
+
+quickButton("BasicHarvest", "Harvest Altar",
+    [req("false_harvest_clicked")],
+    [ reward("res_harvest", "id", "altar"),
+      reward("one_shot_res", "res", "mana", "value", 0.5) ],
+    "Harvest the mana stored in the altar",
+    "Harvest",
+    0)

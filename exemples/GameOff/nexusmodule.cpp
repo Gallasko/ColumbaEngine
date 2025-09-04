@@ -357,6 +357,76 @@ namespace pg
         }
     };
 
+    class CreateReward : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(3, -1); } // Infinite arguments like AchievementRewardEvent
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            // Same pattern as CreateAchievementRewardEvent
+            std::string eventName = args.front()->getElement().toString();
+            args.pop();
+            std::string key = args.front()->getElement().toString();
+            args.pop();
+
+            const auto& message = args.front()->getElement();
+            StandardEvent ev(eventName, key, message);
+            args.pop();
+
+            while (!args.empty())
+            {
+                std::string key = args.front()->getElement().toString();
+                args.pop();
+
+                if (args.empty())
+                    throw RuntimeException(token, "Invalid number of arguments for function call: '" + token.text + "' expected value after a key .");
+
+                ev.values[key] = args.front()->getElement();
+                args.pop();
+            }
+
+            AchievementReward reward(ev);
+            return serializeToInterpreter(this, reward);
+        }
+    };
+
+    class CreateCost : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(2, 4); } // resourceId, value, [valueId], [consumed]
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            NexusButtonCost cost;
+
+            cost.resourceId = args.front()->getElement().toString();
+            args.pop();
+            cost.value = args.front()->getElement().get<float>();
+            args.pop();
+
+            if (!args.empty())
+            {
+                cost.valueId = args.front()->getElement().toString();
+                args.pop();
+            }
+
+            if (!args.empty())
+            {
+                cost.consumed = args.front()->getElement().get<bool>();
+                args.pop();
+            }
+            else
+            {
+                cost.consumed = true; // Default to consumed
+            }
+
+            return serializeToInterpreter(this, cost);
+        }
+    };
+
     class SetDefaultTags : public Function
     {
         using Function::Function;
@@ -719,6 +789,10 @@ namespace pg
             addSystemFunction<CreateResource>("resource");
             addSystemFunction<CreateIncrease>("increase");
 
+            // Simple helper functions
+            addSystemFunction<CreateReward>("reward");
+            addSystemFunction<CreateCost>("cost");
+
             // AutoClicker functions
             addSystemFunction<CreateAutoClicker>("createAutoClicker", autoClickerSys);
             addSystemFunction<PurchaseAutoClickerReward>("purchaseAutoClicker");
@@ -740,6 +814,6 @@ namespace pg
         interpreter.addSystemModule("log", LogModule{nullptr});
         interpreter.addSystemModule("achievement", AchievementModule{});
 
-        interpreter.interpretFromFile("res/nexus.pg");
+        interpreter.interpretFromFile("res/main.pg");
     }
 }

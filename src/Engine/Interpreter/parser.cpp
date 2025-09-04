@@ -99,6 +99,7 @@ namespace pg
         {
             do
             {
+                skipEOL();
                 lExpr = expression();
                 skipEOL();
 

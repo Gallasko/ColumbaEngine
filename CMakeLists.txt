@@ -513,7 +513,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         add_executable(GameOff exemples/GameOff/main.cpp)
 
-        configure_file(res/nexus.pg nexus.pg COPYONLY)
+        # configure_file(res/main.pg nexus.pg COPYONLY)
 
         target_include_directories(GameOff PUBLIC exemples/GameOff)
 
