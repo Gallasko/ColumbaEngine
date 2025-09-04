@@ -740,6 +740,6 @@ namespace pg
         interpreter.addSystemModule("log", LogModule{nullptr});
         interpreter.addSystemModule("achievement", AchievementModule{});
 
-        interpreter.interpretFromFile("nexus.pg");
+        interpreter.interpretFromFile("res/nexus.pg");
     }
 }

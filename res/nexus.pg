@@ -168,7 +168,7 @@ button.id = "ScrapConverter"
 button.label = "Convert [Scrap]"
 button.category = "Task"
 
-button.conditions = [FactChecker("scrapper_on", true, "Equal")]
+button.conditions = [req(scrapper_on)]
 button.outcome = [ AchievementRewardEvent("one_shot_res", "res", "scrap", "value", 1) ]
 
 button.description = "Convert Mana to Scrap"
@@ -496,8 +496,123 @@ button.outcome =
 
 button.costs = [ ButtonCost("knowledge", 50), ButtonCost("scroll", 10), ButtonCost("mana", 100) ]
 
-button.description = "Specialize yourself in tbe creation of magical scroll.\nA major step in the mage process (Mutually exclusive with other spcialization !)\nKnowledge cap +100\nMana cap +50"
+button.description = "Specialize yourself in the creation of magical scroll.\nA major \c{255, 0, 0, 255}step\c{} in the mage process (Mutually exclusive with other spcialization !)\nKnowledge cap +100\nMana cap +50"
 button.nbClickBeforeArchive = 1
 
 registerNexusButton(button)
+
+
+// ========================================
+// NEW SIMPLIFIED SYNTAX EXAMPLES
+// ========================================
+
+// Simple one-time button (replaces 7 lines with 1!)
+quickButton("TestQuick", "Quick Test", [req("mana>=50")], [gamelog("Quick button works!")], "A test button using the new simplified syntax")
+
+// Resource conversion button with category
+quickButton("QuickScrapConvert", "Quick Convert",
+    [req("scrapper_on")],
+    [resource("scrap", 2)],
+    "Quickly convert mana to scrap", "Task", 0);  // 0 = repeatable
+
+// Complex requirements with multiple conditions
+quickButton("QuickComplexTest", "Complex Test",
+    [req("!complex_test_done"), req("total_scrap>=5"), req("mana>=25")],
+    [fact("complex_test_done", true), increase("mana_max_value", 10), gamelog("Complex test completed!")],
+    "A complex test showing multiple requirements and outcomes", "Main", 1)
+
+// Button with costs (using existing ButtonCost syntax for now)
+quickButton("QuickUpgrade", "Quick Upgrade",
+    [req("first_altar_upgrade")],
+    [increase("mana_max_value", 30)],
+    "Quick upgrade test", "Upgrade", 1,
+    [ButtonCost("mana", 50), ButtonCost("rune", 3)])
+
+
+// ===== AUTO-CLICKER SYSTEM EXAMPLES =====
+
+// Define auto-clickers (these create the available auto-clickers)
+createAutoClicker("basic_clicker", "BasicHarvest", 5000.0, [], [])
+createAutoClicker("advanced_clicker", "BasicHarvest", 3000.0,
+    [ButtonCost("mana", 100)],
+    [req("basic_clicker_owned==true")])
+
+// Purchase buttons for auto-clickers
+quickButton("buy_basic_autoclicker", "Buy Basic Auto-Clicker",
+    [req("mana>=5")],
+    [purchaseAutoClicker("basic_clicker"), gamelog("Purchased Basic Auto-Clicker! It will click 'Harvest Altar' every 5 seconds.")],
+    "Automatically clicks the Harvest Altar button every 5 seconds",
+    "AutoClickers",
+    1,
+    [ButtonCost("mana", 10)])
+
+quickButton("buy_advanced_autoclicker", "Buy Advanced Auto-Clicker",
+    [req("basic_clicker_owned")],
+    [purchaseAutoClicker("advanced_clicker"), gamelog("Purchased Advanced Auto-Clicker! Faster clicking power!")],
+    "A faster auto-clicker that clicks every 3 seconds",
+    "AutoClickers")
+
+// Toggle buttons (enable/disable auto-clickers)
+quickButton("toggle_basic_clicker", "Toggle Basic Auto-Clicker",
+    [req("basic_clicker_owned")],
+    [toggleAutoClicker("basic_clicker"), gamelog("Toggled Basic Auto-Clicker!")],
+    "Enable/disable the Basic Auto-Clicker",
+    "AutoClickers",
+    0)
+
+quickButton("toggle_advanced_clicker", "Toggle Advanced Auto-Clicker",
+    [req("advanced_clicker_owned==true")],
+    [toggleAutoClicker("advanced_clicker"), gamelog("Toggled Advanced Auto-Clicker!")],
+    "Enable/disable the Advanced Auto-Clicker",
+    "AutoClickers")
+
+// Upgrade buttons - Global speed boost
+quickButton("upgrade_all_autoclickers", "Upgrade All Auto-Clickers",
+    [req("mana>=500")],
+    [increase("autoclicker_global_multiplier", 0.5), gamelog("All auto-clickers are now 50% faster!")],
+    "Increases all auto-clicker speeds by 50%",
+    "Upgrades")
+
+quickButton("mega_upgrade_all", "Mega Speed Boost",
+    [req("mana>=2000"), req("autoclicker_global_multiplier>=2.0")],
+    [fact("autoclicker_global_multiplier", 3.0), gamelog("MEGA BOOST! All auto-clickers tripled speed!")],
+    "Sets all auto-clicker speeds to 3x multiplier",
+    "Upgrades")
+
+// Individual auto-clicker upgrades
+quickButton("upgrade_basic_clicker_speed", "Upgrade Basic Auto-Clicker",
+    [req("basic_clicker_owned==true"), req("mana>=100")],
+    [increase("autoclicker_multiplier_basic_clicker", 0.5), gamelog("Basic Auto-Clicker upgraded!")],
+    "Increases Basic Auto-Clicker speed by 50%",
+    "Upgrades")
+
+quickButton("turbo_basic_clicker", "Turbo Basic Auto-Clicker",
+    [req("basic_clicker_owned==true"), req("autoclicker_multiplier_basic_clicker>=2.0"), req("scrap>=10")],
+    [fact("autoclicker_multiplier_basic_clicker", 5.0), gamelog("Basic Auto-Clicker is now TURBO! 5x speed!")],
+    "Sets Basic Auto-Clicker to 5x speed",
+    "Upgrades")
+
+// Alternative: Upgrade by changing interval directly
+quickButton("optimize_advanced_clicker", "Optimize Advanced Auto-Clicker",
+    [req("advanced_clicker_owned==true"), req("rune>=5")],
+    [fact("autoclicker_interval_advanced_clicker", 1500.0), gamelog("Advanced Auto-Clicker optimized to 1.5 seconds!")],
+    "Reduces Advanced Auto-Clicker interval to 1.5 seconds",
+    "Upgrades")
+
+// Example of an auto-clicker for a different button
+createAutoClicker("scrapper_clicker", "ScrapCollect", 8000.0,
+    [ButtonCost("scrap", 5)],
+    [req("scrapper_on==true")])
+
+quickButton("buy_scrapper_autoclicker", "Buy Scrapper Auto-Clicker",
+    [req("scrap>=10"), req("scrapper_on==true")],
+    [purchaseAutoClicker("scrapper_clicker"), gamelog("Scrapper Auto-Clicker purchased! It will automatically collect scrap.")],
+    "Automatically collects scrap every 8 seconds",
+    "AutoClickers")
+
+quickButton("toggle_scrapper_clicker", "Toggle Scrapper Auto-Clicker",
+    [req("scrapper_clicker_owned==true")],
+    [toggleAutoClicker("scrapper_clicker"), gamelog("Toggled Scrapper Auto-Clicker!")],
+    "Enable/disable the Scrapper Auto-Clicker",
+    "AutoClickers")
 
