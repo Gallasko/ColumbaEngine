@@ -444,6 +444,25 @@ namespace pg
         }
     };
 
+    class CreateResourceFrom : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp() { setArity(2, 2); } // resourceName, valueId
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto resourceName = args.front()->getElement().toString();
+            args.pop();
+            auto valueId = args.front()->getElement().toString();
+            args.pop();
+
+            // Create one_shot_res event with valueId
+            auto event = StandardEvent("one_shot_res", "res", resourceName, "valueId", valueId);
+            return serializeToInterpreter(this, AchievementReward(event));
+        }
+    };
+
     class SetDefaultTags : public Function
     {
         using Function::Function;
@@ -608,7 +627,7 @@ namespace pg
             button.description = args.front()->getElement().toString();
             args.pop();
 
-            // Optional category
+            // Optional category (6th parameter)
             if (!args.empty())
             {
                 button.category = args.front()->getElement().toString();
@@ -619,7 +638,7 @@ namespace pg
                 button.category = "Main";
             }
 
-            // Optional costs array
+            // Optional costs array (7th parameter)
             if (!args.empty())
             {
                 auto costsArg = args.front();
@@ -635,7 +654,7 @@ namespace pg
                 }
             }
 
-            // Optional number of clicks before archive
+            // Optional number of clicks before archive (8th parameter)
             if (!args.empty())
             {
                 button.nbClickBeforeArchive = args.front()->getElement().get<size_t>();
@@ -646,7 +665,39 @@ namespace pg
                 button.nbClickBeforeArchive = 1;
             }
 
-            // Optional prestige tags array (9th parameter) - if not provided, use defaults
+            // Optional cost increase array (9th parameter)
+            if (!args.empty())
+            {
+                auto costIncreaseArg = args.front();
+                args.pop();
+                if (costIncreaseArg->getType() == "ClassInstance")
+                {
+                    auto increaseList = std::static_pointer_cast<ClassInstance>(costIncreaseArg);
+                    for (const auto& field : increaseList->getFields())
+                    {
+                        button.costIncrease.push_back(field.value->getElement().get<float>());
+                    }
+                }
+            }
+
+            // Optional activation time (10th parameter) - if > 0, makes button activable
+            if (!args.empty())
+            {
+                button.activationTime = args.front()->getElement().get<float>();
+                args.pop();
+                
+                // If activationTime is provided and > 0, make button activable
+                if (button.activationTime > 0.0f)
+                {
+                    button.activable = true;
+                }
+            }
+            else
+            {
+                button.activationTime = 1000.0f; // Default
+            }
+
+            // Optional prestige tags array (11th parameter) - if not provided, use defaults
             if (!args.empty())
             {
                 auto tagsArg = args.front();
@@ -810,6 +861,7 @@ namespace pg
             addSystemFunction<CreateReward>("reward");
             addSystemFunction<CreateCost>("cost");
             addSystemFunction<CreateHarvest>("harvest");
+            addSystemFunction<CreateResourceFrom>("resourceFrom");
 
             // AutoClicker functions
             addSystemFunction<CreateAutoClicker>("createAutoClicker", autoClickerSys);

@@ -10,18 +10,12 @@ import "nexusscript/tuto.pg"
 // ========================================
 setDefaultTags(["basic", "tier1", "reset"])
 
-// ScrapBox needs costIncrease - keep old syntax
-var button = NexusButton()
-button.id = "ScrapBox"
-button.label = "Scrap box"
-button.conditions = [FactChecker("storage_1_learned", true, "Equal")]
-button.outcome = [IncreaseFact("scrap_max_value", 5.0)]
-button.description = "Use some scrap and forge them into a scrap box using some mana.\nThis should help to hold more of those pesky scraps"
-button.category = "Storage"
-button.costs = [ButtonCost("mana", 5), ButtonCost("scrap", 3)]
-button.costIncrease = [1.3, 1.3]
-button.nbClickBeforeArchive = 0
-registerNexusButton(button)
+quickButton("ScrapBox", "Scrap Box",
+    [req("storage_1_learned")],
+    [increase("scrap_max_value", 5.0)],
+    "Use some scrap and forge them into a scrap box using some mana.\nThis should help to hold more of those pesky scraps",
+    "Storage", [cost("mana", 5), cost("scrap", 3)], 0,
+    [1.3, 1.3]) // costIncrease
 
 quickButton("ScrapConverter", "Convert [Scrap]", 
     [req("scrapper_on")],
@@ -36,18 +30,12 @@ quickButton("ScrapConverter", "Convert [Scrap]",
 // ========================================
 setDefaultTags(["knowledge", "tier1", "partial_preserve"])
 
-// KnowledgeFocus needs valueId and activable - keep old syntax
-var button = NexusButton()
-button.id = "KnowledgeFocus"
-button.label = "Read books"
-button.category = "Knowledge"
-button.conditions = [FactChecker("basic_reading_tools", true, "Equal")]
-button.outcome = [AchievementRewardEvent("one_shot_res", "res", "knowledge", "valueId", "knowledge_per_completion")]
-button.description = "Read books to gain some knowledge about this place"
-button.nbClickBeforeArchive = 0
-button.activable = true
-button.activationTime = 500.0
-registerNexusButton(button)
+quickButton("KnowledgeFocus", "Read Books",
+    [req("basic_reading_tools")],
+    [resourceFrom("knowledge", "knowledge_per_completion")],
+    "Read books to gain some knowledge about this place",
+    "Knowledge", [], 0,
+    [], 500.0) // activationTime - makes it activable
 
 quickButton("LearnRuneCarving", "Learn Runes",
     [req("total_knowledge>=1")],
@@ -110,18 +98,12 @@ quickButton("CreateScroll", "Create Scroll",
 // ========================================
 setDefaultTags(["storage", "tier2", "preserve"])
 
-// Crate needs costIncrease - keep old syntax
-var button = NexusButton()
-button.id = "Crate"
-button.label = "Crate"
-button.conditions = [FactChecker("storage_2_learned", true, "Equal")]
-button.outcome = [IncreaseFact("rune_max_value", 5.0), IncreaseFact("scroll_max_value", 5.0)]
-button.description = "Use lot of scraps reinforced with some rune and forge them into a more durable crate using some mana.\nThis should help store our magical mats without them losing their magical attributes"
-button.category = "Storage"
-button.costs = [ButtonCost("mana", 30), ButtonCost("scrap", 20), ButtonCost("rune", 2)]
-button.costIncrease = [1.3, 1.3, 1.3]
-button.nbClickBeforeArchive = 0
-registerNexusButton(button)
+quickButton("Crate", "Magic Crate",
+    [req("storage_2_learned")],
+    [increase("rune_max_value", 5.0), increase("scroll_max_value", 5.0)],
+    "Use lot of scraps reinforced with some rune and forge them into a more durable crate using some mana.\nThis should help store our magical mats without them losing their magical attributes",
+    "Storage", [cost("mana", 30), cost("scrap", 20), cost("rune", 2)], 0,
+    [1.3, 1.3, 1.3]) // costIncrease
 
 // ========================================
 // MAJOR UPGRADES
@@ -143,18 +125,12 @@ quickButton("UpgradeAltarSpeed1", "Upgrade Altar",
 // ========================================
 setDefaultTags(["knowledge_advanced", "tier2", "preserve"])
 
-// TakeSomeNotes needs costIncrease - keep old syntax
-var button = NexusButton()
-button.id = "TakeSomeNotes"
-button.label = "Write Notes"
-button.category = "Knowledge"
-button.conditions = [FactChecker("writing_scrolls_learned", true, "Equal"), FactChecker("first_knowledge_cap", true, "Equal")]
-button.outcome = [IncreaseFact("knowledge_max_value", 20), IncreaseFact("note_taken", 1)]
-button.costs = [ButtonCost("knowledge", 5), ButtonCost("scroll", 1)]
-button.costIncrease = [1.5, 1.2]
-button.description = "Take some notes about your new found knowledge, to further increase the knowledge that you can understand.\n(Knowledge cap +20)"
-button.nbClickBeforeArchive = 0
-registerNexusButton(button)
+quickButton("TakeSomeNotes", "Write Notes",
+    [req("writing_scrolls_learned"), req("first_knowledge_cap")],
+    [increase("knowledge_max_value", 20), increase("note_taken", 1)],
+    "Take some notes about your new found knowledge, to further increase the knowledge that you can understand.\n(Knowledge cap +20)",
+    "Knowledge", [cost("knowledge", 5), cost("scroll", 1)], 0,
+    [1.5, 1.2]) // costIncrease
 
 quickButton("SpeedReading1", "Speed Reading",
     [req("writing_scrolls_learned"), req("first_knowledge_cap")], 
@@ -177,19 +153,12 @@ quickButton("Meditation1", "Learn Meditation",
     [cost("knowledge", 25)],
     1)
 
-// MeditationActive1 needs activable and nbClickBeforeArchive - keep old syntax
-var button = NexusButton()
-button.id = "MeditationActive1"
-button.label = "Meditation"
-button.category = "Storage"
-button.conditions = [FactChecker("learn_meditation_1", true, "Equal")]
-button.outcome = [IncreaseFact("mana_max_value", 10), IncreaseFact("basic_meditation_done", 1)]
-button.costs = []
-button.description = "Take some time to harness the ambiant mana.\n(Mana cap +10)"
-button.nbClickBeforeArchive = 5
-button.activable = true
-button.activationTime = 30000.0
-registerNexusButton(button)
+quickButton("MeditationActive1", "Meditate",
+    [req("learn_meditation_1")],
+    [increase("mana_max_value", 10), increase("basic_meditation_done", 1)],
+    "Take some time to harness the ambiant mana.\n(Mana cap +10)",
+    "Activities", [], 5,
+    [], 30000.0) // activationTime - makes it activable
 
 // ========================================
 // RESEARCH PROJECTS
@@ -212,18 +181,12 @@ quickButton("ManaReserveKnowledge1", "Mana Reserve Research",
     [cost("knowledge", 65)],
     1)
 
-// ManaReserveUpgrade1 needs costIncrease - keep old syntax
-var button = NexusButton()
-button.id = "ManaReserveUpgrade1"
-button.label = "Mana Reservoir"
-button.category = "Storage"
-button.conditions = [FactChecker("mana_reservoir_1_researched", true, "Equal")]
-button.outcome = [IncreaseFact("mana_max_value", 25)]
-button.costs = [ButtonCost("knowledge", 65)]
-button.costIncrease = [1.3]
-button.description = "Attune some runes with your body to increase your mana reserve."
-button.nbClickBeforeArchive = 0
-registerNexusButton(button)
+quickButton("ManaReserveUpgrade1", "Mana Reservoir",
+    [req("mana_reservoir_1_researched")],
+    [increase("mana_max_value", 25)],
+    "Attune some runes with your body to increase your mana reserve.",
+    "Upgrades", [cost("knowledge", 65)], 0,
+    [1.3]) // costIncrease
 
 // ========================================
 // SPECIALIZATIONS
@@ -249,37 +212,29 @@ quickButton("TestQuick", "Quick Test",
     [req("mana>=50")], 
     [gamelog("Quick button works!")], 
     "A test button using the new simplified syntax",
-    "Test",
-    [],
-    1,
-    ["test", "example"])
+    "Test", [], 1,
+    [], 0, ["test", "example"]) // costIncrease, activationTime, tags
 
 quickButton("QuickScrapConvert", "Quick Convert",
     [req("scrapper_on")],
     [resource("scrap", 2)],
     "Quickly convert mana to scrap", 
-    "Test",
-    [],
-    0,
-    ["test", "repeatable"])
+    "Test", [], 0,
+    [], 0, ["test", "repeatable"]) // costIncrease, activationTime, tags
 
 quickButton("QuickComplexTest", "Complex Test",
     [req("!complex_test_done"), req("total_scrap>=5"), req("mana>=25")],
     [fact("complex_test_done", true), increase("mana_max_value", 10), gamelog("Complex test completed!")],
     "A complex test showing multiple requirements and outcomes",
-    "Test",
-    [],
-    1,
-    ["test", "complex"])
+    "Test", [], 1,
+    [], 0, ["test", "complex"]) // costIncrease, activationTime, tags
 
 quickButton("QuickUpgrade", "Quick Upgrade",
     [req("first_altar_upgrade")],
     [increase("mana_max_value", 30)],
     "Quick upgrade test",
-    "Test",
-    [cost("mana", 50), cost("rune", 3)],
-    1,
-    ["test", "upgrade"])
+    "Test", [cost("mana", 50), cost("rune", 3)], 1,
+    [], 0, ["test", "upgrade"]) // costIncrease, activationTime, tags
 
 // ========================================
 // AUTO-CLICKER SYSTEM
