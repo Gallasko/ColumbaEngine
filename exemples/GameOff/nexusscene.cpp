@@ -376,7 +376,21 @@ namespace pg
             }
         }
 
-        LOG_INFO("NexusSystem", "Prestige complete! Reset " << buttonsReset << " buttons and WorldFacts with tags: " << tagsToReset.size());
+        // Reset resources
+        resetResourcesByTags(tagsToReset);
+
+        // Reset generators and converters
+        resetGeneratorsByTags(tagsToReset);
+        resetConvertersByTags(tagsToReset);
+
+        // Apply starting values
+        applyStartingValues(tagsToReset);
+
+        // Todo this failes + the res are invisible when we switch tabs
+        // Notify UI to update after prestige
+        // ecsRef->sendEvent(StandardEvent("prestige_completed"));
+
+        // LOG_INFO("NexusSystem", "Prestige complete! Reset " << buttonsReset << " buttons and WorldFacts with tags: " << tagsToReset.size());
     }
 
     void NexusSystem::resetFactsByTags(const std::vector<std::string>& tagsToReset)
@@ -436,6 +450,209 @@ namespace pg
         }
 
         return matchingFacts;
+    }
+
+    void NexusSystem::resetResourcesByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+
+        // Get resources that were created by buttons with these tags
+        std::vector<std::string> resourcesToReset = getResourcesAffectedByTags(tagsToReset);
+
+        LOG_INFO("NexusSystem", "Starting resource reset for " << resourcesToReset.size() << " resources");
+
+        for (const std::string& resourceName : resourcesToReset) {
+            // Reset the resource value (but don't remove the fact completely)
+            worldFacts->setFact(resourceName, 0.0f);
+            worldFacts->setFact("total_" + resourceName, 0.0f);
+
+            // Reset max values if they exist
+            if (worldFacts->hasFact(resourceName + "_max_value")) {
+                worldFacts->setFact(resourceName + "_max_value", 0.0f);
+            }
+
+            LOG_INFO("NexusSystem", "Reset resource: " << resourceName);
+        }
+
+        // Store resources to reset for UI cleanup (will be handled by prestige_completed event)
+        resourcesToRemoveFromDisplay = resourcesToReset;
+
+        LOG_INFO("NexusSystem", "Finished resource reset");
+    }
+
+    void NexusSystem::resetGeneratorsByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* genSystem = ecsRef->getSystem<RessourceGeneratorSystem>();
+        if (!genSystem) return;
+
+        // Reset generators that have matching tags
+        for (auto gen : genSystem->view<RessourceGenerator>()) {
+            bool shouldReset = false;
+            for (const auto& genTag : gen->prestigeTags) {
+                if (std::find(tagsToReset.begin(), tagsToReset.end(), genTag) != tagsToReset.end()) {
+                    shouldReset = true;
+                    break;
+                }
+            }
+
+            if (shouldReset) {
+                LOG_INFO("NexusSystem", "Resetting generator: " << gen->id);
+                gen->currentMana = 0.0f;
+                gen->active = false;
+                // Don't reset productionRate and capacity here - they'll be set by starting values
+            }
+        }
+    }
+
+    void NexusSystem::resetConvertersByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* convSystem = ecsRef->getSystem<ConverterSystem>();
+        if (!convSystem) return;
+
+        // Reset converters that have matching tags
+        for (auto conv : convSystem->view<ConverterComponent>()) {
+            bool shouldReset = false;
+            for (const auto& convTag : conv->prestigeTags) {
+                if (std::find(tagsToReset.begin(), tagsToReset.end(), convTag) != tagsToReset.end()) {
+                    shouldReset = true;
+                    break;
+                }
+            }
+
+            if (shouldReset) {
+                LOG_INFO("NexusSystem", "Resetting converter: " << conv->id);
+                conv->active = false;
+                // Don't reset cost/yield here - they'll be set by starting values
+            }
+        }
+    }
+
+    void NexusSystem::applyStartingValues(const std::vector<std::string>& tagsToReset)
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+        auto* genSystem = ecsRef->getSystem<RessourceGeneratorSystem>();
+        auto* convSystem = ecsRef->getSystem<ConverterSystem>();
+
+        LOG_INFO("NexusSystem", "Starting to apply starting values");
+
+        // Apply starting resource values
+        std::vector<std::string> resourcesToReset = getResourcesAffectedByTags(tagsToReset);
+
+        // Store resources that should be re-displayed
+        std::vector<std::string> resourcesToReDisplay;
+
+        for (const std::string& resourceName : resourcesToReset) {
+            // Apply starting values if they exist
+            if (worldFacts->hasFact("starting_" + resourceName)) {
+                float startingValue = worldFacts->getFact<float>("starting_" + resourceName, 0.0f);
+                worldFacts->setFact(resourceName, startingValue);
+
+                // Store for re-display if starting value > 0
+                if (startingValue > 0.0f) {
+                    resourcesToReDisplay.push_back(resourceName);
+                }
+
+                LOG_INFO("NexusSystem", "Applied starting value for " << resourceName << ": " << startingValue);
+            }
+
+            if (worldFacts->hasFact("starting_max_" + resourceName)) {
+                float startingMaxValue = worldFacts->getFact<float>("starting_max_" + resourceName, 0.0f);
+                worldFacts->setFact(resourceName + "_max_value", startingMaxValue);
+                LOG_INFO("NexusSystem", "Applied starting max value for " << resourceName << ": " << startingMaxValue);
+            }
+        }
+
+        // Store for later UI handling
+        resourcesToAddToDisplay = resourcesToReDisplay;
+
+        // Apply starting values for generators
+        if (genSystem) {
+            for (auto gen : genSystem->view<RessourceGenerator>()) {
+                bool shouldReset = false;
+                for (const auto& genTag : gen->prestigeTags) {
+                    if (std::find(tagsToReset.begin(), tagsToReset.end(), genTag) != tagsToReset.end()) {
+                        shouldReset = true;
+                        break;
+                    }
+                }
+
+                if (shouldReset) {
+                    if (worldFacts->hasFact("starting_" + gen->id + "_productionRate")) {
+                        gen->productionRate = worldFacts->getFact<float>("starting_" + gen->id + "_productionRate", 1.0f);
+                    }
+                    if (worldFacts->hasFact("starting_" + gen->id + "_capacity")) {
+                        gen->capacity = worldFacts->getFact<float>("starting_" + gen->id + "_capacity", 100.0f);
+                    }
+                    if (worldFacts->hasFact("starting_" + gen->id + "_currentMana")) {
+                        gen->currentMana = worldFacts->getFact<float>("starting_" + gen->id + "_currentMana", 0.0f);
+                    }
+                    LOG_INFO("NexusSystem", "Applied starting values for generator: " << gen->id);
+                }
+            }
+        }
+
+        // Apply starting values for converters
+        if (convSystem) {
+            for (auto conv : convSystem->view<ConverterComponent>()) {
+                bool shouldReset = false;
+                for (const auto& convTag : conv->prestigeTags) {
+                    if (std::find(tagsToReset.begin(), tagsToReset.end(), convTag) != tagsToReset.end()) {
+                        shouldReset = true;
+                        break;
+                    }
+                }
+
+                if (shouldReset) {
+                    // Apply starting costs and yields if they exist
+                    for (size_t i = 0; i < conv->cost.size(); ++i) {
+                        std::string costKey = "starting_" + conv->id + "_cost" + std::to_string(i);
+                        if (worldFacts->hasFact(costKey)) {
+                            conv->cost[i] = worldFacts->getFact<float>(costKey, conv->cost[i]);
+                        }
+                    }
+                    for (size_t i = 0; i < conv->yield.size(); ++i) {
+                        std::string yieldKey = "starting_" + conv->id + "_yield" + std::to_string(i);
+                        if (worldFacts->hasFact(yieldKey)) {
+                            conv->yield[i] = worldFacts->getFact<float>(yieldKey, conv->yield[i]);
+                        }
+                    }
+                    LOG_INFO("NexusSystem", "Applied starting values for converter: " << conv->id);
+                }
+            }
+        }
+    }
+
+    std::vector<std::string> NexusSystem::getResourcesAffectedByTags(const std::vector<std::string>& tags) const
+    {
+        std::set<std::string> uniqueResources;
+
+        // Go through all buttons with matching tags and look for add_res_display events
+        for (const auto& button : savedButtons) {
+            bool buttonHasTag = false;
+            for (const auto& buttonTag : button.prestigeTags) {
+                if (std::find(tags.begin(), tags.end(), buttonTag) != tags.end()) {
+                    buttonHasTag = true;
+                    break;
+                }
+            }
+
+            if (buttonHasTag) {
+                // Check button outcomes for add_res_display events
+                for (const auto& outcome : button.outcome) {
+                    if (outcome.type == AchievementRewardType::Event) {
+                        const auto& event = std::get<StandardEvent>(outcome.reward);
+                        if (event.name == "add_res_display") {
+                            auto resIt = event.values.find("res");
+                            if (resIt != event.values.end()) {
+                                uniqueResources.insert(resIt->second.toString());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return std::vector<std::string>(uniqueResources.begin(), uniqueResources.end());
     }
 
     void NexusScene::init()
@@ -669,10 +886,14 @@ namespace pg
 
         listenToStandardEvent("add_res_display", [this](const StandardEvent& event) {
             auto res = event.values.at("res").get<std::string>();
-
-            ecsRef->getSystem<NexusSystem>()->addResourceDisplay(res);
-
+            LOG_INFO("NexusScene", "Adding resource display: " << res);
             addResourceDisplay(res);
+        });
+
+        listenToStandardEvent("remove_res_display", [this](const StandardEvent& event) {
+            auto res = event.values.at("res").get<std::string>();
+            LOG_INFO("NexusScene", "Removing resource display: " << res);
+            removeResourceDisplay(res);
         });
 
         listenToStandardEvent("add_generator", [this](const StandardEvent& event) {
@@ -778,6 +999,46 @@ namespace pg
 
         listenToStandardEvent("activate_gen", [this](const StandardEvent&) {
             updateGeneratorViews();
+        });
+
+        listenToStandardEvent("prestige_completed", [this](const StandardEvent&) {
+            LOG_INFO("NexusScene", "Handling prestige_completed event");
+
+            // Sync button visibility after prestige - move unarchived buttons back to masked list
+            auto nexusSys = ecsRef->getSystem<NexusSystem>();
+            if (nexusSys) {
+                // Handle resource display updates
+                for (const auto& resourceName : nexusSys->resourcesToRemoveFromDisplay) {
+                    removeResourceDisplay(resourceName);
+                    removeResourceDisplay("total_" + resourceName);
+                }
+                for (const auto& resourceName : nexusSys->resourcesToAddToDisplay) {
+                    addResourceDisplay(resourceName);
+                }
+
+                // Clear the temporary storage
+                nexusSys->resourcesToRemoveFromDisplay.clear();
+                nexusSys->resourcesToAddToDisplay.clear();
+
+                // Clear current visible buttons and rebuild from savedButtons
+                maskedButtons.clear();
+                visibleButtons.clear();
+
+                for (const auto& savedButton : nexusSys->savedButtons) {
+                    if (!savedButton.archived) {
+                        auto buttonCopy = savedButton;
+                        buttonCopy.entityId = 0; // Reset entity ID so it gets recreated
+                        maskedButtons.push_back(buttonCopy);
+                    }
+                }
+
+                LOG_INFO("NexusScene", "Rebuilt button lists: " << maskedButtons.size() << " masked, " << visibleButtons.size() << " visible");
+            }
+
+            // Force UI update
+            updateUi = true;
+
+            LOG_INFO("NexusScene", "Finished handling prestige_completed event");
         });
 
         // Listen for world fact updates to log mana or upgrades.
@@ -1470,6 +1731,14 @@ namespace pg
         }
     }
 
+    void NexusScene::addResourceDisplay(const std::string& resourceName)
+    {
+        // Check if resource is already displayed to prevent duplicates
+        if (!hasResourceDisplay(resourceName)) {
+            resourceToBeDisplayed.push(resourceName);
+        }
+    }
+
     // Helper method to add a new resource display entry.
     void NexusScene::_addResourceDisplay(const std::string& resourceName)
     {
@@ -1485,6 +1754,33 @@ namespace pg
         entry.resourceName = resourceName;
         entry.uiEntity = textEntity.entity;
         resourceList.push_back(entry);
+    }
+
+    void NexusScene::removeResourceDisplay(const std::string& resourceName)
+    {
+        // Find the resource in the display list
+        auto it = std::find_if(resourceList.begin(), resourceList.end(),
+            [&resourceName](const ResourceDisplayEntry& entry) {
+                return entry.resourceName == resourceName;
+            });
+
+        if (it != resourceList.end()) {
+            // Remove from ListView
+            if (resLayout && resLayout->has<ListView>()) {
+                resLayout->get<ListView>()->removeEntity(it->uiEntity);
+            }
+
+            // Remove from resource list
+            resourceList.erase(it);
+        }
+    }
+
+    bool NexusScene::hasResourceDisplay(const std::string& resourceName) const
+    {
+        return std::find_if(resourceList.begin(), resourceList.end(),
+            [&resourceName](const ResourceDisplayEntry& entry) {
+                return entry.resourceName == resourceName;
+            }) != resourceList.end();
     }
 
     void NexusScene::updateRessourceView()

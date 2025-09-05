@@ -204,7 +204,12 @@ namespace pg
         // Prestige system methods
         void resetByPrestigeLevel(int prestigeLevel);
         void resetFactsByTags(const std::vector<std::string>& tagsToReset);
+        void resetResourcesByTags(const std::vector<std::string>& tagsToReset);
+        void resetGeneratorsByTags(const std::vector<std::string>& tagsToReset);
+        void resetConvertersByTags(const std::vector<std::string>& tagsToReset);
+        void applyStartingValues(const std::vector<std::string>& tagsToReset);
         std::vector<std::string> getFactsCreatedByTags(const std::vector<std::string>& tags) const;
+        std::vector<std::string> getResourcesAffectedByTags(const std::vector<std::string>& tags) const;
         void setTagToTierMapping(const std::string& tag, int tier) { tagToTierMap[tag] = tier; }
         int getTagTier(const std::string& tag) const { 
             auto it = tagToTierMap.find(tag); 
@@ -232,6 +237,10 @@ namespace pg
 
         bool activeButton = false;
         DynamicNexusButton* currentActiveButton;
+        
+        // Temporary storage for prestige system
+        std::vector<std::string> resourcesToRemoveFromDisplay;
+        std::vector<std::string> resourcesToAddToDisplay;
     };
 
     struct AutoClickerSystem : public System<
@@ -287,8 +296,10 @@ namespace pg
         std::unordered_map<std::string, EntityRef> activeButtonsUi;
 
         // Adds a resource entry to the list view.
-        void addResourceDisplay(const std::string& resourceName) { resourceToBeDisplayed.push(resourceName); }
+        void addResourceDisplay(const std::string& resourceName);
         void _addResourceDisplay(const std::string& resourceName);
+        void removeResourceDisplay(const std::string& resourceName);
+        bool hasResourceDisplay(const std::string& resourceName) const;
 
         void updateRessourceView();
 

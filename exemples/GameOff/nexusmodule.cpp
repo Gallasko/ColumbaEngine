@@ -86,7 +86,7 @@ namespace pg
         {
             this->sys = sys;
 
-            setArity(2, 6);
+            setArity(2, 7); // Added prestige tags parameter
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
@@ -125,7 +125,27 @@ namespace pg
                 args.pop();
             }
 
-            sys->ecsRef->sendEvent(RessourceGenerator{gen});
+            // Optional prestige tags array (7th parameter) - if not provided, use defaults
+            if (!args.empty())
+            {
+                auto tagsArg = args.front();
+                args.pop();
+                if (tagsArg->getType() == "ClassInstance")
+                {
+                    auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
+                    for (const auto& field : tagList->getFields())
+                    {
+                        gen.prestigeTags.push_back(field.value->getElement().toString());
+                    }
+                }
+            }
+            else
+            {
+                // Use default tags from NexusSystem
+                gen.prestigeTags = sys->defaultPrestigeTags;
+            }
+
+            sys->ecsRef->sendEvent(NewGeneratorEvent{gen});
 
             return makeVar(gen.id);
         }
@@ -174,19 +194,42 @@ namespace pg
     {
         using Function::Function;
     public:
-        void setUp() { setArity(1, 1); }
+        void setUp(NexusSystem *sys) { 
+            this->sys = sys;
+            setArity(1, 2); // Added prestige tags parameter
+        }
 
         virtual ValuablePtr call(ValuableQueue& args) override
         {
             ConverterComponent converter;
 
-            // Todo check type of elements gotten here
-            // Assume arguments: eventName (string), key (string), message (string)
             converter.id = args.front()->getElement().toString();
             args.pop();
 
+            // Optional prestige tags array (2nd parameter) - if not provided, use defaults
+            if (!args.empty())
+            {
+                auto tagsArg = args.front();
+                args.pop();
+                if (tagsArg->getType() == "ClassInstance")
+                {
+                    auto tagList = std::static_pointer_cast<ClassInstance>(tagsArg);
+                    for (const auto& field : tagList->getFields())
+                    {
+                        converter.prestigeTags.push_back(field.value->getElement().toString());
+                    }
+                }
+            }
+            else
+            {
+                // Use default tags from NexusSystem
+                converter.prestigeTags = sys->defaultPrestigeTags;
+            }
+
             return serializeToInterpreter(this, converter);
         }
+
+        NexusSystem *sys;
     };
 
     class RegisterConverter : public Function
@@ -924,7 +967,7 @@ namespace pg
             addSystemFunction<TrackNewResource>("addResourceDisplay", sys);
             addSystemFunction<CreateGenerator>("createGenerator", sys);
             addSystemFunction<CreateButtonCost>("ButtonCost");
-            addSystemFunction<CreateConverter>("Converter");
+            addSystemFunction<CreateConverter>("Converter", sys);
             addSystemFunction<RegisterConverter>("registerConverter", sys);
 
             // Tag system functions

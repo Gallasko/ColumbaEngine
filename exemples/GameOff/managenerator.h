@@ -41,6 +41,9 @@ namespace pg
 
         bool active = false;
 
+        // Prestige system fields
+        std::vector<std::string> prestigeTags = {}; // Tags for prestige system (e.g., ["basic", "reset", "tutorial"])
+
         // Todo add support for multipliers
     };
 
@@ -307,6 +310,9 @@ namespace pg
         std::vector<float> yield;
 
         bool active = false;
+
+        // Prestige system fields
+        std::vector<std::string> prestigeTags = {}; // Tags for prestige system (e.g., ["basic", "reset", "tutorial"])
 
         // Todo add support for multipliers
     };

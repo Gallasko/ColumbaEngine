@@ -13,6 +13,7 @@ namespace pg
         serialize(archive, "productionRate", value.productionRate);
         serialize(archive, "capacity", value.capacity);
         serialize(archive, "active", value.active);
+        serialize(archive, "prestigeTags", value.prestigeTags);
 
         archive.endSerialization();
     }
@@ -36,6 +37,7 @@ namespace pg
             defaultDeserialize(serializedString, "productionRate", data.productionRate);
             defaultDeserialize(serializedString, "capacity", data.capacity);
             defaultDeserialize(serializedString, "active", data.active);
+            defaultDeserialize(serializedString, "prestigeTags", data.prestigeTags);
 
             return data;
         }
@@ -53,6 +55,8 @@ namespace pg
         serialize(archive, "output", value.output);
         serialize(archive, "cost", value.cost);
         serialize(archive, "yield", value.yield);
+        serialize(archive, "active", value.active);
+        serialize(archive, "prestigeTags", value.prestigeTags);
 
         archive.endSerialization();
     }
@@ -73,6 +77,8 @@ namespace pg
         defaultDeserialize(serializedString, "output", data.output);
         defaultDeserialize(serializedString, "cost", data.cost);
         defaultDeserialize(serializedString, "yield", data.yield);
+        defaultDeserialize(serializedString, "active", data.active);
+        defaultDeserialize(serializedString, "prestigeTags", data.prestigeTags);
 
         return data;
     }
