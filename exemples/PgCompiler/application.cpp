@@ -25,9 +25,10 @@ int CompilerApp::exec()
 
     Chunk chunk;
 
-    uint8_t constant = chunk.addConstant(1.2);
-    chunk.addCode(OpCode::OP_Constant, 123);
-    chunk.addCode(constant, 123);
+    chunk.addConstant(1.2, 123);
+
+    for (int i = 0; i < 300; ++i)
+        chunk.addConstant(i, 123);
 
     chunk.addCode(OpCode::OP_Return, 123);
 
