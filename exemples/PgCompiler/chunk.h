@@ -14,6 +14,10 @@ namespace pg
         OP_Constant,
         OP_LongConstant,
         OP_Negate,
+        OP_Add,
+        OP_Subtract,
+        OP_Multiply,
+        OP_Divide,
     };
 
     typedef double Value;
