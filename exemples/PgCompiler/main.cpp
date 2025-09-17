@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 
     auto fileName = std::string(argv[1]);
 
-    InterpreterApp app(fileName);
+    CompilerApp app(fileName);
 
     return app.exec();
 }

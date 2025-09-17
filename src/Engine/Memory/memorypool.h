@@ -3,12 +3,12 @@
 /**
  * @file memorypool.h
  * @author Pigeon Codeur
- * @brief Definition of the memory pool 
+ * @brief Definition of the memory pool
  * @version 0.1
  * @date 2022-05-28
- * 
+ *
  * @copyright Copyright (c) 2022
- * 
+ *
  */
 
 #include <type_traits>
@@ -47,26 +47,26 @@ namespace pg
 
     /**
      * @tparam T Type of the underlying object
-     * 
+     *
      * Union representing a chunk of memory mananaged by the pool.
      * It can be either a single object or a pointer to the next free space in the pool
      */
     template <typename T>
-    union Chunk
+    union PGMemChunk
     {
         /** Storage for a single object */
         typename std::aligned_storage<sizeof(T), alignof(T)>::type element;
 
         /** Pointer to the next free space in the pool */
-        Chunk *next;
+        PGMemChunk *next;
     };
 
     /**
      * @brief An implementation of an allocator pool
-     * 
+     *
      * @tparam T Type of the object to be created
      * @tparam N if N > 1, Number of object to be created at once when running out of empty element else the pool expand exponentially (default at 1)
-     * 
+     *
      * @warning This whole class is not thread safe ! The user should implement thread safety when using this in a concurrent environment
      */
     template <typename T, size_t N = 1>
@@ -75,24 +75,24 @@ namespace pg
     public:
         /**
          * @brief Destroy the Allocator Pool object
-         * 
+         *
          * Delete all the object given back to the pool.
          *
          * @warning If the user forget to release memory, memory leaks can occur !
-         * 
+         *
          * @see release
          */
         ~AllocatorPool()
         {
             LOG_THIS_MEMBER("Memory Pool");
 
-            for (Chunk<T>* chunk : chunkList)
+            for (PGMemChunk<T>* chunk : chunkList)
                 delete chunk;
         }
 
         /**
          * @brief Reserve enough space in the pool to hold the requested number of objects
-         * 
+         *
          * @param reserveSize The needed size of the pool
          */
         void reserve(size_t reserveSize)
@@ -113,7 +113,7 @@ namespace pg
                     ", target: " << reserveSize <<
                     ", blockSize: " << blockSize);
 
-                auto newBlock = new Chunk<T>[blockSize];
+                auto newBlock = new PGMemChunk<T>[blockSize];
 
                 chunkList.push_back(newBlock);
 
@@ -123,24 +123,24 @@ namespace pg
 
         /**
          * @brief Function used to allocate a new T object
-         * 
+         *
          * @tparam Args Type of the arguments to be passed to create an object
          * @param args Argument to create a new T object
          * @return T* A pointer to the new T object created
-         * 
+         *
          * To be used instead of the default new operator to construct an object using the pool
          * To destroy this object use the release method of the pool
-         * 
+         *
          * @warning The release function NEED to be called on all the allocated objects before
          * deleting the pool otherwise some memory leaks will occur !
-         * 
+         *
          * @see release
          */
         template <typename... Args>
         T* allocate(Args&&... args)
         {
             LOG_THIS_MEMBER("Memory Pool");
-            
+
             if (freeList)
             {
                 auto chunk = freeList;
@@ -157,21 +157,21 @@ namespace pg
 
             if (index >= size) reserve(index);
 
-            // Todo Check if the chunk was created before creating a new element 
-            Chunk<T>* chunk = getChunk(index);
+            // Todo Check if the chunk was created before creating a new element
+            PGMemChunk<T>* chunk = getChunk(index);
 
             return ::new(&(chunk->element)) T(std::forward<Args>(args)...);
-        } 
+        }
 
         // Todo add a bulk allocation and deallocation function
 
         /**
          * @brief Function used to release the memory of a T object create using the pool
-         * 
+         *
          * @param pointer A pointer to a T object
-         * 
+         *
          * Use this function to release memory of a T object created using the allocate function
-         * 
+         *
          * @see allocate
          */
         void release(T* pointer)
@@ -182,8 +182,8 @@ namespace pg
             {
                 pointer->~T();
 
-                reinterpret_cast<Chunk<T>*>(pointer)->next = freeList;
-                freeList = reinterpret_cast<Chunk<T>*>(pointer);
+                reinterpret_cast<PGMemChunk<T>*>(pointer)->next = freeList;
+                freeList = reinterpret_cast<PGMemChunk<T>*>(pointer);
 
                 nbElements--;
             }
@@ -191,24 +191,24 @@ namespace pg
 
         /**
          * @brief Get the number of elements in the pool
-         * 
+         *
          * @return constexpr size_t The number of element in the pool
          */
         inline constexpr size_t getNbElements() const { return nbElements; }
 
         /**
          * @brief Get the current size of the pool (current nb max elements)
-         * 
+         *
          * @return constexpr size_t The size of the pool
          */
         inline constexpr size_t getSize() const { return size; }
 
         /**
          * @brief Get a specific element in the pool by his index
-         * 
+         *
          * @param index The position of the item in the pool
          * @return T* A pointer to the object
-         * 
+         *
          * @warning The object requested should be allocated prior to calling this
          */
         inline T* getElement(size_t index) const
@@ -227,13 +227,13 @@ namespace pg
     protected:
         /**
          * @brief Get a specific chunk in the pool by his index
-         * 
+         *
          * @param index The position of the item in the pool
-         * @return Chunk<T>* A pointer to the chunk
-         * 
+         * @return PGMemChunk<T>* A pointer to the chunk
+         *
          * @warning The object requested should be allocated prior to calling this
          */
-        inline Chunk<T>* getChunk(size_t index) const
+        inline PGMemChunk<T>* getChunk(size_t index) const
         {
             LOG_THIS_MEMBER("Memory Pool");
 
@@ -245,7 +245,7 @@ namespace pg
 
             return &chunkList[listPos][vectorPos];
         }
-    
+
     private:
         /** Current size of the memory pool */
         size_t size = 0;
@@ -254,9 +254,9 @@ namespace pg
         size_t nbElements = 0;
 
         /** Pointer to the next free object in the pool */
-        Chunk<T>* freeList = nullptr;
+        PGMemChunk<T>* freeList = nullptr;
 
-        /** Chunk Lists used in the pool (used to free the memory) */
-        std::vector<Chunk<T>*> chunkList;
+        /** PGMemChunk Lists used in the pool (used to free the memory) */
+        std::vector<PGMemChunk<T>*> chunkList;
     };
 }
