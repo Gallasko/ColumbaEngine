@@ -5,6 +5,8 @@
 #include "chunk.h"
 #include "compiler_debug.h"
 
+#include "vm.h"
+
 using namespace pg;
 
 namespace {
@@ -23,16 +25,21 @@ int CompilerApp::exec()
 {
     LOG_THIS_MEMBER(DOM);
 
+    VM vm;
+
     Chunk chunk;
 
     chunk.addConstant(1.2, 123);
 
-    for (int i = 0; i < 300; ++i)
-        chunk.addConstant(i, 123);
+    // Todo Test for the passage from constant to long constant ( to maybe even overflow cIndex > 0xFFFFFF )
+    // for (int i = 0; i < 300; ++i)
+    //     chunk.addConstant(i, 123);
 
     chunk.addCode(OpCode::OP_Return, 123);
 
     disassembleChunk(chunk, "test chunk");
+
+    vm.interpret(chunk);
 
     return 0;
 }

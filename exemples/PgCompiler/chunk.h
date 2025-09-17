@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <cstddef>
 
+#include <stdexcept>
+
 namespace pg
 {
     enum class OpCode : uint8_t
