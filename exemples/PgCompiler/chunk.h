@@ -13,6 +13,7 @@ namespace pg
         OP_Return = 0,
         OP_Constant,
         OP_LongConstant,
+        OP_Negate,
     };
 
     typedef double Value;

@@ -67,6 +67,9 @@ namespace pg
             case OpCode::OP_LongConstant:
                 return longConstantInstruction("OP_LongConstant", chunk, offset);
 
+            case OpCode::OP_Negate:
+                return simpleInstruction("OP_Negate", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;
