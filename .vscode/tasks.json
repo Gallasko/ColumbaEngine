@@ -106,6 +106,7 @@
                     // "ColumbaEngineEditor",
                     // "GameOff",
                     "PgInterpreter",
+                    "PgCompiler",
                     // "PixelJam",
                     "-j",
                     "8"
