@@ -52,6 +52,20 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Negate:
+                {
+                    if (stack.empty())
+                    {
+                        std::cout << "Stack underflow on OP_Negate" << std::endl;
+                        return InterpretResult::RUNTIME_ERROR;
+                    }
+
+                    auto value = pop();
+
+                    push(-value);
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;
