@@ -793,7 +793,7 @@ namespace pg
             }
             catch (const std::exception& e)
             {
-                LOG_ERROR(DOM, e.what());
+                LOG_ERROR(DOM, e.what() << " in script: " << visitor.scriptName);
                 encounteredError = true;
             }
 
