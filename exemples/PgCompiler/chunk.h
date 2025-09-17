@@ -10,6 +10,7 @@ namespace pg
     {
         OP_Return = 0,
         OP_Constant,
+        OP_LongConstant,
     };
 
     typedef double Value;
@@ -22,11 +23,32 @@ namespace pg
 
         std::vector<int> lines;
 
-        size_t addConstant(Value value)
+        size_t addConstant(Value value, int line)
         {
             constants.push_back(value);
+            auto cIndex = constants.size() - 1;
 
-            return constants.size() - 1;
+            // If more than 256 constants in one chunk, we can't store the index in one byte
+            // So we store it as a 4 bytes instruction (OpLongConstant, byte1, byte2, byte3, with the 3 bytes forming the constant index)
+            if (cIndex > 255)
+            {
+                addCode(OpCode::OP_LongConstant, line);
+                addCode((cIndex >> 16) & 0xFF, line);
+                addCode((cIndex >> 8) & 0xFF, line);
+                addCode(cIndex & 0xFF, line);
+            }
+            else if (cIndex > 0xFFFFFF)
+            {
+                // Should never happen
+                throw std::runtime_error("Too many constants in one chunk (> 16 millions)");
+            }
+            else
+            {
+                addCode(OpCode::OP_Constant, line);
+                addCode(cIndex, line);
+            }
+
+            return code.size() - 1;
         }
 
         size_t addCode(const OpCode& op, int line)

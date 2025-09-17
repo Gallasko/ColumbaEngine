@@ -21,6 +21,18 @@ namespace pg
 
             return offset + 2;
         }
+
+        int longConstantInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint32_t cIndex = (static_cast<uint32_t>(chunk.code[offset + 1]) << 16) |
+                              (static_cast<uint32_t>(chunk.code[offset + 2]) << 8) |
+                              (static_cast<uint32_t>(chunk.code[offset + 3]));
+
+            std::cout << std::left << std::setw(16) << name << " " << cIndex << " '"
+                      << chunk.constants[cIndex] << "'" << std::endl;
+
+            return offset + 4;
+        }
     }
 
     void disassembleChunk(const Chunk& chunk, const std::string& name)
@@ -51,6 +63,9 @@ namespace pg
 
             case OpCode::OP_Constant:
                 return constantInstruction("OP_Constant", chunk, offset);
+
+            case OpCode::OP_LongConstant:
+                return longConstantInstruction("OP_LongConstant", chunk, offset);
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
