@@ -29,13 +29,20 @@ int InterpreterApp::exec()
 
     PgInterpreter *interpreter = ecs.createSystem<PgInterpreter>();
 
-    auto terminalSink = new std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
+    auto terminalSink = std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
+
+    terminalSink->addFilter("log", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::log));
+    terminalSink->addFilter("info", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::info));
+    terminalSink->addFilter("mile", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::mile));
+    terminalSink->addFilter("test", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::test));
+    terminalSink->addFilter("warn", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::warning));
+    // terminalSink->addFilter("error", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::error));
 
     interpreter->addSystemFunction<TestPrint>("print");
     interpreter->addSystemFunction<DebugPrint>("debugPrint");
     interpreter->addSystemFunction<ToString>("toString");
 
-    interpreter->addSystemModule("log", LogModule{*static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink)});
+    interpreter->addSystemModule("log", LogModule{terminalSink});
     interpreter->addSystemModule("time", TimeModule{&ecs});
     interpreter->addSystemModule("ecs", EcsModule{&ecs});
     interpreter->addSystemModule("core", CoreModule{&ecs});
