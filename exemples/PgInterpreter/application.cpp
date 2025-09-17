@@ -41,6 +41,7 @@ int InterpreterApp::exec()
     interpreter->addSystemFunction<TestPrint>("print");
     interpreter->addSystemFunction<DebugPrint>("debugPrint");
     interpreter->addSystemFunction<ToString>("toString");
+    interpreter->addSystemFunction<HRClock>("clock");
 
     interpreter->addSystemModule("log", LogModule{terminalSink});
     interpreter->addSystemModule("time", TimeModule{&ecs});
