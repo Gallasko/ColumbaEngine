@@ -104,7 +104,8 @@
                     // "InvadersBreaker",
                     // "GMTK2025",
                     // "ColumbaEngineEditor",
-                    "GameOff",
+                    // "GameOff",
+                    "PgInterpreter",
                     // "PixelJam",
                     "-j",
                     "8"
