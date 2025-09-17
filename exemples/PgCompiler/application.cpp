@@ -30,6 +30,7 @@ int CompilerApp::exec()
     Chunk chunk;
 
     chunk.addConstant(1.2, 123);
+    chunk.addConstant(2.5, 123);
 
     // Todo Test for the passage from constant to long constant ( to maybe even overflow cIndex > 0xFFFFFF )
     // for (int i = 0; i < 300; ++i)
