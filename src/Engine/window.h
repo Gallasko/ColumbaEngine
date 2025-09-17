@@ -91,6 +91,7 @@ namespace pg
         float xSensitivity = 1.0f;
         float ySensitivity = 1.0f;
 
+        // Todo: remove this
         void* terminalSink; // std::shared_ptr<Logger::LogSink>
     };
 }
