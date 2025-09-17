@@ -1,15 +1,17 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
+#include "chunk.h"
+
 #include "ECS/entitysystem.h"
 #include "ECS/loggersystem.h"
 #include "ECS/ecsmodule.h"
 
-class InterpreterApp
+class CompilerApp
 {
 public:
-    InterpreterApp(const std::string& fileName);
-    ~InterpreterApp();
+    CompilerApp(const std::string& fileName);
+    ~CompilerApp();
 
     int exec();
 
