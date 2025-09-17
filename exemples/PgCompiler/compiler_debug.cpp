@@ -70,6 +70,18 @@ namespace pg
             case OpCode::OP_Negate:
                 return simpleInstruction("OP_Negate", offset);
 
+            case OpCode::OP_Add:
+                return simpleInstruction("OP_Add", offset);
+
+            case OpCode::OP_Subtract:
+                return simpleInstruction("OP_Subtract", offset);
+
+            case OpCode::OP_Multiply:
+                return simpleInstruction("OP_Multiply", offset);
+
+            case OpCode::OP_Divide:
+                return simpleInstruction("OP_Divide", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

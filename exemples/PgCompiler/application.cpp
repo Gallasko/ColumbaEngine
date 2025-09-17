@@ -31,7 +31,7 @@ int CompilerApp::exec()
 
     chunk.addConstant(1.2, 123);
     chunk.addConstant(2.5, 123);
-    chunk.addCode(OpCode::OP_Negate, 123);
+    chunk.addCode(OpCode::OP_Add, 123);
 
     // Todo Test for the passage from constant to long constant ( to maybe even overflow cIndex > 0xFFFFFF )
     // for (int i = 0; i < 300; ++i)
@@ -39,7 +39,7 @@ int CompilerApp::exec()
 
     chunk.addCode(OpCode::OP_Return, 123);
 
-    disassembleChunk(chunk, "test chunk");
+    // disassembleChunk(chunk, "test chunk");
 
     vm.interpret(chunk);
 

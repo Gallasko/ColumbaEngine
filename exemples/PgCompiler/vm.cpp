@@ -36,7 +36,19 @@ namespace pg
             switch (instruction)
             {
                 case OpCode::OP_Return:
+                {
+                    if (stack.empty())
+                    {
+                        std::cout << "Stack underflow on OP_Negate" << std::endl;
+                        return InterpretResult::RUNTIME_ERROR;
+                    }
+
+                    auto value = pop();
+
+                    std::cout << value << std::endl;
+
                     return InterpretResult::OK;
+                }
 
                 case OpCode::OP_Constant:
                 {
@@ -63,6 +75,30 @@ namespace pg
                     auto value = pop();
 
                     push(-value);
+                    break;
+                }
+
+                case OpCode::OP_Add:
+                {
+                    binaryOp(std::plus<Value>());
+                    break;
+                }
+
+                case OpCode::OP_Subtract:
+                {
+                    binaryOp(std::minus<Value>());
+                    break;
+                }
+
+                case OpCode::OP_Multiply:
+                {
+                    binaryOp(std::multiplies<Value>());
+                    break;
+                }
+
+                case OpCode::OP_Divide:
+                {
+                    binaryOp(std::divides<Value>());
                     break;
                 }
 
@@ -98,5 +134,19 @@ namespace pg
         ip++;
 
         return chunk.constants[constantIndex];
+    }
+
+    void VM::binaryOp(std::function<Value(Value, Value)> op)
+    {
+        if (stack.size() < 2)
+        {
+            std::cout << "Stack underflow on binary operation" << std::endl;
+            throw std::runtime_error("Stack underflow on binary operation");
+        }
+
+        auto b = pop();
+        auto a = pop();
+
+        push(op(a, b));
     }
 }

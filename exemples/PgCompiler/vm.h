@@ -3,6 +3,7 @@
 #include "chunk.h"
 
 #include <stack>
+#include <functional>
 
 // Todo add this as a flag in when compiling in debug
 #define DEBUG_TRACE_EXECUTION
@@ -24,6 +25,8 @@ namespace pg
 
         Value readConstant();
         Value readLongConstant();
+
+        void binaryOp(std::function<Value(Value, Value)> op);
 
         inline void push(Value value)
         {
