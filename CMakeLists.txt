@@ -645,13 +645,25 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         add_executable(PgInterpreter exemples/PgInterpreter/main.cpp)
 
-        target_include_directories(BoxBouncer PUBLIC exemples/PgInterpreter)
+        target_include_directories(PgInterpreter PUBLIC exemples/PgInterpreter)
 
         target_sources(PgInterpreter PRIVATE
             exemples/PgInterpreter/application.cpp
         )
 
         target_link_libraries(PgInterpreter PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(PgCompiler exemples/PgCompiler/main.cpp)
+
+        target_include_directories(PgCompiler PUBLIC exemples/PgCompiler)
+
+        target_sources(PgCompiler PRIVATE
+            exemples/PgCompiler/application.cpp
+        )
+
+        target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
 
         # Only build tests if not building static lib only
         enable_testing()
