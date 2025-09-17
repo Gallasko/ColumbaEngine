@@ -662,6 +662,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(PgCompiler PRIVATE
             exemples/PgCompiler/application.cpp
             exemples/PgCompiler/compiler_debug.cpp
+            exemples/PgCompiler/vm.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
