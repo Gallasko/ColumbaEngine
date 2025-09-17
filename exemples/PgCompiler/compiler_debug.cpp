@@ -37,6 +37,11 @@ namespace pg
     {
         std::cout << std::setw(4) << offset << " ";
 
+        if (offset > 0 and chunk.lines[offset] == chunk.lines[offset - 1])
+            std::cout << "   | ";
+        else
+            std::cout << std::setw(4) << chunk.lines[offset] << " ";
+
         OpCode instruction = static_cast<OpCode>(chunk.code[offset]);
 
         switch (instruction)

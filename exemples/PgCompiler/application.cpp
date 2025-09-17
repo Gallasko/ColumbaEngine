@@ -24,11 +24,12 @@ int CompilerApp::exec()
     LOG_THIS_MEMBER(DOM);
 
     Chunk chunk;
-    chunk.addCode(OpCode::OP_Return);
 
     uint8_t constant = chunk.addConstant(1.2);
-    chunk.addCode(OpCode::OP_Constant);
-    chunk.addCode(constant);
+    chunk.addCode(OpCode::OP_Constant, 123);
+    chunk.addCode(constant, 123);
+
+    chunk.addCode(OpCode::OP_Return, 123);
 
     disassembleChunk(chunk, "test chunk");
 

@@ -20,6 +20,8 @@ namespace pg
 
         std::vector<Value> constants;
 
+        std::vector<int> lines;
+
         size_t addConstant(Value value)
         {
             constants.push_back(value);
@@ -27,16 +29,18 @@ namespace pg
             return constants.size() - 1;
         }
 
-        size_t addCode(const OpCode& op)
+        size_t addCode(const OpCode& op, int line)
         {
             code.push_back(static_cast<uint8_t>(op));
+            lines.push_back(line);
 
             return code.size() - 1;
         }
 
-        size_t addCode(uint8_t byte)
+        size_t addCode(uint8_t byte, int line)
         {
             code.push_back(byte);
+            lines.push_back(line);
 
             return code.size() - 1;
         }
