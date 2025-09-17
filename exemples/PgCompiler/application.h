@@ -15,6 +15,9 @@ public:
 
     int exec();
 
+    void runREPL();
+    void runFile();
+
 private:
     std::string fileName;
 };

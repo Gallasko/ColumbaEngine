@@ -36,13 +36,21 @@ int main(int argc, char *argv[])
     printf("Starting program...\n");
 #endif
 
-    if (argc < 2)
+    std::string fileName;
+
+    if (argc == 1)
+    {
+    }
+    else if (argc == 2)
+    {
+        fileName = std::string(argv[1]);
+    }
+    else
     {
         std::cout << "No script file provided." << std::endl;
         std::cout << "Usage: " << argv[0] << " <script.pg>" << std::endl;
     }
 
-    auto fileName = std::string(argv[1]);
 
     CompilerApp app(fileName);
 

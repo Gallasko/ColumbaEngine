@@ -25,23 +25,24 @@ int CompilerApp::exec()
 {
     LOG_THIS_MEMBER(DOM);
 
-    VM vm;
-
-    Chunk chunk;
-
-    chunk.addConstant(1.2, 123);
-    chunk.addConstant(2.5, 123);
-    chunk.addCode(OpCode::OP_Add, 123);
-
-    // Todo Test for the passage from constant to long constant ( to maybe even overflow cIndex > 0xFFFFFF )
-    // for (int i = 0; i < 300; ++i)
-    //     chunk.addConstant(i, 123);
-
-    chunk.addCode(OpCode::OP_Return, 123);
-
-    // disassembleChunk(chunk, "test chunk");
-
-    vm.interpret(chunk);
+    if (not fileName.empty())
+        runFile();
+    else
+        runREPL();
 
     return 0;
+}
+
+void CompilerApp::runREPL()
+{
+    LOG_THIS_MEMBER(DOM);
+
+    std::cout << "REPL not implemented yet." << std::endl;
+}
+
+void CompilerApp::runFile()
+{
+    LOG_THIS_MEMBER(DOM);
+
+    std::cout << "File execution not implemented yet." << std::endl;
 }

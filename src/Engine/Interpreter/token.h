@@ -74,7 +74,7 @@ namespace pg
         KEYFALSE,
         NOOP,
         INVALID,
-        
+
         TOK_CONST,
         TOK_INCLUDE,
         TOK_IF,
@@ -88,8 +88,9 @@ namespace pg
         TOK_FOR,
         TOK_IMPORT,
         TOK_FROM,
-        TOK_AS
+        TOK_AS,
 
+        TOK_ERROR,
     };
 
     struct Token
