@@ -61,8 +61,7 @@ namespace pg
                 {
                     if (stack.empty())
                     {
-                        std::cout << "Stack underflow on OP_Negate" << std::endl;
-                        return InterpretResult::RUNTIME_ERROR;
+                        EMIT_RUNTIME_ERROR("Nothing in the stack for return.");
                     }
 
                     auto value = pop();
@@ -88,10 +87,9 @@ namespace pg
 
                 case OpCode::OP_Negate:
                 {
-                    if (stack.empty())
+                    if (not peek(0).isNumber())
                     {
-                        std::cout << "Stack underflow on OP_Negate" << std::endl;
-                        return InterpretResult::RUNTIME_ERROR;
+                        EMIT_RUNTIME_ERROR("Operand after an unary (-) must be a number.");
                     }
 
                     auto value = pop();
@@ -162,8 +160,17 @@ namespace pg
     {
         if (stack.size() < 2)
         {
-            std::cout << "Stack underflow on binary operation" << std::endl;
-            throw std::runtime_error("Stack underflow on binary operation");
+            runtimeError((Strfy() << "Stack underflow on binary operation.").getData());
+            return;
+        }
+
+        auto e1 = peek(0);
+        auto e2 = peek(1);
+
+        if (not (e1.isNumber() and e2.isNumber()) and not (e1.isLitteral() and e2.isLitteral()))
+        {
+            runtimeError((Strfy() << "Operands after a binary operator should be the same type: " << e1.getTypeString() << " and " << e2.getTypeString()).getData());
+            return;
         }
 
         auto b = pop();
