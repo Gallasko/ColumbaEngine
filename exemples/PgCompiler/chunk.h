@@ -22,6 +22,7 @@ namespace pg
         OP_Divide,
         OP_True,
         OP_False,
+        OP_Not,
     };
 
     struct Chunk

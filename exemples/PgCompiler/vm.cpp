@@ -134,6 +134,19 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Not:
+                {
+                    if (peek(0).getTypeString() != "bool")
+                    {
+                        EMIT_RUNTIME_ERROR("Operand after an unary (!) must be a boolean.");
+                    }
+
+                    auto value = pop();
+
+                    push(ElementType(not value.isTrue()));
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;

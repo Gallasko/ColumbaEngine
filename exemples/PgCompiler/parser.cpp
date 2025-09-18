@@ -58,7 +58,9 @@ namespace pg
             case TokenType::MINUS:
                 chunk.addCode(OpCode::OP_Negate, operatorToken.line);
                 break;
-            // case TokenType::BANG: emitBytes(chunk, OpCode::OP_Not); break;
+            case TokenType::NOT:
+                chunk.addCode(OpCode::OP_Not, operatorToken.line);
+                break;
             default:
                 return; // Unreachable
         }
@@ -104,7 +106,7 @@ namespace pg
         {TokenType::CCLOSE,       {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SUP,          {NULL,        NULL,   Precedence::NONE}},
         {TokenType::INF,          {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::NOT,          {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::NOT,          {unary,       NULL,   Precedence::NONE}},
         {TokenType::QMARK,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::TILDE,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::AMPER,        {NULL,        NULL,   Precedence::NONE}},

@@ -88,6 +88,9 @@ namespace pg
             case OpCode::OP_False:
                 return simpleInstruction("OP_False", offset);
 
+            case OpCode::OP_Not:
+                return simpleInstruction("OP_Not", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;
