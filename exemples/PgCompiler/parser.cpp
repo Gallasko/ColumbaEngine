@@ -23,6 +23,21 @@ namespace pg
         parser.writeConstant(chunk, str);
     }
 
+    void litteral(Chunk& chunk, Parser& parser)
+    {
+        switch (parser.previousToken.type)
+        {
+            case TokenType::KEYTRUE:
+                parser.writeByte(chunk, OpCode::OP_True);
+                break;
+            case TokenType::KEYFALSE:
+                parser.writeByte(chunk, OpCode::OP_False);
+                break;
+            default:
+                return; // Unreachable
+        }
+    }
+
     void grouping(Chunk& chunk, Parser& parser)
     {
         parser.expression(chunk);
@@ -126,8 +141,8 @@ namespace pg
         {TokenType::STRING,       {strLiterral, NULL,   Precedence::NONE}},
         {TokenType::NUMBER,       {intNumber,   NULL,   Precedence::NONE}},
         {TokenType::FLOAT,        {floatNumber, NULL,   Precedence::NONE}},
-        {TokenType::KEYTRUE,      {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::KEYFALSE,     {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::KEYTRUE,      {litteral,    NULL,   Precedence::NONE}},
+        {TokenType::KEYFALSE,     {litteral,    NULL,   Precedence::NONE}},
         {TokenType::NOOP,         {NULL,        NULL,   Precedence::NONE}},
         {TokenType::INVALID,      {NULL,        NULL,   Precedence::NONE}},
         {TokenType::TOK_CONST,    {NULL,        NULL,   Precedence::NONE}},
