@@ -17,6 +17,12 @@ namespace pg
         parser.writeConstant(chunk, n);
     }
 
+    void strLiterral(Chunk& chunk, Parser& parser)
+    {
+        auto str = parser.previousToken.text;
+        parser.writeConstant(chunk, str);
+    }
+
     void grouping(Chunk& chunk, Parser& parser)
     {
         parser.expression(chunk);
@@ -117,7 +123,7 @@ namespace pg
         {TokenType::SCOPE,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::ENDOFFILE,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::EXPRESSION,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::STRING,       {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::STRING,       {strLiterral, NULL,   Precedence::NONE}},
         {TokenType::NUMBER,       {intNumber,   NULL,   Precedence::NONE}},
         {TokenType::FLOAT,        {floatNumber, NULL,   Precedence::NONE}},
         {TokenType::KEYTRUE,      {NULL,        NULL,   Precedence::NONE}},
@@ -169,7 +175,7 @@ namespace pg
         return rules[type];
     }
 
-    void Parser::writeConstant(Chunk& chunk, const Value& constant)
+    void Parser::writeConstant(Chunk& chunk, const ElementType& constant)
     {
         chunk.addConstant(constant, previousToken.line);
     }

@@ -10,13 +10,27 @@ namespace pg
     {
         Chunk chunk;
 
+        // Todo change this
+        // Reset the compiler state before compiling a new chunk
+        compiler.reset();
+
         if (not compiler.compile(tokens, chunk))
             return InterpretResult::COMPILE_ERROR;
 
         this->chunk = chunk;
         ip = 0;
 
-        return run();
+        try
+        {
+            return run();
+        }
+        catch(const std::exception& e)
+        {
+            LOG_ERROR("VM", e.what());
+
+            return InterpretResult::RUNTIME_ERROR;
+        }
+
     }
 
     InterpretResult VM::run()
@@ -53,7 +67,7 @@ namespace pg
 
                     auto value = pop();
 
-                    std::cout << value << std::endl;
+                    std::cout << value.toString() << std::endl;
 
                     return InterpretResult::OK;
                 }
@@ -88,25 +102,25 @@ namespace pg
 
                 case OpCode::OP_Add:
                 {
-                    binaryOp(std::plus<Value>());
+                    binaryOp(std::plus<ElementType>());
                     break;
                 }
 
                 case OpCode::OP_Subtract:
                 {
-                    binaryOp(std::minus<Value>());
+                    binaryOp(std::minus<ElementType>());
                     break;
                 }
 
                 case OpCode::OP_Multiply:
                 {
-                    binaryOp(std::multiplies<Value>());
+                    binaryOp(std::multiplies<ElementType>());
                     break;
                 }
 
                 case OpCode::OP_Divide:
                 {
-                    binaryOp(std::divides<Value>());
+                    binaryOp(std::divides<ElementType>());
                     break;
                 }
 
@@ -119,13 +133,13 @@ namespace pg
         return InterpretResult::OK;
     }
 
-    Value VM::readConstant()
+    ElementType VM::readConstant()
     {
         uint8_t constantIndex = chunk.code[ip++];
         return chunk.constants[constantIndex];
     }
 
-    Value VM::readLongConstant()
+    ElementType VM::readLongConstant()
     {
         if (ip + 2 >= chunk.code.size())
         {
@@ -144,7 +158,7 @@ namespace pg
         return chunk.constants[constantIndex];
     }
 
-    void VM::binaryOp(std::function<Value(Value, Value)> op)
+    void VM::binaryOp(std::function<ElementType(ElementType, ElementType)> op)
     {
         if (stack.size() < 2)
         {

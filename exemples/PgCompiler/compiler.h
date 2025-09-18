@@ -21,6 +21,8 @@ namespace pg
 
         void printTokens(std::queue<Token> tokens);
 
+        void reset() { parser.reset(); }
+
         Parser parser;
     };
 }
