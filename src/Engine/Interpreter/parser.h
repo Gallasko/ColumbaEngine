@@ -12,7 +12,7 @@ namespace pg
 
     class ParseException : public std::runtime_error
     {
-    public: 
+    public:
         ParseException(const Token& token, const std::string& message) noexcept : std::runtime_error(createErrorMessage(token, message)) {}
         virtual ~ParseException() = default;
 
@@ -40,7 +40,7 @@ namespace pg
         inline bool checkType(const TokenType& token) const
         {
             if (isAtEnd()) return false;
-            
+
             return peek() == token;
         }
 
@@ -61,7 +61,7 @@ namespace pg
 
         template <class... TT>
         bool check(const TokenType& token, const TT&... tokens)
-        { 
+        {
             if (checkType(token))
                 return true;
 
@@ -70,7 +70,7 @@ namespace pg
 
         template <class... TT>
         bool match(const TT&... tokens)
-        { 
+        {
             if (check(tokens...))
             {
                 advance();
@@ -94,7 +94,7 @@ namespace pg
             throw ParseException(tokenList.front(), sErrMsg);
         }
 
-        void synchronize() 
+        void synchronize()
         {
             do
             {
@@ -104,7 +104,7 @@ namespace pg
                 //if (previousToken.info.type == TokenType::END || previousToken.info.type == TokenType::EOL) return;
                 if (previousToken.type == TokenType::END) return;
 
-                switch (peek()) 
+                switch (peek())
                 {
                     case TokenType::TOK_CLASS:
                     case TokenType::TOK_FUN:
@@ -124,7 +124,7 @@ namespace pg
         }
 
         std::queue<StatementPtr> block();
-        
+
         ExprPtr finishCall(ExprPtr caller);
         ExprPtr finishList();
 
@@ -144,18 +144,18 @@ namespace pg
         StatementPtr statement();
 
         std::shared_ptr<FunctionStatement> makeFun(const std::string& kind = "function");
-        
+
         StatementPtr varDeclaration();
         StatementPtr funDeclaration(const std::string& kind = "function");
         StatementPtr classDeclaration();
         StatementPtr forStatement();
         StatementPtr ifStatement();
         StatementPtr whileStatement();
-        StatementPtr returnStatement();    
+        StatementPtr returnStatement();
         StatementPtr blockDeclaration();
         StatementPtr importStatement();
         StatementPtr expressionStatement();
-        
+
         std::queue<Token> tokenList;
         Token previousToken;
         bool errorEncountered = false;

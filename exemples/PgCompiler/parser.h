@@ -1,0 +1,147 @@
+#pragma once
+
+#include "Interpreter/token.h"
+
+#include <queue>
+
+#include "chunk.h"
+
+namespace pg
+{
+    enum class Precedence : uint8_t
+    {
+        NONE = 0,
+        ASSIGNMENT = 1,  // =
+        OR = 2,          // or
+        AND = 3,         // and
+        EQUALITY = 4,    // == !=
+        COMPARISON = 5,  // < > <= >=
+        TERM = 6,        // + -
+        FACTOR = 7,      // * /
+        UNARY = 8,       // ! -
+        CALL = 9,        // . ()
+        PRIMARY = 10
+    };
+
+    typedef void (*ParseFn)(Chunk&, struct Parser&);
+
+    struct ParseRule
+    {
+        ParseFn prefix;
+        ParseFn infix;
+        Precedence precedence;
+    };
+
+    struct Parser
+    {
+        Parser() {}
+
+        void parse(std::queue<Token> tokenList) { tokens = tokenList; }
+
+        void parsePrecedence(Chunk& chunk, const Precedence& precedence);
+
+        void advance()
+        {
+            previousToken = currentToken();
+
+            if (tokens.empty())
+                return;
+
+            tokens.pop();
+        }
+
+        inline const TokenType& peek() const { return tokens.front().type; }
+
+        inline bool isAtEnd() const { return peek() == TokenType::ENDOFFILE; }
+
+        inline bool checkType(const TokenType& token) const
+        {
+            if (isAtEnd()) return false;
+
+            return peek() == token;
+        }
+
+        constexpr bool check() const { return false; }
+
+        bool check(const TokenType& token) const { return checkType(token); }
+
+        template <class... TT>
+        bool check(const TokenType& token, const TT&... tokens)
+        {
+            if (checkType(token))
+                return true;
+
+            return check(tokens...);
+        }
+
+        template <class... TT>
+        bool match(const TT&... tokens)
+        {
+            if (check(tokens...))
+            {
+                advance();
+                return true;
+            }
+
+            return false;
+        }
+
+        void skipEOL()
+        {
+            while (match(TokenType::EOL));
+        }
+
+        Token currentToken() const
+        {
+            if (tokens.empty())
+                return Token(TokenType::TOK_ERROR, "", 0, 0);
+
+            return tokens.front();
+        }
+
+        void consume(const TokenType& type, const std::string& message)
+        {
+            if (currentToken().type == type)
+            {
+                advance();
+                return;
+            }
+
+            errorAt(currentToken(), message);
+        }
+
+        void expression(Chunk& chunk)
+        {
+            parsePrecedence(chunk, Precedence::ASSIGNMENT);
+        }
+
+        ParseRule& getRule(const TokenType& type) const;
+
+        // Chunk modification functions
+        void emitReturn(Chunk& chunk) { writeByte(chunk, OpCode::OP_Return); }
+
+        template <typename T, typename T2>
+        void emitBytes(Chunk& chunk, T byte1, T2 byte2)
+        {
+            writeByte(chunk, byte1);
+            writeByte(chunk, byte2);
+        }
+
+        void writeConstant(Chunk& chunk, const Value& constant);
+        void writeByte(Chunk& chunk, const OpCode& byte);
+        void writeByte(Chunk& chunk, uint8_t byte);
+
+        // Error handling
+        bool hasError() const { return hadError; }
+
+        void errorAt(const Token& token, const std::string& message);
+
+        // Members
+        bool hadError = false;
+        bool panicMode = false;
+
+        std::queue<Token> tokens;
+
+        Token previousToken = Token(TokenType::TOK_ERROR, "", 0, 0);
+    };
+}
