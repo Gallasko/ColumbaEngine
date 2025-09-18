@@ -147,6 +147,40 @@ namespace pg
                     break;
                 }
 
+// Macro to generate comparison operation cases with exception handling
+// Usage: COMPARISON_OP(==) generates a complete case block for equality comparison
+// Handles stack operations, type checking, and runtime error management
+#define COMPARISON_OP(op) \
+                { \
+                    checkBooleanBinaryOp(); \
+                    auto b = pop(); \
+                    auto a = pop(); \
+                    try { \
+                        push(a op b); \
+                    } catch (const std::exception& e) { \
+                        EMIT_RUNTIME_ERROR("Comparison operation failed: " << e.what()); \
+                    } \
+                    break; \
+                }
+
+                case OpCode::OP_Equal:
+                    COMPARISON_OP(==)
+
+                case OpCode::OP_NotEqual:
+                    COMPARISON_OP(!=)
+
+                case OpCode::OP_Greater:
+                    COMPARISON_OP(>)
+
+                case OpCode::OP_GreaterEqual:
+                    COMPARISON_OP(>=)
+
+                case OpCode::OP_Less:
+                    COMPARISON_OP(<)
+
+                case OpCode::OP_LessEqual:
+                    COMPARISON_OP(<=)
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;

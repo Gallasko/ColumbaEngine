@@ -96,6 +96,17 @@ namespace pg
             resetStack();
         }
 
+        bool checkBooleanBinaryOp()
+        {
+            if (stack.size() < 2)
+            {
+                runtimeError("Stack underflow on binary operation.");
+                return false;
+            }
+
+            return true;
+        }
+
         Compiler compiler;
 
         /* The chunk being interpreted */
