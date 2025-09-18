@@ -14,6 +14,8 @@ namespace pg
 
         parser.parse(tokens);
 
+        parser.skipEOL();
+
         parser.expression(chunk);
 
 #ifdef DEBUG_PRINT_CODE
@@ -23,7 +25,9 @@ namespace pg
         }
 #endif
 
-        // parser.consume("Expect end of expression.", TokenType::ENDOFFILE);
+        // parser.consume(TokenType::ENDOFFILE, "Expect end of expression.");
+
+        parser.emitReturn(chunk);
 
         return not parser.hasError();
     }
