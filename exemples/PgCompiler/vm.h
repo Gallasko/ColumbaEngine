@@ -2,6 +2,10 @@
 
 #include "chunk.h"
 
+#include "compiler.h"
+
+#include "Interpreter/lexer.h"
+
 #include <stack>
 #include <functional>
 
@@ -19,7 +23,18 @@ namespace pg
 
     struct VM
     {
-        InterpretResult interpret(const Chunk& chunk);
+        InterpretResult interpretFromText(const std::string& source)
+        {
+            Lexer lexer;
+
+            lexer.readFromText(source);
+
+            auto tokens = lexer.getTokens();
+
+            return interpret(tokens);
+        }
+
+        InterpretResult interpret(const std::queue<Token>& tokens);
 
         InterpretResult run();
 
@@ -48,6 +63,8 @@ namespace pg
         {
             stack = std::stack<Value, std::vector<Value>>();
         }
+
+        Compiler compiler;
 
         /* The chunk being interpreted */
         Chunk chunk;

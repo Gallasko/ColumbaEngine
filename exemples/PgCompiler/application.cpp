@@ -44,7 +44,7 @@ void CompilerApp::runREPL()
     std::string input;
     std::string line;
 
-    Compiler compiler;
+    VM vm;
 
     while (std::getline(std::cin, line))
     {
@@ -64,7 +64,7 @@ void CompilerApp::runREPL()
         if (!line.empty()) {
             // Here you would compile and execute the input
             std::cout << "Compiling: " << input << std::endl;
-            compiler.compile(input);
+            vm.interpretFromText(input);
 
             input.clear(); // Reset for next input
         }
