@@ -6,6 +6,8 @@
 
 #include "Interpreter/lexer.h"
 
+#include "logger.h"
+
 #include <stack>
 #include <functional>
 
@@ -27,7 +29,15 @@ namespace pg
         {
             Lexer lexer;
 
-            lexer.readFromText(source);
+            try
+            {
+                lexer.readFromText(source);
+            }
+            catch(const std::exception& e)
+            {
+                LOG_ERROR("VM", e.what());
+                return InterpretResult::COMPILE_ERROR;
+            }
 
             auto tokens = lexer.getTokens();
 
