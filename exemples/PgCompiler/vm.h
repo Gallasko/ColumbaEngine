@@ -14,6 +14,8 @@
 // Todo add this as a flag in when compiling in debug
 // #define DEBUG_TRACE_EXECUTION
 
+#define EMIT_RUNTIME_ERROR(msg) do {runtimeError((Strfy() << msg).getData()); return InterpretResult::RUNTIME_ERROR;} while(0);
+
 namespace pg
 {
     enum class InterpretResult
@@ -69,9 +71,29 @@ namespace pg
             return value;
         }
 
+        ElementType peek(size_t distance = 0) const
+        {
+            if (distance >= stack.size())
+                throw std::runtime_error("Trying to peek too far in the stack");
+
+            auto tempStack = stack;
+
+            for (size_t i = 0; i < distance; ++i)
+                tempStack.pop();
+
+            return tempStack.top();
+        }
+
         inline void resetStack()
         {
             stack = std::stack<ElementType, std::vector<ElementType>>();
+        }
+
+        void runtimeError(const std::string& message)
+        {
+            LOG_ERROR("VM", "[line " << chunk.lines[ip - 1] << "] in script");
+            LOG_ERROR("VM", message);
+            resetStack();
         }
 
         Compiler compiler;
