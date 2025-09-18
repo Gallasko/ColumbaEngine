@@ -82,6 +82,12 @@ namespace pg
             case OpCode::OP_Divide:
                 return simpleInstruction("OP_Divide", offset);
 
+            case OpCode::OP_True:
+                return simpleInstruction("OP_True", offset);
+
+            case OpCode::OP_False:
+                return simpleInstruction("OP_False", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

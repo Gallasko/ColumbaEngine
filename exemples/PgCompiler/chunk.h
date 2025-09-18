@@ -20,6 +20,8 @@ namespace pg
         OP_Subtract,
         OP_Multiply,
         OP_Divide,
+        OP_True,
+        OP_False,
     };
 
     struct Chunk

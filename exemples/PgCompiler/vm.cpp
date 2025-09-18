@@ -122,6 +122,18 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_True:
+                {
+                    push(ElementType(true));
+                    break;
+                }
+
+                case OpCode::OP_False:
+                {
+                    push(ElementType(false));
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;
