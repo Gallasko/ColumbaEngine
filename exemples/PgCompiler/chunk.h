@@ -6,6 +6,8 @@
 
 #include <stdexcept>
 
+#include "Memory/elementtype.h"
+
 namespace pg
 {
     enum class OpCode : uint8_t
@@ -20,17 +22,15 @@ namespace pg
         OP_Divide,
     };
 
-    typedef double Value;
-
     struct Chunk
     {
         std::vector<uint8_t> code;
 
-        std::vector<Value> constants;
+        std::vector<ElementType> constants;
 
         std::vector<int> lines;
 
-        size_t addConstant(Value value, int line)
+        size_t addConstant(const ElementType& value, int line)
         {
             constants.push_back(value);
             auto cIndex = constants.size() - 1;

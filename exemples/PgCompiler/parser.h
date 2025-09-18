@@ -127,7 +127,7 @@ namespace pg
             writeByte(chunk, byte2);
         }
 
-        void writeConstant(Chunk& chunk, const Value& constant);
+        void writeConstant(Chunk& chunk, const ElementType& constant);
         void writeByte(Chunk& chunk, const OpCode& byte);
         void writeByte(Chunk& chunk, uint8_t byte);
 
@@ -135,6 +135,14 @@ namespace pg
         bool hasError() const { return hadError; }
 
         void errorAt(const Token& token, const std::string& message);
+
+        void reset()
+        {
+            hadError = false;
+            panicMode = false;
+            tokens = std::queue<Token>();
+            previousToken = Token(TokenType::TOK_ERROR, "", 0, 0);
+        }
 
         // Members
         bool hadError = false;

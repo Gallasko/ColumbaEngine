@@ -17,7 +17,7 @@ namespace pg
         {
             uint8_t cIndex = chunk.code[offset + 1];
             std::cout << std::left << std::setw(16) << name << " " << static_cast<int>(cIndex) << " '"
-                      << chunk.constants[cIndex] << "'" << std::endl;
+                      << chunk.constants[cIndex].toString() << "'" << std::endl;
 
             return offset + 2;
         }
@@ -29,7 +29,7 @@ namespace pg
                               (static_cast<uint32_t>(chunk.code[offset + 3]));
 
             std::cout << std::left << std::setw(16) << name << " " << cIndex << " '"
-                      << chunk.constants[cIndex] << "'" << std::endl;
+                      << chunk.constants[cIndex].toString() << "'" << std::endl;
 
             return offset + 4;
         }

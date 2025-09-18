@@ -48,22 +48,22 @@ namespace pg
 
         InterpretResult run();
 
-        Value readConstant();
-        Value readLongConstant();
+        ElementType readConstant();
+        ElementType readLongConstant();
 
-        void binaryOp(std::function<Value(Value, Value)> op);
+        void binaryOp(std::function<ElementType(ElementType, ElementType)> op);
 
-        inline void push(Value value)
+        inline void push(const ElementType& value)
         {
             stack.push(value);
         }
 
-        Value pop()
+        ElementType pop()
         {
             if (stack.empty())
                 throw std::runtime_error("Trying to pop on an empty stack");
 
-            Value value = stack.top();
+            ElementType value = stack.top();
             stack.pop();
 
             return value;
@@ -71,7 +71,7 @@ namespace pg
 
         inline void resetStack()
         {
-            stack = std::stack<Value, std::vector<Value>>();
+            stack = std::stack<ElementType, std::vector<ElementType>>();
         }
 
         Compiler compiler;
@@ -83,7 +83,7 @@ namespace pg
         size_t ip = 0;
 
         /* The stack of the VM */
-        std::stack<Value, std::vector<Value>> stack;
+        std::stack<ElementType, std::vector<ElementType>> stack;
     };
 
 }

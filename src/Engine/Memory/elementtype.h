@@ -85,7 +85,9 @@ namespace pg
          *  -   bool
          */
         template <typename Type>
-        explicit ElementType(const Type& value) { this->setValue(value); }
+        ElementType(const Type& value) { this->setValue(value); }
+
+        ElementType(const char* value) { this->setValue(value); }
 
         ElementType(const ElementType& other)
         {
