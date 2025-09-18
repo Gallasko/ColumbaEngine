@@ -6,6 +6,7 @@
 #include "compiler_debug.h"
 
 #include "vm.h"
+#include "compiler.h"
 
 using namespace pg;
 
@@ -37,7 +38,41 @@ void CompilerApp::runREPL()
 {
     LOG_THIS_MEMBER(DOM);
 
-    std::cout << "REPL not implemented yet." << std::endl;
+    std::cout << "PgCompiler REPL - Enter 'exit' to quit\n";
+    std::cout << "> ";
+
+    std::string input;
+    std::string line;
+
+    Compiler compiler;
+
+    while (std::getline(std::cin, line))
+    {
+        if (line == "exit")
+        {
+            break;
+        }
+
+        if (!input.empty()) {
+            input += "\n";
+        }
+        input += line;
+
+        // Check if we have a complete statement (simple heuristic)
+        // For now, we'll execute after each line, but you can modify this
+        // to wait for specific terminators or empty lines
+        if (!line.empty()) {
+            // Here you would compile and execute the input
+            std::cout << "Compiling: " << input << std::endl;
+            compiler.compile(input);
+
+            input.clear(); // Reset for next input
+        }
+
+        std::cout << "> ";
+    }
+
+    std::cout << "Goodbye!\n";
 }
 
 void CompilerApp::runFile()
