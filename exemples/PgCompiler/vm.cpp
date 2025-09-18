@@ -6,8 +6,13 @@
 
 namespace pg
 {
-    InterpretResult VM::interpret(const Chunk& chunk)
+    InterpretResult VM::interpret(const std::queue<Token>& tokens)
     {
+        Chunk chunk;
+
+        if (not compiler.compile(tokens, chunk))
+            return InterpretResult::COMPILE_ERROR;
+
         this->chunk = chunk;
         ip = 0;
 
@@ -16,6 +21,9 @@ namespace pg
 
     InterpretResult VM::run()
     {
+        if (chunk.code.empty())
+            return InterpretResult::OK;
+
         for (;;)
         {
 #ifdef DEBUG_TRACE_EXECUTION
