@@ -23,6 +23,12 @@ namespace pg
         OP_True,
         OP_False,
         OP_Not,
+        OP_Equal,
+        OP_NotEqual,
+        OP_Greater,
+        OP_GreaterEqual,
+        OP_Less,
+        OP_LessEqual,
     };
 
     struct Chunk

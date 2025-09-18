@@ -91,6 +91,24 @@ namespace pg
             case OpCode::OP_Not:
                 return simpleInstruction("OP_Not", offset);
 
+            case OpCode::OP_Equal:
+                return simpleInstruction("OP_Equal", offset);
+
+            case OpCode::OP_NotEqual:
+                return simpleInstruction("OP_NotEqual", offset);
+
+            case OpCode::OP_Greater:
+                return simpleInstruction("OP_Greater", offset);
+
+            case OpCode::OP_GreaterEqual:
+                return simpleInstruction("OP_GreaterEqual", offset);
+
+            case OpCode::OP_Less:
+                return simpleInstruction("OP_Less", offset);
+
+            case OpCode::OP_LessEqual:
+                return simpleInstruction("OP_LessEqual", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

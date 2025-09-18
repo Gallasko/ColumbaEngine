@@ -86,6 +86,24 @@ namespace pg
             case TokenType::SLASH:
                 parser.writeByte(chunk, OpCode::OP_Divide);
                 break;
+            case TokenType::EQUALEQUAL:
+                parser.writeByte(chunk, OpCode::OP_Equal);
+                break;
+            case TokenType::NOTEQUAL:
+                parser.writeByte(chunk, OpCode::OP_NotEqual);
+                break;
+            case TokenType::INF:
+                parser.writeByte(chunk, OpCode::OP_Less);
+                break;
+            case TokenType::INFEQUAL:
+                parser.writeByte(chunk, OpCode::OP_LessEqual);
+                break;
+            case TokenType::SUP:
+                parser.writeByte(chunk, OpCode::OP_Greater);
+                break;
+            case TokenType::SUPEQUAL:
+                parser.writeByte(chunk, OpCode::OP_GreaterEqual);
+                break;
             default:
                 return; // Unreachable
         }
@@ -104,8 +122,8 @@ namespace pg
         {TokenType::BCLOSE,       {NULL,        NULL,   Precedence::NONE}},
         {TokenType::CENTER,       {NULL,        NULL,   Precedence::NONE}},
         {TokenType::CCLOSE,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SUP,          {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::INF,          {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::SUP,          {NULL,        binary, Precedence::COMPARISON}},
+        {TokenType::INF,          {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::NOT,          {unary,       NULL,   Precedence::NONE}},
         {TokenType::QMARK,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::TILDE,        {NULL,        NULL,   Precedence::NONE}},
@@ -126,16 +144,16 @@ namespace pg
         {TokenType::STAREQUAL,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::DIVIDEQUAL,   {NULL,        NULL,   Precedence::NONE}},
         {TokenType::MODEQUAL,     {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SUPEQUAL,     {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::INFEQUAL,     {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::SUPEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
+        {TokenType::INFEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::INCREMENT,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::DECREMENT,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::LOGICAND,     {NULL,        NULL,   Precedence::NONE}},
         {TokenType::LOGICOR,      {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SHIFTLEFT,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SHIFTRIGHT,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::EQUALEQUAL,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::NOTEQUAL,     {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::EQUALEQUAL,   {NULL,        binary, Precedence::EQUALITY}},
+        {TokenType::NOTEQUAL,     {NULL,        binary, Precedence::EQUALITY}},
         {TokenType::ARROW,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SCOPE,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::ENDOFFILE,    {NULL,        NULL,   Precedence::NONE}},
