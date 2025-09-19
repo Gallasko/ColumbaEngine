@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <string>
+#include <queue>
 #include "chunk.h"
 #include "Memory/elementtype.h"
 #include "Interpreter/token.h"

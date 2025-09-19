@@ -44,7 +44,7 @@ protected:
     bool captureOutput;
     std::string capturedOutput;
     
-private:
+protected:
     void resetVM();
     void resetCompiler();
     void captureStdout();

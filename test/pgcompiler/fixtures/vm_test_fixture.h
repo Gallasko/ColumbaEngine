@@ -14,7 +14,7 @@ class VMTestFixture : public CompilerTestBase {
 protected:
     void SetUp() override;
     void TearDown() override;
-    
+
     // Stack manipulation helpers
     void pushToStack(const ElementType& value);
     ElementType popFromStack();
@@ -22,23 +22,24 @@ protected:
     void clearStack();
     size_t stackSize() const;
     bool isStackEmpty() const;
-    
+
     // Stack state assertions
     void assertStackSize(size_t expectedSize);
     void assertStackTop(const ElementType& expected);
     void assertStackEmpty();
     void assertStackContains(const std::vector<ElementType>& expected);
-    
+
     // VM state helpers
     void setInstructionPointer(size_t ip);
     size_t getInstructionPointer() const;
     void loadChunk(const Chunk& chunk);
-    
+
     // Bytecode execution helpers
     InterpretResult executeNextInstruction();
     InterpretResult executeInstructions(size_t count);
     InterpretResult executeUntilReturn();
-    
+    InterpretResult executeChunkWithoutReturn();  // Execute chunk that has no OP_Return
+
     // Specialized chunk builders for VM testing
     Chunk buildStackTestChunk();
     Chunk buildArithmeticChunk(OpCode operation);
@@ -46,11 +47,11 @@ protected:
     Chunk buildUnaryChunk(OpCode operation);
     Chunk buildConstantChunk(const ElementType& value);
     Chunk buildLongConstantChunk(const ElementType& value);
-    
+
     // Error testing helpers
     Chunk buildStackUnderflowChunk();
     Chunk buildInvalidOperationChunk();
-    
+
 private:
     std::vector<ElementType> getStackContents();
     void verifyVMState();

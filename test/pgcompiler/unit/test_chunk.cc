@@ -97,7 +97,7 @@ TEST_F(ChunkTest, AddLongConstant) {
     EXPECT_TRUE(foundLongConstant) << "Should contain OP_LongConstant instruction";
 
     EXPECT_EQ(chunk.constants.size(), 301);
-    EXPECT_DOUBLE_EQ(chunk.constants[300].get<float>(), 999.0);
+    EXPECT_FLOAT_EQ(chunk.constants[300].get<float>(), 999.0);
 }
 
 TEST_F(ChunkTest, ConstantPoolLimit) {

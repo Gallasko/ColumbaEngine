@@ -103,13 +103,13 @@ void CompilerTestBase::assertConstantValue(const Chunk& chunk, size_t index, con
     
     // Compare based on type
     if (expected.isNumber() && actual.isNumber()) {
-        EXPECT_DOUBLE_EQ(expected.getDouble(), actual.getDouble()) 
+        EXPECT_FLOAT_EQ(expected.get<float>(), actual.get<float>()) 
             << "Constant values don't match at index " << index;
     } else if (expected.isBool() && actual.isBool()) {
         EXPECT_EQ(expected.isTrue(), actual.isTrue()) 
             << "Boolean constant values don't match at index " << index;
     } else if (expected.isLitteral() && actual.isLitteral()) {
-        EXPECT_EQ(expected.getString(), actual.getString()) 
+        EXPECT_EQ(expected.toString(), actual.toString()) 
             << "String constant values don't match at index " << index;
     } else {
         FAIL() << "Constant types don't match at index " << index 

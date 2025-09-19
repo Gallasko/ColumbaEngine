@@ -37,22 +37,22 @@ bool VMTestFixture::isStackEmpty() const {
 }
 
 void VMTestFixture::assertStackSize(size_t expectedSize) {
-    EXPECT_EQ(stackSize(), expectedSize) 
+    EXPECT_EQ(stackSize(), expectedSize)
         << "Expected stack size " << expectedSize << ", got " << stackSize();
 }
 
 void VMTestFixture::assertStackTop(const ElementType& expected) {
     ASSERT_FALSE(isStackEmpty()) << "Stack is empty, cannot check top";
-    
+
     auto actual = peekStack(0);
     if (expected.isNumber() && actual.isNumber()) {
-        EXPECT_DOUBLE_EQ(expected.getDouble(), actual.getDouble()) 
+        EXPECT_FLOAT_EQ(expected.get<float>(), actual.get<float>())
             << "Stack top value mismatch";
     } else if (expected.isBool() && actual.isBool()) {
-        EXPECT_EQ(expected.isTrue(), actual.isTrue()) 
+        EXPECT_EQ(expected.isTrue(), actual.isTrue())
             << "Stack top boolean value mismatch";
     } else {
-        FAIL() << "Stack top type mismatch: expected " << expected.getTypeString() 
+        FAIL() << "Stack top type mismatch: expected " << expected.getTypeString()
                << ", got " << actual.getTypeString();
     }
 }
@@ -62,19 +62,19 @@ void VMTestFixture::assertStackEmpty() {
 }
 
 void VMTestFixture::assertStackContains(const std::vector<ElementType>& expected) {
-    EXPECT_EQ(stackSize(), expected.size()) 
+    EXPECT_EQ(stackSize(), expected.size())
         << "Stack size mismatch: expected " << expected.size() << ", got " << stackSize();
-    
+
     auto stackContents = getStackContents();
     for (size_t i = 0; i < expected.size() && i < stackContents.size(); ++i) {
         const auto& expectedVal = expected[i];
         const auto& actualVal = stackContents[i];
-        
+
         if (expectedVal.isNumber() && actualVal.isNumber()) {
-            EXPECT_DOUBLE_EQ(expectedVal.getDouble(), actualVal.getDouble()) 
+            EXPECT_FLOAT_EQ(expectedVal.get<float>(), actualVal.get<float>())
                 << "Stack value mismatch at position " << i;
         } else if (expectedVal.isBool() && actualVal.isBool()) {
-            EXPECT_EQ(expectedVal.isTrue(), actualVal.isTrue()) 
+            EXPECT_EQ(expectedVal.isTrue(), actualVal.isTrue())
                 << "Stack boolean value mismatch at position " << i;
         }
     }
@@ -94,7 +94,6 @@ void VMTestFixture::loadChunk(const Chunk& chunk) {
 }
 
 InterpretResult VMTestFixture::executeNextInstruction() {
-    size_t originalIp = vm.ip;
     try {
         // This is a bit tricky - we need to execute just one instruction
         // For now, we'll use the full run method and catch early returns
@@ -116,6 +115,125 @@ InterpretResult VMTestFixture::executeInstructions(size_t count) {
 
 InterpretResult VMTestFixture::executeUntilReturn() {
     return executeChunk(vm.chunk);
+}
+
+InterpretResult VMTestFixture::executeChunkWithoutReturn() {
+    // Execute a chunk that doesn't contain OP_Return
+    if (vm.chunk.code.empty()) {
+        return InterpretResult::OK;
+    }
+    
+    // Manually execute each instruction since VM's run() expects OP_Return
+    while (vm.ip < vm.chunk.code.size()) {
+        auto instruction = static_cast<OpCode>(vm.chunk.code[vm.ip++]);
+        
+        switch (instruction) {
+            case OpCode::OP_Constant: {
+                uint8_t constantIndex = vm.chunk.code[vm.ip++];
+                vm.push(vm.chunk.constants[constantIndex]);
+                break;
+            }
+            case OpCode::OP_LongConstant: {
+                if (vm.ip + 2 >= vm.chunk.code.size()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                uint32_t constantIndex = (static_cast<uint32_t>(vm.chunk.code[vm.ip]) << 16);
+                vm.ip++;
+                constantIndex |= (static_cast<uint32_t>(vm.chunk.code[vm.ip]) << 8);
+                vm.ip++;
+                constantIndex |= static_cast<uint32_t>(vm.chunk.code[vm.ip]);
+                vm.ip++;
+                vm.push(vm.chunk.constants[constantIndex]);
+                break;
+            }
+            case OpCode::OP_Add: {
+                vm.binaryOp(std::plus<ElementType>());
+                break;
+            }
+            case OpCode::OP_Subtract: {
+                vm.binaryOp(std::minus<ElementType>());
+                break;
+            }
+            case OpCode::OP_Multiply: {
+                vm.binaryOp(std::multiplies<ElementType>());
+                break;
+            }
+            case OpCode::OP_Divide: {
+                vm.binaryOp(std::divides<ElementType>());
+                break;
+            }
+            case OpCode::OP_Negate: {
+                if (!vm.peek(0).isNumber()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                auto value = vm.pop();
+                vm.push(-value);
+                break;
+            }
+            case OpCode::OP_True: {
+                vm.push(ElementType(true));
+                break;
+            }
+            case OpCode::OP_False: {
+                vm.push(ElementType(false));
+                break;
+            }
+            case OpCode::OP_Not: {
+                if (vm.peek(0).getTypeString() != "bool") {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                auto value = vm.pop();
+                vm.push(ElementType(!value.isTrue()));
+                break;
+            }
+            case OpCode::OP_Equal: {
+                vm.checkBooleanBinaryOp();
+                auto b = vm.pop();
+                auto a = vm.pop();
+                vm.push(a == b);
+                break;
+            }
+            case OpCode::OP_NotEqual: {
+                vm.checkBooleanBinaryOp();
+                auto b = vm.pop();
+                auto a = vm.pop();
+                vm.push(a != b);
+                break;
+            }
+            case OpCode::OP_Greater: {
+                vm.checkBooleanBinaryOp();
+                auto b = vm.pop();
+                auto a = vm.pop();
+                vm.push(a > b);
+                break;
+            }
+            case OpCode::OP_GreaterEqual: {
+                vm.checkBooleanBinaryOp();
+                auto b = vm.pop();
+                auto a = vm.pop();
+                vm.push(a >= b);
+                break;
+            }
+            case OpCode::OP_Less: {
+                vm.checkBooleanBinaryOp();
+                auto b = vm.pop();
+                auto a = vm.pop();
+                vm.push(a < b);
+                break;
+            }
+            case OpCode::OP_LessEqual: {
+                vm.checkBooleanBinaryOp();
+                auto b = vm.pop();
+                auto a = vm.pop();
+                vm.push(a <= b);
+                break;
+            }
+            default:
+                return InterpretResult::RUNTIME_ERROR;
+        }
+    }
+    
+    return InterpretResult::OK;
 }
 
 Chunk VMTestFixture::buildStackTestChunk() {
@@ -197,19 +315,19 @@ Chunk VMTestFixture::buildInvalidOperationChunk() {
 std::vector<ElementType> VMTestFixture::getStackContents() {
     std::vector<ElementType> contents;
     auto tempStack = vm.stack;
-    
+
     // Pop all elements to get them in order (bottom to top)
     std::vector<ElementType> reversed;
     while (!tempStack.empty()) {
         reversed.push_back(tempStack.top());
         tempStack.pop();
     }
-    
+
     // Reverse to get bottom-to-top order
     for (auto it = reversed.rbegin(); it != reversed.rend(); ++it) {
         contents.push_back(*it);
     }
-    
+
     return contents;
 }
 
@@ -220,6 +338,7 @@ void VMTestFixture::verifyVMState() {
         EXPECT_LE(vm.ip, vm.chunk.code.size()) << "Instruction pointer out of bounds";
     }
 }
+
 
 } // namespace test
 } // namespace pg
