@@ -1,0 +1,19 @@
+// Boolean literals and operations
+true
+false
+!true
+!false
+!!true
+
+// Boolean comparisons
+5 == 5
+5 != 3
+5 > 3
+5 >= 5
+3 < 5
+3 <= 3
+
+// Complex boolean expressions
+5 > 3 == true
+!(5 < 3)
+(5 > 3) != false
