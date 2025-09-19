@@ -216,6 +216,10 @@ namespace pg
     ElementType VM::readConstant()
     {
         uint8_t constantIndex = chunk.code[ip++];
+        if (constantIndex >= chunk.constants.size())
+        {
+            throw std::runtime_error("Constant index out of bounds.");
+        }
         return chunk.constants[constantIndex];
     }
 
@@ -234,6 +238,11 @@ namespace pg
 
         constantIndex |= static_cast<uint32_t>(chunk.code[ip]);
         ip++;
+
+        if (constantIndex >= chunk.constants.size())
+        {
+            throw std::runtime_error("Long constant index out of bounds.");
+        }
 
         return chunk.constants[constantIndex];
     }
