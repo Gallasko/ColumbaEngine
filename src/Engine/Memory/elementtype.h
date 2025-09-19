@@ -226,6 +226,11 @@ namespace pg
             return static_cast<Type>(*this);
         }
 
+        bool isBool() const
+        {
+            return type == UnionType::BOOL;
+        }
+
         bool isNumber() const
         {
             return type == UnionType::INT || type == UnionType::FLOAT || type == UnionType::SIZE_T;
