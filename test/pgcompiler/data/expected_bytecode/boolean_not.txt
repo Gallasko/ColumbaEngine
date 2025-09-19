@@ -1,0 +1,7 @@
+// Expected bytecode for "!true"
+
+OP_True          // Load true value
+OP_Not           // Apply NOT operation
+OP_Return        // Return result
+
+// No constants needed for this expression
