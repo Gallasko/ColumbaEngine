@@ -4,6 +4,8 @@
 
 #include "compiler_debug.h"
 
+#include <chrono>
+
 namespace pg
 {
     InterpretResult VM::interpret(const std::queue<Token>& tokens)
@@ -14,15 +16,36 @@ namespace pg
         // Reset the compiler state before compiling a new chunk
         compiler.reset();
 
+        std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+
         if (not compiler.compile(tokens, chunk))
             return InterpretResult::COMPILE_ERROR;
+
+        std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+
+        std::cout << "Compilation took: "
+                  << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
+                  << " ns"
+                  << std::endl;
+
+        // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
+
 
         this->chunk = chunk;
         ip = 0;
 
         try
         {
-            return run();
+            begin = std::chrono::steady_clock::now();
+            auto result = run();
+            end = std::chrono::steady_clock::now();
+
+            std::cout << "Execution took: "
+                      << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
+                      << " ns"
+                      << std::endl;
+
+            return result;
         }
         catch(const std::exception& e)
         {

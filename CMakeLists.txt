@@ -723,6 +723,70 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)
+
+        # ===============================================
+        # COMPILER TEST TARGET (separate from main tests)
+        # ===============================================
+        
+        # Compiler test sources
+        set(COMPILER_TEST_SOURCES
+            test/pgcompiler/unit/test_chunk.cc
+            test/pgcompiler/unit/test_vm.cc  
+            test/pgcompiler/unit/test_parser.cc
+            test/pgcompiler/unit/test_compiler.cc
+            test/pgcompiler/unit/test_compiler_debug.cc
+            test/pgcompiler/integration/test_compilation_pipeline.cc
+            test/pgcompiler/integration/test_error_handling.cc
+            test/pgcompiler/integration/test_language_features.cc
+            
+            # Test fixtures and helpers
+            test/pgcompiler/fixtures/compiler_test_base.cpp
+            test/pgcompiler/fixtures/vm_test_fixture.cpp
+            test/pgcompiler/fixtures/test_helpers.cpp
+        )
+
+        # PgCompiler source files (needed for testing)
+        set(PGCOMPILER_SOURCES
+            exemples/PgCompiler/vm.cpp
+            exemples/PgCompiler/compiler.cpp  
+            exemples/PgCompiler/parser.cpp
+            exemples/PgCompiler/compiler_debug.cpp
+        )
+
+        # Create the compiler test executable
+        add_executable(test_compiler 
+            test/pgcompiler/main_compiler_test.cc
+            ${COMPILER_TEST_SOURCES}
+            ${PGCOMPILER_SOURCES}
+        )
+
+        # Include directories for compiler tests
+        target_include_directories(test_compiler PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine
+            ${CMAKE_CURRENT_SOURCE_DIR}/exemples/PgCompiler
+            ${CMAKE_CURRENT_SOURCE_DIR}/test/pgcompiler/fixtures
+            ${GTEST_DIR}/googletest/include
+            ${GTEST_DIR}/googletest/include/gtest
+            ${GTEST_DIR}/googletest/include/gtest/internal
+        )
+
+        # Link libraries for compiler tests
+        target_link_libraries(test_compiler PRIVATE 
+            gtest 
+            gtest_main 
+            ColumbaEngine
+        )
+
+        # Copy test data files to build directory
+        add_custom_command(TARGET test_compiler POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/data $<TARGET_FILE_DIR:test_compiler>/test_data)
+
+        # Register compiler tests with CTest
+        gtest_discover_tests(test_compiler
+            WORKING_DIRECTORY $<TARGET_FILE_DIR:test_compiler>
+            PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:test_compiler>"
+        )
     endif()
 endif()
 
