@@ -116,11 +116,7 @@ namespace pg
             parsePrecedence(chunk, Precedence::ASSIGNMENT);
         }
 
-        void declaration(Chunk& chunk)
-        {
-            statement(chunk);
-            skipEOL();
-        }
+        void declaration(Chunk& chunk);
 
         void statement(Chunk& chunk);
 
@@ -143,6 +139,8 @@ namespace pg
         void writeByte(Chunk& chunk, uint8_t byte);
 
         // Error handling
+        void synchronize();
+
         bool hasError() const { return hadError; }
 
         void errorAt(const Token& token, const std::string& message);

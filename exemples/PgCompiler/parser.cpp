@@ -205,6 +205,15 @@ namespace pg
         }
     }
 
+    void Parser::declaration(Chunk& chunk)
+    {
+        statement(chunk);
+        skipEOL();
+
+        if (panicMode)
+            synchronize();
+    }
+
     void Parser::statement(Chunk& chunk)
     {
         expressionStatement(chunk);
@@ -235,6 +244,35 @@ namespace pg
     void Parser::writeByte(Chunk& chunk, uint8_t byte)
     {
         chunk.addCode(byte, previousToken.line);
+    }
+
+    void Parser::synchronize()
+    {
+        panicMode = false;
+
+        while (not isAtEnd())
+        {
+            if (previousToken.type == TokenType::END or previousToken.type == TokenType::EOL)
+                return;
+
+            switch (currentToken().type)
+            {
+                case TokenType::TOK_CLASS:
+                case TokenType::TOK_FUN:
+                case TokenType::TOK_VAR:
+                case TokenType::TOK_FOR:
+                case TokenType::TOK_IF:
+                case TokenType::TOK_WHILE:
+                case TokenType::TOK_RETURN:
+                    return;
+                    break;
+
+                default:
+                    break;
+            }
+
+            advance();
+        }
     }
 
     void Parser::errorAt(const Token& token, const std::string& message)
