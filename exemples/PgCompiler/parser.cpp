@@ -41,7 +41,7 @@ namespace pg
     void grouping(Chunk& chunk, Parser& parser)
     {
         parser.expression(chunk);
-        parser.consume(TokenType::PCLOSE, "Expect ')' after expression.");
+        parser.consume("Expect ')' after expression.", TokenType::PCLOSE);
     }
 
     void unary(Chunk& chunk, Parser& parser)
@@ -203,6 +203,18 @@ namespace pg
             ParseFn infixRule = getRule(previousToken.type).infix;
             infixRule(chunk, *this);
         }
+    }
+
+    void Parser::statement(Chunk& chunk)
+    {
+        expressionStatement(chunk);
+    }
+
+    void Parser::expressionStatement(Chunk& chunk)
+    {
+        expression(chunk);
+        consume("Expect end of expression.", TokenType::END, TokenType::EOL);
+        writeByte(chunk, OpCode::OP_Pop);
     }
 
     ParseRule& Parser::getRule(const TokenType& type) const
