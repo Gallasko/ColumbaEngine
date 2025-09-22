@@ -215,7 +215,12 @@ namespace pg
                     {
                         EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
                     }
-                    pop();
+                    // pop();
+
+                    // Todo to remove
+                    auto value = pop();
+                    std::cout << value.toString() << std::endl;
+
                     break;
                 }
 
@@ -225,16 +230,40 @@ namespace pg
                     {
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable definition.");
                     }
-                    
+
                     auto name = pop();  // variable name
                     auto value = pop(); // variable value
-                    
+
                     if (not name.isLitteral())
                     {
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
-                    
+
                     globals[name.toString()] = value;
+                    break;
+                }
+
+                case OpCode::OP_Get_Global:
+                {
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for variable retrieval.");
+                    }
+
+                    auto name = pop();  // variable name
+
+                    if (not name.isLitteral())
+                    {
+                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
+                    }
+
+                    auto it = globals.find(name.toString());
+                    if (it == globals.end())
+                    {
+                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
+                    }
+
+                    push(it->second);
                     break;
                 }
 

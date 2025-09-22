@@ -109,6 +109,14 @@ namespace pg
         }
     }
 
+    void variable(Chunk& chunk, Parser& parser)
+    {
+        auto varName = parser.previousToken.text;
+
+        parser.writeConstant(chunk, varName);
+        parser.writeByte(chunk, OpCode::OP_Get_Global);
+    }
+
     std::unordered_map<TokenType, ParseRule> rules = {
         {TokenType::EQUAL,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::PLUS,         {NULL,        binary, Precedence::TERM}},
@@ -157,7 +165,7 @@ namespace pg
         {TokenType::ARROW,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SCOPE,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::ENDOFFILE,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::EXPRESSION,   {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::EXPRESSION,   {variable,    NULL,   Precedence::NONE}},
         {TokenType::STRING,       {strLiterral, NULL,   Precedence::NONE}},
         {TokenType::NUMBER,       {intNumber,   NULL,   Precedence::NONE}},
         {TokenType::FLOAT,        {floatNumber, NULL,   Precedence::NONE}},
