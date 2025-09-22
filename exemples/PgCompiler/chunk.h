@@ -31,7 +31,8 @@ namespace pg
         OP_LessEqual,
         OP_Pop,
         OP_Define_Global,
-        OP_Get_Global
+        OP_Get_Global,
+        OP_Set_Global
     };
 
     struct Chunk

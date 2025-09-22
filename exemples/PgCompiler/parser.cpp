@@ -5,25 +5,25 @@
 
 namespace pg
 {
-    void intNumber(Chunk& chunk, Parser& parser)
+    void intNumber(Chunk& chunk, Parser& parser, bool)
     {
         auto n = std::stoi(parser.previousToken.text);
         parser.writeConstant(chunk, n);
     }
 
-    void floatNumber(Chunk& chunk, Parser& parser)
+    void floatNumber(Chunk& chunk, Parser& parser, bool)
     {
         auto n = std::stof(parser.previousToken.text);
         parser.writeConstant(chunk, n);
     }
 
-    void strLiterral(Chunk& chunk, Parser& parser)
+    void strLiterral(Chunk& chunk, Parser& parser, bool)
     {
         auto str = parser.previousToken.text;
         parser.writeConstant(chunk, str);
     }
 
-    void litteral(Chunk& chunk, Parser& parser)
+    void litteral(Chunk& chunk, Parser& parser, bool)
     {
         switch (parser.previousToken.type)
         {
@@ -38,13 +38,13 @@ namespace pg
         }
     }
 
-    void grouping(Chunk& chunk, Parser& parser)
+    void grouping(Chunk& chunk, Parser& parser, bool)
     {
         parser.expression(chunk);
         parser.consume("Expect ')' after expression.", TokenType::PCLOSE);
     }
 
-    void unary(Chunk& chunk, Parser& parser)
+    void unary(Chunk& chunk, Parser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
 
@@ -66,7 +66,7 @@ namespace pg
         }
     }
 
-    void binary(Chunk& chunk, Parser& parser)
+    void binary(Chunk& chunk, Parser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
         Precedence precedence = static_cast<Precedence>(static_cast<int>(parser.getRule(operatorToken.type).precedence) + 1);
@@ -109,12 +109,21 @@ namespace pg
         }
     }
 
-    void variable(Chunk& chunk, Parser& parser)
+    void variable(Chunk& chunk, Parser& parser, bool canAssign)
     {
         auto varName = parser.previousToken.text;
 
         parser.writeConstant(chunk, varName);
-        parser.writeByte(chunk, OpCode::OP_Get_Global);
+
+        if (canAssign and parser.match(TokenType::EQUAL))
+        {
+            parser.expression(chunk);
+            parser.writeByte(chunk, OpCode::OP_Set_Global);
+        }
+        else
+        {
+            parser.writeByte(chunk, OpCode::OP_Get_Global);
+        }
     }
 
     std::unordered_map<TokenType, ParseRule> rules = {
@@ -203,13 +212,20 @@ namespace pg
             return;
         }
 
-        prefixRule(chunk, *this);
+        bool canAssign = precedence <= Precedence::ASSIGNMENT;
+
+        prefixRule(chunk, *this, canAssign);
 
         while (precedence <= getRule(currentToken().type).precedence)
         {
             advance();
             ParseFn infixRule = getRule(previousToken.type).infix;
-            infixRule(chunk, *this);
+            infixRule(chunk, *this, canAssign);
+        }
+
+        if (canAssign and match(TokenType::EQUAL))
+        {
+            errorAt(previousToken, "Invalid assignment target.");
         }
     }
 
