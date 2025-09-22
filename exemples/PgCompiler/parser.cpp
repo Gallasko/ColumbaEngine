@@ -1,5 +1,7 @@
 #include "parser.h"
 
+#include "compiler.h"
+
 #include "logger.h"
 #include <unordered_map>
 
@@ -119,16 +121,31 @@ namespace pg
     {
         auto varName = parser.previousToken.text;
 
-        parser.writeConstant(chunk, varName);
+        OpCode setOp, getOp;
+
+        int arg = parser.compiler->resolveLocal(chunk, parser.previousToken);
+
+        if (arg != -1)
+        {
+            parser.writeConstant(chunk, arg);
+            setOp = OpCode::OP_Set_Local;
+            getOp = OpCode::OP_Get_Local;
+        }
+        else
+        {
+            parser.writeConstant(chunk, varName);
+            setOp = OpCode::OP_Set_Global;
+            getOp = OpCode::OP_Get_Global;
+        }
 
         if (canAssign and parser.match(TokenType::EQUAL))
         {
             parser.expression(chunk);
-            parser.writeByte(chunk, OpCode::OP_Set_Global);
+            parser.writeByte(chunk, setOp);
         }
         else
         {
-            parser.writeByte(chunk, OpCode::OP_Get_Global);
+            parser.writeByte(chunk, getOp);
         }
     }
 
@@ -258,6 +275,11 @@ namespace pg
 
         Token varName = previousToken;
 
+        if (compiler->scopeDepth > 0)
+        {
+            declareVariable(varName);
+        }
+
         if (match(TokenType::EQUAL))
         {
             expression(chunk);
@@ -269,13 +291,25 @@ namespace pg
 
         consumeEnd("Expect end of variable declaration.");
 
+        if (compiler->scopeDepth > 0)
+            return;
+
         writeConstant(chunk, varName.text);  // Push variable name onto stack
         writeByte(chunk, OpCode::OP_Define_Global);
     }
 
     void Parser::statement(Chunk& chunk)
     {
-        expressionStatement(chunk);
+        if (match(TokenType::BENTER))
+        {
+            compiler->beginScope();
+            blockStatement(chunk);
+            compiler->endScope(chunk);
+        }
+        else
+        {
+            expressionStatement(chunk);
+        }
     }
 
     void Parser::expressionStatement(Chunk& chunk)
@@ -285,9 +319,24 @@ namespace pg
         writeByte(chunk, OpCode::OP_Pop);
     }
 
+    void Parser::blockStatement(Chunk& chunk)
+    {
+        while (not check(TokenType::BCLOSE) and not isAtEnd())
+        {
+            declaration(chunk);
+        }
+
+        consume("Expect '}' after block.", TokenType::BCLOSE);
+    }
+
     ParseRule& Parser::getRule(const TokenType& type) const
     {
         return rules[type];
+    }
+
+    void Parser::declareVariable(const Token& name)
+    {
+        compiler->addLocal(name);
     }
 
     void Parser::writeConstant(Chunk& chunk, const ElementType& constant)

@@ -8,6 +8,8 @@
 
 namespace pg
 {
+    struct Compiler;
+
     enum class Precedence : uint8_t
     {
         NONE = 0,
@@ -126,8 +128,11 @@ namespace pg
 
         void statement(Chunk& chunk);
         void expressionStatement(Chunk& chunk);
+        void blockStatement(Chunk& chunk);
 
         ParseRule& getRule(const TokenType& type) const;
+
+        void declareVariable(const Token& name);
 
         // Chunk modification functions
         void emitReturn(Chunk& chunk) { writeByte(chunk, OpCode::OP_Return); }
@@ -158,7 +163,11 @@ namespace pg
             previousToken = Token(TokenType::TOK_ERROR, "", 0, 0);
         }
 
+        void setCompiler(Compiler* compiler) { this->compiler = compiler; }
+
         // Members
+        Compiler* compiler = nullptr;
+
         bool hadError = false;
         bool panicMode = false;
 
