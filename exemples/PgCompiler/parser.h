@@ -111,15 +111,20 @@ namespace pg
             errorAt(currentToken(), sErrMsg);
         }
 
+        void consumeEnd(const std::string& sErrMsg)
+        {
+            consume(sErrMsg, TokenType::END, TokenType::EOL);
+        }
+
         void expression(Chunk& chunk)
         {
             parsePrecedence(chunk, Precedence::ASSIGNMENT);
         }
 
         void declaration(Chunk& chunk);
+        void varDeclaration(Chunk& chunk);
 
         void statement(Chunk& chunk);
-
         void expressionStatement(Chunk& chunk);
 
         ParseRule& getRule(const TokenType& type) const;

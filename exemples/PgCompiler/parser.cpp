@@ -207,11 +207,40 @@ namespace pg
 
     void Parser::declaration(Chunk& chunk)
     {
-        statement(chunk);
+        if (match(TokenType::TOK_VAR))
+        {
+            varDeclaration(chunk);
+        }
+        else
+        {
+            statement(chunk);
+        }
+
         skipEOL();
 
         if (panicMode)
             synchronize();
+    }
+
+    void Parser::varDeclaration(Chunk& chunk)
+    {
+        consume("Expect variable name.", TokenType::EXPRESSION);
+
+        Token varName = previousToken;
+
+        if (match(TokenType::EQUAL))
+        {
+            expression(chunk);
+        }
+        else
+        {
+            writeConstant(chunk, ElementType()); // Default initialize to 0
+        }
+
+        consumeEnd("Expect end of variable declaration.");
+
+        writeConstant(chunk, varName.text);  // Push variable name onto stack
+        writeByte(chunk, OpCode::OP_Define_Global);
     }
 
     void Parser::statement(Chunk& chunk)
@@ -222,7 +251,7 @@ namespace pg
     void Parser::expressionStatement(Chunk& chunk)
     {
         expression(chunk);
-        consume("Expect end of expression.", TokenType::END, TokenType::EOL);
+        consumeEnd("Expect end of expression.");
         writeByte(chunk, OpCode::OP_Pop);
     }
 
