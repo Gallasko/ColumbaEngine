@@ -52,6 +52,15 @@ protected:
     Chunk buildStackUnderflowChunk();
     Chunk buildInvalidOperationChunk();
 
+    // Global variable testing helpers
+    Chunk buildDefineGlobalChunk(const std::string& name, const ElementType& value);
+    Chunk buildGetGlobalChunk(const std::string& name);
+    Chunk buildSetGlobalChunk(const std::string& name, const ElementType& value);
+    void defineGlobal(const std::string& name, const ElementType& value);
+    bool hasGlobal(const std::string& name) const;
+    ElementType getGlobal(const std::string& name) const;
+    void clearGlobals();
+
 private:
     std::vector<ElementType> getStackContents();
     void verifyVMState();

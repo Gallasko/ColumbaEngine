@@ -228,6 +228,57 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
                 vm.push(a <= b);
                 break;
             }
+            case OpCode::OP_Define_Global: {
+                if (vm.stack.size() < 2) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                auto name = vm.pop();  // variable name
+                auto value = vm.pop(); // variable value
+                if (!name.isLitteral()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                vm.globals[name.toString()] = value;
+                break;
+            }
+            case OpCode::OP_Get_Global: {
+                if (vm.stack.empty()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                auto name = vm.pop();  // variable name
+                if (!name.isLitteral()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                auto it = vm.globals.find(name.toString());
+                if (it == vm.globals.end()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                vm.push(it->second);
+                break;
+            }
+            case OpCode::OP_Set_Global: {
+                if (vm.stack.size() < 2) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                auto value = vm.pop(); // new variable value (popped first, was on top)
+                auto name = vm.pop();  // variable name (popped second, was below value)
+                if (!name.isLitteral()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                auto it = vm.globals.find(name.toString());
+                if (it == vm.globals.end()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                it->second = value;
+                vm.push(value);
+                break;
+            }
+            case OpCode::OP_Pop: {
+                if (vm.stack.empty()) {
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+                vm.pop();
+                break;
+            }
             default:
                 return InterpretResult::RUNTIME_ERROR;
         }
@@ -337,6 +388,52 @@ void VMTestFixture::verifyVMState() {
     if (!vm.chunk.code.empty()) {
         EXPECT_LE(vm.ip, vm.chunk.code.size()) << "Instruction pointer out of bounds";
     }
+}
+
+Chunk VMTestFixture::buildDefineGlobalChunk(const std::string& name, const ElementType& value) {
+    Chunk chunk;
+    chunk.addConstant(value, 1);  // Push value first
+    chunk.addConstant(ElementType(name), 1);  // Push name second (name is popped first in VM)
+    chunk.addCode(OpCode::OP_Define_Global, 1);
+    chunk.addCode(OpCode::OP_Return, 1);
+    return chunk;
+}
+
+Chunk VMTestFixture::buildGetGlobalChunk(const std::string& name) {
+    Chunk chunk;
+    chunk.addConstant(ElementType(name), 1);  // Push variable name
+    chunk.addCode(OpCode::OP_Get_Global, 1);
+    chunk.addCode(OpCode::OP_Return, 1);
+    return chunk;
+}
+
+Chunk VMTestFixture::buildSetGlobalChunk(const std::string& name, const ElementType& value) {
+    Chunk chunk;
+    chunk.addConstant(ElementType(name), 1);  // Push name first (will be at bottom of stack)
+    chunk.addConstant(value, 1);  // Push new value second (will be at top, popped first)
+    chunk.addCode(OpCode::OP_Set_Global, 1);
+    chunk.addCode(OpCode::OP_Return, 1);
+    return chunk;
+}
+
+void VMTestFixture::defineGlobal(const std::string& name, const ElementType& value) {
+    vm.globals[name] = value;
+}
+
+bool VMTestFixture::hasGlobal(const std::string& name) const {
+    return vm.globals.find(name) != vm.globals.end();
+}
+
+ElementType VMTestFixture::getGlobal(const std::string& name) const {
+    auto it = vm.globals.find(name);
+    if (it != vm.globals.end()) {
+        return it->second;
+    }
+    throw std::runtime_error("Global variable not found: " + name);
+}
+
+void VMTestFixture::clearGlobals() {
+    vm.globals.clear();
 }
 
 

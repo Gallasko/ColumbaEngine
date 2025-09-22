@@ -113,7 +113,7 @@ TEST_F(ParserTest, ConsumeExpectedToken) {
     parser.parse(tokens);
     
     // Should consume without error
-    EXPECT_NO_THROW(parser.consume(TokenType::NUMBER, "Expected number"));
+    EXPECT_NO_THROW(parser.consume("Expected number", TokenType::NUMBER));
     EXPECT_EQ(parser.peek(), TokenType::PLUS);
     EXPECT_FALSE(parser.hasError());
 }
@@ -126,7 +126,7 @@ TEST_F(ParserTest, ConsumeUnexpectedToken) {
     parser.parse(tokens);
     
     // Should generate error for wrong token type
-    parser.consume(TokenType::PLUS, "Expected plus");
+    parser.consume("Expected plus", TokenType::PLUS);
     EXPECT_TRUE(parser.hasError());
 }
 
