@@ -119,6 +119,8 @@ namespace pg
 
         /* The stack of the VM */
         std::stack<ElementType, std::vector<ElementType>> stack;
+
+        std::unordered_map<std::string, ElementType> globals;
     };
 
 }

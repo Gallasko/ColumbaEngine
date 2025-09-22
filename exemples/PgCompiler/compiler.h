@@ -11,7 +11,7 @@
 #include <queue>
 
 // #define DEBUG_PRINT_TOKENS
-// #define DEBUG_PRINT_CODE
+#define DEBUG_PRINT_CODE
 
 namespace pg
 {

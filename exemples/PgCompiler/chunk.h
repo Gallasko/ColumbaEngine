@@ -29,7 +29,8 @@ namespace pg
         OP_GreaterEqual,
         OP_Less,
         OP_LessEqual,
-        OP_Pop
+        OP_Pop,
+        OP_Define_Global
     };
 
     struct Chunk
