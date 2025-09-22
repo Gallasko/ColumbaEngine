@@ -14,6 +14,8 @@ namespace pg
 
         parser.parse(tokens);
 
+        parser.setCompiler(this);
+
         while (not parser.isAtEnd() and not parser.hasError())
             parser.declaration(chunk);
 
@@ -56,5 +58,65 @@ namespace pg
             if (token.type == TokenType::ENDOFFILE)
                 break;
         }
+    }
+
+    void Compiler::beginScope()
+    {
+        scopeDepth++;
+    }
+
+    void Compiler::endScope(Chunk& chunk)
+    {
+        scopeDepth--;
+
+        while (localCount > 0 and locals[localCount - 1].depth > scopeDepth)
+        {
+            // If the local variable is a captured variable we need to emit a different instruction
+            // if (locals[localCount - 1].isCaptured)
+            // {
+            //     writeByte(chunk, OpCode::OP_Close_Upvalue);
+            // }
+            // else
+            {
+                parser.writeByte(chunk, OpCode::OP_Pop);
+            }
+
+            localCount--;
+            locals.pop_back();
+        }
+    }
+
+    void Compiler::addLocal(const Token& name)
+    {
+        locals.push_back(Local{name, scopeDepth});
+        localCount++;
+    }
+
+    int Compiler::resolveLocal(Chunk& chunk, const Token& name)
+    {
+        for (int i = localCount - 1; i >= 0; i--)
+        {
+            if (locals[i].name.text == name.text)
+            {
+                if (locals[i].depth == -1)
+                {
+                    parser.errorAt(name, "Can't read local variable in its own initializer.");
+                }
+
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    void Compiler::reset()
+    {
+        locals.clear();
+
+        localCount = 0;
+        scopeDepth = 0;
+
+        parser.reset();
     }
 }

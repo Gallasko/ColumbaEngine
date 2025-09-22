@@ -27,6 +27,35 @@ namespace pg
         RUNTIME_ERROR
     };
 
+    class IndexableStack
+    {
+        std::vector<ElementType> data;
+    public:
+        void push(const ElementType& value) { data.push_back(value); }
+        
+        ElementType pop() {
+            if (data.empty())
+                throw std::runtime_error("Trying to pop on an empty stack");
+            ElementType value = data.back();
+            data.pop_back();
+            return value;
+        }
+        
+        ElementType& operator[](size_t index) { return data[index]; }
+        const ElementType& operator[](size_t index) const { return data[index]; }
+        
+        ElementType top() const {
+            if (data.empty())
+                throw std::runtime_error("Stack is empty");
+            return data.back();
+        }
+        
+        bool empty() const { return data.empty(); }
+        size_t size() const { return data.size(); }
+        
+        void clear() { data.clear(); }
+    };
+
     struct VM
     {
         InterpretResult interpretFromText(const std::string& source)
@@ -78,17 +107,12 @@ namespace pg
             if (distance >= stack.size())
                 throw std::runtime_error("Trying to peek too far in the stack");
 
-            auto tempStack = stack;
-
-            for (size_t i = 0; i < distance; ++i)
-                tempStack.pop();
-
-            return tempStack.top();
+            return stack[stack.size() - 1 - distance];
         }
 
         inline void resetStack()
         {
-            stack = std::stack<ElementType, std::vector<ElementType>>();
+            stack.clear();
         }
 
         void runtimeError(const std::string& message)
@@ -118,7 +142,7 @@ namespace pg
         size_t ip = 0;
 
         /* The stack of the VM */
-        std::stack<ElementType, std::vector<ElementType>> stack;
+        IndexableStack stack;
 
         std::unordered_map<std::string, ElementType> globals;
     };

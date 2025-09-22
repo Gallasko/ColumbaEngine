@@ -70,12 +70,9 @@ namespace pg
 
 #ifdef DEBUG_TRACE_EXECUTION
             std::cout << "          ";
-            auto stackCopy = stack;
-            while (not stackCopy.empty())
+            for (size_t i = 0; i < stack.size(); ++i)
             {
-                auto value = stackCopy.top();
-                stackCopy.pop();
-                std::cout << "[" << value.toString() << "] ";
+                std::cout << "[" << stack[i].toString() << "] ";
             }
             std::cout << std::endl;
 
@@ -310,6 +307,55 @@ namespace pg
 
                     it->second = value;
                     push(value);
+                    break;
+                }
+
+                case OpCode::OP_Get_Local:
+                {
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow for local variable access.");
+                    }
+
+                    auto slot = pop(); // Get the slot index from stack
+                    if (!slot.isNumber())
+                    {
+                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
+                    }
+
+                    int index = slot.get<int>();
+                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    {
+                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                    }
+
+                    push(stack[index]);
+                    break;
+                }
+
+                case OpCode::OP_Set_Local:
+                {
+                    if (stack.size() < 2)
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for local assignment.");
+                    }
+
+                    auto value = pop(); // New value
+                    auto slot = pop();  // Slot index
+
+                    if (!slot.isNumber())
+                    {
+                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
+                    }
+
+                    int index = slot.get<int>();
+                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    {
+                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                    }
+
+                    stack[index] = value;
+                    push(value); // Assignment expression returns the value
                     break;
                 }
 

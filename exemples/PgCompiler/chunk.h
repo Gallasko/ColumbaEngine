@@ -34,7 +34,9 @@ namespace pg
         OP_Pop,
         OP_Define_Global,
         OP_Get_Global,
-        OP_Set_Global
+        OP_Set_Global,
+        OP_Get_Local,
+        OP_Set_Local,
     };
 
     struct Chunk
