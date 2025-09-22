@@ -175,6 +175,26 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_And:
+                {
+                    checkBooleanBinaryOp();
+                    auto b = pop();
+                    auto a = pop();
+
+                    push(a and b);
+                    break;
+                }
+
+                case OpCode::OP_Or:
+                {
+                    checkBooleanBinaryOp();
+                    auto b = pop();
+                    auto a = pop();
+
+                    push(a or b);
+                    break;
+                }
+
 // Macro to generate comparison operation cases with exception handling
 // Usage: COMPARISON_OP(==) generates a complete case block for equality comparison
 // Handles stack operations, type checking, and runtime error management
