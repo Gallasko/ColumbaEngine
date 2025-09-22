@@ -99,21 +99,32 @@ namespace pg
             return tokens.front();
         }
 
-        void consume(const TokenType& type, const std::string& message)
+        template <class... TT>
+        void consume(const std::string& sErrMsg, const TT&... tokens)
         {
-            if (currentToken().type == type)
+            if (check(tokens...))
             {
                 advance();
                 return;
             }
 
-            errorAt(currentToken(), message);
+            errorAt(currentToken(), sErrMsg);
         }
 
         void expression(Chunk& chunk)
         {
             parsePrecedence(chunk, Precedence::ASSIGNMENT);
         }
+
+        void declaration(Chunk& chunk)
+        {
+            statement(chunk);
+            skipEOL();
+        }
+
+        void statement(Chunk& chunk);
+
+        void expressionStatement(Chunk& chunk);
 
         ParseRule& getRule(const TokenType& type) const;
 

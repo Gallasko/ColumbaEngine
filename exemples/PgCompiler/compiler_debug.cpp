@@ -109,6 +109,9 @@ namespace pg
             case OpCode::OP_LessEqual:
                 return simpleInstruction("OP_LessEqual", offset);
 
+            case OpCode::OP_Pop:
+                return simpleInstruction("OP_Pop", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

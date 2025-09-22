@@ -23,11 +23,12 @@ namespace pg
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
+#ifdef DEBUG_PROFILE_COMPILE
         std::cout << "Compilation took: "
                   << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
                   << " ns"
                   << std::endl;
-
+#endif
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
 
@@ -40,11 +41,12 @@ namespace pg
             auto result = run();
             end = std::chrono::steady_clock::now();
 
+#ifdef DEBUG_PROFILE_COMPILE
             std::cout << "Execution took: "
                       << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
                       << " ns"
                       << std::endl;
-
+#endif
             return result;
         }
         catch(const std::exception& e)
@@ -63,6 +65,9 @@ namespace pg
 
         for (;;)
         {
+            if (ip >= chunk.code.size())
+                return InterpretResult::OK;
+
 #ifdef DEBUG_TRACE_EXECUTION
             std::cout << "          ";
             auto stackCopy = stack;
@@ -70,7 +75,7 @@ namespace pg
             {
                 auto value = stackCopy.top();
                 stackCopy.pop();
-                std::cout << "[" << value << "] ";
+                std::cout << "[" << value.toString() << "] ";
             }
             std::cout << std::endl;
 
@@ -203,6 +208,16 @@ namespace pg
 
                 case OpCode::OP_LessEqual:
                     COMPARISON_OP(<=)
+
+                case OpCode::OP_Pop:
+                {
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
+                    }
+                    pop();
+                    break;
+                }
 
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
