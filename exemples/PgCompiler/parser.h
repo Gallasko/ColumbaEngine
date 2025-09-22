@@ -23,7 +23,7 @@ namespace pg
         PRIMARY = 10
     };
 
-    typedef void (*ParseFn)(Chunk&, struct Parser&);
+    typedef void (*ParseFn)(Chunk&, struct Parser&, bool);
 
     struct ParseRule
     {

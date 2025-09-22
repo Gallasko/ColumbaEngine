@@ -118,6 +118,9 @@ namespace pg
             case OpCode::OP_Get_Global:
                 return simpleInstruction("OP_Get_Global", offset);
 
+            case OpCode::OP_Set_Global:
+                return simpleInstruction("OP_Set_Global", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

@@ -267,6 +267,32 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Set_Global:
+                {
+                    if (stack.size() < 2)
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for variable assignment.");
+                    }
+
+                    auto value = pop(); // new variable value
+                    auto name = pop();  // variable name
+
+                    if (not name.isLitteral())
+                    {
+                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
+                    }
+
+                    auto it = globals.find(name.toString());
+                    if (it == globals.end())
+                    {
+                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
+                    }
+
+                    it->second = value;
+                    push(value);
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;
