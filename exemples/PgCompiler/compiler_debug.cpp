@@ -91,6 +91,12 @@ namespace pg
             case OpCode::OP_Not:
                 return simpleInstruction("OP_Not", offset);
 
+            case OpCode::OP_And:
+                return simpleInstruction("OP_And", offset);
+
+            case OpCode::OP_Or:
+                return simpleInstruction("OP_Or", offset);
+
             case OpCode::OP_Equal:
                 return simpleInstruction("OP_Equal", offset);
 

@@ -23,6 +23,8 @@ namespace pg
         OP_True,
         OP_False,
         OP_Not,
+        OP_And,
+        OP_Or,
         OP_Equal,
         OP_NotEqual,
         OP_Greater,

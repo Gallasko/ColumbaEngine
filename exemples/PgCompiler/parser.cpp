@@ -86,6 +86,12 @@ namespace pg
             case TokenType::SLASH:
                 parser.writeByte(chunk, OpCode::OP_Divide);
                 break;
+            case TokenType::LOGICAND:
+                parser.writeByte(chunk, OpCode::OP_And);
+                break;
+            case TokenType::LOGICOR:
+                parser.writeByte(chunk, OpCode::OP_Or);
+                break;
             case TokenType::EQUALEQUAL:
                 parser.writeByte(chunk, OpCode::OP_Equal);
                 break;
@@ -165,8 +171,8 @@ namespace pg
         {TokenType::INFEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::INCREMENT,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::DECREMENT,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::LOGICAND,     {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::LOGICOR,      {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::LOGICAND,     {NULL,        binary, Precedence::AND}},
+        {TokenType::LOGICOR,      {NULL,        binary, Precedence::OR}},
         {TokenType::SHIFTLEFT,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SHIFTRIGHT,   {NULL,        NULL,   Precedence::NONE}},
         {TokenType::EQUALEQUAL,   {NULL,        binary, Precedence::EQUALITY}},
