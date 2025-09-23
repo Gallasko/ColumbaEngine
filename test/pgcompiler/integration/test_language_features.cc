@@ -295,6 +295,162 @@ TEST_F(LanguageFeaturesTest, RegressionTests) {
     expectBooleanResult("!(1 == 2)", true);
 }
 
+// Increment and Decrement Operations Tests
+TEST_F(LanguageFeaturesTest, IncrementDecrementOperations) {
+    // Test basic variable declaration and increment/decrement
+    assertInterpretResult("var x = 5; ++x", InterpretResult::OK);
+    assertInterpretResult("var x = 5; --x", InterpretResult::OK);
+    assertInterpretResult("var x = 5; x++", InterpretResult::OK);
+    assertInterpretResult("var x = 5; x--", InterpretResult::OK);
+    
+    // Test prefix increment/decrement
+    assertInterpretResult("var y = 10; ++y", InterpretResult::OK);
+    assertInterpretResult("var y = 10; --y", InterpretResult::OK);
+    
+    // Test postfix increment/decrement
+    assertInterpretResult("var z = 8; z++", InterpretResult::OK);
+    assertInterpretResult("var z = 8; z--", InterpretResult::OK);
+    
+    // Test with expressions
+    assertInterpretResult("var a = 3; var b = ++a + 2", InterpretResult::OK);
+    assertInterpretResult("var a = 3; var b = a++ + 2", InterpretResult::OK);
+    assertInterpretResult("var a = 5; var b = --a * 2", InterpretResult::OK);
+    assertInterpretResult("var a = 5; var b = a-- * 2", InterpretResult::OK);
+    
+    // Test multiple increments/decrements
+    assertInterpretResult("var c = 0; ++c; ++c; ++c", InterpretResult::OK);
+    assertInterpretResult("var d = 10; --d; --d; --d", InterpretResult::OK);
+    
+    // Test chained operations
+    assertInterpretResult("var e = 1; var f = ++e + ++e", InterpretResult::OK);
+    assertInterpretResult("var g = 5; var h = g-- + --g", InterpretResult::OK);
+}
+
+// Increment/Decrement Edge Cases
+TEST_F(LanguageFeaturesTest, IncrementDecrementEdgeCases) {
+    // Test with zero
+    assertInterpretResult("var zero = 0; ++zero", InterpretResult::OK);
+    assertInterpretResult("var zero = 0; zero++", InterpretResult::OK);
+    assertInterpretResult("var zero = 0; --zero", InterpretResult::OK);
+    assertInterpretResult("var zero = 0; zero--", InterpretResult::OK);
+    
+    // Test with negative numbers
+    assertInterpretResult("var neg = -5; ++neg", InterpretResult::OK);
+    assertInterpretResult("var neg = -5; --neg", InterpretResult::OK);
+    assertInterpretResult("var neg = -1; neg++", InterpretResult::OK);
+    assertInterpretResult("var neg = -1; neg--", InterpretResult::OK);
+    
+    // Test with floating point numbers
+    assertInterpretResult("var flt = 3.5; ++flt", InterpretResult::OK);
+    assertInterpretResult("var flt = 3.5; flt++", InterpretResult::OK);
+    assertInterpretResult("var flt = 2.7; --flt", InterpretResult::OK);
+    assertInterpretResult("var flt = 2.7; flt--", InterpretResult::OK);
+}
+
+// Increment/Decrement with Literals (should fail or be no-op)
+TEST_F(LanguageFeaturesTest, IncrementDecrementLiterals) {
+    // Test increment/decrement with literals (these should compile but treat as unary operations)
+    assertInterpretResult("++5", InterpretResult::OK);  // Treated as +(+5) = 5
+    assertInterpretResult("--5", InterpretResult::OK);  // Treated as -(-5) = 5
+    expectNumericResult("++7", 7.0);
+    expectNumericResult("--8", 8.0);
+    
+    // Postfix on literals should fail during parsing
+    // Note: This might not be implementable depending on parser design
+    // assertRuntimeError("5++");
+    // assertRuntimeError("3--");
+}
+
+// Loop Control Structures Tests
+TEST_F(LanguageFeaturesTest, WhileLoopOperations) {
+    // Basic while loop
+    assertInterpretResult("var i = 0; while (i < 3) { i = i + 1; }", InterpretResult::OK);
+    assertInterpretResult("var j = 5; while (j > 0) { j = j - 1; }", InterpretResult::OK);
+    
+    // While loop with increment/decrement
+    assertInterpretResult("var k = 0; while (k < 5) { ++k; }", InterpretResult::OK);
+    assertInterpretResult("var l = 10; while (l > 0) { --l; }", InterpretResult::OK);
+    assertInterpretResult("var m = 0; while (m < 3) { m++; }", InterpretResult::OK);
+    assertInterpretResult("var n = 7; while (n > 0) { n--; }", InterpretResult::OK);
+    
+    // While loop with complex conditions
+    assertInterpretResult("var x = 1; while (x * x < 10) { x++; }", InterpretResult::OK);
+    assertInterpretResult("var y = 100; while (y / 2 > 5) { y = y / 2; }", InterpretResult::OK);
+    
+    // Nested while loops
+    assertInterpretResult("var a = 0; while (a < 2) { var b = 0; while (b < 2) { b++; } a++; }", InterpretResult::OK);
+    
+    // While loop with boolean expressions
+    assertInterpretResult("var flag = true; var counter = 0; while (flag && counter < 5) { counter++; if (counter == 3) flag = false; }", InterpretResult::OK);
+}
+
+// For Loop Tests  
+TEST_F(LanguageFeaturesTest, ForLoopOperations) {
+    // Basic for loop
+    assertInterpretResult("for (var i = 0; i < 3; i++) { }", InterpretResult::OK);
+    assertInterpretResult("for (var j = 10; j > 0; j--) { }", InterpretResult::OK);
+    assertInterpretResult("for (var k = 0; k < 5; ++k) { }", InterpretResult::OK);
+    assertInterpretResult("for (var l = 8; l > 0; --l) { }", InterpretResult::OK);
+    
+    // For loop with different step sizes
+    assertInterpretResult("for (var i = 0; i < 10; i = i + 2) { }", InterpretResult::OK);
+    assertInterpretResult("for (var j = 20; j > 0; j = j - 3) { }", InterpretResult::OK);
+    
+    // For loop with complex conditions and updates
+    assertInterpretResult("for (var x = 1; x * x < 50; x++) { }", InterpretResult::OK);
+    assertInterpretResult("for (var y = 100; y > 1; y = y / 2) { }", InterpretResult::OK);
+    
+    // For loop with body operations
+    assertInterpretResult("var sum = 0; for (var i = 1; i <= 5; i++) { sum = sum + i; }", InterpretResult::OK);
+    assertInterpretResult("var product = 1; for (var j = 1; j <= 4; j++) { product = product * j; }", InterpretResult::OK);
+    
+    // Nested for loops
+    assertInterpretResult("for (var i = 0; i < 3; i++) { for (var j = 0; j < 2; j++) { } }", InterpretResult::OK);
+    
+    // For loop with pre-existing variable
+    assertInterpretResult("var counter = 0; for (counter = 0; counter < 5; counter++) { }", InterpretResult::OK);
+}
+
+// Complex Loop and Increment/Decrement Combinations
+TEST_F(LanguageFeaturesTest, ComplexLoopIncrementCombinations) {
+    // While loop with multiple increment operations
+    assertInterpretResult("var a = 0; var b = 10; while (a < b) { a++; b--; }", InterpretResult::OK);
+    
+    // For loop with increment/decrement in body
+    assertInterpretResult("var extra = 0; for (var i = 0; i < 3; i++) { extra++; }", InterpretResult::OK);
+    
+    // Mixed prefix and postfix operations in loops
+    assertInterpretResult("for (var i = 0; i < 5; ++i) { var j = i++; }", InterpretResult::OK);
+    assertInterpretResult("var x = 0; while (++x < 5) { var y = x--; x++; }", InterpretResult::OK);
+    
+    // Loop with increment/decrement in conditions
+    assertInterpretResult("var counter = 0; while (++counter <= 5) { }", InterpretResult::OK);
+    assertInterpretResult("var down = 10; while (--down >= 0) { }", InterpretResult::OK);
+    
+    // Complex expressions with loops and increment
+    assertInterpretResult("var total = 0; for (var i = 1; i <= 3; i++) { total = total + i++; }", InterpretResult::OK);
+    assertInterpretResult("var result = 1; var multiplier = 2; while (result < 100) { result = result * multiplier++; }", InterpretResult::OK);
+}
+
+// Loop Edge Cases
+TEST_F(LanguageFeaturesTest, LoopEdgeCases) {
+    // Empty loops
+    assertInterpretResult("while (false) { }", InterpretResult::OK);
+    assertInterpretResult("for (var i = 0; i < 0; i++) { }", InterpretResult::OK);
+    
+    // Single iteration loops
+    assertInterpretResult("while (true) { break; }", InterpretResult::OK);  // If break is supported
+    assertInterpretResult("for (var i = 0; i < 1; i++) { }", InterpretResult::OK);
+    
+    // Loops with zero as condition
+    assertInterpretResult("var zero = 0; while (zero) { zero++; }", InterpretResult::OK);
+    assertInterpretResult("for (var i = 0; 0; i++) { }", InterpretResult::OK);
+    
+    // Infinite loops (that we artificially limit)
+    // Note: These might timeout - implement with care
+    // assertInterpretResult("var safety = 0; while (true) { if (++safety > 1000) break; }", InterpretResult::OK);
+}
+
 // Performance and Stress Tests
 TEST_F(LanguageFeaturesTest, StressTests) {
     // Test with larger numbers
@@ -306,6 +462,10 @@ TEST_F(LanguageFeaturesTest, StressTests) {
     expectNumericResult("1 + 1 + 1 + 1 + 1", 5.0);
     expectNumericResult("2 * 2 * 2 * 2 * 2", 32.0);
     expectBooleanResult("1 == 1 && 2 == 2 && 3 == 3", true);  // If && is supported
+    
+    // Stress test with loops and increments
+    assertInterpretResult("var big = 0; for (var i = 0; i < 100; i++) { big++; }", InterpretResult::OK);
+    assertInterpretResult("var countdown = 500; while (countdown > 0) { countdown--; }", InterpretResult::OK);
 }
 
 } // namespace test
