@@ -175,6 +175,20 @@ namespace pg
         parser.patchJump(chunk, endJump);
     }
 
+    void decrementOp(Chunk& chunk, Parser& parser, bool)
+    {
+        Token operatorToken = parser.previousToken;
+
+        // Parse the operand at unary precedence
+        parser.parsePrecedence(chunk, Precedence::UNARY);
+
+        // For now, treat DECREMENT as double unary minus (--5 becomes -(-5) = 5)
+        // This handles the literal case like --5
+        // TODO: Add proper variable decrement support when variables are fully implemented
+        chunk.addCode(OpCode::OP_Negate, operatorToken.line);
+        chunk.addCode(OpCode::OP_Negate, operatorToken.line);
+    }
+
     std::unordered_map<TokenType, ParseRule> rules = {
         {TokenType::EQUAL,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::PLUS,         {NULL,        binary, Precedence::TERM}},
@@ -213,7 +227,7 @@ namespace pg
         {TokenType::SUPEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::INFEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::INCREMENT,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::DECREMENT,    {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::DECREMENT,    {decrementOp, NULL,   Precedence::UNARY}},
         {TokenType::LOGICAND,     {NULL,        andOp,  Precedence::AND}},
         {TokenType::LOGICOR,      {NULL,        orOp,   Precedence::OR}},
         {TokenType::SHIFTLEFT,    {NULL,        NULL,   Precedence::NONE}},

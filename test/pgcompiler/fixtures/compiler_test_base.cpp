@@ -21,6 +21,9 @@ void CompilerTestBase::TearDown() {
 Chunk CompilerTestBase::compileExpression(const std::string& source) {
     Chunk chunk;
     
+    // Reset compiler state before each compilation
+    compiler.reset();
+    
     // Tokenize the source
     Lexer lexer;
     lexer.readFromText(source);

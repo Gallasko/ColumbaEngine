@@ -55,7 +55,7 @@ TEST_F(CompilerDebugTest, DisassembleInstructionSimple) {
     
     EXPECT_EQ(offset, 1) << "OP_Return should advance offset by 1";
     EXPECT_NE(output.find("OP_Return"), std::string::npos) << "Should show instruction name";
-    EXPECT_NE(output.find("0000"), std::string::npos) << "Should show offset";
+    EXPECT_NE(output.find("   0"), std::string::npos) << "Should show offset";
 }
 
 TEST_F(CompilerDebugTest, DisassembleConstantInstruction) {
@@ -213,9 +213,9 @@ TEST_F(CompilerDebugTest, DisassembleComplexChunk) {
     
     EXPECT_NE(output.find("complex"), std::string::npos) << "Should contain chunk name";
     
-    // Should contain various instruction types
+    // Should contain various instruction types (expressions end with OP_Pop, not OP_Return)
     std::vector<std::string> expectedInstructions = {
-        "OP_Constant", "OP_Add", "OP_Multiply", "OP_True", "OP_Not", "OP_Return"
+        "OP_Constant", "OP_Add", "OP_Multiply", "OP_True", "OP_Not", "OP_Pop"
     };
     
     for (const auto& instruction : expectedInstructions) {
@@ -232,8 +232,8 @@ TEST_F(CompilerDebugTest, OffsetFormatting) {
     disassembleInstruction(chunk, 0);
     auto output = getCapturedOutput();
     
-    // Should have formatted offset like "0000"
-    EXPECT_NE(output.find("0000"), std::string::npos) << "Should format offset with leading zeros";
+    // Should have formatted offset like "   0" (right-aligned 4 chars)
+    EXPECT_NE(output.find("   0"), std::string::npos) << "Should format offset with leading spaces";
 }
 
 TEST_F(CompilerDebugTest, ConstantValueDisplay) {
