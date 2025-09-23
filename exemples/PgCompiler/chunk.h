@@ -41,6 +41,8 @@ namespace pg
         OP_Long_Jump_If_False,
         OP_Jump,
         OP_Long_Jump,
+        OP_Loop,
+        OP_Long_Loop,
     };
 
     struct Chunk
