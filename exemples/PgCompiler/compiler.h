@@ -34,6 +34,8 @@ namespace pg
         void addLocal(const Token& name);
         int resolveLocal(Chunk& chunk, const Token& name);
 
+        void markInitialized();
+
         void reset();
 
         Parser parser;
