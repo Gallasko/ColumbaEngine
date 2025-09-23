@@ -297,33 +297,35 @@ TEST_F(LanguageFeaturesTest, RegressionTests) {
 
 // Increment and Decrement Operations Tests
 TEST_F(LanguageFeaturesTest, IncrementDecrementOperations) {
-    // Test basic variable declaration and increment/decrement
-    assertInterpretResult("var x = 5; ++x", InterpretResult::OK);
-    assertInterpretResult("var x = 5; --x", InterpretResult::OK);
-    assertInterpretResult("var x = 5; x++", InterpretResult::OK);
-    assertInterpretResult("var x = 5; x--", InterpretResult::OK);
+    // Test basic variable declaration and increment/decrement with actual value checking
+    expectPrintedOutput("var x = 5; __dprint(++x)", "6\n");
+    expectPrintedOutput("var x = 5; __dprint(--x)", "4\n");
+    expectPrintedOutput("var x = 5; __dprint(x++)", "5\n");  // postfix returns old value
+    expectPrintedOutput("var x = 5; __dprint(x--)", "5\n");  // postfix returns old value
     
-    // Test prefix increment/decrement
-    assertInterpretResult("var y = 10; ++y", InterpretResult::OK);
-    assertInterpretResult("var y = 10; --y", InterpretResult::OK);
+    // Test prefix increment/decrement with value verification
+    expectPrintedOutput("var y = 10; __dprint(++y)", "11\n");
+    expectPrintedOutput("var y = 10; __dprint(--y)", "9\n");
     
-    // Test postfix increment/decrement
-    assertInterpretResult("var z = 8; z++", InterpretResult::OK);
-    assertInterpretResult("var z = 8; z--", InterpretResult::OK);
+    // Test postfix increment/decrement with value verification
+    expectPrintedOutput("var z = 8; __dprint(z++)", "8\n");  // returns old value
+    expectPrintedOutput("var z = 8; z++; __dprint(z)", "9\n");  // variable is incremented
+    expectPrintedOutput("var z = 8; __dprint(z--)", "8\n");  // returns old value
+    expectPrintedOutput("var z = 8; z--; __dprint(z)", "7\n");  // variable is decremented
     
     // Test with expressions
-    assertInterpretResult("var a = 3; var b = ++a + 2", InterpretResult::OK);
-    assertInterpretResult("var a = 3; var b = a++ + 2", InterpretResult::OK);
-    assertInterpretResult("var a = 5; var b = --a * 2", InterpretResult::OK);
-    assertInterpretResult("var a = 5; var b = a-- * 2", InterpretResult::OK);
+    expectPrintedOutput("var a = 3; __dprint(++a + 2)", "6\n");  // (3+1) + 2 = 6
+    expectPrintedOutput("var a = 3; __dprint(a++ + 2)", "5\n");  // 3 + 2 = 5 (returns old value)
+    expectPrintedOutput("var a = 5; __dprint(--a * 2)", "8\n");  // (5-1) * 2 = 8
+    expectPrintedOutput("var a = 5; __dprint(a-- * 2)", "10\n"); // 5 * 2 = 10 (returns old value)
     
     // Test multiple increments/decrements
-    assertInterpretResult("var c = 0; ++c; ++c; ++c", InterpretResult::OK);
-    assertInterpretResult("var d = 10; --d; --d; --d", InterpretResult::OK);
+    expectPrintedOutput("var c = 0; ++c; ++c; __dprint(++c)", "3\n");
+    expectPrintedOutput("var d = 10; --d; --d; __dprint(--d)", "7\n");
     
-    // Test chained operations
-    assertInterpretResult("var e = 1; var f = ++e + ++e", InterpretResult::OK);
-    assertInterpretResult("var g = 5; var h = g-- + --g", InterpretResult::OK);
+    // Test chained operations (complex but verifiable)
+    expectPrintedOutput("var e = 1; ++e; __dprint(++e)", "3\n");  // 1 -> 2 -> 3
+    expectPrintedOutput("var g = 5; g--; __dprint(--g)", "3\n");  // 5 -> 4 -> 3
 }
 
 // Increment/Decrement Edge Cases

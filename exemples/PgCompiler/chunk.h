@@ -43,6 +43,7 @@ namespace pg
         OP_Long_Jump,
         OP_Loop,
         OP_Long_Loop,
+        OP_Debug_Print,
     };
 
     struct Chunk

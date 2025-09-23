@@ -38,20 +38,16 @@ protected:
     void assertConstantCount(const Chunk& chunk, size_t expectedCount);
     void assertConstantValue(const Chunk& chunk, size_t index, const ElementType& expected);
     
+    // Assertions for output testing
+    void expectPrintedOutput(const std::string& source, const std::string& expected);
+    
     // Test state
     VM vm;
     Compiler compiler;
-    bool captureOutput;
-    std::string capturedOutput;
     
 protected:
     void resetVM();
     void resetCompiler();
-    void captureStdout();
-    void restoreStdout();
-    
-    std::streambuf* originalCoutBuffer;
-    std::ostringstream capturedStream;
 };
 
 } // namespace test

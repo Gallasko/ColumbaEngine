@@ -8,14 +8,10 @@ namespace test {
 void CompilerTestBase::SetUp() {
     resetVM();
     resetCompiler();
-    captureOutput = false;
-    originalCoutBuffer = nullptr;
 }
 
 void CompilerTestBase::TearDown() {
-    if (captureOutput && originalCoutBuffer) {
-        restoreStdout();
-    }
+    // Nothing special needed for teardown
 }
 
 Chunk CompilerTestBase::compileExpression(const std::string& source) {
@@ -129,22 +125,14 @@ void CompilerTestBase::resetCompiler() {
     compiler.reset();
 }
 
-void CompilerTestBase::captureStdout() {
-    if (!captureOutput) {
-        originalCoutBuffer = std::cout.rdbuf();
-        std::cout.rdbuf(capturedStream.rdbuf());
-        captureOutput = true;
-        capturedStream.str("");
-    }
-}
-
-void CompilerTestBase::restoreStdout() {
-    if (captureOutput && originalCoutBuffer) {
-        capturedOutput = capturedStream.str();
-        std::cout.rdbuf(originalCoutBuffer);
-        captureOutput = false;
-        originalCoutBuffer = nullptr;
-    }
+void CompilerTestBase::expectPrintedOutput(const std::string& source, const std::string& expected) {
+    // Clear any previous test output
+    vm.testOutput.clear();
+    
+    auto result = interpretFromSource(source);
+    
+    EXPECT_EQ(result, InterpretResult::OK) << "Code should execute successfully: " << source;
+    EXPECT_EQ(vm.testOutput, expected) << "Output mismatch for: " << source;
 }
 
 } // namespace test

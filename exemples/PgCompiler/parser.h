@@ -133,6 +133,7 @@ namespace pg
         void ifStatement(Chunk& chunk);
         void whileStatement(Chunk& chunk);
         void forStatement(Chunk& chunk);
+        void dprintStatement(Chunk& chunk);
 
         ParseRule& getRule(const TokenType& type) const;
 

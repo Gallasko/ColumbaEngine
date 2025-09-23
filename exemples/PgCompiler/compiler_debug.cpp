@@ -173,6 +173,9 @@ namespace pg
             case OpCode::OP_Long_Loop:
                 return longJumpInstruction("OP_Long_Loop", chunk, offset, -1);
 
+            case OpCode::OP_Debug_Print:
+                return simpleInstruction("OP_Debug_Print", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;
