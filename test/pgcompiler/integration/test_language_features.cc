@@ -46,90 +46,90 @@ TEST_F(LanguageFeaturesTest, BooleanLiterals) {
 
 // Arithmetic Operations Tests
 TEST_F(LanguageFeaturesTest, BasicArithmetic) {
-    // Addition
-    expectNumericResult("1 + 1", 2.0);
-    expectNumericResult("2 + 3", 5.0);
-    expectNumericResult("10 + 5", 15.0);
-    expectNumericResult("0 + 0", 0.0);
-    expectNumericResult("1.5 + 2.5", 4.0);
+    // Addition - verify actual results with __dprint
+    expectPrintedOutput("__dprint(1 + 1)", "2\n");
+    expectPrintedOutput("__dprint(2 + 3)", "5\n");
+    expectPrintedOutput("__dprint(10 + 5)", "15\n");
+    expectPrintedOutput("__dprint(0 + 0)", "0\n");
+    expectPrintedOutput("__dprint(1.5 + 2.5)", "4.000000\n");  // Float operation
     
-    // Subtraction
-    expectNumericResult("5 - 3", 2.0);
-    expectNumericResult("10 - 10", 0.0);
-    expectNumericResult("1 - 2", -1.0);
-    expectNumericResult("3.5 - 1.5", 2.0);
+    // Subtraction - verify actual results with __dprint
+    expectPrintedOutput("__dprint(5 - 3)", "2\n");
+    expectPrintedOutput("__dprint(10 - 10)", "0\n");
+    expectPrintedOutput("__dprint(1 - 2)", "-1\n");
+    expectPrintedOutput("__dprint(3.5 - 1.5)", "2.000000\n");  // Float operation
     
-    // Multiplication
-    expectNumericResult("2 * 3", 6.0);
-    expectNumericResult("4 * 5", 20.0);
-    expectNumericResult("3 * 0", 0.0);
-    expectNumericResult("1 * 1", 1.0);
-    expectNumericResult("2.5 * 4", 10.0);
+    // Multiplication - verify actual results with __dprint
+    expectPrintedOutput("__dprint(2 * 3)", "6\n");
+    expectPrintedOutput("__dprint(4 * 5)", "20\n");
+    expectPrintedOutput("__dprint(3 * 0)", "0\n");
+    expectPrintedOutput("__dprint(1 * 1)", "1\n");
+    expectPrintedOutput("__dprint(2.5 * 4)", "10.000000\n");  // Float operation
     
-    // Division
-    expectNumericResult("6 / 2", 3.0);
-    expectNumericResult("15 / 3", 5.0);
-    expectNumericResult("1 / 1", 1.0);
-    expectNumericResult("7.5 / 2.5", 3.0);
-    expectNumericResult("0 / 1", 0.0);
+    // Division - verify actual results with __dprint
+    expectPrintedOutput("__dprint(6 / 2)", "3.000000\n");     // Division always returns float
+    expectPrintedOutput("__dprint(15 / 3)", "5.000000\n");    // Division always returns float
+    expectPrintedOutput("__dprint(1 / 1)", "1.000000\n");     // Division always returns float
+    expectPrintedOutput("__dprint(7.5 / 2.5)", "3.000000\n"); // Division always returns float
+    expectPrintedOutput("__dprint(0 / 1)", "0.000000\n");     // Division always returns float
 }
 
 // Unary Operations Tests
 TEST_F(LanguageFeaturesTest, UnaryOperations) {
-    // Unary minus
-    expectNumericResult("-5", -5.0);
-    expectNumericResult("-(-3)", 3.0);
-    expectNumericResult("-(2 + 3)", -5.0);
-    expectNumericResult("-0", 0.0);
+    // Unary minus - verify actual results with __dprint
+    expectPrintedOutput("__dprint(-5)", "-5\n");
+    expectPrintedOutput("__dprint(-(-3))", "3\n");
+    expectPrintedOutput("__dprint(-(2 + 3))", "-5\n");
+    expectPrintedOutput("__dprint(-0)", "0\n");
     
-    // Unary not
-    expectBooleanResult("!true", false);
-    expectBooleanResult("!false", true);
-    expectBooleanResult("!!true", true);
-    expectBooleanResult("!!false", false);
-    expectBooleanResult("!(5 > 3)", false);
+    // Unary not - verify actual results with __dprint
+    expectPrintedOutput("__dprint(!true)", "false\n");
+    expectPrintedOutput("__dprint(!false)", "true\n");
+    expectPrintedOutput("__dprint(!!true)", "true\n");
+    expectPrintedOutput("__dprint(!!false)", "false\n");
+    expectPrintedOutput("__dprint(!(5 > 3))", "false\n");
 }
 
 // Comparison Operations Tests
 TEST_F(LanguageFeaturesTest, ComparisonOperations) {
-    // Equality
-    expectBooleanResult("1 == 1", true);
-    expectBooleanResult("1 == 2", false);
-    expectBooleanResult("0 == 0", true);
-    expectBooleanResult("3.14 == 3.14", true);
-    expectBooleanResult("true == true", true);
-    expectBooleanResult("false == false", true);
-    expectBooleanResult("true == false", false);
+    // Equality - verify actual results with __dprint
+    expectPrintedOutput("__dprint(1 == 1)", "true\n");
+    expectPrintedOutput("__dprint(1 == 2)", "false\n");
+    expectPrintedOutput("__dprint(0 == 0)", "true\n");
+    expectPrintedOutput("__dprint(3.14 == 3.14)", "true\n");
+    expectPrintedOutput("__dprint(true == true)", "true\n");
+    expectPrintedOutput("__dprint(false == false)", "true\n");
+    expectPrintedOutput("__dprint(true == false)", "false\n");
     
-    // Inequality
-    expectBooleanResult("1 != 2", true);
-    expectBooleanResult("1 != 1", false);
-    expectBooleanResult("true != false", true);
-    expectBooleanResult("true != true", false);
+    // Inequality - verify actual results with __dprint
+    expectPrintedOutput("__dprint(1 != 2)", "true\n");
+    expectPrintedOutput("__dprint(1 != 1)", "false\n");
+    expectPrintedOutput("__dprint(true != false)", "true\n");
+    expectPrintedOutput("__dprint(true != true)", "false\n");
     
-    // Greater than
-    expectBooleanResult("5 > 3", true);
-    expectBooleanResult("3 > 5", false);
-    expectBooleanResult("5 > 5", false);
-    expectBooleanResult("0 > -1", true);
+    // Greater than - verify actual results with __dprint
+    expectPrintedOutput("__dprint(5 > 3)", "true\n");
+    expectPrintedOutput("__dprint(3 > 5)", "false\n");
+    expectPrintedOutput("__dprint(5 > 5)", "false\n");
+    expectPrintedOutput("__dprint(0 > -1)", "true\n");
     
-    // Greater than or equal
-    expectBooleanResult("5 >= 3", true);
-    expectBooleanResult("3 >= 5", false);
-    expectBooleanResult("5 >= 5", true);
-    expectBooleanResult("0 >= 0", true);
+    // Greater than or equal - verify actual results with __dprint
+    expectPrintedOutput("__dprint(5 >= 3)", "true\n");
+    expectPrintedOutput("__dprint(3 >= 5)", "false\n");
+    expectPrintedOutput("__dprint(5 >= 5)", "true\n");
+    expectPrintedOutput("__dprint(0 >= 0)", "true\n");
     
-    // Less than
-    expectBooleanResult("3 < 5", true);
-    expectBooleanResult("5 < 3", false);
-    expectBooleanResult("5 < 5", false);
-    expectBooleanResult("-1 < 0", true);
+    // Less than - verify actual results with __dprint
+    expectPrintedOutput("__dprint(3 < 5)", "true\n");
+    expectPrintedOutput("__dprint(5 < 3)", "false\n");
+    expectPrintedOutput("__dprint(5 < 5)", "false\n");
+    expectPrintedOutput("__dprint(-1 < 0)", "true\n");
     
-    // Less than or equal
-    expectBooleanResult("3 <= 5", true);
-    expectBooleanResult("5 <= 3", false);
-    expectBooleanResult("5 <= 5", true);
-    expectBooleanResult("0 <= 0", true);
+    // Less than or equal - verify actual results with __dprint
+    expectPrintedOutput("__dprint(3 <= 5)", "true\n");
+    expectPrintedOutput("__dprint(5 <= 3)", "false\n");
+    expectPrintedOutput("__dprint(5 <= 5)", "true\n");
+    expectPrintedOutput("__dprint(0 <= 0)", "true\n");
 }
 
 // Operator Precedence Tests
@@ -295,6 +295,31 @@ TEST_F(LanguageFeaturesTest, RegressionTests) {
     expectBooleanResult("!(1 == 2)", true);
 }
 
+// Basic Variable Operations Tests
+TEST_F(LanguageFeaturesTest, BasicVariableOperations) {
+    // Variable declaration and access - verify with __dprint
+    expectPrintedOutput("var x = 42; __dprint(x)", "42\n");      // Integer literal
+    expectPrintedOutput("var name = 10; __dprint(name)", "10\n"); // Integer literal
+    expectPrintedOutput("var pi = 3.14; __dprint(pi)", "3.140000\n"); // Float literal
+    expectPrintedOutput("var flag = true; __dprint(flag)", "true\n");
+    expectPrintedOutput("var off = false; __dprint(off)", "false\n");
+    
+    // Variable assignment and update - verify with __dprint
+    expectPrintedOutput("var a = 5; a = 10; __dprint(a)", "10\n");        // Integer assignment
+    expectPrintedOutput("var b = 1; b = b + 5; __dprint(b)", "6\n");       // Integer arithmetic
+    expectPrintedOutput("var c = 10; c = c * 2; __dprint(c)", "20\n");     // Integer arithmetic
+    expectPrintedOutput("var d = 8; d = d / 2; __dprint(d)", "4.000000\n"); // Division returns float
+    expectPrintedOutput("var e = 7; e = e - 3; __dprint(e)", "4\n");       // Integer arithmetic
+    
+    // Variables in expressions - verify with __dprint
+    expectPrintedOutput("var x = 3; var y = 4; __dprint(x + y)", "7\n");       // Integer arithmetic
+    expectPrintedOutput("var x = 10; var y = 3; __dprint(x - y)", "7\n");     // Integer arithmetic
+    expectPrintedOutput("var x = 6; var y = 7; __dprint(x * y)", "42\n");     // Integer arithmetic
+    expectPrintedOutput("var x = 15; var y = 3; __dprint(x / y)", "5.000000\n"); // Division returns float
+    expectPrintedOutput("var x = 5; var y = 5; __dprint(x == y)", "true\n");
+    expectPrintedOutput("var x = 5; var y = 3; __dprint(x > y)", "true\n");
+}
+
 // Increment and Decrement Operations Tests
 TEST_F(LanguageFeaturesTest, IncrementDecrementOperations) {
     // Test basic variable declaration and increment/decrement with actual value checking
@@ -365,15 +390,15 @@ TEST_F(LanguageFeaturesTest, IncrementDecrementLiterals) {
 
 // Loop Control Structures Tests
 TEST_F(LanguageFeaturesTest, WhileLoopOperations) {
-    // Basic while loop
-    assertInterpretResult("var i = 0; while (i < 3) { i = i + 1; }", InterpretResult::OK);
-    assertInterpretResult("var j = 5; while (j > 0) { j = j - 1; }", InterpretResult::OK);
+    // Basic while loop - verify final results with __dprint
+    expectPrintedOutput("var i = 0; while (i < 3) { i = i + 1; } __dprint(i)", "3\n");
+    expectPrintedOutput("var j = 5; while (j > 0) { j = j - 1; } __dprint(j)", "0\n");
     
-    // While loop with increment/decrement
-    assertInterpretResult("var k = 0; while (k < 5) { ++k; }", InterpretResult::OK);
-    assertInterpretResult("var l = 10; while (l > 0) { --l; }", InterpretResult::OK);
-    assertInterpretResult("var m = 0; while (m < 3) { m++; }", InterpretResult::OK);
-    assertInterpretResult("var n = 7; while (n > 0) { n--; }", InterpretResult::OK);
+    // While loop with increment/decrement - verify final results with __dprint
+    expectPrintedOutput("var k = 0; while (k < 5) { ++k; } __dprint(k)", "5\n");
+    expectPrintedOutput("var l = 10; while (l > 0) { --l; } __dprint(l)", "0\n");
+    expectPrintedOutput("var m = 0; while (m < 3) { m++; } __dprint(m)", "3\n");
+    expectPrintedOutput("var n = 7; while (n > 0) { n--; } __dprint(n)", "0\n");
     
     // While loop with complex conditions
     assertInterpretResult("var x = 1; while (x * x < 10) { x++; }", InterpretResult::OK);
