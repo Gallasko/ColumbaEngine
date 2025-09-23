@@ -276,30 +276,110 @@ namespace pg
 
     void postfixIncrementOp(Chunk& chunk, Parser& parser, bool)
     {
-        Token operatorToken = parser.previousToken;
-        // The variable has already been parsed and its value is on the stack
-
         // For postfix increment: var++ (return old value, modify variable)
-        // Stack currently has the old value
-        // We need to: return old value, but also increment the variable
-
-        // This is complex without DUP. For now, let's implement basic postfix
-        // TODO: Implement proper postfix semantics with stack manipulation
-        parser.errorAt(operatorToken, "Postfix increment not yet implemented");
+        // Stack currently has [old_value] from the variable access
+        // We need to: return old_value, but also increment the variable
+        
+        // Strategy: We need to re-identify the variable that was just accessed
+        // Since we're in a postfix context, we can look at the bytecode that was just generated
+        
+        // The last operations should have been:
+        // OP_Constant <var_name/slot> 
+        // OP_Get_Global/Local
+        
+        // We can examine the last constant that was added to identify the variable
+        if (chunk.constants.empty()) {
+            parser.errorAt(parser.previousToken, "No variable found for postfix increment");
+            return;
+        }
+        
+        // Get the last constant (should be the variable identifier)
+        ElementType lastConstant = chunk.constants.back();
+        
+        // Determine if this is a local or global variable
+        OpCode setOp, getOp;
+        ElementType identifier;
+        
+        // Check if it's a number (local variable slot) or string (global variable name)
+        if (lastConstant.isNumber()) {
+            // Local variable
+            setOp = OpCode::OP_Set_Local;
+            getOp = OpCode::OP_Get_Local;
+            identifier = lastConstant;
+        } else {
+            // Global variable  
+            setOp = OpCode::OP_Set_Global;
+            getOp = OpCode::OP_Get_Global;
+            identifier = lastConstant;
+        }
+        
+        // Now implement: return old_value, increment variable
+        // Stack: [old_value]
+        // We want to end with: [old_value] and variable incremented
+        
+        // Duplicate the old value for our return
+        // But we don't have a DUP instruction, so we need to:
+        // 1. Get the variable again
+        // 2. Add 1
+        // 3. Set it back  
+        // 4. The original old_value stays on stack
+        
+        parser.writeConstant(chunk, identifier);      // [old_value, id]  
+        parser.writeConstant(chunk, identifier);      // [old_value, id, id]
+        parser.writeByte(chunk, getOp);               // [old_value, id, current_value]
+        parser.writeConstant(chunk, ElementType(1));  // [old_value, id, current_value, 1]
+        parser.writeByte(chunk, OpCode::OP_Add);      // [old_value, id, new_value]
+        parser.writeByte(chunk, setOp);               // [old_value, new_value] (set returns the value)
+        parser.writeByte(chunk, OpCode::OP_Pop);      // [old_value] (discard the new_value)
+        
+        // Result: old_value is on stack (for return), variable has been incremented
     }
 
     void postfixDecrementOp(Chunk& chunk, Parser& parser, bool)
     {
-        Token operatorToken = parser.previousToken;
-        // The variable has already been parsed and its value is on the stack
-
         // For postfix decrement: var-- (return old value, modify variable)
-        // Stack currently has the old value
-        // We need to: return old value, but also decrement the variable
-
-        // This is complex without DUP. For now, let's implement basic postfix
-        // TODO: Implement proper postfix semantics with stack manipulation
-        parser.errorAt(operatorToken, "Postfix decrement not yet implemented");
+        // Stack currently has [old_value] from the variable access
+        // We need to: return old_value, but also decrement the variable
+        
+        // Strategy: Same as postfixIncrementOp - examine the last constant to identify the variable
+        if (chunk.constants.empty()) {
+            parser.errorAt(parser.previousToken, "No variable found for postfix decrement");
+            return;
+        }
+        
+        // Get the last constant (should be the variable identifier)
+        ElementType lastConstant = chunk.constants.back();
+        
+        // Determine if this is a local or global variable
+        OpCode setOp, getOp;
+        ElementType identifier;
+        
+        // Check if it's a number (local variable slot) or string (global variable name)
+        if (lastConstant.isNumber()) {
+            // Local variable
+            setOp = OpCode::OP_Set_Local;
+            getOp = OpCode::OP_Get_Local;
+            identifier = lastConstant;
+        } else {
+            // Global variable  
+            setOp = OpCode::OP_Set_Global;
+            getOp = OpCode::OP_Get_Global;
+            identifier = lastConstant;
+        }
+        
+        // Now implement: return old_value, decrement variable
+        // Stack: [old_value]
+        // We want to end with: [old_value] and variable decremented
+        
+        parser.writeConstant(chunk, identifier);      // [old_value, id]  
+        parser.writeConstant(chunk, identifier);      // [old_value, id, id]
+        parser.writeByte(chunk, getOp);               // [old_value, id, current_value]
+        parser.writeConstant(chunk, ElementType(1));  // [old_value, id, current_value, 1]
+        parser.writeByte(chunk, OpCode::OP_Subtract); // [old_value, id, new_value]
+        parser.writeByte(chunk, setOp);               // [old_value, new_value] (set returns the value)
+        parser.writeByte(chunk, OpCode::OP_Pop);      // [old_value] (discard the new_value)
+        
+        // Result: old_value is on stack (for return), variable has been decremented
     }
 
     std::unordered_map<TokenType, ParseRule> rules = {
