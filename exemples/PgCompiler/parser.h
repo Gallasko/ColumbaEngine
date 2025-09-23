@@ -129,10 +129,14 @@ namespace pg
         void statement(Chunk& chunk);
         void expressionStatement(Chunk& chunk);
         void blockStatement(Chunk& chunk);
+        void ifStatement(Chunk& chunk);
 
         ParseRule& getRule(const TokenType& type) const;
 
         void declareVariable(const Token& name);
+
+        int emitJump(Chunk& chunk, const OpCode& instruction);
+        void patchJump(Chunk& chunk, int offset);
 
         // Chunk modification functions
         void emitReturn(Chunk& chunk) { writeByte(chunk, OpCode::OP_Return); }

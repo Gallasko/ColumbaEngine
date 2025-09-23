@@ -309,6 +309,10 @@ namespace pg
             blockStatement(chunk);
             compiler->endScope(chunk);
         }
+        else if (match(TokenType::TOK_IF))
+        {
+            ifStatement(chunk);
+        }
         else
         {
             expressionStatement(chunk);
@@ -332,6 +336,52 @@ namespace pg
         consume("Expect '}' after block.", TokenType::BCLOSE);
     }
 
+    void Parser::ifStatement(Chunk& chunk)
+    {
+        skipEOL();
+        consume("Expect '(' after 'if'.", TokenType::PENTER);
+        skipEOL();
+
+        expression(chunk);
+
+        consume("Expect ')' after condition.", TokenType::PCLOSE);
+        skipEOL();
+
+        int thenJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
+        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+        statement(chunk);
+
+        int elseJump = emitJump(chunk, OpCode::OP_Long_Jump);
+
+        patchJump(chunk, thenJump);
+        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+
+        if (match(TokenType::TOK_ELSE))
+        {
+            statement(chunk);
+        }
+
+        patchJump(chunk, elseJump);
+
+
+
+        // int thenJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
+        // statement(chunk);
+
+        // patchJump(chunk, thenJump);
+
+        // if (match(TokenType::TOK_ELSE))
+        // {
+        //     int elseJump = emitJump(chunk, OpCode::OP_Long_Jump);
+
+        //     patchJump(chunk, thenJump);
+
+        //     statement(chunk);
+
+        //     patchJump(chunk, elseJump);
+        // }
+    }
+
     ParseRule& Parser::getRule(const TokenType& type) const
     {
         return rules[type];
@@ -340,6 +390,33 @@ namespace pg
     void Parser::declareVariable(const Token& name)
     {
         compiler->addLocal(name);
+    }
+
+    int Parser::emitJump(Chunk& chunk, const OpCode& instruction)
+    {
+        writeByte(chunk, instruction);
+        writeByte(chunk, 0xff);
+        writeByte(chunk, 0xff);
+        writeByte(chunk, 0xff);
+        writeByte(chunk, 0xff);
+
+        return static_cast<int>(chunk.code.size() - 4);
+    }
+
+    void Parser::patchJump(Chunk& chunk, int offset)
+    {
+        // -1 to adjust for the bytecode for the jump offset itself
+        size_t jump = chunk.code.size() - offset - 4;
+
+        if (jump > 0xFFFFFFFF)
+        {
+            errorAt(previousToken, "Too much code to jump over.");
+        }
+
+        chunk.code[offset]     = (jump >> 24) & 0xFF;
+        chunk.code[offset + 1] = (jump >> 16) & 0xFF;
+        chunk.code[offset + 2] = (jump >> 8) & 0xFF;
+        chunk.code[offset + 3] = jump & 0xFF;
     }
 
     void Parser::writeConstant(Chunk& chunk, const ElementType& constant)

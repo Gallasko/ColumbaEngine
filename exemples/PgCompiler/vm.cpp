@@ -359,6 +359,98 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Jump_If_False:
+                {
+                    if (ip + 2 >= chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
+                    }
+
+                    uint16_t jumpOffset = readUint16();
+
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow on conditional jump.");
+                    }
+
+                    auto condition = peek();
+
+                    if (not condition.isTrue())
+                    {
+                        ip += jumpOffset;
+                        if (ip > chunk.code.size())
+                        {
+                            EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
+                        }
+                    }
+
+                    break;
+                }
+
+                case OpCode::OP_Long_Jump_If_False:
+                {
+                    if (ip + 4 >= chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
+                    }
+
+                    uint32_t jumpOffset = readUint32();
+
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow on conditional jump.");
+                    }
+
+                    auto condition = peek();
+
+                    if (not condition.isTrue())
+                    {
+                        ip += jumpOffset;
+                        if (ip > chunk.code.size())
+                        {
+                            EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
+                        }
+                    }
+
+                    break;
+                }
+
+                case OpCode::OP_Jump:
+                {
+                    if (ip + 2 >= chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
+                    }
+
+                    uint16_t jumpOffset = readUint16();
+
+                    ip += jumpOffset;
+                    if (ip > chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
+                    }
+
+                    break;
+                }
+
+                case OpCode::OP_Long_Jump:
+                {
+                    if (ip + 4 >= chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
+                    }
+
+                    uint32_t jumpOffset = readUint32();
+
+                    ip += jumpOffset;
+                    if (ip > chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
+                    }
+
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;

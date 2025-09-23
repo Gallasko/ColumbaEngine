@@ -110,6 +110,40 @@ namespace pg
             return stack[stack.size() - 1 - distance];
         }
 
+        uint16_t readUint16()
+        {
+            if (ip + 1 >= chunk.code.size())
+            {
+                throw std::runtime_error("Not enough bytes to read uint16.");
+            }
+
+            uint16_t value = (static_cast<uint16_t>(chunk.code[ip]) << 8);
+            ip++;
+            value |= static_cast<uint16_t>(chunk.code[ip]);
+            ip++;
+
+            return value;
+        }
+
+        uint32_t readUint32()
+        {
+            if (ip + 3 >= chunk.code.size())
+            {
+                throw std::runtime_error("Not enough bytes to read uint32.");
+            }
+
+            uint32_t value = (static_cast<uint32_t>(chunk.code[ip]) << 24);
+            ip++;
+            value |= (static_cast<uint32_t>(chunk.code[ip]) << 16);
+            ip++;
+            value |= (static_cast<uint32_t>(chunk.code[ip]) << 8);
+            ip++;
+            value |= static_cast<uint32_t>(chunk.code[ip]);
+            ip++;
+
+            return value;
+        }
+
         inline void resetStack()
         {
             stack.clear();
