@@ -149,6 +149,32 @@ namespace pg
         }
     }
 
+    void andOp(Chunk& chunk, Parser& parser, bool)
+    {
+        // For 'and': if the left operand is false, short-circuit to false
+        // If left operand is true, evaluate right operand
+        int endJump = parser.emitJump(chunk, OpCode::OP_Long_Jump_If_False);
+
+        parser.writeByte(chunk, OpCode::OP_Pop);
+        parser.parsePrecedence(chunk, Precedence::AND);
+
+        parser.patchJump(chunk, endJump);
+    }
+
+    void orOp(Chunk& chunk, Parser& parser, bool)
+    {
+        // For 'or': if the left operand is false, jump to evaluate right operand
+        // If left operand is true, short-circuit to true
+        int elseJump = parser.emitJump(chunk, OpCode::OP_Long_Jump_If_False);
+        int endJump = parser.emitJump(chunk, OpCode::OP_Long_Jump);
+
+        parser.patchJump(chunk, elseJump);
+        parser.writeByte(chunk, OpCode::OP_Pop);
+
+        parser.parsePrecedence(chunk, Precedence::OR);
+        parser.patchJump(chunk, endJump);
+    }
+
     std::unordered_map<TokenType, ParseRule> rules = {
         {TokenType::EQUAL,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::PLUS,         {NULL,        binary, Precedence::TERM}},
@@ -188,8 +214,8 @@ namespace pg
         {TokenType::INFEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::INCREMENT,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::DECREMENT,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::LOGICAND,     {NULL,        binary, Precedence::AND}},
-        {TokenType::LOGICOR,      {NULL,        binary, Precedence::OR}},
+        {TokenType::LOGICAND,     {NULL,        andOp,  Precedence::AND}},
+        {TokenType::LOGICOR,      {NULL,        orOp,   Precedence::OR}},
         {TokenType::SHIFTLEFT,    {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SHIFTRIGHT,   {NULL,        NULL,   Precedence::NONE}},
         {TokenType::EQUALEQUAL,   {NULL,        binary, Precedence::EQUALITY}},

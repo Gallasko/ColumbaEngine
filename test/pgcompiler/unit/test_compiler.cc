@@ -351,5 +351,265 @@ TEST_F(CompilerTest, CompileWithReturn) {
     EXPECT_TRUE(hasReturn) << "Compiled chunk should contain OP_Return instruction";
 }
 
+// If/Else Statement Tests (using compileExpression for basic if statements that work)
+TEST_F(CompilerTest, CompileSimpleIfStatement) {
+    // This works as shown in the test output
+    auto chunk = compileExpression("if (true) { }");
+    
+    bool hasJumpIfFalse = false;
+    bool hasJump = false;
+    bool hasPop = false;
+    bool hasTrue = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Long_Jump_If_False) hasJumpIfFalse = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Long_Jump) hasJump = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Pop) hasPop = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_True) hasTrue = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "If statement should contain OP_Long_Jump_If_False";
+    EXPECT_TRUE(hasJump) << "If statement should contain OP_Long_Jump";
+    EXPECT_TRUE(hasPop) << "If statement should pop condition";
+    EXPECT_TRUE(hasTrue) << "Should contain the true condition";
+}
+
+TEST_F(CompilerTest, CompileIfElseStatement) {
+    // This works as shown in the test output
+    auto chunk = compileExpression("if (false) { } else { }");
+    
+    bool hasJumpIfFalse = false;
+    bool hasJump = false;
+    bool hasFalse = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Long_Jump_If_False) hasJumpIfFalse = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Long_Jump) hasJump = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_False) hasFalse = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "If-else should contain OP_Long_Jump_If_False";
+    EXPECT_TRUE(hasJump) << "If-else should contain OP_Long_Jump";
+    EXPECT_TRUE(hasFalse) << "Should contain the false condition";
+}
+
+TEST_F(CompilerTest, CompileIfWithBooleanCondition) {
+    // Test various boolean conditions
+    assertCompileSuccess("if (true) { }");
+    assertCompileSuccess("if (false) { }");
+    assertCompileSuccess("if (!true) { }");
+    assertCompileSuccess("if (!false) { }");
+}
+
+TEST_F(CompilerTest, CompileIfWithComparisonCondition) {
+    // Test if with comparison conditions
+    assertCompileSuccess("if (5 > 3) { }");
+    assertCompileSuccess("if (2 < 4) { }");
+    assertCompileSuccess("if (1 == 1) { }");
+    assertCompileSuccess("if (1 != 2) { }");
+}
+
+// Edge Cases for If/Else
+TEST_F(CompilerTest, CompileIfWithEmptyBody) {
+    assertCompileSuccess("if (true) { }");
+    
+    auto chunk = compileExpression("if (true) { }");
+    
+    bool hasJumpIfFalse = false;
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Long_Jump_If_False) hasJumpIfFalse = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "Empty if body should still compile correctly";
+}
+
+TEST_F(CompilerTest, CompileIfElseWithEmptyBodies) {
+    assertCompileSuccess("if (false) { } else { }");
+    
+    auto chunk = compileExpression("if (false) { } else { }");
+    
+    bool hasJumpIfFalse = false;
+    bool hasJump = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Long_Jump_If_False) hasJumpIfFalse = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Long_Jump) hasJump = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "Empty if-else should compile correctly";
+    EXPECT_TRUE(hasJump) << "Empty if-else should have proper jump structure";
+}
+
+// Logical Operators And/Or Tests (using both syntax variants)
+TEST_F(CompilerTest, CompileLogicalAndKeyword) {
+    assertCompileSuccess("true and false");
+    
+    auto chunk = compileExpression("true and false");
+    
+    bool hasJumpIfFalse = false;
+    bool hasPop = false;
+    bool hasTrue = false;
+    bool hasFalse = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump_If_False) hasJumpIfFalse = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Pop) hasPop = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_True) hasTrue = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_False) hasFalse = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "And operator should use conditional jump for short-circuiting";
+    EXPECT_TRUE(hasPop) << "And operator should pop intermediate results";
+    EXPECT_TRUE(hasTrue && hasFalse) << "Should contain both boolean values";
+}
+
+TEST_F(CompilerTest, CompileLogicalOrKeyword) {
+    assertCompileSuccess("false or true");
+    
+    auto chunk = compileExpression("false or true");
+    
+    bool hasJumpIfFalse = false;
+    bool hasJump = false;
+    bool hasPop = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump_If_False) hasJumpIfFalse = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump) hasJump = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Pop) hasPop = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "Or operator should use conditional jump";
+    EXPECT_TRUE(hasJump) << "Or operator should use unconditional jump";
+    EXPECT_TRUE(hasPop) << "Or operator should pop intermediate results";
+}
+
+TEST_F(CompilerTest, CompileLogicalOperatorsSyntaxVariants) {
+    // Test both syntax variants if supported
+    assertCompileSuccess("true and false");
+    assertCompileSuccess("false or true");
+    
+    // Test combinations
+    assertCompileSuccess("true and true");
+    assertCompileSuccess("false or false");
+    assertCompileSuccess("!true and false");
+    assertCompileSuccess("true or !false");
+}
+
+// Short-circuiting behavior tests
+TEST_F(CompilerTest, CompileAndShortCircuitStructure) {
+    // Test structure of and operation for short-circuiting
+    auto chunk = compileExpression("false and true");
+    
+    bool hasJumpIfFalse = false;
+    bool hasPop = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump_If_False) hasJumpIfFalse = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Pop) hasPop = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "And should have conditional jump for short-circuiting";
+    EXPECT_TRUE(hasPop) << "And should pop intermediate results";
+}
+
+TEST_F(CompilerTest, CompileOrShortCircuitStructure) {
+    // Test structure of or operation for short-circuiting
+    auto chunk = compileExpression("true or false");
+    
+    bool hasJumpIfFalse = false;
+    bool hasJump = false;
+    bool hasPop = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump_If_False) hasJumpIfFalse = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump) hasJump = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Pop) hasPop = true;
+    }
+    
+    EXPECT_TRUE(hasJumpIfFalse) << "Or should have conditional jump";
+    EXPECT_TRUE(hasJump) << "Or should have unconditional jump";
+    EXPECT_TRUE(hasPop) << "Or should pop intermediate results";
+}
+
+TEST_F(CompilerTest, CompileChainedLogicalOperators) {
+    assertCompileSuccess("true and false or true and false");
+    
+    auto chunk = compileExpression("true and false or true and false");
+    
+    // Count logical operation jumps
+    int jumpIfFalseCount = 0;
+    int jumpCount = 0;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump_If_False) jumpIfFalseCount++;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump) jumpCount++;
+    }
+    
+    EXPECT_GT(jumpIfFalseCount, 1) << "Chained logical operations should have multiple conditional jumps";
+    EXPECT_GT(jumpCount, 0) << "Chained logical operations should have jumps";
+}
+
+TEST_F(CompilerTest, CompileLogicalOperatorPrecedence) {
+    // Test that and has higher precedence than or
+    assertCompileSuccess("true or false and false");
+    
+    auto chunk = compileExpression("true or false and false");
+    
+    // Should compile as: true or (false and false)
+    int jumpCount = 0;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump_If_False || 
+            static_cast<OpCode>(byte) == OpCode::OP_Jump) {
+            jumpCount++;
+        }
+    }
+    
+    EXPECT_GT(jumpCount, 2) << "Should have proper jump structure for precedence";
+}
+
+TEST_F(CompilerTest, CompileLogicalWithComparisons) {
+    assertCompileSuccess("5 > 3 and 2 < 4 or 1 == 1");
+    
+    auto chunk = compileExpression("5 > 3 and 2 < 4 or 1 == 1");
+    
+    bool hasGreater = false;
+    bool hasLess = false;
+    bool hasEqual = false;
+    bool hasJumpIfFalse = false;
+    
+    for (const auto& byte : chunk.code) {
+        if (static_cast<OpCode>(byte) == OpCode::OP_Greater) hasGreater = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Less) hasLess = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Equal) hasEqual = true;
+        if (static_cast<OpCode>(byte) == OpCode::OP_Jump_If_False) hasJumpIfFalse = true;
+    }
+    
+    EXPECT_TRUE(hasGreater && hasLess && hasEqual) << "Should contain all comparison operations";
+    EXPECT_TRUE(hasJumpIfFalse) << "Should have conditional jumps for logical operators";
+}
+
+// Error Cases for If/Else
+TEST_F(CompilerTest, CompileIfErrorCases) {
+    // Test various error cases for if statements
+    assertCompileError("if () { }");           // Missing condition
+    assertCompileError("if { }");              // Missing parentheses and condition
+    assertCompileError("if true { }");         // Missing parentheses
+    assertCompileError("if (true { }");        // Missing closing parenthesis
+    assertCompileError("if true) { }");        // Missing opening parenthesis
+    assertCompileError("if (true)");           // Missing body
+    assertCompileError("else { }");            // Else without if
+}
+
+// Additional tests for logical operators edge cases
+TEST_F(CompilerTest, CompileLogicalOperatorsEdgeCases) {
+    // Test nested logical operations
+    assertCompileSuccess("(true and false) or (false and true)");
+    assertCompileSuccess("true and (false or true)");
+    assertCompileSuccess("!true and !false");
+    assertCompileSuccess("!(true and false)");
+    assertCompileSuccess("!(true or false)");
+}
+
 } // namespace test
 } // namespace pg
