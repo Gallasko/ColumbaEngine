@@ -279,27 +279,27 @@ namespace pg
         // For postfix increment: var++ (return old value, modify variable)
         // Stack currently has [old_value] from the variable access
         // We need to: return old_value, but also increment the variable
-        
+
         // Strategy: We need to re-identify the variable that was just accessed
         // Since we're in a postfix context, we can look at the bytecode that was just generated
-        
+
         // The last operations should have been:
-        // OP_Constant <var_name/slot> 
+        // OP_Constant <var_name/slot>
         // OP_Get_Global/Local
-        
+
         // We can examine the last constant that was added to identify the variable
         if (chunk.constants.empty()) {
             parser.errorAt(parser.previousToken, "No variable found for postfix increment");
             return;
         }
-        
+
         // Get the last constant (should be the variable identifier)
         ElementType lastConstant = chunk.constants.back();
-        
+
         // Determine if this is a local or global variable
         OpCode setOp, getOp;
         ElementType identifier;
-        
+
         // Check if it's a number (local variable slot) or string (global variable name)
         if (lastConstant.isNumber()) {
             // Local variable
@@ -307,31 +307,31 @@ namespace pg
             getOp = OpCode::OP_Get_Local;
             identifier = lastConstant;
         } else {
-            // Global variable  
+            // Global variable
             setOp = OpCode::OP_Set_Global;
             getOp = OpCode::OP_Get_Global;
             identifier = lastConstant;
         }
-        
+
         // Now implement: return old_value, increment variable
         // Stack: [old_value]
         // We want to end with: [old_value] and variable incremented
-        
+
         // Duplicate the old value for our return
         // But we don't have a DUP instruction, so we need to:
         // 1. Get the variable again
         // 2. Add 1
-        // 3. Set it back  
+        // 3. Set it back
         // 4. The original old_value stays on stack
-        
-        parser.writeConstant(chunk, identifier);      // [old_value, id]  
+
+        parser.writeConstant(chunk, identifier);      // [old_value, id]
         parser.writeConstant(chunk, identifier);      // [old_value, id, id]
         parser.writeByte(chunk, getOp);               // [old_value, id, current_value]
         parser.writeConstant(chunk, ElementType(1));  // [old_value, id, current_value, 1]
         parser.writeByte(chunk, OpCode::OP_Add);      // [old_value, id, new_value]
         parser.writeByte(chunk, setOp);               // [old_value, new_value] (set returns the value)
         parser.writeByte(chunk, OpCode::OP_Pop);      // [old_value] (discard the new_value)
-        
+
         // Result: old_value is on stack (for return), variable has been incremented
     }
 
@@ -340,20 +340,20 @@ namespace pg
         // For postfix decrement: var-- (return old value, modify variable)
         // Stack currently has [old_value] from the variable access
         // We need to: return old_value, but also decrement the variable
-        
+
         // Strategy: Same as postfixIncrementOp - examine the last constant to identify the variable
         if (chunk.constants.empty()) {
             parser.errorAt(parser.previousToken, "No variable found for postfix decrement");
             return;
         }
-        
+
         // Get the last constant (should be the variable identifier)
         ElementType lastConstant = chunk.constants.back();
-        
+
         // Determine if this is a local or global variable
         OpCode setOp, getOp;
         ElementType identifier;
-        
+
         // Check if it's a number (local variable slot) or string (global variable name)
         if (lastConstant.isNumber()) {
             // Local variable
@@ -361,24 +361,24 @@ namespace pg
             getOp = OpCode::OP_Get_Local;
             identifier = lastConstant;
         } else {
-            // Global variable  
+            // Global variable
             setOp = OpCode::OP_Set_Global;
             getOp = OpCode::OP_Get_Global;
             identifier = lastConstant;
         }
-        
+
         // Now implement: return old_value, decrement variable
         // Stack: [old_value]
         // We want to end with: [old_value] and variable decremented
-        
-        parser.writeConstant(chunk, identifier);      // [old_value, id]  
+
+        parser.writeConstant(chunk, identifier);      // [old_value, id]
         parser.writeConstant(chunk, identifier);      // [old_value, id, id]
         parser.writeByte(chunk, getOp);               // [old_value, id, current_value]
         parser.writeConstant(chunk, ElementType(1));  // [old_value, id, current_value, 1]
         parser.writeByte(chunk, OpCode::OP_Subtract); // [old_value, id, new_value]
         parser.writeByte(chunk, setOp);               // [old_value, new_value] (set returns the value)
         parser.writeByte(chunk, OpCode::OP_Pop);      // [old_value] (discard the new_value)
-        
+
         // Result: old_value is on stack (for return), variable has been decremented
     }
 
@@ -546,6 +546,10 @@ namespace pg
         {
             ifStatement(chunk);
         }
+        else if (match(TokenType::TOK_WHILE))
+        {
+            whileStatement(chunk);
+        }
         else
         {
             expressionStatement(chunk);
@@ -582,6 +586,7 @@ namespace pg
 
         int thenJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
         writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+
         statement(chunk);
 
         int elseJump = emitJump(chunk, OpCode::OP_Long_Jump);
@@ -595,24 +600,29 @@ namespace pg
         }
 
         patchJump(chunk, elseJump);
+    }
 
+    void Parser::whileStatement(Chunk& chunk)
+    {
+        int loopStart = static_cast<int>(chunk.code.size());
 
+        skipEOL();
+        consume("Expect '(' after 'while'.", TokenType::PENTER);
+        skipEOL();
 
-        // int thenJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
-        // statement(chunk);
+        expression(chunk);
 
-        // patchJump(chunk, thenJump);
+        consume("Expect ')' after condition.", TokenType::PCLOSE);
+        skipEOL();
 
-        // if (match(TokenType::TOK_ELSE))
-        // {
-        //     int elseJump = emitJump(chunk, OpCode::OP_Long_Jump);
+        int exitJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
+        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
 
-        //     patchJump(chunk, thenJump);
+        statement(chunk);
+        emitLoop(chunk, loopStart);
 
-        //     statement(chunk);
-
-        //     patchJump(chunk, elseJump);
-        // }
+        patchJump(chunk, exitJump);
+        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
     }
 
     ParseRule& Parser::getRule(const TokenType& type) const
@@ -650,6 +660,23 @@ namespace pg
         chunk.code[offset + 1] = (jump >> 16) & 0xFF;
         chunk.code[offset + 2] = (jump >> 8) & 0xFF;
         chunk.code[offset + 3] = jump & 0xFF;
+    }
+
+    void Parser::emitLoop(Chunk& chunk, int offset)
+    {
+        writeByte(chunk, OpCode::OP_Long_Loop);
+
+        size_t jump = chunk.code.size() - offset + 4;
+
+        if (jump > 0xFFFFFFFF)
+        {
+            errorAt(previousToken, "Loop body too large.");
+        }
+
+        writeByte(chunk, (jump >> 24) & 0xFF);
+        writeByte(chunk, (jump >> 16) & 0xFF);
+        writeByte(chunk, (jump >> 8) & 0xFF);
+        writeByte(chunk, jump & 0xFF);
     }
 
     void Parser::writeConstant(Chunk& chunk, const ElementType& constant)

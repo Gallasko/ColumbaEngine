@@ -451,6 +451,42 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Loop:
+                {
+                    if (ip + 2 >= chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough bytes to read loop offset.");
+                    }
+
+                    uint16_t loopOffset = readUint16();
+
+                    if (loopOffset > ip)
+                    {
+                        EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
+                    }
+
+                    ip -= loopOffset;
+                    break;
+                }
+
+                case OpCode::OP_Long_Loop:
+                {
+                    if (ip + 4 >= chunk.code.size())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough bytes to read long loop offset.");
+                    }
+
+                    uint32_t loopOffset = readUint32();
+
+                    if (loopOffset > ip)
+                    {
+                        EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
+                    }
+
+                    ip -= loopOffset;
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;
