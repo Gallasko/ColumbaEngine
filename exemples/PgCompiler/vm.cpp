@@ -232,11 +232,8 @@ namespace pg
                     {
                         EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
                     }
-                    // pop();
 
-                    // Todo to remove
-                    auto value = pop();
-                    std::cout << value.toString() << std::endl;
+                    pop();
 
                     break;
                 }
@@ -484,6 +481,21 @@ namespace pg
                     }
 
                     ip -= loopOffset;
+                    break;
+                }
+
+                case OpCode::OP_Debug_Print:
+                {
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Nothing to print from the stack.");
+                    }
+
+                    auto value = pop();
+
+                    // For testing: append to testOutput buffer instead of stdout
+                    testOutput += value.toString() + "\n";
+
                     break;
                 }
 

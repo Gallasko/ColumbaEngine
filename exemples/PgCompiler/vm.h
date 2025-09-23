@@ -179,6 +179,9 @@ namespace pg
         IndexableStack stack;
 
         std::unordered_map<std::string, ElementType> globals;
+        
+        // Test output buffer for __dprint (used in tests)
+        std::string testOutput;
     };
 
 }

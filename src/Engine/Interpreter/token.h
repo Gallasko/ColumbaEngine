@@ -89,6 +89,7 @@ namespace pg
         TOK_IMPORT,
         TOK_FROM,
         TOK_AS,
+        TOK_DPRINT,
 
         TOK_ERROR,
     };

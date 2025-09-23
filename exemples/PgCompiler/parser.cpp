@@ -554,6 +554,10 @@ namespace pg
         {
             forStatement(chunk);
         }
+        else if (match(TokenType::TOK_DPRINT))
+        {
+            dprintStatement(chunk);
+        }
         else
         {
             expressionStatement(chunk);
@@ -604,6 +608,20 @@ namespace pg
         }
 
         patchJump(chunk, elseJump);
+    }
+
+    void Parser::dprintStatement(Chunk& chunk)
+    {
+        skipEOL();
+        consume("Expect '(' after '__dprint'.", TokenType::PENTER);
+        skipEOL();
+        
+        expression(chunk);
+        
+        consume("Expect ')' after expression.", TokenType::PCLOSE);
+        consumeEnd("Expect ';' or newline after '__dprint' statement.");
+        
+        writeByte(chunk, OpCode::OP_Debug_Print);
     }
 
     void Parser::whileStatement(Chunk& chunk)
