@@ -292,7 +292,10 @@ namespace pg
         consumeEnd("Expect end of variable declaration.");
 
         if (compiler->scopeDepth > 0)
+        {
+            compiler->markInitialized();
             return;
+        }
 
         writeConstant(chunk, varName.text);  // Push variable name onto stack
         writeByte(chunk, OpCode::OP_Define_Global);

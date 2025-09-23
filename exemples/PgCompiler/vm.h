@@ -32,7 +32,7 @@ namespace pg
         std::vector<ElementType> data;
     public:
         void push(const ElementType& value) { data.push_back(value); }
-        
+
         ElementType pop() {
             if (data.empty())
                 throw std::runtime_error("Trying to pop on an empty stack");
@@ -40,19 +40,19 @@ namespace pg
             data.pop_back();
             return value;
         }
-        
+
         ElementType& operator[](size_t index) { return data[index]; }
         const ElementType& operator[](size_t index) const { return data[index]; }
-        
+
         ElementType top() const {
             if (data.empty())
                 throw std::runtime_error("Stack is empty");
             return data.back();
         }
-        
+
         bool empty() const { return data.empty(); }
         size_t size() const { return data.size(); }
-        
+
         void clear() { data.clear(); }
     };
 

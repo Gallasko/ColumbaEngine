@@ -88,7 +88,7 @@ namespace pg
 
     void Compiler::addLocal(const Token& name)
     {
-        locals.push_back(Local{name, scopeDepth});
+        locals.push_back(Local{name, -1});
         localCount++;
     }
 
@@ -108,6 +108,14 @@ namespace pg
         }
 
         return -1;
+    }
+
+    void Compiler::markInitialized()
+    {
+        if (scopeDepth == 0)
+            return;
+
+        locals[localCount - 1].depth = scopeDepth;
     }
 
     void Compiler::reset()
