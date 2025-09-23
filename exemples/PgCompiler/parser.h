@@ -21,8 +21,9 @@ namespace pg
         TERM = 6,        // + -
         FACTOR = 7,      // * /
         UNARY = 8,       // ! -
-        CALL = 9,        // . ()
-        PRIMARY = 10
+        POSTFIX = 9,     // ++ --
+        CALL = 10,       // . ()
+        PRIMARY = 11
     };
 
     typedef void (*ParseFn)(Chunk&, struct Parser&, bool);
