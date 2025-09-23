@@ -550,6 +550,10 @@ namespace pg
         {
             whileStatement(chunk);
         }
+        else if (match(TokenType::TOK_FOR))
+        {
+            forStatement(chunk);
+        }
         else
         {
             expressionStatement(chunk);
@@ -623,6 +627,77 @@ namespace pg
 
         patchJump(chunk, exitJump);
         writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+    }
+
+    void Parser::forStatement(Chunk& chunk)
+    {
+        compiler->beginScope();
+
+        skipEOL();
+        consume("Expect '(' after 'for'.", TokenType::PENTER);
+        skipEOL();
+
+        // Initializer
+        if (match(TokenType::END))
+        {
+            // No initializer
+        }
+        else if (match(TokenType::TOK_VAR))
+        {
+            varDeclaration(chunk);
+        }
+        else
+        {
+            expressionStatement(chunk);
+        }
+
+        skipEOL();
+
+        int loopStart = static_cast<int>(chunk.code.size());
+
+        // Condition
+        int exitJump = -1;
+        if (not match(TokenType::END))
+        {
+            expression(chunk);
+            consume("Expect ';' after condition.", TokenType::END);
+
+            exitJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
+            writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+        }
+
+        skipEOL();
+
+        // Increment
+        if (not match(TokenType::PCLOSE))
+        {
+            int bodyJump = emitJump(chunk, OpCode::OP_Long_Jump);
+            int incrementStart = static_cast<int>(chunk.code.size());
+
+            expression(chunk);
+            writeByte(chunk, OpCode::OP_Pop); // Pop the increment expression result
+
+            consume("Expect ')' after for clauses.", TokenType::PCLOSE);
+
+            emitLoop(chunk, loopStart);
+            loopStart = incrementStart;
+
+            patchJump(chunk, bodyJump);
+        }
+
+        skipEOL();
+
+        // Body
+        statement(chunk);
+        emitLoop(chunk, loopStart);
+
+        if (exitJump != -1)
+        {
+            patchJump(chunk, exitJump);
+            writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+        }
+
+        compiler->endScope(chunk);
     }
 
     ParseRule& Parser::getRule(const TokenType& type) const
