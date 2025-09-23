@@ -92,7 +92,7 @@ namespace pg
         localCount++;
     }
 
-    int Compiler::resolveLocal(Chunk& chunk, const Token& name)
+    int Compiler::resolveLocal(Chunk&, const Token& name)
     {
         for (int i = localCount - 1; i >= 0; i--)
         {

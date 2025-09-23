@@ -37,6 +37,10 @@ namespace pg
         OP_Set_Global,
         OP_Get_Local,
         OP_Set_Local,
+        OP_Jump_If_False,
+        OP_Long_Jump_If_False,
+        OP_Jump,
+        OP_Long_Jump,
     };
 
     struct Chunk

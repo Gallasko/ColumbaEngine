@@ -33,6 +33,28 @@ namespace pg
 
             return offset + 4;
         }
+
+        int jumpInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint16_t jump = (static_cast<uint16_t>(chunk.code[offset + 1]) << 8) |
+                            (static_cast<uint16_t>(chunk.code[offset + 2]));
+
+            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 3 + jump) << std::endl;
+
+            return offset + 3;
+        }
+
+        int longJumpInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint32_t jump = (static_cast<uint32_t>(chunk.code[offset + 1]) << 24) |
+                            (static_cast<uint32_t>(chunk.code[offset + 2]) << 16) |
+                            (static_cast<uint32_t>(chunk.code[offset + 3]) << 8) |
+                            (static_cast<uint32_t>(chunk.code[offset + 4]));
+
+            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 5 + jump) << std::endl;
+
+            return offset + 5;
+        }
     }
 
     void disassembleChunk(const Chunk& chunk, const std::string& name)
@@ -132,6 +154,18 @@ namespace pg
 
             case OpCode::OP_Set_Local:
                 return simpleInstruction("OP_Set_Local", offset);
+
+            case OpCode::OP_Jump_If_False:
+                return jumpInstruction("OP_Jump_If_False", chunk, offset);
+
+            case OpCode::OP_Long_Jump_If_False:
+                return longJumpInstruction("OP_Long_Jump_If_False", chunk, offset);
+
+            case OpCode::OP_Jump:
+                return jumpInstruction("OP_Jump", chunk, offset);
+
+            case OpCode::OP_Long_Jump:
+                return longJumpInstruction("OP_Long_Jump", chunk, offset);
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
