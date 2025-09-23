@@ -179,14 +179,127 @@ namespace pg
     {
         Token operatorToken = parser.previousToken;
 
-        // Parse the operand at unary precedence
-        parser.parsePrecedence(chunk, Precedence::UNARY);
+        // Check if next token is a variable (expression/identifier)
+        if (parser.check(TokenType::EXPRESSION))
+        {
+            // Prefix decrement: --var
+            parser.advance(); // consume the identifier
+            Token varToken = parser.previousToken;
+            auto varName = varToken.text;
 
-        // For now, treat DECREMENT as double unary minus (--5 becomes -(-5) = 5)
-        // This handles the literal case like --5
-        // TODO: Add proper variable decrement support when variables are fully implemented
-        chunk.addCode(OpCode::OP_Negate, operatorToken.line);
-        chunk.addCode(OpCode::OP_Negate, operatorToken.line);
+            OpCode setOp, getOp;
+            ElementType identifier;
+            int arg = parser.compiler->resolveLocal(chunk, varToken);
+
+            if (arg != -1)
+            {
+                // Local variable
+                setOp = OpCode::OP_Set_Local;
+                getOp = OpCode::OP_Get_Local;
+                identifier = ElementType(arg);
+            }
+            else
+            {
+                // Global variable
+                setOp = OpCode::OP_Set_Global;
+                getOp = OpCode::OP_Get_Global;
+                identifier = ElementType(varName);
+            }
+
+            // Prefix decrement: --var (modify variable, return new value)
+            parser.writeConstant(chunk, identifier);          // Push identifier [id]
+            parser.writeConstant(chunk, identifier);          // Push identifier again [id, id]
+            parser.writeByte(chunk, getOp);                   // Get current value [id, value]
+            parser.writeConstant(chunk, ElementType(1));      // Push 1 [id, value, 1]
+            parser.writeByte(chunk, OpCode::OP_Subtract);     // Subtract 1 [id, new_value]
+            parser.writeByte(chunk, setOp);                   // Store new value (leaves value on stack)
+        }
+        else
+        {
+            // Parse the operand at unary precedence (for literals like --5)
+            parser.parsePrecedence(chunk, Precedence::UNARY);
+
+            // Treat DECREMENT as double unary minus (--5 becomes -(-5) = 5)
+            chunk.addCode(OpCode::OP_Negate, operatorToken.line);
+            chunk.addCode(OpCode::OP_Negate, operatorToken.line);
+        }
+    }
+
+    void incrementOp(Chunk& chunk, Parser& parser, bool)
+    {
+        Token operatorToken = parser.previousToken;
+
+        // Check if next token is a variable (expression/identifier)
+        if (parser.check(TokenType::EXPRESSION))
+        {
+            // Prefix increment: ++var
+            parser.advance(); // consume the identifier
+            Token varToken = parser.previousToken;
+            auto varName = varToken.text;
+
+            OpCode setOp, getOp;
+            ElementType identifier;
+            int arg = parser.compiler->resolveLocal(chunk, varToken);
+
+            if (arg != -1)
+            {
+                // Local variable
+                setOp = OpCode::OP_Set_Local;
+                getOp = OpCode::OP_Get_Local;
+                identifier = ElementType(arg);
+            }
+            else
+            {
+                // Global variable
+                setOp = OpCode::OP_Set_Global;
+                getOp = OpCode::OP_Get_Global;
+                identifier = ElementType(varName);
+            }
+
+            // Prefix increment: ++var (modify variable, return new value)
+            parser.writeConstant(chunk, identifier);          // Push identifier [id]
+            parser.writeConstant(chunk, identifier);          // Push identifier again [id, id]
+            parser.writeByte(chunk, getOp);                   // Get current value [id, value]
+            parser.writeConstant(chunk, ElementType(1));      // Push 1 [id, value, 1]
+            parser.writeByte(chunk, OpCode::OP_Add);          // Add 1 [id, new_value]
+            parser.writeByte(chunk, setOp);                   // Store new value (leaves value on stack)
+        }
+        else
+        {
+            // Parse the operand at unary precedence (for literals like ++5)
+            parser.parsePrecedence(chunk, Precedence::UNARY);
+
+            // For literals, ++5 doesn't make much sense, but we can treat it as +(+5) = 5
+            // This is a no-op for numbers
+        }
+    }
+
+    void postfixIncrementOp(Chunk& chunk, Parser& parser, bool)
+    {
+        Token operatorToken = parser.previousToken;
+        // The variable has already been parsed and its value is on the stack
+
+        // For postfix increment: var++ (return old value, modify variable)
+        // Stack currently has the old value
+        // We need to: return old value, but also increment the variable
+
+        // This is complex without DUP. For now, let's implement basic postfix
+        // TODO: Implement proper postfix semantics with stack manipulation
+        parser.errorAt(operatorToken, "Postfix increment not yet implemented");
+    }
+
+    void postfixDecrementOp(Chunk& chunk, Parser& parser, bool)
+    {
+        Token operatorToken = parser.previousToken;
+        // The variable has already been parsed and its value is on the stack
+
+        // For postfix decrement: var-- (return old value, modify variable)
+        // Stack currently has the old value
+        // We need to: return old value, but also decrement the variable
+
+        // This is complex without DUP. For now, let's implement basic postfix
+        // TODO: Implement proper postfix semantics with stack manipulation
+        parser.errorAt(operatorToken, "Postfix decrement not yet implemented");
     }
 
     std::unordered_map<TokenType, ParseRule> rules = {
@@ -226,8 +339,8 @@ namespace pg
         {TokenType::MODEQUAL,     {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SUPEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::INFEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
-        {TokenType::INCREMENT,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::DECREMENT,    {decrementOp, NULL,   Precedence::UNARY}},
+        {TokenType::INCREMENT,    {incrementOp, postfixIncrementOp, Precedence::POSTFIX}},
+        {TokenType::DECREMENT,    {decrementOp, postfixDecrementOp, Precedence::POSTFIX}},
         {TokenType::LOGICAND,     {NULL,        andOp,  Precedence::AND}},
         {TokenType::LOGICOR,      {NULL,        orOp,   Precedence::OR}},
         {TokenType::SHIFTLEFT,    {NULL,        NULL,   Precedence::NONE}},
