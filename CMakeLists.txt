@@ -738,6 +738,11 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_parser.cc
             test/pgcompiler/unit/test_compiler.cc
             test/pgcompiler/unit/test_compiler_debug.cc
+
+            test/pgcompiler/unit/test_long_jump_optimization.cc
+            test/pgcompiler/unit/test_long_jump_optimization_integration.cc
+            test/pgcompiler/unit/test_long_jump_edge_cases.cc
+
             test/pgcompiler/integration/test_compilation_pipeline.cc
             test/pgcompiler/integration/test_error_handling.cc
             test/pgcompiler/integration/test_language_features.cc
@@ -754,6 +759,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PgCompiler/compiler.cpp
             exemples/PgCompiler/parser.cpp
             exemples/PgCompiler/compiler_debug.cpp
+            exemples/PgCompiler/bytecode_pass.cpp
+
+            exemples/PgCompiler/long_jump_optimization_pass.cpp
         )
 
         # Create the compiler test executable
