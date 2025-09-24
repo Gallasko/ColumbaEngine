@@ -31,6 +31,19 @@ namespace pg
 #endif
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
+        // Apply bytecode optimizations
+        if (enableOptimizations && !chunk.code.empty()) {
+            LOG_INFO("VM", "Applying bytecode optimizations");
+            size_t originalSize = chunk.code.size();
+            
+            passManager.runAllPasses(chunk);
+            
+            size_t optimizedSize = chunk.code.size();
+            if (optimizedSize != originalSize) {
+                LOG_INFO("VM", "Optimization changed bytecode size from " << 
+                         originalSize << " to " << optimizedSize << " bytes");
+            }
+        }
 
         this->chunk = chunk;
         ip = 0;
