@@ -44,30 +44,22 @@ namespace pg {
                 break;
             }
             
-            // Calculate the correct jump distance for the short jump
-            size_t jumpFromPosition = jump.instructionOffset + 3;  // Short jump will be 3 bytes
-            uint16_t shortDistance;
-            
-            if (jump.opcode == OpCode::OP_Long_Loop) {
-                // Backward jump
-                shortDistance = static_cast<uint16_t>(jumpFromPosition - jump.targetOffset);
-            } else {
-                // Forward jump  
-                shortDistance = static_cast<uint16_t>(jump.targetOffset - jumpFromPosition);
-            }
+            // Use the same jump distance as the original instruction
+            // The BytecodeRewriter will automatically adjust for size changes
+            uint16_t shortDistance = static_cast<uint16_t>(jump.jumpDistance);
             
             // Create the complete short jump instruction: opcode + high byte + low byte
             uint8_t highByte = static_cast<uint8_t>(shortDistance >> 8);
             uint8_t lowByte = static_cast<uint8_t>(shortDistance & 0xFF);
             
             // Use rewriter to replace long jump (5 bytes) with short jump (3 bytes)
-            // Cast the byte values to OpCode for the rewriter interface
-            bool success = rewriter->rewriteAt(chunk, jump.instructionOffset, 5, 
-                                             {shortOpcode, static_cast<OpCode>(highByte), static_cast<OpCode>(lowByte)});
+            // Use the raw interface to pass complete instruction bytes
+            bool success = rewriter->rewriteAtRaw(chunk, jump.instructionOffset, 5, 
+                                                {static_cast<uint8_t>(shortOpcode), highByte, lowByte});
             
             if (success) {
                 LOG_INFO("LongJumpOptimization", "Optimized long jump at offset " << jump.instructionOffset 
-                         << " (target: " << jump.targetOffset << ", distance: " << shortDistance << ")");
+                         << " (distance: " << shortDistance << ")");
                 globalChanged = true;
             } else {
                 LOG_WARNING("LongJumpOptimization", "Failed to optimize jump at offset " << jump.instructionOffset);
