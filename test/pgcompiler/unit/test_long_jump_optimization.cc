@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "compiler_test_base.h"
 #include "long_jump_optimization_pass.h"
+#include "bytecode_rewriter.h"
 #include "compiler_debug.h"
 #include <memory>
 
@@ -12,9 +13,11 @@ protected:
     void SetUp() override {
         CompilerTestBase::SetUp();
         pass = std::make_unique<LongJumpOptimizationPass>();
+        rewriter = std::make_unique<BytecodeRewriter>();
     }
     
     std::unique_ptr<LongJumpOptimizationPass> pass;
+    std::unique_ptr<BytecodeRewriter> rewriter;
     
     // Helper to manually construct a chunk with specific jump patterns
     Chunk createChunkWithLongJump(OpCode jumpOpcode, uint32_t distance) {
@@ -89,7 +92,7 @@ TEST_F(LongJumpOptimizationTest, BasicForwardJumpOptimization) {
     std::cout << "\n=== BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -115,7 +118,7 @@ TEST_F(LongJumpOptimizationTest, ConditionalJumpOptimization) {
     std::cout << "\n=== CONDITIONAL JUMP BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== CONDITIONAL JUMP AFTER OPTIMIZATION ===" << std::endl;  
     disassembleChunk(chunk, "After optimization");
@@ -158,7 +161,7 @@ TEST_F(LongJumpOptimizationTest, LoopJumpOptimization) {
     std::cout << "\n=== LOOP JUMP BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== LOOP JUMP AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -184,7 +187,7 @@ TEST_F(LongJumpOptimizationTest, ComplexNestedControlFlow) {
     disassembleChunk(chunk, "Before optimization");
     
     size_t originalSize = chunk.code.size();
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== COMPLEX CONTROL FLOW AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -206,7 +209,7 @@ TEST_F(LongJumpOptimizationTest, JumpTooLargeForOptimization) {
     std::cout << "\n=== LARGE JUMP BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== LARGE JUMP AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -252,7 +255,7 @@ TEST_F(LongJumpOptimizationTest, MultipleJumpsAffectingEachOther) {
     disassembleChunk(chunk, "Before optimization");
     
     // Should handle multiple passes correctly
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== MULTIPLE JUMPS AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -269,7 +272,7 @@ TEST_F(LongJumpOptimizationTest, EmptyChunk) {
     // Test empty chunk (edge case)
     Chunk chunk;
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     EXPECT_FALSE(changed) << "Empty chunk should not be modified";
     EXPECT_EQ(chunk.code.size(), 0) << "Empty chunk should remain empty";
@@ -283,7 +286,7 @@ TEST_F(LongJumpOptimizationTest, ChunkWithNoJumps) {
     chunk.addCode(OpCode::OP_Add, 1);
     chunk.addCode(OpCode::OP_Return, 1);
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     EXPECT_FALSE(changed) << "Chunk with no jumps should not be modified";
     EXPECT_EQ(chunk.code.size(), 4) << "Chunk size should remain unchanged";

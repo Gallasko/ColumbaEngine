@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "compiler_test_base.h"
 #include "long_jump_optimization_pass.h"
+#include "bytecode_rewriter.h"
 #include "compiler_debug.h"
 #include <memory>
 
@@ -12,9 +13,11 @@ protected:
     void SetUp() override {
         CompilerTestBase::SetUp();
         pass = std::make_unique<LongJumpOptimizationPass>();
+        rewriter = std::make_unique<BytecodeRewriter>();
     }
     
     std::unique_ptr<LongJumpOptimizationPass> pass;
+    std::unique_ptr<BytecodeRewriter> rewriter;
     
     // Test the exact failing scenario from the user's report
     void testUserFailingScenario() {
@@ -36,7 +39,7 @@ protected:
         disassembleChunk(chunk, "Before optimization");
         
         // This should NOT crash or produce invalid bytecode
-        bool changed = pass->runPass(chunk);
+        bool changed = pass->runPass(chunk, rewriter.get());
         
         std::cout << "\n=== USER FAILING SCENARIO AFTER OPTIMIZATION ===" << std::endl;
         disassembleChunk(chunk, "After optimization");
@@ -94,7 +97,7 @@ TEST_F(LongJumpEdgeCasesTest, BackwardJumpWithMultipleOptimizations) {
     std::cout << "\n=== BACKWARD JUMP SCENARIO BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== BACKWARD JUMP SCENARIO AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -141,7 +144,7 @@ TEST_F(LongJumpEdgeCasesTest, JumpToEndOfChunk) {
     std::cout << "\n=== JUMP TO END BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== JUMP TO END AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -176,7 +179,7 @@ TEST_F(LongJumpEdgeCasesTest, JumpToFirstInstruction) {
     std::cout << "\n=== JUMP TO START BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== JUMP TO START AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -197,7 +200,7 @@ TEST_F(LongJumpEdgeCasesTest, ZeroDistanceJump) {
     std::cout << "\n=== ZERO DISTANCE JUMP BEFORE OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "Before optimization");
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== ZERO DISTANCE JUMP AFTER OPTIMIZATION ===" << std::endl;
     disassembleChunk(chunk, "After optimization");
@@ -238,7 +241,7 @@ TEST_F(LongJumpEdgeCasesTest, MaximumShortJumpDistance) {
     std::cout << "\n=== MAXIMUM SHORT JUMP BEFORE OPTIMIZATION ===" << std::endl;
     std::cout << "Jump distance: " << maxShortDistance << std::endl;
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== MAXIMUM SHORT JUMP AFTER OPTIMIZATION ===" << std::endl;
     
@@ -278,7 +281,7 @@ TEST_F(LongJumpEdgeCasesTest, JustOverShortJumpLimit) {
     std::cout << "\n=== OVER SHORT JUMP LIMIT BEFORE OPTIMIZATION ===" << std::endl;
     std::cout << "Jump distance: " << overShortDistance << std::endl;
     
-    bool changed = pass->runPass(chunk);
+    bool changed = pass->runPass(chunk, rewriter.get());
     
     std::cout << "\n=== OVER SHORT JUMP LIMIT AFTER OPTIMIZATION ===" << std::endl;
     
