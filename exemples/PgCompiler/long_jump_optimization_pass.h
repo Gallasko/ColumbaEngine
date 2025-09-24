@@ -42,6 +42,12 @@ namespace pg {
         // Phase 4: Recalculate all jump offsets after size changes
         void recalculateJumpOffsets(Chunk& chunk);
         
+        // Single jump optimization (used in two-pass approach)
+        bool optimizeSingleJump(Chunk& chunk, const JumpInfo& jump);
+        
+        // Update forward jump distances after backward jump optimizations
+        void updateForwardJumpDistances(Chunk& chunk, int bytesRemovedFromBackwardOptimizations);
+        
         // Helper methods
         uint32_t extractLongJumpOffset(const Chunk& chunk, size_t offset);
         uint16_t extractShortJumpOffset(const Chunk& chunk, size_t offset);

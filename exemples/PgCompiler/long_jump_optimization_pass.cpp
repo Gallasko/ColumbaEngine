@@ -110,70 +110,127 @@ namespace pg {
 
     bool LongJumpOptimizationPass::applyOptimizations(Chunk& chunk, const std::vector<JumpInfo>& jumps) {
         bool changed = false;
-        std::vector<int> sizeDeltas; // Track size changes at each position
-        sizeDeltas.resize(chunk.code.size(), 0);
+        int totalBytesRemoved = 0;
         
-        // Process in reverse order to maintain offset validity
-        for (auto it = jumps.rbegin(); it != jumps.rend(); ++it) {
-            const auto& jump = *it;
-            
-            if (!jump.canOptimize) continue;
-            
-            // Convert long jump to short jump
-            OpCode shortOpcode = getShortJumpEquivalent(jump.opcode);
-            if (shortOpcode == jump.opcode) {
-                LOG_ERROR("LongJumpOptimization", "Failed to find short jump equivalent for opcode");
-                continue;
+        // Separate forward and backward jumps
+        std::vector<JumpInfo> forwardJumps;
+        std::vector<JumpInfo> backwardJumps;
+        
+        for (const auto& jump : jumps) {
+            if (jump.canOptimize) {
+                if (jump.opcode == OpCode::OP_Long_Loop) {
+                    backwardJumps.push_back(jump);
+                } else {
+                    forwardJumps.push_back(jump);
+                }
             }
-            
-            size_t oldSize = getInstructionSize(jump.opcode); // 5 bytes
-            size_t newSize = getInstructionSize(shortOpcode);  // 3 bytes
-            int sizeDelta = static_cast<int>(newSize) - static_cast<int>(oldSize); // -2
-            
-            // Replace the instruction
-            chunk.code[jump.instructionOffset] = static_cast<uint8_t>(shortOpcode);
-            
-            // Recalculate the jump distance accounting for all previous size changes
-            uint32_t originalDistance = jump.jumpDistance;
-            int cumulativeDelta = 0;
-            
-            // Sum up all size changes between this jump and its target
-            size_t startPos = jump.instructionOffset + oldSize;
-            size_t endPos = jump.instructionOffset + oldSize + originalDistance;
-            
-            for (size_t i = startPos; i < endPos && i < sizeDeltas.size(); ++i) {
-                cumulativeDelta += sizeDeltas[i];
-            }
-            
-            // Adjust the jump distance
-            int32_t adjustedDistance = static_cast<int32_t>(originalDistance) + cumulativeDelta;
-            if (adjustedDistance < 0) {
-                LOG_WARNING("LongJumpOptimization", "Adjusted jump distance became negative, skipping optimization");
-                continue;
-            }
-            
-            uint16_t shortDistance = static_cast<uint16_t>(adjustedDistance);
-            writeShortJumpOffset(chunk, jump.instructionOffset, shortDistance);
-            
-            // Remove the extra 2 bytes
-            chunk.code.erase(chunk.code.begin() + jump.instructionOffset + newSize,
-                            chunk.code.begin() + jump.instructionOffset + oldSize);
-            
-            // Also remove corresponding line numbers
-            if (jump.instructionOffset + oldSize <= chunk.lines.size()) {
-                chunk.lines.erase(chunk.lines.begin() + jump.instructionOffset + newSize,
-                                 chunk.lines.begin() + jump.instructionOffset + oldSize);
-            }
-            
-            // Record size change for future jumps
-            if (jump.instructionOffset < sizeDeltas.size()) {
-                sizeDeltas[jump.instructionOffset] = sizeDelta;
-            }
-            
-            changed = true;
         }
         
+        // Pass 1: Optimize forward jumps (in reverse order to maintain offsets)
+        LOG_INFO("LongJumpOptimization", "Pass 1: Optimizing " << forwardJumps.size() << " forward jumps");
+        for (auto it = forwardJumps.rbegin(); it != forwardJumps.rend(); ++it) {
+            if (optimizeSingleJump(chunk, *it)) {
+                totalBytesRemoved += 2; // Each optimization saves 2 bytes (5->3)
+                changed = true;
+            }
+        }
+        
+        // Pass 2: Optimize backward jumps with position adjustment  
+        LOG_INFO("LongJumpOptimization", "Pass 2: Optimizing " << backwardJumps.size() << 
+                 " backward jumps (total offset: -" << totalBytesRemoved << " bytes)");
+        
+        int pass2BytesRemoved = 0; // Track bytes removed in pass 2
+        
+        for (auto it = backwardJumps.rbegin(); it != backwardJumps.rend(); ++it) {
+            const auto& originalJump = *it;
+            
+            // Adjust the jump position based on bytes removed in pass 1
+            JumpInfo adjustedJump = originalJump;
+            if (adjustedJump.instructionOffset >= totalBytesRemoved) {
+                adjustedJump.instructionOffset -= totalBytesRemoved;
+            }
+            
+            // Calculate new distance to original target
+            size_t originalEndPos = originalJump.instructionOffset + 5; // Original long jump end
+            size_t originalTarget = originalEndPos - originalJump.jumpDistance;
+            size_t newEndPos = adjustedJump.instructionOffset + 3; // New short jump end
+            
+            if (newEndPos > originalTarget) {
+                uint32_t newDistance = newEndPos - originalTarget;
+                if (newDistance <= 65535) { // Still fits in short jump
+                    adjustedJump.jumpDistance = newDistance;
+                    
+                    if (optimizeSingleJump(chunk, adjustedJump)) {
+                        pass2BytesRemoved += 2;
+                        totalBytesRemoved += 2;
+                        changed = true;
+                    }
+                }
+            }
+        }
+        
+        // Pass 3: Update forward jump distances affected by pass 2 optimizations
+        if (pass2BytesRemoved > 0) {
+            LOG_INFO("LongJumpOptimization", "Pass 3: Updating forward jump distances affected by " << 
+                     pass2BytesRemoved << " bytes removed in pass 2");
+            updateForwardJumpDistances(chunk, pass2BytesRemoved);
+        }
+        
+        LOG_INFO("LongJumpOptimization", "Total bytes saved: " << totalBytesRemoved);
         return changed;
+    }
+    
+    bool LongJumpOptimizationPass::optimizeSingleJump(Chunk& chunk, const JumpInfo& jump) {
+        // Convert long jump to short jump
+        OpCode shortOpcode = getShortJumpEquivalent(jump.opcode);
+        if (shortOpcode == jump.opcode) {
+            LOG_ERROR("LongJumpOptimization", "Failed to find short jump equivalent for opcode");
+            return false;
+        }
+        
+        size_t oldSize = getInstructionSize(jump.opcode); // 5 bytes
+        size_t newSize = getInstructionSize(shortOpcode);  // 3 bytes
+        
+        // Replace the instruction
+        chunk.code[jump.instructionOffset] = static_cast<uint8_t>(shortOpcode);
+        
+        // Use the pre-calculated distance from the jump info
+        uint32_t newDistance = jump.jumpDistance;
+        
+        if (jump.opcode == OpCode::OP_Long_Loop) {
+            // For backward jumps, the distance has been pre-calculated in applyOptimizations
+            // No additional adjustment needed
+        } else {
+            // For forward jumps: distance stays the same (target position unchanged relative to end of instruction)  
+            // No adjustment needed
+        }
+        
+        if (newDistance > 65535) {
+            LOG_WARNING("LongJumpOptimization", "Jump distance too large for short jump, reverting");
+            // Revert the opcode change
+            chunk.code[jump.instructionOffset] = static_cast<uint8_t>(jump.opcode);
+            return false;
+        }
+        
+        uint16_t shortDistance = static_cast<uint16_t>(newDistance);
+        writeShortJumpOffset(chunk, jump.instructionOffset, shortDistance);
+        
+        // Remove the extra 2 bytes
+        chunk.code.erase(chunk.code.begin() + jump.instructionOffset + newSize,
+                        chunk.code.begin() + jump.instructionOffset + oldSize);
+        
+        // Also remove corresponding line numbers
+        if (jump.instructionOffset + oldSize <= chunk.lines.size()) {
+            chunk.lines.erase(chunk.lines.begin() + jump.instructionOffset + newSize,
+                             chunk.lines.begin() + jump.instructionOffset + oldSize);
+        }
+        
+        LOG_INFO("LongJumpOptimization", "Optimized " << 
+                (jump.opcode == OpCode::OP_Long_Loop ? "backward" : "forward") <<
+                " jump at offset " << jump.instructionOffset << 
+                " (distance " << newDistance << " -> " << shortDistance << ")");
+        
+        return true;
     }
 
     void LongJumpOptimizationPass::recalculateJumpOffsets(Chunk& chunk) {
@@ -215,6 +272,69 @@ namespace pg {
         LOG_INFO("LongJumpOptimization", "Jump offset verification completed");
     }
 
+    void LongJumpOptimizationPass::updateForwardJumpDistances(Chunk& chunk, int bytesRemovedFromBackwardOptimizations) {
+        // After optimizations, ALL forward jumps may have incorrect targets
+        // because optimizations have shifted bytecode positions
+        
+        for (size_t i = 0; i < chunk.code.size();) {
+            OpCode opcode = static_cast<OpCode>(chunk.code[i]);
+            
+            // Handle both short and long forward jumps (but not backward loops)
+            if ((isShortJumpInstruction(opcode) && opcode != OpCode::OP_Loop) || 
+                (isLongJumpInstruction(opcode) && opcode != OpCode::OP_Long_Loop)) {
+                
+                uint32_t currentDistance;
+                size_t instructionEnd;
+                
+                if (isLongJumpInstruction(opcode)) {
+                    currentDistance = extractLongJumpOffset(chunk, i);
+                    instructionEnd = i + 5;
+                } else {
+                    currentDistance = extractShortJumpOffset(chunk, i);
+                    instructionEnd = i + 3;
+                }
+                
+                size_t currentTarget = instructionEnd + currentDistance;
+                
+                // Check if target is valid after all optimizations
+                if (currentTarget >= chunk.code.size()) {
+                    LOG_WARNING("LongJumpOptimization", "Forward jump at offset " << i << 
+                               " has invalid target " << currentTarget << " (chunk size: " << chunk.code.size() << ")");
+                    
+                    // For jumps that go beyond the chunk, point them to the end (for exit behavior)
+                    size_t newTarget = chunk.code.size();
+                    if (newTarget > instructionEnd) {
+                        uint32_t newDistance = newTarget - instructionEnd;
+                        
+                        if (isLongJumpInstruction(opcode)) {
+                            writeLongJumpOffset(chunk, i, newDistance);
+                            LOG_INFO("LongJumpOptimization", "Adjusted long jump distance from " << 
+                                    currentDistance << " to " << newDistance);
+                        } else {
+                            if (newDistance <= 65535) {
+                                uint16_t shortDistance = static_cast<uint16_t>(newDistance);
+                                writeShortJumpOffset(chunk, i, shortDistance);
+                                LOG_INFO("LongJumpOptimization", "Adjusted short jump distance from " << 
+                                        currentDistance << " to " << shortDistance);
+                            } else {
+                                LOG_ERROR("LongJumpOptimization", "Cannot fix short jump - new distance too large: " << newDistance);
+                            }
+                        }
+                    } else {
+                        LOG_ERROR("LongJumpOptimization", "Cannot fix jump - target would be negative");
+                    }
+                } else {
+                    LOG_INFO("LongJumpOptimization", "Forward jump at offset " << i << 
+                             " verified (distance=" << currentDistance << ", target=" << currentTarget << ")");
+                }
+            }
+            
+            i += getInstructionSize(opcode);
+        }
+        
+        LOG_INFO("LongJumpOptimization", "Forward jump distance update completed");
+    }
+
     // Helper method implementations
     uint32_t LongJumpOptimizationPass::extractLongJumpOffset(const Chunk& chunk, size_t offset) {
         if (offset + 4 >= chunk.code.size()) {
@@ -240,6 +360,15 @@ namespace pg {
         if (offset + 2 < chunk.code.size()) {
             chunk.code[offset + 1] = (jumpOffset >> 8) & 0xFF;
             chunk.code[offset + 2] = jumpOffset & 0xFF;
+        }
+    }
+
+    void LongJumpOptimizationPass::writeLongJumpOffset(Chunk& chunk, size_t offset, uint32_t jumpOffset) {
+        if (offset + 4 < chunk.code.size()) {
+            chunk.code[offset + 1] = (jumpOffset >> 24) & 0xFF;
+            chunk.code[offset + 2] = (jumpOffset >> 16) & 0xFF;
+            chunk.code[offset + 3] = (jumpOffset >> 8) & 0xFF;
+            chunk.code[offset + 4] = jumpOffset & 0xFF;
         }
     }
 
