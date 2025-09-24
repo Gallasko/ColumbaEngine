@@ -8,6 +8,8 @@
 
 #include "logger.h"
 
+#include "bytecode_pass.h"
+
 #include <stack>
 #include <functional>
 
@@ -182,6 +184,37 @@ namespace pg
         
         // Test output buffer for __dprint (used in tests)
         std::string testOutput;
+        
+        // Bytecode optimization
+        PassManager passManager;
+        bool enableOptimizations = true;
+        
+        // Optimization control methods
+        void enableBytecodeOptimization() { 
+            enableOptimizations = true; 
+            LOG_INFO("VM", "Bytecode optimization enabled");
+        }
+        
+        void disableBytecodeOptimization() { 
+            enableOptimizations = false; 
+            LOG_INFO("VM", "Bytecode optimization disabled");
+        }
+        
+        void enableOptimizationDebugging() { 
+            passManager.setDebugOutput(true); 
+        }
+        
+        void disableOptimizationDebugging() { 
+            passManager.setDebugOutput(false); 
+        }
+        
+        void listOptimizationPasses() const {
+            passManager.listPasses();
+        }
+        
+        void addOptimizationPass(std::unique_ptr<BytecodePass> pass) {
+            passManager.addPass(std::move(pass));
+        }
     };
 
 }

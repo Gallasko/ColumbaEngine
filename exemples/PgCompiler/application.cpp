@@ -54,6 +54,8 @@ void CompilerApp::runREPL()
 
     VM vm;
 
+    vm.enableOptimizationDebugging();
+
     while (std::getline(std::cin, line))
     {
         if (line == "exit")
@@ -72,6 +74,7 @@ void CompilerApp::runREPL()
         if (!line.empty()) {
             // Here you would compile and execute the input
             std::cout << "Compiling: " << input << std::endl;
+            vm.listOptimizationPasses();
             vm.interpretFromText(input);
 
             input.clear(); // Reset for next input

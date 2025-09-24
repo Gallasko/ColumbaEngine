@@ -665,6 +665,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PgCompiler/vm.cpp
             exemples/PgCompiler/compiler.cpp
             exemples/PgCompiler/parser.cpp
+            exemples/PgCompiler/bytecode_pass.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
@@ -727,18 +728,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # ===============================================
         # COMPILER TEST TARGET (separate from main tests)
         # ===============================================
-        
+
         # Compiler test sources
         set(COMPILER_TEST_SOURCES
             test/pgcompiler/unit/test_chunk.cc
-            test/pgcompiler/unit/test_vm.cc  
+            test/pgcompiler/unit/test_vm.cc
             test/pgcompiler/unit/test_parser.cc
             test/pgcompiler/unit/test_compiler.cc
             test/pgcompiler/unit/test_compiler_debug.cc
             test/pgcompiler/integration/test_compilation_pipeline.cc
             test/pgcompiler/integration/test_error_handling.cc
             test/pgcompiler/integration/test_language_features.cc
-            
+
             # Test fixtures and helpers
             test/pgcompiler/fixtures/compiler_test_base.cpp
             test/pgcompiler/fixtures/vm_test_fixture.cpp
@@ -748,13 +749,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # PgCompiler source files (needed for testing)
         set(PGCOMPILER_SOURCES
             exemples/PgCompiler/vm.cpp
-            exemples/PgCompiler/compiler.cpp  
+            exemples/PgCompiler/compiler.cpp
             exemples/PgCompiler/parser.cpp
             exemples/PgCompiler/compiler_debug.cpp
         )
 
         # Create the compiler test executable
-        add_executable(test_compiler 
+        add_executable(test_compiler
             test/pgcompiler/main_compiler_test.cc
             ${COMPILER_TEST_SOURCES}
             ${PGCOMPILER_SOURCES}
@@ -771,9 +772,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         # Link libraries for compiler tests
-        target_link_libraries(test_compiler PRIVATE 
-            gtest 
-            gtest_main 
+        target_link_libraries(test_compiler PRIVATE
+            gtest
+            gtest_main
             ColumbaEngine
         )
 
