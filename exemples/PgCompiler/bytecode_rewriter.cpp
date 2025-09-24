@@ -80,7 +80,7 @@ namespace pg {
             insertPos++;
 
             // Add operand bytes for multi-byte instructions
-            size_t instSize = getInstructionSize(opcode);
+            size_t instSize = pg::getInstructionSize(opcode);
             for (size_t i = 1; i < instSize; ++i) {
                 chunk.code.insert(chunk.code.begin() + insertPos, 0); // Placeholder for operand
                 chunk.lines.insert(chunk.lines.begin() + insertPos, line);
@@ -189,7 +189,7 @@ namespace pg {
             }
 
             if (!foundMatch) {
-                i += getInstructionSize(static_cast<OpCode>(chunk.code[i]));
+                i += pg::getInstructionSize(static_cast<OpCode>(chunk.code[i]));
             }
         }
 
@@ -216,7 +216,7 @@ namespace pg {
                 return false;
             }
 
-            currentOffset += getInstructionSize(expectedOpcode);
+            currentOffset += pg::getInstructionSize(expectedOpcode);
         }
 
         return true;
@@ -240,7 +240,7 @@ namespace pg {
             insertPos++;
 
             // Add operand bytes for multi-byte instructions
-            size_t instSize = getInstructionSize(opcode);
+            size_t instSize = pg::getInstructionSize(opcode);
             for (size_t i = 1; i < instSize; ++i) {
                 chunk.code.insert(chunk.code.begin() + insertPos, 0); // Placeholder for operand
                 chunk.lines.insert(chunk.lines.begin() + insertPos, line);
@@ -251,32 +251,11 @@ namespace pg {
 
 
 
-    size_t BytecodeRewriter::getInstructionSize(OpCode opcode) const {
-        switch (opcode) {
-            // Long instructions: opcode + 4 bytes operand
-            case OpCode::OP_Long_Jump:
-            case OpCode::OP_Long_Jump_If_False:
-            case OpCode::OP_Long_Loop:
-            case OpCode::OP_LongConstant:
-                return 5;
-
-            // Short instructions: opcode + 2 bytes operand
-            case OpCode::OP_Jump:
-            case OpCode::OP_Jump_If_False:
-            case OpCode::OP_Loop:
-            case OpCode::OP_Constant:
-                return 3;
-
-            // Single byte instructions
-            default:
-                return 1;
-        }
-    }
 
     size_t BytecodeRewriter::getPatternByteSize(const std::vector<OpCode>& pattern) const {
         size_t totalSize = 0;
         for (OpCode opcode : pattern) {
-            totalSize += getInstructionSize(opcode);
+            totalSize += pg::getInstructionSize(opcode);
         }
         return totalSize;
     }
@@ -284,7 +263,7 @@ namespace pg {
     size_t BytecodeRewriter::getReplacementByteSize(const std::vector<OpCode>& replacement) const {
         size_t totalSize = 0;
         for (OpCode opcode : replacement) {
-            totalSize += getInstructionSize(opcode);
+            totalSize += pg::getInstructionSize(opcode);
         }
         return totalSize;
     }
@@ -430,7 +409,7 @@ namespace pg {
                 }
             }
 
-            i += getInstructionSize(opcode);
+            i += pg::getInstructionSize(opcode);
         }
 
         LOG_INFO("BytecodeRewriter", "Jump offset adjustment completed");

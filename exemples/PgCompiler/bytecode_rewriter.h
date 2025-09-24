@@ -41,9 +41,7 @@ namespace pg {
         void applyRewrite(Chunk& chunk, size_t offset, const RewriteRule& rule);
         
         void adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta);
-        
-        size_t getInstructionSize(OpCode opcode) const;
-        
+
         size_t getPatternByteSize(const std::vector<OpCode>& pattern) const;
         
         size_t getReplacementByteSize(const std::vector<OpCode>& replacement) const;

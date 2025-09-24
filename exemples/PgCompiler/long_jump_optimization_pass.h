@@ -37,7 +37,6 @@ namespace pg {
         uint32_t extractLongJumpOffset(const Chunk& chunk, size_t offset);
         OpCode getShortJumpEquivalent(OpCode longJump);
         bool isLongJumpInstruction(OpCode opcode);
-        size_t getInstructionSize(OpCode opcode);
         
         // Constants
         static constexpr uint32_t MAX_SHORT_JUMP_DISTANCE = 65535; // 16-bit max

@@ -57,10 +57,6 @@ namespace pg {
             }
         }
 
-        // Debug: Print final mapping
-        for (size_t i = 0; i < finalMapping.size(); ++i) {
-            LOG_INFO("ConstantUniformityPass", "Final mapping[" << i << "] -> " << finalMapping[i]);
-        }
 
         // Step 3: Update all constant references with final indices
         updateAllConstantReferences(chunk, finalMapping, rewriter);
@@ -124,11 +120,6 @@ namespace pg {
                     size_t newIndex = finalMapping[originalIndex];
                     // Always add to update list - we need to update ALL references to use final indices
                     constantRefs.push_back({codeOffset, opcode, originalIndex, newIndex});
-                    LOG_INFO("ConstantUniformityPass", "Collected OP_Constant at offset " << codeOffset
-                             << ": " << originalIndex << " -> " << newIndex);
-                } else {
-                    LOG_ERROR("ConstantUniformityPass", "OP_Constant at offset " << codeOffset
-                             << " has invalid index " << originalIndex);
                 }
                 codeOffset += 2;
 
@@ -147,10 +138,7 @@ namespace pg {
                 codeOffset += 4;
 
             } else {
-                size_t instructionSize = getInstructionSize(opcode);
-                LOG_INFO("ConstantUniformityPass", "Skipping opcode " << static_cast<int>(opcode)
-                         << " at offset " << codeOffset << " (size=" << instructionSize << ")");
-                codeOffset += instructionSize;
+                codeOffset += pg::getInstructionSize(opcode);
             }
         }
 
@@ -189,36 +177,6 @@ namespace pg {
     bool ConstantUniformityPass::areConstantsEqual(const ElementType& a, const ElementType& b) {
         // Use string representation for comparison as it handles all types uniformly
         return a.toString() == b.toString();
-    }
-
-    size_t ConstantUniformityPass::getInstructionSize(OpCode opcode) {
-        switch (opcode) {
-            case OpCode::OP_Constant:
-                return 2; // opcode + 1 byte operand
-
-            case OpCode::OP_Define_Global:
-            case OpCode::OP_Get_Global:
-            case OpCode::OP_Set_Global:
-            case OpCode::OP_Get_Local:
-            case OpCode::OP_Set_Local:
-                return 1; // opcode only, no operand
-
-            case OpCode::OP_LongConstant:
-                return 4; // opcode + 3 byte operand
-
-            case OpCode::OP_Jump_If_False:
-            case OpCode::OP_Jump:
-            case OpCode::OP_Loop:
-                return 3; // opcode + 2 byte operand
-
-            case OpCode::OP_Long_Jump_If_False:
-            case OpCode::OP_Long_Jump:
-            case OpCode::OP_Long_Loop:
-                return 5; // opcode + 4 byte operand
-
-            default:
-                return 1; // single byte instructions
-        }
     }
 
 }
