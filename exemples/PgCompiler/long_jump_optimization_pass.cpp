@@ -16,45 +16,74 @@ namespace pg {
         
         LOG_INFO("LongJumpOptimization", "Starting long jump optimization pass");
         
-        // Find all long jumps that can be optimized to short jumps
-        auto candidates = findOptimizableJumps(chunk);
+        bool globalChanged = false;
+        int iterationCount = 0;
+        const int maxIterations = 100; // Prevent infinite loops
         
-        if (candidates.empty()) {
-            LOG_INFO("LongJumpOptimization", "No long jumps can be optimized to short jumps");
-            return false;
-        }
-        
-        LOG_INFO("LongJumpOptimization", "Found " << candidates.size() << " long jumps that can be optimized");
-        
-        bool changed = false;
-        
-        // Process candidates in reverse order to maintain correct indices
-        for (auto it = candidates.rbegin(); it != candidates.rend(); ++it) {
-            const auto& jump = *it;
+        // Keep optimizing until no more changes are possible
+        while (iterationCount < maxIterations) {
+            iterationCount++;
+            
+            // Find optimizable jumps in the current state of the chunk
+            auto candidates = findOptimizableJumps(chunk);
+            
+            if (candidates.empty()) {
+                LOG_INFO("LongJumpOptimization", "No more long jumps can be optimized (iteration " << iterationCount << ")");
+                break;
+            }
+            
+            LOG_INFO("LongJumpOptimization", "Iteration " << iterationCount << ": Found " << candidates.size() << " optimizable jumps");
+            
+            // Optimize the first candidate (this maintains simpler logic)
+            const auto& jump = candidates[0];
             
             // Get the short jump equivalent
             OpCode shortOpcode = getShortJumpEquivalent(jump.opcode);
             if (shortOpcode == jump.opcode) {
                 LOG_WARNING("LongJumpOptimization", "No short equivalent found for opcode at offset " << jump.instructionOffset);
-                continue;
+                break;
             }
+            
+            // Calculate the correct jump distance for the short jump
+            size_t jumpFromPosition = jump.instructionOffset + 3;  // Short jump will be 3 bytes
+            uint16_t shortDistance;
+            
+            if (jump.opcode == OpCode::OP_Long_Loop) {
+                // Backward jump
+                shortDistance = static_cast<uint16_t>(jumpFromPosition - jump.targetOffset);
+            } else {
+                // Forward jump  
+                shortDistance = static_cast<uint16_t>(jump.targetOffset - jumpFromPosition);
+            }
+            
+            // Create the complete short jump instruction: opcode + high byte + low byte
+            uint8_t highByte = static_cast<uint8_t>(shortDistance >> 8);
+            uint8_t lowByte = static_cast<uint8_t>(shortDistance & 0xFF);
             
             // Use rewriter to replace long jump (5 bytes) with short jump (3 bytes)
-            bool success = rewriter->rewriteAt(chunk, jump.instructionOffset, 5, {shortOpcode});
+            // Cast the byte values to OpCode for the rewriter interface
+            bool success = rewriter->rewriteAt(chunk, jump.instructionOffset, 5, 
+                                             {shortOpcode, static_cast<OpCode>(highByte), static_cast<OpCode>(lowByte)});
             
             if (success) {
-                LOG_INFO("LongJumpOptimization", "Optimized long jump at offset " << jump.instructionOffset);
-                changed = true;
+                LOG_INFO("LongJumpOptimization", "Optimized long jump at offset " << jump.instructionOffset 
+                         << " (target: " << jump.targetOffset << ", distance: " << shortDistance << ")");
+                globalChanged = true;
             } else {
                 LOG_WARNING("LongJumpOptimization", "Failed to optimize jump at offset " << jump.instructionOffset);
+                break;
             }
         }
         
-        if (changed) {
-            LOG_INFO("LongJumpOptimization", "Successfully optimized " << candidates.size() << " long jumps");
+        if (iterationCount >= maxIterations) {
+            LOG_WARNING("LongJumpOptimization", "Reached maximum iterations, stopping optimization");
         }
         
-        return changed;
+        if (globalChanged) {
+            LOG_INFO("LongJumpOptimization", "Successfully completed optimization after " << iterationCount << " iterations");
+        }
+        
+        return globalChanged;
     }
     
     std::vector<JumpInfo> LongJumpOptimizationPass::findOptimizableJumps(const Chunk& chunk) {
