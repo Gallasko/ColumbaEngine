@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "compiler_test_base.h"
 #include "long_jump_optimization_pass.h"
+#include "bytecode_rewriter.h"
 #include "compiler_debug.h"
 #include "vm.h"
 #include <memory>
@@ -13,11 +14,13 @@ protected:
     void SetUp() override {
         CompilerTestBase::SetUp();
         pass = std::make_unique<LongJumpOptimizationPass>();
+        rewriter = std::make_unique<BytecodeRewriter>();
         vm = std::make_unique<VM>();
         vm->enableOptimizationDebugging();
     }
     
     std::unique_ptr<LongJumpOptimizationPass> pass;
+    std::unique_ptr<BytecodeRewriter> rewriter;
     std::unique_ptr<VM> vm;
     
     // Helper to test code compilation, optimization, and execution
@@ -33,7 +36,7 @@ protected:
         size_t originalSize = chunk.code.size();
         
         // Apply optimization
-        bool optimized = pass->runPass(chunk);
+        bool optimized = pass->runPass(chunk, rewriter.get());
         
         if (optimized) {
             std::cout << "\n=== AFTER OPTIMIZATION ===" << std::endl;
