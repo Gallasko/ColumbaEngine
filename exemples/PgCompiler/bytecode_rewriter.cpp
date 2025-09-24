@@ -90,10 +90,10 @@ namespace pg {
             lineIndex++;
         }
         
-        // Recalculate all jump offsets if size changed
+        // Adjust jump offsets if size changed
         if (sizeDelta != 0) {
-            LOG_INFO("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, recalculating all jump offsets");
-            recalculateAllJumpOffsets(chunk);
+            LOG_INFO("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
+            adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
         }
         
         LOG_INFO("BytecodeRewriter", "Direct rewrite completed successfully");
@@ -122,10 +122,10 @@ namespace pg {
                     LOG_INFO("BytecodeRewriter", "Applied rewrite at offset " << i << 
                              " (size change: " << sizeDelta << ")");
                     
-                    // Recalculate all jump offsets immediately if size changed
+                    // Adjust jump offsets immediately if size changed
                     if (sizeDelta != 0) {
-                        LOG_INFO("BytecodeRewriter", "Recalculating all jump offsets after size change");
-                        recalculateAllJumpOffsets(chunk);
+                        LOG_INFO("BytecodeRewriter", "Adjusting jump offsets after size change");
+                        adjustJumpOffsetsAfterRewrite(chunk, i, sizeDelta);
                     }
                     
                     foundMatch = true;
@@ -391,87 +391,68 @@ namespace pg {
         }
     }
     
-    void BytecodeRewriter::recalculateAllJumpOffsets(Chunk& chunk) {
-        LOG_INFO("BytecodeRewriter", "Recalculating all jump offsets in chunk");
+    void BytecodeRewriter::adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta) {
+        LOG_INFO("BytecodeRewriter", "Adjusting jump offsets: rewrite at " << rewriteIndex << ", delta=" << sizeDelta);
         
-        // Build a map of all jump instructions and their current targets
-        std::vector<std::pair<size_t, size_t>> jumpMappings; // (jump_pos, original_target_pos)
-        
-        // First pass: collect all jumps and calculate their intended targets
         for (size_t i = 0; i < chunk.code.size();) {
             OpCode opcode = static_cast<OpCode>(chunk.code[i]);
             
             if (isJumpInstruction(opcode)) {
-                size_t originalTarget = calculateJumpTarget(chunk, i, opcode);
-                jumpMappings.emplace_back(i, originalTarget);
+                size_t currentTarget = calculateJumpTarget(chunk, i, opcode);
+                bool needsAdjustment = false;
                 
-                LOG_INFO("BytecodeRewriter", "Found jump at " << i << " targeting " << originalTarget);
+                if (opcode == OpCode::OP_Loop || opcode == OpCode::OP_Long_Loop) {
+                    // Backward jump: if target is after rewrite point, adjust
+                    needsAdjustment = (currentTarget > rewriteIndex);
+                } else {
+                    // Forward jump: if target is after rewrite point, adjust
+                    needsAdjustment = (currentTarget > rewriteIndex);
+                }
+                
+                if (needsAdjustment) {
+                    // Get current distance and adjust it
+                    uint32_t currentDistance;
+                    if (isLongJumpInstruction(opcode)) {
+                        currentDistance = extractLongJumpOffset(chunk, i);
+                    } else {
+                        currentDistance = extractShortJumpOffset(chunk, i);
+                    }
+                    
+                    // Calculate new distance based on direction
+                    int newDistance;
+                    if (opcode == OpCode::OP_Loop || opcode == OpCode::OP_Long_Loop) {
+                        // Backward jump: target moved, so distance changes by -sizeDelta
+                        newDistance = static_cast<int>(currentDistance) - sizeDelta;
+                    } else {
+                        // Forward jump: target moved, so distance changes by +sizeDelta  
+                        newDistance = static_cast<int>(currentDistance) + sizeDelta;
+                    }
+                    
+                    if (newDistance < 0) {
+                        LOG_WARNING("BytecodeRewriter", "Jump distance became negative, setting to 0");
+                        newDistance = 0;
+                    }
+                    
+                    // Write adjusted distance - PRESERVE INSTRUCTION TYPE
+                    if (isLongJumpInstruction(opcode)) {
+                        writeLongJumpOffset(chunk, i, static_cast<uint32_t>(newDistance));
+                        LOG_INFO("BytecodeRewriter", "Adjusted long jump at " << i << " from " << currentDistance << " to " << newDistance);
+                    } else {
+                        if (newDistance <= 65535) {
+                            writeShortJumpOffset(chunk, i, static_cast<uint16_t>(newDistance));
+                            LOG_INFO("BytecodeRewriter", "Adjusted short jump at " << i << " from " << currentDistance << " to " << newDistance);
+                        } else {
+                            LOG_WARNING("BytecodeRewriter", "Short jump distance overflow: " << newDistance << " at position " << i << " - keeping original distance");
+                            // Keep original distance rather than converting to long jump
+                        }
+                    }
+                }
             }
             
             i += getInstructionSize(opcode);
         }
         
-        // Second pass: recalculate and write correct jump distances
-        for (const auto& mapping : jumpMappings) {
-            size_t jumpPos = mapping.first;
-            size_t targetPos = mapping.second;
-            
-            if (jumpPos >= chunk.code.size()) {
-                LOG_WARNING("BytecodeRewriter", "Jump position " << jumpPos << " out of bounds");
-                continue;
-            }
-            
-            OpCode jumpOpcode = static_cast<OpCode>(chunk.code[jumpPos]);
-            size_t instructionEnd;
-            
-            if (isLongJumpInstruction(jumpOpcode)) {
-                instructionEnd = jumpPos + 5;
-            } else {
-                instructionEnd = jumpPos + 3;
-            }
-            
-            // Clamp target to valid range
-            if (targetPos > chunk.code.size()) {
-                targetPos = chunk.code.size();
-                LOG_WARNING("BytecodeRewriter", "Clamping jump target to chunk end");
-            }
-            
-            uint32_t newDistance;
-            
-            if (jumpOpcode == OpCode::OP_Loop || jumpOpcode == OpCode::OP_Long_Loop) {
-                // Backward jump
-                if (targetPos <= instructionEnd) {
-                    newDistance = instructionEnd - targetPos;
-                } else {
-                    LOG_WARNING("BytecodeRewriter", "Invalid backward jump: target " << targetPos << " > instruction end " << instructionEnd);
-                    newDistance = 0;
-                }
-            } else {
-                // Forward jump
-                if (targetPos >= instructionEnd) {
-                    newDistance = targetPos - instructionEnd;
-                } else {
-                    LOG_WARNING("BytecodeRewriter", "Invalid forward jump: target " << targetPos << " < instruction end " << instructionEnd);
-                    newDistance = 0;
-                }
-            }
-            
-            // Write the corrected jump distance
-            if (isLongJumpInstruction(jumpOpcode)) {
-                writeLongJumpOffset(chunk, jumpPos, newDistance);
-                LOG_INFO("BytecodeRewriter", "Updated long jump at " << jumpPos << " to distance " << newDistance);
-            } else {
-                if (newDistance <= 65535) {
-                    writeShortJumpOffset(chunk, jumpPos, static_cast<uint16_t>(newDistance));
-                    LOG_INFO("BytecodeRewriter", "Updated short jump at " << jumpPos << " to distance " << newDistance);
-                } else {
-                    LOG_ERROR("BytecodeRewriter", "Short jump distance overflow: " << newDistance << " at position " << jumpPos);
-                    // Could convert to long jump here if needed
-                }
-            }
-        }
-        
-        LOG_INFO("BytecodeRewriter", "Completed recalculation of " << jumpMappings.size() << " jump instructions");
+        LOG_INFO("BytecodeRewriter", "Jump offset adjustment completed");
     }
 
 }
