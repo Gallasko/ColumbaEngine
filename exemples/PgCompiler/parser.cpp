@@ -575,6 +575,7 @@ namespace pg
     {
         while (not check(TokenType::BCLOSE) and not isAtEnd())
         {
+            skipEOL();
             declaration(chunk);
         }
 
