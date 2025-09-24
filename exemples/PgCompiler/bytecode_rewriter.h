@@ -2,8 +2,6 @@
 
 #include "chunk.h"
 #include <vector>
-#include <functional>
-#include <unordered_map>
 
 namespace pg {
 
@@ -15,22 +13,10 @@ namespace pg {
             : pattern(pat), replacement(repl) {}
     };
 
-    struct RewriteContext {
-        size_t matchOffset;
-        size_t patternSize;
-        size_t replacementSize;
-        std::vector<uint8_t> originalBytes;
-        std::vector<int> originalLines;
-        
-        int sizeDelta() const { 
-            return static_cast<int>(replacementSize) - static_cast<int>(patternSize); 
-        }
-    };
 
     class BytecodeRewriter {
     private:
         std::vector<RewriteRule> rules;
-        std::unordered_map<size_t, int> offsetAdjustments;
         
     public:
         void addRule(const std::vector<OpCode>& pattern, const std::vector<OpCode>& replacement);
@@ -52,11 +38,7 @@ namespace pg {
         
         void applyRewrite(Chunk& chunk, size_t offset, const RewriteRule& rule);
         
-        void adjustJumpOffsets(Chunk& chunk, const std::vector<RewriteContext>& contexts);
-        
         void adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta);
-        
-        void adjustSingleJump(Chunk& chunk, size_t jumpOffset, OpCode jumpOpcode, int totalAdjustment);
         
         size_t getInstructionSize(OpCode opcode) const;
         
