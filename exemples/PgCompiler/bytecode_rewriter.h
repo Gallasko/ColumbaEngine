@@ -27,6 +27,8 @@ namespace pg {
         
         bool rewriteAt(Chunk& chunk, size_t index, size_t size, const std::vector<OpCode>& replacement);
         
+        bool rewriteAtRaw(Chunk& chunk, size_t index, size_t size, const std::vector<uint8_t>& replacement);
+        
         void clearRules();
         
         size_t getRuleCount() const { return rules.size(); }

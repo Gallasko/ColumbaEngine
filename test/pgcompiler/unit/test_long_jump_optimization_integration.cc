@@ -252,5 +252,13 @@ TEST_F(LongJumpOptimizationIntegrationTest, OptimizedCodeProducesCorrectResult) 
     EXPECT_EQ(optimizedResult, InterpretResult::OK);
 }
 
+TEST_F(LongJumpOptimizationIntegrationTest, WhileLoopWithPrintStatements) {
+    // Test the specific case that shows jump target issues
+    // This should print numbers 0 through 9
+    testCodeOptimizationAndExecution(
+        "var a = 0; while (a < 10) { __dprint(a++); }"
+    );
+}
+
 } // namespace test  
 } // namespace pg

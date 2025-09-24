@@ -100,6 +100,59 @@ namespace pg {
         return true;
     }
 
+    bool BytecodeRewriter::rewriteAtRaw(Chunk& chunk, size_t index, size_t size, const std::vector<uint8_t>& replacement) {
+        if (index >= chunk.code.size()) {
+            LOG_WARNING("BytecodeRewriter", "Raw rewrite index " << index << " is out of bounds (chunk size: " << chunk.code.size() << ")");
+            return false;
+        }
+        
+        if (index + size > chunk.code.size()) {
+            LOG_WARNING("BytecodeRewriter", "Raw rewrite range [" << index << ", " << (index + size) << ") exceeds chunk bounds");
+            return false;
+        }
+        
+        if (size == 0) {
+            LOG_WARNING("BytecodeRewriter", "Cannot rewrite zero-sized region");
+            return false;
+        }
+        
+        LOG_INFO("BytecodeRewriter", "Raw rewrite at index " << index << " (size " << size << " -> " << replacement.size() << " bytes)");
+        
+        int sizeDelta = static_cast<int>(replacement.size()) - static_cast<int>(size);
+        
+        // Store original lines for replacement
+        std::vector<int> originalLines;
+        if (index < chunk.lines.size()) {
+            size_t linesToCopy = std::min(size, chunk.lines.size() - index);
+            originalLines.assign(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToCopy);
+        }
+        
+        // Remove original bytes and lines
+        chunk.code.erase(chunk.code.begin() + index, chunk.code.begin() + index + size);
+        if (index < chunk.lines.size()) {
+            size_t linesToRemove = std::min(size, chunk.lines.size() - index);
+            chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
+        }
+        
+        // Insert replacement bytes directly
+        chunk.code.insert(chunk.code.begin() + index, replacement.begin(), replacement.end());
+        
+        // Insert corresponding line numbers
+        int line = originalLines.empty() ? 0 : originalLines[0];
+        for (size_t i = 0; i < replacement.size(); ++i) {
+            chunk.lines.insert(chunk.lines.begin() + index + i, line);
+        }
+        
+        // Adjust jump offsets if size changed
+        if (sizeDelta != 0) {
+            LOG_INFO("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
+            adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
+        }
+        
+        LOG_INFO("BytecodeRewriter", "Raw rewrite completed successfully");
+        return true;
+    }
+
     void BytecodeRewriter::clearRules() {
         rules.clear();
         LOG_INFO("BytecodeRewriter", "Cleared all rewrite rules");
@@ -320,11 +373,13 @@ namespace pg {
                 bool needsAdjustment = false;
 
                 if (opcode == OpCode::OP_Loop || opcode == OpCode::OP_Long_Loop) {
-                    // Backward jump: if target is after rewrite point, adjust
-                    needsAdjustment = (currentTarget > rewriteIndex);
+                    // Backward jump: adjust if the jump instruction is after the rewrite point
+                    // AND the target is before the rewrite point (target didn't move, but jump moved)
+                    needsAdjustment = (i > rewriteIndex && currentTarget < rewriteIndex);
                 } else {
-                    // Forward jump: if target is after rewrite point, adjust
-                    needsAdjustment = (currentTarget > rewriteIndex);
+                    // Forward jump: adjust if the target is after the rewrite point
+                    // AND the jump instruction is before or at the rewrite point (jump didn't move, but target moved)
+                    needsAdjustment = (currentTarget > rewriteIndex && i <= rewriteIndex);
                 }
 
                 if (needsAdjustment) {
@@ -336,15 +391,23 @@ namespace pg {
                         currentDistance = extractShortJumpOffset(chunk, i);
                     }
 
+                    LOG_INFO("BytecodeRewriter", "Adjusting jump at " << i << " (opcode=" << static_cast<int>(opcode) 
+                             << ", currentTarget=" << currentTarget << ", currentDistance=" << currentDistance 
+                             << ", rewriteIndex=" << rewriteIndex << ", sizeDelta=" << sizeDelta << ")");
+
                     // Calculate new distance based on direction
                     int newDistance;
                     if (opcode == OpCode::OP_Loop || opcode == OpCode::OP_Long_Loop) {
-                        // Backward jump: target moved, so distance changes by -sizeDelta
-                        newDistance = static_cast<int>(currentDistance) - sizeDelta;
+                        // Backward jump: jump instruction moved by sizeDelta, target stayed same
+                        // If sizeDelta = -2 (chunk shrank), jump moved 2 bytes closer to target, so distance decreases by 2
+                        newDistance = static_cast<int>(currentDistance) + sizeDelta;
                     } else {
-                        // Forward jump: target moved, so distance changes by +sizeDelta
+                        // Forward jump: target moved by sizeDelta, jump instruction stayed same  
+                        // If sizeDelta = -2 (chunk shrank), target moved 2 bytes closer, so distance decreases by 2
                         newDistance = static_cast<int>(currentDistance) + sizeDelta;
                     }
+
+                    LOG_INFO("BytecodeRewriter", "Distance adjusted from " << currentDistance << " to " << newDistance);
 
                     if (newDistance < 0) {
                         LOG_WARNING("BytecodeRewriter", "Jump distance became negative, setting to 0");
