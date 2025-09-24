@@ -9,6 +9,7 @@
 #include "compiler.h"
 
 #include "long_jump_optimization_pass.h"
+#include "Interpreter/lexer.h"
 
 using namespace pg;
 
@@ -94,5 +95,40 @@ void CompilerApp::runFile()
 {
     LOG_THIS_MEMBER(DOM);
 
-    std::cout << "File execution not implemented yet." << std::endl;
+    VM vm;
+    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    
+    vm.enableBytecodeOptimization();
+    vm.enableOptimizationDebugging();
+    
+    Lexer lexer;
+    
+    try
+    {
+        lexer.readFromFile(fileName);
+    }
+    catch(const std::exception& e)
+    {
+        LOG_ERROR(DOM, "Failed to read file '" << fileName << "': " << e.what());
+        return;
+    }
+    
+    auto tokens = lexer.getTokens();
+    
+    vm.listOptimizationPasses();
+    
+    InterpretResult result = vm.interpret(tokens);
+    
+    switch (result)
+    {
+        case InterpretResult::OK:
+            LOG_INFO(DOM, "File executed successfully");
+            break;
+        case InterpretResult::COMPILE_ERROR:
+            LOG_ERROR(DOM, "Compile error occurred");
+            break;
+        case InterpretResult::RUNTIME_ERROR:
+            LOG_ERROR(DOM, "Runtime error occurred");
+            break;
+    }
 }
