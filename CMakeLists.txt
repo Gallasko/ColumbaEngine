@@ -666,6 +666,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PgCompiler/compiler.cpp
             exemples/PgCompiler/parser.cpp
             exemples/PgCompiler/bytecode_pass.cpp
+
+            exemples/PgCompiler/long_jump_optimization_pass.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)

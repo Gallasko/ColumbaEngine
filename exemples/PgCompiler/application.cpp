@@ -8,6 +8,8 @@
 #include "vm.h"
 #include "compiler.h"
 
+#include "long_jump_optimization_pass.h"
+
 using namespace pg;
 
 namespace {
@@ -53,7 +55,9 @@ void CompilerApp::runREPL()
     std::string line;
 
     VM vm;
+    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
+    vm.enableBytecodeOptimization();
     vm.enableOptimizationDebugging();
 
     while (std::getline(std::cin, line))

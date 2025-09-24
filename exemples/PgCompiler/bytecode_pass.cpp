@@ -2,6 +2,7 @@
 #include "compiler_debug.h"
 #include "logger.h"
 #include <algorithm>
+#include <iostream>
 
 namespace pg {
 
@@ -50,6 +51,11 @@ namespace pg {
             
             if (enableDebugOutput) {
                 LOG_INFO("PassManager", "Pass " << pass->getName() << " completed in " << iterations << " iteration(s)");
+                
+                // Print bytecode after this pass
+                std::cout << "\n=== BYTECODE AFTER " << pass->getName() << " ===" << std::endl;
+                disassembleChunk(chunk, "After " + pass->getName());
+                std::cout << std::endl;
             }
         }
         
