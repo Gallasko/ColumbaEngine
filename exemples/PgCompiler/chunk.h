@@ -98,4 +98,54 @@ namespace pg
             return code.size() - 1;
         }
     };
+
+    // Utility function to get the size of an instruction in bytes
+    inline size_t getInstructionSize(OpCode opcode) {
+        switch (opcode) {
+            case OpCode::OP_Constant:
+                return 2; // opcode + 1 byte operand
+
+            case OpCode::OP_Define_Global:
+            case OpCode::OP_Get_Global:
+            case OpCode::OP_Set_Global:
+            case OpCode::OP_Get_Local:
+            case OpCode::OP_Set_Local:
+            case OpCode::OP_Return:
+            case OpCode::OP_Negate:
+            case OpCode::OP_Add:
+            case OpCode::OP_Subtract:
+            case OpCode::OP_Multiply:
+            case OpCode::OP_Divide:
+            case OpCode::OP_True:
+            case OpCode::OP_False:
+            case OpCode::OP_Not:
+            case OpCode::OP_And:
+            case OpCode::OP_Or:
+            case OpCode::OP_Equal:
+            case OpCode::OP_NotEqual:
+            case OpCode::OP_Greater:
+            case OpCode::OP_GreaterEqual:
+            case OpCode::OP_Less:
+            case OpCode::OP_LessEqual:
+            case OpCode::OP_Pop:
+            case OpCode::OP_Debug_Print:
+                return 1; // opcode only, no operand
+
+            case OpCode::OP_LongConstant:
+                return 4; // opcode + 3 byte operand
+
+            case OpCode::OP_Jump_If_False:
+            case OpCode::OP_Jump:
+            case OpCode::OP_Loop:
+                return 3; // opcode + 2 byte operand
+
+            case OpCode::OP_Long_Jump_If_False:
+            case OpCode::OP_Long_Jump:
+            case OpCode::OP_Long_Loop:
+                return 5; // opcode + 4 byte operand
+
+            default:
+                return 1; // default to single byte for unknown opcodes
+        }
+    }
 }

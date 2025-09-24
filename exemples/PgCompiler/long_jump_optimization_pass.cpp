@@ -117,7 +117,7 @@ namespace pg {
                 }
             }
 
-            i += getInstructionSize(opcode);
+            i += pg::getInstructionSize(opcode);
         }
 
         return candidates;
@@ -153,26 +153,5 @@ namespace pg {
                opcode == OpCode::OP_Long_Loop;
     }
 
-    size_t LongJumpOptimizationPass::getInstructionSize(OpCode opcode) {
-        switch (opcode) {
-            // Long instructions: opcode + 4 bytes operand
-            case OpCode::OP_Long_Jump:
-            case OpCode::OP_Long_Jump_If_False:
-            case OpCode::OP_Long_Loop:
-            case OpCode::OP_LongConstant:
-                return 5;
-
-            // Short instructions: opcode + 2 bytes operand
-            case OpCode::OP_Jump:
-            case OpCode::OP_Jump_If_False:
-            case OpCode::OP_Loop:
-            case OpCode::OP_Constant:
-                return 3;
-
-            // Single byte instructions
-            default:
-                return 1;
-        }
-    }
 
 }

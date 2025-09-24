@@ -37,10 +37,6 @@ namespace pg {
 
         // Helper methods
         bool areConstantsEqual(const ElementType& a, const ElementType& b);
-        void updateConstantInstruction(std::vector<uint8_t>& code, size_t offset,
-                                     OpCode opcode, size_t newIndex);
-        size_t getConstantIndex(const std::vector<uint8_t>& code, size_t offset, OpCode opcode);
-        size_t getInstructionSize(OpCode opcode);
     };
 
 }
