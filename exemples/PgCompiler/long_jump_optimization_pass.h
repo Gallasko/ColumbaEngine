@@ -23,45 +23,20 @@ namespace pg {
     public:
         std::string getName() const override { return "LongJumpOptimization"; }
         
-        bool runPass(Chunk& chunk) override;
+        bool runPass(Chunk& chunk, BytecodeRewriter* rewriter = nullptr) override;
         
         bool changesSize() const override { return true; }
         
         bool requiresMultiplePasses() const override { return true; }
         
     private:
-        // Phase 1: Analyze all jump instructions
-        std::vector<JumpInfo> analyzeJumps(const Chunk& chunk);
-        
-        // Phase 2: Determine which long jumps can be converted to short jumps
-        void identifyOptimizableJumps(std::vector<JumpInfo>& jumps);
-        
-        // Phase 3: Apply optimizations (convert long jumps to short jumps)
-        bool applyOptimizations(Chunk& chunk, const std::vector<JumpInfo>& jumps);
-        
-        // Phase 4: Recalculate all jump offsets after size changes
-        void recalculateJumpOffsets(Chunk& chunk);
-        
-        // Single jump optimization (used in two-pass approach)
-        bool optimizeSingleJump(Chunk& chunk, const JumpInfo& jump);
-        
-        // Update forward jump distances after backward jump optimizations
-        void updateForwardJumpDistances(Chunk& chunk, int bytesRemovedFromBackwardOptimizations);
+        // Find all long jump candidates that can be optimized to short jumps
+        std::vector<JumpInfo> findOptimizableJumps(const Chunk& chunk);
         
         // Helper methods
         uint32_t extractLongJumpOffset(const Chunk& chunk, size_t offset);
-        uint16_t extractShortJumpOffset(const Chunk& chunk, size_t offset);
-        
-        void writeLongJumpOffset(Chunk& chunk, size_t offset, uint32_t jumpOffset);
-        void writeShortJumpOffset(Chunk& chunk, size_t offset, uint16_t jumpOffset);
-        
-        OpCode getLongJumpEquivalent(OpCode shortJump);
         OpCode getShortJumpEquivalent(OpCode longJump);
-        
-        bool isJumpInstruction(OpCode opcode);
         bool isLongJumpInstruction(OpCode opcode);
-        bool isShortJumpInstruction(OpCode opcode);
-        
         size_t getInstructionSize(OpCode opcode);
         
         // Constants
