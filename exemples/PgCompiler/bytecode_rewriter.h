@@ -54,7 +54,7 @@ namespace pg {
         
         void adjustJumpOffsets(Chunk& chunk, const std::vector<RewriteContext>& contexts);
         
-        void recalculateAllJumpOffsets(Chunk& chunk);
+        void adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta);
         
         void adjustSingleJump(Chunk& chunk, size_t jumpOffset, OpCode jumpOpcode, int totalAdjustment);
         
