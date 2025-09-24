@@ -32,17 +32,30 @@ namespace pg
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
         // Apply bytecode optimizations
-        if (enableOptimizations && !chunk.code.empty()) {
+        if (enableOptimizations && !chunk.code.empty())
+        {
+            begin = std::chrono::steady_clock::now();
+
             LOG_INFO("VM", "Applying bytecode optimizations");
             size_t originalSize = chunk.code.size();
             
             passManager.runAllPasses(chunk);
             
             size_t optimizedSize = chunk.code.size();
-            if (optimizedSize != originalSize) {
+            if (optimizedSize != originalSize)
+            {
                 LOG_INFO("VM", "Optimization changed bytecode size from " << 
                          originalSize << " to " << optimizedSize << " bytes");
             }
+
+            end = std::chrono::steady_clock::now();
+
+#ifdef DEBUG_PROFILE_COMPILE
+            std::cout << "Optimizations took: "
+                      << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
+                      << " ns"
+                      << std::endl;
+#endif
         }
 
         this->chunk = chunk;
