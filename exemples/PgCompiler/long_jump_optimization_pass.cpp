@@ -194,15 +194,30 @@ namespace pg {
         // Replace the instruction
         chunk.code[jump.instructionOffset] = static_cast<uint8_t>(shortOpcode);
         
-        // Use the pre-calculated distance from the jump info
-        uint32_t newDistance = jump.jumpDistance;
+        // Recalculate distance based on current chunk state and target position
+        uint32_t newDistance;
+        size_t newInstructionEnd = jump.instructionOffset + newSize; // 3 bytes for short jump
         
         if (jump.opcode == OpCode::OP_Long_Loop) {
-            // For backward jumps, the distance has been pre-calculated in applyOptimizations
-            // No additional adjustment needed
+            // For backward jumps: target is jump.targetOffset, distance is how far back to jump
+            if (newInstructionEnd > jump.targetOffset) {
+                newDistance = newInstructionEnd - jump.targetOffset;
+            } else {
+                LOG_ERROR("LongJumpOptimization", "Invalid backward jump target");
+                // Revert the opcode change
+                chunk.code[jump.instructionOffset] = static_cast<uint8_t>(jump.opcode);
+                return false;
+            }
         } else {
-            // For forward jumps: distance stays the same (target position unchanged relative to end of instruction)  
-            // No adjustment needed
+            // For forward jumps: target is jump.targetOffset, distance is how far forward to jump
+            if (jump.targetOffset >= newInstructionEnd) {
+                newDistance = jump.targetOffset - newInstructionEnd;
+            } else {
+                LOG_ERROR("LongJumpOptimization", "Invalid forward jump target");
+                // Revert the opcode change  
+                chunk.code[jump.instructionOffset] = static_cast<uint8_t>(jump.opcode);
+                return false;
+            }
         }
         
         if (newDistance > 65535) {
