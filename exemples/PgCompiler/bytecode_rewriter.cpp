@@ -383,48 +383,48 @@ namespace pg {
                 }
 
                 if (needsAdjustment) {
-                    // Get current distance and adjust it
-                    uint32_t currentDistance;
+                    // Get current index and adjust it
+                    uint32_t currentIndex;
                     if (isLongJumpInstruction(opcode)) {
-                        currentDistance = extractLongJumpOffset(chunk, i);
+                        currentIndex = extractLongJumpOffset(chunk, i);
                     } else {
-                        currentDistance = extractShortJumpOffset(chunk, i);
+                        currentIndex = extractShortJumpOffset(chunk, i);
                     }
 
                     LOG_INFO("BytecodeRewriter", "Adjusting jump at " << i << " (opcode=" << static_cast<int>(opcode) 
-                             << ", currentTarget=" << currentTarget << ", currentDistance=" << currentDistance 
+                             << ", currentTarget=" << currentTarget << ", currentIndex=" << currentIndex 
                              << ", rewriteIndex=" << rewriteIndex << ", sizeDelta=" << sizeDelta << ")");
 
-                    // Calculate new distance based on direction
-                    int newDistance;
+                    // Calculate new index based on direction
+                    int newIndex;
                     if (opcode == OpCode::OP_Loop || opcode == OpCode::OP_Long_Loop) {
                         // Backward jump: jump instruction moved by sizeDelta, target stayed same
-                        // If sizeDelta = -2 (chunk shrank), jump moved 2 bytes closer to target, so distance decreases by 2
-                        newDistance = static_cast<int>(currentDistance) + sizeDelta;
+                        // If sizeDelta = -2 (chunk shrank), jump moved 2 bytes closer to target, so index decreases by 2
+                        newIndex = static_cast<int>(currentIndex) + sizeDelta;
                     } else {
                         // Forward jump: target moved by sizeDelta, jump instruction stayed same  
-                        // If sizeDelta = -2 (chunk shrank), target moved 2 bytes closer, so distance decreases by 2
-                        newDistance = static_cast<int>(currentDistance) + sizeDelta;
+                        // If sizeDelta = -2 (chunk shrank), target moved 2 bytes closer, so index decreases by 2
+                        newIndex = static_cast<int>(currentIndex) + sizeDelta;
                     }
 
-                    LOG_INFO("BytecodeRewriter", "Distance adjusted from " << currentDistance << " to " << newDistance);
+                    LOG_INFO("BytecodeRewriter", "Index adjusted from " << currentIndex << " to " << newIndex);
 
-                    if (newDistance < 0) {
-                        LOG_WARNING("BytecodeRewriter", "Jump distance became negative, setting to 0");
-                        newDistance = 0;
+                    if (newIndex < 0) {
+                        LOG_WARNING("BytecodeRewriter", "Jump index became negative, setting to 0");
+                        newIndex = 0;
                     }
 
-                    // Write adjusted distance - PRESERVE INSTRUCTION TYPE
+                    // Write adjusted index - PRESERVE INSTRUCTION TYPE
                     if (isLongJumpInstruction(opcode)) {
-                        writeLongJumpOffset(chunk, i, static_cast<uint32_t>(newDistance));
-                        LOG_INFO("BytecodeRewriter", "Adjusted long jump at " << i << " from " << currentDistance << " to " << newDistance);
+                        writeLongJumpOffset(chunk, i, static_cast<uint32_t>(newIndex));
+                        LOG_INFO("BytecodeRewriter", "Adjusted long jump at " << i << " from " << currentIndex << " to " << newIndex);
                     } else {
-                        if (newDistance <= 65535) {
-                            writeShortJumpOffset(chunk, i, static_cast<uint16_t>(newDistance));
-                            LOG_INFO("BytecodeRewriter", "Adjusted short jump at " << i << " from " << currentDistance << " to " << newDistance);
+                        if (newIndex <= 65535) {
+                            writeShortJumpOffset(chunk, i, static_cast<uint16_t>(newIndex));
+                            LOG_INFO("BytecodeRewriter", "Adjusted short jump at " << i << " from " << currentIndex << " to " << newIndex);
                         } else {
-                            LOG_WARNING("BytecodeRewriter", "Short jump distance overflow: " << newDistance << " at position " << i << " - keeping original distance");
-                            // Keep original distance rather than converting to long jump
+                            LOG_WARNING("BytecodeRewriter", "Short jump index overflow: " << newIndex << " at position " << i << " - keeping original index");
+                            // Keep original index rather than converting to long jump
                         }
                     }
                 }
