@@ -118,7 +118,17 @@ void CompilerTestBase::assertConstantValue(const Chunk& chunk, size_t index, con
 }
 
 void CompilerTestBase::resetVM() {
-    vm = VM();
+    // Clean up stack first
+    vm.stack.clear();  // This already frees Values properly
+    
+    // Properly free globals 
+    for (auto& pair : vm.globals) {
+        freeValue(pair.second);
+    }
+    vm.globals.clear();
+    
+    vm.testOutput.clear();
+    vm.ip = 0;
 }
 
 void CompilerTestBase::resetCompiler() {

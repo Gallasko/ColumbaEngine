@@ -328,7 +328,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
-                    push(it->second);
+                    push(copyValue(it->second));
                     freeValue(nameValue);
                     break;
                 }
@@ -362,8 +362,8 @@ namespace pg
 
                     // Free the old value that was stored
                     freeValue(it->second);
-                    it->second = value;
-                    push(value);
+                    it->second = copyValue(value);  // Store a copy in globals
+                    push(value);  // Push the original to stack
                     freeValue(nameValue);
                     break;
                 }
