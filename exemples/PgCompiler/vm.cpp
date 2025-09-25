@@ -117,8 +117,9 @@ namespace pg
                     }
 #endif
                     auto value = pop();
-
-                    std::cout << value.toString() << std::endl;
+                    ElementType elem = valueToElement(value);
+                    std::cout << elem.toString() << std::endl;
+                    freeValue(value);
 
                     return InterpretResult::OK;
                 }
@@ -139,63 +140,63 @@ namespace pg
 
                 case OpCode::OP_Negate:
                 {
-                    if (not peek(0).isNumber())
+                    if (not isValueNumber(peek(0)))
                     {
                         EMIT_RUNTIME_ERROR("Operand after an unary (-) must be a number.");
                     }
 
                     auto value = pop();
-
-                    push(-value);
+                    push(negateValue(value));
+                    freeValue(value);
                     break;
                 }
 
                 case OpCode::OP_Add:
                 {
-                    binaryOp(std::plus<ElementType>());
+                    fastBinaryOp(addValues);
                     break;
                 }
 
                 case OpCode::OP_Subtract:
                 {
-                    binaryOp(std::minus<ElementType>());
+                    fastBinaryOp(subtractValues);
                     break;
                 }
 
                 case OpCode::OP_Multiply:
                 {
-                    binaryOp(std::multiplies<ElementType>());
+                    fastBinaryOp(multiplyValues);
                     break;
                 }
 
                 case OpCode::OP_Divide:
                 {
-                    binaryOp(std::divides<ElementType>());
+                    fastBinaryOp(divideValues);
                     break;
                 }
 
                 case OpCode::OP_True:
                 {
-                    push(ElementType(true));
+                    push(BOOL_VAL(true));
                     break;
                 }
 
                 case OpCode::OP_False:
                 {
-                    push(ElementType(false));
+                    push(BOOL_VAL(false));
                     break;
                 }
 
                 case OpCode::OP_Not:
                 {
-                    if (not peek(0).isBool())
+                    if (not IS_BOOL(peek(0)))
                     {
                         EMIT_RUNTIME_ERROR("Operand after an unary (!) must be a boolean.");
                     }
 
                     auto value = pop();
-
-                    push(ElementType(not value.isTrue()));
+                    push(BOOL_VAL(not isValueTrue(value)));
+                    freeValue(value);
                     break;
                 }
 
@@ -205,7 +206,11 @@ namespace pg
                     auto b = pop();
                     auto a = pop();
 
-                    push(a and b);
+                    bool resultA = isValueTrue(a);
+                    bool resultB = isValueTrue(b);
+                    push(BOOL_VAL(resultA and resultB));
+                    freeValue(a);
+                    freeValue(b);
                     break;
                 }
 
@@ -215,7 +220,11 @@ namespace pg
                     auto b = pop();
                     auto a = pop();
 
-                    push(a or b);
+                    bool resultA = isValueTrue(a);
+                    bool resultB = isValueTrue(b);
+                    push(BOOL_VAL(resultA or resultB));
+                    freeValue(a);
+                    freeValue(b);
                     break;
                 }
 
@@ -228,7 +237,7 @@ namespace pg
                     auto b = pop(); \
                     auto a = pop(); \
                     try { \
-                        push(a op b); \
+                        push(op(a, b)); \
                     } catch (const std::exception& e) { \
                         EMIT_RUNTIME_ERROR("Comparison operation failed: " << e.what()); \
                     } \
@@ -236,22 +245,22 @@ namespace pg
                 }
 
                 case OpCode::OP_Equal:
-                    COMPARISON_OP(==)
+                    COMPARISON_OP(equalsValues)
 
                 case OpCode::OP_NotEqual:
-                    COMPARISON_OP(!=)
+                    COMPARISON_OP(notEqualsValues)
 
                 case OpCode::OP_Greater:
-                    COMPARISON_OP(>)
+                    COMPARISON_OP(greaterValues)
 
                 case OpCode::OP_GreaterEqual:
-                    COMPARISON_OP(>=)
+                    COMPARISON_OP(greaterEqualValues)
 
                 case OpCode::OP_Less:
-                    COMPARISON_OP(<)
+                    COMPARISON_OP(lessValues)
 
                 case OpCode::OP_LessEqual:
-                    COMPARISON_OP(<=)
+                    COMPARISON_OP(lessEqualValues)
 
                 case OpCode::OP_Pop:
                 {
@@ -274,7 +283,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable definition.");
                     }
 #endif
-                    auto name = pop();  // variable name
+                    auto name = valueToElement(pop());  // variable name
                     auto value = pop(); // variable value
 
                     if (not name.isLitteral())
@@ -294,7 +303,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable retrieval.");
                     }
 #endif
-                    auto name = pop();  // variable name
+                    auto name = valueToElement(pop());  // variable name
 
                     if (not name.isLitteral())
                     {
@@ -320,7 +329,7 @@ namespace pg
                     }
 #endif
                     auto value = pop(); // new variable value
-                    auto name = pop();  // variable name
+                    auto name = valueToElement(pop());  // variable name
 
                     if (not name.isLitteral())
                     {
@@ -347,12 +356,12 @@ namespace pg
                     }
 #endif
                     auto slot = pop(); // Get the slot index from stack
-                    if (not slot.isNumber())
+                    if (not isValueNumber(slot))
                     {
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
-                    int index = slot.get<int>();
+                    int index = getValueAsInt(slot);
                     if (index < 0 || index >= static_cast<int>(stack.size()))
                     {
                         EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
@@ -373,12 +382,12 @@ namespace pg
                     auto value = pop(); // New value
                     auto slot = pop();  // Slot index
 
-                    if (not slot.isNumber())
+                    if (not isValueNumber(slot))
                     {
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
-                    int index = slot.get<int>();
+                    int index = getValueAsInt(slot);
                     if (index < 0 || index >= static_cast<int>(stack.size()))
                     {
                         EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
@@ -398,15 +407,15 @@ namespace pg
                     }
 #endif
                     uint16_t jumpOffset = readUint16();
-
+#ifdef DEBUG_CHECK_STACK
                     if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Stack underflow on conditional jump.");
                     }
-
+#endif
                     auto condition = peek();
 
-                    if (not condition.isTrue())
+                    if (not isValueTrue(condition))
                     {
                         ip += jumpOffset;
                         if (ip > chunk.code.size())
@@ -427,15 +436,15 @@ namespace pg
                     }
 #endif
                     uint32_t jumpOffset = readUint32();
-
+#ifdef DEBUG_CHECK_STACK
                     if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Stack underflow on conditional jump.");
                     }
-
+#endif
                     auto condition = peek();
 
-                    if (not condition.isTrue())
+                    if (not isValueTrue(condition))
                     {
                         ip += jumpOffset;
                         if (ip > chunk.code.size())
@@ -534,7 +543,9 @@ namespace pg
                     auto value = pop();
 
                     // For testing: append to testOutput buffer instead of stdout
-                    testOutput += value.toString() + "\n";
+                    ElementType elem = valueToElement(value);
+                    testOutput += elem.toString() + "\n";
+                    freeValue(value);
 
                     break;
                 }
@@ -548,7 +559,7 @@ namespace pg
         return InterpretResult::OK;
     }
 
-    ElementType VM::readConstant()
+    Value VM::readConstant()
     {
         uint8_t constantIndex = chunk.code[ip++];
 
@@ -559,10 +570,10 @@ namespace pg
         }
 #endif
 
-        return chunk.constants[constantIndex];
+        return elementToValue(chunk.constants[constantIndex]);
     }
 
-    ElementType VM::readLongConstant()
+    Value VM::readLongConstant()
     {
 #ifdef DEBUG_CHECK_STACK
         if (ip + 2 >= chunk.code.size())
@@ -587,10 +598,10 @@ namespace pg
         }
 #endif
 
-        return chunk.constants[constantIndex];
+        return elementToValue(chunk.constants[constantIndex]);
     }
 
-    void VM::binaryOp(std::function<ElementType(ElementType, ElementType)> op)
+    void VM::binaryOp(std::function<Value(Value, Value)> op)
     {
 #ifdef DEBUG_CHECK_STACK
         if (stack.size() < 2)
@@ -600,11 +611,19 @@ namespace pg
         }
 #endif
 
-        auto e1 = peek(0);
-        auto e2 = peek(1);
+        auto val1 = peek(0);
+        auto val2 = peek(1);
 
-        if (not (e1.isNumber() and e2.isNumber()) and not (e1.isLitteral() and e2.isLitteral()))
+        // Type check using Value operations
+        bool val1IsNumber = isValueNumber(val1);
+        bool val2IsNumber = isValueNumber(val2);
+        bool val1IsLiteral = IS_OBJ(val1) && AS_OBJ(val1)->isLitteral();
+        bool val2IsLiteral = IS_OBJ(val2) && AS_OBJ(val2)->isLitteral();
+
+        if (not (val1IsNumber and val2IsNumber) and not (val1IsLiteral and val2IsLiteral))
         {
+            ElementType e1 = valueToElement(val1);
+            ElementType e2 = valueToElement(val2);
             runtimeError((Strfy() << "Operands after a binary operator should be the same type: " << e1.getTypeString() << " and " << e2.getTypeString()).getData());
             return;
         }
@@ -612,6 +631,46 @@ namespace pg
         auto b = pop();
         auto a = pop();
 
+        push(op(a, b));
+    }
+
+    void VM::fastBinaryOp(Value (*op)(const Value&, const Value&))
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (stack.size() < 2)
+        {
+            runtimeError((Strfy() << "Stack underflow on binary operation.").getData());
+            return;
+        }
+#endif
+
+        auto val1 = peek(0);
+        auto val2 = peek(1);
+
+        // Fast path for integers
+        if (IS_INT(val1) && IS_INT(val2)) {
+            auto b = pop();
+            auto a = pop();
+            push(op(a, b));
+            return;
+        }
+
+        // Type check for complex cases
+        bool val1IsNumber = isValueNumber(val1);
+        bool val2IsNumber = isValueNumber(val2);
+        bool val1IsLiteral = IS_OBJ(val1) && AS_OBJ(val1)->isLitteral();
+        bool val2IsLiteral = IS_OBJ(val2) && AS_OBJ(val2)->isLitteral();
+
+        if (not (val1IsNumber and val2IsNumber) and not (val1IsLiteral and val2IsLiteral))
+        {
+            ElementType e1 = valueToElement(val1);
+            ElementType e2 = valueToElement(val2);
+            runtimeError((Strfy() << "Operands after a binary operator should be the same type: " << e1.getTypeString() << " and " << e2.getTypeString()).getData());
+            return;
+        }
+
+        auto b = pop();
+        auto a = pop();
         push(op(a, b));
     }
 }
