@@ -104,6 +104,17 @@ namespace pg
         }
     }
 
+    // Create a copy of a Value (for when we need to store the same value in multiple places)
+    inline Value copyValue(const Value& value) {
+        if (IS_INT(value) || IS_BOOL(value)) {
+            // Integers and booleans can be copied directly (no heap allocation)
+            return value;
+        } else {
+            // For heap objects, create a new copy
+            return OBJ_VAL(new ElementType(*AS_OBJ(value)));
+        }
+    }
+
     inline int getValueAsInt(const Value& value) {
         if (IS_INT(value)) {
             return static_cast<int>(AS_INT(value));

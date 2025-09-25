@@ -67,11 +67,11 @@ TEST_F(LanguageFeaturesTest, BasicArithmetic) {
     expectPrintedOutput("__dprint(2.5 * 4)", "10.000000\n");  // Float operation
     
     // Division - verify actual results with __dprint
-    expectPrintedOutput("__dprint(6 / 2)", "3.000000\n");     // Division always returns float
-    expectPrintedOutput("__dprint(15 / 3)", "5.000000\n");    // Division always returns float
-    expectPrintedOutput("__dprint(1 / 1)", "1.000000\n");     // Division always returns float
-    expectPrintedOutput("__dprint(7.5 / 2.5)", "3.000000\n"); // Division always returns float
-    expectPrintedOutput("__dprint(0 / 1)", "0.000000\n");     // Division always returns float
+    expectPrintedOutput("__dprint(6 / 2)", "3\n");     // Integer division returns integer
+    expectPrintedOutput("__dprint(15 / 3)", "5\n");    // Integer division returns integer
+    expectPrintedOutput("__dprint(1 / 1)", "1\n");     // Integer division returns integer
+    expectPrintedOutput("__dprint(7.5 / 2.5)", "3.000000\n"); // Float division returns float
+    expectPrintedOutput("__dprint(0 / 1)", "0\n");     // Integer division returns integer
 }
 
 // Unary Operations Tests
@@ -308,14 +308,14 @@ TEST_F(LanguageFeaturesTest, BasicVariableOperations) {
     expectPrintedOutput("var a = 5; a = 10; __dprint(a)", "10\n");        // Integer assignment
     expectPrintedOutput("var b = 1; b = b + 5; __dprint(b)", "6\n");       // Integer arithmetic
     expectPrintedOutput("var c = 10; c = c * 2; __dprint(c)", "20\n");     // Integer arithmetic
-    expectPrintedOutput("var d = 8; d = d / 2; __dprint(d)", "4.000000\n"); // Division returns float
+    expectPrintedOutput("var d = 8; d = d / 2; __dprint(d)", "4\n"); // Integer division returns integer
     expectPrintedOutput("var e = 7; e = e - 3; __dprint(e)", "4\n");       // Integer arithmetic
     
     // Variables in expressions - verify with __dprint
     expectPrintedOutput("var x = 3; var y = 4; __dprint(x + y)", "7\n");       // Integer arithmetic
     expectPrintedOutput("var x = 10; var y = 3; __dprint(x - y)", "7\n");     // Integer arithmetic
     expectPrintedOutput("var x = 6; var y = 7; __dprint(x * y)", "42\n");     // Integer arithmetic
-    expectPrintedOutput("var x = 15; var y = 3; __dprint(x / y)", "5.000000\n"); // Division returns float
+    expectPrintedOutput("var x = 15; var y = 3; __dprint(x / y)", "5\n"); // Integer division returns integer
     expectPrintedOutput("var x = 5; var y = 5; __dprint(x == y)", "true\n");
     expectPrintedOutput("var x = 5; var y = 3; __dprint(x > y)", "true\n");
 }
