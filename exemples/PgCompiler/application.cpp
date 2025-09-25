@@ -10,6 +10,7 @@
 
 #include "long_jump_optimization_pass.h"
 #include "constant_uniformity_pass.h"
+#include "post_increment_optimization_pass.h"
 #include "Interpreter/lexer.h"
 
 using namespace pg;
@@ -57,6 +58,7 @@ void CompilerApp::runREPL()
     std::string line;
 
     VM vm;
+    vm.addOptimizationPass(std::make_unique<PostIncrementOptimizationPass>());
     vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
@@ -98,6 +100,7 @@ void CompilerApp::runFile()
     LOG_THIS_MEMBER(DOM);
 
     VM vm;
+    vm.addOptimizationPass(std::make_unique<PostIncrementOptimizationPass>());
     vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
