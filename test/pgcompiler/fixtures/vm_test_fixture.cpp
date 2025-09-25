@@ -122,11 +122,11 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
     if (vm.chunk.code.empty()) {
         return InterpretResult::OK;
     }
-    
+
     // Manually execute each instruction since VM's run() expects OP_Return
     while (vm.ip < vm.chunk.code.size()) {
         auto instruction = static_cast<OpCode>(vm.chunk.code[vm.ip++]);
-        
+
         switch (instruction) {
             case OpCode::OP_Constant: {
                 uint8_t constantIndex = vm.chunk.code[vm.ip++];
@@ -283,7 +283,7 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
                 return InterpretResult::RUNTIME_ERROR;
         }
     }
-    
+
     return InterpretResult::OK;
 }
 
@@ -370,7 +370,7 @@ std::vector<ElementType> VMTestFixture::getStackContents() {
     // Pop all elements to get them in order (bottom to top)
     std::vector<ElementType> reversed;
     while (!tempStack.empty()) {
-        reversed.push_back(tempStack.top());
+        reversed.push_back(valueToElement(tempStack.top()));
         tempStack.pop();
     }
 
