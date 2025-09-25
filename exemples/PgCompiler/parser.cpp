@@ -187,32 +187,26 @@ namespace pg
             Token varToken = parser.previousToken;
             auto varName = varToken.text;
 
-            OpCode setOp, getOp;
+            OpCode incrOp;
             ElementType identifier;
             int arg = parser.compiler->resolveLocal(chunk, varToken);
 
             if (arg != -1)
             {
                 // Local variable
-                setOp = OpCode::OP_Set_Local;
-                getOp = OpCode::OP_Get_Local;
+                incrOp = OpCode::OP_Post_Decr_Local;
                 identifier = ElementType(arg);
             }
             else
             {
                 // Global variable
-                setOp = OpCode::OP_Set_Global;
-                getOp = OpCode::OP_Get_Global;
+                incrOp = OpCode::OP_Post_Decr_Global;
                 identifier = ElementType(varName);
             }
 
             // Prefix decrement: --var (modify variable, return new value)
-            parser.writeConstant(chunk, identifier);          // Push identifier [id]
-            parser.writeConstant(chunk, identifier);          // Push identifier again [id, id]
-            parser.writeByte(chunk, getOp);                   // Get current value [id, value]
-            parser.writeConstant(chunk, ElementType(1));      // Push 1 [id, value, 1]
-            parser.writeByte(chunk, OpCode::OP_Subtract);     // Subtract 1 [id, new_value]
-            parser.writeByte(chunk, setOp);                   // Store new value (leaves value on stack)
+            parser.writeConstant(chunk, identifier);
+            parser.writeByte(chunk, incrOp);
         }
         else
         {
@@ -237,32 +231,25 @@ namespace pg
             Token varToken = parser.previousToken;
             auto varName = varToken.text;
 
-            OpCode setOp, getOp;
+            OpCode incrOp;
             ElementType identifier;
             int arg = parser.compiler->resolveLocal(chunk, varToken);
 
             if (arg != -1)
             {
                 // Local variable
-                setOp = OpCode::OP_Set_Local;
-                getOp = OpCode::OP_Get_Local;
+                incrOp = OpCode::OP_Post_Incr_Local;
                 identifier = ElementType(arg);
             }
             else
             {
                 // Global variable
-                setOp = OpCode::OP_Set_Global;
-                getOp = OpCode::OP_Get_Global;
+                incrOp = OpCode::OP_Post_Incr_Global;
                 identifier = ElementType(varName);
             }
 
-            // Prefix increment: ++var (modify variable, return new value)
-            parser.writeConstant(chunk, identifier);          // Push identifier [id]
-            parser.writeConstant(chunk, identifier);          // Push identifier again [id, id]
-            parser.writeByte(chunk, getOp);                   // Get current value [id, value]
-            parser.writeConstant(chunk, ElementType(1));      // Push 1 [id, value, 1]
-            parser.writeByte(chunk, OpCode::OP_Add);          // Add 1 [id, new_value]
-            parser.writeByte(chunk, setOp);                   // Store new value (leaves value on stack)
+            parser.writeConstant(chunk, identifier); // Push identifier [id]
+            parser.writeByte(chunk, incrOp);         // IncrementIt
         }
         else
         {
@@ -297,42 +284,22 @@ namespace pg
         ElementType lastConstant = chunk.constants.back();
 
         // Determine if this is a local or global variable
-        OpCode setOp, getOp;
+        OpCode incrOp;
         ElementType identifier;
 
         // Check if it's a number (local variable slot) or string (global variable name)
         if (lastConstant.isNumber()) {
             // Local variable
-            setOp = OpCode::OP_Set_Local;
-            getOp = OpCode::OP_Get_Local;
+            incrOp = OpCode::OP_Incr_Local;
             identifier = lastConstant;
         } else {
             // Global variable
-            setOp = OpCode::OP_Set_Global;
-            getOp = OpCode::OP_Get_Global;
+            incrOp = OpCode::OP_Incr_Global;
             identifier = lastConstant;
         }
 
-        // Now implement: return old_value, increment variable
-        // Stack: [old_value]
-        // We want to end with: [old_value] and variable incremented
-
-        // Duplicate the old value for our return
-        // But we don't have a DUP instruction, so we need to:
-        // 1. Get the variable again
-        // 2. Add 1
-        // 3. Set it back
-        // 4. The original old_value stays on stack
-
         parser.writeConstant(chunk, identifier);      // [old_value, id]
-        parser.writeConstant(chunk, identifier);      // [old_value, id, id]
-        parser.writeByte(chunk, getOp);               // [old_value, id, current_value]
-        parser.writeConstant(chunk, ElementType(1));  // [old_value, id, current_value, 1]
-        parser.writeByte(chunk, OpCode::OP_Add);      // [old_value, id, new_value]
-        parser.writeByte(chunk, setOp);               // [old_value, new_value] (set returns the value)
-        parser.writeByte(chunk, OpCode::OP_Pop);      // [old_value] (discard the new_value)
-
-        // Result: old_value is on stack (for return), variable has been incremented
+        parser.writeByte(chunk, incrOp);
     }
 
     void postfixDecrementOp(Chunk& chunk, Parser& parser, bool)
@@ -351,33 +318,22 @@ namespace pg
         ElementType lastConstant = chunk.constants.back();
 
         // Determine if this is a local or global variable
-        OpCode setOp, getOp;
+        OpCode incrOp;
         ElementType identifier;
 
         // Check if it's a number (local variable slot) or string (global variable name)
         if (lastConstant.isNumber()) {
             // Local variable
-            setOp = OpCode::OP_Set_Local;
-            getOp = OpCode::OP_Get_Local;
+            incrOp = OpCode::OP_Decr_Local;
             identifier = lastConstant;
         } else {
             // Global variable
-            setOp = OpCode::OP_Set_Global;
-            getOp = OpCode::OP_Get_Global;
+            incrOp = OpCode::OP_Decr_Global;
             identifier = lastConstant;
         }
 
-        // Now implement: return old_value, decrement variable
-        // Stack: [old_value]
-        // We want to end with: [old_value] and variable decremented
-
-        parser.writeConstant(chunk, identifier);      // [old_value, id]
-        parser.writeConstant(chunk, identifier);      // [old_value, id, id]
-        parser.writeByte(chunk, getOp);               // [old_value, id, current_value]
-        parser.writeConstant(chunk, ElementType(1));  // [old_value, id, current_value, 1]
-        parser.writeByte(chunk, OpCode::OP_Subtract); // [old_value, id, new_value]
-        parser.writeByte(chunk, setOp);               // [old_value, new_value] (set returns the value)
-        parser.writeByte(chunk, OpCode::OP_Pop);      // [old_value] (discard the new_value)
+        parser.writeConstant(chunk, identifier);
+        parser.writeByte(chunk, incrOp);
 
         // Result: old_value is on stack (for return), variable has been decremented
     }
@@ -616,12 +572,12 @@ namespace pg
         skipEOL();
         consume("Expect '(' after '__dprint'.", TokenType::PENTER);
         skipEOL();
-        
+
         expression(chunk);
-        
+
         consume("Expect ')' after expression.", TokenType::PCLOSE);
         consumeEnd("Expect ';' or newline after '__dprint' statement.");
-        
+
         writeByte(chunk, OpCode::OP_Debug_Print);
     }
 

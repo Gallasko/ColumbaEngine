@@ -176,6 +176,30 @@ namespace pg
             case OpCode::OP_Debug_Print:
                 return simpleInstruction("OP_Debug_Print", offset);
 
+            case OpCode::OP_Post_Incr_Global:
+                return simpleInstruction("OP_Post_Incr_Global", offset);
+
+            case OpCode::OP_Incr_Global:
+                return simpleInstruction("OP_Incr_Global", offset);
+
+            case OpCode::OP_Post_Incr_Local:
+                return simpleInstruction("OP_Post_Incr_Local", offset);
+
+            case OpCode::OP_Incr_Local:
+                return simpleInstruction("OP_Incr_Local", offset);
+
+            case OpCode::OP_Post_Decr_Global:
+                return simpleInstruction("OP_Post_Decr_Global", offset);
+
+            case OpCode::OP_Decr_Global:
+                return simpleInstruction("OP_Decr_Global", offset);
+
+            case OpCode::OP_Post_Decr_Local:
+                return simpleInstruction("OP_Post_Decr_Local", offset);
+
+            case OpCode::OP_Decr_Local:
+                return simpleInstruction("OP_Decr_Local", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;
