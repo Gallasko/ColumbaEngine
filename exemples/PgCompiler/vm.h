@@ -36,11 +36,12 @@ namespace pg
         std::vector<ElementType> data;
     public:
         void push(const ElementType& value) { data.push_back(value); }
+        void push(ElementType&& value) { data.push_back(std::move(value)); }
 
         ElementType pop() {
             if (data.empty())
                 throw std::runtime_error("Trying to pop on an empty stack");
-            ElementType value = data.back();
+            ElementType value = std::move(data.back());
             data.pop_back();
             return value;
         }

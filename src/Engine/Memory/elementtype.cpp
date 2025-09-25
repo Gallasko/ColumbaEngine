@@ -146,6 +146,15 @@ namespace pg
 
     ElementType ElementType::operator+(const ElementType& other) const
     {
+        // Fast path for most common case: int + int
+        if (type == UnionType::INT && other.type == UnionType::INT)
+        {
+            ElementType result;
+            result.data.i = data.i + other.data.i;
+            result.type = UnionType::INT;
+            return result;
+        }
+        
         if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
         {
             return ElementType { get<float>() + other.get<float>() };
@@ -157,10 +166,6 @@ namespace pg
         else if (type == UnionType::FLOAT and other.type == UnionType::SIZE_T)
         {
             return ElementType { get<float>() + other.get<size_t>() };
-        }
-        else if (type == UnionType::INT and other.type == UnionType::INT)
-        {
-            return ElementType { get<int>() + other.get<int>() };
         }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
@@ -457,6 +462,15 @@ namespace pg
 
     ElementType ElementType::operator< (const ElementType& other) const
     {
+        // Fast path for int < int (most common in loops)
+        if (type == UnionType::INT && other.type == UnionType::INT)
+        {
+            ElementType result;
+            result.data.b = data.i < other.data.i;
+            result.type = UnionType::BOOL;
+            return result;
+        }
+        
         try
         {
             return ElementType { (other > *this) };
