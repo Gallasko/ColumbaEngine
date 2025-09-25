@@ -288,15 +288,19 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable definition.");
                     }
 #endif
-                    auto name = valueToElement(pop());  // variable name
+                    auto nameValue = pop();  // variable name
+                    auto name = valueToElement(nameValue);
                     auto value = pop(); // variable value
 
                     if (not name.isLitteral())
                     {
+                        freeValue(nameValue);
+                        freeValue(value);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     globals[name.toString()] = value;
+                    freeValue(nameValue);
                     break;
                 }
 
@@ -308,20 +312,24 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable retrieval.");
                     }
 #endif
-                    auto name = valueToElement(pop());  // variable name
+                    auto nameValue = pop();  // variable name
+                    auto name = valueToElement(nameValue);
 
                     if (not name.isLitteral())
                     {
+                        freeValue(nameValue);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
+                        freeValue(nameValue);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     push(it->second);
+                    freeValue(nameValue);
                     break;
                 }
 
@@ -334,21 +342,29 @@ namespace pg
                     }
 #endif
                     auto value = pop(); // new variable value
-                    auto name = valueToElement(pop());  // variable name
+                    auto nameValue = pop();  // variable name
+                    auto name = valueToElement(nameValue);
 
                     if (not name.isLitteral())
                     {
+                        freeValue(nameValue);
+                        freeValue(value);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
+                        freeValue(nameValue);
+                        freeValue(value);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
+                    // Free the old value that was stored
+                    freeValue(it->second);
                     it->second = value;
                     push(value);
+                    freeValue(nameValue);
                     break;
                 }
 
