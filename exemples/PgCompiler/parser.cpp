@@ -194,13 +194,13 @@ namespace pg
             if (arg != -1)
             {
                 // Local variable
-                incrOp = OpCode::OP_Post_Decr_Local;
+                incrOp = OpCode::OP_Decr_Local;
                 identifier = ElementType(arg);
             }
             else
             {
                 // Global variable
-                incrOp = OpCode::OP_Post_Decr_Global;
+                incrOp = OpCode::OP_Decr_Global;
                 identifier = ElementType(varName);
             }
 
@@ -238,13 +238,13 @@ namespace pg
             if (arg != -1)
             {
                 // Local variable
-                incrOp = OpCode::OP_Post_Incr_Local;
+                incrOp = OpCode::OP_Incr_Local;
                 identifier = ElementType(arg);
             }
             else
             {
                 // Global variable
-                incrOp = OpCode::OP_Post_Incr_Global;
+                incrOp = OpCode::OP_Incr_Global;
                 identifier = ElementType(varName);
             }
 
@@ -290,11 +290,11 @@ namespace pg
         // Check if it's a number (local variable slot) or string (global variable name)
         if (lastConstant.isNumber()) {
             // Local variable
-            incrOp = OpCode::OP_Incr_Local;
+            incrOp = OpCode::OP_Post_Incr_Local;
             identifier = lastConstant;
         } else {
             // Global variable
-            incrOp = OpCode::OP_Incr_Global;
+            incrOp = OpCode::OP_Post_Incr_Global;
             identifier = lastConstant;
         }
 
@@ -324,11 +324,11 @@ namespace pg
         // Check if it's a number (local variable slot) or string (global variable name)
         if (lastConstant.isNumber()) {
             // Local variable
-            incrOp = OpCode::OP_Decr_Local;
+            incrOp = OpCode::OP_Post_Decr_Local;
             identifier = lastConstant;
         } else {
             // Global variable
-            incrOp = OpCode::OP_Decr_Global;
+            incrOp = OpCode::OP_Post_Decr_Global;
             identifier = lastConstant;
         }
 
