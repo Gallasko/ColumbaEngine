@@ -18,8 +18,19 @@ namespace pg {
         addRule(std::vector<OpCode>{pattern}, std::vector<OpCode>{replacement});
     }
 
+    void BytecodeRewriter::addAdvancedRule(const std::vector<PatternElement>& pattern,
+                                          std::function<std::vector<uint8_t>(const std::vector<CapturedInstruction>&)> transform) {
+        if (pattern.empty()) {
+            LOG_WARNING("BytecodeRewriter", "Cannot add advanced rule with empty pattern");
+            return;
+        }
+
+        advancedRules.emplace_back(pattern, transform);
+        LOG_INFO("BytecodeRewriter", "Added advanced rewrite rule with " << pattern.size() << " pattern elements");
+    }
+
     bool BytecodeRewriter::rewrite(Chunk& chunk) {
-        if (rules.empty()) {
+        if (rules.empty() && advancedRules.empty()) {
             LOG_INFO("BytecodeRewriter", "No rewrite rules defined");
             return false;
         }
@@ -29,8 +40,21 @@ namespace pg {
             return false;
         }
 
-        LOG_INFO("BytecodeRewriter", "Starting bytecode rewrite with " << rules.size() << " rules");
-        return findAndApplyRewrites(chunk);
+        LOG_INFO("BytecodeRewriter", "Starting bytecode rewrite with " << rules.size() << " simple rules and " << advancedRules.size() << " advanced rules");
+
+        bool anyChanges = false;
+
+        // Apply advanced rules first (more specific)
+        if (!advancedRules.empty()) {
+            anyChanges |= findAndApplyAdvancedRewrites(chunk);
+        }
+
+        // Then apply simple rules
+        if (!rules.empty()) {
+            anyChanges |= findAndApplyRewrites(chunk);
+        }
+
+        return anyChanges;
     }
 
     bool BytecodeRewriter::rewriteAt(Chunk& chunk, size_t index, size_t size, const std::vector<OpCode>& replacement) {
@@ -188,7 +212,56 @@ namespace pg {
 
     void BytecodeRewriter::clearRules() {
         rules.clear();
+        advancedRules.clear();
         LOG_INFO("BytecodeRewriter", "Cleared all rewrite rules");
+    }
+
+    bool BytecodeRewriter::findAndApplyAdvancedRewrites(Chunk& chunk) {
+        bool anyChanges = false;
+
+        for (size_t i = 0; i < chunk.code.size();) {
+            bool foundMatch = false;
+
+            for (const auto& rule : advancedRules) {
+                auto match = matchesAdvancedPattern(chunk, i, rule.pattern);
+                if (match) {
+                    auto [captured, patternByteSize] = *match;
+
+                    LOG_INFO("BytecodeRewriter", "Found advanced pattern match at offset " << i
+                             << " with " << captured.size() << " captured instructions");
+
+                    // Generate replacement using the transform lambda
+                    std::vector<uint8_t> replacement = rule.transform(captured);
+
+                    LOG_INFO("BytecodeRewriter", "Generated " << replacement.size() << " replacement bytes");
+
+                    int sizeDelta = static_cast<int>(replacement.size()) - static_cast<int>(patternByteSize);
+
+                    applyAdvancedRewrite(chunk, i, patternByteSize, replacement);
+
+                    // Adjust jump offsets immediately if size changed
+                    if (sizeDelta != 0) {
+                        LOG_INFO("BytecodeRewriter", "Adjusting jump offsets after size change of " << sizeDelta);
+                        adjustJumpOffsetsAfterRewrite(chunk, i, sizeDelta);
+                    }
+
+                    foundMatch = true;
+                    anyChanges = true;
+                    i += replacement.size();
+                    break;
+                }
+            }
+
+            if (!foundMatch) {
+                i += pg::getInstructionSize(static_cast<OpCode>(chunk.code[i]));
+            }
+        }
+
+        if (anyChanges) {
+            LOG_INFO("BytecodeRewriter", "Advanced pattern-based rewrite completed with changes");
+        }
+
+        return anyChanges;
     }
 
     bool BytecodeRewriter::findAndApplyRewrites(Chunk& chunk) {
@@ -231,6 +304,54 @@ namespace pg {
         }
 
         return anyChanges;
+    }
+
+    std::optional<std::pair<std::vector<CapturedInstruction>, size_t>>
+    BytecodeRewriter::matchesAdvancedPattern(const Chunk& chunk, size_t offset, const std::vector<PatternElement>& pattern) {
+        if (offset >= chunk.code.size()) {
+            return std::nullopt;
+        }
+
+        size_t currentOffset = offset;
+        std::vector<CapturedInstruction> captured;
+        size_t totalPatternSize = 0;
+
+        for (const auto& element : pattern) {
+            if (currentOffset >= chunk.code.size()) {
+                return std::nullopt;
+            }
+
+            OpCode currentOpcode = static_cast<OpCode>(chunk.code[currentOffset]);
+
+            // Check if the pattern element matches
+            if (element.opcode && *element.opcode != currentOpcode) {
+                return std::nullopt;
+            }
+
+            size_t instructionSize = pg::getInstructionSize(currentOpcode);
+
+            // Capture instruction if requested
+            if (element.capture) {
+                CapturedInstruction captured_inst;
+                captured_inst.opcode = currentOpcode;
+                captured_inst.offset = currentOffset;
+
+                // Extract operand bytes
+                if (instructionSize > 1 && currentOffset + instructionSize <= chunk.code.size()) {
+                    captured_inst.operands.assign(
+                        chunk.code.begin() + currentOffset + 1,
+                        chunk.code.begin() + currentOffset + instructionSize
+                    );
+                }
+
+                captured.push_back(captured_inst);
+            }
+
+            currentOffset += instructionSize;
+            totalPatternSize += instructionSize;
+        }
+
+        return std::make_pair(captured, totalPatternSize);
     }
 
     bool BytecodeRewriter::matchesPattern(const Chunk& chunk, size_t offset, const std::vector<OpCode>& pattern) {
@@ -282,8 +403,32 @@ namespace pg {
         }
     }
 
+    void BytecodeRewriter::applyAdvancedRewrite(Chunk& chunk, size_t offset, size_t patternSize, const std::vector<uint8_t>& replacement) {
+        // Store original lines for replacement
+        std::vector<int> originalLines;
+        if (offset < chunk.lines.size()) {
+            size_t linesToCopy = std::min(patternSize, chunk.lines.size() - offset);
+            originalLines.assign(chunk.lines.begin() + offset, chunk.lines.begin() + offset + linesToCopy);
+        }
 
+        // Remove original pattern bytes and lines
+        chunk.code.erase(chunk.code.begin() + offset, chunk.code.begin() + offset + patternSize);
+        if (offset < chunk.lines.size()) {
+            size_t linesToRemove = std::min(patternSize, chunk.lines.size() - offset);
+            chunk.lines.erase(chunk.lines.begin() + offset, chunk.lines.begin() + offset + linesToRemove);
+        }
 
+        // Insert replacement bytes directly
+        chunk.code.insert(chunk.code.begin() + offset, replacement.begin(), replacement.end());
+
+        // Insert corresponding line numbers
+        int line = originalLines.empty() ? 0 : originalLines[0];
+        for (size_t i = 0; i < replacement.size(); ++i) {
+            chunk.lines.insert(chunk.lines.begin() + offset + i, line);
+        }
+
+        LOG_INFO("BytecodeRewriter", "Applied advanced rewrite: " << patternSize << " bytes -> " << replacement.size() << " bytes");
+    }
 
     size_t BytecodeRewriter::getPatternByteSize(const std::vector<OpCode>& pattern) const {
         size_t totalSize = 0;
