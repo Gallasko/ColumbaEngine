@@ -584,17 +584,19 @@ namespace pg
                 case OpCode::OP_Post_Incr_Global:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
+                    if (stack.size() < 2)
                     {
                         EMIT_RUNTIME_ERROR("Stack underflow on post-increment.");
                     }
 #endif
                     auto nameValue = pop();  // variable name
+                    auto oldValueFromStack = pop(); // old value (we'll discard this)
                     auto name = valueToElement(nameValue);
 
                     if (not name.isLitteral())
                     {
                         freeValue(nameValue);
+                        freeValue(oldValueFromStack);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
@@ -602,12 +604,14 @@ namespace pg
                     if (it == globals.end())
                     {
                         freeValue(nameValue);
+                        freeValue(oldValueFromStack);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     if (not isValueNumber(it->second))
                     {
                         freeValue(nameValue);
+                        freeValue(oldValueFromStack);
                         EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
                     }
 
@@ -618,6 +622,7 @@ namespace pg
 
                     push(oldValue); // Post-increment returns the old value
                     freeValue(nameValue);
+                    freeValue(oldValueFromStack);
                     break;
                 }
 
@@ -663,17 +668,19 @@ namespace pg
                 case OpCode::OP_Post_Decr_Global:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
+                    if (stack.size() < 2)
                     {
                         EMIT_RUNTIME_ERROR("Stack underflow on post-decrement.");
                     }
 #endif
                     auto nameValue = pop();  // variable name
+                    auto oldValueFromStack = pop(); // old value (we'll discard this)
                     auto name = valueToElement(nameValue);
 
                     if (not name.isLitteral())
                     {
                         freeValue(nameValue);
+                        freeValue(oldValueFromStack);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
@@ -681,12 +688,14 @@ namespace pg
                     if (it == globals.end())
                     {
                         freeValue(nameValue);
+                        freeValue(oldValueFromStack);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     if (not isValueNumber(it->second))
                     {
                         freeValue(nameValue);
+                        freeValue(oldValueFromStack);
                         EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
                     }
 
@@ -697,6 +706,7 @@ namespace pg
 
                     push(oldValue); // Post-decrement returns the old value
                     freeValue(nameValue);
+                    freeValue(oldValueFromStack);
                     break;
                 }
 
