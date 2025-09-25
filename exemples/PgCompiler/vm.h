@@ -140,19 +140,46 @@ namespace pg
 
     // Fast arithmetic operations on Value types
     inline Value addValues(const Value& a, const Value& b) {
+        // Fast path for integers
         if (IS_INT(a) && IS_INT(b)) {
             return INT_VAL(AS_INT(a) + AS_INT(b));
         }
-        // Fall back to ElementType for complex cases
+        // Handle mixed int/float cases without ElementType conversion
+        if (IS_INT(a) && IS_OBJ(b) && AS_OBJ(b)->isNumber()) {
+            // int + float -> convert int to float and return float result
+            float floatA = static_cast<float>(AS_INT(a));
+            float floatB = (*AS_OBJ(b)).get<float>();
+            return OBJ_VAL(new ElementType(floatA + floatB));
+        }
+        if (IS_OBJ(a) && AS_OBJ(a)->isNumber() && IS_INT(b)) {
+            // float + int -> convert int to float and return float result
+            float floatA = (*AS_OBJ(a)).get<float>();
+            float floatB = static_cast<float>(AS_INT(b));
+            return OBJ_VAL(new ElementType(floatA + floatB));
+        }
+        // Fall back to ElementType for other complex cases (strings, etc.)
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA + elemB);
     }
 
     inline Value subtractValues(const Value& a, const Value& b) {
+        // Fast path for integers
         if (IS_INT(a) && IS_INT(b)) {
             return INT_VAL(AS_INT(a) - AS_INT(b));
         }
+        // Handle mixed int/float cases without ElementType conversion
+        if (IS_INT(a) && IS_OBJ(b) && AS_OBJ(b)->isNumber()) {
+            float floatA = static_cast<float>(AS_INT(a));
+            float floatB = (*AS_OBJ(b)).get<float>();
+            return OBJ_VAL(new ElementType(floatA - floatB));
+        }
+        if (IS_OBJ(a) && AS_OBJ(a)->isNumber() && IS_INT(b)) {
+            float floatA = (*AS_OBJ(a)).get<float>();
+            float floatB = static_cast<float>(AS_INT(b));
+            return OBJ_VAL(new ElementType(floatA - floatB));
+        }
+        // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA - elemB);
@@ -264,7 +291,7 @@ namespace pg
 
     // Memory management for heap-allocated objects
     inline void freeValue(Value& value) {
-        if (IS_OBJ(value)) {
+        if (IS_OBJ(value) && AS_OBJ(value) != nullptr) {
             delete AS_OBJ(value);
             value.as.obj = nullptr;
         }
@@ -345,6 +372,16 @@ namespace pg
 
     struct VM
     {
+        // Destructor to properly clean up globals map and stack
+        ~VM() {
+            // Free all Values stored in globals before destruction
+            for (auto& pair : globals) {
+                freeValue(pair.second);
+            }
+            // Clean up any remaining Values on the stack
+            stack.clear();
+        }
+
         InterpretResult interpretFromText(const std::string& source)
         {
             Lexer lexer;
