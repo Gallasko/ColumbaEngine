@@ -581,6 +581,318 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Post_Incr_Global:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow on post-increment.");
+                    }
+#endif
+                    auto nameValue = pop();  // variable name
+                    auto name = valueToElement(nameValue);
+
+                    if (not name.isLitteral())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
+                    }
+
+                    auto it = globals.find(name.toString());
+                    if (it == globals.end())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
+                    }
+
+                    if (not isValueNumber(it->second))
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
+                    }
+
+                    auto oldValue = copyValue(it->second);
+                    auto newValue = addValues(it->second, INT_VAL(1));
+                    freeValue(it->second);
+                    it->second = newValue;
+
+                    push(oldValue); // Post-increment returns the old value
+                    freeValue(nameValue);
+                    break;
+                }
+
+                case OpCode::OP_Incr_Global:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow on increment.");
+                    }
+#endif
+                    auto nameValue = pop();  // variable name
+                    auto name = valueToElement(nameValue);
+
+                    if (not name.isLitteral())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
+                    }
+
+                    auto it = globals.find(name.toString());
+                    if (it == globals.end())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
+                    }
+
+                    if (not isValueNumber(it->second))
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
+                    }
+
+                    auto newValue = addValues(it->second, INT_VAL(1));
+                    freeValue(it->second);
+                    it->second = newValue;
+
+                    push(copyValue(newValue)); // Pre-increment returns the new value
+                    freeValue(nameValue);
+                    break;
+                }
+
+                case OpCode::OP_Post_Decr_Global:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow on post-decrement.");
+                    }
+#endif
+                    auto nameValue = pop();  // variable name
+                    auto name = valueToElement(nameValue);
+
+                    if (not name.isLitteral())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
+                    }
+
+                    auto it = globals.find(name.toString());
+                    if (it == globals.end())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
+                    }
+
+                    if (not isValueNumber(it->second))
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
+                    }
+
+                    auto oldValue = copyValue(it->second);
+                    auto newValue = subtractValues(it->second, INT_VAL(1));
+                    freeValue(it->second);
+                    it->second = newValue;
+
+                    push(oldValue); // Post-decrement returns the old value
+                    freeValue(nameValue);
+                    break;
+                }
+
+                case OpCode::OP_Decr_Global:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow on decrement.");
+                    }
+#endif
+                    auto nameValue = pop();  // variable name
+                    auto name = valueToElement(nameValue);
+
+                    if (not name.isLitteral())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
+                    }
+
+                    auto it = globals.find(name.toString());
+                    if (it == globals.end())
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
+                    }
+
+                    if (not isValueNumber(it->second))
+                    {
+                        freeValue(nameValue);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
+                    }
+
+                    auto newValue = subtractValues(it->second, INT_VAL(1));
+                    freeValue(it->second);
+                    it->second = newValue;
+
+                    push(copyValue(newValue)); // Pre-decrement returns the new value
+                    freeValue(nameValue);
+                    break;
+                }
+
+                case OpCode::OP_Post_Incr_Local:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.size() < 1)
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for local post-increment.");
+                    }
+#endif
+                    auto slot = pop(); // Get the slot index from stack
+
+                    if (not isValueNumber(slot))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
+                    }
+
+                    int index = getValueAsInt(slot);
+                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                    }
+
+                    if (not isValueNumber(stack[index]))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
+                    }
+
+                    auto oldValue = copyValue(stack[index]);
+                    auto newValue = addValues(stack[index], INT_VAL(1));
+                    freeValue(stack[index]);
+                    stack[index] = newValue;
+
+                    push(oldValue); // Post-increment returns the old value
+                    freeValue(slot);
+                    break;
+                }
+
+                case OpCode::OP_Incr_Local:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.size() < 1)
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for local increment.");
+                    }
+#endif
+                    auto slot = pop(); // Get the slot index from stack
+
+                    if (not isValueNumber(slot))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
+                    }
+
+                    int index = getValueAsInt(slot);
+                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                    }
+
+                    if (not isValueNumber(stack[index]))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
+                    }
+
+                    auto newValue = addValues(stack[index], INT_VAL(1));
+                    freeValue(stack[index]);
+                    stack[index] = newValue;
+
+                    push(copyValue(newValue)); // Pre-increment returns the new value
+                    freeValue(slot);
+                    break;
+                }
+
+                case OpCode::OP_Post_Decr_Local:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.size() < 1)
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for local post-decrement.");
+                    }
+#endif
+                    auto slot = pop(); // Get the slot index from stack
+
+                    if (not isValueNumber(slot))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
+                    }
+
+                    int index = getValueAsInt(slot);
+                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                    }
+
+                    if (not isValueNumber(stack[index]))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
+                    }
+
+                    auto oldValue = copyValue(stack[index]);
+                    auto newValue = subtractValues(stack[index], INT_VAL(1));
+                    freeValue(stack[index]);
+                    stack[index] = newValue;
+
+                    push(oldValue); // Post-decrement returns the old value
+                    freeValue(slot);
+                    break;
+                }
+
+                case OpCode::OP_Decr_Local:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.size() < 1)
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for local decrement.");
+                    }
+#endif
+                    auto slot = pop(); // Get the slot index from stack
+
+                    if (not isValueNumber(slot))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
+                    }
+
+                    int index = getValueAsInt(slot);
+                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                    }
+
+                    if (not isValueNumber(stack[index]))
+                    {
+                        freeValue(slot);
+                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
+                    }
+
+                    auto newValue = subtractValues(stack[index], INT_VAL(1));
+                    freeValue(stack[index]);
+                    stack[index] = newValue;
+
+                    push(copyValue(newValue)); // Pre-decrement returns the new value
+                    freeValue(slot);
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;

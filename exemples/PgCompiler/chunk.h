@@ -44,6 +44,15 @@ namespace pg
         OP_Loop,
         OP_Long_Loop,
         OP_Debug_Print,
+
+        OP_Post_Incr_Global,
+        OP_Incr_Global,
+        OP_Post_Incr_Local,
+        OP_Incr_Local,
+        OP_Post_Decr_Global,
+        OP_Decr_Global,
+        OP_Post_Decr_Local,
+        OP_Decr_Local
     };
 
     struct Chunk
@@ -129,6 +138,14 @@ namespace pg
             case OpCode::OP_LessEqual:
             case OpCode::OP_Pop:
             case OpCode::OP_Debug_Print:
+            case OpCode::OP_Post_Incr_Global:
+            case OpCode::OP_Incr_Global:
+            case OpCode::OP_Post_Incr_Local:
+            case OpCode::OP_Incr_Local:
+            case OpCode::OP_Post_Decr_Global:
+            case OpCode::OP_Decr_Global:
+            case OpCode::OP_Post_Decr_Local:
+            case OpCode::OP_Decr_Local:
                 return 1; // opcode only, no operand
 
             case OpCode::OP_LongConstant:
