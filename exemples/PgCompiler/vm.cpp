@@ -239,8 +239,12 @@ namespace pg
                     try { \
                         push(op(a, b)); \
                     } catch (const std::exception& e) { \
+                        freeValue(a); \
+                        freeValue(b); \
                         EMIT_RUNTIME_ERROR("Comparison operation failed: " << e.what()); \
                     } \
+                    freeValue(a); \
+                    freeValue(b); \
                     break; \
                 }
 
@@ -270,7 +274,8 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
                     }
 #endif
-                    pop();
+                    auto value = pop();
+                    freeValue(value);
 
                     break;
                 }
@@ -358,16 +363,19 @@ namespace pg
                     auto slot = pop(); // Get the slot index from stack
                     if (not isValueNumber(slot))
                     {
+                        freeValue(slot);
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
                     int index = getValueAsInt(slot);
                     if (index < 0 || index >= static_cast<int>(stack.size()))
                     {
+                        freeValue(slot);
                         EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
                     }
 
                     push(stack[index]);
+                    freeValue(slot);
                     break;
                 }
 
@@ -384,17 +392,24 @@ namespace pg
 
                     if (not isValueNumber(slot))
                     {
+                        freeValue(slot);
+                        freeValue(value);
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
                     int index = getValueAsInt(slot);
                     if (index < 0 || index >= static_cast<int>(stack.size()))
                     {
+                        freeValue(slot);
+                        freeValue(value);
                         EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
                     }
 
+                    // Free the old value that was in the stack slot
+                    freeValue(stack[index]);
                     stack[index] = value;
                     push(value); // Assignment expression returns the value
+                    freeValue(slot);
                     break;
                 }
 
@@ -632,6 +647,8 @@ namespace pg
         auto a = pop();
 
         push(op(a, b));
+        freeValue(a);
+        freeValue(b);
     }
 
     void VM::fastBinaryOp(Value (*op)(const Value&, const Value&))
@@ -652,6 +669,8 @@ namespace pg
             auto b = pop();
             auto a = pop();
             push(op(a, b));
+            freeValue(a);
+            freeValue(b);
             return;
         }
 
@@ -672,5 +691,7 @@ namespace pg
         auto b = pop();
         auto a = pop();
         push(op(a, b));
+        freeValue(a);
+        freeValue(b);
     }
 }
