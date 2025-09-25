@@ -792,6 +792,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             ColumbaEngine
         )
 
+        # Add DEBUG_CHECK_STACK define for test_compiler target
+        target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
+
         # Copy test data files to build directory
         add_custom_command(TARGET test_compiler POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory

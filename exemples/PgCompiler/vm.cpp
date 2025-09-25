@@ -38,13 +38,13 @@ namespace pg
 
             LOG_INFO("VM", "Applying bytecode optimizations");
             size_t originalSize = chunk.code.size();
-            
+
             passManager.runAllPasses(chunk);
-            
+
             size_t optimizedSize = chunk.code.size();
             if (optimizedSize != originalSize)
             {
-                LOG_INFO("VM", "Optimization changed bytecode size from " << 
+                LOG_INFO("VM", "Optimization changed bytecode size from " <<
                          originalSize << " to " << optimizedSize << " bytes");
             }
 
@@ -110,11 +110,12 @@ namespace pg
             {
                 case OpCode::OP_Return:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Nothing in the stack for return.");
                     }
-
+#endif
                     auto value = pop();
 
                     std::cout << value.toString() << std::endl;
@@ -187,7 +188,7 @@ namespace pg
 
                 case OpCode::OP_Not:
                 {
-                    if (peek(0).getTypeString() != "bool")
+                    if (not peek(0).isBool())
                     {
                         EMIT_RUNTIME_ERROR("Operand after an unary (!) must be a boolean.");
                     }
@@ -254,11 +255,12 @@ namespace pg
 
                 case OpCode::OP_Pop:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
                     }
-
+#endif
                     pop();
 
                     break;
@@ -266,11 +268,12 @@ namespace pg
 
                 case OpCode::OP_Define_Global:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.size() < 2)
                     {
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable definition.");
                     }
-
+#endif
                     auto name = pop();  // variable name
                     auto value = pop(); // variable value
 
@@ -285,11 +288,12 @@ namespace pg
 
                 case OpCode::OP_Get_Global:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable retrieval.");
                     }
-
+#endif
                     auto name = pop();  // variable name
 
                     if (not name.isLitteral())
@@ -309,11 +313,12 @@ namespace pg
 
                 case OpCode::OP_Set_Global:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.size() < 2)
                     {
                         EMIT_RUNTIME_ERROR("Not enough values on stack for variable assignment.");
                     }
-
+#endif
                     auto value = pop(); // new variable value
                     auto name = pop();  // variable name
 
@@ -335,13 +340,14 @@ namespace pg
 
                 case OpCode::OP_Get_Local:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Stack underflow for local variable access.");
                     }
-
+#endif
                     auto slot = pop(); // Get the slot index from stack
-                    if (!slot.isNumber())
+                    if (not slot.isNumber())
                     {
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
@@ -358,15 +364,16 @@ namespace pg
 
                 case OpCode::OP_Set_Local:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.size() < 2)
                     {
                         EMIT_RUNTIME_ERROR("Not enough values on stack for local assignment.");
                     }
-
+#endif
                     auto value = pop(); // New value
                     auto slot = pop();  // Slot index
 
-                    if (!slot.isNumber())
+                    if (not slot.isNumber())
                     {
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
@@ -384,11 +391,12 @@ namespace pg
 
                 case OpCode::OP_Jump_If_False:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (ip + 2 >= chunk.code.size())
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
                     }
-
+#endif
                     uint16_t jumpOffset = readUint16();
 
                     if (stack.empty())
@@ -412,11 +420,12 @@ namespace pg
 
                 case OpCode::OP_Long_Jump_If_False:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (ip + 4 >= chunk.code.size())
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
                     }
-
+#endif
                     uint32_t jumpOffset = readUint32();
 
                     if (stack.empty())
@@ -440,11 +449,12 @@ namespace pg
 
                 case OpCode::OP_Jump:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (ip + 2 >= chunk.code.size())
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
                     }
-
+#endif
                     uint16_t jumpOffset = readUint16();
 
                     ip += jumpOffset;
@@ -458,11 +468,12 @@ namespace pg
 
                 case OpCode::OP_Long_Jump:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (ip + 4 >= chunk.code.size())
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
                     }
-
+#endif
                     uint32_t jumpOffset = readUint32();
 
                     ip += jumpOffset;
@@ -476,47 +487,50 @@ namespace pg
 
                 case OpCode::OP_Loop:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (ip + 2 >= chunk.code.size())
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read loop offset.");
                     }
-
+#endif
                     uint16_t loopOffset = readUint16();
-
+#ifdef DEBUG_CHECK_STACK
                     if (loopOffset > ip)
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
-
+#endif
                     ip -= loopOffset;
                     break;
                 }
 
                 case OpCode::OP_Long_Loop:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (ip + 4 >= chunk.code.size())
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read long loop offset.");
                     }
-
+#endif
                     uint32_t loopOffset = readUint32();
-
+#ifdef DEBUG_CHECK_STACK
                     if (loopOffset > ip)
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
-
+#endif
                     ip -= loopOffset;
                     break;
                 }
 
                 case OpCode::OP_Debug_Print:
                 {
+#ifdef DEBUG_CHECK_STACK
                     if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Nothing to print from the stack.");
                     }
-
+#endif
                     auto value = pop();
 
                     // For testing: append to testOutput buffer instead of stdout
@@ -537,19 +551,25 @@ namespace pg
     ElementType VM::readConstant()
     {
         uint8_t constantIndex = chunk.code[ip++];
+
+#ifdef DEBUG_CHECK_STACK
         if (constantIndex >= chunk.constants.size())
         {
             throw std::runtime_error("Constant index out of bounds.");
         }
+#endif
+
         return chunk.constants[constantIndex];
     }
 
     ElementType VM::readLongConstant()
     {
+#ifdef DEBUG_CHECK_STACK
         if (ip + 2 >= chunk.code.size())
         {
             throw std::runtime_error("Not enough bytes to read long constant index.");
         }
+#endif
 
         uint32_t constantIndex = (static_cast<uint32_t>(chunk.code[ip]) << 16);
         ip++;
@@ -560,21 +580,25 @@ namespace pg
         constantIndex |= static_cast<uint32_t>(chunk.code[ip]);
         ip++;
 
+#ifdef DEBUG_CHECK_STACK
         if (constantIndex >= chunk.constants.size())
         {
             throw std::runtime_error("Long constant index out of bounds.");
         }
+#endif
 
         return chunk.constants[constantIndex];
     }
 
     void VM::binaryOp(std::function<ElementType(ElementType, ElementType)> op)
     {
+#ifdef DEBUG_CHECK_STACK
         if (stack.size() < 2)
         {
             runtimeError((Strfy() << "Stack underflow on binary operation.").getData());
             return;
         }
+#endif
 
         auto e1 = peek(0);
         auto e2 = peek(1);

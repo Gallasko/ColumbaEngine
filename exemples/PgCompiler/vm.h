@@ -16,6 +16,8 @@
 // Todo add this as a flag in when compiling in debug
 // #define DEBUG_TRACE_EXECUTION
 
+// #define DEBUG_CHECK_STACK
+
 #define DEBUG_PROFILE_COMPILE
 
 #define EMIT_RUNTIME_ERROR(msg) do {runtimeError((Strfy() << msg).getData()); return InterpretResult::RUNTIME_ERROR;} while(0);
@@ -95,9 +97,10 @@ namespace pg
 
         ElementType pop()
         {
+#ifdef DEBUG_CHECK_STACK
             if (stack.empty())
                 throw std::runtime_error("Trying to pop on an empty stack");
-
+#endif
             ElementType value = stack.top();
             stack.pop();
 
@@ -106,19 +109,21 @@ namespace pg
 
         ElementType peek(size_t distance = 0) const
         {
+#ifdef DEBUG_CHECK_STACK
             if (distance >= stack.size())
                 throw std::runtime_error("Trying to peek too far in the stack");
-
+#endif
             return stack[stack.size() - 1 - distance];
         }
 
         uint16_t readUint16()
         {
+#ifdef DEBUG_CHECK_STACK
             if (ip + 1 >= chunk.code.size())
             {
                 throw std::runtime_error("Not enough bytes to read uint16.");
             }
-
+#endif
             uint16_t value = (static_cast<uint16_t>(chunk.code[ip]) << 8);
             ip++;
             value |= static_cast<uint16_t>(chunk.code[ip]);
@@ -129,11 +134,12 @@ namespace pg
 
         uint32_t readUint32()
         {
+#ifdef DEBUG_CHECK_STACK
             if (ip + 3 >= chunk.code.size())
             {
                 throw std::runtime_error("Not enough bytes to read uint32.");
             }
-
+#endif
             uint32_t value = (static_cast<uint32_t>(chunk.code[ip]) << 24);
             ip++;
             value |= (static_cast<uint32_t>(chunk.code[ip]) << 16);
@@ -160,12 +166,13 @@ namespace pg
 
         bool checkBooleanBinaryOp()
         {
+#ifdef DEBUG_CHECK_STACK
             if (stack.size() < 2)
             {
                 runtimeError("Stack underflow on binary operation.");
                 return false;
             }
-
+#endif
             return true;
         }
 
@@ -181,37 +188,37 @@ namespace pg
         IndexableStack stack;
 
         std::unordered_map<std::string, ElementType> globals;
-        
+
         // Test output buffer for __dprint (used in tests)
         std::string testOutput;
-        
+
         // Bytecode optimization
         PassManager passManager;
         bool enableOptimizations = true;
-        
+
         // Optimization control methods
-        void enableBytecodeOptimization() { 
-            enableOptimizations = true; 
+        void enableBytecodeOptimization() {
+            enableOptimizations = true;
             LOG_INFO("VM", "Bytecode optimization enabled");
         }
-        
-        void disableBytecodeOptimization() { 
-            enableOptimizations = false; 
+
+        void disableBytecodeOptimization() {
+            enableOptimizations = false;
             LOG_INFO("VM", "Bytecode optimization disabled");
         }
-        
-        void enableOptimizationDebugging() { 
-            passManager.setDebugOutput(true); 
+
+        void enableOptimizationDebugging() {
+            passManager.setDebugOutput(true);
         }
-        
-        void disableOptimizationDebugging() { 
-            passManager.setDebugOutput(false); 
+
+        void disableOptimizationDebugging() {
+            passManager.setDebugOutput(false);
         }
-        
+
         void listOptimizationPasses() const {
             passManager.listPasses();
         }
-        
+
         void addOptimizationPass(std::unique_ptr<BytecodePass> pass) {
             passManager.addPass(std::move(pass));
         }
