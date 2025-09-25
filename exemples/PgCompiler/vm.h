@@ -33,32 +33,57 @@ namespace pg
 
     class IndexableStack
     {
-        std::vector<ElementType> data;
+    private:
+        static constexpr size_t MAX_STACK_SIZE = 8192;
+        alignas(ElementType) char stack_memory[MAX_STACK_SIZE * sizeof(ElementType)];
+        size_t stack_top = 0;
+        
+        ElementType* stack_data() { 
+            return reinterpret_cast<ElementType*>(stack_memory); 
+        }
+        
+        const ElementType* stack_data() const { 
+            return reinterpret_cast<const ElementType*>(stack_memory); 
+        }
+        
     public:
-        void push(const ElementType& value) { data.push_back(value); }
-        void push(ElementType&& value) { data.push_back(std::move(value)); }
+        void push(const ElementType& value) {
+            if (stack_top >= MAX_STACK_SIZE)
+                throw std::runtime_error("Stack overflow");
+            new(&stack_data()[stack_top++]) ElementType(value);
+        }
+        
+        void push(ElementType&& value) {
+            if (stack_top >= MAX_STACK_SIZE)
+                throw std::runtime_error("Stack overflow");
+            new(&stack_data()[stack_top++]) ElementType(std::move(value));
+        }
 
         ElementType pop() {
-            if (data.empty())
+            if (stack_top == 0)
                 throw std::runtime_error("Trying to pop on an empty stack");
-            ElementType value = std::move(data.back());
-            data.pop_back();
+            ElementType value = std::move(stack_data()[stack_top - 1]);
+            stack_data()[--stack_top].~ElementType();
             return value;
         }
 
-        ElementType& operator[](size_t index) { return data[index]; }
-        const ElementType& operator[](size_t index) const { return data[index]; }
+        ElementType& operator[](size_t index) { return stack_data()[index]; }
+        const ElementType& operator[](size_t index) const { return stack_data()[index]; }
 
         ElementType top() const {
-            if (data.empty())
+            if (stack_top == 0)
                 throw std::runtime_error("Stack is empty");
-            return data.back();
+            return stack_data()[stack_top - 1];
         }
 
-        bool empty() const { return data.empty(); }
-        size_t size() const { return data.size(); }
+        bool empty() const { return stack_top == 0; }
+        size_t size() const { return stack_top; }
 
-        void clear() { data.clear(); }
+        void clear() { 
+            while (stack_top > 0) {
+                stack_data()[--stack_top].~ElementType();
+            }
+        }
     };
 
     struct VM
