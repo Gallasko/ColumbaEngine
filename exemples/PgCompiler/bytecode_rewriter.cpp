@@ -153,6 +153,39 @@ namespace pg {
         return true;
     }
 
+    bool BytecodeRewriter::removeInstructions(Chunk& chunk, size_t index, size_t count) {
+        if (index >= chunk.code.size()) {
+            LOG_WARNING("BytecodeRewriter", "Remove index " << index << " is out of bounds (chunk size: " << chunk.code.size() << ")");
+            return false;
+        }
+
+        if (count == 0) {
+            LOG_WARNING("BytecodeRewriter", "Cannot remove zero instructions");
+            return false;
+        }
+
+        if (index + count > chunk.code.size()) {
+            LOG_WARNING("BytecodeRewriter", "Remove range [" << index << ", " << (index + count) << ") exceeds chunk bounds");
+            return false;
+        }
+
+        LOG_INFO("BytecodeRewriter", "Removing " << count << " bytes starting at index " << index);
+
+        // Remove bytes and corresponding lines
+        if (index < chunk.lines.size()) {
+            size_t linesToRemove = std::min(count, chunk.lines.size() - index);
+            chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
+        }
+
+        // Adjust jump offsets since we removed bytes
+        int sizeDelta = -static_cast<int>(count);
+        LOG_INFO("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
+        adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
+
+        LOG_INFO("BytecodeRewriter", "Successfully removed " << count << " bytes");
+        return true;
+    }
+
     void BytecodeRewriter::clearRules() {
         rules.clear();
         LOG_INFO("BytecodeRewriter", "Cleared all rewrite rules");
