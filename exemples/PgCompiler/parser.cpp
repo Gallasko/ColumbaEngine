@@ -281,7 +281,8 @@ namespace pg
         const auto& chunk = parser.compiler->getCurrentChunk();
 
         // We can examine the last constant that was added to identify the variable
-        if (chunk.constants.empty()) {
+        if (chunk.constants.empty())
+        {
             parser.errorAt(parser.previousToken, "No variable found for postfix increment");
             return;
         }
@@ -294,11 +295,14 @@ namespace pg
         ElementType identifier;
 
         // Check if it's a number (local variable slot) or string (global variable name)
-        if (lastConstant.isNumber()) {
+        if (lastConstant.isNumber())
+        {
             // Local variable
             incrOp = OpCode::OP_Post_Incr_Local;
             identifier = lastConstant;
-        } else {
+        }
+        else
+        {
             // Global variable
             incrOp = OpCode::OP_Post_Incr_Global;
             identifier = lastConstant;
@@ -317,7 +321,8 @@ namespace pg
         const auto& chunk = parser.compiler->getCurrentChunk();
 
         // Strategy: Same as postfixIncrementOp - examine the last constant to identify the variable
-        if (chunk.constants.empty()) {
+        if (chunk.constants.empty())
+        {
             parser.errorAt(parser.previousToken, "No variable found for postfix decrement");
             return;
         }
@@ -330,11 +335,14 @@ namespace pg
         ElementType identifier;
 
         // Check if it's a number (local variable slot) or string (global variable name)
-        if (lastConstant.isNumber()) {
+        if (lastConstant.isNumber())
+        {
             // Local variable
             incrOp = OpCode::OP_Post_Decr_Local;
             identifier = lastConstant;
-        } else {
+        }
+        else
+        {
             // Global variable
             incrOp = OpCode::OP_Post_Decr_Global;
             identifier = lastConstant;
