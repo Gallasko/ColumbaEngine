@@ -9,28 +9,13 @@ namespace pg {
             return false;
         }
 
-        LOG_INFO("ConstantPropagationPass", "Starting constant propagation analysis");
+        LOG_INFO("ConstantPropagationPass", "Starting constant propagation");
 
-        // Reset state from previous runs
-        resetState();
-
-        // Phase 1: Analyze the bytecode to find constant assignments
-        analyzeConstantAssignments(chunk);
-
-        // Log what we found
-        LOG_INFO("ConstantPropagationPass", "Found " << localConstants.size()
-                 << " local constants and " << globalConstants.size() << " global constants");
-
-        if (localConstants.empty() && globalConstants.empty()) {
-            LOG_INFO("ConstantPropagationPass", "No constant assignments found");
-            return false;
-        }
-
-        // Phase 2: Set up patterns to replace loads with constants
+        // Clear existing rules and add our constant propagation patterns
         rewriter->clearRules();
         setupConstantPropagationPatterns(rewriter);
 
-        // Phase 3: Apply transformations
+        // Apply transformations
         bool modified = rewriter->rewrite(chunk);
 
         if (modified) {
@@ -53,7 +38,7 @@ namespace pg {
                 size_t constantOffset = offset;
                 size_t constantSize = getInstructionSize(currentOp);
 
-                // Extract constant operands
+                // Extract constant operands (directly from bytecode after opcode)
                 std::vector<uint8_t> constantOperands;
                 for (size_t i = 1; i < constantSize; ++i) {
                     if (constantOffset + i < chunk.code.size()) {
@@ -69,16 +54,10 @@ namespace pg {
                     if (nextOp == OpCode::OP_Set_Local) {
                         // Found constant -> set_local pattern
                         size_t storeSize = getInstructionSize(nextOp);
-                        std::vector<uint8_t> storeOperands;
 
-                        for (size_t i = 1; i < storeSize; ++i) {
-                            if (nextOffset + i < chunk.code.size()) {
-                                storeOperands.push_back(chunk.code[nextOffset + i]);
-                            }
-                        }
-
-                        if (!storeOperands.empty()) {
-                            uint8_t variableSlot = storeOperands[0];
+                        // For OP_Set_Local, the operand is the next byte after the opcode
+                        if (nextOffset + 1 < chunk.code.size()) {
+                            uint8_t variableSlot = chunk.code[nextOffset + 1];
                             ElementType constantValue = extractConstantValue(chunk, currentOp, constantOperands);
 
                             VariableConstantInfo info(constantValue, currentOp, constantOperands, constantOffset);
@@ -153,49 +132,115 @@ namespace pg {
     }
 
     void ConstantPropagationPass::setupConstantPropagationPatterns(BytecodeRewriter* rewriter) {
-        // Pattern for local variable constant propagation
-        for (const auto& pair : localConstants) {
-            uint8_t slot = pair.first;
-            const VariableConstantInfo& info = pair.second;
+        // Pattern: constant -> store -> load (same variable)
+        // Transform: replace the load with the constant
 
-            std::vector<PatternElement> pattern = {
-                PatternElement::match(OpCode::OP_Get_Local, true)  // Capture the load
-            };
+        // Local variable constant propagation
+        // Pattern: constant_value -> constant_slot -> set_local -> constant_slot -> get_local
+        std::vector<PatternElement> localPattern = {
+            PatternElement::constant(true),                     // Capture: constant value
+            PatternElement::constant(true),                     // Capture: slot constant
+            PatternElement::match(OpCode::OP_Set_Local, true),  // Capture: store instruction
+            PatternElement::constant(true),                     // Capture: slot constant (again)
+            PatternElement::match(OpCode::OP_Get_Local, true)   // Capture: load instruction
+        };
 
-            auto transform = [slot, info](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
-                if (captured.size() != 1) {
-                    return {};
-                }
+        auto localTransform = [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+            if (captured.size() != 5) {
+                return {};
+            }
 
-                const auto& loadInstr = captured[0];
+            const auto& constantInstr = captured[0];  // value constant
+            const auto& slotInstr1 = captured[1];     // slot constant (for store)
+            const auto& storeInstr = captured[2];     // set_local
+            const auto& slotInstr2 = captured[3];     // slot constant (for load)
+            const auto& loadInstr = captured[4];      // get_local
 
-                // Check if this load is for our constant variable
-                if (loadInstr.operands.empty() || loadInstr.operands[0] != slot) {
-                    return {}; // Different variable
-                }
+            // Check if both slot constants refer to the same slot
+            if (slotInstr1.operands != slotInstr2.operands) {
+                return {}; // Different slot numbers
+            }
 
-                LOG_INFO("ConstantPropagationPass", "Replacing local load with constant");
+            LOG_INFO("ConstantPropagationPass", "Replacing local variable load with constant");
 
-                // Generate the constant instruction directly
-                std::vector<uint8_t> result;
-                result.push_back(static_cast<uint8_t>(info.constantOpcode));
-                result.insert(result.end(), info.constantOperands.begin(), info.constantOperands.end());
+            // Replace the load with the constant
+            std::vector<uint8_t> result;
+            result.push_back(static_cast<uint8_t>(constantInstr.opcode));
+            result.insert(result.end(), constantInstr.operands.begin(), constantInstr.operands.end());
 
-                return result;
-            };
+            return result;
+        };
 
-            rewriter->addAdvancedRule(pattern, transform);
-        }
+        rewriter->addAdvancedRule(localPattern, localTransform);
 
-        // For now, skip global constant propagation as it requires more complex analysis
-        // The pattern is: constant_name -> get_global, and we need access to the chunk
-        // in the transform function to validate the variable name
-        LOG_INFO("ConstantPropagationPass", "Global constant propagation not yet implemented");
+        // Boolean constant propagation (OP_True/OP_False)
+        // Pattern: OP_True -> constant_slot -> set_local -> constant_slot -> get_local
+        std::vector<PatternElement> boolTruePattern = {
+            PatternElement::match(OpCode::OP_True, true),           // Capture: OP_True
+            PatternElement::constant(true),                         // Capture: slot constant
+            PatternElement::match(OpCode::OP_Set_Local, true),      // Capture: store instruction
+            PatternElement::constant(true),                         // Capture: slot constant (again)
+            PatternElement::match(OpCode::OP_Get_Local, true)       // Capture: load instruction
+        };
 
-        // TODO: Implement global constant propagation with chunk access in transform
+        auto boolTrueTransform = [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+            if (captured.size() != 5) {
+                return {};
+            }
 
-        LOG_INFO("ConstantPropagationPass", "Added " << (localConstants.size() + globalConstants.size())
-                 << " constant propagation patterns");
+            const auto& slotInstr1 = captured[1];     // slot constant (for store)
+            const auto& slotInstr2 = captured[3];     // slot constant (for load)
+
+            // Check if both slot constants refer to the same slot
+            if (slotInstr1.operands != slotInstr2.operands) {
+                return {}; // Different slot numbers
+            }
+
+            LOG_INFO("ConstantPropagationPass", "Replacing local boolean load with OP_True");
+
+            // Replace the load with OP_True
+            std::vector<uint8_t> result;
+            result.push_back(static_cast<uint8_t>(OpCode::OP_True));
+
+            return result;
+        };
+
+        rewriter->addAdvancedRule(boolTruePattern, boolTrueTransform);
+
+        // Similar pattern for OP_False
+        std::vector<PatternElement> boolFalsePattern = {
+            PatternElement::match(OpCode::OP_False, true),          // Capture: OP_False
+            PatternElement::constant(true),                         // Capture: slot constant
+            PatternElement::match(OpCode::OP_Set_Local, true),      // Capture: store instruction
+            PatternElement::constant(true),                         // Capture: slot constant (again)
+            PatternElement::match(OpCode::OP_Get_Local, true)       // Capture: load instruction
+        };
+
+        auto boolFalseTransform = [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+            if (captured.size() != 5) {
+                return {};
+            }
+
+            const auto& slotInstr1 = captured[1];     // slot constant (for store)
+            const auto& slotInstr2 = captured[3];     // slot constant (for load)
+
+            // Check if both slot constants refer to the same slot
+            if (slotInstr1.operands != slotInstr2.operands) {
+                return {}; // Different slot numbers
+            }
+
+            LOG_INFO("ConstantPropagationPass", "Replacing local boolean load with OP_False");
+
+            // Replace the load with OP_False
+            std::vector<uint8_t> result;
+            result.push_back(static_cast<uint8_t>(OpCode::OP_False));
+
+            return result;
+        };
+
+        rewriter->addAdvancedRule(boolFalsePattern, boolFalseTransform);
+
+        LOG_INFO("ConstantPropagationPass", "Added constant propagation patterns");
     }
 
     bool ConstantPropagationPass::isConstantInstruction(OpCode opcode) const {
