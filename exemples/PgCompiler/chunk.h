@@ -106,6 +106,13 @@ namespace pg
 
             return code.size() - 1;
         }
+
+        void clear()
+        {
+            code.clear();
+            constants.clear();
+            lines.clear();
+        }
     };
 
     // Utility function to get the size of an instruction in bytes
