@@ -121,6 +121,9 @@ namespace pg
         localCount = 0;
         scopeDepth = 0;
 
+        // Clear the current function's chunk
+        currentFunction->chunk.clear();
+
         parser.reset();
     }
 }

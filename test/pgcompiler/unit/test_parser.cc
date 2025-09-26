@@ -1,6 +1,7 @@
 #include "gtest/gtest.h"
 #include "compiler_test_base.h"
 #include "parser.h"
+#include "compiler.h"
 #include "test_helpers.h"
 
 namespace pg {
@@ -180,19 +181,26 @@ TEST_F(ParserTest, OperatorPrecedence) {
 
 // Bytecode Generation Tests
 TEST_F(ParserTest, WriteByteToChunk) {
-    Chunk chunk;
-    parser.writeByte(chunk, OpCode::OP_Return);
+    // Set up compiler for parser to use
+    Compiler testCompiler;
+    parser.setCompiler(&testCompiler);
     
+    parser.writeByte(OpCode::OP_Return);
+    
+    auto& chunk = testCompiler.getCurrentChunk();
     EXPECT_EQ(chunk.code.size(), 1);
     EXPECT_EQ(static_cast<OpCode>(chunk.code[0]), OpCode::OP_Return);
 }
 
 TEST_F(ParserTest, WriteConstantToChunk) {
-    Chunk chunk;
+    // Set up compiler for parser to use
+    Compiler testCompiler;
+    parser.setCompiler(&testCompiler);
+    
     ElementType value(3.14);
+    parser.writeConstant(value);
     
-    parser.writeConstant(chunk, value);
-    
+    auto& chunk = testCompiler.getCurrentChunk();
     EXPECT_EQ(chunk.constants.size(), 1);
     EXPECT_FLOAT_EQ(chunk.constants[0].get<float>(), 3.14);
     
@@ -201,17 +209,25 @@ TEST_F(ParserTest, WriteConstantToChunk) {
 }
 
 TEST_F(ParserTest, EmitReturnInstruction) {
-    Chunk chunk;
-    parser.emitReturn(chunk);
+    // Set up compiler for parser to use
+    Compiler testCompiler;
+    parser.setCompiler(&testCompiler);
     
+    parser.emitReturn();
+    
+    auto& chunk = testCompiler.getCurrentChunk();
     EXPECT_EQ(chunk.code.size(), 1);
     EXPECT_EQ(static_cast<OpCode>(chunk.code[0]), OpCode::OP_Return);
 }
 
 TEST_F(ParserTest, EmitTwoBytes) {
-    Chunk chunk;
-    parser.emitBytes(chunk, OpCode::OP_True, OpCode::OP_Not);
+    // Set up compiler for parser to use
+    Compiler testCompiler;
+    parser.setCompiler(&testCompiler);
     
+    parser.emitBytes(OpCode::OP_True, OpCode::OP_Not);
+    
+    auto& chunk = testCompiler.getCurrentChunk();
     EXPECT_EQ(chunk.code.size(), 2);
     EXPECT_EQ(static_cast<OpCode>(chunk.code[0]), OpCode::OP_True);
     EXPECT_EQ(static_cast<OpCode>(chunk.code[1]), OpCode::OP_Not);
@@ -274,11 +290,13 @@ TEST_F(ParserTest, ExpressionParsing) {
     
     parser.parse(tokens);
     
-    Chunk chunk;
+    // Set up compiler for parser to use
+    Compiler testCompiler;
+    parser.setCompiler(&testCompiler);
     
     // This would normally call the expression parsing method
     // For now, just verify we can call parsePrecedence
-    EXPECT_NO_THROW(parser.parsePrecedence(chunk, Precedence::ASSIGNMENT));
+    EXPECT_NO_THROW(parser.parsePrecedence(Precedence::ASSIGNMENT));
 }
 
 } // namespace test
