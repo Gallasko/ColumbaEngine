@@ -4,6 +4,8 @@
 
 #include "chunk.h"
 
+#include "object.h"
+
 #include "parser.h"
 
 #include <iostream>
@@ -22,23 +24,37 @@ namespace pg
         // bool isCaptured;
     };
 
+    enum class FunctionType
+    {
+        TYPE_FUNCTION,
+        TYPE_SCRIPT
+    };
+
     struct Compiler
     {
-        bool compile(std::queue<Token> tokens, Chunk& chunk);
+        Compiler() {}
+        ~Compiler() { delete currentFunction; }
+
+        bool compile(std::queue<Token> tokens);
 
         void printTokens(std::queue<Token> tokens);
 
         void beginScope();
-        void endScope(Chunk& chunk);
+        void endScope();
 
         void addLocal(const Token& name);
-        int resolveLocal(Chunk& chunk, const Token& name);
+        int resolveLocal(const Token& name);
 
         void markInitialized();
 
         void reset();
 
+        Chunk& getCurrentChunk() { return currentFunction->chunk; }
+
         Parser parser;
+
+        ObjFunction* currentFunction = new ObjFunction();
+        FunctionType currentType = FunctionType::TYPE_SCRIPT;
 
         std::vector<Local> locals;
 

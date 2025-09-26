@@ -6,7 +6,7 @@
 
 namespace pg
 {
-    bool Compiler::compile(std::queue<Token> tokens, Chunk& chunk)
+    bool Compiler::compile(std::queue<Token> tokens)
     {
 #ifdef DEBUG_PRINT_TOKENS
         printTokens(tokens);
@@ -17,18 +17,14 @@ namespace pg
         parser.setCompiler(this);
 
         while (not parser.isAtEnd() and not parser.hasError())
-            parser.declaration(chunk);
+            parser.declaration();
 
 #ifdef DEBUG_PRINT_CODE
         if (!parser.hadError)
         {
-            disassembleChunk(chunk, "code");
+            disassembleChunk(getCurrentChunk(), "code");
         }
 #endif
-
-        // parser.consume(TokenType::ENDOFFILE, "Expect end of expression.");
-
-        // parser.emitReturn(chunk);
 
         return not parser.hasError();
     }
@@ -65,7 +61,7 @@ namespace pg
         scopeDepth++;
     }
 
-    void Compiler::endScope(Chunk& chunk)
+    void Compiler::endScope()
     {
         scopeDepth--;
 
@@ -78,7 +74,7 @@ namespace pg
             // }
             // else
             {
-                parser.writeByte(chunk, OpCode::OP_Pop);
+                parser.writeByte(OpCode::OP_Pop);
             }
 
             localCount--;
@@ -92,7 +88,7 @@ namespace pg
         localCount++;
     }
 
-    int Compiler::resolveLocal(Chunk&, const Token& name)
+    int Compiler::resolveLocal(const Token& name)
     {
         for (int i = localCount - 1; i >= 0; i--)
         {

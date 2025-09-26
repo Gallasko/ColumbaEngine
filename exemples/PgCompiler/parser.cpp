@@ -7,51 +7,53 @@
 
 namespace pg
 {
-    void intNumber(Chunk& chunk, Parser& parser, bool)
+    void intNumber(Parser& parser, bool)
     {
         auto n = std::stoi(parser.previousToken.text);
-        parser.writeConstant(chunk, n);
+        parser.writeConstant(n);
     }
 
-    void floatNumber(Chunk& chunk, Parser& parser, bool)
+    void floatNumber(Parser& parser, bool)
     {
         auto n = std::stof(parser.previousToken.text);
-        parser.writeConstant(chunk, n);
+        parser.writeConstant(n);
     }
 
-    void strLiterral(Chunk& chunk, Parser& parser, bool)
+    void strLiterral(Parser& parser, bool)
     {
         auto str = parser.previousToken.text;
-        parser.writeConstant(chunk, str);
+        parser.writeConstant(str);
     }
 
-    void litteral(Chunk& chunk, Parser& parser, bool)
+    void litteral(Parser& parser, bool)
     {
         switch (parser.previousToken.type)
         {
             case TokenType::KEYTRUE:
-                parser.writeByte(chunk, OpCode::OP_True);
+                parser.writeByte(OpCode::OP_True);
                 break;
             case TokenType::KEYFALSE:
-                parser.writeByte(chunk, OpCode::OP_False);
+                parser.writeByte(OpCode::OP_False);
                 break;
             default:
                 return; // Unreachable
         }
     }
 
-    void grouping(Chunk& chunk, Parser& parser, bool)
+    void grouping(Parser& parser, bool)
     {
-        parser.expression(chunk);
+        parser.expression();
         parser.consume("Expect ')' after expression.", TokenType::PCLOSE);
     }
 
-    void unary(Chunk& chunk, Parser& parser, bool)
+    void unary(Parser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
 
-        parser.parsePrecedence(chunk, Precedence::UNARY);
+        parser.parsePrecedence(Precedence::UNARY);
         // parser.expression(chunk);
+
+        auto& chunk = parser.compiler->getCurrentChunk();
 
         // Negate should be applied to the value on top of the stack hence we do it after parsing the expression
         switch (operatorToken.type)
@@ -68,114 +70,114 @@ namespace pg
         }
     }
 
-    void binary(Chunk& chunk, Parser& parser, bool)
+    void binary(Parser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
         Precedence precedence = static_cast<Precedence>(static_cast<int>(parser.getRule(operatorToken.type).precedence) + 1);
-        parser.parsePrecedence(chunk, precedence);
+        parser.parsePrecedence(precedence);
 
         switch (operatorToken.type)
         {
             case TokenType::PLUS:
-                parser.writeByte(chunk, OpCode::OP_Add);
+                parser.writeByte(OpCode::OP_Add);
                 break;
             case TokenType::MINUS:
-                parser.writeByte(chunk, OpCode::OP_Subtract);
+                parser.writeByte(OpCode::OP_Subtract);
                 break;
             case TokenType::STAR:
-                parser.writeByte(chunk, OpCode::OP_Multiply);
+                parser.writeByte(OpCode::OP_Multiply);
                 break;
             case TokenType::SLASH:
-                parser.writeByte(chunk, OpCode::OP_Divide);
+                parser.writeByte(OpCode::OP_Divide);
                 break;
             case TokenType::LOGICAND:
-                parser.writeByte(chunk, OpCode::OP_And);
+                parser.writeByte(OpCode::OP_And);
                 break;
             case TokenType::LOGICOR:
-                parser.writeByte(chunk, OpCode::OP_Or);
+                parser.writeByte(OpCode::OP_Or);
                 break;
             case TokenType::EQUALEQUAL:
-                parser.writeByte(chunk, OpCode::OP_Equal);
+                parser.writeByte(OpCode::OP_Equal);
                 break;
             case TokenType::NOTEQUAL:
-                parser.writeByte(chunk, OpCode::OP_NotEqual);
+                parser.writeByte(OpCode::OP_NotEqual);
                 break;
             case TokenType::INF:
-                parser.writeByte(chunk, OpCode::OP_Less);
+                parser.writeByte(OpCode::OP_Less);
                 break;
             case TokenType::INFEQUAL:
-                parser.writeByte(chunk, OpCode::OP_LessEqual);
+                parser.writeByte(OpCode::OP_LessEqual);
                 break;
             case TokenType::SUP:
-                parser.writeByte(chunk, OpCode::OP_Greater);
+                parser.writeByte(OpCode::OP_Greater);
                 break;
             case TokenType::SUPEQUAL:
-                parser.writeByte(chunk, OpCode::OP_GreaterEqual);
+                parser.writeByte(OpCode::OP_GreaterEqual);
                 break;
             default:
                 return; // Unreachable
         }
     }
 
-    void variable(Chunk& chunk, Parser& parser, bool canAssign)
+    void variable(Parser& parser, bool canAssign)
     {
         auto varName = parser.previousToken.text;
 
         OpCode setOp, getOp;
 
-        int arg = parser.compiler->resolveLocal(chunk, parser.previousToken);
+        int arg = parser.compiler->resolveLocal(parser.previousToken);
 
         if (arg != -1)
         {
-            parser.writeConstant(chunk, arg);
+            parser.writeConstant(arg);
             setOp = OpCode::OP_Set_Local;
             getOp = OpCode::OP_Get_Local;
         }
         else
         {
-            parser.writeConstant(chunk, varName);
+            parser.writeConstant(varName);
             setOp = OpCode::OP_Set_Global;
             getOp = OpCode::OP_Get_Global;
         }
 
         if (canAssign and parser.match(TokenType::EQUAL))
         {
-            parser.expression(chunk);
-            parser.writeByte(chunk, setOp);
+            parser.expression();
+            parser.writeByte(setOp);
         }
         else
         {
-            parser.writeByte(chunk, getOp);
+            parser.writeByte(getOp);
         }
     }
 
-    void andOp(Chunk& chunk, Parser& parser, bool)
+    void andOp(Parser& parser, bool)
     {
         // For 'and': if the left operand is false, short-circuit to false
         // If left operand is true, evaluate right operand
-        int endJump = parser.emitJump(chunk, OpCode::OP_Long_Jump_If_False);
+        int endJump = parser.emitJump(OpCode::OP_Long_Jump_If_False);
 
-        parser.writeByte(chunk, OpCode::OP_Pop);
-        parser.parsePrecedence(chunk, Precedence::AND);
+        parser.writeByte(OpCode::OP_Pop);
+        parser.parsePrecedence(Precedence::AND);
 
-        parser.patchJump(chunk, endJump);
+        parser.patchJump(endJump);
     }
 
-    void orOp(Chunk& chunk, Parser& parser, bool)
+    void orOp(Parser& parser, bool)
     {
         // For 'or': if the left operand is false, jump to evaluate right operand
         // If left operand is true, short-circuit to true
-        int elseJump = parser.emitJump(chunk, OpCode::OP_Long_Jump_If_False);
-        int endJump = parser.emitJump(chunk, OpCode::OP_Long_Jump);
+        int elseJump = parser.emitJump(OpCode::OP_Long_Jump_If_False);
+        int endJump = parser.emitJump(OpCode::OP_Long_Jump);
 
-        parser.patchJump(chunk, elseJump);
-        parser.writeByte(chunk, OpCode::OP_Pop);
+        parser.patchJump(elseJump);
+        parser.writeByte(OpCode::OP_Pop);
 
-        parser.parsePrecedence(chunk, Precedence::OR);
-        parser.patchJump(chunk, endJump);
+        parser.parsePrecedence(Precedence::OR);
+        parser.patchJump(endJump);
     }
 
-    void decrementOp(Chunk& chunk, Parser& parser, bool)
+    void decrementOp(Parser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
 
@@ -189,7 +191,7 @@ namespace pg
 
             OpCode incrOp;
             ElementType identifier;
-            int arg = parser.compiler->resolveLocal(chunk, varToken);
+            int arg = parser.compiler->resolveLocal(varToken);
 
             if (arg != -1)
             {
@@ -205,13 +207,15 @@ namespace pg
             }
 
             // Prefix decrement: --var (modify variable, return new value)
-            parser.writeConstant(chunk, identifier);
-            parser.writeByte(chunk, incrOp);
+            parser.writeConstant(identifier);
+            parser.writeByte(incrOp);
         }
         else
         {
             // Parse the operand at unary precedence (for literals like --5)
-            parser.parsePrecedence(chunk, Precedence::UNARY);
+            parser.parsePrecedence(Precedence::UNARY);
+
+            auto& chunk = parser.compiler->getCurrentChunk();
 
             // Treat DECREMENT as double unary minus (--5 becomes -(-5) = 5)
             chunk.addCode(OpCode::OP_Negate, operatorToken.line);
@@ -219,7 +223,7 @@ namespace pg
         }
     }
 
-    void incrementOp(Chunk& chunk, Parser& parser, bool)
+    void incrementOp(Parser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
 
@@ -233,7 +237,7 @@ namespace pg
 
             OpCode incrOp;
             ElementType identifier;
-            int arg = parser.compiler->resolveLocal(chunk, varToken);
+            int arg = parser.compiler->resolveLocal(varToken);
 
             if (arg != -1)
             {
@@ -248,20 +252,20 @@ namespace pg
                 identifier = ElementType(varName);
             }
 
-            parser.writeConstant(chunk, identifier); // Push identifier [id]
-            parser.writeByte(chunk, incrOp);         // IncrementIt
+            parser.writeConstant(identifier); // Push identifier [id]
+            parser.writeByte(incrOp);         // IncrementIt
         }
         else
         {
             // Parse the operand at unary precedence (for literals like ++5)
-            parser.parsePrecedence(chunk, Precedence::UNARY);
+            parser.parsePrecedence(Precedence::UNARY);
 
             // For literals, ++5 doesn't make much sense, but we can treat it as +(+5) = 5
             // This is a no-op for numbers
         }
     }
 
-    void postfixIncrementOp(Chunk& chunk, Parser& parser, bool)
+    void postfixIncrementOp(Parser& parser, bool)
     {
         // For postfix increment: var++ (return old value, modify variable)
         // Stack currently has [old_value] from the variable access
@@ -273,6 +277,8 @@ namespace pg
         // The last operations should have been:
         // OP_Constant <var_name/slot>
         // OP_Get_Global/Local
+
+        const auto& chunk = parser.compiler->getCurrentChunk();
 
         // We can examine the last constant that was added to identify the variable
         if (chunk.constants.empty()) {
@@ -298,15 +304,17 @@ namespace pg
             identifier = lastConstant;
         }
 
-        parser.writeConstant(chunk, identifier);      // [old_value, id]
-        parser.writeByte(chunk, incrOp);
+        parser.writeConstant(identifier);      // [old_value, id]
+        parser.writeByte(incrOp);
     }
 
-    void postfixDecrementOp(Chunk& chunk, Parser& parser, bool)
+    void postfixDecrementOp(Parser& parser, bool)
     {
         // For postfix decrement: var-- (return old value, modify variable)
         // Stack currently has [old_value] from the variable access
         // We need to: return old_value, but also decrement the variable
+
+        const auto& chunk = parser.compiler->getCurrentChunk();
 
         // Strategy: Same as postfixIncrementOp - examine the last constant to identify the variable
         if (chunk.constants.empty()) {
@@ -332,8 +340,8 @@ namespace pg
             identifier = lastConstant;
         }
 
-        parser.writeConstant(chunk, identifier);
-        parser.writeByte(chunk, incrOp);
+        parser.writeConstant(identifier);
+        parser.writeByte(incrOp);
 
         // Result: old_value is on stack (for return), variable has been decremented
     }
@@ -412,7 +420,7 @@ namespace pg
     };
 
 
-    void Parser::parsePrecedence(Chunk& chunk, const Precedence& precedence)
+    void Parser::parsePrecedence(const Precedence& precedence)
     {
         advance();
 
@@ -426,13 +434,13 @@ namespace pg
 
         bool canAssign = precedence <= Precedence::ASSIGNMENT;
 
-        prefixRule(chunk, *this, canAssign);
+        prefixRule(*this, canAssign);
 
         while (precedence <= getRule(currentToken().type).precedence)
         {
             advance();
             ParseFn infixRule = getRule(previousToken.type).infix;
-            infixRule(chunk, *this, canAssign);
+            infixRule(*this, canAssign);
         }
 
         if (canAssign and match(TokenType::EQUAL))
@@ -441,15 +449,15 @@ namespace pg
         }
     }
 
-    void Parser::declaration(Chunk& chunk)
+    void Parser::declaration()
     {
         if (match(TokenType::TOK_VAR))
         {
-            varDeclaration(chunk);
+            varDeclaration();
         }
         else
         {
-            statement(chunk);
+            statement();
         }
 
         skipEOL();
@@ -458,7 +466,7 @@ namespace pg
             synchronize();
     }
 
-    void Parser::varDeclaration(Chunk& chunk)
+    void Parser::varDeclaration()
     {
         consume("Expect variable name.", TokenType::EXPRESSION);
 
@@ -471,11 +479,11 @@ namespace pg
 
         if (match(TokenType::EQUAL))
         {
-            expression(chunk);
+            expression();
         }
         else
         {
-            writeConstant(chunk, ElementType()); // Default initialize to 0
+            writeConstant(ElementType()); // Default initialize to 0
         }
 
         consumeEnd("Expect end of variable declaration.");
@@ -486,125 +494,125 @@ namespace pg
             return;
         }
 
-        writeConstant(chunk, varName.text);  // Push variable name onto stack
-        writeByte(chunk, OpCode::OP_Define_Global);
+        writeConstant(varName.text);  // Push variable name onto stack
+        writeByte(OpCode::OP_Define_Global);
     }
 
-    void Parser::statement(Chunk& chunk)
+    void Parser::statement()
     {
         if (match(TokenType::BENTER))
         {
             compiler->beginScope();
-            blockStatement(chunk);
-            compiler->endScope(chunk);
+            blockStatement();
+            compiler->endScope();
         }
         else if (match(TokenType::TOK_IF))
         {
-            ifStatement(chunk);
+            ifStatement();
         }
         else if (match(TokenType::TOK_WHILE))
         {
-            whileStatement(chunk);
+            whileStatement();
         }
         else if (match(TokenType::TOK_FOR))
         {
-            forStatement(chunk);
+            forStatement();
         }
         else if (match(TokenType::TOK_DPRINT))
         {
-            dprintStatement(chunk);
+            dprintStatement();
         }
         else
         {
-            expressionStatement(chunk);
+            expressionStatement();
         }
     }
 
-    void Parser::expressionStatement(Chunk& chunk)
+    void Parser::expressionStatement()
     {
-        expression(chunk);
+        expression();
         consumeEnd("Expect end of expression.");
-        writeByte(chunk, OpCode::OP_Pop);
+        writeByte(OpCode::OP_Pop);
     }
 
-    void Parser::blockStatement(Chunk& chunk)
+    void Parser::blockStatement()
     {
         while (not check(TokenType::BCLOSE) and not isAtEnd())
         {
             skipEOL();
-            declaration(chunk);
+            declaration();
         }
 
         consume("Expect '}' after block.", TokenType::BCLOSE);
     }
 
-    void Parser::ifStatement(Chunk& chunk)
+    void Parser::ifStatement()
     {
         skipEOL();
         consume("Expect '(' after 'if'.", TokenType::PENTER);
         skipEOL();
 
-        expression(chunk);
+        expression();
 
         consume("Expect ')' after condition.", TokenType::PCLOSE);
         skipEOL();
 
-        int thenJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
-        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+        int thenJump = emitJump(OpCode::OP_Long_Jump_If_False);
+        writeByte(OpCode::OP_Pop); // Pop the condition
 
-        statement(chunk);
+        statement();
 
-        int elseJump = emitJump(chunk, OpCode::OP_Long_Jump);
+        int elseJump = emitJump(OpCode::OP_Long_Jump);
 
-        patchJump(chunk, thenJump);
-        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+        patchJump(thenJump);
+        writeByte(OpCode::OP_Pop); // Pop the condition
 
         if (match(TokenType::TOK_ELSE))
         {
-            statement(chunk);
+            statement();
         }
 
-        patchJump(chunk, elseJump);
+        patchJump(elseJump);
     }
 
-    void Parser::dprintStatement(Chunk& chunk)
+    void Parser::dprintStatement()
     {
         skipEOL();
         consume("Expect '(' after '__dprint'.", TokenType::PENTER);
         skipEOL();
 
-        expression(chunk);
+        expression();
 
         consume("Expect ')' after expression.", TokenType::PCLOSE);
         consumeEnd("Expect ';' or newline after '__dprint' statement.");
 
-        writeByte(chunk, OpCode::OP_Debug_Print);
+        writeByte(OpCode::OP_Debug_Print);
     }
 
-    void Parser::whileStatement(Chunk& chunk)
+    void Parser::whileStatement()
     {
-        int loopStart = static_cast<int>(chunk.code.size());
+        int loopStart = static_cast<int>(compiler->getCurrentChunk().code.size());
 
         skipEOL();
         consume("Expect '(' after 'while'.", TokenType::PENTER);
         skipEOL();
 
-        expression(chunk);
+        expression();
 
         consume("Expect ')' after condition.", TokenType::PCLOSE);
         skipEOL();
 
-        int exitJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
-        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+        int exitJump = emitJump(OpCode::OP_Long_Jump_If_False);
+        writeByte(OpCode::OP_Pop); // Pop the condition
 
-        statement(chunk);
-        emitLoop(chunk, loopStart);
+        statement();
+        emitLoop(loopStart);
 
-        patchJump(chunk, exitJump);
-        writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+        patchJump(exitJump);
+        writeByte(OpCode::OP_Pop); // Pop the condition
     }
 
-    void Parser::forStatement(Chunk& chunk)
+    void Parser::forStatement()
     {
         compiler->beginScope();
 
@@ -619,26 +627,26 @@ namespace pg
         }
         else if (match(TokenType::TOK_VAR))
         {
-            varDeclaration(chunk);
+            varDeclaration();
         }
         else
         {
-            expressionStatement(chunk);
+            expressionStatement();
         }
 
         skipEOL();
 
-        int loopStart = static_cast<int>(chunk.code.size());
+        int loopStart = static_cast<int>(compiler->getCurrentChunk().code.size());
 
         // Condition
         int exitJump = -1;
         if (not match(TokenType::END))
         {
-            expression(chunk);
+            expression();
             consume("Expect ';' after condition.", TokenType::END);
 
-            exitJump = emitJump(chunk, OpCode::OP_Long_Jump_If_False);
-            writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+            exitJump = emitJump(OpCode::OP_Long_Jump_If_False);
+            writeByte(OpCode::OP_Pop); // Pop the condition
         }
 
         skipEOL();
@@ -646,33 +654,33 @@ namespace pg
         // Increment
         if (not match(TokenType::PCLOSE))
         {
-            int bodyJump = emitJump(chunk, OpCode::OP_Long_Jump);
-            int incrementStart = static_cast<int>(chunk.code.size());
+            int bodyJump = emitJump(OpCode::OP_Long_Jump);
+            int incrementStart = static_cast<int>(compiler->getCurrentChunk().code.size());
 
-            expression(chunk);
-            writeByte(chunk, OpCode::OP_Pop); // Pop the increment expression result
+            expression();
+            writeByte(OpCode::OP_Pop); // Pop the increment expression result
 
             consume("Expect ')' after for clauses.", TokenType::PCLOSE);
 
-            emitLoop(chunk, loopStart);
+            emitLoop(loopStart);
             loopStart = incrementStart;
 
-            patchJump(chunk, bodyJump);
+            patchJump(bodyJump);
         }
 
         skipEOL();
 
         // Body
-        statement(chunk);
-        emitLoop(chunk, loopStart);
+        statement();
+        emitLoop(loopStart);
 
         if (exitJump != -1)
         {
-            patchJump(chunk, exitJump);
-            writeByte(chunk, OpCode::OP_Pop); // Pop the condition
+            patchJump(exitJump);
+            writeByte(OpCode::OP_Pop); // Pop the condition
         }
 
-        compiler->endScope(chunk);
+        compiler->endScope();
     }
 
     ParseRule& Parser::getRule(const TokenType& type) const
@@ -685,63 +693,63 @@ namespace pg
         compiler->addLocal(name);
     }
 
-    int Parser::emitJump(Chunk& chunk, const OpCode& instruction)
+    int Parser::emitJump(const OpCode& instruction)
     {
-        writeByte(chunk, instruction);
-        writeByte(chunk, 0xff);
-        writeByte(chunk, 0xff);
-        writeByte(chunk, 0xff);
-        writeByte(chunk, 0xff);
+        writeByte(instruction);
+        writeByte(0xff);
+        writeByte(0xff);
+        writeByte(0xff);
+        writeByte(0xff);
 
-        return static_cast<int>(chunk.code.size() - 4);
+        return static_cast<int>(compiler->getCurrentChunk().code.size() - 4);
     }
 
-    void Parser::patchJump(Chunk& chunk, int offset)
+    void Parser::patchJump(int offset)
     {
         // -1 to adjust for the bytecode for the jump offset itself
-        size_t jump = chunk.code.size() - offset - 4;
+        size_t jump = compiler->getCurrentChunk().code.size() - offset - 4;
 
         if (jump > 0xFFFFFFFF)
         {
             errorAt(previousToken, "Too much code to jump over.");
         }
 
-        chunk.code[offset]     = (jump >> 24) & 0xFF;
-        chunk.code[offset + 1] = (jump >> 16) & 0xFF;
-        chunk.code[offset + 2] = (jump >> 8) & 0xFF;
-        chunk.code[offset + 3] = jump & 0xFF;
+        compiler->getCurrentChunk().code[offset]     = (jump >> 24) & 0xFF;
+        compiler->getCurrentChunk().code[offset + 1] = (jump >> 16) & 0xFF;
+        compiler->getCurrentChunk().code[offset + 2] = (jump >> 8) & 0xFF;
+        compiler->getCurrentChunk().code[offset + 3] = jump & 0xFF;
     }
 
-    void Parser::emitLoop(Chunk& chunk, int offset)
+    void Parser::emitLoop(int offset)
     {
-        writeByte(chunk, OpCode::OP_Long_Loop);
+        writeByte(OpCode::OP_Long_Loop);
 
-        size_t jump = chunk.code.size() - offset + 4;
+        size_t jump = compiler->getCurrentChunk().code.size() - offset + 4;
 
         if (jump > 0xFFFFFFFF)
         {
             errorAt(previousToken, "Loop body too large.");
         }
 
-        writeByte(chunk, (jump >> 24) & 0xFF);
-        writeByte(chunk, (jump >> 16) & 0xFF);
-        writeByte(chunk, (jump >> 8) & 0xFF);
-        writeByte(chunk, jump & 0xFF);
+        writeByte((jump >> 24) & 0xFF);
+        writeByte((jump >> 16) & 0xFF);
+        writeByte((jump >> 8) & 0xFF);
+        writeByte(jump & 0xFF);
     }
 
-    void Parser::writeConstant(Chunk& chunk, const ElementType& constant)
+    void Parser::writeConstant(const ElementType& constant)
     {
-        chunk.addConstant(constant, previousToken.line);
+        compiler->getCurrentChunk().addConstant(constant, previousToken.line);
     }
 
-    void Parser::writeByte(Chunk& chunk, const OpCode& byte)
+    void Parser::writeByte(const OpCode& byte)
     {
-        chunk.addCode(byte, previousToken.line);
+        compiler->getCurrentChunk().addCode(byte, previousToken.line);
     }
 
-    void Parser::writeByte(Chunk& chunk, uint8_t byte)
+    void Parser::writeByte(uint8_t byte)
     {
-        chunk.addCode(byte, previousToken.line);
+        compiler->getCurrentChunk().addCode(byte, previousToken.line);
     }
 
     void Parser::synchronize()
