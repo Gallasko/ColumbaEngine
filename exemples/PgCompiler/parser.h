@@ -26,7 +26,7 @@ namespace pg
         PRIMARY = 11
     };
 
-    typedef void (*ParseFn)(Chunk&, struct Parser&, bool);
+    typedef void (*ParseFn)(struct Parser&, bool);
 
     struct ParseRule
     {
@@ -41,7 +41,7 @@ namespace pg
 
         void parse(std::queue<Token> tokenList) { tokens = tokenList; }
 
-        void parsePrecedence(Chunk& chunk, const Precedence& precedence);
+        void parsePrecedence(const Precedence& precedence);
 
         void advance()
         {
@@ -119,44 +119,44 @@ namespace pg
             consume(sErrMsg, TokenType::END, TokenType::EOL);
         }
 
-        void expression(Chunk& chunk)
+        void expression()
         {
-            parsePrecedence(chunk, Precedence::ASSIGNMENT);
+            parsePrecedence(Precedence::ASSIGNMENT);
         }
 
-        void declaration(Chunk& chunk);
-        void varDeclaration(Chunk& chunk);
+        void declaration();
+        void varDeclaration();
 
-        void statement(Chunk& chunk);
-        void expressionStatement(Chunk& chunk);
-        void blockStatement(Chunk& chunk);
-        void ifStatement(Chunk& chunk);
-        void whileStatement(Chunk& chunk);
-        void forStatement(Chunk& chunk);
-        void dprintStatement(Chunk& chunk);
+        void statement();
+        void expressionStatement();
+        void blockStatement();
+        void ifStatement();
+        void whileStatement();
+        void forStatement();
+        void dprintStatement();
 
         ParseRule& getRule(const TokenType& type) const;
 
         void declareVariable(const Token& name);
 
-        int emitJump(Chunk& chunk, const OpCode& instruction);
-        void patchJump(Chunk& chunk, int offset);
+        int emitJump(const OpCode& instruction);
+        void patchJump(int offset);
 
-        void emitLoop(Chunk& chunk, int loopStart);
+        void emitLoop(int loopStart);
 
         // Chunk modification functions
-        void emitReturn(Chunk& chunk) { writeByte(chunk, OpCode::OP_Return); }
+        void emitReturn() { writeByte(OpCode::OP_Return); }
 
         template <typename T, typename T2>
-        void emitBytes(Chunk& chunk, T byte1, T2 byte2)
+        void emitBytes(T byte1, T2 byte2)
         {
-            writeByte(chunk, byte1);
-            writeByte(chunk, byte2);
+            writeByte(byte1);
+            writeByte(byte2);
         }
 
-        void writeConstant(Chunk& chunk, const ElementType& constant);
-        void writeByte(Chunk& chunk, const OpCode& byte);
-        void writeByte(Chunk& chunk, uint8_t byte);
+        void writeConstant(const ElementType& constant);
+        void writeByte(const OpCode& byte);
+        void writeByte(uint8_t byte);
 
         // Error handling
         void synchronize();

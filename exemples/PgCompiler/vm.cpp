@@ -10,16 +10,16 @@ namespace pg
 {
     InterpretResult VM::interpret(const std::queue<Token>& tokens)
     {
-        Chunk chunk;
-
         // Todo change this
         // Reset the compiler state before compiling a new chunk
         compiler.reset();
 
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-        if (not compiler.compile(tokens, chunk))
+        if (not compiler.compile(tokens))
             return InterpretResult::COMPILE_ERROR;
+
+        auto& chunk = compiler.getCurrentChunk();
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -572,6 +572,13 @@ namespace pg
                     }
 #endif
                     auto value = pop();
+
+                    if (IS_FUNC(value))
+                    {
+                        testOutput += "<" + AS_FUNC(value)->name + "> \n";
+                        freeValue(value);
+                        break;
+                    }
 
                     // For testing: append to testOutput buffer instead of stdout
                     ElementType elem = valueToElement(value);

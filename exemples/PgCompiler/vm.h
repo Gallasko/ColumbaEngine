@@ -10,6 +10,8 @@
 
 #include "bytecode_pass.h"
 
+#include "object.h"
+
 #include <stack>
 #include <functional>
 
@@ -42,7 +44,8 @@ namespace pg
     typedef enum {
         VAL_BOOL,
         VAL_INT,
-        VAL_OBJ     // Pointer overflow for complex values (strings, floats, etc.)
+        VAL_OBJ,     // Pointer overflow for complex values (strings, floats, etc.)
+        VAL_FUNC
     } ValueType;
 
     typedef struct {
@@ -51,6 +54,7 @@ namespace pg
             bool boolean;
             int64_t number;     // Use int64_t for wider range than int
             ElementType* obj;   // Heap-allocated for strings, floats, size_t, etc.
+            ObjFunction* function;
         } as;
     } Value;
 
@@ -58,11 +62,13 @@ namespace pg
     #define IS_BOOL(value)    ((value).type == VAL_BOOL)
     #define IS_INT(value)     ((value).type == VAL_INT)
     #define IS_OBJ(value)     ((value).type == VAL_OBJ)
+    #define IS_FUNC(value)    ((value).type == VAL_FUNC)
 
     // Fast value extraction macros (direct memory access)
     #define AS_BOOL(value)    ((value).as.boolean)
     #define AS_INT(value)     ((value).as.number)
     #define AS_OBJ(value)     ((value).as.obj)
+    #define AS_FUNC(value)    ((value).as.function)
 
     // Fast value creation functions (C++ compatible)
     inline Value makeBoolValue(bool value) {
@@ -86,10 +92,18 @@ namespace pg
         return result;
     }
 
+    inline Value makeFuncValue(ObjFunction* func) {
+        Value result;
+        result.type = VAL_FUNC;
+        result.as.function = func;
+        return result;
+    }
+
     // Convenience macros
     #define BOOL_VAL(value)   makeBoolValue(value)
     #define INT_VAL(value)    makeIntValue(value)
     #define OBJ_VAL(object)   makeObjValue(object)
+    #define FUNC_VAL(func)    makeFuncValue(func)
 
     // Convert ElementType to optimized Value (minimize heap allocation)
     inline Value elementToValue(const ElementType& element) {
@@ -109,7 +123,14 @@ namespace pg
         if (IS_INT(value) || IS_BOOL(value)) {
             // Integers and booleans can be copied directly (no heap allocation)
             return value;
-        } else {
+        }
+        else if (IS_FUNC(value))
+        {
+            // Functions are pointers, just copy the pointer
+            return value;
+        }
+        else
+        {
             // For heap objects, create a new copy
             return OBJ_VAL(new ElementType(*AS_OBJ(value)));
         }
@@ -133,6 +154,8 @@ namespace pg
             case VAL_BOOL: return ElementType(AS_BOOL(value));
             case VAL_INT:  return ElementType(static_cast<int>(AS_INT(value)));
             case VAL_OBJ:  return *AS_OBJ(value);
+            case VAL_FUNC:
+                throw std::runtime_error("Cannot convert function Value to ElementType");
         }
 
         return ElementType(); // Should never reach
@@ -157,6 +180,12 @@ namespace pg
             float floatB = static_cast<float>(AS_INT(b));
             return OBJ_VAL(new ElementType(floatA + floatB));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         // Fall back to ElementType for other complex cases (strings, etc.)
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
@@ -179,6 +208,12 @@ namespace pg
             float floatB = static_cast<float>(AS_INT(b));
             return OBJ_VAL(new ElementType(floatA - floatB));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
@@ -189,6 +224,12 @@ namespace pg
         if (IS_INT(a) && IS_INT(b)) {
             return INT_VAL(AS_INT(a) * AS_INT(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA * elemB);
@@ -198,6 +239,12 @@ namespace pg
         if (IS_INT(a) && IS_INT(b) && AS_INT(b) != 0) {
             return INT_VAL(AS_INT(a) / AS_INT(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA / elemB);
@@ -207,6 +254,12 @@ namespace pg
         if (IS_INT(val)) {
             return INT_VAL(-AS_INT(val));
         }
+
+        // Disallow functions
+        if (IS_FUNC(val)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elem = valueToElement(val);
         return elementToValue(-elem);
     }
@@ -236,6 +289,12 @@ namespace pg
         if (IS_BOOL(a) && IS_BOOL(b)) {
             return BOOL_VAL(AS_BOOL(a) == AS_BOOL(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA == elemB);
@@ -248,6 +307,12 @@ namespace pg
         if (IS_BOOL(a) && IS_BOOL(b)) {
             return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA != elemB);
@@ -257,6 +322,12 @@ namespace pg
         if (IS_INT(a) && IS_INT(b)) {
             return BOOL_VAL(AS_INT(a) > AS_INT(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA > elemB);
@@ -266,6 +337,12 @@ namespace pg
         if (IS_INT(a) && IS_INT(b)) {
             return BOOL_VAL(AS_INT(a) >= AS_INT(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA >= elemB);
@@ -275,6 +352,12 @@ namespace pg
         if (IS_INT(a) && IS_INT(b)) {
             return BOOL_VAL(AS_INT(a) < AS_INT(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA < elemB);
@@ -284,6 +367,12 @@ namespace pg
         if (IS_INT(a) && IS_INT(b)) {
             return BOOL_VAL(AS_INT(a) <= AS_INT(b));
         }
+
+        // Disallow functions
+        if (IS_FUNC(a) || IS_FUNC(b)) {
+            throw std::runtime_error("Cannot add function Values");
+        }
+
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA <= elemB);
@@ -300,7 +389,7 @@ namespace pg
     class IndexableStack
     {
     private:
-        static constexpr size_t MAX_STACK_SIZE = 16384; // 16K elements max
+        static constexpr size_t MAX_STACK_SIZE = 8192; // 16K elements max
         alignas(Value) char stack_memory[MAX_STACK_SIZE * sizeof(Value)];
         size_t stack_top = 0;
 
