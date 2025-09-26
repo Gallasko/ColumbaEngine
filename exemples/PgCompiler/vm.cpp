@@ -98,7 +98,7 @@ namespace pg
             std::cout << "          ";
             for (size_t i = 0; i < stack.size(); ++i)
             {
-                std::cout << "[" << stack[i].toString() << "] ";
+                std::cout << "[" << valueToElement(stack[i]).toString() << "] ";
             }
             std::cout << std::endl;
 
