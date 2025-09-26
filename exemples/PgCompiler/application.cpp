@@ -10,6 +10,7 @@
 
 #include "long_jump_optimization_pass.h"
 #include "constant_uniformity_pass.h"
+#include "constant_propagation_pass.h"
 #include "Interpreter/lexer.h"
 
 using namespace pg;
@@ -58,6 +59,7 @@ void CompilerApp::runREPL()
 
     VM vm;
     vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
+    vm.addOptimizationPass(std::make_unique<ConstantPropagationPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
     vm.enableBytecodeOptimization();
@@ -99,6 +101,7 @@ void CompilerApp::runFile()
 
     VM vm;
     vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
+    vm.addOptimizationPass(std::make_unique<ConstantPropagationPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
     vm.enableBytecodeOptimization();
