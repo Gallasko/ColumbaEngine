@@ -670,6 +670,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
+            exemples/PgCompiler/constant_propagation_pass.cpp
+            exemples/PgCompiler/loop_simplification_pass.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
@@ -745,6 +747,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/unit/test_long_jump_optimization_integration.cc
             test/pgcompiler/unit/test_long_jump_edge_cases.cc
 
+            test/pgcompiler/unit/test_constant_propagation_pass.cc
+            test/pgcompiler/unit/test_constant_propagation_edge_cases.cc
+
             test/pgcompiler/integration/test_compilation_pipeline.cc
             test/pgcompiler/integration/test_error_handling.cc
             test/pgcompiler/integration/test_language_features.cc
@@ -766,6 +771,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
+            exemples/PgCompiler/constant_propagation_pass.cpp
+            exemples/PgCompiler/loop_simplification_pass.cpp
         )
 
         # Create the compiler test executable
