@@ -41,28 +41,30 @@ namespace pg
      *
      * Memory layout: 16 bytes total (8-byte union + 4-byte type + 4-byte padding)
      */
-    typedef enum {
-        VAL_BOOL,
-        VAL_INT,
-        VAL_OBJ,     // Pointer overflow for complex values (strings, floats, etc.)
-        VAL_FUNC
-    } ValueType;
+    enum CompilerValueType
+    {
+        COMPILER_VAL_BOOL,
+        COMPILER_VAL_INT,
+        COMPILER_VAL_OBJ,     // Pointer overflow for complex values (strings, floats, etc.)
+        COMPILER_VAL_FUNC
+    };
 
-    typedef struct {
-        ValueType type;
+    struct Value
+    {
+        CompilerValueType type;
         union {
             bool boolean;
             int64_t number;     // Use int64_t for wider range than int
             ElementType* obj;   // Heap-allocated for strings, floats, size_t, etc.
             ObjFunction* function;
         } as;
-    } Value;
+    };
 
     // Fast type checking macros (compile-time constant)
-    #define IS_BOOL(value)    ((value).type == VAL_BOOL)
-    #define IS_INT(value)     ((value).type == VAL_INT)
-    #define IS_OBJ(value)     ((value).type == VAL_OBJ)
-    #define IS_FUNC(value)    ((value).type == VAL_FUNC)
+    #define IS_BOOL(value)    ((value).type == COMPILER_VAL_BOOL)
+    #define IS_INT(value)     ((value).type == COMPILER_VAL_INT)
+    #define IS_OBJ(value)     ((value).type == COMPILER_VAL_OBJ)
+    #define IS_FUNC(value)    ((value).type == COMPILER_VAL_FUNC)
 
     // Fast value extraction macros (direct memory access)
     #define AS_BOOL(value)    ((value).as.boolean)
@@ -71,30 +73,34 @@ namespace pg
     #define AS_FUNC(value)    ((value).as.function)
 
     // Fast value creation functions (C++ compatible)
-    inline Value makeBoolValue(bool value) {
+    inline Value makeBoolValue(bool value)
+    {
         Value result;
-        result.type = VAL_BOOL;
+        result.type = COMPILER_VAL_BOOL;
         result.as.boolean = value;
         return result;
     }
 
-    inline Value makeIntValue(int64_t value) {
+    inline Value makeIntValue(int64_t value)
+    {
         Value result;
-        result.type = VAL_INT;
+        result.type = COMPILER_VAL_INT;
         result.as.number = value;
         return result;
     }
 
-    inline Value makeObjValue(ElementType* obj) {
+    inline Value makeObjValue(ElementType* obj)
+    {
         Value result;
-        result.type = VAL_OBJ;
+        result.type = COMPILER_VAL_OBJ;
         result.as.obj = obj;
         return result;
     }
 
-    inline Value makeFuncValue(ObjFunction* func) {
+    inline Value makeFuncValue(ObjFunction* func)
+    {
         Value result;
-        result.type = VAL_FUNC;
+        result.type = COMPILER_VAL_FUNC;
         result.as.function = func;
         return result;
     }
@@ -106,55 +112,60 @@ namespace pg
     #define FUNC_VAL(func)    makeFuncValue(func)
 
     // Convert ElementType to optimized Value (minimize heap allocation)
-    inline Value elementToValue(const ElementType& element) {
-        if (element.isBool()) {
+    inline Value elementToValue(const ElementType& element)
+    {
+        if (element.isBool())
             return BOOL_VAL(element.get<bool>());
-        } else if (element.type == ElementType::UnionType::INT) {
+        else if (element.type == ElementType::UnionType::INT)
+        {
             int intVal = element.get<int>();
             return INT_VAL(static_cast<int64_t>(intVal));
-        } else {
+        }
+        else
+        {
             // Strings, floats, complex types always use heap
             return OBJ_VAL(new ElementType(element));
         }
     }
 
     // Create a copy of a Value (for when we need to store the same value in multiple places)
-    inline Value copyValue(const Value& value) {
-        if (IS_INT(value) || IS_BOOL(value)) {
-            // Integers and booleans can be copied directly (no heap allocation)
+    inline Value copyValue(const Value& value)
+    {
+        // Integers and booleans can be copied directly (no heap allocation)
+        if (IS_INT(value) || IS_BOOL(value))
             return value;
-        }
+        // Functions are pointers, just copy the pointer
         else if (IS_FUNC(value))
-        {
-            // Functions are pointers, just copy the pointer
             return value;
-        }
-        else
-        {
             // For heap objects, create a new copy
+        else
             return OBJ_VAL(new ElementType(*AS_OBJ(value)));
-        }
     }
 
-    inline int getValueAsInt(const Value& value) {
-        if (IS_INT(value)) {
+    inline int getValueAsInt(const Value& value)
+    {
+        if (IS_INT(value))
             return static_cast<int>(AS_INT(value));
-        } else if (IS_BOOL(value)) {
+        else if (IS_BOOL(value))
             return AS_BOOL(value) ? 1 : 0;
-        } else if (IS_OBJ(value) && AS_OBJ(value)->type == ElementType::UnionType::INT) {
+        else if (IS_OBJ(value) && AS_OBJ(value)->type == ElementType::UnionType::INT)
             return AS_OBJ(value)->get<int>();
-        }
+
         throw std::runtime_error("Value is not an integer");
     }
 
     // Convert Value back to ElementType when needed
     inline ElementType valueToElement(const Value& value)
     {
-        switch (value.type) {
-            case VAL_BOOL: return ElementType(AS_BOOL(value));
-            case VAL_INT:  return ElementType(static_cast<int>(AS_INT(value)));
-            case VAL_OBJ:  return *AS_OBJ(value);
-            case VAL_FUNC:
+        switch (value.type)
+        {
+            case COMPILER_VAL_BOOL:
+                return ElementType(AS_BOOL(value));
+            case COMPILER_VAL_INT:
+                return ElementType(static_cast<int>(AS_INT(value)));
+            case COMPILER_VAL_OBJ:
+                return *AS_OBJ(value);
+            case COMPILER_VAL_FUNC:
                 throw std::runtime_error("Cannot convert function Value to ElementType");
         }
 
@@ -162,19 +173,23 @@ namespace pg
     }
 
     // Fast arithmetic operations on Value types
-    inline Value addValues(const Value& a, const Value& b) {
+    inline Value addValues(const Value& a, const Value& b)
+    {
         // Fast path for integers
-        if (IS_INT(a) && IS_INT(b)) {
+        if (IS_INT(a) and IS_INT(b))
             return INT_VAL(AS_INT(a) + AS_INT(b));
-        }
+
         // Handle mixed int/float cases without ElementType conversion
-        if (IS_INT(a) && IS_OBJ(b) && AS_OBJ(b)->isNumber()) {
+        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
+        {
             // int + float -> convert int to float and return float result
             float floatA = static_cast<float>(AS_INT(a));
             float floatB = (*AS_OBJ(b)).get<float>();
             return OBJ_VAL(new ElementType(floatA + floatB));
         }
-        if (IS_OBJ(a) && AS_OBJ(a)->isNumber() && IS_INT(b)) {
+
+        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
+        {
             // float + int -> convert int to float and return float result
             float floatA = (*AS_OBJ(a)).get<float>();
             float floatB = static_cast<float>(AS_INT(b));
@@ -182,9 +197,8 @@ namespace pg
         }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         // Fall back to ElementType for other complex cases (strings, etc.)
         ElementType elemA = valueToElement(a);
@@ -192,27 +206,30 @@ namespace pg
         return elementToValue(elemA + elemB);
     }
 
-    inline Value subtractValues(const Value& a, const Value& b) {
+    inline Value subtractValues(const Value& a, const Value& b)
+    {
         // Fast path for integers
-        if (IS_INT(a) && IS_INT(b)) {
+        if (IS_INT(a) and IS_INT(b))
             return INT_VAL(AS_INT(a) - AS_INT(b));
-        }
+
         // Handle mixed int/float cases without ElementType conversion
-        if (IS_INT(a) && IS_OBJ(b) && AS_OBJ(b)->isNumber()) {
+        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
+        {
             float floatA = static_cast<float>(AS_INT(a));
             float floatB = (*AS_OBJ(b)).get<float>();
             return OBJ_VAL(new ElementType(floatA - floatB));
         }
-        if (IS_OBJ(a) && AS_OBJ(a)->isNumber() && IS_INT(b)) {
+
+        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
+        {
             float floatA = (*AS_OBJ(a)).get<float>();
             float floatB = static_cast<float>(AS_INT(b));
             return OBJ_VAL(new ElementType(floatA - floatB));
         }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
@@ -220,158 +237,157 @@ namespace pg
         return elementToValue(elemA - elemB);
     }
 
-    inline Value multiplyValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b)) {
+    inline Value multiplyValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
             return INT_VAL(AS_INT(a) * AS_INT(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA * elemB);
     }
 
-    inline Value divideValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b) && AS_INT(b) != 0) {
+    inline Value divideValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
             return INT_VAL(AS_INT(a) / AS_INT(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA / elemB);
     }
 
-    inline Value negateValue(const Value& val) {
-        if (IS_INT(val)) {
+    inline Value negateValue(const Value& val)
+    {
+        if (IS_INT(val))
             return INT_VAL(-AS_INT(val));
-        }
 
         // Disallow functions
-        if (IS_FUNC(val)) {
+        if (IS_FUNC(val))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elem = valueToElement(val);
         return elementToValue(-elem);
     }
 
-    inline bool isValueNumber(const Value& val) {
-        if (IS_INT(val)) return true;
-        if (IS_OBJ(val)) {
+    inline bool isValueNumber(const Value& val)
+    {
+        if (IS_INT(val))
+            return true;
+
+        if (IS_OBJ(val))
             return AS_OBJ(val)->isNumber();
-        }
+
         return false;
     }
 
-    inline bool isValueTrue(const Value& val) {
-        if (IS_BOOL(val)) return AS_BOOL(val);
-        if (IS_INT(val)) return AS_INT(val) != 0;
-        if (IS_OBJ(val)) {
+    inline bool isValueTrue(const Value& val)
+    {
+        if (IS_BOOL(val))
+            return AS_BOOL(val);
+
+        if (IS_INT(val))
+            return AS_INT(val) != 0;
+
+        if (IS_OBJ(val))
             return AS_OBJ(val)->isTrue();
-        }
+
         return false;
     }
 
     // Fast comparison operations
-    inline Value equalsValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b)) {
+    inline Value equalsValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) == AS_INT(b));
-        }
-        if (IS_BOOL(a) && IS_BOOL(b)) {
+
+        if (IS_BOOL(a) and IS_BOOL(b))
             return BOOL_VAL(AS_BOOL(a) == AS_BOOL(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA == elemB);
     }
 
-    inline Value notEqualsValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b)) {
+    inline Value notEqualsValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) != AS_INT(b));
-        }
-        if (IS_BOOL(a) && IS_BOOL(b)) {
+
+        if (IS_BOOL(a) && IS_BOOL(b))
             return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA != elemB);
     }
 
-    inline Value greaterValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b)) {
+    inline Value greaterValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) > AS_INT(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA > elemB);
     }
 
-    inline Value greaterEqualValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b)) {
+    inline Value greaterEqualValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) >= AS_INT(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA >= elemB);
     }
 
-    inline Value lessValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b)) {
+    inline Value lessValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) < AS_INT(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) and IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return elementToValue(elemA < elemB);
     }
 
-    inline Value lessEqualValues(const Value& a, const Value& b) {
-        if (IS_INT(a) && IS_INT(b)) {
+    inline Value lessEqualValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) <= AS_INT(b));
-        }
 
         // Disallow functions
-        if (IS_FUNC(a) || IS_FUNC(b)) {
+        if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
-        }
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
@@ -379,8 +395,10 @@ namespace pg
     }
 
     // Memory management for heap-allocated objects
-    inline void freeValue(Value& value) {
-        if (IS_OBJ(value) && AS_OBJ(value) != nullptr) {
+    inline void freeValue(Value& value)
+    {
+        if (IS_OBJ(value) and AS_OBJ(value) != nullptr)
+        {
             delete AS_OBJ(value);
             value.as.obj = nullptr;
         }
@@ -393,67 +411,83 @@ namespace pg
         alignas(Value) char stack_memory[MAX_STACK_SIZE * sizeof(Value)];
         size_t stack_top = 0;
 
-        Value* stack_data() {
+        Value* stack_data()
+        {
             return reinterpret_cast<Value*>(stack_memory);
         }
 
-        const Value* stack_data() const {
+        const Value* stack_data() const
+        {
             return reinterpret_cast<const Value*>(stack_memory);
         }
 
     public:
         // Direct Value operations (fast path)
-        void push(const Value& value) {
+        void push(const Value& value)
+        {
             if (stack_top >= MAX_STACK_SIZE)
                 throw std::runtime_error("Stack overflow");
+
             stack_data()[stack_top++] = value;  // Simple assignment, no constructor
         }
 
         // Legacy ElementType support (converts to Value)
-        void push(const ElementType& element) {
+        void push(const ElementType& element)
+        {
             push(elementToValue(element));
         }
 
-        void push(ElementType&& element) {
+        void push(ElementType&& element)
+        {
             push(elementToValue(element));
         }
 
-        Value pop() {
+        Value pop()
+        {
             if (stack_top == 0)
                 throw std::runtime_error("Trying to pop on an empty stack");
+
             Value value = stack_data()[stack_top - 1];
             stack_top--;  // No destructor needed for POD-like Value
+
             return value;
         }
 
         // For legacy compatibility - returns ElementType
-        ElementType popElement() {
+        ElementType popElement()
+        {
             Value val = pop();
             ElementType result = valueToElement(val);
             freeValue(val);  // Clean up any heap allocation
+
             return result;
         }
 
         Value& operator[](size_t index) { return stack_data()[index]; }
         const Value& operator[](size_t index) const { return stack_data()[index]; }
 
-        Value top() const {
+        Value top() const
+        {
             if (stack_top == 0)
                 throw std::runtime_error("Stack is empty");
+
             return stack_data()[stack_top - 1];
         }
 
         // For legacy compatibility
-        ElementType topElement() const {
+        ElementType topElement() const
+        {
             return valueToElement(top());
         }
 
         bool empty() const { return stack_top == 0; }
         size_t size() const { return stack_top; }
 
-        void clear() {
+        void clear()
+        {
             // Clean up any heap-allocated objects
-            while (stack_top > 0) {
+            while (stack_top > 0)
+            {
                 freeValue(stack_data()[--stack_top]);
             }
         }
@@ -462,9 +496,11 @@ namespace pg
     struct VM
     {
         // Destructor to properly clean up globals map and stack
-        ~VM() {
+        ~VM()
+        {
             // Free all Values stored in globals before destruction
-            for (auto& pair : globals) {
+            for (auto& pair : globals)
+            {
                 freeValue(pair.second);
             }
             // Clean up any remaining Values on the stack
@@ -479,7 +515,7 @@ namespace pg
             {
                 lexer.readFromText(source);
             }
-            catch(const std::exception& e)
+            catch (const std::exception& e)
             {
                 LOG_ERROR("VM", e.what());
                 return InterpretResult::COMPILE_ERROR;
@@ -610,31 +646,36 @@ namespace pg
         bool enableOptimizations = true;
 
         // Optimization control methods
-        void enableBytecodeOptimization() {
+        void enableBytecodeOptimization()
+        {
             enableOptimizations = true;
             LOG_INFO("VM", "Bytecode optimization enabled");
         }
 
-        void disableBytecodeOptimization() {
+        void disableBytecodeOptimization()
+        {
             enableOptimizations = false;
             LOG_INFO("VM", "Bytecode optimization disabled");
         }
 
-        void enableOptimizationDebugging() {
+        void enableOptimizationDebugging()
+        {
             passManager.setDebugOutput(true);
         }
 
-        void disableOptimizationDebugging() {
+        void disableOptimizationDebugging()
+        {
             passManager.setDebugOutput(false);
         }
 
-        void listOptimizationPasses() const {
+        void listOptimizationPasses() const
+        {
             passManager.listPasses();
         }
 
-        void addOptimizationPass(std::unique_ptr<BytecodePass> pass) {
+        void addOptimizationPass(std::unique_ptr<BytecodePass> pass)
+        {
             passManager.addPass(std::move(pass));
         }
     };
-
 }
