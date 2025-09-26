@@ -25,12 +25,13 @@ namespace pg {
         }
     };
 
-    // Pattern element - can match specific opcode or be a wildcard
+    // Pattern element - can match specific opcode(s) or be a wildcard
     struct PatternElement {
-        std::optional<OpCode> opcode; // nullopt means wildcard
+        std::vector<OpCode> opcodes; // Empty means wildcard, multiple means OR matching
         bool capture; // Whether to capture this instruction
 
-        PatternElement(OpCode op, bool cap = false) : opcode(op), capture(cap) {}
+        PatternElement(OpCode op, bool cap = false) : opcodes({op}), capture(cap) {}
+        PatternElement(const std::vector<OpCode>& ops, bool cap = false) : opcodes(ops), capture(cap) {}
         PatternElement() : capture(false) {} // Wildcard constructor
 
         static PatternElement wildcard(bool cap = false) {
@@ -41,6 +42,56 @@ namespace pg {
 
         static PatternElement match(OpCode op, bool cap = false) {
             return PatternElement(op, cap);
+        }
+
+        static PatternElement anyOf(const std::vector<OpCode>& ops, bool cap = false) {
+            return PatternElement(ops, cap);
+        }
+
+        // Predefined common pattern groups
+        static PatternElement constant(bool cap = false) {
+            return anyOf({OpCode::OP_Constant, OpCode::OP_LongConstant}, cap);
+        }
+
+        static PatternElement load(bool cap = false) {
+            return anyOf({OpCode::OP_Get_Local, OpCode::OP_Get_Global}, cap);
+        }
+
+        static PatternElement store(bool cap = false) {
+            return anyOf({OpCode::OP_Set_Local, OpCode::OP_Set_Global}, cap);
+        }
+
+        static PatternElement increment(bool cap = false) {
+            return anyOf({OpCode::OP_Incr_Local, OpCode::OP_Incr_Global, 
+                         OpCode::OP_Post_Incr_Local, OpCode::OP_Post_Incr_Global}, cap);
+        }
+
+        static PatternElement decrement(bool cap = false) {
+            return anyOf({OpCode::OP_Decr_Local, OpCode::OP_Decr_Global,
+                         OpCode::OP_Post_Decr_Local, OpCode::OP_Post_Decr_Global}, cap);
+        }
+
+        static PatternElement jump(bool cap = false) {
+            return anyOf({OpCode::OP_Jump, OpCode::OP_Long_Jump}, cap);
+        }
+
+        static PatternElement conditionalJump(bool cap = false) {
+            return anyOf({OpCode::OP_Jump_If_False, OpCode::OP_Long_Jump_If_False}, cap);
+        }
+
+        static PatternElement loop(bool cap = false) {
+            return anyOf({OpCode::OP_Loop, OpCode::OP_Long_Loop}, cap);
+        }
+
+        static PatternElement comparison(bool cap = false) {
+            return anyOf({OpCode::OP_Equal, OpCode::OP_NotEqual, OpCode::OP_Greater, 
+                         OpCode::OP_GreaterEqual, OpCode::OP_Less, OpCode::OP_LessEqual}, cap);
+        }
+
+        // Check if this pattern matches a given opcode
+        bool matches(OpCode opcode) const {
+            if (opcodes.empty()) return true; // Wildcard matches everything
+            return std::find(opcodes.begin(), opcodes.end(), opcode) != opcodes.end();
         }
     };
 

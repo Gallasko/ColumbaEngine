@@ -324,7 +324,7 @@ namespace pg {
             OpCode currentOpcode = static_cast<OpCode>(chunk.code[currentOffset]);
 
             // Check if the pattern element matches
-            if (element.opcode && *element.opcode != currentOpcode) {
+            if (!element.matches(currentOpcode)) {
                 return std::nullopt;
             }
 
