@@ -20,9 +20,9 @@ namespace pg
             parser.declaration();
 
 #ifdef DEBUG_PRINT_CODE
-        if (!parser.hadError)
+        if (not parser.hadError)
         {
-            disassembleChunk(getCurrentChunk(), "code");
+            disassembleChunk(getCurrentChunk(), currentFunction != nullptr ? currentFunction->name : "<script>");
         }
 #endif
 
