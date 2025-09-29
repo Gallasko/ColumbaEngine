@@ -1,0 +1,26 @@
+// Local variable constant propagation
+// Shows how constants in local scopes can be optimized
+
+{
+    var x = 100;
+    var y = 200;
+
+    __dprint(x + y);
+    __dprint(x * 2);
+    __dprint(y / 4);
+}
+
+{
+    var name = "Optimization";
+    var version = 1.0;
+
+    __dprint(name);
+    __dprint(version);
+}
+
+// Expected output:
+// 300
+// 200
+// 50
+// Optimization
+// 1.000000

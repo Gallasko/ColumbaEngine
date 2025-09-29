@@ -1,0 +1,34 @@
+// Arithmetic with constants
+// Shows how constant propagation helps with mathematical expressions
+
+{
+    var base = 10;
+    var multiplier = 5;
+    var offset = 3;
+
+    // These could potentially be constant-folded
+    __dprint(base + offset);      // 13
+    __dprint(base * multiplier);  // 50
+    __dprint(multiplier - offset); // 2
+
+    // Reassignment changes the optimization potential
+    base = 20;
+    __dprint(base + offset);      // 23
+}
+
+// Floating point arithmetic
+{
+    var x = 2.5;
+    var y = 4.0;
+
+    __dprint(x * y);              // 10.000000
+    __dprint(x + y);              // 6.500000
+}
+
+// Expected output:
+// 13
+// 50
+// 2
+// 23
+// 10.000000
+// 6.500000

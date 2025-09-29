@@ -1,0 +1,31 @@
+// Boolean constants and logic
+// Shows constant propagation with boolean values
+
+var debug_mode = true;
+var production = false;
+
+{
+    var local_flag = true;
+
+    __dprint(debug_mode);
+    __dprint(production);
+    __dprint(local_flag);
+
+    // Boolean logic expressions
+    __dprint(debug_mode && local_flag);  // true
+    __dprint(production || local_flag);  // true
+    __dprint(!production);               // true
+
+    // Reassign and test again
+    local_flag = false;
+    __dprint(debug_mode && local_flag);  // false
+}
+
+// Expected output:
+// true
+// false
+// true
+// true
+// true
+// true
+// false

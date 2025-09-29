@@ -1,0 +1,26 @@
+// Simple loops - preparation for loop optimization
+// This shows current behavior before advanced loop optimization
+
+var limit = 3;
+
+{
+    var i = 0;
+
+    while (i < limit) {
+        __dprint(i);
+        i = i + 1;
+    }
+}
+
+// For loop example
+for (var j = 0; j < 2; j++) {
+    var temp = j * 10;
+    __dprint(temp);
+}
+
+// Expected output:
+// 0
+// 1
+// 2
+// 0
+// 10

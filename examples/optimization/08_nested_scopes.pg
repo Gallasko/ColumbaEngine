@@ -1,0 +1,35 @@
+// Nested scopes and variable shadowing
+// Tests optimization behavior with complex scoping
+
+var outer_var = "outer";
+
+{
+    var middle_var = "middle";
+
+    __dprint(outer_var);
+    __dprint(middle_var);
+
+    {
+        var inner_var = "inner";
+        var outer_var = "shadowed"; // Shadows the global
+
+        __dprint(outer_var);        // Should print "shadowed"
+        __dprint(middle_var);       // Should still access middle scope
+        __dprint(inner_var);
+    }
+
+    __dprint(outer_var);            // Should print "outer" again
+    __dprint(middle_var);
+}
+
+__dprint(outer_var);                // Should print "outer"
+
+// Expected output:
+// outer
+// middle
+// shadowed
+// middle
+// inner
+// outer
+// middle
+// outer

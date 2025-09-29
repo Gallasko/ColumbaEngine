@@ -1,0 +1,68 @@
+// Complex optimization scenario
+// Combines multiple optimization opportunities
+
+var app_name = "OptimizedApp";
+var version_major = 2;
+var version_minor = 1;
+
+__dprint(app_name);
+
+{
+    // Configuration block
+    var max_retries = 3;
+    var timeout_ms = 5000;
+    var retry_count = 0;
+
+    __dprint("Starting with max retries:");
+    __dprint(max_retries);
+
+    // Simulate processing with reassignments
+    retry_count = 1;
+    __dprint("Retry count:");
+    __dprint(retry_count);
+
+    retry_count = 2;
+    __dprint("Retry count:");
+    __dprint(retry_count);
+
+    // Final calculation
+    var remaining = max_retries - retry_count;
+    __dprint("Remaining retries:");
+    __dprint(remaining);
+
+    // Nested processing
+    {
+        var batch_size = 100;
+        var processed = 0;
+
+        processed = 50;
+        __dprint("Processed:");
+        __dprint(processed);
+
+        var percentage = (processed * 100) / batch_size;
+        __dprint("Percentage complete:");
+        __dprint(percentage);
+    }
+}
+
+__dprint("Application version:");
+__dprint(version_major);
+__dprint(version_minor);
+
+// Expected output:
+// OptimizedApp
+// Starting with max retries:
+// 3
+// Retry count:
+// 1
+// Retry count:
+// 2
+// Remaining retries:
+// 1
+// Processed:
+// 50
+// Percentage complete:
+// 50
+// Application version:
+// 2
+// 1

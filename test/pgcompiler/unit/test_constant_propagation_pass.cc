@@ -1,24 +1,17 @@
 #include <gtest/gtest.h>
 #include "constant_propagation_pass.h"
-#include "constant_uniformity_pass.h"
-#include "bytecode_rewriter.h"
-#include "compiler_test_base.h"
-#include "compiler_debug.h"
+#include "optimization_test_base.h"
 
 using namespace pg;
 
-class ConstantPropagationPassTest : public pg::test::CompilerTestBase {
+class ConstantPropagationPassTest : public pg::test::OptimizationTestBase {
 protected:
     void SetUp() override {
-        pg::test::CompilerTestBase::SetUp();
-        uniformityPass = std::make_unique<ConstantUniformityPass>();
+        pg::test::OptimizationTestBase::SetUp();
         pass = std::make_unique<ConstantPropagationPass>();
-        rewriter = std::make_unique<BytecodeRewriter>();
     }
 
-    std::unique_ptr<ConstantUniformityPass> uniformityPass;
     std::unique_ptr<ConstantPropagationPass> pass;
-    std::unique_ptr<BytecodeRewriter> rewriter;
 };
 
 TEST_F(ConstantPropagationPassTest, BasicLocalConstantPropagation) {
@@ -211,4 +204,26 @@ TEST_F(ConstantPropagationPassTest, DoesNotChangeSize) {
 TEST_F(ConstantPropagationPassTest, PassName) {
     // Test the pass name
     EXPECT_EQ(pass->getName(), "ConstantPropagation");
+}
+
+TEST_F(ConstantPropagationPassTest, StandardOptimizationValidation) {
+    // Use the standardized optimization test framework
+    auto testCases = getStandardTestCases();
+
+    // Add some constant propagation specific test cases
+    testCases.insert(testCases.end(), {
+        // Mixed local/global tests
+        "var g = 100; { var l = 50; __dprint(g + l); }",
+        // Multiple scopes
+        "{ var x = 1; __dprint(x); } { var x = 2; __dprint(x); }",
+        // Nested scopes
+        "{ var outer = 10; { var inner = 20; __dprint(outer + inner); } }",
+        // Variable reassignment (should generate OP_Set_Local)
+        "{ var x = 42; x = 100; __dprint(x); }",
+        "{ var y = 1; y = 2; y = 3; __dprint(y); }",
+        // Mixed declaration and reassignment
+        "{ var a = 10; var b = 20; a = 30; __dprint(a + b); }"
+    });
+
+    testOptimizationPreservesSemantics(pass.get(), testCases, false, true);
 }

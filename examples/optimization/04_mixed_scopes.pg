@@ -1,0 +1,27 @@
+// Mixed global and local variables
+// Shows interaction between different variable scopes
+
+var global_config = "Production";
+var global_version = 2.1;
+
+{
+    var local_temp = 42;
+    var local_multiplier = 3;
+
+    __dprint(global_config);
+    __dprint(global_version);
+    __dprint(local_temp * local_multiplier);
+}
+
+{
+    var another_local = 100;
+    another_local = 200; // Reassignment
+
+    __dprint(another_local + global_version);
+}
+
+// Expected output:
+// Production
+// 2.100000
+// 126
+// 202.100000

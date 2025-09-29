@@ -753,11 +753,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/integration/test_compilation_pipeline.cc
             test/pgcompiler/integration/test_error_handling.cc
             test/pgcompiler/integration/test_language_features.cc
+            test/pgcompiler/integration/test_optimization_examples.cc
 
             # Test fixtures and helpers
             test/pgcompiler/fixtures/compiler_test_base.cpp
             test/pgcompiler/fixtures/vm_test_fixture.cpp
             test/pgcompiler/fixtures/test_helpers.cpp
+            test/pgcompiler/fixtures/optimization_test_base.cpp
         )
 
         # PgCompiler source files (needed for testing)
@@ -805,7 +807,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # Copy test data files to build directory
         add_custom_command(TARGET test_compiler POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/data $<TARGET_FILE_DIR:test_compiler>/test_data)
+                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/data $<TARGET_FILE_DIR:test_compiler>/test_data
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_SOURCE_DIR}/examples $<TARGET_FILE_DIR:test_compiler>/examples)
 
         # Register compiler tests with CTest
         gtest_discover_tests(test_compiler

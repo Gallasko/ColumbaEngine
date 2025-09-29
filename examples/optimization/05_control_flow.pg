@@ -1,0 +1,22 @@
+// Control flow with constants
+// Shows how optimization should preserve semantics in conditionals
+
+var should_run = true;
+var max_value = 100;
+
+if (should_run) {
+    var local_value = 50;
+
+    if (local_value < max_value) {
+        __dprint("Value is within bounds");
+        __dprint(local_value);
+    } else {
+        __dprint("Value exceeds maximum");
+    }
+} else {
+    __dprint("Skipped execution");
+}
+
+// Expected output:
+// Value is within bounds
+// 50

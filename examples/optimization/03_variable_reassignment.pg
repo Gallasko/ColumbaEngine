@@ -1,0 +1,23 @@
+// Variable reassignment - generates OP_Set_Local
+// This is where constant propagation can really shine
+
+{
+    var counter = 0;
+
+    __dprint(counter);
+
+    counter = 10;
+    __dprint(counter);
+
+    counter = 20;
+    __dprint(counter);
+
+    // Final calculation with reassigned value
+    __dprint(counter * 2);
+}
+
+// Expected output:
+// 0
+// 10
+// 20
+// 40

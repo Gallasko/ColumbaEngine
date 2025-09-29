@@ -1,0 +1,18 @@
+// Simple constant propagation example
+// This demonstrates basic constant values being used
+
+var x = 42;
+var message = "Hello World";
+var pi = 3.14159;
+var flag = true;
+
+__dprint(x);
+__dprint(message);
+__dprint(pi);
+__dprint(flag);
+
+// Expected output:
+// 42
+// Hello World
+// 3.141590
+// true
