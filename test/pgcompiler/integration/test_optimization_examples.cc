@@ -3,39 +3,34 @@
 #include "constant_propagation_pass.h"
 #include "constant_uniformity_pass.h"
 #include "long_jump_optimization_pass.h"
+#include "loop_simplification_pass.h"
 #include <fstream>
 
 using namespace pg;
 
+/**
+ * Enhanced optimization examples test using the new framework
+ * This maintains backward compatibility while demonstrating new capabilities
+ */
 class OptimizationExamplesTest : public pg::test::OptimizationTestBase {
 protected:
     void SetUp() override {
         pg::test::OptimizationTestBase::SetUp();
+        
+        // Create individual passes for backward compatibility
         constantPropagationPass = std::make_unique<ConstantPropagationPass>();
         longJumpPass = std::make_unique<LongJumpOptimizationPass>();
-    }
-
-    // Helper to read example files
-    std::string readExampleFile(const std::string& filename) {
-        std::ifstream file("examples/optimization/" + filename);
-        if (!file.is_open()) {
-            return "";
-        }
-
-        std::string content;
-        std::string line;
-        while (std::getline(file, line)) {
-            // Skip comment lines for cleaner execution
-            if (line.empty() || line.substr(0, 2) == "//") {
-                continue;
-            }
-            content += line + "\n";
-        }
-        return content;
+        loopSimplificationPass = std::make_unique<LoopSimplificationPass>();
+        
+        // Register passes with the new framework
+        registerPass("ConstantPropagation", std::make_unique<ConstantPropagationPass>());
+        registerPass("LongJumpOptimization", std::make_unique<LongJumpOptimizationPass>());
+        registerPass("LoopSimplification", std::make_unique<LoopSimplificationPass>());
     }
 
     std::unique_ptr<ConstantPropagationPass> constantPropagationPass;
     std::unique_ptr<LongJumpOptimizationPass> longJumpPass;
+    std::unique_ptr<LoopSimplificationPass> loopSimplificationPass;
 };
 
 TEST_F(OptimizationExamplesTest, SimpleConstants) {
@@ -131,10 +126,43 @@ TEST_F(OptimizationExamplesTest, AllExamplesWithAllPasses) {
 
         std::cout << "\n=== Testing " << filename << " with all passes ===" << std::endl;
 
-        // Test each pass individually
+        // Test each pass individually (backward compatibility)
         testSingleOptimization(constantPropagationPass.get(), code, false, false);
         testSingleOptimization(longJumpPass.get(), code, false, false);
+        testSingleOptimization(loopSimplificationPass.get(), code, false, false);
 
         std::cout << filename << " passed all optimization tests" << std::endl;
     }
+}
+
+// Enhanced tests using the new framework
+TEST_F(OptimizationExamplesTest, EnhancedFramework_AllIndividualPasses) {
+    // Test all discovered examples against all registered passes
+    testAllIndividualPasses(false);
+}
+
+TEST_F(OptimizationExamplesTest, EnhancedFramework_AllPredefinedCombinations) {
+    // Test all discovered examples against all predefined pass combinations
+    testAllPredefinedCombinations(false);
+}
+
+TEST_F(OptimizationExamplesTest, EnhancedFramework_SpecificCombinations) {
+    // Test specific files with specific combinations
+    testSpecificFileAndCombination("05_control_flow.pg", "standard", false);
+    testSpecificFileAndCombination("10_complex_scenario.pg", "aggressive", false);
+    testSpecificFileAndCombination("01_simple_constants.pg", "conservative", false);
+}
+
+TEST_F(OptimizationExamplesTest, EnhancedFramework_CustomCombination) {
+    // Test a custom pass combination
+    auto code = readExampleFile("06_simple_loops.pg");
+    ASSERT_FALSE(code.empty()) << "Could not read loops file";
+
+    std::vector<BytecodePass*> loopOptimizationPipeline = {
+        registeredPasses["ConstantPropagation"].get(),
+        registeredPasses["LoopSimplification"].get(),
+        registeredPasses["LongJumpOptimization"].get()
+    };
+
+    testPassCombination(loopOptimizationPipeline, code, false, "loop-optimization-pipeline");
 }

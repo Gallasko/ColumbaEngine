@@ -754,6 +754,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/pgcompiler/integration/test_error_handling.cc
             test/pgcompiler/integration/test_language_features.cc
             test/pgcompiler/integration/test_optimization_examples.cc
+            test/pgcompiler/integration/test_optimization_framework.cc
 
             # Test fixtures and helpers
             test/pgcompiler/fixtures/compiler_test_base.cpp
