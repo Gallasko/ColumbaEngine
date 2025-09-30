@@ -11,11 +11,15 @@ namespace pg {
 
         LOG_INFO("ConstantPropagationPass", "Starting constant propagation");
 
-        // Clear existing rules and add our constant propagation patterns
-        rewriter->clearRules();
+        // Step 1: Analyze the bytecode to find constant assignments
+        localConstants.clear();
+        globalConstants.clear();
+        analyzeConstantAssignments(chunk);
+
+        // Step 2: Clear existing rules and add our constant propagation patterns
         setupConstantPropagationPatterns(rewriter);
 
-        // Apply transformations
+        // Step 3: Apply transformations
         bool modified = rewriter->rewrite(chunk);
 
         if (modified) {
@@ -33,7 +37,7 @@ namespace pg {
         while (offset < chunk.code.size()) {
             OpCode currentOp = static_cast<OpCode>(chunk.code[offset]);
 
-            // Look for local pattern: constant -> set_local
+            // Look for new local pattern: constant -> index_access -> set_local
             if (isConstantInstruction(currentOp)) {
                 size_t constantOffset = offset;
                 size_t constantSize = getInstructionSize(currentOp);
@@ -46,24 +50,43 @@ namespace pg {
                     }
                 }
 
-                // Look for the next instruction (should be a store)
-                size_t nextOffset = offset + constantSize;
-                if (nextOffset < chunk.code.size()) {
-                    OpCode nextOp = static_cast<OpCode>(chunk.code[nextOffset]);
+                // Look for the next instruction (should be OP_Index_Access)
+                size_t indexOffset = offset + constantSize;
+                if (indexOffset < chunk.code.size()) {
+                    OpCode indexOp = static_cast<OpCode>(chunk.code[indexOffset]);
 
-                    if (nextOp == OpCode::OP_Set_Local) {
-                        // Found constant -> set_local pattern
-                        size_t storeSize = getInstructionSize(nextOp);
+                    if (indexOp == OpCode::OP_Index_Access || indexOp == OpCode::OP_Long_Index_Access) {
+                        size_t indexSize = getInstructionSize(indexOp);
+                        
+                        // Extract slot index from OP_Index_Access
+                        uint8_t variableSlot = 0;
+                        if (indexOp == OpCode::OP_Index_Access && indexOffset + 1 < chunk.code.size()) {
+                            size_t slotConstantIndex = chunk.code[indexOffset + 1];
+                            if (slotConstantIndex < chunk.constants.size()) {
+                                variableSlot = chunk.constants[slotConstantIndex].get<int>();
+                            }
+                        } else if (indexOp == OpCode::OP_Long_Index_Access && indexOffset + 3 < chunk.code.size()) {
+                            size_t slotConstantIndex = (chunk.code[indexOffset + 1] << 16) |
+                                                     (chunk.code[indexOffset + 2] << 8) |
+                                                      chunk.code[indexOffset + 3];
+                            if (slotConstantIndex < chunk.constants.size()) {
+                                variableSlot = chunk.constants[slotConstantIndex].get<int>();
+                            }
+                        }
 
-                        // For OP_Set_Local, the operand is the next byte after the opcode
-                        if (nextOffset + 1 < chunk.code.size()) {
-                            uint8_t variableSlot = chunk.code[nextOffset + 1];
-                            ElementType constantValue = extractConstantValue(chunk, currentOp, constantOperands);
+                        // Look for OP_Set_Local after OP_Index_Access
+                        size_t setOffset = indexOffset + indexSize;
+                        if (setOffset < chunk.code.size()) {
+                            OpCode setOp = static_cast<OpCode>(chunk.code[setOffset]);
+                            
+                            if (setOp == OpCode::OP_Set_Local) {
+                                ElementType constantValue = extractConstantValue(chunk, currentOp, constantOperands);
 
-                            VariableConstantInfo info(constantValue, currentOp, constantOperands, constantOffset);
-                            localConstants[variableSlot] = info;
-                            LOG_INFO("ConstantPropagationPass", "Found local constant assignment: slot "
-                                     << (int)variableSlot << " at offset " << constantOffset);
+                                VariableConstantInfo info(constantValue, currentOp, constantOperands, constantOffset);
+                                localConstants[variableSlot] = info;
+                                LOG_INFO("ConstantPropagationPass", "Found local constant assignment: slot "
+                                         << (int)variableSlot << " = " << constantValue.toString() << " at offset " << constantOffset);
+                            }
                         }
                     }
                 }
