@@ -390,7 +390,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
                     }
 
-                    push(stack[index]);
+                    push(copyValue(stack[index]));
                     freeValue(slot);
                     break;
                 }
@@ -423,7 +423,7 @@ namespace pg
 
                     // Free the old value that was in the stack slot
                     freeValue(stack[index]);
-                    stack[index] = value;
+                    stack[index] = copyValue(value);
                     push(value); // Assignment expression returns the value
                     freeValue(slot);
                     break;
