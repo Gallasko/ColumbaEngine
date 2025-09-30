@@ -6,7 +6,7 @@
 
 namespace pg
 {
-    bool Compiler::compile(std::queue<Token> tokens)
+    ObjFunction* Compiler::compile(std::queue<Token> tokens)
     {
 #ifdef DEBUG_PRINT_TOKENS
         printTokens(tokens);
@@ -26,7 +26,7 @@ namespace pg
         }
 #endif
 
-        return not parser.hasError();
+        return parser.hasError() ? nullptr : currentFunction;
     }
 
     void Compiler::printTokens(std::queue<Token> tokens)

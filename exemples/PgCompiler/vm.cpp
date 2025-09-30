@@ -16,10 +16,18 @@ namespace pg
 
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-        if (not compiler.compile(tokens))
+        auto *function = compiler.compile(tokens);
+
+        if (not function)
             return InterpretResult::COMPILE_ERROR;
 
-        auto& chunk = compiler.getCurrentChunk();
+        push(FUNC_VAL(function));
+
+        CallFrame *frame = &frames[frameCount++];
+
+        frame->function = function;
+        frame->ip = function->chunk.code;
+        frame->slots = stack;
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -58,9 +66,6 @@ namespace pg
 #endif
         }
 
-        this->chunk = chunk;
-        ip = 0;
-
         try
         {
             begin = std::chrono::steady_clock::now();
@@ -86,12 +91,14 @@ namespace pg
 
     InterpretResult VM::run()
     {
-        if (chunk.code.empty())
+        if (currentFrame->function->chunk.code.empty())
             return InterpretResult::OK;
+
+        auto *frame = &frames[frameCount - 1];
 
         for (;;)
         {
-            if (ip >= chunk.code.size())
+            if (checkIpAgainstStack(0))
                 return InterpretResult::OK;
 
 #ifdef DEBUG_TRACE_EXECUTION
@@ -102,9 +109,9 @@ namespace pg
             }
             std::cout << std::endl;
 
-            disassembleInstruction(chunk, ip);
+            disassembleInstruction(currentFrame->function->chunk, *currentFrame->ip);
 #endif
-            auto instruction = static_cast<OpCode>(chunk.code[ip++]);
+            auto instruction = static_cast<OpCode>(currentFrame->function->chunk.code[advanceIp()]);
 
             switch (instruction)
             {
@@ -390,7 +397,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
                     }
 
-                    push(stack[index]);
+                    push(currentFrame->slots[index]);
                     freeValue(slot);
                     break;
                 }
@@ -423,7 +430,7 @@ namespace pg
 
                     // Free the old value that was in the stack slot
                     freeValue(stack[index]);
-                    stack[index] = value;
+                    currentFrame->slots[index] = value;
                     push(value); // Assignment expression returns the value
                     freeValue(slot);
                     break;
@@ -432,7 +439,7 @@ namespace pg
                 case OpCode::OP_Jump_If_False:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (ip + 2 >= chunk.code.size())
+                    if (checkIpAgainstStack(2))
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
                     }
@@ -448,8 +455,8 @@ namespace pg
 
                     if (not isValueTrue(condition))
                     {
-                        ip += jumpOffset;
-                        if (ip > chunk.code.size())
+                        *currentFrame->ip += jumpOffset;
+                        if (checkIpAgainstStack(1))
                         {
                             EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                         }
@@ -461,7 +468,7 @@ namespace pg
                 case OpCode::OP_Long_Jump_If_False:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (ip + 4 >= chunk.code.size())
+                    if (checkIpAgainstStack(4))
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
                     }
@@ -477,8 +484,8 @@ namespace pg
 
                     if (not isValueTrue(condition))
                     {
-                        ip += jumpOffset;
-                        if (ip > chunk.code.size())
+                        *currentFrame->ip += jumpOffset;
+                        if (checkIpAgainstStack(1))
                         {
                             EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                         }
@@ -490,15 +497,15 @@ namespace pg
                 case OpCode::OP_Jump:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (ip + 2 >= chunk.code.size())
+                    if (checkIpAgainstStack(2))
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
                     }
 #endif
                     uint16_t jumpOffset = readUint16();
 
-                    ip += jumpOffset;
-                    if (ip > chunk.code.size())
+                    *currentFrame->ip += jumpOffset;
+                    if (checkIpAgainstStack(1))
                     {
                         EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                     }
@@ -509,15 +516,15 @@ namespace pg
                 case OpCode::OP_Long_Jump:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (ip + 4 >= chunk.code.size())
+                    if (checkIpAgainstStack(4))
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
                     }
 #endif
                     uint32_t jumpOffset = readUint32();
 
-                    ip += jumpOffset;
-                    if (ip > chunk.code.size())
+                    *currentFrame->ip += jumpOffset;
+                    if (checkIpAgainstStack(1))
                     {
                         EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                     }
@@ -528,38 +535,38 @@ namespace pg
                 case OpCode::OP_Loop:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (ip + 2 >= chunk.code.size())
+                    if (checkIpAgainstStack(2))
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read loop offset.");
                     }
 #endif
                     uint16_t loopOffset = readUint16();
 #ifdef DEBUG_CHECK_STACK
-                    if (loopOffset > ip)
+                    if (loopOffset > *currentFrame->ip)
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
 #endif
-                    ip -= loopOffset;
+                    *currentFrame->ip -= loopOffset;
                     break;
                 }
 
                 case OpCode::OP_Long_Loop:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (ip + 4 >= chunk.code.size())
+                    if (checkIpAgainstStack(4))
                     {
                         EMIT_RUNTIME_ERROR("Not enough bytes to read long loop offset.");
                     }
 #endif
                     uint32_t loopOffset = readUint32();
 #ifdef DEBUG_CHECK_STACK
-                    if (loopOffset > ip)
+                    if (loopOffset > *currentFrame->ip)
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
 #endif
-                    ip -= loopOffset;
+                    *currentFrame->ip -= loopOffset;
                     break;
                 }
 
@@ -907,44 +914,44 @@ namespace pg
 
     Value VM::readConstant()
     {
-        uint8_t constantIndex = chunk.code[ip++];
+        uint8_t constantIndex = advanceIp(); // chunk.code[ip++];
 
 #ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= chunk.constants.size())
+        if (constantIndex >= currentFrame->function->chunk.constants.size())
         {
             throw std::runtime_error("Constant index out of bounds.");
         }
 #endif
 
-        return elementToValue(chunk.constants[constantIndex]);
+        return elementToValue(currentFrame->function->chunk.constants[constantIndex]);
     }
 
     Value VM::readLongConstant()
     {
 #ifdef DEBUG_CHECK_STACK
-        if (ip + 2 >= chunk.code.size())
+        if (checkIpAgainstStack(2))
         {
             throw std::runtime_error("Not enough bytes to read long constant index.");
         }
 #endif
 
-        uint32_t constantIndex = (static_cast<uint32_t>(chunk.code[ip]) << 16);
-        ip++;
+        uint32_t constantIndex = (static_cast<uint32_t>(*currentFrame->ip) << 16);
+        advanceIp();
 
-        constantIndex |= (static_cast<uint32_t>(chunk.code[ip]) << 8);
-        ip++;
+        constantIndex |= (static_cast<uint32_t>(*currentFrame->ip) << 8);
+        advanceIp();
 
-        constantIndex |= static_cast<uint32_t>(chunk.code[ip]);
-        ip++;
+        constantIndex |= static_cast<uint32_t>(*currentFrame->ip);
+        advanceIp();
 
 #ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= chunk.constants.size())
+        if (constantIndex >= currentFrame->function->chunk.constants.size())
         {
             throw std::runtime_error("Long constant index out of bounds.");
         }
 #endif
 
-        return elementToValue(chunk.constants[constantIndex]);
+        return elementToValue(currentFrame->function->chunk.constants[constantIndex]);
     }
 
     void VM::binaryOp(std::function<Value(Value, Value)> op)
