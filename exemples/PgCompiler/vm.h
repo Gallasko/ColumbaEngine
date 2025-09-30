@@ -26,6 +26,8 @@
 
 namespace pg
 {
+    static constexpr size_t FRAMES_MAX = 64;
+
     enum class InterpretResult
     {
         OK,
@@ -71,6 +73,13 @@ namespace pg
     #define AS_INT(value)     ((value).as.number)
     #define AS_OBJ(value)     ((value).as.obj)
     #define AS_FUNC(value)    ((value).as.function)
+
+    struct CallFrame
+    {
+        ObjFunction *function;
+        uint8_t *ip;
+        Value *slots;
+    };
 
     // Fast value creation functions (C++ compatible)
     inline Value makeBoolValue(bool value)
@@ -407,7 +416,7 @@ namespace pg
     class IndexableStack
     {
     private:
-        static constexpr size_t MAX_STACK_SIZE = 8192; // 16K elements max
+        static constexpr size_t MAX_STACK_SIZE = FRAMES_MAX * 4096; // Callstack * 4K elements max
         alignas(Value) char stack_memory[MAX_STACK_SIZE * sizeof(Value)];
         size_t stack_top = 0;
 
@@ -568,15 +577,15 @@ namespace pg
         uint16_t readUint16()
         {
 #ifdef DEBUG_CHECK_STACK
-            if (ip + 1 >= chunk.code.size())
+            if (*currentFrame->ip + 1 >= currentFrame->function->chunk.code.size())
             {
                 throw std::runtime_error("Not enough bytes to read uint16.");
             }
 #endif
-            uint16_t value = (static_cast<uint16_t>(chunk.code[ip]) << 8);
-            ip++;
-            value |= static_cast<uint16_t>(chunk.code[ip]);
-            ip++;
+            uint16_t value = (static_cast<uint16_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 8);
+            advanceIp();
+            value |= static_cast<uint16_t>(currentFrame->function->chunk.code[*currentFrame->ip]);
+            advanceIp();
 
             return value;
         }
@@ -584,21 +593,31 @@ namespace pg
         uint32_t readUint32()
         {
 #ifdef DEBUG_CHECK_STACK
-            if (ip + 3 >= chunk.code.size())
+            if (*currentFrame->ip + 3 >= currentFrame->function->chunk.code.size())
             {
                 throw std::runtime_error("Not enough bytes to read uint32.");
             }
 #endif
-            uint32_t value = (static_cast<uint32_t>(chunk.code[ip]) << 24);
-            ip++;
-            value |= (static_cast<uint32_t>(chunk.code[ip]) << 16);
-            ip++;
-            value |= (static_cast<uint32_t>(chunk.code[ip]) << 8);
-            ip++;
-            value |= static_cast<uint32_t>(chunk.code[ip]);
-            ip++;
+            uint32_t value = (static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 24);
+            advanceIp();
+            value |= (static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 16);
+            advanceIp();
+            value |= (static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 8);
+            advanceIp();
+            value |= static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]);
+            advanceIp();
 
             return value;
+        }
+
+        inline uint8_t advanceIp()
+        {
+            return ((*currentFrame->ip)++);
+        }
+
+        inline bool checkIpAgainstStack(uint8_t ahead)
+        {
+            return *currentFrame->ip + ahead >= currentFrame->function->chunk.code.size();
         }
 
         inline void resetStack()
@@ -608,7 +627,7 @@ namespace pg
 
         void runtimeError(const std::string& message)
         {
-            LOG_ERROR("VM", "[line " << chunk.lines[ip - 1] << "] in script");
+            LOG_ERROR("VM", "[line " << currentFrame->function->chunk.lines[*currentFrame->ip - 1] << "] in script");
             LOG_ERROR("VM", message);
             resetStack();
         }
@@ -627,11 +646,11 @@ namespace pg
 
         Compiler compiler;
 
-        /* The chunk being interpreted */
-        Chunk chunk;
+        CallFrame frames[FRAMES_MAX];
 
-        /* Instruction pointer */
-        size_t ip = 0;
+        CallFrame *currentFrame = nullptr;
+
+        int frameCount = 0;
 
         /* The stack of the VM */
         IndexableStack stack;

@@ -35,7 +35,7 @@ namespace pg
         Compiler() {}
         ~Compiler() { delete currentFunction; }
 
-        bool compile(std::queue<Token> tokens);
+        ObjFunction* compile(std::queue<Token> tokens);
 
         void printTokens(std::queue<Token> tokens);
 
