@@ -138,11 +138,11 @@ namespace pg {
         // Local variable constant propagation
         // Pattern: constant_value -> constant_slot -> set_local -> constant_slot -> get_local
         std::vector<PatternElement> localPattern = {
-            PatternElement::constant(true),                     // Capture: constant value
-            PatternElement::constant(true),                     // Capture: slot constant
-            PatternElement::match(OpCode::OP_Set_Local, true),  // Capture: store instruction
-            PatternElement::constant(true),                     // Capture: slot constant (again)
-            PatternElement::match(OpCode::OP_Get_Local, true)   // Capture: load instruction
+            PatternElement::constant(true),                           // Capture: constant value
+            PatternElement::match(OpCode::OP_Index_Access, true),     // Capture: slot index access
+            PatternElement::match(OpCode::OP_Set_Local, true),        // Capture: store instruction
+            PatternElement::match(OpCode::OP_Index_Access, true),     // Capture: slot index access (again)
+            PatternElement::match(OpCode::OP_Get_Local, true)         // Capture: load instruction
         };
 
         auto localTransform = [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
@@ -161,6 +161,18 @@ namespace pg {
                 return {}; // Different slot numbers
             }
 
+            // CRITICAL: Check if there are any control flow instructions between store and load
+            // If there are jumps, loops, or branches, the variable might be modified
+            size_t storeOffset = storeInstr.offset;
+            size_t loadOffset = loadInstr.offset;
+            
+            // For safety, only propagate if the load immediately follows the store sequence
+            // This prevents propagation across control flow boundaries
+            size_t expectedLoadOffset = storeOffset + 2; // set_local + pop typically = 2 bytes
+            if (loadOffset > expectedLoadOffset + 5) { // Allow small gap for other safe instructions
+                return {}; // Too much code between store and load - unsafe to propagate
+            }
+            
             LOG_INFO("ConstantPropagationPass", "Replacing local variable load with constant");
 
             // Replace the load with the constant
@@ -176,11 +188,11 @@ namespace pg {
         // Boolean constant propagation (OP_True/OP_False)
         // Pattern: OP_True -> constant_slot -> set_local -> constant_slot -> get_local
         std::vector<PatternElement> boolTruePattern = {
-            PatternElement::match(OpCode::OP_True, true),           // Capture: OP_True
-            PatternElement::constant(true),                         // Capture: slot constant
-            PatternElement::match(OpCode::OP_Set_Local, true),      // Capture: store instruction
-            PatternElement::constant(true),                         // Capture: slot constant (again)
-            PatternElement::match(OpCode::OP_Get_Local, true)       // Capture: load instruction
+            PatternElement::match(OpCode::OP_True, true),               // Capture: OP_True
+            PatternElement::match(OpCode::OP_Index_Access, true),       // Capture: slot index access
+            PatternElement::match(OpCode::OP_Set_Local, true),          // Capture: store instruction
+            PatternElement::match(OpCode::OP_Index_Access, true),       // Capture: slot index access (again)
+            PatternElement::match(OpCode::OP_Get_Local, true)           // Capture: load instruction
         };
 
         auto boolTrueTransform = [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
@@ -209,11 +221,11 @@ namespace pg {
 
         // Similar pattern for OP_False
         std::vector<PatternElement> boolFalsePattern = {
-            PatternElement::match(OpCode::OP_False, true),          // Capture: OP_False
-            PatternElement::constant(true),                         // Capture: slot constant
-            PatternElement::match(OpCode::OP_Set_Local, true),      // Capture: store instruction
-            PatternElement::constant(true),                         // Capture: slot constant (again)
-            PatternElement::match(OpCode::OP_Get_Local, true)       // Capture: load instruction
+            PatternElement::match(OpCode::OP_False, true),              // Capture: OP_False
+            PatternElement::match(OpCode::OP_Index_Access, true),       // Capture: slot index access
+            PatternElement::match(OpCode::OP_Set_Local, true),          // Capture: store instruction
+            PatternElement::match(OpCode::OP_Index_Access, true),       // Capture: slot index access (again)
+            PatternElement::match(OpCode::OP_Get_Local, true)           // Capture: load instruction
         };
 
         auto boolFalseTransform = [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {

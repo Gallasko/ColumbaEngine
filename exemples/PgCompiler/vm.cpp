@@ -131,10 +131,24 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Index_Access:
+                {
+                    auto indexValue = readConstant();
+                    push(indexValue);
+                    break;
+                }
+
                 case OpCode::OP_LongConstant:
                 {
                     auto constant = readLongConstant();
                     push(constant);
+                    break;
+                }
+
+                case OpCode::OP_Long_Index_Access:
+                {
+                    auto indexValue = readLongConstant();
+                    push(indexValue);
                     break;
                 }
 

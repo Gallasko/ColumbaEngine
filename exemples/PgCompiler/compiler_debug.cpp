@@ -89,6 +89,12 @@ namespace pg
             case OpCode::OP_LongConstant:
                 return longConstantInstruction("OP_LongConstant", chunk, offset);
 
+            case OpCode::OP_Index_Access:
+                return constantInstruction("OP_Index_Access", chunk, offset);
+
+            case OpCode::OP_Long_Index_Access:
+                return longConstantInstruction("OP_Long_Index_Access", chunk, offset);
+
             case OpCode::OP_Negate:
                 return simpleInstruction("OP_Negate", offset);
 

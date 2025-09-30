@@ -1,6 +1,7 @@
 #include "constant_uniformity_pass.h"
 #include "logger.h"
 #include <algorithm>
+#include <unordered_set>
 
 namespace pg {
 
@@ -35,34 +36,26 @@ namespace pg {
 
         LOG_INFO("ConstantUniformityPass", "Found " << duplicateCount << " duplicate constants");
 
-        // Step 2: Create compact constants array and final mapping
-        std::vector<ElementType> newConstants;
-        std::vector<size_t> finalMapping; // old index -> new compact index
+        // Step 2: Create mapping for duplicate elimination
+        // Since OP_Index_Access opcodes rely on exact indices, we only update OP_Constant references
+        // to point to the first occurrence of each duplicate, but keep the constants array unchanged
+        std::vector<size_t> finalMapping; // old index -> target index for OP_Constant references
         finalMapping.resize(chunk.constants.size());
 
-        // Build new constants array and final mapping
-        for (size_t i = 0; i < mapping.size(); ++i) {
-            if (!mapping[i].isDuplicate) {
-                finalMapping[i] = newConstants.size();
-                newConstants.push_back(chunk.constants[i]);
-            }
-        }
-
-        // Set final mapping for duplicates
+        // Build mapping: duplicates point to first occurrence, others point to themselves
         for (size_t i = 0; i < mapping.size(); ++i) {
             if (mapping[i].isDuplicate) {
-                size_t originalFirstIndex = mapping[i].newIndex;
-                // Use the final mapping of the first occurrence
-                finalMapping[i] = finalMapping[originalFirstIndex];
+                finalMapping[i] = mapping[i].newIndex; // Point to first occurrence
+            } else {
+                finalMapping[i] = i; // Point to self
             }
         }
 
-
-        // Step 3: Update all constant references with final indices
+        // Step 3: Update only OP_Constant references (OP_Index_Access references remain unchanged)
         updateAllConstantReferences(chunk, finalMapping, rewriter);
 
-        // Step 4: Replace constants array
-        chunk.constants = std::move(newConstants);
+        // Step 4: Keep original constants array - do NOT compact it
+        // This preserves indices for OP_Index_Access opcodes
 
         LOG_INFO("ConstantUniformityPass", "Optimization complete. Constants reduced from "
                  << (mapping.size()) << " to " << chunk.constants.size());
@@ -72,21 +65,58 @@ namespace pg {
 
     std::vector<ConstantMapping> ConstantUniformityPass::analyzeDuplicates(const Chunk& chunk) {
         std::vector<ConstantMapping> mapping;
-        std::unordered_map<std::string, size_t> seenConstants; // value string -> first index
+        std::unordered_map<std::string, size_t> seenConstants; // value+type string -> first index
+        std::unordered_set<size_t> constantIndicesUsedByOpConstant; // track which constants are used by OP_Constant
 
+        // First pass: find which constants are actually used by OP_Constant opcodes
+        size_t codeOffset = 0;
+        while (codeOffset < chunk.code.size()) {
+            OpCode opcode = static_cast<OpCode>(chunk.code[codeOffset]);
+
+            if (opcode == OpCode::OP_Constant) {
+                if (codeOffset + 1 < chunk.code.size()) {
+                    size_t constantIndex = chunk.code[codeOffset + 1];
+                    constantIndicesUsedByOpConstant.insert(constantIndex);
+                }
+                codeOffset += 2;
+            } else if (opcode == OpCode::OP_LongConstant) {
+                if (codeOffset + 3 < chunk.code.size()) {
+                    size_t constantIndex = (chunk.code[codeOffset + 1] << 16) |
+                                         (chunk.code[codeOffset + 2] << 8) |
+                                          chunk.code[codeOffset + 3];
+                    constantIndicesUsedByOpConstant.insert(constantIndex);
+                }
+                codeOffset += 4;
+            } else {
+                // Skip OP_Index_Access and all other opcodes - we don't want to merge their constants
+                codeOffset += getInstructionSize(opcode);
+            }
+        }
+
+        // Second pass: analyze only constants that are used by OP_Constant opcodes
         for (size_t i = 0; i < chunk.constants.size(); ++i) {
-            const auto& constant = chunk.constants[i];
-            std::string valueStr = constant.toString();
+            if (constantIndicesUsedByOpConstant.find(i) == constantIndicesUsedByOpConstant.end()) {
+                // This constant is used by OP_Index_Access (not OP_Constant)
+                // NEVER merge these - they must preserve their exact indices
+                mapping.emplace_back(i, i, false);
+                continue;
+            }
 
-            auto it = seenConstants.find(valueStr);
+            const auto& constant = chunk.constants[i];
+
+            // Create a unique key that includes both value and type information
+            // This prevents merging constants that have the same value but different types or purposes
+            std::string uniqueKey = constant.toString() + "|" + constant.getTypeString();
+
+            auto it = seenConstants.find(uniqueKey);
             if (it != seenConstants.end()) {
-                // Found duplicate - map to the first occurrence
+                // Found true duplicate - same value AND same type
                 mapping.emplace_back(i, it->second, true);
                 LOG_INFO("ConstantUniformityPass", "Duplicate constant at index " << i
-                         << " (" << valueStr << ") -> maps to index " << it->second);
+                         << " (" << constant.toString() << " [" << constant.getTypeString() << "]) -> maps to index " << it->second);
             } else {
                 // First occurrence - maps to itself
-                seenConstants[valueStr] = i;
+                seenConstants[uniqueKey] = i;
                 mapping.emplace_back(i, i, false);
             }
         }

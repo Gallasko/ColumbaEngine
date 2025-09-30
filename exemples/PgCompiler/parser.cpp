@@ -129,7 +129,7 @@ namespace pg
 
         if (arg != -1)
         {
-            parser.writeConstant(arg);
+            parser.writeIndexAccess(ElementType(arg));
             setOp = OpCode::OP_Set_Local;
             getOp = OpCode::OP_Get_Local;
         }
@@ -198,17 +198,19 @@ namespace pg
                 // Local variable
                 incrOp = OpCode::OP_Decr_Local;
                 identifier = ElementType(arg);
+                // Prefix decrement: --var (modify variable, return new value)
+                parser.writeIndexAccess(identifier);
+                parser.writeByte(incrOp);
             }
             else
             {
                 // Global variable
                 incrOp = OpCode::OP_Decr_Global;
                 identifier = ElementType(varName);
+                // Prefix decrement: --var (modify variable, return new value)
+                parser.writeConstant(identifier);
+                parser.writeByte(incrOp);
             }
-
-            // Prefix decrement: --var (modify variable, return new value)
-            parser.writeConstant(identifier);
-            parser.writeByte(incrOp);
         }
         else
         {
@@ -244,16 +246,17 @@ namespace pg
                 // Local variable
                 incrOp = OpCode::OP_Incr_Local;
                 identifier = ElementType(arg);
+                parser.writeIndexAccess(identifier); // Push identifier [id]
+                parser.writeByte(incrOp);         // IncrementIt
             }
             else
             {
                 // Global variable
                 incrOp = OpCode::OP_Incr_Global;
                 identifier = ElementType(varName);
+                parser.writeConstant(identifier); // Push identifier [id]
+                parser.writeByte(incrOp);         // IncrementIt
             }
-
-            parser.writeConstant(identifier); // Push identifier [id]
-            parser.writeByte(incrOp);         // IncrementIt
         }
         else
         {
@@ -275,13 +278,13 @@ namespace pg
         // Since we're in a postfix context, we can look at the bytecode that was just generated
 
         // The last operations should have been:
-        // OP_Constant <var_name/slot>
+        // OP_Constant/OP_Index_Access <var_name/slot>
         // OP_Get_Global/Local
 
         const auto& chunk = parser.compiler->getCurrentChunk();
 
         // We can examine the last constant that was added to identify the variable
-        if (chunk.constants.empty())
+        if (chunk.constants.empty() || chunk.code.size() < 3)
         {
             parser.errorAt(parser.previousToken, "No variable found for postfix increment");
             return;
@@ -289,26 +292,28 @@ namespace pg
 
         // Get the last constant (should be the variable identifier)
         ElementType lastConstant = chunk.constants.back();
+        
+        // Look at the bytecode to determine if it was OP_Index_Access or OP_Constant
+        // The pattern is: [opcode][constant_index][OP_Get_Local/Global]
+        OpCode constantOp = static_cast<OpCode>(chunk.code[chunk.code.size() - 3]);
 
-        // Determine if this is a local or global variable
         OpCode incrOp;
-        ElementType identifier;
+        ElementType identifier = lastConstant;
 
-        // Check if it's a number (local variable slot) or string (global variable name)
-        if (lastConstant.isNumber())
+        // Check the opcode that loaded the identifier
+        if (constantOp == OpCode::OP_Index_Access || constantOp == OpCode::OP_Long_Index_Access)
         {
             // Local variable
             incrOp = OpCode::OP_Post_Incr_Local;
-            identifier = lastConstant;
+            parser.writeIndexAccess(identifier);      // [old_value, id]
         }
         else
         {
             // Global variable
             incrOp = OpCode::OP_Post_Incr_Global;
-            identifier = lastConstant;
+            parser.writeConstant(identifier);      // [old_value, id]
         }
 
-        parser.writeConstant(identifier);      // [old_value, id]
         parser.writeByte(incrOp);
     }
 
@@ -320,8 +325,8 @@ namespace pg
 
         const auto& chunk = parser.compiler->getCurrentChunk();
 
-        // Strategy: Same as postfixIncrementOp - examine the last constant to identify the variable
-        if (chunk.constants.empty())
+        // Strategy: Same as postfixIncrementOp - examine the bytecode to identify the variable
+        if (chunk.constants.empty() || chunk.code.size() < 3)
         {
             parser.errorAt(parser.previousToken, "No variable found for postfix decrement");
             return;
@@ -329,26 +334,27 @@ namespace pg
 
         // Get the last constant (should be the variable identifier)
         ElementType lastConstant = chunk.constants.back();
+        
+        // Look at the bytecode to determine if it was OP_Index_Access or OP_Constant
+        OpCode constantOp = static_cast<OpCode>(chunk.code[chunk.code.size() - 3]);
 
-        // Determine if this is a local or global variable
         OpCode incrOp;
-        ElementType identifier;
+        ElementType identifier = lastConstant;
 
-        // Check if it's a number (local variable slot) or string (global variable name)
-        if (lastConstant.isNumber())
+        // Check the opcode that loaded the identifier
+        if (constantOp == OpCode::OP_Index_Access || constantOp == OpCode::OP_Long_Index_Access)
         {
             // Local variable
             incrOp = OpCode::OP_Post_Decr_Local;
-            identifier = lastConstant;
+            parser.writeIndexAccess(identifier);
         }
         else
         {
             // Global variable
             incrOp = OpCode::OP_Post_Decr_Global;
-            identifier = lastConstant;
+            parser.writeConstant(identifier);
         }
 
-        parser.writeConstant(identifier);
         parser.writeByte(incrOp);
 
         // Result: old_value is on stack (for return), variable has been decremented
@@ -748,6 +754,11 @@ namespace pg
     void Parser::writeConstant(const ElementType& constant)
     {
         compiler->getCurrentChunk().addConstant(constant, previousToken.line);
+    }
+
+    void Parser::writeIndexAccess(const ElementType& indexValue)
+    {
+        compiler->getCurrentChunk().addIndexAccess(indexValue, previousToken.line);
     }
 
     void Parser::writeByte(const OpCode& byte)

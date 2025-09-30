@@ -155,6 +155,7 @@ namespace pg
         }
 
         void writeConstant(const ElementType& constant);
+        void writeIndexAccess(const ElementType& indexValue);
         void writeByte(const OpCode& byte);
         void writeByte(uint8_t byte);
 

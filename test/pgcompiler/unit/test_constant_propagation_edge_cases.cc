@@ -75,16 +75,16 @@ TEST_F(ConstantPropagationEdgeCasesTest, InterleavedInstructions) {
     chunk.addCode(OpCode::OP_Pop, 1);
 
     // Constant assignment
-    chunk.addConstant(ElementType(42), 1);  // Push value 42 to stack
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Set_Local, 1); // Pop slot, pop value, store
+    chunk.addConstant(ElementType(42), 1);    // Push value 42 to stack
+    chunk.addIndexAccess(ElementType(0), 1);  // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Set_Local, 1);   // Pop slot, pop value, store
 
     // More instructions
     chunk.addCode(OpCode::OP_Pop, 1);
 
     // Use the variable
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Get_Local, 1); // Pop slot, push value
+    chunk.addIndexAccess(ElementType(0), 1);  // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Get_Local, 1);   // Pop slot, push value
 
     chunk.addCode(OpCode::OP_Return, 1);
 
@@ -142,13 +142,13 @@ TEST_F(ConstantPropagationEdgeCasesTest, ZeroConstants) {
     Chunk chunk;
 
     // var x = 0
-    chunk.addConstant(ElementType(0), 1);   // Push value 0 to stack
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Set_Local, 1); // Pop slot, pop value, store
+    chunk.addConstant(ElementType(0), 1);     // Push value 0 to stack
+    chunk.addIndexAccess(ElementType(0), 1);  // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Set_Local, 1);   // Pop slot, pop value, store
 
     // use x
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Get_Local, 1); // Pop slot, push value
+    chunk.addIndexAccess(ElementType(0), 1);  // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Get_Local, 1);   // Pop slot, push value
 
     chunk.addCode(OpCode::OP_Return, 1);
 
@@ -163,11 +163,11 @@ TEST_F(ConstantPropagationEdgeCasesTest, NegativeConstants) {
 
     // var x = -42
     chunk.addConstant(ElementType(-42), 1); // Push value -42 to stack
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
+    chunk.addIndexAccess(ElementType(0), 1);  // Push slot 0 to stack
     chunk.addCode(OpCode::OP_Set_Local, 1); // Pop slot, pop value, store
 
     // use x
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
+    chunk.addIndexAccess(ElementType(0), 1);  // Push slot 0 to stack
     chunk.addCode(OpCode::OP_Get_Local, 1); // Pop slot, push value
 
     chunk.addCode(OpCode::OP_Return, 1);

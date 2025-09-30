@@ -19,12 +19,12 @@ TEST_F(ConstantPropagationPassTest, BasicLocalConstantPropagation) {
     Chunk chunk;
 
     // Create proper stack-based bytecode: value -> slot -> set_local
-    chunk.addConstant(ElementType(5), 1);   // Push value 5 to stack
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Set_Local, 1); // Pop slot, then value, store value in local[slot]
+    chunk.addConstant(ElementType(5), 1);      // Push value 5 to stack
+    chunk.addIndexAccess(ElementType(0), 1);   // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Set_Local, 1);    // Pop slot, then value, store value in local[slot]
 
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Get_Local, 1); // Pop slot, push local[slot] value
+    chunk.addIndexAccess(ElementType(0), 1);   // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Get_Local, 1);    // Pop slot, push local[slot] value
 
     chunk.addCode(OpCode::OP_Return, 1);
 
@@ -45,21 +45,21 @@ TEST_F(ConstantPropagationPassTest, LocalConstantWithDifferentSlots) {
     Chunk chunk;
 
     // var x = 10 (slot 0)
-    chunk.addConstant(ElementType(10), 1); // Push value 10
-    chunk.addConstant(ElementType(0), 1);  // Push slot 0
+    chunk.addConstant(ElementType(10), 1);   // Push value 10
+    chunk.addIndexAccess(ElementType(0), 1); // Push slot 0
     chunk.addCode(OpCode::OP_Set_Local, 1);
 
     // var y = 20 (slot 1)
-    chunk.addConstant(ElementType(20), 1); // Push value 20
-    chunk.addConstant(ElementType(1), 1);  // Push slot 1
+    chunk.addConstant(ElementType(20), 1);   // Push value 20
+    chunk.addIndexAccess(ElementType(1), 1); // Push slot 1
     chunk.addCode(OpCode::OP_Set_Local, 1);
 
     // use x (should be replaced with 10)
-    chunk.addConstant(ElementType(0), 1);  // Push slot 0
+    chunk.addIndexAccess(ElementType(0), 1); // Push slot 0
     chunk.addCode(OpCode::OP_Get_Local, 1);
 
     // use y (should be replaced with 20)
-    chunk.addConstant(ElementType(1), 1);  // Push slot 1
+    chunk.addIndexAccess(ElementType(1), 1); // Push slot 1
     chunk.addCode(OpCode::OP_Get_Local, 1);
 
     chunk.addCode(OpCode::OP_Return, 1);
@@ -104,13 +104,13 @@ TEST_F(ConstantPropagationPassTest, BooleanConstants) {
     Chunk chunk;
 
     // var flag = true (using OP_True)
-    chunk.addCode(OpCode::OP_True, 1);      // Push true to stack
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Set_Local, 1); // Pop slot, then value, store
+    chunk.addCode(OpCode::OP_True, 1);         // Push true to stack
+    chunk.addIndexAccess(ElementType(0), 1);   // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Set_Local, 1);    // Pop slot, then value, store
 
     // use flag
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Get_Local, 1); // Pop slot, push value
+    chunk.addIndexAccess(ElementType(0), 1);   // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Get_Local, 1);    // Pop slot, push value
 
     chunk.addCode(OpCode::OP_Return, 1);
 
@@ -177,12 +177,12 @@ TEST_F(ConstantPropagationPassTest, LongConstantSupport) {
     chunk.addCode(0, 1);   // index low byte
     chunk.addCode(1, 1);   // index middle byte
     chunk.addCode(0, 1);   // index high byte (256 = 0x100)
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Set_Local, 1); // Pop slot, pop value, store
+    chunk.addIndexAccess(ElementType(0), 1); // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Set_Local, 1);   // Pop slot, pop value, store
 
     // Load the variable: slot -> get_local
-    chunk.addConstant(ElementType(0), 1);   // Push slot 0 to stack
-    chunk.addCode(OpCode::OP_Get_Local, 1); // Pop slot, push value
+    chunk.addIndexAccess(ElementType(0), 1); // Push slot 0 to stack
+    chunk.addCode(OpCode::OP_Get_Local, 1);   // Pop slot, push value
 
     chunk.addCode(OpCode::OP_Return, 1);
 
