@@ -67,15 +67,11 @@ namespace pg
         frame->function = function;
         frame->ip = function->chunk.code.data();
         frame->slots = stack.data();  // For the main script, locals start at the bottom
-        
-        std::cout << "IP initialized to: " << (frame->ip - function->chunk.code.data()) << std::endl;
-        std::cout << "First byte at offset 0: " << static_cast<int>(function->chunk.code[0]) << std::endl;
-        std::cout << "First byte at offset 1: " << static_cast<int>(function->chunk.code[1]) << std::endl;
+
 
         try
         {
             begin = std::chrono::steady_clock::now();
-            std::cout << "About to call run(), IP=" << (frames[frameCount-1].ip - frames[frameCount-1].function->chunk.code.data()) << std::endl;
             auto result = run();
             end = std::chrono::steady_clock::now();
 
@@ -104,15 +100,11 @@ namespace pg
         if (currentFrame->function->chunk.code.empty())
             return InterpretResult::OK;
 
-        std::cout << "Starting execution loop, offset=" << (currentFrame->ip - currentFrame->function->chunk.code.data()) << std::endl;
-        
+
         for (;;)
         {
-            std::cout << "Loop iteration, offset=" << (currentFrame->ip - currentFrame->function->chunk.code.data()) << std::endl;
             if (checkIpAgainstStack(0))
             {
-                std::cout << "VM exiting early: offset=" << (currentFrame->ip - currentFrame->function->chunk.code.data()) <<
-                             " code_size=" << currentFrame->function->chunk.code.size() << std::endl;
                 return InterpretResult::OK;
             }
 
@@ -137,8 +129,6 @@ namespace pg
             uint8_t opcode_byte = currentFrame->function->chunk.code[offset];
             auto instruction = static_cast<OpCode>(opcode_byte);
 
-            std::cout << "Executing instruction at offset: " << static_cast<int>(offset) <<
-                         " opcode: " << static_cast<int>(instruction) << std::endl;
 
             switch (instruction)
             {
@@ -576,7 +566,7 @@ namespace pg
 #endif
                     uint16_t loopOffset = readUint16();
 #ifdef DEBUG_CHECK_STACK
-                    if (loopOffset > *currentFrame->ip)
+                    if (loopOffset > (currentFrame->ip - currentFrame->function->chunk.code.data()))
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
@@ -595,7 +585,7 @@ namespace pg
 #endif
                     uint32_t loopOffset = readUint32();
 #ifdef DEBUG_CHECK_STACK
-                    if (loopOffset > *currentFrame->ip)
+                    if (loopOffset > (currentFrame->ip - currentFrame->function->chunk.code.data()))
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
@@ -948,7 +938,7 @@ namespace pg
 
     Value VM::readConstant()
     {
-        uint8_t constantIndex = currentFrame->function->chunk.code[advanceIp()];
+        uint8_t constantIndex = readByte();
 
 #ifdef DEBUG_CHECK_STACK
         if (constantIndex >= currentFrame->function->chunk.constants.size())
@@ -969,14 +959,9 @@ namespace pg
         }
 #endif
 
-        uint32_t constantIndex = (static_cast<uint32_t>(*currentFrame->ip) << 16);
-        advanceIp();
-
-        constantIndex |= (static_cast<uint32_t>(*currentFrame->ip) << 8);
-        advanceIp();
-
-        constantIndex |= static_cast<uint32_t>(*currentFrame->ip);
-        advanceIp();
+        uint32_t constantIndex = (static_cast<uint32_t>(readByte()) << 16);
+        constantIndex |= (static_cast<uint32_t>(readByte()) << 8);
+        constantIndex |= static_cast<uint32_t>(readByte());
 
 #ifdef DEBUG_CHECK_STACK
         if (constantIndex >= currentFrame->function->chunk.constants.size())

@@ -426,15 +426,13 @@ namespace pg
         uint16_t readUint16()
         {
 #ifdef DEBUG_CHECK_STACK
-            if (static_cast<size_t>(*currentFrame->ip + 1) >= currentFrame->function->chunk.code.size())
+            if (checkIpAgainstStack(1))
             {
                 throw std::runtime_error("Not enough bytes to read uint16.");
             }
 #endif
-            uint16_t value = (static_cast<uint16_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 8);
-            advanceIp();
-            value |= static_cast<uint16_t>(currentFrame->function->chunk.code[*currentFrame->ip]);
-            advanceIp();
+            uint16_t value = (static_cast<uint16_t>(readByte()) << 8);
+            value |= static_cast<uint16_t>(readByte());
 
             return value;
         }
@@ -442,19 +440,15 @@ namespace pg
         uint32_t readUint32()
         {
 #ifdef DEBUG_CHECK_STACK
-            if (static_cast<size_t>(*currentFrame->ip + 3) >= currentFrame->function->chunk.code.size())
+            if (checkIpAgainstStack(3))
             {
                 throw std::runtime_error("Not enough bytes to read uint32.");
             }
 #endif
-            uint32_t value = (static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 24);
-            advanceIp();
-            value |= (static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 16);
-            advanceIp();
-            value |= (static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]) << 8);
-            advanceIp();
-            value |= static_cast<uint32_t>(currentFrame->function->chunk.code[*currentFrame->ip]);
-            advanceIp();
+            uint32_t value = (static_cast<uint32_t>(readByte()) << 24);
+            value |= (static_cast<uint32_t>(readByte()) << 16);
+            value |= (static_cast<uint32_t>(readByte()) << 8);
+            value |= static_cast<uint32_t>(readByte());
 
             return value;
         }
@@ -466,9 +460,14 @@ namespace pg
             return offset;
         }
 
+        inline uint8_t readByte()
+        {
+            return currentFrame->function->chunk.code[advanceIp()];
+        }
+
         inline bool checkIpAgainstStack(uint8_t ahead)
         {
-            return (currentFrame->ip - currentFrame->function->chunk.code.data()) + ahead >= currentFrame->function->chunk.code.size();
+            return static_cast<size_t>(currentFrame->ip - currentFrame->function->chunk.code.data()) + ahead >= currentFrame->function->chunk.code.size();
         }
 
         inline void resetStack()
