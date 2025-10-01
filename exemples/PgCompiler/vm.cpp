@@ -66,7 +66,7 @@ namespace pg
         CallFrame *frame = &frames[frameCount++];
         frame->function = function;
         frame->ip = function->chunk.code.data();
-        frame->slots = stack.data();  // For the main script, locals start at the bottom
+        frame->slots = stack.data() + 1;  // For the main script, locals start after the function
 
 
         try
@@ -125,8 +125,7 @@ namespace pg
 
             disassembleInstruction(currentFrame->function->chunk, *currentFrame->ip);
 #endif
-            uint8_t offset = advanceIp();
-            uint8_t opcode_byte = currentFrame->function->chunk.code[offset];
+            uint8_t opcode_byte = readByte();
             auto instruction = static_cast<OpCode>(opcode_byte);
 
 

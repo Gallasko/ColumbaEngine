@@ -226,8 +226,8 @@ namespace pg
             return BOOL_VAL(AS_INT(a) < AS_INT(b));
 
         // Disallow functions
-        if (IS_FUNC(a) and IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot compare function Values");
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
