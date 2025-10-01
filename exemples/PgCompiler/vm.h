@@ -18,7 +18,7 @@
 // Todo add this as a flag in when compiling in debug
 // #define DEBUG_TRACE_EXECUTION
 
-// #define DEBUG_CHECK_STACK
+#define DEBUG_CHECK_STACK
 
 #define DEBUG_PROFILE_COMPILE
 
@@ -491,7 +491,7 @@ namespace pg
 
         bool empty() const { return stack_top == 0; }
         size_t size() const { return stack_top; }
-        
+
         // Get pointer to stack data for frame slots
         Value* data() { return stack_data(); }
         const Value* data() const { return stack_data(); }
@@ -581,7 +581,7 @@ namespace pg
         uint16_t readUint16()
         {
 #ifdef DEBUG_CHECK_STACK
-            if (*currentFrame->ip + 1 >= currentFrame->function->chunk.code.size())
+            if (static_cast<size_t>(*currentFrame->ip + 1) >= currentFrame->function->chunk.code.size())
             {
                 throw std::runtime_error("Not enough bytes to read uint16.");
             }
@@ -597,7 +597,7 @@ namespace pg
         uint32_t readUint32()
         {
 #ifdef DEBUG_CHECK_STACK
-            if (*currentFrame->ip + 3 >= currentFrame->function->chunk.code.size())
+            if (static_cast<size_t>(*currentFrame->ip + 3) >= currentFrame->function->chunk.code.size())
             {
                 throw std::runtime_error("Not enough bytes to read uint32.");
             }
@@ -699,6 +699,27 @@ namespace pg
         void addOptimizationPass(std::unique_ptr<BytecodePass> pass)
         {
             passManager.addPass(std::move(pass));
+        }
+
+        // Test helper: Set up VM with a specific chunk for testing
+        void setupTestChunk(const Chunk& chunk)
+        {
+            // Create a temporary function object for testing
+            if (frameCount > 0 && frames[0].function != nullptr)
+            {
+                delete frames[0].function;
+            }
+
+            auto* testFunction = new ObjFunction();
+            testFunction->chunk = chunk;
+            testFunction->name = "test";
+            testFunction->arity = 0;
+
+            frameCount = 1;
+            frames[0].function = testFunction;
+            frames[0].ip = testFunction->chunk.code.data();
+            frames[0].slots = stack.data();  // For tests, start at beginning
+            currentFrame = &frames[0];
         }
     };
 }

@@ -98,14 +98,10 @@ void CompilerApp::runFile()
     LOG_THIS_MEMBER(DOM);
 
     VM vm;
-    vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
-    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    // vm.addOptimizationPass(std::make_uniqueh
 
-    vm.enableBytecodeOptimization();
-    vm.enableOptimizationDebugging();
-    
     Lexer lexer;
-    
+
     try
     {
         lexer.readFromFile(fileName);
@@ -115,13 +111,13 @@ void CompilerApp::runFile()
         LOG_ERROR(DOM, "Failed to read file '" << fileName << "': " << e.what());
         return;
     }
-    
+
     auto tokens = lexer.getTokens();
-    
+
     vm.listOptimizationPasses();
-    
+
     InterpretResult result = vm.interpret(tokens);
-    
+
     switch (result)
     {
         case InterpretResult::OK:
