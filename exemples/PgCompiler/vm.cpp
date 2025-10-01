@@ -924,7 +924,7 @@ namespace pg
         }
 #endif
 
-        return elementToValue(currentFrame->function->chunk.constants[constantIndex]);
+        return currentFrame->function->chunk.constants[constantIndex];
     }
 
     Value VM::readLongConstant()
@@ -952,7 +952,7 @@ namespace pg
         }
 #endif
 
-        return elementToValue(currentFrame->function->chunk.constants[constantIndex]);
+        return currentFrame->function->chunk.constants[constantIndex];
     }
 
     void VM::binaryOp(std::function<Value(Value, Value)> op)

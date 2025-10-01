@@ -24,18 +24,12 @@ namespace pg
         // bool isCaptured;
     };
 
-    enum class FunctionType
-    {
-        TYPE_FUNCTION,
-        TYPE_SCRIPT
-    };
-
     struct Compiler
     {
         Compiler() {}
-        ~Compiler() { 
+        ~Compiler() {
             if (currentFunction) {
-                delete currentFunction; 
+                delete currentFunction;
             }
         }
 
@@ -56,7 +50,7 @@ namespace pg
         Chunk& getCurrentChunk() { return currentFunction->chunk; }
 
         // New methods for nested compiler support
-        void initCompiler(Compiler* enclosing, FunctionType type);
+        void initCompiler(FunctionType type);
         ObjFunction* endCompiler();
 
         Parser parser;
@@ -70,5 +64,8 @@ namespace pg
 
         int localCount = 0;
         int scopeDepth = 0;
+
+        // Static member for tracking current compiler in the stack
+        static Compiler* current;
     };
 }

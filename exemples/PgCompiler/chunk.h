@@ -6,6 +6,8 @@
 
 #include <stdexcept>
 
+#include "object.h"
+
 #include "Memory/elementtype.h"
 
 namespace pg
@@ -59,11 +61,11 @@ namespace pg
     {
         std::vector<uint8_t> code;
 
-        std::vector<ElementType> constants;
+        std::vector<Value> constants;
 
         std::vector<int> lines;
 
-        size_t addConstant(const ElementType& value, int line)
+        size_t addConstant(const Value& value, int line)
         {
             constants.push_back(value);
             auto cIndex = constants.size() - 1;
@@ -89,6 +91,16 @@ namespace pg
             }
 
             return code.size() - 1;
+        }
+
+        size_t addConstant(const ElementType& value, int line)
+        {
+            return addConstant(elementToValue(value), line);
+        }
+
+        size_t addConstant(ObjFunction* value, int line)
+        {
+            return addConstant(FUNC_VAL(value), line);
         }
 
         size_t addCode(const OpCode& op, int line)
@@ -172,4 +184,11 @@ namespace pg
                 return 1; // default to single byte for unknown opcodes
         }
     }
+
+    struct ObjFunction
+    {
+        Chunk chunk;
+        int arity; // Number of parameters
+        std::string name;
+    };
 }

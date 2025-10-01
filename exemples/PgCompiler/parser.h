@@ -4,6 +4,8 @@
 
 #include <queue>
 
+#include "object.h"
+
 #include "chunk.h"
 
 namespace pg
@@ -138,6 +140,7 @@ namespace pg
 
         ParseRule& getRule(const TokenType& type) const;
 
+        void parseFunction(const FunctionType& type);
         void declareVariable(const Token& name);
 
         int emitJump(const OpCode& instruction);
@@ -155,6 +158,7 @@ namespace pg
             writeByte(byte2);
         }
 
+        void writeConstant(ObjFunction* constant);
         void writeConstant(const ElementType& constant);
         void writeByte(const OpCode& byte);
         void writeByte(uint8_t byte);

@@ -6,12 +6,12 @@
 
 namespace pg
 {
-    // Global current compiler pointer for nested function support
-    static Compiler* current = nullptr;
+    // Define the static member
+    Compiler* Compiler::current = nullptr;
     ObjFunction* Compiler::compile(std::queue<Token> tokens)
     {
         // Initialize this compiler as the root script compiler
-        initCompiler(nullptr, FunctionType::TYPE_SCRIPT);
+        initCompiler(FunctionType::TYPE_SCRIPT);
 
 #ifdef DEBUG_PRINT_TOKENS
         printTokens(tokens);
@@ -131,25 +131,25 @@ namespace pg
         parser.reset();
     }
 
-    void Compiler::initCompiler(Compiler* enclosing, FunctionType type)
+    void Compiler::initCompiler(FunctionType type)
     {
-        this->enclosing = enclosing;
+        this->enclosing = Compiler::current;
         this->currentType = type;
-        
+
         // Create new function object
         if (currentFunction) {
             delete currentFunction;
         }
         currentFunction = new ObjFunction();
-        
+
         // Reset local state for this new function
         locals.clear();
         localCount = 0;
         scopeDepth = 0;
-        
+
         // Set this as the current compiler
-        current = this;
-        
+        Compiler::current = this;
+
         // Initialize function name based on type
         if (type != FunctionType::TYPE_SCRIPT) {
             currentFunction->name = "function";  // Will be set properly when parsing function declaration
@@ -162,13 +162,13 @@ namespace pg
     {
         // Emit implicit return for functions that don't have an explicit return
         parser.writeByte(OpCode::OP_Return);
-        
+
         ObjFunction* function = currentFunction;
         currentFunction = nullptr;
-        
+
         // Restore the previous compiler as current
-        current = enclosing;
-        
+        Compiler::current = enclosing;
+
         return function;
     }
 }
