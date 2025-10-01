@@ -53,7 +53,7 @@ namespace pg
         parser.parsePrecedence(Precedence::UNARY);
         // parser.expression(chunk);
 
-        auto& chunk = parser.compiler->getCurrentChunk();
+        auto& chunk = Compiler::current->getCurrentChunk();
 
         // Negate should be applied to the value on top of the stack hence we do it after parsing the expression
         switch (operatorToken.type)
@@ -125,7 +125,7 @@ namespace pg
 
         OpCode setOp, getOp;
 
-        int arg = parser.compiler->resolveLocal(parser.previousToken);
+        int arg = Compiler::current->resolveLocal(parser.previousToken);
 
         if (arg != -1)
         {
@@ -191,7 +191,7 @@ namespace pg
 
             OpCode incrOp;
             ElementType identifier;
-            int arg = parser.compiler->resolveLocal(varToken);
+            int arg = Compiler::current->resolveLocal(varToken);
 
             if (arg != -1)
             {
@@ -215,7 +215,7 @@ namespace pg
             // Parse the operand at unary precedence (for literals like --5)
             parser.parsePrecedence(Precedence::UNARY);
 
-            auto& chunk = parser.compiler->getCurrentChunk();
+            auto& chunk = Compiler::current->getCurrentChunk();
 
             // Treat DECREMENT as double unary minus (--5 becomes -(-5) = 5)
             chunk.addCode(OpCode::OP_Negate, operatorToken.line);
@@ -237,7 +237,7 @@ namespace pg
 
             OpCode incrOp;
             ElementType identifier;
-            int arg = parser.compiler->resolveLocal(varToken);
+            int arg = Compiler::current->resolveLocal(varToken);
 
             if (arg != -1)
             {
@@ -278,7 +278,7 @@ namespace pg
         // OP_Constant <var_name/slot>
         // OP_Get_Global/Local
 
-        const auto& chunk = parser.compiler->getCurrentChunk();
+        const auto& chunk = Compiler::current->getCurrentChunk();
 
         // We can examine the last constant that was added to identify the variable
         if (chunk.constants.empty())
@@ -288,7 +288,8 @@ namespace pg
         }
 
         // Get the last constant (should be the variable identifier)
-        ElementType lastConstant = chunk.constants.back();
+        // ElementType lastConstant; = chunk.constants.back();
+        ElementType lastConstant;
 
         // Determine if this is a local or global variable
         OpCode incrOp;
@@ -318,7 +319,7 @@ namespace pg
         // Stack currently has [old_value] from the variable access
         // We need to: return old_value, but also decrement the variable
 
-        const auto& chunk = parser.compiler->getCurrentChunk();
+        const auto& chunk = Compiler::current->getCurrentChunk();
 
         // Strategy: Same as postfixIncrementOp - examine the last constant to identify the variable
         if (chunk.constants.empty())
@@ -328,7 +329,7 @@ namespace pg
         }
 
         // Get the last constant (should be the variable identifier)
-        ElementType lastConstant = chunk.constants.back();
+        ElementType lastConstant = valueToElement(chunk.constants.back());
 
         // Determine if this is a local or global variable
         OpCode incrOp;
@@ -484,7 +485,7 @@ namespace pg
 
         Token varName = previousToken;
 
-        if (compiler->scopeDepth > 0)
+        if (Compiler::current->scopeDepth > 0)
         {
             declareVariable(varName);
         }
@@ -500,9 +501,9 @@ namespace pg
 
         consumeEnd("Expect end of variable declaration.");
 
-        if (compiler->scopeDepth > 0)
+        if (Compiler::current->scopeDepth > 0)
         {
-            compiler->markInitialized();
+            Compiler::current->markInitialized();
             return;
         }
 
@@ -516,20 +517,29 @@ namespace pg
 
         Token varName = previousToken;
 
-        if (compiler->scopeDepth > 0)
+        if (Compiler::current->scopeDepth > 0)
         {
             declareVariable(varName);
         }
 
+        Compiler::current->markInitialized();
+
+        parseFunction(FunctionType::TYPE_FUNCTION);
+
+        if (Compiler::current->scopeDepth == 0)
+        {
+            writeConstant(varName.text);  // Push variable name onto stack
+            writeByte(OpCode::OP_Define_Global);
+        }
     }
 
     void Parser::statement()
     {
         if (match(TokenType::BENTER))
         {
-            compiler->beginScope();
+            Compiler::current->beginScope();
             blockStatement();
-            compiler->endScope();
+            Compiler::current->endScope();
         }
         else if (match(TokenType::TOK_IF))
         {
@@ -616,7 +626,7 @@ namespace pg
 
     void Parser::whileStatement()
     {
-        int loopStart = static_cast<int>(compiler->getCurrentChunk().code.size());
+        int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
         skipEOL();
         consume("Expect '(' after 'while'.", TokenType::PENTER);
@@ -639,7 +649,7 @@ namespace pg
 
     void Parser::forStatement()
     {
-        compiler->beginScope();
+        Compiler::current->beginScope();
 
         skipEOL();
         consume("Expect '(' after 'for'.", TokenType::PENTER);
@@ -661,7 +671,7 @@ namespace pg
 
         skipEOL();
 
-        int loopStart = static_cast<int>(compiler->getCurrentChunk().code.size());
+        int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
         // Condition
         int exitJump = -1;
@@ -680,7 +690,7 @@ namespace pg
         if (not match(TokenType::PCLOSE))
         {
             int bodyJump = emitJump(OpCode::OP_Long_Jump);
-            int incrementStart = static_cast<int>(compiler->getCurrentChunk().code.size());
+            int incrementStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
             expression();
             writeByte(OpCode::OP_Pop); // Pop the increment expression result
@@ -705,7 +715,7 @@ namespace pg
             writeByte(OpCode::OP_Pop); // Pop the condition
         }
 
-        compiler->endScope();
+        Compiler::current->endScope();
     }
 
     ParseRule& Parser::getRule(const TokenType& type) const
@@ -713,9 +723,30 @@ namespace pg
         return rules[type];
     }
 
+    void Parser::parseFunction(const FunctionType& type)
+    {
+        Compiler compiler;
+
+        compiler.initCompiler(type);
+        compiler.beginScope();
+
+        skipEOL();
+        consume("Expect '(' after function name.", TokenType::PENTER);
+        skipEOL();
+        consume("Expect ')' after parameters.", TokenType::PCLOSE);
+        skipEOL();
+        consume("Expect '{' before function body.", TokenType::BENTER);
+        skipEOL();
+
+        blockStatement();
+
+        ObjFunction *function = compiler.endCompiler();
+        writeConstant(function);
+    }
+
     void Parser::declareVariable(const Token& name)
     {
-        compiler->addLocal(name);
+        Compiler::current->addLocal(name);
     }
 
     int Parser::emitJump(const OpCode& instruction)
@@ -726,30 +757,30 @@ namespace pg
         writeByte(0xff);
         writeByte(0xff);
 
-        return static_cast<int>(compiler->getCurrentChunk().code.size() - 4);
+        return static_cast<int>(Compiler::current->getCurrentChunk().code.size() - 4);
     }
 
     void Parser::patchJump(int offset)
     {
         // -1 to adjust for the bytecode for the jump offset itself
-        size_t jump = compiler->getCurrentChunk().code.size() - offset - 4;
+        size_t jump = Compiler::current->getCurrentChunk().code.size() - offset - 4;
 
         if (jump > 0xFFFFFFFF)
         {
             errorAt(previousToken, "Too much code to jump over.");
         }
 
-        compiler->getCurrentChunk().code[offset]     = (jump >> 24) & 0xFF;
-        compiler->getCurrentChunk().code[offset + 1] = (jump >> 16) & 0xFF;
-        compiler->getCurrentChunk().code[offset + 2] = (jump >> 8) & 0xFF;
-        compiler->getCurrentChunk().code[offset + 3] = jump & 0xFF;
+        Compiler::current->getCurrentChunk().code[offset]     = (jump >> 24) & 0xFF;
+        Compiler::current->getCurrentChunk().code[offset + 1] = (jump >> 16) & 0xFF;
+        Compiler::current->getCurrentChunk().code[offset + 2] = (jump >> 8) & 0xFF;
+        Compiler::current->getCurrentChunk().code[offset + 3] = jump & 0xFF;
     }
 
     void Parser::emitLoop(int offset)
     {
         writeByte(OpCode::OP_Long_Loop);
 
-        size_t jump = compiler->getCurrentChunk().code.size() - offset + 4;
+        size_t jump = Compiler::current->getCurrentChunk().code.size() - offset + 4;
 
         if (jump > 0xFFFFFFFF)
         {
@@ -762,19 +793,24 @@ namespace pg
         writeByte(jump & 0xFF);
     }
 
+    void Parser::writeConstant(ObjFunction* constant)
+    {
+        Compiler::current->getCurrentChunk().addConstant(constant, previousToken.line);
+    }
+
     void Parser::writeConstant(const ElementType& constant)
     {
-        compiler->getCurrentChunk().addConstant(constant, previousToken.line);
+        Compiler::current->getCurrentChunk().addConstant(constant, previousToken.line);
     }
 
     void Parser::writeByte(const OpCode& byte)
     {
-        compiler->getCurrentChunk().addCode(byte, previousToken.line);
+        Compiler::current->getCurrentChunk().addCode(byte, previousToken.line);
     }
 
     void Parser::writeByte(uint8_t byte)
     {
-        compiler->getCurrentChunk().addCode(byte, previousToken.line);
+        Compiler::current->getCurrentChunk().addCode(byte, previousToken.line);
     }
 
     void Parser::synchronize()

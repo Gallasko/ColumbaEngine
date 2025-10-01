@@ -44,7 +44,7 @@ namespace pg {
         for (size_t i = 0; i < mapping.size(); ++i) {
             if (!mapping[i].isDuplicate) {
                 finalMapping[i] = newConstants.size();
-                newConstants.push_back(chunk.constants[i]);
+                // newConstants.push_back(chunk.constants[i]);
             }
         }
 
@@ -62,7 +62,7 @@ namespace pg {
         updateAllConstantReferences(chunk, finalMapping, rewriter);
 
         // Step 4: Replace constants array
-        chunk.constants = std::move(newConstants);
+        // chunk.constants = std::move(newConstants);
 
         LOG_INFO("ConstantUniformityPass", "Optimization complete. Constants reduced from "
                  << (mapping.size()) << " to " << chunk.constants.size());
@@ -76,7 +76,8 @@ namespace pg {
 
         for (size_t i = 0; i < chunk.constants.size(); ++i) {
             const auto& constant = chunk.constants[i];
-            std::string valueStr = constant.toString();
+            // std::string valueStr = constant.toString();
+            auto valueStr = "";
 
             auto it = seenConstants.find(valueStr);
             if (it != seenConstants.end()) {
