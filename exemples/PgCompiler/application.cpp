@@ -122,6 +122,10 @@ void CompilerApp::runFile()
     {
         case InterpretResult::OK:
             LOG_INFO(DOM, "File executed successfully");
+
+            // LOG_INFO(DOM, "Results: " << vm.testOutput);
+            std::cout << vm.testOutput << std::endl;
+
             break;
         case InterpretResult::COMPILE_ERROR:
             LOG_ERROR(DOM, "Compile error occurred");

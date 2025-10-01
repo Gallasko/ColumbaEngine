@@ -2,8 +2,6 @@
 
 #include "chunk.h"
 
-#include "compiler.h"
-
 #include "Interpreter/lexer.h"
 
 #include "logger.h"
@@ -463,12 +461,14 @@ namespace pg
 
         inline uint8_t advanceIp()
         {
-            return ((*currentFrame->ip)++);
+            auto offset = currentFrame->ip - currentFrame->function->chunk.code.data();
+            currentFrame->ip++;
+            return offset;
         }
 
         inline bool checkIpAgainstStack(uint8_t ahead)
         {
-            return *currentFrame->ip + ahead >= currentFrame->function->chunk.code.size();
+            return (currentFrame->ip - currentFrame->function->chunk.code.data()) + ahead >= currentFrame->function->chunk.code.size();
         }
 
         inline void resetStack()
@@ -494,8 +494,6 @@ namespace pg
 #endif
             return true;
         }
-
-        Compiler compiler;
 
         CallFrame frames[FRAMES_MAX];
 
