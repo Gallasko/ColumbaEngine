@@ -6,14 +6,18 @@
 
 namespace pg
 {
+    // Global current compiler pointer for nested function support
+    static Compiler* current = nullptr;
     ObjFunction* Compiler::compile(std::queue<Token> tokens)
     {
+        // Initialize this compiler as the root script compiler
+        initCompiler(nullptr, FunctionType::TYPE_SCRIPT);
+
 #ifdef DEBUG_PRINT_TOKENS
         printTokens(tokens);
 #endif
 
         parser.parse(tokens);
-
         parser.setCompiler(this);
 
         while (not parser.isAtEnd() and not parser.hasError())
@@ -26,7 +30,7 @@ namespace pg
         }
 #endif
 
-        return parser.hasError() ? nullptr : currentFunction;
+        return parser.hasError() ? nullptr : endCompiler();
     }
 
     void Compiler::printTokens(std::queue<Token> tokens)
@@ -125,5 +129,46 @@ namespace pg
         currentFunction->chunk.clear();
 
         parser.reset();
+    }
+
+    void Compiler::initCompiler(Compiler* enclosing, FunctionType type)
+    {
+        this->enclosing = enclosing;
+        this->currentType = type;
+        
+        // Create new function object
+        if (currentFunction) {
+            delete currentFunction;
+        }
+        currentFunction = new ObjFunction();
+        
+        // Reset local state for this new function
+        locals.clear();
+        localCount = 0;
+        scopeDepth = 0;
+        
+        // Set this as the current compiler
+        current = this;
+        
+        // Initialize function name based on type
+        if (type != FunctionType::TYPE_SCRIPT) {
+            currentFunction->name = "function";  // Will be set properly when parsing function declaration
+        } else {
+            currentFunction->name = "<script>";
+        }
+    }
+
+    ObjFunction* Compiler::endCompiler()
+    {
+        // Emit implicit return for functions that don't have an explicit return
+        parser.writeByte(OpCode::OP_Return);
+        
+        ObjFunction* function = currentFunction;
+        currentFunction = nullptr;
+        
+        // Restore the previous compiler as current
+        current = enclosing;
+        
+        return function;
     }
 }

@@ -33,7 +33,11 @@ namespace pg
     struct Compiler
     {
         Compiler() {}
-        ~Compiler() { delete currentFunction; }
+        ~Compiler() { 
+            if (currentFunction) {
+                delete currentFunction; 
+            }
+        }
 
         ObjFunction* compile(std::queue<Token> tokens);
 
@@ -51,9 +55,15 @@ namespace pg
 
         Chunk& getCurrentChunk() { return currentFunction->chunk; }
 
+        // New methods for nested compiler support
+        void initCompiler(Compiler* enclosing, FunctionType type);
+        ObjFunction* endCompiler();
+
         Parser parser;
 
-        ObjFunction* currentFunction = new ObjFunction();
+        // Modified to support nested compilers
+        Compiler* enclosing = nullptr;  // Points to parent compiler
+        ObjFunction* currentFunction = nullptr;
         FunctionType currentType = FunctionType::TYPE_SCRIPT;
 
         std::vector<Local> locals;

@@ -24,7 +24,7 @@ protected:
     std::unique_ptr<VM> vm;
     
     // Helper to test code compilation, optimization, and execution
-    void testCodeOptimizationAndExecution(const std::string& code, const std::string& expectedOutput = "") {
+    void testCodeOptimizationAndExecution(const std::string& code, const std::string& = "") {
         std::cout << "\n=== TESTING CODE ===\n" << code << "\n" << std::endl;
         
         // Compile the code
@@ -52,8 +52,7 @@ protected:
         // Test that optimized bytecode still executes correctly
         // (This is crucial - optimization should not break functionality)
         VM testVM;
-        testVM.chunk = chunk;
-        testVM.ip = 0;
+        testVM.setupTestChunk(chunk);
         
         try {
             auto result = testVM.run();
@@ -231,16 +230,14 @@ TEST_F(LongJumpOptimizationIntegrationTest, OptimizedCodeProducesCorrectResult) 
     // Compile without optimization
     auto originalChunk = compileExpression(testCode);
     VM originalVM;
-    originalVM.chunk = originalChunk;
-    originalVM.ip = 0;
+    originalVM.setupTestChunk(originalChunk);
     auto originalResult = originalVM.run();
     
     // Compile with optimization
     auto optimizedChunk = compileExpression(testCode);
     pass->runPass(optimizedChunk);
     VM optimizedVM;
-    optimizedVM.chunk = optimizedChunk;
-    optimizedVM.ip = 0;
+    optimizedVM.setupTestChunk(optimizedChunk);
     auto optimizedResult = optimizedVM.run();
     
     // Both should produce the same result

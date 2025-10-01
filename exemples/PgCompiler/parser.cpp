@@ -463,6 +463,10 @@ namespace pg
         {
             varDeclaration();
         }
+        else if (match(TokenType::TOK_FUN))
+        {
+            funDeclaration();
+        }
         else
         {
             statement();
@@ -504,6 +508,19 @@ namespace pg
 
         writeConstant(varName.text);  // Push variable name onto stack
         writeByte(OpCode::OP_Define_Global);
+    }
+
+    void Parser::funDeclaration()
+    {
+        consume("Expect variable name.", TokenType::EXPRESSION);
+
+        Token varName = previousToken;
+
+        if (compiler->scopeDepth > 0)
+        {
+            declareVariable(varName);
+        }
+
     }
 
     void Parser::statement()
