@@ -2,6 +2,8 @@
 
 #include <iostream>
 
+#include "compiler.h"
+
 #include "compiler_debug.h"
 
 #include <chrono>
@@ -12,7 +14,7 @@ namespace pg
     {
         // Todo change this
         // Reset the compiler state before compiling a new chunk
-        compiler.reset();
+        Compiler compiler;
 
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
@@ -22,12 +24,6 @@ namespace pg
             return InterpretResult::COMPILE_ERROR;
 
         push(FUNC_VAL(function));
-
-        CallFrame *frame = &frames[frameCount++];
-
-        frame->function = function;
-        frame->ip = function->chunk.code.data();
-        frame->slots = stack.data();  // For the main script, locals start at the bottom
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -40,35 +36,46 @@ namespace pg
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
         // Apply bytecode optimizations
-        if (enableOptimizations && !function->chunk.code.empty())
-        {
-            begin = std::chrono::steady_clock::now();
+//         if (enableOptimizations && !function->chunk.code.empty())
+//         {
+//             begin = std::chrono::steady_clock::now();
 
-            LOG_INFO("VM", "Applying bytecode optimizations");
-            size_t originalSize = function->chunk.code.size();
+//             LOG_INFO("VM", "Applying bytecode optimizations");
+//             size_t originalSize = function->chunk.code.size();
 
-            passManager.runAllPasses(function->chunk);
+//             passManager.runAllPasses(function->chunk);
 
-            size_t optimizedSize = function->chunk.code.size();
-            if (optimizedSize != originalSize)
-            {
-                LOG_INFO("VM", "Optimization changed bytecode size from " <<
-                         originalSize << " to " << optimizedSize << " bytes");
-            }
+//             size_t optimizedSize = function->chunk.code.size();
+//             if (optimizedSize != originalSize)
+//             {
+//                 LOG_INFO("VM", "Optimization changed bytecode size from " <<
+//                          originalSize << " to " << optimizedSize << " bytes");
+//             }
 
-            end = std::chrono::steady_clock::now();
+//             end = std::chrono::steady_clock::now();
 
-#ifdef DEBUG_PROFILE_COMPILE
-            std::cout << "Optimizations took: "
-                      << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
-                      << " ns"
-                      << std::endl;
-#endif
-        }
+// #ifdef DEBUG_PROFILE_COMPILE
+//             std::cout << "Optimizations took: "
+//                       << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
+//                       << " ns"
+//                       << std::endl;
+// #endif
+//         }
+
+        // Initialize frame AFTER optimizations to ensure IP points to valid bytecode
+        CallFrame *frame = &frames[frameCount++];
+        frame->function = function;
+        frame->ip = function->chunk.code.data();
+        frame->slots = stack.data();  // For the main script, locals start at the bottom
+        
+        std::cout << "IP initialized to: " << (frame->ip - function->chunk.code.data()) << std::endl;
+        std::cout << "First byte at offset 0: " << static_cast<int>(function->chunk.code[0]) << std::endl;
+        std::cout << "First byte at offset 1: " << static_cast<int>(function->chunk.code[1]) << std::endl;
 
         try
         {
             begin = std::chrono::steady_clock::now();
+            std::cout << "About to call run(), IP=" << (frames[frameCount-1].ip - frames[frameCount-1].function->chunk.code.data()) << std::endl;
             auto result = run();
             end = std::chrono::steady_clock::now();
 
@@ -97,22 +104,41 @@ namespace pg
         if (currentFrame->function->chunk.code.empty())
             return InterpretResult::OK;
 
+        std::cout << "Starting execution loop, offset=" << (currentFrame->ip - currentFrame->function->chunk.code.data()) << std::endl;
+        
         for (;;)
         {
+            std::cout << "Loop iteration, offset=" << (currentFrame->ip - currentFrame->function->chunk.code.data()) << std::endl;
             if (checkIpAgainstStack(0))
+            {
+                std::cout << "VM exiting early: offset=" << (currentFrame->ip - currentFrame->function->chunk.code.data()) <<
+                             " code_size=" << currentFrame->function->chunk.code.size() << std::endl;
                 return InterpretResult::OK;
+            }
 
 #ifdef DEBUG_TRACE_EXECUTION
             std::cout << "          ";
             for (size_t i = 0; i < stack.size(); ++i)
             {
-                std::cout << "[" << valueToElement(stack[i]).toString() << "] ";
+                if (IS_FUNC(stack[i]))
+                {
+                    std::cout << "[<" << AS_FUNC(stack[i])->name << ">] ";
+                }
+                else
+                {
+                    std::cout << "[" << valueToElement(stack[i]).toString() << "] ";
+                }
             }
             std::cout << std::endl;
 
             disassembleInstruction(currentFrame->function->chunk, *currentFrame->ip);
 #endif
-            auto instruction = static_cast<OpCode>(currentFrame->function->chunk.code[advanceIp()]);
+            uint8_t offset = advanceIp();
+            uint8_t opcode_byte = currentFrame->function->chunk.code[offset];
+            auto instruction = static_cast<OpCode>(opcode_byte);
+
+            std::cout << "Executing instruction at offset: " << static_cast<int>(offset) <<
+                         " opcode: " << static_cast<int>(instruction) << std::endl;
 
             switch (instruction)
             {
@@ -125,8 +151,15 @@ namespace pg
                     }
 #endif
                     auto value = pop();
-                    ElementType elem = valueToElement(value);
-                    std::cout << elem.toString() << std::endl;
+                    if (IS_FUNC(value))
+                    {
+                        std::cout << "<" << AS_FUNC(value)->name << ">" << std::endl;
+                    }
+                    else
+                    {
+                        ElementType elem = valueToElement(value);
+                        std::cout << elem.toString() << std::endl;
+                    }
                     freeValue(value);
 
                     return InterpretResult::OK;
@@ -456,7 +489,7 @@ namespace pg
 
                     if (not isValueTrue(condition))
                     {
-                        *currentFrame->ip += jumpOffset;
+                        currentFrame->ip += jumpOffset;
                         if (checkIpAgainstStack(1))
                         {
                             EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
@@ -485,7 +518,7 @@ namespace pg
 
                     if (not isValueTrue(condition))
                     {
-                        *currentFrame->ip += jumpOffset;
+                        currentFrame->ip += jumpOffset;
                         if (checkIpAgainstStack(1))
                         {
                             EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
@@ -505,7 +538,7 @@ namespace pg
 #endif
                     uint16_t jumpOffset = readUint16();
 
-                    *currentFrame->ip += jumpOffset;
+                    currentFrame->ip += jumpOffset;
                     if (checkIpAgainstStack(1))
                     {
                         EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
@@ -524,7 +557,7 @@ namespace pg
 #endif
                     uint32_t jumpOffset = readUint32();
 
-                    *currentFrame->ip += jumpOffset;
+                    currentFrame->ip += jumpOffset;
                     if (checkIpAgainstStack(1))
                     {
                         EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
@@ -548,7 +581,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
 #endif
-                    *currentFrame->ip -= loopOffset;
+                    currentFrame->ip -= loopOffset;
                     break;
                 }
 
@@ -567,7 +600,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
 #endif
-                    *currentFrame->ip -= loopOffset;
+                    currentFrame->ip -= loopOffset;
                     break;
                 }
 
@@ -915,7 +948,7 @@ namespace pg
 
     Value VM::readConstant()
     {
-        uint8_t constantIndex = advanceIp(); // chunk.code[ip++];
+        uint8_t constantIndex = currentFrame->function->chunk.code[advanceIp()];
 
 #ifdef DEBUG_CHECK_STACK
         if (constantIndex >= currentFrame->function->chunk.constants.size())

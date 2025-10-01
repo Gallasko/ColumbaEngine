@@ -16,8 +16,20 @@ namespace pg
         int constantInstruction(const std::string& name, const Chunk& chunk, int offset)
         {
             uint8_t cIndex = chunk.code[offset + 1];
-            std::cout << std::left << std::setw(16) << name << " " << static_cast<int>(cIndex) << " '"
-                      << valueToElement(chunk.constants[cIndex]).toString() << "'" << std::endl;
+            const Value& constant = chunk.constants[cIndex];
+            
+            std::cout << std::left << std::setw(16) << name << " " << static_cast<int>(cIndex) << " '";
+            
+            if (IS_FUNC(constant))
+            {
+                std::cout << "<" << AS_FUNC(constant)->name << ">";
+            }
+            else
+            {
+                std::cout << valueToElement(constant).toString();
+            }
+            
+            std::cout << "'" << std::endl;
 
             return offset + 2;
         }
@@ -27,9 +39,20 @@ namespace pg
             uint32_t cIndex = (static_cast<uint32_t>(chunk.code[offset + 1]) << 16) |
                               (static_cast<uint32_t>(chunk.code[offset + 2]) << 8) |
                               (static_cast<uint32_t>(chunk.code[offset + 3]));
+            const Value& constant = chunk.constants[cIndex];
 
-            std::cout << std::left << std::setw(16) << name << " " << cIndex << " '"
-                      << valueToElement(chunk.constants[cIndex]).toString() << "'" << std::endl;
+            std::cout << std::left << std::setw(16) << name << " " << cIndex << " '";
+            
+            if (IS_FUNC(constant))
+            {
+                std::cout << "<" << AS_FUNC(constant)->name << ">";
+            }
+            else
+            {
+                std::cout << valueToElement(constant).toString();
+            }
+            
+            std::cout << "'" << std::endl;
 
             return offset + 4;
         }
