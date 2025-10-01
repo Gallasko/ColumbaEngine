@@ -491,6 +491,10 @@ namespace pg
 
         bool empty() const { return stack_top == 0; }
         size_t size() const { return stack_top; }
+        
+        // Get pointer to stack data for frame slots
+        Value* data() { return stack_data(); }
+        const Value* data() const { return stack_data(); }
 
         void clear()
         {

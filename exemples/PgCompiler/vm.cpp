@@ -26,8 +26,8 @@ namespace pg
         CallFrame *frame = &frames[frameCount++];
 
         frame->function = function;
-        frame->ip = function->chunk.code;
-        frame->slots = stack;
+        frame->ip = function->chunk.code.data();
+        frame->slots = stack.data();  // For the main script, locals start at the bottom
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -40,16 +40,16 @@ namespace pg
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
         // Apply bytecode optimizations
-        if (enableOptimizations && !chunk.code.empty())
+        if (enableOptimizations && !function->chunk.code.empty())
         {
             begin = std::chrono::steady_clock::now();
 
             LOG_INFO("VM", "Applying bytecode optimizations");
-            size_t originalSize = chunk.code.size();
+            size_t originalSize = function->chunk.code.size();
 
-            passManager.runAllPasses(chunk);
+            passManager.runAllPasses(function->chunk);
 
-            size_t optimizedSize = chunk.code.size();
+            size_t optimizedSize = function->chunk.code.size();
             if (optimizedSize != originalSize)
             {
                 LOG_INFO("VM", "Optimization changed bytecode size from " <<
@@ -91,10 +91,11 @@ namespace pg
 
     InterpretResult VM::run()
     {
+        // Set currentFrame to point to the topmost frame
+        currentFrame = &frames[frameCount - 1];
+
         if (currentFrame->function->chunk.code.empty())
             return InterpretResult::OK;
-
-        auto *frame = &frames[frameCount - 1];
 
         for (;;)
         {
@@ -391,10 +392,10 @@ namespace pg
                     }
 
                     int index = getValueAsInt(slot);
-                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    if (index < 0)
                     {
                         freeValue(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
                     push(currentFrame->slots[index]);
@@ -421,15 +422,15 @@ namespace pg
                     }
 
                     int index = getValueAsInt(slot);
-                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    if (index < 0)
                     {
                         freeValue(slot);
                         freeValue(value);
-                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
-                    // Free the old value that was in the stack slot
-                    freeValue(stack[index]);
+                    // Free the old value that was in the frame slot
+                    freeValue(currentFrame->slots[index]);
                     currentFrame->slots[index] = value;
                     push(value); // Assignment expression returns the value
                     freeValue(slot);
@@ -766,22 +767,22 @@ namespace pg
                     }
 
                     int index = getValueAsInt(slot);
-                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    if (index < 0)
                     {
                         freeValue(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
-                    if (not isValueNumber(stack[index]))
+                    if (not isValueNumber(currentFrame->slots[index]))
                     {
                         freeValue(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
                     }
 
-                    auto oldValue = copyValue(stack[index]);
-                    auto newValue = addValues(stack[index], INT_VAL(1));
-                    freeValue(stack[index]);
-                    stack[index] = newValue;
+                    auto oldValue = copyValue(currentFrame->slots[index]);
+                    auto newValue = addValues(currentFrame->slots[index], INT_VAL(1));
+                    freeValue(currentFrame->slots[index]);
+                    currentFrame->slots[index] = newValue;
 
                     push(oldValue); // Post-increment returns the old value
                     freeValue(slot);
@@ -805,21 +806,21 @@ namespace pg
                     }
 
                     int index = getValueAsInt(slot);
-                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    if (index < 0)
                     {
                         freeValue(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
-                    if (not isValueNumber(stack[index]))
+                    if (not isValueNumber(currentFrame->slots[index]))
                     {
                         freeValue(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
                     }
 
-                    auto newValue = addValues(stack[index], INT_VAL(1));
-                    freeValue(stack[index]);
-                    stack[index] = newValue;
+                    auto newValue = addValues(currentFrame->slots[index], INT_VAL(1));
+                    freeValue(currentFrame->slots[index]);
+                    currentFrame->slots[index] = newValue;
 
                     push(copyValue(newValue)); // Pre-increment returns the new value
                     freeValue(slot);
@@ -843,22 +844,22 @@ namespace pg
                     }
 
                     int index = getValueAsInt(slot);
-                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    if (index < 0)
                     {
                         freeValue(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
-                    if (not isValueNumber(stack[index]))
+                    if (not isValueNumber(currentFrame->slots[index]))
                     {
                         freeValue(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
                     }
 
-                    auto oldValue = copyValue(stack[index]);
-                    auto newValue = subtractValues(stack[index], INT_VAL(1));
-                    freeValue(stack[index]);
-                    stack[index] = newValue;
+                    auto oldValue = copyValue(currentFrame->slots[index]);
+                    auto newValue = subtractValues(currentFrame->slots[index], INT_VAL(1));
+                    freeValue(currentFrame->slots[index]);
+                    currentFrame->slots[index] = newValue;
 
                     push(oldValue); // Post-decrement returns the old value
                     freeValue(slot);
@@ -882,21 +883,21 @@ namespace pg
                     }
 
                     int index = getValueAsInt(slot);
-                    if (index < 0 || index >= static_cast<int>(stack.size()))
+                    if (index < 0)
                     {
                         freeValue(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index out of bounds.");
+                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
-                    if (not isValueNumber(stack[index]))
+                    if (not isValueNumber(currentFrame->slots[index]))
                     {
                         freeValue(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
                     }
 
-                    auto newValue = subtractValues(stack[index], INT_VAL(1));
-                    freeValue(stack[index]);
-                    stack[index] = newValue;
+                    auto newValue = subtractValues(currentFrame->slots[index], INT_VAL(1));
+                    freeValue(currentFrame->slots[index]);
+                    currentFrame->slots[index] = newValue;
 
                     push(copyValue(newValue)); // Pre-decrement returns the new value
                     freeValue(slot);
