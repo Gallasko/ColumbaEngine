@@ -54,7 +54,9 @@ namespace pg
         OP_Post_Decr_Global,
         OP_Decr_Global,
         OP_Post_Decr_Local,
-        OP_Decr_Local
+        OP_Decr_Local,
+
+        OP_Call,
     };
 
     struct Chunk
@@ -131,6 +133,7 @@ namespace pg
     inline size_t getInstructionSize(OpCode opcode) {
         switch (opcode) {
             case OpCode::OP_Constant:
+            case OpCode::OP_Call:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:

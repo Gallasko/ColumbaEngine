@@ -24,6 +24,7 @@ namespace pg
             return InterpretResult::COMPILE_ERROR;
 
         push(FUNC_VAL(function));
+        call(function, 0);
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -61,13 +62,6 @@ namespace pg
 //                       << std::endl;
 // #endif
 //         }
-
-        // Initialize frame AFTER optimizations to ensure IP points to valid bytecode
-        CallFrame *frame = &frames[frameCount++];
-        frame->function = function;
-        frame->ip = function->chunk.code.data();
-        frame->slots = stack.data() + 1;  // For the main script, locals start after the function
-
 
         try
         {
@@ -926,6 +920,19 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Call:
+                {
+                    int argCount = readByte();
+
+                    if (not callValue(peek(argCount), argCount))
+                    {
+                        EMIT_RUNTIME_ERROR("Cannot call funtion");
+                    }
+
+                    currentFrame = &frames[frameCount - 1];
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;
@@ -1050,4 +1057,32 @@ namespace pg
         freeValue(a);
         freeValue(b);
     }
+
+    bool VM::callValue(const Value& callee, int argCount)
+    {
+        switch (callee.type)
+        {
+            case CompilerValueType::COMPILER_VAL_FUNC:
+                return call(AS_FUNC(callee), argCount);
+
+            default:
+                break;
+        }
+
+        runtimeError("Can only call functions and classes");
+
+        return false;
+    }
+
+    bool VM::call(ObjFunction* function, int argCount)
+    {
+        CallFrame *frame = &frames[frameCount++];
+
+        frame->function = function;
+        frame->ip = function->chunk.code.data();
+        frame->slots = stack.data() + stack.size() - argCount;
+
+        return true;
+    }
+
 }
