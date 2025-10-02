@@ -122,32 +122,36 @@ namespace pg
     void variable(Parser& parser, bool canAssign)
     {
         auto varName = parser.previousToken.text;
-
-        OpCode setOp, getOp;
-
         int arg = Compiler::current->resolveLocal(parser.previousToken);
 
         if (arg != -1)
         {
-            parser.writeConstant(arg);
-            setOp = OpCode::OP_Set_Local;
-            getOp = OpCode::OP_Get_Local;
+            // Local variable - use immediate operand
+            if (canAssign and parser.match(TokenType::EQUAL))
+            {
+                parser.expression();
+                parser.writeByte(OpCode::OP_Set_Local);
+                parser.writeByte(static_cast<uint8_t>(arg));
+            }
+            else
+            {
+                parser.writeByte(OpCode::OP_Get_Local);
+                parser.writeByte(static_cast<uint8_t>(arg));
+            }
         }
         else
         {
+            // Global variable - use constant pool
             parser.writeConstant(varName);
-            setOp = OpCode::OP_Set_Global;
-            getOp = OpCode::OP_Get_Global;
-        }
-
-        if (canAssign and parser.match(TokenType::EQUAL))
-        {
-            parser.expression();
-            parser.writeByte(setOp);
-        }
-        else
-        {
-            parser.writeByte(getOp);
+            if (canAssign and parser.match(TokenType::EQUAL))
+            {
+                parser.expression();
+                parser.writeByte(OpCode::OP_Set_Global);
+            }
+            else
+            {
+                parser.writeByte(OpCode::OP_Get_Global);
+            }
         }
     }
 
