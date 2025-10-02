@@ -588,6 +588,10 @@ namespace pg
         {
             dprintStatement();
         }
+        else if (match(TokenType::TOK_RETURN))
+        {
+            returnStatement();
+        }
         else
         {
             expressionStatement();
@@ -747,6 +751,25 @@ namespace pg
         }
 
         Compiler::current->endScope();
+    }
+
+    void Parser::returnStatement()
+    {
+        if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
+        {
+            errorAt(previousToken, "Can't return from top level script.");
+        }
+
+        if (match(TokenType::EOL, TokenType::END))
+        {
+            emitReturn();
+        }
+        else
+        {
+            expression();
+            consume("Expect ';' or end of line after return value.", TokenType::EOL, TokenType::END);
+            writeByte(OpCode::OP_Return);
+        }
     }
 
     ParseRule& Parser::getRule(const TokenType& type) const

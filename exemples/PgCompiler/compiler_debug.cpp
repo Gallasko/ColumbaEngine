@@ -22,7 +22,15 @@ namespace pg
 
             if (IS_FUNC(constant))
             {
-                std::cout << "<" << AS_FUNC(constant)->name << ">";
+                ObjFunction* func = AS_FUNC(constant);
+                if (func != nullptr)
+                {
+                    std::cout << "<" << func->name << ">";
+                }
+                else
+                {
+                    std::cout << "<script>";
+                }
             }
             else
             {
@@ -45,7 +53,15 @@ namespace pg
 
             if (IS_FUNC(constant))
             {
-                std::cout << "<" << AS_FUNC(constant)->name << ">";
+                ObjFunction* func = AS_FUNC(constant);
+                if (func != nullptr)
+                {
+                    std::cout << "<" << func->name << ">";
+                }
+                else
+                {
+                    std::cout << "<null function>";
+                }
             }
             else
             {

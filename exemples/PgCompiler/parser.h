@@ -137,6 +137,7 @@ namespace pg
         void whileStatement();
         void forStatement();
         void dprintStatement();
+        void returnStatement();
 
         ParseRule& getRule(const TokenType& type) const;
 
@@ -149,7 +150,7 @@ namespace pg
         void emitLoop(int loopStart);
 
         // Chunk modification functions
-        void emitReturn() { writeByte(OpCode::OP_Return); }
+        void emitReturn() { writeConstant(0); writeByte(OpCode::OP_Return); }
 
         template <typename T, typename T2>
         void emitBytes(T byte1, T2 byte2)
