@@ -50,7 +50,7 @@ namespace pg
         Chunk& getCurrentChunk() { return currentFunction->chunk; }
 
         // New methods for nested compiler support
-        void initCompiler(FunctionType type);
+        void initCompiler(FunctionType type, const std::string& name = "<script>");
         ObjFunction* endCompiler();
 
         Parser parser;

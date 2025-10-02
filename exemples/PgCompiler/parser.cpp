@@ -727,11 +727,34 @@ namespace pg
     {
         Compiler compiler;
 
-        compiler.initCompiler(type);
+        compiler.initCompiler(type, previousToken.text);
         compiler.beginScope();
 
         skipEOL();
         consume("Expect '(' after function name.", TokenType::PENTER);
+        skipEOL();
+
+        if (not check(TokenType::PCLOSE))
+        {
+            do
+            {
+                Compiler::current->currentFunction->arity++;
+                if (Compiler::current->currentFunction->arity > 255)
+                {
+                    errorAt(previousToken, "Can't have more than 255 parameters.");
+                }
+
+                consume("Expect variable name.", TokenType::EXPRESSION);
+
+                Token varName = previousToken;
+
+                declareVariable(varName);
+
+                Compiler::current->markInitialized();
+
+            } while (match(TokenType::COMMA));
+        }
+
         skipEOL();
         consume("Expect ')' after parameters.", TokenType::PCLOSE);
         skipEOL();

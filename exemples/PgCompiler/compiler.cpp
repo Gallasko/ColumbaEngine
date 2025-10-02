@@ -23,13 +23,6 @@ namespace pg
         while (not parser.isAtEnd() and not parser.hasError())
             parser.declaration();
 
-#ifdef DEBUG_PRINT_CODE
-        if (not parser.hadError)
-        {
-            disassembleChunk(getCurrentChunk(), currentFunction != nullptr ? currentFunction->name : "<script>");
-        }
-#endif
-
         return parser.hasError() ? nullptr : endCompiler();
     }
 
@@ -131,15 +124,17 @@ namespace pg
         parser.reset();
     }
 
-    void Compiler::initCompiler(FunctionType type)
+    void Compiler::initCompiler(FunctionType type, const std::string& name)
     {
         this->enclosing = Compiler::current;
         this->currentType = type;
 
         // Create new function object
-        if (currentFunction) {
+        if (currentFunction)
+        {
             delete currentFunction;
         }
+
         currentFunction = new ObjFunction();
 
         // Reset local state for this new function
@@ -150,18 +145,20 @@ namespace pg
         // Set this as the current compiler
         Compiler::current = this;
 
-        // Initialize function name based on type
-        if (type != FunctionType::TYPE_SCRIPT) {
-            currentFunction->name = "function";  // Will be set properly when parsing function declaration
-        } else {
-            currentFunction->name = "<script>";
-        }
+        currentFunction->name = name;
     }
 
     ObjFunction* Compiler::endCompiler()
     {
         // Emit implicit return for functions that don't have an explicit return
         parser.writeByte(OpCode::OP_Return);
+
+#ifdef DEBUG_PRINT_CODE
+        if (not parser.hadError)
+        {
+            disassembleChunk(getCurrentChunk(), currentFunction != nullptr ? currentFunction->name : "<script>");
+        }
+#endif
 
         ObjFunction* function = currentFunction;
         currentFunction = nullptr;
