@@ -134,18 +134,29 @@ namespace pg
                     }
 #endif
                     auto value = pop();
-                    if (IS_FUNC(value))
-                    {
-                        std::cout << "<" << AS_FUNC(value)->name << ">" << std::endl;
-                    }
-                    else
-                    {
-                        ElementType elem = valueToElement(value);
-                        std::cout << elem.toString() << std::endl;
-                    }
-                    freeValue(value);
+                    frameCount--;
 
-                    return InterpretResult::OK;
+                    if (frameCount == 0)
+                    {
+                        freeValue(value);
+
+                        auto finalValue = pop();
+                        freeValue(finalValue);
+
+                        return InterpretResult::OK;
+                    }
+
+                    while (stack.data() + stack.size() > currentFrame->slots)
+                    {
+                        auto v = stack.pop();
+                        freeValue(v);
+                    }
+
+                    push(copyValue(value));
+                    currentFrame = &frames[frameCount - 1];
+
+                    freeValue(value);
+                    break;
                 }
 
                 case OpCode::OP_Constant:
@@ -1079,6 +1090,7 @@ namespace pg
         if (argCount != function->arity)
         {
             runtimeError((Strfy() << "Expected " << function->arity << " arguments but got: " << argCount << ".").getData());
+
             return false;
         }
 

@@ -151,7 +151,11 @@ namespace pg
     ObjFunction* Compiler::endCompiler()
     {
         // Emit implicit return for functions that don't have an explicit return
-        parser.writeByte(OpCode::OP_Return);
+        Chunk& chunk = getCurrentChunk();
+        if (chunk.code.empty() || chunk.code.back() != static_cast<uint8_t>(OpCode::OP_Return))
+        {
+            parser.emitReturn();
+        }
 
 #ifdef DEBUG_PRINT_CODE
         if (not parser.hadError)
