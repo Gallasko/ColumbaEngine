@@ -16,25 +16,32 @@ namespace pg
         int constantInstruction(const std::string& name, const Chunk& chunk, int offset)
         {
             uint8_t cIndex = chunk.code[offset + 1];
-            const Value& constant = chunk.constants[cIndex];
-
+            
             std::cout << std::left << std::setw(16) << name << " " << static_cast<int>(cIndex) << " '";
-
-            if (IS_FUNC(constant))
+            
+            if (cIndex >= chunk.constants.size())
             {
-                ObjFunction* func = AS_FUNC(constant);
-                if (func != nullptr)
-                {
-                    std::cout << "<" << func->name << ">";
-                }
-                else
-                {
-                    std::cout << "<script>";
-                }
+                std::cout << "<invalid constant index>";
             }
             else
             {
-                std::cout << valueToElement(constant).toString();
+                const Value& constant = chunk.constants[cIndex];
+                if (IS_FUNC(constant))
+                {
+                    ObjFunction* func = AS_FUNC(constant);
+                    if (func != nullptr)
+                    {
+                        std::cout << "<" << func->name << ">";
+                    }
+                    else
+                    {
+                        std::cout << "<script>";
+                    }
+                }
+                else
+                {
+                    std::cout << valueToElement(constant).toString();
+                }
             }
 
             std::cout << "'" << std::endl;
@@ -47,25 +54,32 @@ namespace pg
             uint32_t cIndex = (static_cast<uint32_t>(chunk.code[offset + 1]) << 16) |
                               (static_cast<uint32_t>(chunk.code[offset + 2]) << 8) |
                               (static_cast<uint32_t>(chunk.code[offset + 3]));
-            const Value& constant = chunk.constants[cIndex];
-
+            
             std::cout << std::left << std::setw(16) << name << " " << cIndex << " '";
-
-            if (IS_FUNC(constant))
+            
+            if (cIndex >= chunk.constants.size())
             {
-                ObjFunction* func = AS_FUNC(constant);
-                if (func != nullptr)
-                {
-                    std::cout << "<" << func->name << ">";
-                }
-                else
-                {
-                    std::cout << "<null function>";
-                }
+                std::cout << "<invalid constant index>";
             }
             else
             {
-                std::cout << valueToElement(constant).toString();
+                const Value& constant = chunk.constants[cIndex];
+                if (IS_FUNC(constant))
+                {
+                    ObjFunction* func = AS_FUNC(constant);
+                    if (func != nullptr)
+                    {
+                        std::cout << "<" << func->name << ">";
+                    }
+                    else
+                    {
+                        std::cout << "<null function>";
+                    }
+                }
+                else
+                {
+                    std::cout << valueToElement(constant).toString();
+                }
             }
 
             std::cout << "'" << std::endl;
@@ -77,7 +91,7 @@ namespace pg
         {
             uint8_t value = chunk.code[offset + 1];
 
-            std::cout << std::left << std::setw(16) << name << " " << offset << "'" << value << "'" << std::endl;
+            std::cout << std::left << std::setw(16) << name << " '" << static_cast<int>(value) << "'" << std::endl;
 
             return offset + 2;
         }
@@ -198,10 +212,10 @@ namespace pg
                 return simpleInstruction("OP_Set_Global", offset);
 
             case OpCode::OP_Get_Local:
-                return simpleInstruction("OP_Get_Local", offset);
+                return byteInstruction("OP_Get_Local", chunk, offset);
 
             case OpCode::OP_Set_Local:
-                return simpleInstruction("OP_Set_Local", offset);
+                return byteInstruction("OP_Set_Local", chunk, offset);
 
             case OpCode::OP_Jump_If_False:
                 return jumpInstruction("OP_Jump_If_False", chunk, offset);

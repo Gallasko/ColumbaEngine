@@ -134,13 +134,13 @@ namespace pg
         switch (opcode) {
             case OpCode::OP_Constant:
             case OpCode::OP_Call:
+            case OpCode::OP_Get_Local:
+            case OpCode::OP_Set_Local:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
             case OpCode::OP_Get_Global:
             case OpCode::OP_Set_Global:
-            case OpCode::OP_Get_Local:
-            case OpCode::OP_Set_Local:
             case OpCode::OP_Return:
             case OpCode::OP_Negate:
             case OpCode::OP_Add:

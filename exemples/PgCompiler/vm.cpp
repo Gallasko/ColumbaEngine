@@ -108,7 +108,15 @@ namespace pg
             {
                 if (IS_FUNC(stack[i]))
                 {
-                    std::cout << "[<" << AS_FUNC(stack[i])->name << ">] ";
+                    ObjFunction* func = AS_FUNC(stack[i]);
+                    if (func != nullptr)
+                    {
+                        std::cout << "[<" << func->name << ">] ";
+                    }
+                    else
+                    {
+                        std::cout << "[<script>] ";
+                    }
                 }
                 else
                 {
@@ -117,7 +125,7 @@ namespace pg
             }
             std::cout << std::endl;
 
-            disassembleInstruction(currentFrame->function->chunk, *currentFrame->ip);
+            disassembleInstruction(currentFrame->function->chunk, currentFrame->ip - currentFrame->function->chunk.code.data());
 #endif
             uint8_t opcode_byte = readByte();
             auto instruction = static_cast<OpCode>(opcode_byte);
@@ -146,15 +154,17 @@ namespace pg
                         return InterpretResult::OK;
                     }
 
-                    while (stack.data() + stack.size() > currentFrame->slots)
+                    // Update current frame first, then clean up stack
+                    CallFrame* returningFrame = currentFrame;
+                    currentFrame = &frames[frameCount - 1];
+
+                    while (stack.data() + stack.size() > returningFrame->slots)
                     {
                         auto v = stack.pop();
                         freeValue(v);
                     }
 
                     push(copyValue(value));
-                    currentFrame = &frames[frameCount - 1];
-
                     freeValue(value);
                     break;
                 }
@@ -405,62 +415,38 @@ namespace pg
 
                 case OpCode::OP_Get_Local:
                 {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
+                    uint8_t slot = readByte(); // Get the slot index as immediate operand
+                    
+                    if (slot >= 255)
                     {
-                        EMIT_RUNTIME_ERROR("Stack underflow for local variable access.");
+                        EMIT_RUNTIME_ERROR("Local variable slot index out of bounds.");
                     }
-#endif
-                    auto slot = pop(); // Get the slot index from stack
-                    if (not isValueNumber(slot))
-                    {
-                        freeValue(slot);
-                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
-                    }
-
-                    int index = getValueAsInt(slot);
-                    if (index < 0)
-                    {
-                        freeValue(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
-                    }
-
-                    push(copyValue(currentFrame->slots[index]));
-                    freeValue(slot);
+                    
+                    push(copyValue(currentFrame->slots[slot]));
                     break;
                 }
 
                 case OpCode::OP_Set_Local:
                 {
 #ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 2)
+                    if (stack.empty())
                     {
                         EMIT_RUNTIME_ERROR("Not enough values on stack for local assignment.");
                     }
 #endif
+                    uint8_t slot = readByte(); // Get the slot index as immediate operand
                     auto value = pop(); // New value
-                    auto slot = pop();  // Slot index
 
-                    if (not isValueNumber(slot))
+                    if (slot >= 255)
                     {
-                        freeValue(slot);
                         freeValue(value);
-                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
-                    }
-
-                    int index = getValueAsInt(slot);
-                    if (index < 0)
-                    {
-                        freeValue(slot);
-                        freeValue(value);
-                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
+                        EMIT_RUNTIME_ERROR("Local variable slot index out of bounds.");
                     }
 
                     // Free the old value that was in the frame slot
-                    freeValue(currentFrame->slots[index]);
-                    currentFrame->slots[index] = copyValue(value);
+                    freeValue(currentFrame->slots[slot]);
+                    currentFrame->slots[slot] = copyValue(value);
                     push(value); // Assignment expression returns the value
-                    freeValue(slot);
                     break;
                 }
 
@@ -610,7 +596,15 @@ namespace pg
 
                     if (IS_FUNC(value))
                     {
-                        testOutput += "<" + AS_FUNC(value)->name + "> \n";
+                        ObjFunction* func = AS_FUNC(value);
+                        if (func != nullptr)
+                        {
+                            testOutput += "<" + func->name + "> \n";
+                        }
+                        else
+                        {
+                            testOutput += "<script> \n";
+                        }
                         freeValue(value);
                         break;
                     }
@@ -935,10 +929,23 @@ namespace pg
                 {
                     int argCount = readByte();
 
-                    if (not callValue(peek(argCount), argCount))
+                    // Get the function object (at position argCount from top)
+                    Value function = peek(argCount);
+                    
+                    if (not callValue(function, argCount))
                     {
                         EMIT_RUNTIME_ERROR("Cannot call funtion");
                     }
+
+                    // Remove the function object from the stack by shifting arguments up
+                    for (int i = argCount - 1; i >= 0; i--)
+                    {
+                        stack[stack.size() - argCount - 1 + i] = stack[stack.size() - argCount + i];
+                    }
+                    stack.pop(); // Remove the duplicate top element
+                    
+                    // Update the frame slots to point to the shifted arguments
+                    frames[frameCount - 1].slots = stack.data() + stack.size() - argCount;
 
                     currentFrame = &frames[frameCount - 1];
                     break;
