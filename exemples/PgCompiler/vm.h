@@ -494,6 +494,10 @@ namespace pg
             return true;
         }
 
+        bool callValue(const Value& callee, int argCount);
+
+        bool call(ObjFunction* function, int argCount);
+
         CallFrame frames[FRAMES_MAX];
 
         CallFrame *currentFrame = nullptr;

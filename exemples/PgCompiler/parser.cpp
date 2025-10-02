@@ -355,6 +355,37 @@ namespace pg
         // Result: old_value is on stack (for return), variable has been decremented
     }
 
+    uint8_t argumentList(Parser& parser)
+    {
+        uint8_t argCount = 0;
+
+        if (not parser.check(TokenType::PCLOSE))
+        {
+            do
+            {
+                if (argCount == 255)
+                {
+                    parser.errorAt(parser.previousToken, "Can't have more than 255 arguments.");
+                }
+
+                parser.skipEOL();
+                parser.expression();
+                argCount++;
+            } while (parser.match(TokenType::COMMA));
+        }
+
+        parser.consume("Expect ')' after arguments.", TokenType::PCLOSE);
+
+        return argCount;
+    }
+
+    void call(Parser& parser, bool)
+    {
+        auto argCount = argumentList(parser);
+
+        parser.emitBytes(OpCode::OP_Call, argCount);
+    }
+
     std::unordered_map<TokenType, ParseRule> rules = {
         {TokenType::EQUAL,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::PLUS,         {NULL,        binary, Precedence::TERM}},
@@ -362,7 +393,7 @@ namespace pg
         {TokenType::STAR,         {NULL,        binary, Precedence::FACTOR}},
         {TokenType::MOD,          {NULL,        NULL,   Precedence::NONE}},
         {TokenType::POW,          {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::PENTER,       {grouping,    NULL,   Precedence::NONE}},
+        {TokenType::PENTER,       {grouping,    call,   Precedence::CALL}},
         {TokenType::PCLOSE,       {NULL,        NULL,   Precedence::NONE}},
         {TokenType::BENTER,       {NULL,        NULL,   Precedence::NONE}},
         {TokenType::BCLOSE,       {NULL,        NULL,   Precedence::NONE}},

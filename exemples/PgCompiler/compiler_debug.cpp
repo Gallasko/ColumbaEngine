@@ -17,9 +17,9 @@ namespace pg
         {
             uint8_t cIndex = chunk.code[offset + 1];
             const Value& constant = chunk.constants[cIndex];
-            
+
             std::cout << std::left << std::setw(16) << name << " " << static_cast<int>(cIndex) << " '";
-            
+
             if (IS_FUNC(constant))
             {
                 std::cout << "<" << AS_FUNC(constant)->name << ">";
@@ -28,7 +28,7 @@ namespace pg
             {
                 std::cout << valueToElement(constant).toString();
             }
-            
+
             std::cout << "'" << std::endl;
 
             return offset + 2;
@@ -42,7 +42,7 @@ namespace pg
             const Value& constant = chunk.constants[cIndex];
 
             std::cout << std::left << std::setw(16) << name << " " << cIndex << " '";
-            
+
             if (IS_FUNC(constant))
             {
                 std::cout << "<" << AS_FUNC(constant)->name << ">";
@@ -51,10 +51,19 @@ namespace pg
             {
                 std::cout << valueToElement(constant).toString();
             }
-            
+
             std::cout << "'" << std::endl;
 
             return offset + 4;
+        }
+
+        int byteInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint8_t value = chunk.code[offset + 1];
+
+            std::cout << std::left << std::setw(16) << name << " " << offset << "'" << value << "'" << std::endl;
+
+            return offset + 2;
         }
 
         int jumpInstruction(const std::string& name, const Chunk& chunk, int offset, int sign = 1)
@@ -222,6 +231,9 @@ namespace pg
 
             case OpCode::OP_Decr_Local:
                 return simpleInstruction("OP_Decr_Local", offset);
+
+            case OpCode::OP_Call:
+                return byteInstruction("OP_Call", chunk, offset);
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
