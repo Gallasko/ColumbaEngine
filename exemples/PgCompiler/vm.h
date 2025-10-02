@@ -477,8 +477,17 @@ namespace pg
 
         void runtimeError(const std::string& message)
         {
-            LOG_ERROR("VM", "[line " << currentFrame->function->chunk.lines[*currentFrame->ip - 1] << "] in script");
             LOG_ERROR("VM", message);
+
+            for (int i = frameCount - 1; i >= 0; i--)
+            {
+                CallFrame *frame = &frames[i];
+                ObjFunction *function = frame->function;
+                size_t instruction = frame->ip - function->chunk.code.data() - 1;
+
+                LOG_ERROR("VM", "[line " << function->chunk.lines[instruction] << "] in " << function->name);
+            }
+
             resetStack();
         }
 

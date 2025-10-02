@@ -414,7 +414,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
-                    push(currentFrame->slots[index]);
+                    push(copyValue(currentFrame->slots[index]));
                     freeValue(slot);
                     break;
                 }
@@ -447,7 +447,7 @@ namespace pg
 
                     // Free the old value that was in the frame slot
                     freeValue(currentFrame->slots[index]);
-                    currentFrame->slots[index] = value;
+                    currentFrame->slots[index] = copyValue(value);
                     push(value); // Assignment expression returns the value
                     freeValue(slot);
                     break;
@@ -953,7 +953,7 @@ namespace pg
         }
 #endif
 
-        return currentFrame->function->chunk.constants[constantIndex];
+        return copyValue(currentFrame->function->chunk.constants[constantIndex]);
     }
 
     Value VM::readLongConstant()
@@ -976,7 +976,7 @@ namespace pg
         }
 #endif
 
-        return currentFrame->function->chunk.constants[constantIndex];
+        return copyValue(currentFrame->function->chunk.constants[constantIndex]);
     }
 
     void VM::binaryOp(std::function<Value(Value, Value)> op)
@@ -1076,6 +1076,19 @@ namespace pg
 
     bool VM::call(ObjFunction* function, int argCount)
     {
+        if (argCount != function->arity)
+        {
+            runtimeError((Strfy() << "Expected " << function->arity << " arguments but got: " << argCount << ".").getData());
+            return false;
+        }
+
+        if (frameCount == FRAMES_MAX)
+        {
+            runtimeError("Stack overflow");
+
+            return false;
+        }
+
         CallFrame *frame = &frames[frameCount++];
 
         frame->function = function;
