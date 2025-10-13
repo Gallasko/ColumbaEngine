@@ -24,7 +24,7 @@ namespace pg
             return InterpretResult::COMPILE_ERROR;
 
         push(FUNC_VAL(function));
-        Closure *closure = new Closure{function};
+        Closure *closure = new Closure(function);
         pop();
         push(CLOSURE_VAL(closure));
         call(closure, 0);
@@ -950,22 +950,50 @@ namespace pg
                     }
 
                     ObjFunction* function = AS_FUNC(functionValue);
-                    auto closure = new Closure{function};
+                    auto closure = new Closure(function);
                     push(CLOSURE_VAL(closure));
 
-                    // for (int i = 0; i < closure->upvalueCount; i++)
-                    // {
-                    //     uint8_t isLocal = readByte();
-                    //     uint8_t index = readByte();
-                    //     if (isLocal)
-                    //     {
-                    //         closure->upvalues[i] = captureUpvalue(currentFrame->slots + index);
-                    //     }
-                    //     else
-                    //     {
-                    //         closure->upvalues[i] = currentFrame->function->upvalues[index];
-                    //     }
-                    // }
+                    for (int i = 0; i < function->upvalueCount; i++)
+                    {
+                        uint8_t isLocal = readByte();
+                        uint8_t index = readByte();
+                        if (isLocal)
+                        {
+                            closure->upvalues[i] = captureUpvalue(currentFrame->slots + index);
+                        }
+                        else
+                        {
+                            closure->upvalues[i] = currentFrame->closure->upvalues[index];
+                        }
+                    }
+                    break;
+                }
+
+                case OpCode::OP_Get_Upvalue:
+                {
+                    uint8_t slot = readByte(); // Get the upvalue index as immediate operand
+
+                    if (slot >= currentFrame->closure->function->upvalueCount)
+                    {
+                        EMIT_RUNTIME_ERROR("Upvalue index out of bounds.");
+                    }
+
+                    ObjUpvalue* upvalue = currentFrame->closure->upvalues[slot];
+                    push(copyValue(*upvalue->location));
+                    break;
+                }
+
+                case OpCode::OP_Set_Upvalue:
+                {
+                    uint8_t slot = readByte(); // Get the upvalue index as immediate operand
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Not enough values on stack for upvalue assignment.");
+                    }
+#endif
+                    ObjUpvalue* upvalue = currentFrame->closure->upvalues[slot];
+                    upvalue->location = &stack[stack.size() - 1 - 0];
                     break;
                 }
 
@@ -1092,6 +1120,41 @@ namespace pg
         push(op(a, b));
         freeValue(a);
         freeValue(b);
+    }
+
+    ObjUpvalue* VM::captureUpvalue(Value* local)
+    {
+        auto* upvalue = new ObjUpvalue(local);
+
+        return upvalue;
+
+        // ObjUpvalue* prevUpvalue = nullptr;
+        // ObjUpvalue* upvalue = openUpvalues;
+
+        // while (upvalue != nullptr and upvalue->location > local)
+        // {
+        //     prevUpvalue = upvalue;
+        //     upvalue = upvalue->next;
+        // }
+
+        // if (upvalue != nullptr and upvalue->location == local)
+        // {
+        //     return upvalue; // Existing upvalue found
+        // }
+
+        // ObjUpvalue* newUpvalue = new ObjUpvalue(local);
+        // newUpvalue->next = upvalue;
+
+        // if (prevUpvalue == nullptr)
+        // {
+        //     openUpvalues = newUpvalue;
+        // }
+        // else
+        // {
+        //     prevUpvalue->next = newUpvalue;
+        // }
+
+        // return newUpvalue;
     }
 
     bool VM::callValue(const Value& callee, int argCount)

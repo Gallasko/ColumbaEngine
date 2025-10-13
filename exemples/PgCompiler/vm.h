@@ -419,7 +419,7 @@ namespace pg
             return stack.pop();
         }
 
-        Value peek(size_t distance = 0) const
+        const Value& peek(size_t distance = 0) const
         {
 #ifdef DEBUG_CHECK_STACK
             if (distance >= stack.size())
@@ -507,6 +507,8 @@ namespace pg
 #endif
             return true;
         }
+
+        ObjUpvalue* captureUpvalue(Value* local);
 
         bool callValue(const Value& callee, int argCount);
 
