@@ -381,7 +381,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
-                    push(retainValue(it->second));
+                    push(it->second); // Don't retain - global already holds reference
                     releaseAndDelete(nameValue);
                     break;
                 }
