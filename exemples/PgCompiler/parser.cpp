@@ -124,20 +124,17 @@ namespace pg
         auto varName = parser.previousToken.text;
         int arg = Compiler::current->resolveLocal(parser.previousToken);
 
+        OpCode setOp, getOp;
+
         if (arg != -1)
         {
-            // Local variable - use immediate operand
-            if (canAssign and parser.match(TokenType::EQUAL))
-            {
-                parser.expression();
-                parser.writeByte(OpCode::OP_Set_Local);
-                parser.writeByte(static_cast<uint8_t>(arg));
-            }
-            else
-            {
-                parser.writeByte(OpCode::OP_Get_Local);
-                parser.writeByte(static_cast<uint8_t>(arg));
-            }
+            setOp = OpCode::OP_Set_Local;
+            getOp = OpCode::OP_Get_Local;
+        }
+        else if (Compiler::current->resolveUpvalue(parser.previousToken) != -1)
+        {
+            setOp = OpCode::OP_Set_Upvalue;
+            getOp = OpCode::OP_Get_Upvalue;
         }
         else
         {
@@ -152,6 +149,21 @@ namespace pg
             {
                 parser.writeByte(OpCode::OP_Get_Global);
             }
+
+            return;
+        }
+
+        // Local variable - use immediate operand
+        if (canAssign and parser.match(TokenType::EQUAL))
+        {
+            parser.expression();
+            parser.writeByte(setOp);
+            parser.writeByte(static_cast<uint8_t>(arg));
+        }
+        else
+        {
+            parser.writeByte(getOp);
+            parser.writeByte(static_cast<uint8_t>(arg));
         }
     }
 
@@ -826,6 +838,12 @@ namespace pg
         writeByte(OpCode::OP_Closure);
         uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(function);
         writeByte(constantIndex);
+
+        for (int i = 0; i < function->upvalueCount; i++)
+        {
+            writeByte(Compiler::current->upvalues[i].isLocal ? 1 : 0);
+            writeByte(Compiler::current->upvalues[i].index);
+        }
     }
 
     void Parser::declareVariable(const Token& name)
