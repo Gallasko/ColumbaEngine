@@ -23,10 +23,10 @@ namespace pg
         if (not function)
             return InterpretResult::COMPILE_ERROR;
 
-        push(FUNC_VAL(function));
+        push(trackNewValue(FUNC_VAL(function)));
         Closure *closure = new Closure(function);
         pop();
-        push(CLOSURE_VAL(closure));
+        push(trackNewValue(CLOSURE_VAL(closure)));
         call(closure, 0);
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -137,10 +137,10 @@ namespace pg
 
                     if (frameCount == 0)
                     {
-                        freeValue(value);
+                        releaseAndDelete(value);
 
                         auto finalValue = pop();
-                        freeValue(finalValue);
+                        releaseAndDelete(finalValue);
 
                         return InterpretResult::OK;
                     }
@@ -152,11 +152,11 @@ namespace pg
                     while (stack.data() + stack.size() > returningFrame->slots)
                     {
                         auto v = stack.pop();
-                        freeValue(v);
+                        releaseAndDelete(v);
                     }
 
-                    push(copyValue(value));
-                    freeValue(value);
+                    push(retainValue(value));
+                    releaseAndDelete(value);
                     break;
                 }
 
@@ -183,31 +183,47 @@ namespace pg
 
                     auto value = pop();
                     push(negateValue(value));
-                    freeValue(value);
+                    releaseAndDelete(value);
                     break;
                 }
 
                 case OpCode::OP_Add:
                 {
-                    fastBinaryOp(addValues);
+                    auto b = pop();
+                    auto a = pop();
+                    push(addValues(a, b));
+                    releaseAndDelete(a);
+                    releaseAndDelete(b);
                     break;
                 }
 
                 case OpCode::OP_Subtract:
                 {
-                    fastBinaryOp(subtractValues);
+                    auto b = pop();
+                    auto a = pop();
+                    push(subtractValues(a, b));
+                    releaseAndDelete(a);
+                    releaseAndDelete(b);
                     break;
                 }
 
                 case OpCode::OP_Multiply:
                 {
-                    fastBinaryOp(multiplyValues);
+                    auto b = pop();
+                    auto a = pop();
+                    push(multiplyValues(a, b));
+                    releaseAndDelete(a);
+                    releaseAndDelete(b);
                     break;
                 }
 
                 case OpCode::OP_Divide:
                 {
-                    fastBinaryOp(divideValues);
+                    auto b = pop();
+                    auto a = pop();
+                    push(divideValues(a, b));
+                    releaseAndDelete(a);
+                    releaseAndDelete(b);
                     break;
                 }
 
@@ -232,7 +248,7 @@ namespace pg
 
                     auto value = pop();
                     push(BOOL_VAL(not isValueTrue(value)));
-                    freeValue(value);
+                    releaseAndDelete(value);
                     break;
                 }
 
@@ -245,8 +261,8 @@ namespace pg
                     bool resultA = isValueTrue(a);
                     bool resultB = isValueTrue(b);
                     push(BOOL_VAL(resultA and resultB));
-                    freeValue(a);
-                    freeValue(b);
+                    releaseAndDelete(a);
+                    releaseAndDelete(b);
                     break;
                 }
 
@@ -259,8 +275,8 @@ namespace pg
                     bool resultA = isValueTrue(a);
                     bool resultB = isValueTrue(b);
                     push(BOOL_VAL(resultA or resultB));
-                    freeValue(a);
-                    freeValue(b);
+                    releaseAndDelete(a);
+                    releaseAndDelete(b);
                     break;
                 }
 
@@ -275,12 +291,12 @@ namespace pg
                     try { \
                         push(op(a, b)); \
                     } catch (const std::exception& e) { \
-                        freeValue(a); \
-                        freeValue(b); \
+                        releaseAndDelete(a); \
+                        releaseAndDelete(b); \
                         EMIT_RUNTIME_ERROR("Comparison operation failed: " << e.what()); \
                     } \
-                    freeValue(a); \
-                    freeValue(b); \
+                    releaseAndDelete(a); \
+                    releaseAndDelete(b); \
                     break; \
                 }
 
@@ -311,7 +327,7 @@ namespace pg
                     }
 #endif
                     auto value = pop();
-                    freeValue(value);
+                    releaseAndDelete(value);
 
                     break;
                 }
@@ -330,13 +346,13 @@ namespace pg
 
                     if (not name.isLitteral())
                     {
-                        freeValue(nameValue);
-                        freeValue(value);
+                        releaseAndDelete(nameValue);
+                        releaseAndDelete(value);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     globals[name.toString()] = value;
-                    freeValue(nameValue);
+                    releaseAndDelete(nameValue);
                     break;
                 }
 
@@ -353,19 +369,19 @@ namespace pg
 
                     if (not name.isLitteral())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
-                    push(copyValue(it->second));
-                    freeValue(nameValue);
+                    push(retainValue(it->second));
+                    releaseAndDelete(nameValue);
                     break;
                 }
 
@@ -383,24 +399,24 @@ namespace pg
 
                     if (not name.isLitteral())
                     {
-                        freeValue(nameValue);
-                        freeValue(value);
+                        releaseAndDelete(nameValue);
+                        releaseAndDelete(value);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
-                        freeValue(nameValue);
-                        freeValue(value);
+                        releaseAndDelete(nameValue);
+                        releaseAndDelete(value);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     // Free the old value that was stored
-                    freeValue(it->second);
-                    it->second = copyValue(value);  // Store a copy in globals
+                    releaseAndDelete(it->second);
+                    it->second = retainValue(value);  // Store retained value in globals
                     push(value);  // Push the original to stack
-                    freeValue(nameValue);
+                    releaseAndDelete(nameValue);
                     break;
                 }
 
@@ -413,7 +429,7 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Local variable slot index out of bounds.");
                     }
 
-                    push(copyValue(currentFrame->slots[slot]));
+                    push(retainValue(currentFrame->slots[slot]));
                     break;
                 }
 
@@ -430,13 +446,13 @@ namespace pg
 
                     if (slot >= 255)
                     {
-                        freeValue(value);
+                        releaseAndDelete(value);
                         EMIT_RUNTIME_ERROR("Local variable slot index out of bounds.");
                     }
 
                     // Free the old value that was in the frame slot
-                    freeValue(currentFrame->slots[slot]);
-                    currentFrame->slots[slot] = copyValue(value);
+                    releaseAndDelete(currentFrame->slots[slot]);
+                    currentFrame->slots[slot] = retainValue(value);
                     push(value); // Assignment expression returns the value
                     break;
                 }
@@ -596,14 +612,14 @@ namespace pg
                         {
                             testOutput += "<script> \n";
                         }
-                        freeValue(value);
+                        releaseAndDelete(value);
                         break;
                     }
 
                     // For testing: append to testOutput buffer instead of stdout
                     ElementType elem = valueToElement(value);
                     testOutput += elem.toString() + "\n";
-                    freeValue(value);
+                    releaseAndDelete(value);
 
                     break;
                 }
@@ -621,28 +637,28 @@ namespace pg
 
                     if (not name.isLitteral())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     if (not isValueNumber(it->second))
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
                     }
 
                     auto newValue = addValues(it->second, INT_VAL(1));
-                    freeValue(it->second);
+                    releaseAndDelete(it->second);
                     it->second = newValue;
 
-                    freeValue(nameValue);
+                    releaseAndDelete(nameValue);
                     break;
                 }
 
@@ -659,29 +675,29 @@ namespace pg
 
                     if (not name.isLitteral())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     if (not isValueNumber(it->second))
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
                     }
 
                     auto newValue = addValues(it->second, INT_VAL(1));
-                    freeValue(it->second);
+                    releaseAndDelete(it->second);
                     it->second = newValue;
 
-                    push(copyValue(newValue)); // Pre-increment returns the new value
-                    freeValue(nameValue);
+                    push(retainValue(newValue)); // Pre-increment returns the new value
+                    releaseAndDelete(nameValue);
                     break;
                 }
 
@@ -698,28 +714,28 @@ namespace pg
 
                     if (not name.isLitteral())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     if (not isValueNumber(it->second))
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
                     }
 
                     auto newValue = subtractValues(it->second, INT_VAL(1));
-                    freeValue(it->second);
+                    releaseAndDelete(it->second);
                     it->second = newValue;
 
-                    freeValue(nameValue);
+                    releaseAndDelete(nameValue);
                     break;
                 }
 
@@ -736,29 +752,29 @@ namespace pg
 
                     if (not name.isLitteral())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
                     auto it = globals.find(name.toString());
                     if (it == globals.end())
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
                     }
 
                     if (not isValueNumber(it->second))
                     {
-                        freeValue(nameValue);
+                        releaseAndDelete(nameValue);
                         EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
                     }
 
                     auto newValue = subtractValues(it->second, INT_VAL(1));
-                    freeValue(it->second);
+                    releaseAndDelete(it->second);
                     it->second = newValue;
 
-                    push(copyValue(newValue)); // Pre-decrement returns the new value
-                    freeValue(nameValue);
+                    push(retainValue(newValue)); // Pre-decrement returns the new value
+                    releaseAndDelete(nameValue);
                     break;
                 }
 
@@ -774,30 +790,30 @@ namespace pg
 
                     if (not isValueNumber(slot))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
                     int index = getValueAsInt(slot);
                     if (index < 0)
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
                     if (not isValueNumber(currentFrame->slots[index]))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
                     }
 
-                    auto oldValue = copyValue(currentFrame->slots[index]);
+                    auto oldValue = retainValue(currentFrame->slots[index]);
                     auto newValue = addValues(currentFrame->slots[index], INT_VAL(1));
-                    freeValue(currentFrame->slots[index]);
+                    releaseAndDelete(currentFrame->slots[index]);
                     currentFrame->slots[index] = newValue;
 
                     push(oldValue); // Post-increment returns the old value
-                    freeValue(slot);
+                    releaseAndDelete(slot);
                     break;
                 }
 
@@ -813,29 +829,29 @@ namespace pg
 
                     if (not isValueNumber(slot))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
                     int index = getValueAsInt(slot);
                     if (index < 0)
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
                     if (not isValueNumber(currentFrame->slots[index]))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
                     }
 
                     auto newValue = addValues(currentFrame->slots[index], INT_VAL(1));
-                    freeValue(currentFrame->slots[index]);
+                    releaseAndDelete(currentFrame->slots[index]);
                     currentFrame->slots[index] = newValue;
 
-                    push(copyValue(newValue)); // Pre-increment returns the new value
-                    freeValue(slot);
+                    push(retainValue(newValue)); // Pre-increment returns the new value
+                    releaseAndDelete(slot);
                     break;
                 }
 
@@ -851,30 +867,30 @@ namespace pg
 
                     if (not isValueNumber(slot))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
                     int index = getValueAsInt(slot);
                     if (index < 0)
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
                     if (not isValueNumber(currentFrame->slots[index]))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
                     }
 
-                    auto oldValue = copyValue(currentFrame->slots[index]);
+                    auto oldValue = retainValue(currentFrame->slots[index]);
                     auto newValue = subtractValues(currentFrame->slots[index], INT_VAL(1));
-                    freeValue(currentFrame->slots[index]);
+                    releaseAndDelete(currentFrame->slots[index]);
                     currentFrame->slots[index] = newValue;
 
                     push(oldValue); // Post-decrement returns the old value
-                    freeValue(slot);
+                    releaseAndDelete(slot);
                     break;
                 }
 
@@ -890,29 +906,29 @@ namespace pg
 
                     if (not isValueNumber(slot))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
                     }
 
                     int index = getValueAsInt(slot);
                     if (index < 0)
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
                     }
 
                     if (not isValueNumber(currentFrame->slots[index]))
                     {
-                        freeValue(slot);
+                        releaseAndDelete(slot);
                         EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
                     }
 
                     auto newValue = subtractValues(currentFrame->slots[index], INT_VAL(1));
-                    freeValue(currentFrame->slots[index]);
+                    releaseAndDelete(currentFrame->slots[index]);
                     currentFrame->slots[index] = newValue;
 
-                    push(copyValue(newValue)); // Pre-decrement returns the new value
-                    freeValue(slot);
+                    push(retainValue(newValue)); // Pre-decrement returns the new value
+                    releaseAndDelete(slot);
                     break;
                 }
 
@@ -952,7 +968,7 @@ namespace pg
 
                     ObjFunction* function = AS_FUNC(functionValue);
                     auto closure = new Closure(function);
-                    push(CLOSURE_VAL(closure));
+                    push(trackNewValue(CLOSURE_VAL(closure)));
 
                     for (int i = 0; i < function->upvalueCount; i++)
                     {
@@ -980,7 +996,7 @@ namespace pg
                     }
 
                     ObjUpvalue* upvalue = currentFrame->closure->upvalues[slot];
-                    push(copyValue(*upvalue->location));
+                    push(retainValue(*upvalue->location));
                     break;
                 }
 
@@ -1031,7 +1047,12 @@ namespace pg
         }
 #endif
 
-        return copyValue(currentFrame->closure->function->chunk.constants[constantIndex]);
+        Value constant = currentFrame->closure->function->chunk.constants[constantIndex];
+        // Only retain if it's a heap object that needs tracking
+        if (IS_OBJ(constant) || IS_FUNC(constant) || IS_CLOSURE(constant) || IS_UPVALUE(constant) || IS_NAT_FUNC(constant)) {
+            return retainValue(constant);
+        }
+        return constant;
     }
 
     Value VM::readLongConstant()
@@ -1054,7 +1075,12 @@ namespace pg
         }
 #endif
 
-        return copyValue(currentFrame->closure->function->chunk.constants[constantIndex]);
+        Value constant = currentFrame->closure->function->chunk.constants[constantIndex];
+        // Only retain if it's a heap object that needs tracking
+        if (IS_OBJ(constant) || IS_FUNC(constant) || IS_CLOSURE(constant) || IS_UPVALUE(constant) || IS_NAT_FUNC(constant)) {
+            return retainValue(constant);
+        }
+        return constant;
     }
 
     void VM::binaryOp(std::function<Value(Value, Value)> op)
@@ -1088,8 +1114,8 @@ namespace pg
         auto a = pop();
 
         push(op(a, b));
-        freeValue(a);
-        freeValue(b);
+        releaseAndDelete(a);
+        releaseAndDelete(b);
     }
 
     void VM::fastBinaryOp(Value (*op)(const Value&, const Value&))
@@ -1110,8 +1136,8 @@ namespace pg
             auto b = pop();
             auto a = pop();
             push(op(a, b));
-            freeValue(a);
-            freeValue(b);
+            releaseAndDelete(a);
+            releaseAndDelete(b);
             return;
         }
 
@@ -1132,8 +1158,8 @@ namespace pg
         auto b = pop();
         auto a = pop();
         push(op(a, b));
-        freeValue(a);
-        freeValue(b);
+        releaseAndDelete(a);
+        releaseAndDelete(b);
     }
 
     ObjUpvalue* VM::captureUpvalue(Value* local)
@@ -1153,6 +1179,7 @@ namespace pg
         }
 
         ObjUpvalue* newUpvalue = new ObjUpvalue(local);
+        trackNewValue(UPVALUE_VAL(newUpvalue));
         newUpvalue->next = upvalue;
 
         if (prevUpvalue == nullptr)
@@ -1172,7 +1199,7 @@ namespace pg
         while (openUpvalues != nullptr and openUpvalues->location >= last)
         {
             ObjUpvalue* upvalue = openUpvalues;
-            upvalue->closed = copyValue(*upvalue->location);
+            upvalue->closed = retainValue(*upvalue->location);
             upvalue->location = &upvalue->closed;
             openUpvalues = upvalue->next;
         }
@@ -1194,7 +1221,7 @@ namespace pg
                 for (int i = 0; i < argCount; i++)
                 {
                     auto v = pop();
-                    freeValue(v);
+                    releaseAndDelete(v);
                 }
 
                 push(result);
@@ -1233,6 +1260,332 @@ namespace pg
         frame->slots = stack.data() + stack.size() - argCount;
 
         return true;
+    }
+
+    Value VM::retainValue(const Value& value)
+    {
+        // Extract pointer from Value based on type
+        void* ptr = nullptr;
+        switch(value.type)
+        {
+            case COMPILER_VAL_OBJ:
+                ptr = value.as.obj;
+                break;
+            case COMPILER_VAL_FUNC:
+                ptr = value.as.function;
+                break;
+            case COMPILER_VAL_CLOSURE:
+                ptr = value.as.closure;
+                break;
+            case COMPILER_VAL_UPVALUE:
+                ptr = value.as.upvalue;
+                break;
+            case COMPILER_VAL_NATIVE:
+                ptr = value.as.nativeFunc;
+                break;
+
+            default:
+                return value; // Primitives don't need ref counting
+        }
+
+        if (ptr != nullptr) {
+            refCounts[ptr]++;
+        }
+        return value;
+    }
+
+    bool VM::releaseValue(const Value& value)
+    {
+        // Extract pointer from Value based on type
+        void* ptr = nullptr;
+        switch(value.type)
+        {
+            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            default: return false; // Primitives don't need cleanup
+        }
+
+        if (ptr != nullptr) {
+            auto it = refCounts.find(ptr);
+            if (it != refCounts.end()) {
+                it->second--;
+                if (it->second <= 0) {
+                    refCounts.erase(it);
+                    return true; // Should delete
+                }
+            }
+        }
+        return false; // Don't delete
+    }
+
+    int VM::getValueRefCount(const Value& value) const
+    {
+        void* ptr = nullptr;
+        switch(value.type) {
+            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            default: return 0; // Primitives
+        }
+
+        if (ptr != nullptr) {
+            auto it = refCounts.find(ptr);
+            if (it != refCounts.end()) {
+                return it->second;
+            }
+        }
+        return 0;
+    }
+
+    void VM::deleteValue(const Value& value)
+    {
+        // Perform type-specific deletion
+        switch(value.type) {
+            case COMPILER_VAL_OBJ:
+                if (value.as.obj) delete value.as.obj;
+                break;
+            case COMPILER_VAL_FUNC:
+                if (value.as.function) delete value.as.function;
+                break;
+            case COMPILER_VAL_CLOSURE:
+                if (value.as.closure) delete value.as.closure;
+                break;
+            case COMPILER_VAL_UPVALUE:
+                if (value.as.upvalue) delete value.as.upvalue;
+                break;
+            case COMPILER_VAL_NATIVE:
+                if (value.as.nativeFunc) delete value.as.nativeFunc;
+                break;
+            default:
+                // Primitives don't need deletion
+                break;
+        }
+    }
+
+    Value VM::trackNewValue(const Value& value)
+    {
+        // For newly created objects, start with refcount=1
+        void* ptr = nullptr;
+        switch(value.type) {
+            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            default: return value; // Primitives don't need tracking
+        }
+
+        if (ptr != nullptr) {
+            refCounts[ptr] = 1; // Start with refcount=1
+        }
+        return value;
+    }
+
+    void VM::releaseAndDelete(const Value& value)
+    {
+        if (releaseValue(value)) {
+            deleteValue(value);
+        }
+    }
+
+    Value VM::addValues(const Value& a, const Value& b)
+    {
+        // Fast path for integers
+        if (IS_INT(a) and IS_INT(b))
+            return INT_VAL(AS_INT(a) + AS_INT(b));
+
+        // Handle mixed int/float cases without ElementType conversion
+        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
+        {
+            // int + float -> convert int to float and return float result
+            float floatA = static_cast<float>(AS_INT(a));
+            float floatB = (*AS_OBJ(b)).get<float>();
+            return trackNewValue(OBJ_VAL(new ElementType(floatA + floatB)));
+        }
+
+        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
+        {
+            // float + int -> convert int to float and return float result
+            float floatA = (*AS_OBJ(a)).get<float>();
+            float floatB = static_cast<float>(AS_INT(b));
+            return trackNewValue(OBJ_VAL(new ElementType(floatA + floatB)));
+        }
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        // Fall back to ElementType for other complex cases (strings, etc.)
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA + elemB));
+    }
+
+    Value VM::subtractValues(const Value& a, const Value& b)
+    {
+        // Fast path for integers
+        if (IS_INT(a) and IS_INT(b))
+            return INT_VAL(AS_INT(a) - AS_INT(b));
+
+        // Handle mixed int/float cases without ElementType conversion
+        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
+        {
+            float floatA = static_cast<float>(AS_INT(a));
+            float floatB = (*AS_OBJ(b)).get<float>();
+            return trackNewValue(OBJ_VAL(new ElementType(floatA - floatB)));
+        }
+
+        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
+        {
+            float floatA = (*AS_OBJ(a)).get<float>();
+            float floatB = static_cast<float>(AS_INT(b));
+            return trackNewValue(OBJ_VAL(new ElementType(floatA - floatB)));
+        }
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        // Fall back to ElementType for other complex cases
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA - elemB));
+    }
+
+    Value VM::multiplyValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
+            return INT_VAL(AS_INT(a) * AS_INT(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA * elemB));
+    }
+
+    Value VM::divideValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
+            return INT_VAL(AS_INT(a) / AS_INT(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA / elemB));
+    }
+
+    Value VM::negateValue(const Value& val)
+    {
+        if (IS_INT(val))
+            return INT_VAL(-AS_INT(val));
+
+        // Disallow functions
+        if (IS_FUNC(val))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elem = valueToElement(val);
+        return trackNewValue(elementToValue(-elem));
+    }
+
+    Value VM::equalsValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(AS_INT(a) == AS_INT(b));
+
+        if (IS_BOOL(a) and IS_BOOL(b))
+            return BOOL_VAL(AS_BOOL(a) == AS_BOOL(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA == elemB));
+    }
+
+    Value VM::notEqualsValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(AS_INT(a) != AS_INT(b));
+
+        if (IS_BOOL(a) && IS_BOOL(b))
+            return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA != elemB));
+    }
+
+    Value VM::greaterValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(AS_INT(a) > AS_INT(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA > elemB));
+    }
+
+    Value VM::greaterEqualValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(AS_INT(a) >= AS_INT(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA >= elemB));
+    }
+
+    Value VM::lessValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(AS_INT(a) < AS_INT(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot compare function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA < elemB));
+    }
+
+    Value VM::lessEqualValues(const Value& a, const Value& b)
+    {
+        if (IS_INT(a) and IS_INT(b))
+            return BOOL_VAL(AS_INT(a) <= AS_INT(b));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot add function Values");
+
+        ElementType elemA = valueToElement(a);
+        ElementType elemB = valueToElement(b);
+        return trackNewValue(elementToValue(elemA <= elemB));
     }
 
 }

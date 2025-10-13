@@ -14,7 +14,7 @@
 #include <functional>
 
 // Todo add this as a flag in when compiling in debug
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
 #define DEBUG_CHECK_STACK
 
@@ -26,111 +26,6 @@ namespace pg
 {
     static constexpr size_t FRAMES_MAX = 64;
 
-    // Fast arithmetic operations on Value types
-    inline Value addValues(const Value& a, const Value& b)
-    {
-        // Fast path for integers
-        if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) + AS_INT(b));
-
-        // Handle mixed int/float cases without ElementType conversion
-        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
-        {
-            // int + float -> convert int to float and return float result
-            float floatA = static_cast<float>(AS_INT(a));
-            float floatB = (*AS_OBJ(b)).get<float>();
-            return OBJ_VAL(new ElementType(floatA + floatB));
-        }
-
-        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
-        {
-            // float + int -> convert int to float and return float result
-            float floatA = (*AS_OBJ(a)).get<float>();
-            float floatB = static_cast<float>(AS_INT(b));
-            return OBJ_VAL(new ElementType(floatA + floatB));
-        }
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        // Fall back to ElementType for other complex cases (strings, etc.)
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA + elemB);
-    }
-
-    inline Value subtractValues(const Value& a, const Value& b)
-    {
-        // Fast path for integers
-        if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) - AS_INT(b));
-
-        // Handle mixed int/float cases without ElementType conversion
-        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
-        {
-            float floatA = static_cast<float>(AS_INT(a));
-            float floatB = (*AS_OBJ(b)).get<float>();
-            return OBJ_VAL(new ElementType(floatA - floatB));
-        }
-
-        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
-        {
-            float floatA = (*AS_OBJ(a)).get<float>();
-            float floatB = static_cast<float>(AS_INT(b));
-            return OBJ_VAL(new ElementType(floatA - floatB));
-        }
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        // Fall back to ElementType for other complex cases
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA - elemB);
-    }
-
-    inline Value multiplyValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return INT_VAL(AS_INT(a) * AS_INT(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA * elemB);
-    }
-
-    inline Value divideValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
-            return INT_VAL(AS_INT(a) / AS_INT(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA / elemB);
-    }
-
-    inline Value negateValue(const Value& val)
-    {
-        if (IS_INT(val))
-            return INT_VAL(-AS_INT(val));
-
-        // Disallow functions
-        if (IS_FUNC(val))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elem = valueToElement(val);
-        return elementToValue(-elem);
-    }
 
     inline bool isValueNumber(const Value& val)
     {
@@ -157,96 +52,6 @@ namespace pg
         return false;
     }
 
-    // Fast comparison operations
-    inline Value equalsValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) == AS_INT(b));
-
-        if (IS_BOOL(a) and IS_BOOL(b))
-            return BOOL_VAL(AS_BOOL(a) == AS_BOOL(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA == elemB);
-    }
-
-    inline Value notEqualsValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) != AS_INT(b));
-
-        if (IS_BOOL(a) && IS_BOOL(b))
-            return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA != elemB);
-    }
-
-    inline Value greaterValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) > AS_INT(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA > elemB);
-    }
-
-    inline Value greaterEqualValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) >= AS_INT(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA >= elemB);
-    }
-
-    inline Value lessValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) < AS_INT(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot compare function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA < elemB);
-    }
-
-    inline Value lessEqualValues(const Value& a, const Value& b)
-    {
-        if (IS_INT(a) and IS_INT(b))
-            return BOOL_VAL(AS_INT(a) <= AS_INT(b));
-
-        // Disallow functions
-        if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
-
-        ElementType elemA = valueToElement(a);
-        ElementType elemB = valueToElement(b);
-        return elementToValue(elemA <= elemB);
-    }
 
     // Memory management for heap-allocated objects
     inline void freeValue(Value& value)
@@ -364,10 +169,14 @@ namespace pg
             // Free all Values stored in globals before destruction
             for (auto& pair : globals)
             {
-                freeValue(pair.second);
+                releaseAndDelete(pair.second);
             }
             // Clean up any remaining Values on the stack
-            stack.clear();
+            while (!stack.empty())
+            {
+                auto value = stack.pop();
+                releaseAndDelete(value);
+            }
         }
 
         InterpretResult interpretFromText(const std::string& source)
@@ -516,6 +325,32 @@ namespace pg
 
         bool call(Closure* closure, int argCount);
 
+        // Reference counting methods
+        Value retainValue(const Value& value);   // Returns the value after retaining
+        bool releaseValue(const Value& value);   // Returns true if should delete
+        void deleteValue(const Value& value);    // Actually delete the object
+        Value trackNewValue(const Value& value); // Track newly created object with refcount=1
+        int getValueRefCount(const Value& value) const;
+        size_t getTotalTrackedObjects() const { return refCounts.size(); }
+
+        // Convenience method for release + delete
+        void releaseAndDelete(const Value& value);
+
+        // Arithmetic operations with proper reference tracking
+        Value addValues(const Value& a, const Value& b);
+        Value subtractValues(const Value& a, const Value& b);
+        Value multiplyValues(const Value& a, const Value& b);
+        Value divideValues(const Value& a, const Value& b);
+        Value negateValue(const Value& val);
+
+        // Comparison operations with proper reference tracking
+        Value equalsValues(const Value& a, const Value& b);
+        Value notEqualsValues(const Value& a, const Value& b);
+        Value greaterValues(const Value& a, const Value& b);
+        Value greaterEqualValues(const Value& a, const Value& b);
+        Value lessValues(const Value& a, const Value& b);
+        Value lessEqualValues(const Value& a, const Value& b);
+
         CallFrame frames[FRAMES_MAX];
 
         CallFrame *currentFrame = nullptr;
@@ -526,6 +361,9 @@ namespace pg
         IndexableStack stack;
 
         std::unordered_map<std::string, Value> globals;
+
+        // Reference counting for heap-allocated objects
+        std::unordered_map<void*, int> refCounts;
 
         // Test output buffer for __dprint (used in tests)
         std::string testOutput;
@@ -578,7 +416,7 @@ namespace pg
             val.type = COMPILER_VAL_NATIVE;
             val.as.nativeFunc = nativeFunc;
 
-            globals[name] = val;
+            globals[name] = trackNewValue(val);
         }
 
         // Test helper: Set up VM with a specific chunk for testing
