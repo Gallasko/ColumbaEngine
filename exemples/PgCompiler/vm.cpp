@@ -416,12 +416,12 @@ namespace pg
                 case OpCode::OP_Get_Local:
                 {
                     uint8_t slot = readByte(); // Get the slot index as immediate operand
-                    
+
                     if (slot >= 255)
                     {
                         EMIT_RUNTIME_ERROR("Local variable slot index out of bounds.");
                     }
-                    
+
                     push(copyValue(currentFrame->slots[slot]));
                     break;
                 }
@@ -931,7 +931,7 @@ namespace pg
 
                     // Get the function object (at position argCount from top)
                     Value function = peek(argCount);
-                    
+
                     if (not callValue(function, argCount))
                     {
                         EMIT_RUNTIME_ERROR("Cannot call funtion");
@@ -943,7 +943,7 @@ namespace pg
                         stack[stack.size() - argCount - 1 + i] = stack[stack.size() - argCount + i];
                     }
                     stack.pop(); // Remove the duplicate top element
-                    
+
                     // Update the frame slots to point to the shifted arguments
                     frames[frameCount - 1].slots = stack.data() + stack.size() - argCount;
 
@@ -1082,6 +1082,22 @@ namespace pg
         {
             case CompilerValueType::COMPILER_VAL_FUNC:
                 return call(AS_FUNC(callee), argCount);
+
+            case CompilerValueType::COMPILER_VAL_NATIVE:
+            {
+                auto* native = AS_NAT_FUNC(callee);
+                Value result = native->function(argCount, stack.data() + stack.size() - argCount);
+
+                // Remove arguments from the stack
+                for (int i = 0; i < argCount; i++)
+                {
+                    auto v = pop();
+                    freeValue(v);
+                }
+
+                push(result);
+                return true;
+            }
 
             default:
                 break;
