@@ -9,21 +9,13 @@ namespace pg
 {
     struct Value;
     struct ObjFunction;
+    struct ObjUpvalue;
 
     typedef Value (*NativeFn)(int argCount, Value* args);
 
     struct NativeFunction
     {
         NativeFn function;
-    };
-
-    struct ObjUpvalue
-    {
-        ObjUpvalue(Value* slot) : location(slot) {}
-
-        Value* location;
-        // Value closed;
-        // ObjUpvalue* next;
     };
 
     struct Closure
@@ -171,6 +163,15 @@ namespace pg
     #define NATIVE_VAL(func)     makeNativeFuncValue(func)
     #define CLOSURE_VAL(closure) makeClosureValue(closure)
     #define UPVALUE_VAL(upvalue) makeUpvalueValue(upvalue)
+
+    struct ObjUpvalue
+    {
+        ObjUpvalue(Value* slot) : location(slot) {}
+
+        Value* location;
+        Value closed = INT_VAL(0); // Closed-over value when moved from stack to heap
+        ObjUpvalue* next = nullptr;
+    };
 
     // Convert ElementType to optimized Value (minimize heap allocation)
     inline Value elementToValue(const ElementType& element)

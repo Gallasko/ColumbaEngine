@@ -21,7 +21,7 @@ namespace pg
     {
         Token name;
         int depth;
-        // bool isCaptured;
+        bool isCaptured = false;
     };
 
     struct Upvalue
