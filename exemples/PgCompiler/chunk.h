@@ -106,6 +106,23 @@ namespace pg
             return addConstant(FUNC_VAL(value), line);
         }
 
+        // Add constant to array without emitting opcodes (for instructions like OP_Closure)
+        uint8_t addConstantIndex(const Value& value)
+        {
+            constants.push_back(value);
+            auto cIndex = constants.size() - 1;
+            if (cIndex > 255)
+            {
+                throw std::runtime_error("Too many constants for single-byte index");
+            }
+            return static_cast<uint8_t>(cIndex);
+        }
+
+        uint8_t addConstantIndex(ObjFunction* value)
+        {
+            return addConstantIndex(FUNC_VAL(value));
+        }
+
         size_t addCode(const OpCode& op, int line)
         {
             code.push_back(static_cast<uint8_t>(op));

@@ -824,7 +824,8 @@ namespace pg
         ObjFunction *function = compiler.endCompiler();
 
         writeByte(OpCode::OP_Closure);
-        writeConstant(function);
+        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(function);
+        writeByte(constantIndex);
     }
 
     void Parser::declareVariable(const Token& name)
