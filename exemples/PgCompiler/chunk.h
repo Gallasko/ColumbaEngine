@@ -58,6 +58,9 @@ namespace pg
 
         OP_Call,
         OP_Closure,
+
+        OP_Get_Upvalue,
+        OP_Set_Upvalue,
     };
 
     struct Chunk
@@ -154,7 +157,6 @@ namespace pg
             case OpCode::OP_Call:
             case OpCode::OP_Get_Local:
             case OpCode::OP_Set_Local:
-            case OpCode::OP_Closure:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
@@ -202,6 +204,9 @@ namespace pg
             case OpCode::OP_Long_Loop:
                 return 5; // opcode + 4 byte operand
 
+            case OpCode::OP_Closure:
+                return 2; // opcode + 1 byte operand (constant index), plus upvalue bytes handled separately
+
             default:
                 return 1; // default to single byte for unknown opcodes
         }
@@ -212,5 +217,6 @@ namespace pg
         Chunk chunk;
         int arity; // Number of parameters
         std::string name;
+        int upvalueCount = 0;
     };
 }

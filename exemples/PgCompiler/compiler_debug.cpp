@@ -288,8 +288,29 @@ namespace pg
 
                 std::cout << "'" << std::endl;
 
+                if (not IS_FUNC(chunk.constants[cIndex]))
+                {
+                    std::cout << "Error: OP_Closure constant is not a function." << std::endl;
+                    return offset;
+                }
+
+                ObjFunction* function = AS_FUNC(chunk.constants[cIndex]);
+
+                for (int i = 0; i < function->upvalueCount; i++)
+                {
+                    uint8_t isLocal = chunk.code[offset++];
+                    uint8_t index = chunk.code[offset++];
+                    std::cout << std::left << std::setw(16) << "    |-- upvalue" << " " << static_cast<int>(i) << " isLocal=" << static_cast<int>(isLocal) << " index=" << static_cast<int>(index) << std::endl;
+                }
+
                 return offset;
             }
+
+            case OpCode::OP_Get_Upvalue:
+                return byteInstruction("OP_Get_Upvalue", chunk, offset);
+
+            case OpCode::OP_Set_Upvalue:
+                return byteInstruction("OP_Set_Upvalue", chunk, offset);
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;

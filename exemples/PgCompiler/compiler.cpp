@@ -103,6 +103,52 @@ namespace pg
         return -1;
     }
 
+    int Compiler::addUpvalue(int index, bool isLocal)
+    {
+        // Check if upvalue already exists
+        auto upvalueCount = currentFunction->upvalueCount;
+        for (int i = 0; i < upvalueCount; i++)
+        {
+            if (upvalues[i].index == index and upvalues[i].isLocal == isLocal)
+            {
+                return i;
+            }
+        }
+
+        if (upvalueCount == UINT8_MAX)
+        {
+            parser.error("Too many closure variables in function.");
+            return 0;
+        }
+
+        upvalues[upvalueCount].index = static_cast<uint8_t>(index);
+        upvalues[upvalueCount].isLocal = isLocal;
+
+        return currentFunction->upvalueCount++;
+    }
+
+    int Compiler::resolveUpvalue(const Token& name)
+    {
+        if (enclosing == nullptr)
+            return -1;
+
+        int localIndex = enclosing->resolveLocal(name);
+        if (localIndex != -1)
+        {
+            // Mark the local as captured
+            // enclosing->locals[localIndex].isCaptured = true;
+            return addUpvalue(localIndex, true);
+        }
+
+        int upvalueIndex = enclosing->resolveUpvalue(name);
+        if (upvalueIndex != -1)
+        {
+            return addUpvalue(upvalueIndex, false);
+        }
+
+        return -1;
+    }
+
     void Compiler::markInitialized()
     {
         if (scopeDepth == 0)

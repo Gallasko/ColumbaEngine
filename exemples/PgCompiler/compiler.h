@@ -24,6 +24,12 @@ namespace pg
         // bool isCaptured;
     };
 
+    struct Upvalue
+    {
+        uint8_t index;
+        bool isLocal;
+    };
+
     struct Compiler
     {
         Compiler() {}
@@ -42,6 +48,9 @@ namespace pg
 
         void addLocal(const Token& name);
         int resolveLocal(const Token& name);
+
+        int addUpvalue(int index, bool isLocal);
+        int resolveUpvalue(const Token& name);
 
         void markInitialized();
 
@@ -64,6 +73,8 @@ namespace pg
 
         int localCount = 0;
         int scopeDepth = 0;
+
+        Upvalue upvalues[UINT8_MAX];
 
         // Static member for tracking current compiler in the stack
         static Compiler* current;

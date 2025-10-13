@@ -171,6 +171,8 @@ namespace pg
 
         void errorAt(const Token& token, const std::string& message);
 
+        void error(const std::string& message) { errorAt(previousToken, message); }
+
         void reset()
         {
             hadError = false;
