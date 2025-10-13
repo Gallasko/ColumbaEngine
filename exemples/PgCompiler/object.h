@@ -16,6 +16,12 @@ namespace pg
         NativeFn function;
     };
 
+    struct Closure
+    {
+        ObjFunction* function;
+        // Upvalues would go here for a full implementation
+    };
+
     enum class FunctionType
     {
         TYPE_FUNCTION,
@@ -44,6 +50,7 @@ namespace pg
         COMPILER_VAL_OBJ,     // Pointer overflow for complex values (strings, floats, etc.)
         COMPILER_VAL_FUNC,
         COMPILER_VAL_NATIVE,
+        COMPILER_VAL_CLOSURE,
     };
 
     struct Value
@@ -55,6 +62,7 @@ namespace pg
             ElementType* obj;   // Heap-allocated for strings, floats, size_t, etc.
             ObjFunction* function;
             NativeFunction* nativeFunc;
+            Closure* closure;
         } as;
     };
 
@@ -64,6 +72,7 @@ namespace pg
     #define IS_OBJ(value)           ((value).type == COMPILER_VAL_OBJ)
     #define IS_FUNC(value)          ((value).type == COMPILER_VAL_FUNC)
     #define IS_NAT_FUNC(value)      ((value).type == COMPILER_VAL_NATIVE)
+    #define IS_CLOSURE(value)       ((value).type == COMPILER_VAL_CLOSURE)
 
     // Fast value extraction macros (direct memory access)
     #define AS_BOOL(value)      ((value).as.boolean)
@@ -71,10 +80,11 @@ namespace pg
     #define AS_OBJ(value)       ((value).as.obj)
     #define AS_FUNC(value)      ((value).as.function)
     #define AS_NAT_FUNC(value)  ((value).as.nativeFunc)
+    #define AS_CLOSURE(value)   ((value).as.closure)
 
     struct CallFrame
     {
-        ObjFunction *function;
+        Closure *closure;
         uint8_t *ip;
         Value *slots;
     };
@@ -120,12 +130,21 @@ namespace pg
         return result;
     }
 
+    inline Value makeClosureValue(Closure* closure)
+    {
+        Value result;
+        result.type = COMPILER_VAL_CLOSURE;
+        result.as.closure = closure;
+        return result;
+    }
+
     // Convenience macros
-    #define BOOL_VAL(value)   makeBoolValue(value)
-    #define INT_VAL(value)    makeIntValue(value)
-    #define OBJ_VAL(object)   makeObjValue(object)
-    #define FUNC_VAL(func)    makeFuncValue(func)
-    #define NATIVE_VAL(func)  makeNativeFuncValue(func)
+    #define BOOL_VAL(value)      makeBoolValue(value)
+    #define INT_VAL(value)       makeIntValue(value)
+    #define OBJ_VAL(object)      makeObjValue(object)
+    #define FUNC_VAL(func)       makeFuncValue(func)
+    #define NATIVE_VAL(func)     makeNativeFuncValue(func)
+    #define CLOSURE_VAL(closure) makeClosureValue(closure)
 
     // Convert ElementType to optimized Value (minimize heap allocation)
     inline Value elementToValue(const ElementType& element)
@@ -155,6 +174,8 @@ namespace pg
             return value;
         else if (IS_NAT_FUNC(value))
             return value;
+        else if (IS_CLOSURE(value))
+            return value; // Todo: deep copy closure if needed
             // For heap objects, create a new copy
         else
             return OBJ_VAL(new ElementType(*AS_OBJ(value)));
@@ -185,6 +206,7 @@ namespace pg
                 return *AS_OBJ(value);
             case COMPILER_VAL_FUNC:
             case COMPILER_VAL_NATIVE:
+            case COMPILER_VAL_CLOSURE:
                 throw std::runtime_error("Cannot convert function Value to ElementType");
         }
 

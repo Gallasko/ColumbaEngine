@@ -57,6 +57,7 @@ namespace pg
         OP_Decr_Local,
 
         OP_Call,
+        OP_Closure,
     };
 
     struct Chunk
@@ -136,6 +137,7 @@ namespace pg
             case OpCode::OP_Call:
             case OpCode::OP_Get_Local:
             case OpCode::OP_Set_Local:
+            case OpCode::OP_Closure:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
