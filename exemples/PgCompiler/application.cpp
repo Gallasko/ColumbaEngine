@@ -18,6 +18,31 @@ namespace {
     static const char *const DOM = "App";
 }
 
+Value nativeLogInfo(int argCount, Value* args) {
+    if (argCount != 1) {
+        throw std::runtime_error("logInfo expects exactly one argument");
+    }
+
+    if (IS_OBJ(args[0]))
+    {
+        LOG_INFO("DOM", *AS_OBJ(args[0]));
+    }
+    else if (IS_INT(args[0]))
+    {
+        LOG_INFO("DOM", AS_INT(args[0]));
+    }
+    else if (IS_BOOL(args[0]))
+    {
+        LOG_INFO("DOM", AS_BOOL(args[0]));
+    }
+    else
+    {
+        LOG_INFO("DOM", "Unsupported type for logInfo");
+    }
+
+    return BOOL_VAL(true);
+}
+
 CompilerApp::CompilerApp(const std::string &fileName) : fileName(fileName) {
     LOG_THIS_MEMBER(DOM);
 
@@ -99,6 +124,8 @@ void CompilerApp::runFile()
 
     VM vm;
     // vm.addOptimizationPass(std::make_uniqueh
+
+    vm.defineNative("logInfo", nativeLogInfo);
 
     Lexer lexer;
 

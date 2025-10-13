@@ -256,6 +256,11 @@ namespace pg
             delete AS_OBJ(value);
             value.as.obj = nullptr;
         }
+        else if (IS_NAT_FUNC(value) and AS_NAT_FUNC(value) != nullptr)
+        {
+            delete AS_NAT_FUNC(value);
+            value.as.nativeFunc = nullptr;
+        }
     }
 
     class IndexableStack
@@ -556,6 +561,18 @@ namespace pg
         void addOptimizationPass(std::unique_ptr<BytecodePass> pass)
         {
             passManager.addPass(std::move(pass));
+        }
+
+        void defineNative(const std::string& name, NativeFn function)
+        {
+            auto* nativeFunc = new NativeFunction();
+            nativeFunc->function = function;
+
+            Value val;
+            val.type = COMPILER_VAL_NATIVE;
+            val.as.nativeFunc = nativeFunc;
+
+            globals[name] = val;
         }
 
         // Test helper: Set up VM with a specific chunk for testing

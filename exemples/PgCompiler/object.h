@@ -6,7 +6,15 @@
 
 namespace pg
 {
+    struct Value;
     struct ObjFunction;
+
+    typedef Value (*NativeFn)(int argCount, Value* args);
+
+    struct NativeFunction
+    {
+        NativeFn function;
+    };
 
     enum class FunctionType
     {
@@ -34,7 +42,8 @@ namespace pg
         COMPILER_VAL_BOOL,
         COMPILER_VAL_INT,
         COMPILER_VAL_OBJ,     // Pointer overflow for complex values (strings, floats, etc.)
-        COMPILER_VAL_FUNC
+        COMPILER_VAL_FUNC,
+        COMPILER_VAL_NATIVE,
     };
 
     struct Value
@@ -45,20 +54,23 @@ namespace pg
             int64_t number;     // Use int64_t for wider range than int
             ElementType* obj;   // Heap-allocated for strings, floats, size_t, etc.
             ObjFunction* function;
+            NativeFunction* nativeFunc;
         } as;
     };
 
     // Fast type checking macros (compile-time constant)
-    #define IS_BOOL(value)    ((value).type == COMPILER_VAL_BOOL)
-    #define IS_INT(value)     ((value).type == COMPILER_VAL_INT)
-    #define IS_OBJ(value)     ((value).type == COMPILER_VAL_OBJ)
-    #define IS_FUNC(value)    ((value).type == COMPILER_VAL_FUNC)
+    #define IS_BOOL(value)          ((value).type == COMPILER_VAL_BOOL)
+    #define IS_INT(value)           ((value).type == COMPILER_VAL_INT)
+    #define IS_OBJ(value)           ((value).type == COMPILER_VAL_OBJ)
+    #define IS_FUNC(value)          ((value).type == COMPILER_VAL_FUNC)
+    #define IS_NAT_FUNC(value)      ((value).type == COMPILER_VAL_NATIVE)
 
     // Fast value extraction macros (direct memory access)
-    #define AS_BOOL(value)    ((value).as.boolean)
-    #define AS_INT(value)     ((value).as.number)
-    #define AS_OBJ(value)     ((value).as.obj)
-    #define AS_FUNC(value)    ((value).as.function)
+    #define AS_BOOL(value)      ((value).as.boolean)
+    #define AS_INT(value)       ((value).as.number)
+    #define AS_OBJ(value)       ((value).as.obj)
+    #define AS_FUNC(value)      ((value).as.function)
+    #define AS_NAT_FUNC(value)  ((value).as.nativeFunc)
 
     struct CallFrame
     {
@@ -100,11 +112,20 @@ namespace pg
         return result;
     }
 
+    inline Value makeNativeFuncValue(NativeFunction *func)
+    {
+        Value result;
+        result.type = COMPILER_VAL_NATIVE;
+        result.as.nativeFunc = func;
+        return result;
+    }
+
     // Convenience macros
     #define BOOL_VAL(value)   makeBoolValue(value)
     #define INT_VAL(value)    makeIntValue(value)
     #define OBJ_VAL(object)   makeObjValue(object)
     #define FUNC_VAL(func)    makeFuncValue(func)
+    #define NATIVE_VAL(func)  makeNativeFuncValue(func)
 
     // Convert ElementType to optimized Value (minimize heap allocation)
     inline Value elementToValue(const ElementType& element)
@@ -131,6 +152,8 @@ namespace pg
             return value;
         // Functions are pointers, just copy the pointer
         else if (IS_FUNC(value))
+            return value;
+        else if (IS_NAT_FUNC(value))
             return value;
             // For heap objects, create a new copy
         else
@@ -161,6 +184,7 @@ namespace pg
             case COMPILER_VAL_OBJ:
                 return *AS_OBJ(value);
             case COMPILER_VAL_FUNC:
+            case COMPILER_VAL_NATIVE:
                 throw std::runtime_error("Cannot convert function Value to ElementType");
         }
 
