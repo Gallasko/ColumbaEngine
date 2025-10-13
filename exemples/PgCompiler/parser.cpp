@@ -822,6 +822,8 @@ namespace pg
         blockStatement();
 
         ObjFunction *function = compiler.endCompiler();
+
+        writeByte(OpCode::OP_Closure);
         writeConstant(function);
     }
 

@@ -24,7 +24,10 @@ namespace pg
             return InterpretResult::COMPILE_ERROR;
 
         push(FUNC_VAL(function));
-        call(function, 0);
+        Closure *closure = new Closure{function};
+        pop();
+        push(CLOSURE_VAL(closure));
+        call(closure, 0);
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
 
@@ -91,7 +94,7 @@ namespace pg
         // Set currentFrame to point to the topmost frame
         currentFrame = &frames[frameCount - 1];
 
-        if (currentFrame->function->chunk.code.empty())
+        if (currentFrame->closure->function->chunk.code.empty())
             return InterpretResult::OK;
 
 
@@ -106,26 +109,13 @@ namespace pg
             std::cout << "          ";
             for (size_t i = 0; i < stack.size(); ++i)
             {
-                if (IS_FUNC(stack[i]))
-                {
-                    ObjFunction* func = AS_FUNC(stack[i]);
-                    if (func != nullptr)
-                    {
-                        std::cout << "[<" << func->name << ">] ";
-                    }
-                    else
-                    {
-                        std::cout << "[<script>] ";
-                    }
-                }
-                else
-                {
-                    std::cout << "[" << valueToElement(stack[i]).toString() << "] ";
-                }
+                std::cout << "[";
+                printValue(stack[i]);
+                std::cout << "] ";
             }
             std::cout << std::endl;
 
-            disassembleInstruction(currentFrame->function->chunk, currentFrame->ip - currentFrame->function->chunk.code.data());
+            disassembleInstruction(currentFrame->closure->function->chunk, currentFrame->ip - currentFrame->closure->function->chunk.code.data());
 #endif
             uint8_t opcode_byte = readByte();
             auto instruction = static_cast<OpCode>(opcode_byte);
@@ -556,7 +546,7 @@ namespace pg
 #endif
                     uint16_t loopOffset = readUint16();
 #ifdef DEBUG_CHECK_STACK
-                    if (loopOffset > (currentFrame->ip - currentFrame->function->chunk.code.data()))
+                    if (loopOffset > (currentFrame->ip - currentFrame->closure->function->chunk.code.data()))
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
@@ -575,7 +565,7 @@ namespace pg
 #endif
                     uint32_t loopOffset = readUint32();
 #ifdef DEBUG_CHECK_STACK
-                    if (loopOffset > (currentFrame->ip - currentFrame->function->chunk.code.data()))
+                    if (loopOffset > (currentFrame->ip - currentFrame->closure->function->chunk.code.data()))
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
                     }
@@ -951,6 +941,34 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Closure:
+                {
+                    auto functionValue = readConstant();
+                    if (not IS_FUNC(functionValue))
+                    {
+                        EMIT_RUNTIME_ERROR("Closure operand must be a function.");
+                    }
+
+                    ObjFunction* function = AS_FUNC(functionValue);
+                    auto closure = new Closure{function};
+                    push(CLOSURE_VAL(closure));
+
+                    // for (int i = 0; i < closure->upvalueCount; i++)
+                    // {
+                    //     uint8_t isLocal = readByte();
+                    //     uint8_t index = readByte();
+                    //     if (isLocal)
+                    //     {
+                    //         closure->upvalues[i] = captureUpvalue(currentFrame->slots + index);
+                    //     }
+                    //     else
+                    //     {
+                    //         closure->upvalues[i] = currentFrame->function->upvalues[index];
+                    //     }
+                    // }
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;
@@ -965,13 +983,13 @@ namespace pg
         uint8_t constantIndex = readByte();
 
 #ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= currentFrame->function->chunk.constants.size())
+        if (constantIndex >= currentFrame->closure->function->chunk.constants.size())
         {
             throw std::runtime_error("Constant index out of bounds.");
         }
 #endif
 
-        return copyValue(currentFrame->function->chunk.constants[constantIndex]);
+        return copyValue(currentFrame->closure->function->chunk.constants[constantIndex]);
     }
 
     Value VM::readLongConstant()
@@ -988,13 +1006,13 @@ namespace pg
         constantIndex |= static_cast<uint32_t>(readByte());
 
 #ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= currentFrame->function->chunk.constants.size())
+        if (constantIndex >= currentFrame->closure->function->chunk.constants.size())
         {
             throw std::runtime_error("Long constant index out of bounds.");
         }
 #endif
 
-        return copyValue(currentFrame->function->chunk.constants[constantIndex]);
+        return copyValue(currentFrame->closure->function->chunk.constants[constantIndex]);
     }
 
     void VM::binaryOp(std::function<Value(Value, Value)> op)
@@ -1080,8 +1098,8 @@ namespace pg
     {
         switch (callee.type)
         {
-            case CompilerValueType::COMPILER_VAL_FUNC:
-                return call(AS_FUNC(callee), argCount);
+            case CompilerValueType::COMPILER_VAL_CLOSURE:
+                return call(AS_CLOSURE(callee), argCount);
 
             case CompilerValueType::COMPILER_VAL_NATIVE:
             {
@@ -1108,11 +1126,11 @@ namespace pg
         return false;
     }
 
-    bool VM::call(ObjFunction* function, int argCount)
+    bool VM::call(Closure* closure, int argCount)
     {
-        if (argCount != function->arity)
+        if (argCount != closure->function->arity)
         {
-            runtimeError((Strfy() << "Expected " << function->arity << " arguments but got: " << argCount << ".").getData());
+            runtimeError((Strfy() << "Expected " << closure->function->arity << " arguments but got: " << argCount << ".").getData());
 
             return false;
         }
@@ -1126,8 +1144,8 @@ namespace pg
 
         CallFrame *frame = &frames[frameCount++];
 
-        frame->function = function;
-        frame->ip = function->chunk.code.data();
+        frame->closure = closure;
+        frame->ip = closure->function->chunk.code.data();
         frame->slots = stack.data() + stack.size() - argCount;
 
         return true;

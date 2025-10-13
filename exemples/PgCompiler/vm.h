@@ -14,7 +14,7 @@
 #include <functional>
 
 // Todo add this as a flag in when compiling in debug
-// #define DEBUG_TRACE_EXECUTION
+#define DEBUG_TRACE_EXECUTION
 
 #define DEBUG_CHECK_STACK
 
@@ -460,19 +460,19 @@ namespace pg
 
         inline uint8_t advanceIp()
         {
-            auto offset = currentFrame->ip - currentFrame->function->chunk.code.data();
+            auto offset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
             currentFrame->ip++;
             return offset;
         }
 
         inline uint8_t readByte()
         {
-            return currentFrame->function->chunk.code[advanceIp()];
+            return currentFrame->closure->function->chunk.code[advanceIp()];
         }
 
         inline bool checkIpAgainstStack(uint8_t ahead)
         {
-            return static_cast<size_t>(currentFrame->ip - currentFrame->function->chunk.code.data()) + ahead >= currentFrame->function->chunk.code.size();
+            return static_cast<size_t>(currentFrame->ip - currentFrame->closure->function->chunk.code.data()) + ahead >= currentFrame->closure->function->chunk.code.size();
         }
 
         inline void resetStack()
@@ -487,7 +487,7 @@ namespace pg
             for (int i = frameCount - 1; i >= 0; i--)
             {
                 CallFrame *frame = &frames[i];
-                ObjFunction *function = frame->function;
+                ObjFunction *function = frame->closure->function;
                 size_t instruction = frame->ip - function->chunk.code.data() - 1;
 
                 LOG_ERROR("VM", "[line " << function->chunk.lines[instruction] << "] in " << function->name);
@@ -510,7 +510,7 @@ namespace pg
 
         bool callValue(const Value& callee, int argCount);
 
-        bool call(ObjFunction* function, int argCount);
+        bool call(Closure* closure, int argCount);
 
         CallFrame frames[FRAMES_MAX];
 
@@ -579,9 +579,9 @@ namespace pg
         void setupTestChunk(const Chunk& chunk)
         {
             // Create a temporary function object for testing
-            if (frameCount > 0 && frames[0].function != nullptr)
+            if (frameCount > 0 && frames[0].closure->function != nullptr)
             {
-                delete frames[0].function;
+                delete frames[0].closure->function;
             }
 
             auto* testFunction = new ObjFunction();
@@ -590,7 +590,7 @@ namespace pg
             testFunction->arity = 0;
 
             frameCount = 1;
-            frames[0].function = testFunction;
+            frames[0].closure->function = testFunction;
             frames[0].ip = testFunction->chunk.code.data();
             frames[0].slots = stack.data();  // For tests, start at beginning
             currentFrame = &frames[0];

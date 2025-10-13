@@ -5,6 +5,42 @@
 
 namespace pg
 {
+    void printValue(const Value& value)
+    {
+        if (IS_FUNC(value))
+        {
+            ObjFunction* func = AS_FUNC(value);
+            if (func != nullptr)
+            {
+                std::cout << "<" << func->name << ">";
+            }
+            else
+            {
+                std::cout << "<script>";
+            }
+        }
+        else if (IS_NAT_FUNC(value))
+        {
+            std::cout << "<native fn>";
+        }
+        else if (IS_CLOSURE(value))
+        {
+            Closure* closure = AS_CLOSURE(value);
+            if (closure != nullptr && closure->function != nullptr)
+            {
+                std::cout << "<closure " << closure->function->name << ">";
+            }
+            else
+            {
+                std::cout << "<null closure>";
+            }
+        }
+        else
+        {
+            std::cout << valueToElement(value).toString();
+        }
+    }
+
     namespace
     {
         int simpleInstruction(const std::string& name, int offset)
@@ -16,9 +52,9 @@ namespace pg
         int constantInstruction(const std::string& name, const Chunk& chunk, int offset)
         {
             uint8_t cIndex = chunk.code[offset + 1];
-            
+
             std::cout << std::left << std::setw(16) << name << " " << static_cast<int>(cIndex) << " '";
-            
+
             if (cIndex >= chunk.constants.size())
             {
                 std::cout << "<invalid constant index>";
@@ -26,22 +62,7 @@ namespace pg
             else
             {
                 const Value& constant = chunk.constants[cIndex];
-                if (IS_FUNC(constant))
-                {
-                    ObjFunction* func = AS_FUNC(constant);
-                    if (func != nullptr)
-                    {
-                        std::cout << "<" << func->name << ">";
-                    }
-                    else
-                    {
-                        std::cout << "<script>";
-                    }
-                }
-                else
-                {
-                    std::cout << valueToElement(constant).toString();
-                }
+                printValue(constant);
             }
 
             std::cout << "'" << std::endl;
@@ -54,9 +75,9 @@ namespace pg
             uint32_t cIndex = (static_cast<uint32_t>(chunk.code[offset + 1]) << 16) |
                               (static_cast<uint32_t>(chunk.code[offset + 2]) << 8) |
                               (static_cast<uint32_t>(chunk.code[offset + 3]));
-            
+
             std::cout << std::left << std::setw(16) << name << " " << cIndex << " '";
-            
+
             if (cIndex >= chunk.constants.size())
             {
                 std::cout << "<invalid constant index>";
@@ -64,22 +85,7 @@ namespace pg
             else
             {
                 const Value& constant = chunk.constants[cIndex];
-                if (IS_FUNC(constant))
-                {
-                    ObjFunction* func = AS_FUNC(constant);
-                    if (func != nullptr)
-                    {
-                        std::cout << "<" << func->name << ">";
-                    }
-                    else
-                    {
-                        std::cout << "<null function>";
-                    }
-                }
-                else
-                {
-                    std::cout << valueToElement(constant).toString();
-                }
+                printValue(constant);
             }
 
             std::cout << "'" << std::endl;
@@ -264,6 +270,26 @@ namespace pg
 
             case OpCode::OP_Call:
                 return byteInstruction("OP_Call", chunk, offset);
+
+            case OpCode::OP_Closure:
+            {
+                offset++;
+                uint8_t cIndex = chunk.code[offset++];
+                std::cout << std::left << std::setw(16) << "OP_Closure" << " " << static_cast<int>(cIndex) << " '";
+                if (cIndex >= chunk.constants.size())
+                {
+                    std::cout << "<invalid constant index>";
+                }
+                else
+                {
+                    const Value& constant = chunk.constants[cIndex];
+                    printValue(constant);
+                }
+
+                std::cout << "'" << std::endl;
+
+                return offset;
+            }
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
