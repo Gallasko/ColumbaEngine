@@ -61,6 +61,8 @@ namespace pg
 
         OP_Get_Upvalue,
         OP_Set_Upvalue,
+
+        OP_Close_Upvalue,
     };
 
     struct Chunk
@@ -189,6 +191,7 @@ namespace pg
             case OpCode::OP_Decr_Global:
             case OpCode::OP_Post_Decr_Local:
             case OpCode::OP_Decr_Local:
+            case OpCode::OP_Close_Upvalue:
                 return 1; // opcode only, no operand
 
             case OpCode::OP_LongConstant:

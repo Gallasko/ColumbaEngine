@@ -65,11 +65,11 @@ namespace pg
         while (localCount > 0 and locals[localCount - 1].depth > scopeDepth)
         {
             // If the local variable is a captured variable we need to emit a different instruction
-            // if (locals[localCount - 1].isCaptured)
-            // {
-            //     writeByte(chunk, OpCode::OP_Close_Upvalue);
-            // }
-            // else
+            if (locals[localCount - 1].isCaptured)
+            {
+                parser.writeByte(OpCode::OP_Close_Upvalue);
+            }
+            else
             {
                 parser.writeByte(OpCode::OP_Pop);
             }
@@ -136,7 +136,7 @@ namespace pg
         if (localIndex != -1)
         {
             // Mark the local as captured
-            // enclosing->locals[localIndex].isCaptured = true;
+            enclosing->locals[localIndex].isCaptured = true;
             return addUpvalue(localIndex, true);
         }
 

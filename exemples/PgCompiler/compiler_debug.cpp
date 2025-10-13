@@ -316,6 +316,9 @@ namespace pg
             case OpCode::OP_Set_Upvalue:
                 return byteInstruction("OP_Set_Upvalue", chunk, offset);
 
+            case OpCode::OP_Close_Upvalue:
+                return simpleInstruction("OP_Close_Upvalue", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

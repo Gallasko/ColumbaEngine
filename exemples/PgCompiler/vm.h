@@ -510,6 +510,8 @@ namespace pg
 
         ObjUpvalue* captureUpvalue(Value* local);
 
+        void closeUpvalues(Value* last);
+
         bool callValue(const Value& callee, int argCount);
 
         bool call(Closure* closure, int argCount);
@@ -531,6 +533,8 @@ namespace pg
         // Bytecode optimization
         PassManager passManager;
         bool enableOptimizations = true;
+
+        ObjUpvalue* openUpvalues = nullptr;
 
         // Optimization control methods
         void enableBytecodeOptimization()

@@ -132,6 +132,7 @@ namespace pg
                     }
 #endif
                     auto value = pop();
+                    closeUpvalues(currentFrame->slots);
                     frameCount--;
 
                     if (frameCount == 0)
@@ -997,6 +998,19 @@ namespace pg
                     break;
                 }
 
+                case OpCode::OP_Close_Upvalue:
+                {
+#ifdef DEBUG_CHECK_STACK
+                    if (stack.empty())
+                    {
+                        EMIT_RUNTIME_ERROR("Stack underflow on closing upvalue.");
+                    }
+#endif
+                    closeUpvalues(&stack[stack.size() - 1]);
+                    pop();
+                    break;
+                }
+
                 default:
                     std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
                     return InterpretResult::RUNTIME_ERROR;
@@ -1124,37 +1138,44 @@ namespace pg
 
     ObjUpvalue* VM::captureUpvalue(Value* local)
     {
-        auto* upvalue = new ObjUpvalue(local);
+        ObjUpvalue* prevUpvalue = nullptr;
+        ObjUpvalue* upvalue = openUpvalues;
 
-        return upvalue;
+        while (upvalue != nullptr and upvalue->location > local)
+        {
+            prevUpvalue = upvalue;
+            upvalue = upvalue->next;
+        }
 
-        // ObjUpvalue* prevUpvalue = nullptr;
-        // ObjUpvalue* upvalue = openUpvalues;
+        if (upvalue != nullptr and upvalue->location == local)
+        {
+            return upvalue; // Existing upvalue found
+        }
 
-        // while (upvalue != nullptr and upvalue->location > local)
-        // {
-        //     prevUpvalue = upvalue;
-        //     upvalue = upvalue->next;
-        // }
+        ObjUpvalue* newUpvalue = new ObjUpvalue(local);
+        newUpvalue->next = upvalue;
 
-        // if (upvalue != nullptr and upvalue->location == local)
-        // {
-        //     return upvalue; // Existing upvalue found
-        // }
+        if (prevUpvalue == nullptr)
+        {
+            openUpvalues = newUpvalue;
+        }
+        else
+        {
+            prevUpvalue->next = newUpvalue;
+        }
 
-        // ObjUpvalue* newUpvalue = new ObjUpvalue(local);
-        // newUpvalue->next = upvalue;
+        return newUpvalue;
+    }
 
-        // if (prevUpvalue == nullptr)
-        // {
-        //     openUpvalues = newUpvalue;
-        // }
-        // else
-        // {
-        //     prevUpvalue->next = newUpvalue;
-        // }
-
-        // return newUpvalue;
+    void VM::closeUpvalues(Value* last)
+    {
+        while (openUpvalues != nullptr and openUpvalues->location >= last)
+        {
+            ObjUpvalue* upvalue = openUpvalues;
+            upvalue->closed = copyValue(*upvalue->location);
+            upvalue->location = &upvalue->closed;
+            openUpvalues = upvalue->next;
+        }
     }
 
     bool VM::callValue(const Value& callee, int argCount)
