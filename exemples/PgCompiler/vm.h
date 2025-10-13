@@ -14,7 +14,7 @@
 #include <functional>
 
 // Todo add this as a flag in when compiling in debug
-// #define DEBUG_TRACE_EXECUTION
+#define DEBUG_TRACE_EXECUTION
 
 #define DEBUG_CHECK_STACK
 
@@ -122,7 +122,7 @@ namespace pg
         {
             Value val = pop();
             ElementType result = valueToElement(val);
-            freeValue(val);  // Clean up any heap allocation
+            // Note: No cleanup here - caller is responsible for managing Value lifecycle
 
             return result;
         }
@@ -216,7 +216,12 @@ namespace pg
 
         inline void push(const ElementType& value)
         {
-            stack.push(value);  // Automatically converts to Value
+            Value val = elementToValue(value);
+            // Track if it's a heap object
+            if (IS_OBJ(val) || IS_FUNC(val) || IS_CLOSURE(val) || IS_UPVALUE(val) || IS_NAT_FUNC(val)) {
+                val = trackNewValue(val);
+            }
+            stack.push(val);
         }
 
         Value pop()
@@ -286,7 +291,12 @@ namespace pg
 
         inline void resetStack()
         {
-            stack.clear();
+            // Use VM's reference counting instead of IndexableStack's clear()
+            while (!stack.empty())
+            {
+                auto value = stack.pop();
+                releaseAndDelete(value);
+            }
         }
 
         void runtimeError(const std::string& message)

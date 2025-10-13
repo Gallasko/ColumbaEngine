@@ -351,8 +351,9 @@ namespace pg
                         EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
                     }
 
-                    globals[name.toString()] = value;
+                    globals[name.toString()] = retainValue(value);
                     releaseAndDelete(nameValue);
+                    releaseAndDelete(value); // Release the local reference since we retained for globals
                     break;
                 }
 
@@ -1048,10 +1049,8 @@ namespace pg
 #endif
 
         Value constant = currentFrame->closure->function->chunk.constants[constantIndex];
-        // Only retain if it's a heap object that needs tracking
-        if (IS_OBJ(constant) || IS_FUNC(constant) || IS_CLOSURE(constant) || IS_UPVALUE(constant) || IS_NAT_FUNC(constant)) {
-            return retainValue(constant);
-        }
+        // Constants are immutable and never reference-counted
+        // Just return them as-is, they'll be cleaned up when the chunk is destroyed
         return constant;
     }
 
@@ -1076,10 +1075,8 @@ namespace pg
 #endif
 
         Value constant = currentFrame->closure->function->chunk.constants[constantIndex];
-        // Only retain if it's a heap object that needs tracking
-        if (IS_OBJ(constant) || IS_FUNC(constant) || IS_CLOSURE(constant) || IS_UPVALUE(constant) || IS_NAT_FUNC(constant)) {
-            return retainValue(constant);
-        }
+        // Constants are immutable and never reference-counted
+        // Just return them as-is, they'll be cleaned up when the chunk is destroyed
         return constant;
     }
 
@@ -1290,6 +1287,9 @@ namespace pg
 
         if (ptr != nullptr) {
             refCounts[ptr]++;
+#ifdef DEBUG_TRACE_EXECUTION
+            std::cout << "[DEBUG] RETAIN " << ptr << " -> refcount=" << refCounts[ptr] << std::endl;
+#endif
         }
         return value;
     }
@@ -1312,10 +1312,21 @@ namespace pg
             auto it = refCounts.find(ptr);
             if (it != refCounts.end()) {
                 it->second--;
+#ifdef DEBUG_TRACE_EXECUTION
+                std::cout << "[DEBUG] RELEASE " << ptr << " -> refcount=" << it->second << std::endl;
+#endif
                 if (it->second <= 0) {
+#ifdef DEBUG_TRACE_EXECUTION
+                    std::cout << "[DEBUG] DELETE " << ptr << std::endl;
+#endif
                     refCounts.erase(it);
                     return true; // Should delete
                 }
+            } else {
+                // Object is not tracked - it's likely a constant, so don't try to delete it
+#ifdef DEBUG_TRACE_EXECUTION
+                std::cout << "[DEBUG] RELEASE " << ptr << " -> NOT TRACKED (likely constant)" << std::endl;
+#endif
             }
         }
         return false; // Don't delete
@@ -1382,6 +1393,9 @@ namespace pg
 
         if (ptr != nullptr) {
             refCounts[ptr] = 1; // Start with refcount=1
+#ifdef DEBUG_TRACE_EXECUTION
+            std::cout << "[DEBUG] TRACK_NEW " << ptr << " -> refcount=1" << std::endl;
+#endif
         }
         return value;
     }
