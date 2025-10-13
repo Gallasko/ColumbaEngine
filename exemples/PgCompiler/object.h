@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <vector>
 
 #include "Memory/elementtype.h"
 
@@ -16,9 +17,21 @@ namespace pg
         NativeFn function;
     };
 
+    struct ObjUpvalue
+    {
+        ObjUpvalue(Value* slot) : location(slot) {}
+
+        Value* location;
+        // Value closed;
+        // ObjUpvalue* next;
+    };
+
     struct Closure
     {
+        Closure(ObjFunction* func);
+
         ObjFunction* function;
+        std::vector<ObjUpvalue*> upvalues;
         // Upvalues would go here for a full implementation
     };
 
@@ -51,6 +64,7 @@ namespace pg
         COMPILER_VAL_FUNC,
         COMPILER_VAL_NATIVE,
         COMPILER_VAL_CLOSURE,
+        COMPILER_VAL_UPVALUE,
     };
 
     struct Value
@@ -63,6 +77,7 @@ namespace pg
             ObjFunction* function;
             NativeFunction* nativeFunc;
             Closure* closure;
+            ObjUpvalue* upvalue;
         } as;
     };
 
@@ -73,6 +88,7 @@ namespace pg
     #define IS_FUNC(value)          ((value).type == COMPILER_VAL_FUNC)
     #define IS_NAT_FUNC(value)      ((value).type == COMPILER_VAL_NATIVE)
     #define IS_CLOSURE(value)       ((value).type == COMPILER_VAL_CLOSURE)
+    #define IS_UPVALUE(value)       ((value).type == COMPILER_VAL_UPVALUE)
 
     // Fast value extraction macros (direct memory access)
     #define AS_BOOL(value)      ((value).as.boolean)
@@ -81,6 +97,7 @@ namespace pg
     #define AS_FUNC(value)      ((value).as.function)
     #define AS_NAT_FUNC(value)  ((value).as.nativeFunc)
     #define AS_CLOSURE(value)   ((value).as.closure)
+    #define AS_UPVALUE(value)   ((value).as.upvalue)
 
     struct CallFrame
     {
@@ -138,6 +155,14 @@ namespace pg
         return result;
     }
 
+    inline Value makeUpvalueValue(ObjUpvalue* upvalue)
+    {
+        Value result;
+        result.type = COMPILER_VAL_UPVALUE;
+        result.as.upvalue = upvalue;
+        return result;
+    }
+
     // Convenience macros
     #define BOOL_VAL(value)      makeBoolValue(value)
     #define INT_VAL(value)       makeIntValue(value)
@@ -145,6 +170,7 @@ namespace pg
     #define FUNC_VAL(func)       makeFuncValue(func)
     #define NATIVE_VAL(func)     makeNativeFuncValue(func)
     #define CLOSURE_VAL(closure) makeClosureValue(closure)
+    #define UPVALUE_VAL(upvalue) makeUpvalueValue(upvalue)
 
     // Convert ElementType to optimized Value (minimize heap allocation)
     inline Value elementToValue(const ElementType& element)
@@ -176,7 +202,9 @@ namespace pg
             return value;
         else if (IS_CLOSURE(value))
             return value; // Todo: deep copy closure if needed
-            // For heap objects, create a new copy
+        else if (IS_UPVALUE(value))
+            return value; // Upvalues are pointers, just copy
+        // For heap objects, create a new copy
         else
             return OBJ_VAL(new ElementType(*AS_OBJ(value)));
     }
@@ -207,6 +235,7 @@ namespace pg
             case COMPILER_VAL_FUNC:
             case COMPILER_VAL_NATIVE:
             case COMPILER_VAL_CLOSURE:
+            case COMPILER_VAL_UPVALUE:
                 throw std::runtime_error("Cannot convert function Value to ElementType");
         }
 

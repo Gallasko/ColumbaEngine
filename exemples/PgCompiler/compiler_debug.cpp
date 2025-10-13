@@ -35,6 +35,10 @@ namespace pg
                 std::cout << "<null closure>";
             }
         }
+        else if (IS_UPVALUE(value))
+        {
+            std::cout << "<upvalue>";
+        }
         else
         {
             std::cout << valueToElement(value).toString();

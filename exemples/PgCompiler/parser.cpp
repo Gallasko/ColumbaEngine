@@ -131,7 +131,7 @@ namespace pg
             setOp = OpCode::OP_Set_Local;
             getOp = OpCode::OP_Get_Local;
         }
-        else if (Compiler::current->resolveUpvalue(parser.previousToken) != -1)
+        else if ((arg = Compiler::current->resolveUpvalue(parser.previousToken)) != -1)
         {
             setOp = OpCode::OP_Set_Upvalue;
             getOp = OpCode::OP_Get_Upvalue;
@@ -841,8 +841,8 @@ namespace pg
 
         for (int i = 0; i < function->upvalueCount; i++)
         {
-            writeByte(Compiler::current->upvalues[i].isLocal ? 1 : 0);
-            writeByte(Compiler::current->upvalues[i].index);
+            writeByte(compiler.upvalues[i].isLocal ? 1 : 0);
+            writeByte(compiler.upvalues[i].index);
         }
     }
 
