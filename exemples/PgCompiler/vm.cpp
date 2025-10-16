@@ -103,7 +103,7 @@ namespace pg
 
         for (;;)
         {
-            if (checkIpAgainstStack(0))
+            if (checkIpForLoopExit())
             {
                 return InterpretResult::OK;
             }
@@ -483,10 +483,12 @@ namespace pg
                     if (not isValueTrue(condition))
                     {
                         currentFrame->ip += jumpOffset;
+#ifdef DEBUG_CHECK_STACK
                         if (checkIpAgainstStack(1))
                         {
                             EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                         }
+#endif
                     }
 
                     break;
@@ -512,10 +514,12 @@ namespace pg
                     if (not isValueTrue(condition))
                     {
                         currentFrame->ip += jumpOffset;
+#ifdef DEBUG_CHECK_STACK
                         if (checkIpAgainstStack(1))
                         {
                             EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                         }
+#endif
                     }
 
                     break;
@@ -532,10 +536,12 @@ namespace pg
                     uint16_t jumpOffset = readUint16();
 
                     currentFrame->ip += jumpOffset;
+#ifdef DEBUG_CHECK_STACK
                     if (checkIpAgainstStack(1))
                     {
                         EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                     }
+#endif
 
                     break;
                 }
@@ -551,10 +557,12 @@ namespace pg
                     uint32_t jumpOffset = readUint32();
 
                     currentFrame->ip += jumpOffset;
+#ifdef DEBUG_CHECK_STACK
                     if (checkIpAgainstStack(1))
                     {
                         EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
                     }
+#endif
 
                     break;
                 }
