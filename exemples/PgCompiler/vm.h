@@ -14,9 +14,9 @@
 #include <functional>
 
 // Todo add this as a flag in when compiling in debug
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
-#define DEBUG_CHECK_STACK
+// #define DEBUG_CHECK_STACK
 
 #define DEBUG_PROFILE_COMPILE
 
@@ -272,16 +272,9 @@ namespace pg
             return value;
         }
 
-        inline uint8_t advanceIp()
-        {
-            auto offset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
-            currentFrame->ip++;
-            return offset;
-        }
-
         inline uint8_t readByte()
         {
-            return currentFrame->closure->function->chunk.code[advanceIp()];
+            return *(currentFrame->ip++);
         }
 
         inline bool checkIpAgainstStack(uint8_t ahead)
@@ -336,10 +329,10 @@ namespace pg
         bool call(Closure* closure, int argCount);
 
         // Reference counting methods
-        Value retainValue(const Value& value);   // Returns the value after retaining
-        bool releaseValue(const Value& value);   // Returns true if should delete
+        inline Value retainValue(const Value& value);   // Returns the value after retaining
+        inline bool releaseValue(const Value& value);   // Returns true if should delete
         void deleteValue(const Value& value);    // Actually delete the object
-        Value trackNewValue(const Value& value); // Track newly created object with refcount=1
+        inline Value trackNewValue(const Value& value); // Track newly created object with refcount=1
         int getValueRefCount(const Value& value) const;
         size_t getTotalTrackedObjects() const { return refCounts.size(); }
 
@@ -450,4 +443,83 @@ namespace pg
             currentFrame = &frames[0];
         }
     };
+
+    // Inline implementations for critical performance functions
+    inline Value VM::retainValue(const Value& value)
+    {
+        // Fast path for primitives - no function call overhead
+        if (IS_INT(value) || IS_BOOL(value))
+            return value;
+
+        // Extract pointer from Value based on type
+        void* ptr = nullptr;
+        switch(value.type)
+        {
+            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            default: return value; // Already handled above, but safety
+        }
+
+        if (ptr != nullptr) {
+            refCounts[ptr]++;
+        }
+        return value;
+    }
+
+    inline bool VM::releaseValue(const Value& value)
+    {
+        // Fast path for primitives - no cleanup needed
+        if (IS_INT(value) || IS_BOOL(value))
+            return false;
+
+        // Extract pointer from Value based on type
+        void* ptr = nullptr;
+        switch(value.type)
+        {
+            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            default: return false; // Already handled above
+        }
+
+        if (ptr != nullptr) {
+            auto it = refCounts.find(ptr);
+            if (it != refCounts.end()) {
+                it->second--;
+                if (it->second <= 0) {
+                    refCounts.erase(it);
+                    return true; // Should delete
+                }
+            }
+        }
+        return false; // Don't delete
+    }
+
+    inline Value VM::trackNewValue(const Value& value)
+    {
+        // Fast path for primitives - no tracking needed
+        if (IS_INT(value) || IS_BOOL(value))
+            return value;
+
+        // For newly created objects, start with refcount=1
+        void* ptr = nullptr;
+        switch(value.type) {
+            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            default: return value; // Already handled above
+        }
+
+        if (ptr != nullptr) {
+            refCounts[ptr] = 1; // Start with refcount=1
+        }
+        return value;
+    }
 }

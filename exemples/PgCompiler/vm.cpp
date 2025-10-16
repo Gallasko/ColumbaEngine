@@ -1259,78 +1259,6 @@ namespace pg
         return true;
     }
 
-    Value VM::retainValue(const Value& value)
-    {
-        // Extract pointer from Value based on type
-        void* ptr = nullptr;
-        switch(value.type)
-        {
-            case COMPILER_VAL_OBJ:
-                ptr = value.as.obj;
-                break;
-            case COMPILER_VAL_FUNC:
-                ptr = value.as.function;
-                break;
-            case COMPILER_VAL_CLOSURE:
-                ptr = value.as.closure;
-                break;
-            case COMPILER_VAL_UPVALUE:
-                ptr = value.as.upvalue;
-                break;
-            case COMPILER_VAL_NATIVE:
-                ptr = value.as.nativeFunc;
-                break;
-
-            default:
-                return value; // Primitives don't need ref counting
-        }
-
-        if (ptr != nullptr) {
-            refCounts[ptr]++;
-#ifdef DEBUG_TRACE_EXECUTION
-            std::cout << "[DEBUG] RETAIN " << ptr << " -> refcount=" << refCounts[ptr] << std::endl;
-#endif
-        }
-        return value;
-    }
-
-    bool VM::releaseValue(const Value& value)
-    {
-        // Extract pointer from Value based on type
-        void* ptr = nullptr;
-        switch(value.type)
-        {
-            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
-            default: return false; // Primitives don't need cleanup
-        }
-
-        if (ptr != nullptr) {
-            auto it = refCounts.find(ptr);
-            if (it != refCounts.end()) {
-                it->second--;
-#ifdef DEBUG_TRACE_EXECUTION
-                std::cout << "[DEBUG] RELEASE " << ptr << " -> refcount=" << it->second << std::endl;
-#endif
-                if (it->second <= 0) {
-#ifdef DEBUG_TRACE_EXECUTION
-                    std::cout << "[DEBUG] DELETE " << ptr << std::endl;
-#endif
-                    refCounts.erase(it);
-                    return true; // Should delete
-                }
-            } else {
-                // Object is not tracked - it's likely a constant, so don't try to delete it
-#ifdef DEBUG_TRACE_EXECUTION
-                std::cout << "[DEBUG] RELEASE " << ptr << " -> NOT TRACKED (likely constant)" << std::endl;
-#endif
-            }
-        }
-        return false; // Don't delete
-    }
 
     int VM::getValueRefCount(const Value& value) const
     {
@@ -1378,27 +1306,6 @@ namespace pg
         }
     }
 
-    Value VM::trackNewValue(const Value& value)
-    {
-        // For newly created objects, start with refcount=1
-        void* ptr = nullptr;
-        switch(value.type) {
-            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
-            default: return value; // Primitives don't need tracking
-        }
-
-        if (ptr != nullptr) {
-            refCounts[ptr] = 1; // Start with refcount=1
-#ifdef DEBUG_TRACE_EXECUTION
-            std::cout << "[DEBUG] TRACK_NEW " << ptr << " -> refcount=1" << std::endl;
-#endif
-        }
-        return value;
-    }
 
     void VM::releaseAndDelete(const Value& value)
     {
