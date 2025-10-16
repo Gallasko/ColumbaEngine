@@ -835,6 +835,8 @@ namespace pg
 
         ObjFunction *function = compiler.endCompiler();
 
+        allocatedFunction.push_back(function);
+
         writeByte(OpCode::OP_Closure);
         uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(function);
         writeByte(constantIndex);
