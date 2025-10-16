@@ -282,11 +282,19 @@ namespace pg
             return static_cast<size_t>(currentFrame->ip - chunkData) + ahead >= currentFrame->closure->function->chunk.code.size();
         }
 
+        // Optimized bounds check for release builds - only use for critical loop exit
+        inline bool checkIpForLoopExit()
+        {
+            return currentFrame->ip >= chunkDataEnd;
+        }
+
         // Update cached chunk data pointer when switching functions
         inline void updateChunkCache()
         {
             if (currentFrame && currentFrame->closure) {
-                chunkData = currentFrame->closure->function->chunk.code.data();
+                auto& chunk = currentFrame->closure->function->chunk.code;
+                chunkData = chunk.data();
+                chunkDataEnd = chunk.data() + chunk.size();
             }
         }
 
@@ -372,6 +380,7 @@ namespace pg
 
         // Cache chunk data pointer to avoid repeated vector::data() calls
         uint8_t *chunkData = nullptr;
+        uint8_t *chunkDataEnd = nullptr; // Cached end pointer for fast loop exit check
 
         /* The stack of the VM */
         IndexableStack stack;
