@@ -73,6 +73,18 @@ namespace pg
 
         std::vector<int> lines;
 
+        // Destructor to clean up heap-allocated constants
+        ~Chunk()
+        {
+            for (const Value& constant : constants)
+            {
+                if (constant.type == COMPILER_VAL_OBJ && constant.as.obj != nullptr)
+                {
+                    delete constant.as.obj;  // Free the ElementType* object
+                }
+            }
+        }
+
         size_t addConstant(const Value& value, int line)
         {
             constants.push_back(value);

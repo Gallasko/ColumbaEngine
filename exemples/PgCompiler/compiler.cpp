@@ -23,7 +23,14 @@ namespace pg
         while (not parser.isAtEnd() and not parser.hasError())
             parser.declaration();
 
-        return parser.hasError() ? nullptr : endCompiler();
+        if (parser.hasError())
+            return nullptr;
+
+        auto func = endCompiler();
+
+        parser.allocatedFunction.push_back(func);
+
+        return func;
     }
 
     void Compiler::printTokens(std::queue<Token> tokens)

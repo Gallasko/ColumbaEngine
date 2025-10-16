@@ -40,6 +40,11 @@ namespace pg
     struct Parser
     {
         Parser() {}
+        ~Parser()
+        {
+            for (auto func : allocatedFunction)
+                delete func;
+        }
 
         void parse(std::queue<Token> tokenList) { tokens = tokenList; }
 
@@ -184,6 +189,8 @@ namespace pg
         void setCompiler(Compiler* compiler) { this->compiler = compiler; }
 
         // Members
+        std::vector<ObjFunction*> allocatedFunction; // To keep track of allocated functions for cleanup
+
         Compiler* compiler = nullptr;
 
         bool hadError = false;
