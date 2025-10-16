@@ -279,7 +279,15 @@ namespace pg
 
         inline bool checkIpAgainstStack(uint8_t ahead)
         {
-            return static_cast<size_t>(currentFrame->ip - currentFrame->closure->function->chunk.code.data()) + ahead >= currentFrame->closure->function->chunk.code.size();
+            return static_cast<size_t>(currentFrame->ip - chunkData) + ahead >= currentFrame->closure->function->chunk.code.size();
+        }
+
+        // Update cached chunk data pointer when switching functions
+        inline void updateChunkCache()
+        {
+            if (currentFrame && currentFrame->closure) {
+                chunkData = currentFrame->closure->function->chunk.code.data();
+            }
         }
 
         inline void resetStack()
@@ -295,6 +303,8 @@ namespace pg
         void runtimeError(const std::string& message)
         {
             LOG_ERROR("VM", message);
+
+            // No sync needed - using frame IP directly
 
             for (int i = frameCount - 1; i >= 0; i--)
             {
@@ -359,6 +369,9 @@ namespace pg
         CallFrame *currentFrame = nullptr;
 
         int frameCount = 0;
+
+        // Cache chunk data pointer to avoid repeated vector::data() calls
+        uint8_t *chunkData = nullptr;
 
         /* The stack of the VM */
         IndexableStack stack;

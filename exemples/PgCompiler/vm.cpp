@@ -97,6 +97,9 @@ namespace pg
         if (currentFrame->closure->function->chunk.code.empty())
             return InterpretResult::OK;
 
+        // Cache chunk data pointer to avoid repeated vector::data() calls
+        updateChunkCache();
+
 
         for (;;)
         {
@@ -115,6 +118,7 @@ namespace pg
             }
             std::cout << std::endl;
 
+            // No sync needed - using frame IP directly
             disassembleInstruction(currentFrame->closure->function->chunk, currentFrame->ip - currentFrame->closure->function->chunk.code.data());
 #endif
             uint8_t opcode_byte = readByte();
@@ -148,6 +152,7 @@ namespace pg
                     // Update current frame first, then clean up stack
                     CallFrame* returningFrame = currentFrame;
                     currentFrame = &frames[frameCount - 1];
+                    updateChunkCache(); // Update cached chunk data for returning frame
 
                     while (stack.data() + stack.size() > returningFrame->slots)
                     {
@@ -564,6 +569,7 @@ namespace pg
 #endif
                     uint16_t loopOffset = readUint16();
 #ifdef DEBUG_CHECK_STACK
+                    // No sync needed - using frame IP directly
                     if (loopOffset > (currentFrame->ip - currentFrame->closure->function->chunk.code.data()))
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
@@ -583,6 +589,7 @@ namespace pg
 #endif
                     uint32_t loopOffset = readUint32();
 #ifdef DEBUG_CHECK_STACK
+                    // No sync needed - using frame IP directly
                     if (loopOffset > (currentFrame->ip - currentFrame->closure->function->chunk.code.data()))
                     {
                         EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
@@ -956,6 +963,7 @@ namespace pg
                     frames[frameCount - 1].slots = stack.data() + stack.size() - argCount;
 
                     currentFrame = &frames[frameCount - 1];
+                    updateChunkCache(); // Update cached chunk data for new frame
                     break;
                 }
 
