@@ -1336,21 +1336,30 @@ namespace pg
         if (IS_INT(a) and IS_INT(b))
             return INT_VAL(AS_INT(a) + AS_INT(b));
 
-        // Handle mixed int/float cases without ElementType conversion
+        // Fast path for floats
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return FLOAT_VAL(AS_FLOAT(a) + AS_FLOAT(b));
+
+        // Mixed int/float cases - promote to float
+        if (IS_INT(a) and IS_FLOAT(b))
+            return FLOAT_VAL(static_cast<double>(AS_INT(a)) + AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return FLOAT_VAL(AS_FLOAT(a) + static_cast<double>(AS_INT(b)));
+
+        // Handle legacy object-based floats (for compatibility)
         if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
         {
-            // int + float -> convert int to float and return float result
-            float floatA = static_cast<float>(AS_INT(a));
-            float floatB = (*AS_OBJ(b)).get<float>();
-            return trackNewValue(OBJ_VAL(new ElementType(floatA + floatB)));
+            double floatA = static_cast<double>(AS_INT(a));
+            double floatB = (*AS_OBJ(b)).get<float>();
+            return FLOAT_VAL(floatA + floatB);
         }
 
         if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
         {
-            // float + int -> convert int to float and return float result
-            float floatA = (*AS_OBJ(a)).get<float>();
-            float floatB = static_cast<float>(AS_INT(b));
-            return trackNewValue(OBJ_VAL(new ElementType(floatA + floatB)));
+            double floatA = (*AS_OBJ(a)).get<float>();
+            double floatB = static_cast<double>(AS_INT(b));
+            return FLOAT_VAL(floatA + floatB);
         }
 
         // Disallow functions
@@ -1369,19 +1378,30 @@ namespace pg
         if (IS_INT(a) and IS_INT(b))
             return INT_VAL(AS_INT(a) - AS_INT(b));
 
-        // Handle mixed int/float cases without ElementType conversion
+        // Fast path for floats
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return FLOAT_VAL(AS_FLOAT(a) - AS_FLOAT(b));
+
+        // Mixed int/float cases - promote to float
+        if (IS_INT(a) and IS_FLOAT(b))
+            return FLOAT_VAL(static_cast<double>(AS_INT(a)) - AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return FLOAT_VAL(AS_FLOAT(a) - static_cast<double>(AS_INT(b)));
+
+        // Handle legacy object-based floats (for compatibility)
         if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
         {
-            float floatA = static_cast<float>(AS_INT(a));
-            float floatB = (*AS_OBJ(b)).get<float>();
-            return trackNewValue(OBJ_VAL(new ElementType(floatA - floatB)));
+            double floatA = static_cast<double>(AS_INT(a));
+            double floatB = (*AS_OBJ(b)).get<float>();
+            return FLOAT_VAL(floatA - floatB);
         }
 
         if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
         {
-            float floatA = (*AS_OBJ(a)).get<float>();
-            float floatB = static_cast<float>(AS_INT(b));
-            return trackNewValue(OBJ_VAL(new ElementType(floatA - floatB)));
+            double floatA = (*AS_OBJ(a)).get<float>();
+            double floatB = static_cast<double>(AS_INT(b));
+            return FLOAT_VAL(floatA - floatB);
         }
 
         // Disallow functions
@@ -1396,13 +1416,41 @@ namespace pg
 
     Value VM::multiplyValues(const Value& a, const Value& b)
     {
+        // Fast path for integers
         if (IS_INT(a) and IS_INT(b))
             return INT_VAL(AS_INT(a) * AS_INT(b));
 
+        // Fast path for floats
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return FLOAT_VAL(AS_FLOAT(a) * AS_FLOAT(b));
+
+        // Mixed int/float cases - promote to float
+        if (IS_INT(a) and IS_FLOAT(b))
+            return FLOAT_VAL(static_cast<double>(AS_INT(a)) * AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return FLOAT_VAL(AS_FLOAT(a) * static_cast<double>(AS_INT(b)));
+
+        // Handle legacy object-based floats (for compatibility)
+        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
+        {
+            double floatA = static_cast<double>(AS_INT(a));
+            double floatB = (*AS_OBJ(b)).get<float>();
+            return FLOAT_VAL(floatA * floatB);
+        }
+
+        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
+        {
+            double floatA = (*AS_OBJ(a)).get<float>();
+            double floatB = static_cast<double>(AS_INT(b));
+            return FLOAT_VAL(floatA * floatB);
+        }
+
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot multiply function Values");
 
+        // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return trackNewValue(elementToValue(elemA * elemB));
@@ -1410,13 +1458,43 @@ namespace pg
 
     Value VM::divideValues(const Value& a, const Value& b)
     {
+        // Fast path for integers
         if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
             return INT_VAL(AS_INT(a) / AS_INT(b));
 
+        // Fast path for floats
+        if (IS_FLOAT(a) and IS_FLOAT(b) and AS_FLOAT(b) != 0.0)
+            return FLOAT_VAL(AS_FLOAT(a) / AS_FLOAT(b));
+
+        // Mixed int/float cases - promote to float
+        if (IS_INT(a) and IS_FLOAT(b) and AS_FLOAT(b) != 0.0)
+            return FLOAT_VAL(static_cast<double>(AS_INT(a)) / AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b) and AS_INT(b) != 0)
+            return FLOAT_VAL(AS_FLOAT(a) / static_cast<double>(AS_INT(b)));
+
+        // Handle legacy object-based floats (for compatibility)
+        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
+        {
+            double floatA = static_cast<double>(AS_INT(a));
+            double floatB = (*AS_OBJ(b)).get<float>();
+            if (floatB != 0.0)
+                return FLOAT_VAL(floatA / floatB);
+        }
+
+        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
+        {
+            double floatA = (*AS_OBJ(a)).get<float>();
+            double floatB = static_cast<double>(AS_INT(b));
+            if (floatB != 0.0)
+                return FLOAT_VAL(floatA / floatB);
+        }
+
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot divide function Values");
 
+        // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return trackNewValue(elementToValue(elemA / elemB));
@@ -1424,12 +1502,17 @@ namespace pg
 
     Value VM::negateValue(const Value& val)
     {
+        // Fast path for integers
         if (IS_INT(val))
             return INT_VAL(-AS_INT(val));
 
+        // Fast path for floats
+        if (IS_FLOAT(val))
+            return FLOAT_VAL(-AS_FLOAT(val));
+
         // Disallow functions
         if (IS_FUNC(val))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot negate function Values");
 
         ElementType elem = valueToElement(val);
         return trackNewValue(elementToValue(-elem));
@@ -1439,6 +1522,15 @@ namespace pg
     {
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) == AS_INT(b));
+
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return BOOL_VAL(AS_FLOAT(a) == AS_FLOAT(b));
+
+        if (IS_INT(a) and IS_FLOAT(b))
+            return BOOL_VAL(static_cast<double>(AS_INT(a)) == AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return BOOL_VAL(AS_FLOAT(a) == static_cast<double>(AS_INT(b)));
 
         if (IS_BOOL(a) and IS_BOOL(b))
             return BOOL_VAL(AS_BOOL(a) == AS_BOOL(b));
@@ -1474,6 +1566,15 @@ namespace pg
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) > AS_INT(b));
 
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return BOOL_VAL(AS_FLOAT(a) > AS_FLOAT(b));
+
+        if (IS_INT(a) and IS_FLOAT(b))
+            return BOOL_VAL(static_cast<double>(AS_INT(a)) > AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return BOOL_VAL(AS_FLOAT(a) > static_cast<double>(AS_INT(b)));
+
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot add function Values");
@@ -1501,6 +1602,15 @@ namespace pg
     {
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) < AS_INT(b));
+
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return BOOL_VAL(AS_FLOAT(a) < AS_FLOAT(b));
+
+        if (IS_INT(a) and IS_FLOAT(b))
+            return BOOL_VAL(static_cast<double>(AS_INT(a)) < AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return BOOL_VAL(AS_FLOAT(a) < static_cast<double>(AS_INT(b)));
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))

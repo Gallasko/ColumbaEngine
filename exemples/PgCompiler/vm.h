@@ -29,7 +29,7 @@ namespace pg
 
     inline bool isValueNumber(const Value& val)
     {
-        if (IS_INT(val))
+        if (IS_INT(val) || IS_FLOAT(val))
             return true;
 
         if (IS_OBJ(val))
@@ -45,6 +45,9 @@ namespace pg
 
         if (IS_INT(val))
             return AS_INT(val) != 0;
+
+        if (IS_FLOAT(val))
+            return AS_FLOAT(val) != 0.0;
 
         if (IS_OBJ(val))
             return AS_OBJ(val)->isTrue();
@@ -73,17 +76,8 @@ namespace pg
     private:
         static constexpr size_t MAX_STACK_SIZE = FRAMES_MAX * 4096; // Callstack * 4K elements max
         alignas(Value) char stack_memory[MAX_STACK_SIZE * sizeof(Value)];
+        Value* stack_values = reinterpret_cast<Value*>(stack_memory); // Cached pointer for fast access
         size_t stack_top = 0;
-
-        Value* stack_data()
-        {
-            return reinterpret_cast<Value*>(stack_memory);
-        }
-
-        const Value* stack_data() const
-        {
-            return reinterpret_cast<const Value*>(stack_memory);
-        }
 
     public:
         // Direct Value operations (fast path)
@@ -92,7 +86,7 @@ namespace pg
             if (stack_top >= MAX_STACK_SIZE)
                 throw std::runtime_error("Stack overflow");
 
-            stack_data()[stack_top++] = value;  // Simple assignment, no constructor
+            stack_values[stack_top++] = value;  // Direct access, no function call
         }
 
         // Legacy ElementType support (converts to Value)
@@ -111,7 +105,7 @@ namespace pg
             if (stack_top == 0)
                 throw std::runtime_error("Trying to pop on an empty stack");
 
-            Value value = stack_data()[stack_top - 1];
+            Value value = stack_values[stack_top - 1];
             stack_top--;  // No destructor needed for POD-like Value
 
             return value;
@@ -127,15 +121,15 @@ namespace pg
             return result;
         }
 
-        Value& operator[](size_t index) { return stack_data()[index]; }
-        const Value& operator[](size_t index) const { return stack_data()[index]; }
+        Value& operator[](size_t index) { return stack_values[index]; }
+        const Value& operator[](size_t index) const { return stack_values[index]; }
 
         Value top() const
         {
             if (stack_top == 0)
                 throw std::runtime_error("Stack is empty");
 
-            return stack_data()[stack_top - 1];
+            return stack_values[stack_top - 1];
         }
 
         // For legacy compatibility
@@ -148,15 +142,15 @@ namespace pg
         size_t size() const { return stack_top; }
 
         // Get pointer to stack data for frame slots
-        Value* data() { return stack_data(); }
-        const Value* data() const { return stack_data(); }
+        Value* data() { return stack_values; }
+        const Value* data() const { return reinterpret_cast<const Value*>(stack_memory); }
 
         void clear()
         {
             // Clean up any heap-allocated objects
             while (stack_top > 0)
             {
-                freeValue(stack_data()[--stack_top]);
+                freeValue(stack_values[--stack_top]);
             }
         }
     };
@@ -470,7 +464,7 @@ namespace pg
     inline Value VM::retainValue(const Value& value)
     {
         // Fast path for primitives - no function call overhead
-        if (IS_INT(value) || IS_BOOL(value))
+        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
             return value;
 
         // Extract pointer from Value based on type
@@ -494,7 +488,7 @@ namespace pg
     inline bool VM::releaseValue(const Value& value)
     {
         // Fast path for primitives - no cleanup needed
-        if (IS_INT(value) || IS_BOOL(value))
+        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
             return false;
 
         // Extract pointer from Value based on type
@@ -525,7 +519,7 @@ namespace pg
     inline Value VM::trackNewValue(const Value& value)
     {
         // Fast path for primitives - no tracking needed
-        if (IS_INT(value) || IS_BOOL(value))
+        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
             return value;
 
         // For newly created objects, start with refcount=1
