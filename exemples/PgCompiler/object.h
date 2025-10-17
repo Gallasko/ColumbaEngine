@@ -35,6 +35,14 @@ namespace pg
         // Additional class metadata would go here
     };
 
+    struct ObjInstance
+    {
+        ObjInstance(Klass* klass) : klass(klass) {}
+
+        Klass* klass;
+        // Instance fields would go here
+    };
+
     enum class FunctionType
     {
         TYPE_FUNCTION,
@@ -67,6 +75,7 @@ namespace pg
         COMPILER_VAL_CLOSURE,
         COMPILER_VAL_UPVALUE,
         COMPILER_VAL_CLASS,
+        COMPILER_VAL_INSTANCE,
     };
 
     struct Value
@@ -82,6 +91,7 @@ namespace pg
             Closure* closure;
             ObjUpvalue* upvalue;
             Klass* klass;
+            ObjInstance* instance;
         } as;
     };
 
@@ -95,6 +105,7 @@ namespace pg
     #define IS_CLOSURE(value)       ((value).type == COMPILER_VAL_CLOSURE)
     #define IS_UPVALUE(value)       ((value).type == COMPILER_VAL_UPVALUE)
     #define IS_CLASS(value)         ((value).type == COMPILER_VAL_CLASS)
+    #define IS_INSTANCE(value)      ((value).type == COMPILER_VAL_INSTANCE)
 
     // Fast value extraction macros (direct memory access)
     #define AS_BOOL(value)      ((value).as.boolean)
@@ -106,6 +117,7 @@ namespace pg
     #define AS_CLOSURE(value)   ((value).as.closure)
     #define AS_UPVALUE(value)   ((value).as.upvalue)
     #define AS_CLASS(value)     ((value).as.klass)
+    #define AS_INSTANCE(value)  ((value).as.instance)
 
     struct CallFrame
     {
@@ -187,16 +199,25 @@ namespace pg
         return result;
     }
 
+    inline Value makeInstanceValue(ObjInstance* instance)
+    {
+        Value result;
+        result.type = COMPILER_VAL_INSTANCE;
+        result.as.instance = instance;
+        return result;
+    }
+
     // Convenience macros
-    #define BOOL_VAL(value)      makeBoolValue(value)
-    #define INT_VAL(value)       makeIntValue(value)
-    #define FLOAT_VAL(value)     makeFloatValue(value)
-    #define OBJ_VAL(object)      makeObjValue(object)
-    #define FUNC_VAL(func)       makeFuncValue(func)
-    #define NATIVE_VAL(func)     makeNativeFuncValue(func)
-    #define CLOSURE_VAL(closure) makeClosureValue(closure)
-    #define UPVALUE_VAL(upvalue) makeUpvalueValue(upvalue)
-    #define CLASS_VAL(klass)     makeClassValue(klass)
+    #define BOOL_VAL(value)        makeBoolValue(value)
+    #define INT_VAL(value)         makeIntValue(value)
+    #define FLOAT_VAL(value)       makeFloatValue(value)
+    #define OBJ_VAL(object)        makeObjValue(object)
+    #define FUNC_VAL(func)         makeFuncValue(func)
+    #define NATIVE_VAL(func)       makeNativeFuncValue(func)
+    #define CLOSURE_VAL(closure)   makeClosureValue(closure)
+    #define UPVALUE_VAL(upvalue)   makeUpvalueValue(upvalue)
+    #define CLASS_VAL(klass)       makeClassValue(klass)
+    #define INSTANCE_VAL(instance) makeInstanceValue(instance)
 
     struct ObjUpvalue
     {
@@ -251,6 +272,8 @@ namespace pg
             return value; // Upvalues are pointers, just copy
         else if (IS_CLASS(value))
             return value; // Classes are pointers, just copy
+        else if (IS_INSTANCE(value))
+            return value; // Instances are pointers, just copy
         // For heap objects, create a new copy
         else
             return OBJ_VAL(new ElementType(*AS_OBJ(value)));
@@ -288,6 +311,7 @@ namespace pg
             case COMPILER_VAL_CLOSURE:
             case COMPILER_VAL_UPVALUE:
             case COMPILER_VAL_CLASS:
+            case COMPILER_VAL_INSTANCE:
                 throw std::runtime_error("Cannot convert function Value to ElementType");
         }
 
