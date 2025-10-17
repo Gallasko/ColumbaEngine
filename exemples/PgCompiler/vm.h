@@ -223,9 +223,6 @@ namespace pg
 
         InterpretResult run();
 
-        Value readConstant();
-        Value readLongConstant();
-
         // Core Value operations for performance
         inline void push(const Value& value)
         {
@@ -258,52 +255,6 @@ namespace pg
                 throw std::runtime_error("Trying to peek too far in the stack");
 #endif
             return stack[stack.size() - 1 - distance];
-        }
-
-        uint16_t readUint16()
-        {
-#ifdef DEBUG_CHECK_STACK
-            if (checkIpAgainstStack(1))
-            {
-                throw std::runtime_error("Not enough bytes to read uint16.");
-            }
-#endif
-            uint16_t value = (static_cast<uint16_t>(readByte()) << 8);
-            value |= static_cast<uint16_t>(readByte());
-
-            return value;
-        }
-
-        uint32_t readUint32()
-        {
-#ifdef DEBUG_CHECK_STACK
-            if (checkIpAgainstStack(3))
-            {
-                throw std::runtime_error("Not enough bytes to read uint32.");
-            }
-#endif
-            uint32_t value = (static_cast<uint32_t>(readByte()) << 24);
-            value |= (static_cast<uint32_t>(readByte()) << 16);
-            value |= (static_cast<uint32_t>(readByte()) << 8);
-            value |= static_cast<uint32_t>(readByte());
-
-            return value;
-        }
-
-        inline uint8_t readByte()
-        {
-            return *(currentFrame->ip++);
-        }
-
-        inline bool checkIpAgainstStack(uint8_t ahead)
-        {
-            return static_cast<size_t>(currentFrame->ip - chunkData) + ahead >= currentFrame->closure->function->chunk.code.size();
-        }
-
-        // Optimized bounds check for release builds - only use for critical loop exit
-        inline bool checkIpForLoopExit()
-        {
-            return currentFrame->ip >= chunkDataEnd;
         }
 
         // Update cached chunk data pointer when switching functions
