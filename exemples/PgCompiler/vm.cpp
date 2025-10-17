@@ -202,50 +202,6 @@ namespace pg
         return exit_result;
     }
 
-    Value VM::readConstant()
-    {
-        uint8_t constantIndex = readByte();
-
-#ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= currentFrame->closure->function->chunk.constants.size())
-        {
-            throw std::runtime_error("Constant index out of bounds.");
-        }
-#endif
-
-        Value constant = currentFrame->closure->function->chunk.constants[constantIndex];
-        // Constants are immutable and never reference-counted
-        // Just return them as-is, they'll be cleaned up when the chunk is destroyed
-        return constant;
-    }
-
-    Value VM::readLongConstant()
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (checkIpAgainstStack(2))
-        {
-            throw std::runtime_error("Not enough bytes to read long constant index.");
-        }
-#endif
-
-        uint32_t constantIndex = (static_cast<uint32_t>(readByte()) << 16);
-        constantIndex |= (static_cast<uint32_t>(readByte()) << 8);
-        constantIndex |= static_cast<uint32_t>(readByte());
-
-#ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= currentFrame->closure->function->chunk.constants.size())
-        {
-            throw std::runtime_error("Long constant index out of bounds.");
-        }
-#endif
-
-        Value constant = currentFrame->closure->function->chunk.constants[constantIndex];
-        // Constants are immutable and never reference-counted
-        // Just return them as-is, they'll be cleaned up when the chunk is destroyed
-        return constant;
-    }
-
-
     ObjUpvalue* VM::captureUpvalue(Value* local)
     {
         ObjUpvalue* prevUpvalue = nullptr;
@@ -346,7 +302,6 @@ namespace pg
         return true;
     }
 
-
     int VM::getValueRefCount(const Value& value) const
     {
         void* ptr = nullptr;
@@ -392,7 +347,6 @@ namespace pg
                 break;
         }
     }
-
 
     void VM::releaseAndDelete(const Value& value)
     {
