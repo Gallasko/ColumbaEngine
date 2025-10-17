@@ -19,7 +19,7 @@
 #include <setjmp.h>
 
 // Todo add this as a flag in when compiling in debug
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
 // #define DEBUG_CHECK_STACK
 
@@ -222,7 +222,6 @@ namespace pg
         InterpretResult interpret(const std::queue<Token>& tokens);
 
         InterpretResult run();
-        InterpretResult run_old(); // Temporary backup of old implementation
 
         Value readConstant();
         Value readLongConstant();

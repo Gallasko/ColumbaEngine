@@ -202,971 +202,6 @@ namespace pg
         return exit_result;
     }
 
-    // Old switch statement (will be removed after verification)
-    InterpretResult VM::run_old()
-    {
-        // Set currentFrame to point to the topmost frame
-        currentFrame = &frames[frameCount - 1];
-
-        if (currentFrame->closure->function->chunk.code.empty())
-            return InterpretResult::OK;
-
-        // Cache chunk data pointer to avoid repeated vector::data() calls
-        updateChunkCache();
-
-
-        for (;;)
-        {
-            if (checkIpForLoopExit())
-            {
-                return InterpretResult::OK;
-            }
-
-#ifdef DEBUG_TRACE_EXECUTION
-            std::cout << "          ";
-            for (size_t i = 0; i < stack.size(); ++i)
-            {
-                std::cout << "[";
-                printValue(stack[i]);
-                std::cout << "] ";
-            }
-            std::cout << std::endl;
-
-            // No sync needed - using frame IP directly
-            disassembleInstruction(currentFrame->closure->function->chunk, currentFrame->ip - currentFrame->closure->function->chunk.code.data());
-#endif
-            uint8_t opcode_byte = readByte();
-            auto instruction = static_cast<OpCode>(opcode_byte);
-
-
-            switch (instruction)
-            {
-                case OpCode::OP_Return:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Nothing in the stack for return.");
-                    }
-#endif
-                    auto value = pop();
-                    closeUpvalues(currentFrame->slots);
-                    frameCount--;
-
-                    if (frameCount == 0)
-                    {
-                        releaseAndDelete(value);
-
-                        auto finalValue = pop();
-                        releaseAndDelete(finalValue);
-
-                        return InterpretResult::OK;
-                    }
-
-                    // Update current frame first, then clean up stack
-                    CallFrame* returningFrame = currentFrame;
-                    currentFrame = &frames[frameCount - 1];
-                    updateChunkCache(); // Update cached chunk data for returning frame
-
-                    while (stack.data() + stack.size() > returningFrame->slots)
-                    {
-                        auto v = stack.pop();
-                        releaseAndDelete(v);
-                    }
-
-                    push(retainValue(value));
-                    releaseAndDelete(value);
-                    break;
-                }
-
-                case OpCode::OP_Constant:
-                {
-                    auto constant = readConstant();
-                    push(constant);
-                    break;
-                }
-
-                case OpCode::OP_LongConstant:
-                {
-                    auto constant = readLongConstant();
-                    push(constant);
-                    break;
-                }
-
-                case OpCode::OP_Negate:
-                {
-                    if (not isValueNumber(peek(0)))
-                    {
-                        EMIT_RUNTIME_ERROR("Operand after an unary (-) must be a number.");
-                    }
-
-                    auto value = pop();
-                    push(negateValue(value));
-                    releaseAndDelete(value);
-                    break;
-                }
-
-                case OpCode::OP_Add:
-                {
-                    auto b = pop();
-                    auto a = pop();
-                    push(addValues(a, b));
-                    releaseAndDelete(a);
-                    releaseAndDelete(b);
-                    break;
-                }
-
-                case OpCode::OP_Subtract:
-                {
-                    auto b = pop();
-                    auto a = pop();
-                    push(subtractValues(a, b));
-                    releaseAndDelete(a);
-                    releaseAndDelete(b);
-                    break;
-                }
-
-                case OpCode::OP_Multiply:
-                {
-                    auto b = pop();
-                    auto a = pop();
-                    push(multiplyValues(a, b));
-                    releaseAndDelete(a);
-                    releaseAndDelete(b);
-                    break;
-                }
-
-                case OpCode::OP_Divide:
-                {
-                    auto b = pop();
-                    auto a = pop();
-                    push(divideValues(a, b));
-                    releaseAndDelete(a);
-                    releaseAndDelete(b);
-                    break;
-                }
-
-                case OpCode::OP_True:
-                {
-                    push(BOOL_VAL(true));
-                    break;
-                }
-
-                case OpCode::OP_False:
-                {
-                    push(BOOL_VAL(false));
-                    break;
-                }
-
-                case OpCode::OP_Not:
-                {
-                    if (not IS_BOOL(peek(0)))
-                    {
-                        EMIT_RUNTIME_ERROR("Operand after an unary (!) must be a boolean.");
-                    }
-
-                    auto value = pop();
-                    push(BOOL_VAL(not isValueTrue(value)));
-                    releaseAndDelete(value);
-                    break;
-                }
-
-                case OpCode::OP_And:
-                {
-                    checkBooleanBinaryOp();
-                    auto b = pop();
-                    auto a = pop();
-
-                    bool resultA = isValueTrue(a);
-                    bool resultB = isValueTrue(b);
-                    push(BOOL_VAL(resultA and resultB));
-                    releaseAndDelete(a);
-                    releaseAndDelete(b);
-                    break;
-                }
-
-                case OpCode::OP_Or:
-                {
-                    checkBooleanBinaryOp();
-                    auto b = pop();
-                    auto a = pop();
-
-                    bool resultA = isValueTrue(a);
-                    bool resultB = isValueTrue(b);
-                    push(BOOL_VAL(resultA or resultB));
-                    releaseAndDelete(a);
-                    releaseAndDelete(b);
-                    break;
-                }
-
-// Macro to generate comparison operation cases with exception handling
-// Usage: COMPARISON_OP(==) generates a complete case block for equality comparison
-// Handles stack operations, type checking, and runtime error management
-#define COMPARISON_OP(op) \
-                { \
-                    checkBooleanBinaryOp(); \
-                    auto b = pop(); \
-                    auto a = pop(); \
-                    try { \
-                        push(op(a, b)); \
-                    } catch (const std::exception& e) { \
-                        releaseAndDelete(a); \
-                        releaseAndDelete(b); \
-                        EMIT_RUNTIME_ERROR("Comparison operation failed: " << e.what()); \
-                    } \
-                    releaseAndDelete(a); \
-                    releaseAndDelete(b); \
-                    break; \
-                }
-
-                case OpCode::OP_Equal:
-                    COMPARISON_OP(equalsValues)
-
-                case OpCode::OP_NotEqual:
-                    COMPARISON_OP(notEqualsValues)
-
-                case OpCode::OP_Greater:
-                    COMPARISON_OP(greaterValues)
-
-                case OpCode::OP_GreaterEqual:
-                    COMPARISON_OP(greaterEqualValues)
-
-                case OpCode::OP_Less:
-                    COMPARISON_OP(lessValues)
-
-                case OpCode::OP_LessEqual:
-                    COMPARISON_OP(lessEqualValues)
-
-                case OpCode::OP_Pop:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
-                    }
-#endif
-                    auto value = pop();
-                    releaseAndDelete(value);
-
-                    break;
-                }
-
-                case OpCode::OP_Define_Global:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 2)
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for variable definition.");
-                    }
-#endif
-                    auto nameValue = pop();  // variable name
-                    auto name = valueToElement(nameValue);
-                    auto value = pop(); // variable value
-
-                    if (not name.isLitteral())
-                    {
-                        releaseAndDelete(nameValue);
-                        releaseAndDelete(value);
-                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
-                    }
-
-                    globals[name.toString()] = retainValue(value);
-                    releaseAndDelete(nameValue);
-                    releaseAndDelete(value); // Release the local reference since we retained for globals
-                    break;
-                }
-
-                case OpCode::OP_Get_Global:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for variable retrieval.");
-                    }
-#endif
-                    auto nameValue = pop();  // variable name
-                    auto name = valueToElement(nameValue);
-
-                    if (not name.isLitteral())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
-                    }
-
-                    auto it = globals.find(name.toString());
-                    if (it == globals.end())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
-                    }
-
-                    push(it->second); // Don't retain - global already holds reference
-                    releaseAndDelete(nameValue);
-                    break;
-                }
-
-                case OpCode::OP_Set_Global:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 2)
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for variable assignment.");
-                    }
-#endif
-                    auto value = pop(); // new variable value
-                    auto nameValue = pop();  // variable name
-                    auto name = valueToElement(nameValue);
-
-                    if (not name.isLitteral())
-                    {
-                        releaseAndDelete(nameValue);
-                        releaseAndDelete(value);
-                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
-                    }
-
-                    auto it = globals.find(name.toString());
-                    if (it == globals.end())
-                    {
-                        releaseAndDelete(nameValue);
-                        releaseAndDelete(value);
-                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
-                    }
-
-                    // Free the old value that was stored
-                    releaseAndDelete(it->second);
-                    it->second = retainValue(value);  // Store retained value in globals
-                    push(value);  // Push the original to stack
-                    releaseAndDelete(nameValue);
-                    break;
-                }
-
-                case OpCode::OP_Get_Local:
-                {
-                    uint8_t slot = readByte(); // Get the slot index as immediate operand
-
-                    if (slot >= 255)
-                    {
-                        EMIT_RUNTIME_ERROR("Local variable slot index out of bounds.");
-                    }
-
-                    push(retainValue(currentFrame->slots[slot]));
-                    break;
-                }
-
-                case OpCode::OP_Set_Local:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for local assignment.");
-                    }
-#endif
-                    uint8_t slot = readByte(); // Get the slot index as immediate operand
-                    auto value = pop(); // New value
-
-                    if (slot >= 255)
-                    {
-                        releaseAndDelete(value);
-                        EMIT_RUNTIME_ERROR("Local variable slot index out of bounds.");
-                    }
-
-                    // Free the old value that was in the frame slot
-                    releaseAndDelete(currentFrame->slots[slot]);
-                    currentFrame->slots[slot] = retainValue(value);
-                    push(value); // Assignment expression returns the value
-                    break;
-                }
-
-                case OpCode::OP_Jump_If_False:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(2))
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
-                    }
-#endif
-                    uint16_t jumpOffset = readUint16();
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Stack underflow on conditional jump.");
-                    }
-#endif
-                    auto condition = peek();
-
-                    if (not isValueTrue(condition))
-                    {
-                        currentFrame->ip += jumpOffset;
-#ifdef DEBUG_CHECK_STACK
-                        if (checkIpAgainstStack(1))
-                        {
-                            EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
-                        }
-#endif
-                    }
-
-                    break;
-                }
-
-                case OpCode::OP_Long_Jump_If_False:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(4))
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
-                    }
-#endif
-                    uint32_t jumpOffset = readUint32();
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Stack underflow on conditional jump.");
-                    }
-#endif
-                    auto condition = peek();
-
-                    if (not isValueTrue(condition))
-                    {
-                        currentFrame->ip += jumpOffset;
-#ifdef DEBUG_CHECK_STACK
-                        if (checkIpAgainstStack(1))
-                        {
-                            EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
-                        }
-#endif
-                    }
-
-                    break;
-                }
-
-                case OpCode::OP_Jump:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(2))
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough bytes to read jump offset.");
-                    }
-#endif
-                    uint16_t jumpOffset = readUint16();
-
-                    currentFrame->ip += jumpOffset;
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(1))
-                    {
-                        EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
-                    }
-#endif
-
-                    break;
-                }
-
-                case OpCode::OP_Long_Jump:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(4))
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough bytes to read long jump offset.");
-                    }
-#endif
-                    uint32_t jumpOffset = readUint32();
-
-                    currentFrame->ip += jumpOffset;
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(1))
-                    {
-                        EMIT_RUNTIME_ERROR("Jump offset out of bounds.");
-                    }
-#endif
-
-                    break;
-                }
-
-                case OpCode::OP_Loop:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(2))
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough bytes to read loop offset.");
-                    }
-#endif
-                    uint16_t loopOffset = readUint16();
-#ifdef DEBUG_CHECK_STACK
-                    // No sync needed - using frame IP directly
-                    if (loopOffset > (currentFrame->ip - currentFrame->closure->function->chunk.code.data()))
-                    {
-                        EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
-                    }
-#endif
-                    currentFrame->ip -= loopOffset;
-                    break;
-                }
-
-                case OpCode::OP_Long_Loop:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (checkIpAgainstStack(4))
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough bytes to read long loop offset.");
-                    }
-#endif
-                    uint32_t loopOffset = readUint32();
-#ifdef DEBUG_CHECK_STACK
-                    // No sync needed - using frame IP directly
-                    if (loopOffset > (currentFrame->ip - currentFrame->closure->function->chunk.code.data()))
-                    {
-                        EMIT_RUNTIME_ERROR("Loop offset out of bounds.");
-                    }
-#endif
-                    currentFrame->ip -= loopOffset;
-                    break;
-                }
-
-                case OpCode::OP_Debug_Print:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Nothing to print from the stack.");
-                    }
-#endif
-                    auto value = pop();
-
-                    if (IS_FUNC(value))
-                    {
-                        ObjFunction* func = AS_FUNC(value);
-                        if (func != nullptr)
-                        {
-                            testOutput += "<" + func->name + "> \n";
-                        }
-                        else
-                        {
-                            testOutput += "<script> \n";
-                        }
-                        releaseAndDelete(value);
-                        break;
-                    }
-
-                    // For testing: append to testOutput buffer instead of stdout
-                    ElementType elem = valueToElement(value);
-                    testOutput += elem.toString() + "\n";
-                    releaseAndDelete(value);
-
-                    break;
-                }
-
-                case OpCode::OP_Post_Incr_Global:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 1)
-                    {
-                        EMIT_RUNTIME_ERROR("Stack underflow on post-increment.");
-                    }
-#endif
-                    auto nameValue = pop();  // variable name
-                    auto name = valueToElement(nameValue);
-
-                    if (not name.isLitteral())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
-                    }
-
-                    auto it = globals.find(name.toString());
-                    if (it == globals.end())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
-                    }
-
-                    if (not isValueNumber(it->second))
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
-                    }
-
-                    auto newValue = addValues(it->second, INT_VAL(1));
-                    releaseAndDelete(it->second);
-                    it->second = newValue;
-
-                    releaseAndDelete(nameValue);
-                    break;
-                }
-
-                case OpCode::OP_Incr_Global:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Stack underflow on increment.");
-                    }
-#endif
-                    auto nameValue = pop();  // variable name
-                    auto name = valueToElement(nameValue);
-
-                    if (not name.isLitteral())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
-                    }
-
-                    auto it = globals.find(name.toString());
-                    if (it == globals.end())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
-                    }
-
-                    if (not isValueNumber(it->second))
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
-                    }
-
-                    auto newValue = addValues(it->second, INT_VAL(1));
-                    releaseAndDelete(it->second);
-                    it->second = newValue;
-
-                    push(retainValue(newValue)); // Pre-increment returns the new value
-                    releaseAndDelete(nameValue);
-                    break;
-                }
-
-                case OpCode::OP_Post_Decr_Global:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 1)
-                    {
-                        EMIT_RUNTIME_ERROR("Stack underflow on post-decrement.");
-                    }
-#endif
-                    auto nameValue = pop();  // variable name
-                    auto name = valueToElement(nameValue);
-
-                    if (not name.isLitteral())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
-                    }
-
-                    auto it = globals.find(name.toString());
-                    if (it == globals.end())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
-                    }
-
-                    if (not isValueNumber(it->second))
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
-                    }
-
-                    auto newValue = subtractValues(it->second, INT_VAL(1));
-                    releaseAndDelete(it->second);
-                    it->second = newValue;
-
-                    releaseAndDelete(nameValue);
-                    break;
-                }
-
-                case OpCode::OP_Decr_Global:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Stack underflow on decrement.");
-                    }
-#endif
-                    auto nameValue = pop();  // variable name
-                    auto name = valueToElement(nameValue);
-
-                    if (not name.isLitteral())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Global variable name must be a litteral.");
-                    }
-
-                    auto it = globals.find(name.toString());
-                    if (it == globals.end())
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Undefined global variable '" << name.toString() << "'.");
-                    }
-
-                    if (not isValueNumber(it->second))
-                    {
-                        releaseAndDelete(nameValue);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
-                    }
-
-                    auto newValue = subtractValues(it->second, INT_VAL(1));
-                    releaseAndDelete(it->second);
-                    it->second = newValue;
-
-                    push(retainValue(newValue)); // Pre-decrement returns the new value
-                    releaseAndDelete(nameValue);
-                    break;
-                }
-
-                case OpCode::OP_Post_Incr_Local:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 1)
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for local post-increment.");
-                    }
-#endif
-                    auto slot = pop(); // Get the slot index from stack
-
-                    if (not isValueNumber(slot))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
-                    }
-
-                    int index = getValueAsInt(slot);
-                    if (index < 0)
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
-                    }
-
-                    if (not isValueNumber(currentFrame->slots[index]))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
-                    }
-
-                    auto oldValue = retainValue(currentFrame->slots[index]);
-                    auto newValue = addValues(currentFrame->slots[index], INT_VAL(1));
-                    releaseAndDelete(currentFrame->slots[index]);
-                    currentFrame->slots[index] = newValue;
-
-                    push(oldValue); // Post-increment returns the old value
-                    releaseAndDelete(slot);
-                    break;
-                }
-
-                case OpCode::OP_Incr_Local:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 1)
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for local increment.");
-                    }
-#endif
-                    auto slot = pop(); // Get the slot index from stack
-
-                    if (not isValueNumber(slot))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
-                    }
-
-                    int index = getValueAsInt(slot);
-                    if (index < 0)
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
-                    }
-
-                    if (not isValueNumber(currentFrame->slots[index]))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (++) must be a number.");
-                    }
-
-                    auto newValue = addValues(currentFrame->slots[index], INT_VAL(1));
-                    releaseAndDelete(currentFrame->slots[index]);
-                    currentFrame->slots[index] = newValue;
-
-                    push(retainValue(newValue)); // Pre-increment returns the new value
-                    releaseAndDelete(slot);
-                    break;
-                }
-
-                case OpCode::OP_Post_Decr_Local:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 1)
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for local post-decrement.");
-                    }
-#endif
-                    auto slot = pop(); // Get the slot index from stack
-
-                    if (not isValueNumber(slot))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
-                    }
-
-                    int index = getValueAsInt(slot);
-                    if (index < 0)
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
-                    }
-
-                    if (not isValueNumber(currentFrame->slots[index]))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
-                    }
-
-                    auto oldValue = retainValue(currentFrame->slots[index]);
-                    auto newValue = subtractValues(currentFrame->slots[index], INT_VAL(1));
-                    releaseAndDelete(currentFrame->slots[index]);
-                    currentFrame->slots[index] = newValue;
-
-                    push(oldValue); // Post-decrement returns the old value
-                    releaseAndDelete(slot);
-                    break;
-                }
-
-                case OpCode::OP_Decr_Local:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.size() < 1)
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for local decrement.");
-                    }
-#endif
-                    auto slot = pop(); // Get the slot index from stack
-
-                    if (not isValueNumber(slot))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable slot must be a number.");
-                    }
-
-                    int index = getValueAsInt(slot);
-                    if (index < 0)
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Local variable index cannot be negative.");
-                    }
-
-                    if (not isValueNumber(currentFrame->slots[index]))
-                    {
-                        releaseAndDelete(slot);
-                        EMIT_RUNTIME_ERROR("Operand after an unary (--) must be a number.");
-                    }
-
-                    auto newValue = subtractValues(currentFrame->slots[index], INT_VAL(1));
-                    releaseAndDelete(currentFrame->slots[index]);
-                    currentFrame->slots[index] = newValue;
-
-                    push(retainValue(newValue)); // Pre-decrement returns the new value
-                    releaseAndDelete(slot);
-                    break;
-                }
-
-                case OpCode::OP_Call:
-                {
-                    int argCount = readByte();
-
-                    // Get the function object (at position argCount from top)
-                    Value function = peek(argCount);
-
-                    if (not callValue(function, argCount))
-                    {
-                        EMIT_RUNTIME_ERROR("Cannot call funtion");
-                    }
-
-                    // Remove the function object from the stack by shifting arguments up
-                    for (int i = argCount - 1; i >= 0; i--)
-                    {
-                        stack[stack.size() - argCount - 1 + i] = stack[stack.size() - argCount + i];
-                    }
-                    stack.pop(); // Remove the duplicate top element
-
-                    // Update the frame slots to point to the shifted arguments
-                    frames[frameCount - 1].slots = stack.data() + stack.size() - argCount;
-
-                    currentFrame = &frames[frameCount - 1];
-                    updateChunkCache(); // Update cached chunk data for new frame
-                    break;
-                }
-
-                case OpCode::OP_Closure:
-                {
-                    auto functionValue = readConstant();
-                    if (not IS_FUNC(functionValue))
-                    {
-                        EMIT_RUNTIME_ERROR("Closure operand must be a function.");
-                    }
-
-                    ObjFunction* function = AS_FUNC(functionValue);
-                    auto closure = new Closure(function);
-                    push(trackNewValue(CLOSURE_VAL(closure)));
-
-                    for (int i = 0; i < function->upvalueCount; i++)
-                    {
-                        uint8_t isLocal = readByte();
-                        uint8_t index = readByte();
-                        if (isLocal)
-                        {
-                            closure->upvalues[i] = captureUpvalue(currentFrame->slots + index);
-                        }
-                        else
-                        {
-                            closure->upvalues[i] = currentFrame->closure->upvalues[index];
-                        }
-                    }
-                    break;
-                }
-
-                case OpCode::OP_Get_Upvalue:
-                {
-                    uint8_t slot = readByte(); // Get the upvalue index as immediate operand
-
-                    if (slot >= currentFrame->closure->function->upvalueCount)
-                    {
-                        EMIT_RUNTIME_ERROR("Upvalue index out of bounds.");
-                    }
-
-                    ObjUpvalue* upvalue = currentFrame->closure->upvalues[slot];
-                    push(retainValue(*upvalue->location));
-                    break;
-                }
-
-                case OpCode::OP_Set_Upvalue:
-                {
-                    uint8_t slot = readByte(); // Get the upvalue index as immediate operand
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Not enough values on stack for upvalue assignment.");
-                    }
-#endif
-                    ObjUpvalue* upvalue = currentFrame->closure->upvalues[slot];
-                    upvalue->location = &stack[stack.size() - 1 - 0];
-                    break;
-                }
-
-                case OpCode::OP_Close_Upvalue:
-                {
-#ifdef DEBUG_CHECK_STACK
-                    if (stack.empty())
-                    {
-                        EMIT_RUNTIME_ERROR("Stack underflow on closing upvalue.");
-                    }
-#endif
-                    closeUpvalues(&stack[stack.size() - 1]);
-                    pop();
-                    break;
-                }
-
-                default:
-                    std::cout << "Unknown opcode " << static_cast<int>(instruction) << std::endl;
-                    return InterpretResult::RUNTIME_ERROR;
-            }
-        }
-
-        return InterpretResult::OK;
-    }
-
     Value VM::readConstant()
     {
         uint8_t constantIndex = readByte();
@@ -1769,6 +804,12 @@ namespace pg
 
     void op_pop(VM* vm)
     {
+#ifdef DEBUG_CHECK_STACK
+        if (stack.empty())
+        {
+            EMIT_RUNTIME_ERROR("Nothing to pop from the stack.");
+        }
+#endif
         auto value = vm->pop();
         vm->releaseAndDelete(value);
     }
@@ -1785,6 +826,24 @@ namespace pg
             return;
         }
 #endif
+        Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        vm->push(constant);
+    }
+
+    void op_long_constant(VM* vm)
+    {
+        uint32_t constantIndex = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
+        constantIndex |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
+        constantIndex |= static_cast<uint32_t>(*vm->currentFrame->ip++);
+
+#ifdef DEBUG_CHECK_STACK
+        if (constantIndex >= vm->currentFrame->closure->function->chunk.constants.size()) {
+            vm->runtimeError("Long constant index out of bounds.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+
         Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
         vm->push(constant);
     }
@@ -1876,7 +935,8 @@ namespace pg
     void op_return(VM* vm)
     {
 #ifdef DEBUG_CHECK_STACK
-        if (vm->stack.empty()) {
+        if (vm->stack.empty())
+        {
             vm->runtimeError("Nothing in the stack for return.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
 
@@ -1917,27 +977,15 @@ namespace pg
         vm->releaseAndDelete(value);
     }
 
-    // Placeholder implementations for missing operations (will implement as needed)
-    void op_long_constant(VM* vm)
+    void op_negate(VM* vm)
     {
-        uint32_t constantIndex = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        constantIndex |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        constantIndex |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-#ifdef DEBUG_CHECK_STACK
-        if (constantIndex >= vm->currentFrame->closure->function->chunk.constants.size()) {
-            vm->runtimeError("Long constant index out of bounds.");
+        if (not isValueNumber(vm->peek(0)))
+        {
+            vm->runtimeError("Operand after an unary (-) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
-#endif
 
-        Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        vm->push(constant);
-    }
-
-    void op_negate(VM* vm)
-    {
         auto val = vm->pop();
         vm->push(vm->negateValue(val));
         vm->releaseAndDelete(val);
@@ -1965,7 +1013,8 @@ namespace pg
         }
 
         auto it = vm->globals.find(name.toString());
-        if (it == vm->globals.end()) {
+        if (it == vm->globals.end())
+        {
             vm->releaseAndDelete(nameValue);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
@@ -2018,7 +1067,8 @@ namespace pg
     void op_define_global(VM* vm)
     {
 #ifdef DEBUG_CHECK_STACK
-        if (vm->stack.size() < 2) {
+        if (vm->stack.size() < 2)
+        {
             vm->runtimeError("Not enough values on stack for variable definition.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -2041,7 +1091,6 @@ namespace pg
         vm->releaseAndDelete(nameValue);
         vm->releaseAndDelete(value);
     }
-
 
     void op_long_jump(VM* vm)
     {
@@ -2116,9 +1165,11 @@ namespace pg
         }
     }
 
-    void op_debug_print(VM* vm) {
+    void op_debug_print(VM* vm)
+    {
 #ifdef DEBUG_CHECK_STACK
-        if (vm->stack.empty()) {
+        if (vm->stack.empty())
+        {
             vm->runtimeError("Nothing to print from the stack.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -2126,11 +1177,15 @@ namespace pg
 #endif
         auto value = vm->pop();
 
-        if (IS_FUNC(value)) {
+        if (IS_FUNC(value))
+        {
             ObjFunction* func = AS_FUNC(value);
-            if (func != nullptr) {
+            if (func != nullptr)
+            {
                 vm->testOutput += "<" + func->name + "> \n";
-            } else {
+            }
+            else
+            {
                 vm->testOutput += "<script> \n";
             }
             vm->releaseAndDelete(value);
@@ -2226,11 +1281,13 @@ namespace pg
         ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
 
         // Check if upvalue is closed (location points to &closed)
-        if (upvalue->location == &upvalue->closed) {
+        if (upvalue->location == &upvalue->closed)
+        {
             // For closed upvalues, just copy the value - don't retain it
             // The value is owned by the upvalue object itself
             vm->push(*upvalue->location);
-        } else {
+        } else
+        {
             // For open upvalues, retain the value since it's on the stack
             vm->push(vm->retainValue(*upvalue->location));
         }
