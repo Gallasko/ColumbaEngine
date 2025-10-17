@@ -25,10 +25,16 @@ namespace pg
     void op_divide(VM* vm);
     void op_negate(VM* vm);
     void op_equal(VM* vm);
+    void op_not_equal(VM* vm);
     void op_greater(VM* vm);
+    void op_greater_equal(VM* vm);
     void op_less(VM* vm);
+    void op_less_equal(VM* vm);
     void op_true(VM* vm);
     void op_false(VM* vm);
+    void op_not(VM* vm);
+    void op_and(VM* vm);
+    void op_or(VM* vm);
     void op_pop(VM* vm);
     void op_get_local(VM* vm);
     void op_set_local(VM* vm);
@@ -37,6 +43,7 @@ namespace pg
     void op_set_global(VM* vm);
     void op_jump(VM* vm);
     void op_jump_if_false(VM* vm);
+    void op_loop(VM* vm);
     void op_long_jump(VM* vm);
     void op_long_jump_if_false(VM* vm);
     void op_long_loop(VM* vm);
@@ -46,6 +53,14 @@ namespace pg
     void op_set_upvalue(VM* vm);
     void op_close_upvalue(VM* vm);
     void op_debug_print(VM* vm);
+    void op_post_incr_global(VM* vm);
+    void op_incr_global(VM* vm);
+    void op_post_decr_global(VM* vm);
+    void op_decr_global(VM* vm);
+    void op_post_incr_local(VM* vm);
+    void op_incr_local(VM* vm);
+    void op_post_decr_local(VM* vm);
+    void op_decr_local(VM* vm);
 }
 
 namespace pg
@@ -148,10 +163,11 @@ namespace pg
         {
             while (true)
             {
-                if (currentFrame->ip >= chunkDataEnd)
-                {
-                    return InterpretResult::OK;
-                }
+                // Todo this is not needed with longjmp
+                // if (currentFrame->ip >= chunkDataEnd)
+                // {
+                //     return InterpretResult::OK;
+                // }
 
                 uint8_t opcode = *currentFrame->ip++;
 
@@ -169,13 +185,14 @@ namespace pg
                 // currentFrame->ip = ip;
                 disassembleInstruction(currentFrame->closure->function->chunk, currentFrame->ip - chunkData - 1);
 #endif
-                // Dispatch to operation handler
-                if (operations[opcode].handler) {
+                // Todo add those behind a debug flag
+                // if (operations[opcode].handler) {
+                    // Dispatch to operation handler
                     operations[opcode].handler(this);
-                } else {
-                    runtimeError("Unknown opcode");
-                    return InterpretResult::RUNTIME_ERROR;
-                }
+                // } else {
+                    // runtimeError("Unknown opcode");
+                    // return InterpretResult::RUNTIME_ERROR;
+                // }
 
                 // Update frame IP for potential frame switches
                 // currentFrame->ip = ip;
@@ -1231,7 +1248,7 @@ namespace pg
         while (openUpvalues != nullptr and openUpvalues->location >= last)
         {
             ObjUpvalue* upvalue = openUpvalues;
-            upvalue->closed = retainValue(*upvalue->location);
+            upvalue->closed = *upvalue->location;
             upvalue->location = &upvalue->closed;
             openUpvalues = upvalue->next;
         }
@@ -1701,10 +1718,16 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide, "DIVIDE");
         register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate, "NEGATE");
         register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal, "EQUAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_NotEqual), op_not_equal, "NOT_EQUAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_Greater), op_greater, "GREATER");
+        register_operation(static_cast<uint8_t>(OpCode::OP_GreaterEqual), op_greater_equal, "GREATER_EQUAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_Less), op_less, "LESS");
+        register_operation(static_cast<uint8_t>(OpCode::OP_LessEqual), op_less_equal, "LESS_EQUAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true, "TRUE");
         register_operation(static_cast<uint8_t>(OpCode::OP_False), op_false, "FALSE");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Not), op_not, "NOT");
+        register_operation(static_cast<uint8_t>(OpCode::OP_And), op_and, "AND");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Or), op_or, "OR");
         register_operation(static_cast<uint8_t>(OpCode::OP_Pop), op_pop, "POP");
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local, "GET_LOCAL", 1);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local, "SET_LOCAL", 1);
@@ -1713,6 +1736,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Global), op_set_global, "SET_GLOBAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_Jump), op_jump, "JUMP", 2);
         register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False), op_jump_if_false, "JUMP_IF_FALSE", 2);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Loop), op_loop, "LOOP", 2);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump), op_long_jump, "LONG_JUMP", 4);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False), op_long_jump_if_false, "LONG_JUMP_IF_FALSE", 4);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Loop), op_long_loop, "LONG_LOOP", 4);
@@ -1722,6 +1746,14 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue, "SET_UPVALUE", 1);
         register_operation(static_cast<uint8_t>(OpCode::OP_Close_Upvalue), op_close_upvalue, "CLOSE_UPVALUE");
         register_operation(static_cast<uint8_t>(OpCode::OP_Debug_Print), op_debug_print, "DEBUG_PRINT");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Global), op_post_incr_global, "POST_INCR_GLOBAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Global), op_incr_global, "INCR_GLOBAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Global), op_post_decr_global, "POST_DECR_GLOBAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Global), op_decr_global, "DECR_GLOBAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Local), op_post_incr_local, "POST_INCR_LOCAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Local), op_incr_local, "INCR_LOCAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Local), op_post_decr_local, "POST_DECR_LOCAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Local), op_decr_local, "DECR_LOCAL");
     }
 
     // Operation handler implementations
@@ -1750,7 +1782,7 @@ namespace pg
         {
             vm->runtimeError("Constant index out of bounds");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return;
         }
 #endif
         Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
@@ -1775,6 +1807,11 @@ namespace pg
     BINARY_OP_TEMPLATE(op_equal, equalsValues)
     BINARY_OP_TEMPLATE(op_greater, greaterValues)
     BINARY_OP_TEMPLATE(op_less, lessValues)
+
+    // Additional comparison operations using BINARY_OP_TEMPLATE pattern
+    BINARY_OP_TEMPLATE(op_not_equal, notEqualsValues)
+    BINARY_OP_TEMPLATE(op_greater_equal, greaterEqualValues)
+    BINARY_OP_TEMPLATE(op_less_equal, lessEqualValues)
 
 #undef BINARY_OP_TEMPLATE
 
@@ -1942,9 +1979,11 @@ namespace pg
     void op_set_global(VM* vm)
     {
 #ifdef DEBUG_CHECK_STACK
-        if (stack.size() < 2)
+        if (vm->stack.size() < 2)
         {
-            EMIT_RUNTIME_ERROR("Not enough values on stack for variable assignment.");
+            vm->runtimeError("Not enough values on stack for variable assignment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
         }
 #endif
         auto value = vm->pop();
@@ -1982,7 +2021,7 @@ namespace pg
         if (vm->stack.size() < 2) {
             vm->runtimeError("Not enough values on stack for variable definition.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-            return nullptr;
+            return;
         }
 #endif
         auto nameValue = vm->pop();  // variable name
@@ -2003,15 +2042,6 @@ namespace pg
         vm->releaseAndDelete(value);
     }
 
-    void op_jump(VM* vm) {
-        vm->runtimeError("OP_Jump not implemented yet");
-        vm->vm_return(InterpretResult::RUNTIME_ERROR);
-    }
-
-    void op_jump_if_false(VM* vm) {
-        vm->runtimeError("OP_Jump_If_False not implemented yet");
-        vm->vm_return(InterpretResult::RUNTIME_ERROR);
-    }
 
     void op_long_jump(VM* vm)
     {
@@ -2086,21 +2116,6 @@ namespace pg
         }
     }
 
-    void op_get_upvalue(VM* vm) {
-        vm->runtimeError("OP_Get_Upvalue not implemented yet");
-        vm->vm_return(InterpretResult::RUNTIME_ERROR);
-    }
-
-    void op_set_upvalue(VM* vm) {
-        vm->runtimeError("OP_Set_Upvalue not implemented yet");
-        vm->vm_return(InterpretResult::RUNTIME_ERROR);
-    }
-
-    void op_close_upvalue(VM* vm) {
-        vm->runtimeError("OP_Close_Upvalue not implemented yet");
-        vm->vm_return(InterpretResult::RUNTIME_ERROR);
-    }
-
     void op_debug_print(VM* vm) {
 #ifdef DEBUG_CHECK_STACK
         if (vm->stack.empty()) {
@@ -2126,6 +2141,496 @@ namespace pg
         ElementType elem = valueToElement(value);
         vm->testOutput += elem.toString() + "\n";
         vm->releaseAndDelete(value);
+    }
+
+    void op_not(VM* vm)
+    {
+        if (not IS_BOOL(vm->peek(0)))
+        {
+            vm->runtimeError("Operand after an unary (!) must be a boolean.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto value = vm->pop();
+        vm->push(BOOL_VAL(not isValueTrue(value)));
+        vm->releaseAndDelete(value);
+    }
+
+    void op_and(VM* vm)
+    {
+        vm->checkBooleanBinaryOp();
+        auto b = vm->pop();
+        auto a = vm->pop();
+
+        bool resultA = isValueTrue(a);
+        bool resultB = isValueTrue(b);
+        vm->push(BOOL_VAL(resultA and resultB));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+    }
+
+    void op_or(VM* vm)
+    {
+        vm->checkBooleanBinaryOp();
+        auto b = vm->pop();
+        auto a = vm->pop();
+
+        bool resultA = isValueTrue(a);
+        bool resultB = isValueTrue(b);
+        vm->push(BOOL_VAL(resultA or resultB));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+    }
+
+    void op_jump_if_false(VM* vm)
+    {
+        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
+
+        Value condition = vm->peek();
+
+        if (not isValueTrue(condition))
+        {
+            vm->currentFrame->ip += offset;
+        }
+    }
+
+    void op_jump(VM* vm)
+    {
+        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
+
+        vm->currentFrame->ip += offset;
+    }
+
+    void op_loop(VM* vm)
+    {
+        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
+
+        vm->currentFrame->ip -= offset;
+    }
+
+    void op_get_upvalue(VM* vm)
+    {
+        uint8_t slot = *vm->currentFrame->ip++;
+
+        if (slot >= vm->currentFrame->closure->function->upvalueCount)
+        {
+            vm->runtimeError("Upvalue index out of bounds.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
+
+        // Check if upvalue is closed (location points to &closed)
+        if (upvalue->location == &upvalue->closed) {
+            // For closed upvalues, just copy the value - don't retain it
+            // The value is owned by the upvalue object itself
+            vm->push(*upvalue->location);
+        } else {
+            // For open upvalues, retain the value since it's on the stack
+            vm->push(vm->retainValue(*upvalue->location));
+        }
+    }
+
+    void op_set_upvalue(VM* vm)
+    {
+        uint8_t slot = *vm->currentFrame->ip++;
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Not enough values on stack for upvalue assignment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        ObjUpvalue* upvalue = vm->currentFrame->closure->upvalues[slot];
+        upvalue->location = &vm->stack[vm->stack.size() - 1 - 0];
+    }
+
+    void op_close_upvalue(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Stack underflow on closing upvalue.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        vm->closeUpvalues(&vm->stack[vm->stack.size() - 1]);
+        vm->pop();
+    }
+
+    void op_post_incr_global(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 1)
+        {
+            vm->runtimeError("Stack underflow on post-increment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();
+        auto name = valueToElement(nameValue);
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(it->second))
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Operand after an unary (++) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto oldValue = vm->retainValue(it->second);
+        auto newValue = vm->addValues(it->second, INT_VAL(1));
+        vm->releaseAndDelete(it->second);
+        it->second = newValue;
+
+        vm->push(oldValue); // Post-increment returns the old value
+        vm->releaseAndDelete(nameValue);
+    }
+
+    void op_incr_global(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Stack underflow on increment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();
+        auto name = valueToElement(nameValue);
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(it->second))
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Operand after an unary (++) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto newValue = vm->addValues(it->second, INT_VAL(1));
+        vm->releaseAndDelete(it->second);
+        it->second = newValue;
+
+        vm->push(vm->retainValue(newValue));
+        vm->releaseAndDelete(nameValue);
+    }
+
+    void op_post_decr_global(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 1)
+        {
+            vm->runtimeError("Stack underflow on post-decrement.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();
+        auto name = valueToElement(nameValue);
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(it->second))
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Operand after an unary (--) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto oldValue = vm->retainValue(it->second);
+        auto newValue = vm->subtractValues(it->second, INT_VAL(1));
+        vm->releaseAndDelete(it->second);
+        it->second = newValue;
+
+        vm->push(oldValue); // Post-decrement returns the old value
+        vm->releaseAndDelete(nameValue);
+    }
+
+    void op_decr_global(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Stack underflow on decrement.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();
+        auto name = valueToElement(nameValue);
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(it->second))
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Operand after an unary (--) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto newValue = vm->subtractValues(it->second, INT_VAL(1));
+        vm->releaseAndDelete(it->second);
+        it->second = newValue;
+
+        vm->push(vm->retainValue(newValue));
+        vm->releaseAndDelete(nameValue);
+    }
+
+    void op_post_incr_local(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 1)
+        {
+            vm->runtimeError("Not enough values on stack for local post-increment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto slot = vm->pop();
+
+        if (not isValueNumber(slot))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable slot must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        int index = getValueAsInt(slot);
+        if (index < 0)
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable index cannot be negative.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(vm->currentFrame->slots[index]))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Operand after an unary (++) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto oldValue = vm->retainValue(vm->currentFrame->slots[index]);
+        auto newValue = vm->addValues(vm->currentFrame->slots[index], INT_VAL(1));
+        vm->releaseAndDelete(vm->currentFrame->slots[index]);
+        vm->currentFrame->slots[index] = newValue;
+
+        vm->push(oldValue);
+        vm->releaseAndDelete(slot);
+    }
+
+    void op_incr_local(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 1)
+        {
+            vm->runtimeError("Not enough values on stack for local increment.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto slot = vm->pop();
+
+        if (not isValueNumber(slot))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable slot must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        int index = getValueAsInt(slot);
+        if (index < 0)
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable index cannot be negative.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(vm->currentFrame->slots[index]))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Operand after an unary (++) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto newValue = vm->addValues(vm->currentFrame->slots[index], INT_VAL(1));
+        vm->releaseAndDelete(vm->currentFrame->slots[index]);
+        vm->currentFrame->slots[index] = newValue;
+
+        vm->push(vm->retainValue(newValue));
+        vm->releaseAndDelete(slot);
+    }
+
+    void op_post_decr_local(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 1)
+        {
+            vm->runtimeError("Not enough values on stack for local post-decrement.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto slot = vm->pop();
+
+        if (not isValueNumber(slot))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable slot must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        int index = getValueAsInt(slot);
+        if (index < 0)
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable index cannot be negative.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(vm->currentFrame->slots[index]))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Operand after an unary (--) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto oldValue = vm->retainValue(vm->currentFrame->slots[index]);
+        auto newValue = vm->subtractValues(vm->currentFrame->slots[index], INT_VAL(1));
+        vm->releaseAndDelete(vm->currentFrame->slots[index]);
+        vm->currentFrame->slots[index] = newValue;
+
+        vm->push(oldValue);
+        vm->releaseAndDelete(slot);
+    }
+
+    void op_decr_local(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 1)
+        {
+            vm->runtimeError("Not enough values on stack for local decrement.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto slot = vm->pop();
+
+        if (not isValueNumber(slot))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable slot must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        int index = getValueAsInt(slot);
+        if (index < 0)
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Local variable index cannot be negative.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (not isValueNumber(vm->currentFrame->slots[index]))
+        {
+            vm->releaseAndDelete(slot);
+            vm->runtimeError("Operand after an unary (--) must be a number.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto newValue = vm->subtractValues(vm->currentFrame->slots[index], INT_VAL(1));
+        vm->releaseAndDelete(vm->currentFrame->slots[index]);
+        vm->currentFrame->slots[index] = newValue;
+
+        vm->push(vm->retainValue(newValue));
+        vm->releaseAndDelete(slot);
     }
 
 }

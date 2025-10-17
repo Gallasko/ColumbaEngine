@@ -19,7 +19,7 @@
 #include <setjmp.h>
 
 // Todo add this as a flag in when compiling in debug
-// #define DEBUG_TRACE_EXECUTION
+#define DEBUG_TRACE_EXECUTION
 
 // #define DEBUG_CHECK_STACK
 
@@ -148,8 +148,8 @@ namespace pg
             return result;
         }
 
-        Value& operator[](size_t index) { return stack_values[index]; }
-        const Value& operator[](size_t index) const { return stack_values[index]; }
+        inline Value& operator[](size_t index) { return stack_values[index]; }
+        inline const Value& operator[](size_t index) const { return stack_values[index]; }
 
         Value top() const
         {
@@ -252,7 +252,7 @@ namespace pg
             return stack.pop();
         }
 
-        const Value& peek(size_t distance = 0) const
+        inline const Value& peek(size_t distance = 0) const
         {
 #ifdef DEBUG_CHECK_STACK
             if (distance >= stack.size())
