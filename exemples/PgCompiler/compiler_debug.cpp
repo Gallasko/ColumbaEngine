@@ -39,6 +39,18 @@ namespace pg
         {
             std::cout << "<upvalue>";
         }
+        else if (IS_CLASS(value))
+        {
+            Klass* klass = AS_CLASS(value);
+            if (klass != nullptr)
+            {
+                std::cout << "<class " << klass->name << ">";
+            }
+            else
+            {
+                std::cout << "<null class>";
+            }
+        }
         else
         {
             std::cout << valueToElement(value).toString();
@@ -318,6 +330,9 @@ namespace pg
 
             case OpCode::OP_Close_Upvalue:
                 return simpleInstruction("OP_Close_Upvalue", offset);
+
+            case OpCode::OP_Class:
+                return constantInstruction("OP_Class", chunk, offset);
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;

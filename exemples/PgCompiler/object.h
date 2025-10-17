@@ -27,6 +27,14 @@ namespace pg
         // Upvalues would go here for a full implementation
     };
 
+    struct Klass
+    {
+        Klass(const std::string& className) : name(className) {}
+
+        std::string name;
+        // Additional class metadata would go here
+    };
+
     enum class FunctionType
     {
         TYPE_FUNCTION,
@@ -58,6 +66,7 @@ namespace pg
         COMPILER_VAL_NATIVE,
         COMPILER_VAL_CLOSURE,
         COMPILER_VAL_UPVALUE,
+        COMPILER_VAL_CLASS,
     };
 
     struct Value
@@ -72,6 +81,7 @@ namespace pg
             NativeFunction* nativeFunc;
             Closure* closure;
             ObjUpvalue* upvalue;
+            Klass* klass;
         } as;
     };
 
@@ -84,6 +94,7 @@ namespace pg
     #define IS_NAT_FUNC(value)      ((value).type == COMPILER_VAL_NATIVE)
     #define IS_CLOSURE(value)       ((value).type == COMPILER_VAL_CLOSURE)
     #define IS_UPVALUE(value)       ((value).type == COMPILER_VAL_UPVALUE)
+    #define IS_CLASS(value)         ((value).type == COMPILER_VAL_CLASS)
 
     // Fast value extraction macros (direct memory access)
     #define AS_BOOL(value)      ((value).as.boolean)
@@ -94,6 +105,7 @@ namespace pg
     #define AS_NAT_FUNC(value)  ((value).as.nativeFunc)
     #define AS_CLOSURE(value)   ((value).as.closure)
     #define AS_UPVALUE(value)   ((value).as.upvalue)
+    #define AS_CLASS(value)     ((value).as.klass)
 
     struct CallFrame
     {
@@ -167,6 +179,14 @@ namespace pg
         return result;
     }
 
+    inline Value makeClassValue(Klass* klass)
+    {
+        Value result;
+        result.type = COMPILER_VAL_CLASS;
+        result.as.klass = klass;
+        return result;
+    }
+
     // Convenience macros
     #define BOOL_VAL(value)      makeBoolValue(value)
     #define INT_VAL(value)       makeIntValue(value)
@@ -176,6 +196,7 @@ namespace pg
     #define NATIVE_VAL(func)     makeNativeFuncValue(func)
     #define CLOSURE_VAL(closure) makeClosureValue(closure)
     #define UPVALUE_VAL(upvalue) makeUpvalueValue(upvalue)
+    #define CLASS_VAL(klass)     makeClassValue(klass)
 
     struct ObjUpvalue
     {
@@ -228,6 +249,8 @@ namespace pg
             return value; // Todo: deep copy closure if needed
         else if (IS_UPVALUE(value))
             return value; // Upvalues are pointers, just copy
+        else if (IS_CLASS(value))
+            return value; // Classes are pointers, just copy
         // For heap objects, create a new copy
         else
             return OBJ_VAL(new ElementType(*AS_OBJ(value)));
@@ -264,6 +287,7 @@ namespace pg
             case COMPILER_VAL_NATIVE:
             case COMPILER_VAL_CLOSURE:
             case COMPILER_VAL_UPVALUE:
+            case COMPILER_VAL_CLASS:
                 throw std::runtime_error("Cannot convert function Value to ElementType");
         }
 

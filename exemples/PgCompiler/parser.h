@@ -134,6 +134,7 @@ namespace pg
         void declaration();
         void varDeclaration();
         void funDeclaration();
+        void classDeclaration();
 
         void statement();
         void expressionStatement();

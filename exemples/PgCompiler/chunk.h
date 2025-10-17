@@ -63,6 +63,8 @@ namespace pg
         OP_Set_Upvalue,
 
         OP_Close_Upvalue,
+
+        OP_Class,
     };
 
     struct Chunk
