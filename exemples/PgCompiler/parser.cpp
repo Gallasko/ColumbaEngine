@@ -515,6 +515,10 @@ namespace pg
         {
             funDeclaration();
         }
+        else if (match(TokenType::TOK_CLASS))
+        {
+            classDeclaration();
+        }
         else
         {
             statement();
@@ -578,6 +582,35 @@ namespace pg
             writeConstant(varName.text);  // Push variable name onto stack
             writeByte(OpCode::OP_Define_Global);
         }
+    }
+
+    void Parser::classDeclaration()
+    {
+        consume("Expect class name.", TokenType::EXPRESSION);
+        Token className = previousToken;
+
+        writeConstant(className.text);
+        writeByte(OpCode::OP_Class);
+
+        // Compiler::current->beginScope();
+
+        if (Compiler::current->scopeDepth > 0)
+        {
+            declareVariable(className);
+            Compiler::current->markInitialized();
+        }
+
+        consume("Expect '{' before class body.", TokenType::BENTER);
+
+        // while (not check(TokenType::BCLOSE) and not isAtEnd())
+        // {
+        //     skipEOL();
+        //     funDeclaration();
+        // }
+
+        consume("Expect '}' after class body.", TokenType::BCLOSE);
+
+        // Compiler::current->endScope();
     }
 
     void Parser::statement()

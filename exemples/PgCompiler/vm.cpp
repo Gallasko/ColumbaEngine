@@ -61,6 +61,7 @@ namespace pg
     void op_incr_local(VM* vm);
     void op_post_decr_local(VM* vm);
     void op_decr_local(VM* vm);
+    void op_class(VM* vm);
 }
 
 namespace pg
@@ -743,6 +744,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Local), op_incr_local, "INCR_LOCAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Local), op_post_decr_local, "POST_DECR_LOCAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Local), op_decr_local, "DECR_LOCAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class, "CLASS");
     }
 
     // Operation handler implementations
@@ -1642,6 +1644,26 @@ namespace pg
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(slot);
+    }
+
+    void op_class(VM* vm)
+    {
+        uint8_t constantIndex = *vm->currentFrame->ip++;
+
+        auto classNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        ElementType classNameElem = valueToElement(classNameValue);
+        if (not classNameElem.isLitteral())
+        {
+            vm->runtimeError("Class name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        std::string className = classNameElem.toString();
+        auto* newClass = new Klass(className);
+        vm->push(vm->trackNewValue(CLASS_VAL(newClass)));
     }
 
 }
