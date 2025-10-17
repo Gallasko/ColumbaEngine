@@ -52,7 +52,8 @@ namespace pg
     {
         COMPILER_VAL_BOOL,
         COMPILER_VAL_INT,
-        COMPILER_VAL_OBJ,     // Pointer overflow for complex values (strings, floats, etc.)
+        COMPILER_VAL_FLOAT,   // Native float support for performance
+        COMPILER_VAL_OBJ,     // Pointer overflow for complex values (strings, etc.)
         COMPILER_VAL_FUNC,
         COMPILER_VAL_NATIVE,
         COMPILER_VAL_CLOSURE,
@@ -65,7 +66,8 @@ namespace pg
         union {
             bool boolean;
             int64_t number;     // Use int64_t for wider range than int
-            ElementType* obj;   // Heap-allocated for strings, floats, size_t, etc.
+            double floatNum;    // Native float for performance
+            ElementType* obj;   // Heap-allocated for strings, etc.
             ObjFunction* function;
             NativeFunction* nativeFunc;
             Closure* closure;
@@ -76,6 +78,7 @@ namespace pg
     // Fast type checking macros (compile-time constant)
     #define IS_BOOL(value)          ((value).type == COMPILER_VAL_BOOL)
     #define IS_INT(value)           ((value).type == COMPILER_VAL_INT)
+    #define IS_FLOAT(value)         ((value).type == COMPILER_VAL_FLOAT)
     #define IS_OBJ(value)           ((value).type == COMPILER_VAL_OBJ)
     #define IS_FUNC(value)          ((value).type == COMPILER_VAL_FUNC)
     #define IS_NAT_FUNC(value)      ((value).type == COMPILER_VAL_NATIVE)
@@ -85,6 +88,7 @@ namespace pg
     // Fast value extraction macros (direct memory access)
     #define AS_BOOL(value)      ((value).as.boolean)
     #define AS_INT(value)       ((value).as.number)
+    #define AS_FLOAT(value)     ((value).as.floatNum)
     #define AS_OBJ(value)       ((value).as.obj)
     #define AS_FUNC(value)      ((value).as.function)
     #define AS_NAT_FUNC(value)  ((value).as.nativeFunc)
@@ -112,6 +116,14 @@ namespace pg
         Value result;
         result.type = COMPILER_VAL_INT;
         result.as.number = value;
+        return result;
+    }
+
+    inline Value makeFloatValue(double value)
+    {
+        Value result;
+        result.type = COMPILER_VAL_FLOAT;
+        result.as.floatNum = value;
         return result;
     }
 
@@ -158,6 +170,7 @@ namespace pg
     // Convenience macros
     #define BOOL_VAL(value)      makeBoolValue(value)
     #define INT_VAL(value)       makeIntValue(value)
+    #define FLOAT_VAL(value)     makeFloatValue(value)
     #define OBJ_VAL(object)      makeObjValue(object)
     #define FUNC_VAL(func)       makeFuncValue(func)
     #define NATIVE_VAL(func)     makeNativeFuncValue(func)
@@ -183,6 +196,11 @@ namespace pg
             int intVal = element.get<int>();
             return INT_VAL(static_cast<int64_t>(intVal));
         }
+        else if (element.type == ElementType::UnionType::FLOAT)
+        {
+            double floatVal = element.get<double>();
+            return FLOAT_VAL(floatVal);
+        }
         else
         {
             // Strings, floats, complex types always use heap
@@ -194,7 +212,7 @@ namespace pg
     inline Value copyValue(const Value& value)
     {
         // Integers and booleans can be copied directly (no heap allocation)
-        if (IS_INT(value) || IS_BOOL(value))
+        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
             return value;
         // Functions are pointers, just copy the pointer
         else if (IS_FUNC(value))
@@ -214,6 +232,8 @@ namespace pg
     {
         if (IS_INT(value))
             return static_cast<int>(AS_INT(value));
+        else if (IS_FLOAT(value))
+            return static_cast<int>(AS_FLOAT(value));
         else if (IS_BOOL(value))
             return AS_BOOL(value) ? 1 : 0;
         else if (IS_OBJ(value) && AS_OBJ(value)->type == ElementType::UnionType::INT)
@@ -231,6 +251,8 @@ namespace pg
                 return ElementType(AS_BOOL(value));
             case COMPILER_VAL_INT:
                 return ElementType(static_cast<int>(AS_INT(value)));
+            case COMPILER_VAL_FLOAT:
+                return ElementType(AS_FLOAT(value));
             case COMPILER_VAL_OBJ:
                 return *AS_OBJ(value);
             case COMPILER_VAL_FUNC:
