@@ -16,11 +16,12 @@
 #include <cmath>
 #include <cstdlib>
 #include <algorithm>
+#include <setjmp.h>
 
 // Todo add this as a flag in when compiling in debug
-// #define DEBUG_TRACE_EXECUTION
+#define DEBUG_TRACE_EXECUTION
 
-// #define DEBUG_CHECK_STACK
+#define DEBUG_CHECK_STACK
 
 #define DEBUG_PROFILE_COMPILE
 
@@ -29,6 +30,23 @@
 namespace pg
 {
     static constexpr size_t FRAMES_MAX = 64;
+
+    // Forward declaration for VM
+    struct VM;
+
+    // Function pointer type for operation handlers
+    typedef uint8_t* (*OpHandler)(VM* vm, uint8_t* ip);
+
+    // Operation information structure
+    struct OpCodeInfo {
+        OpHandler handler;
+        const char* name;
+        uint8_t operand_count;
+
+        OpCodeInfo() : handler(nullptr), name("UNKNOWN"), operand_count(0) {}
+        OpCodeInfo(OpHandler h, const char* n, uint8_t count = 0)
+            : handler(h), name(n), operand_count(count) {}
+    };
 
     inline bool isValueNumber(const Value& val)
     {
@@ -204,6 +222,7 @@ namespace pg
         InterpretResult interpret(const std::queue<Token>& tokens);
 
         InterpretResult run();
+        InterpretResult run_old(); // Temporary backup of old implementation
 
         Value readConstant();
         Value readLongConstant();
@@ -387,6 +406,11 @@ namespace pg
 
         std::unordered_map<std::string, Value> globals;
 
+        // Function pointer dispatch system
+        static OpCodeInfo operations[256];
+        jmp_buf exit_jump;
+        InterpretResult exit_result;
+
         // Reference counting for heap-allocated objects
         std::unordered_map<void*, int> refCounts;
 
@@ -464,6 +488,11 @@ namespace pg
             frames[0].slots = stack.data();  // For tests, start at beginning
             currentFrame = &frames[0];
         }
+
+        // Function pointer dispatch methods
+        void vm_return(InterpretResult result);
+        static void register_builtin_operations();
+        static void register_operation(uint8_t opcode, OpHandler handler, const char* name, uint8_t operand_count = 0);
     };
 
     // Inline implementations for critical performance functions
