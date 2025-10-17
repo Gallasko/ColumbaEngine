@@ -599,11 +599,12 @@ namespace pg
     {
         switch(type)
         {
-            case UnionType::STRING: return get<std::string>(); break;
-            case UnionType::INT: return std::to_string(get<int>()); break;
+            case UnionType::FLOAT:  return std::to_string(get<float>()); break;
+            case UnionType::DOUBLE: return std::to_string(get<double>()); break;
+            case UnionType::INT:    return std::to_string(get<int>()); break;
             case UnionType::SIZE_T: return std::to_string(get<size_t>()); break;
-            case UnionType::FLOAT: return std::to_string(get<float>()); break;
-            case UnionType::BOOL: return get<bool>() ? "true" : "false"; break;
+            case UnionType::STRING: return get<std::string>(); break;
+            case UnionType::BOOL:   return get<bool>() ? "true" : "false"; break;
 
             default:
                 LOG_ERROR(DOM, "Error in casting type to string");
@@ -616,12 +617,12 @@ namespace pg
     {
         switch(type)
         {
-            case UnionType::FLOAT: return "float"; break;
+            case UnionType::FLOAT:  return "float"; break;
             case UnionType::DOUBLE: return "double"; break;
-            case UnionType::INT: return "int"; break;
+            case UnionType::INT:    return "int"; break;
             case UnionType::SIZE_T: return "size_t"; break;
             case UnionType::STRING: return "string"; break;
-            case UnionType::BOOL: return "bool"; break;
+            case UnionType::BOOL:   return "bool"; break;
             default:
                 LOG_ERROR(DOM, "Error in casting type to a string");
                 return "int";

@@ -198,8 +198,13 @@ namespace pg
         }
         else if (element.type == ElementType::UnionType::FLOAT)
         {
-            double floatVal = element.get<double>();
-            return FLOAT_VAL(floatVal);
+            float floatVal = element.get<float>();
+            return FLOAT_VAL(static_cast<double>(floatVal));
+        }
+        else if (element.type == ElementType::UnionType::DOUBLE)
+        {
+            double doubleVal = element.get<double>();
+            return FLOAT_VAL(doubleVal);
         }
         else
         {
