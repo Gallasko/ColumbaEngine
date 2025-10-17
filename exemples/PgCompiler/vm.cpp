@@ -12,6 +12,44 @@
 
 namespace pg
 {
+    // Static dispatch table definition
+    OpCodeInfo VM::operations[256];
+
+    // Forward declarations for operation handlers
+    uint8_t* op_return(VM* vm, uint8_t* ip);
+    uint8_t* op_constant(VM* vm, uint8_t* ip);
+    uint8_t* op_long_constant(VM* vm, uint8_t* ip);
+    uint8_t* op_add(VM* vm, uint8_t* ip);
+    uint8_t* op_subtract(VM* vm, uint8_t* ip);
+    uint8_t* op_multiply(VM* vm, uint8_t* ip);
+    uint8_t* op_divide(VM* vm, uint8_t* ip);
+    uint8_t* op_negate(VM* vm, uint8_t* ip);
+    uint8_t* op_equal(VM* vm, uint8_t* ip);
+    uint8_t* op_greater(VM* vm, uint8_t* ip);
+    uint8_t* op_less(VM* vm, uint8_t* ip);
+    uint8_t* op_true(VM* vm, uint8_t* ip);
+    uint8_t* op_false(VM* vm, uint8_t* ip);
+    uint8_t* op_pop(VM* vm, uint8_t* ip);
+    uint8_t* op_get_local(VM* vm, uint8_t* ip);
+    uint8_t* op_set_local(VM* vm, uint8_t* ip);
+    uint8_t* op_get_global(VM* vm, uint8_t* ip);
+    uint8_t* op_define_global(VM* vm, uint8_t* ip);
+    uint8_t* op_set_global(VM* vm, uint8_t* ip);
+    uint8_t* op_jump(VM* vm, uint8_t* ip);
+    uint8_t* op_jump_if_false(VM* vm, uint8_t* ip);
+    uint8_t* op_long_jump(VM* vm, uint8_t* ip);
+    uint8_t* op_long_jump_if_false(VM* vm, uint8_t* ip);
+    uint8_t* op_long_loop(VM* vm, uint8_t* ip);
+    uint8_t* op_call(VM* vm, uint8_t* ip);
+    uint8_t* op_closure(VM* vm, uint8_t* ip);
+    uint8_t* op_get_upvalue(VM* vm, uint8_t* ip);
+    uint8_t* op_set_upvalue(VM* vm, uint8_t* ip);
+    uint8_t* op_close_upvalue(VM* vm, uint8_t* ip);
+    uint8_t* op_debug_print(VM* vm, uint8_t* ip);
+}
+
+namespace pg
+{
     InterpretResult VM::interpret(const std::queue<Token>& tokens)
     {
         // Todo change this
@@ -70,6 +108,9 @@ namespace pg
 
         try
         {
+            // Initialize function pointer dispatch table
+            register_builtin_operations();
+
             begin = std::chrono::steady_clock::now();
             auto result = run();
             end = std::chrono::steady_clock::now();
@@ -92,6 +133,60 @@ namespace pg
     }
 
     InterpretResult VM::run()
+    {
+        // Set currentFrame to point to the topmost frame
+        currentFrame = &frames[frameCount - 1];
+
+        if (currentFrame->closure->function->chunk.code.empty())
+            return InterpretResult::OK;
+
+        // Cache chunk data pointer to avoid repeated vector::data() calls
+        updateChunkCache();
+
+        // Function pointer dispatch with longjmp
+        if (setjmp(exit_jump) == 0) {
+            uint8_t* ip = currentFrame->ip;
+
+            while (true) {
+                if (not ip or ip >= chunkDataEnd) {
+                    return InterpretResult::OK;
+                }
+
+#ifdef DEBUG_TRACE_EXECUTION
+                std::cout << "          ";
+                for (size_t i = 0; i < stack.size(); ++i)
+                {
+                    std::cout << "[";
+                    printValue(stack[i]);
+                    std::cout << "] ";
+                }
+                std::cout << std::endl;
+
+                // Update frame IP for debug output
+                currentFrame->ip = ip;
+                disassembleInstruction(currentFrame->closure->function->chunk, ip - chunkData);
+#endif
+
+                uint8_t opcode = *ip++;
+
+                // Dispatch to operation handler
+                if (operations[opcode].handler) {
+                    ip = operations[opcode].handler(this, ip);
+                } else {
+                    runtimeError("Unknown opcode");
+                    return InterpretResult::RUNTIME_ERROR;
+                }
+
+                // Update frame IP for potential frame switches
+                // currentFrame->ip = ip;
+            }
+        }
+
+        return exit_result;
+    }
+
+    // Old switch statement (will be removed after verification)
+    InterpretResult VM::run_old()
     {
         // Set currentFrame to point to the topmost frame
         currentFrame = &frames[frameCount - 1];
@@ -1584,6 +1679,443 @@ namespace pg
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
         return trackNewValue(elementToValue(elemA <= elemB));
+    }
+
+    // Function pointer dispatch implementation
+    void VM::vm_return(InterpretResult result) {
+        exit_result = result;
+        longjmp(exit_jump, 1);
+    }
+
+    void VM::register_operation(uint8_t opcode, OpHandler handler, const char* name, uint8_t operand_count) {
+        operations[opcode] = OpCodeInfo(handler, name, operand_count);
+    }
+
+    void VM::register_builtin_operations() {
+        register_operation(static_cast<uint8_t>(OpCode::OP_Return), op_return, "RETURN");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Constant), op_constant, "CONSTANT", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_LongConstant), op_long_constant, "LONGCONSTANT", 3);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Add), op_add, "ADD");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Subtract), op_subtract, "SUBTRACT");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply, "MULTIPLY");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide, "DIVIDE");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate, "NEGATE");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal, "EQUAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Greater), op_greater, "GREATER");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Less), op_less, "LESS");
+        register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true, "TRUE");
+        register_operation(static_cast<uint8_t>(OpCode::OP_False), op_false, "FALSE");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Pop), op_pop, "POP");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local, "GET_LOCAL", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local, "SET_LOCAL", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Global), op_get_global, "GET_GLOBAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global), op_define_global, "DEFINE_GLOBAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Global), op_set_global, "SET_GLOBAL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Jump), op_jump, "JUMP", 2);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False), op_jump_if_false, "JUMP_IF_FALSE", 2);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump), op_long_jump, "LONG_JUMP", 4);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False), op_long_jump_if_false, "LONG_JUMP_IF_FALSE", 4);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Loop), op_long_loop, "LONG_LOOP", 4);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call, "CALL", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Closure), op_closure, "CLOSURE", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Upvalue), op_get_upvalue, "GET_UPVALUE", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue, "SET_UPVALUE", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Close_Upvalue), op_close_upvalue, "CLOSE_UPVALUE");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Debug_Print), op_debug_print, "DEBUG_PRINT");
+    }
+
+    // Operation handler implementations
+    uint8_t* op_true(VM* vm, uint8_t* ip) {
+        vm->push(BOOL_VAL(true));
+        return ip;
+    }
+
+    uint8_t* op_false(VM* vm, uint8_t* ip) {
+        vm->push(BOOL_VAL(false));
+        return ip;
+    }
+
+    uint8_t* op_pop(VM* vm, uint8_t* ip) {
+        auto value = vm->pop();
+        vm->releaseAndDelete(value);
+        return ip;
+    }
+
+    uint8_t* op_constant(VM* vm, uint8_t* ip)
+    {
+        uint8_t constantIndex = *ip++;
+
+#ifdef DEBUG_CHECK_STACK
+        if (constantIndex >= vm->currentFrame->closure->function->chunk.constants.size())
+        {
+            vm->runtimeError("Constant index out of bounds");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+#endif
+        Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        vm->push(constant);
+        return ip;
+    }
+
+    uint8_t* op_add(VM* vm, uint8_t* ip) {
+        auto b = vm->pop();
+        auto a = vm->pop();
+        vm->push(vm->addValues(a, b));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+        return ip;
+    }
+
+    uint8_t* op_subtract(VM* vm, uint8_t* ip) {
+        auto b = vm->pop();
+        auto a = vm->pop();
+        vm->push(vm->subtractValues(a, b));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+        return ip;
+    }
+
+    uint8_t* op_multiply(VM* vm, uint8_t* ip) {
+        auto b = vm->pop();
+        auto a = vm->pop();
+        vm->push(vm->multiplyValues(a, b));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+        return ip;
+    }
+
+    uint8_t* op_divide(VM* vm, uint8_t* ip) {
+        auto b = vm->pop();
+        auto a = vm->pop();
+        vm->push(vm->divideValues(a, b));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+        return ip;
+    }
+
+    uint8_t* op_equal(VM* vm, uint8_t* ip) {
+        auto b = vm->pop();
+        auto a = vm->pop();
+        vm->push(vm->equalsValues(a, b));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+        return ip;
+    }
+
+    uint8_t* op_less(VM* vm, uint8_t* ip) {
+        auto b = vm->pop();
+        auto a = vm->pop();
+        vm->push(vm->lessValues(a, b));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+        return ip;
+    }
+
+    uint8_t* op_get_local(VM* vm, uint8_t* ip) {
+        uint8_t slot = *ip++;
+        if (slot >= 255) {
+            vm->runtimeError("Local variable slot out of range");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+        vm->push(vm->currentFrame->slots[slot]);
+        return ip;
+    }
+
+    uint8_t* op_set_local(VM* vm, uint8_t* ip) {
+        uint8_t slot = *ip++;
+        auto value = vm->pop();
+        if (slot >= 255) {
+            vm->runtimeError("Local variable slot out of range");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+        vm->currentFrame->slots[slot] = value;
+        vm->push(value);
+        return ip;
+    }
+
+    uint8_t* op_long_jump_if_false(VM* vm, uint8_t* ip) {
+        uint32_t offset = (static_cast<uint32_t>(*ip++) << 24);
+        offset |= (static_cast<uint32_t>(*ip++) << 16);
+        offset |= (static_cast<uint32_t>(*ip++) << 8);
+        offset |= static_cast<uint32_t>(*ip++);
+
+        Value condition = vm->pop();
+        if (!isValueTrue(condition)) {
+            ip += offset;
+        }
+        vm->releaseAndDelete(condition);
+        return ip;
+    }
+
+    uint8_t* op_long_loop(VM* vm, uint8_t* ip) {
+        uint32_t offset = (static_cast<uint32_t>(*ip++) << 24);
+        offset |= (static_cast<uint32_t>(*ip++) << 16);
+        offset |= (static_cast<uint32_t>(*ip++) << 8);
+        offset |= static_cast<uint32_t>(*ip++);
+
+        return ip - offset;
+    }
+
+    uint8_t* op_return(VM* vm, uint8_t* ip) {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty()) {
+            vm->runtimeError("Nothing in the stack for return.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+#endif
+        auto value = vm->pop();
+        vm->closeUpvalues(vm->currentFrame->slots);
+        vm->frameCount--;
+
+        if (vm->frameCount == 0)
+        {
+            vm->releaseAndDelete(value);
+
+            auto finalValue = vm->pop();
+
+            vm->releaseAndDelete(finalValue);
+            vm->vm_return(InterpretResult::OK);
+
+            return nullptr;
+        }
+
+        // Restore previous frame
+        CallFrame* returningFrame = vm->currentFrame;
+
+        vm->currentFrame = &vm->frames[vm->frameCount - 1];
+        vm->updateChunkCache();
+        // vm->push(value);
+
+        while (vm->stack.data() + vm->stack.size() > returningFrame->slots)
+        {
+            auto v = vm->stack.pop();
+            vm->releaseAndDelete(v);
+        }
+
+        vm->push(vm->retainValue(value));
+        vm->releaseAndDelete(value);
+
+        return vm->currentFrame->ip;
+    }
+
+    // Placeholder implementations for missing operations (will implement as needed)
+    uint8_t* op_long_constant(VM* vm, uint8_t* ip) {
+        uint32_t constantIndex = (static_cast<uint32_t>(*ip++) << 16);
+        constantIndex |= (static_cast<uint32_t>(*ip++) << 8);
+        constantIndex |= static_cast<uint32_t>(*ip++);
+
+#ifdef DEBUG_CHECK_STACK
+        if (constantIndex >= vm->currentFrame->closure->function->chunk.constants.size()) {
+            vm->runtimeError("Long constant index out of bounds.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+#endif
+
+        Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        vm->push(constant);
+        return ip;
+    }
+
+    uint8_t* op_negate(VM* vm, uint8_t* ip) {
+        auto val = vm->pop();
+        vm->push(vm->negateValue(val));
+        vm->releaseAndDelete(val);
+        return ip;
+    }
+
+    uint8_t* op_greater(VM* vm, uint8_t* ip) {
+        auto b = vm->pop();
+        auto a = vm->pop();
+        vm->push(vm->greaterValues(a, b));
+        vm->releaseAndDelete(a);
+        vm->releaseAndDelete(b);
+        return ip;
+    }
+
+    uint8_t* op_get_global(VM* vm, uint8_t* ip) {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty()) {
+            vm->runtimeError("Not enough values on stack for variable retrieval.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+#endif
+        auto nameValue = vm->pop();  // variable name
+        auto name = valueToElement(nameValue);
+
+        if (not name.isLitteral()) {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end()) {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        vm->push(it->second); // Don't retain - global already holds reference
+        vm->releaseAndDelete(nameValue);
+        return ip;
+    }
+
+    uint8_t* op_define_global(VM* vm, uint8_t* ip) {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 2) {
+            vm->runtimeError("Not enough values on stack for variable definition.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+#endif
+        auto nameValue = vm->pop();  // variable name
+        auto name = valueToElement(nameValue);
+        auto value = vm->pop(); // variable value
+
+        if (not name.isLitteral()) {
+            vm->releaseAndDelete(nameValue);
+            vm->releaseAndDelete(value);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        vm->globals[name.toString()] = vm->retainValue(value);
+        vm->releaseAndDelete(nameValue);
+        vm->releaseAndDelete(value);
+        return ip;
+    }
+
+    uint8_t* op_set_global(VM* vm, uint8_t* ip) {
+        vm->runtimeError("OP_Set_Global not implemented yet");
+        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        return nullptr;
+    }
+
+    uint8_t* op_jump(VM* vm, uint8_t* ip) {
+        vm->runtimeError("OP_Jump not implemented yet");
+        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        return nullptr;
+    }
+
+    uint8_t* op_jump_if_false(VM* vm, uint8_t* ip) {
+        vm->runtimeError("OP_Jump_If_False not implemented yet");
+        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        return nullptr;
+    }
+
+    uint8_t* op_long_jump(VM* vm, uint8_t* ip) {
+        uint32_t offset = (static_cast<uint32_t>(*ip++) << 24);
+        offset |= (static_cast<uint32_t>(*ip++) << 16);
+        offset |= (static_cast<uint32_t>(*ip++) << 8);
+        offset |= static_cast<uint32_t>(*ip++);
+
+        return ip + offset;
+    }
+
+    uint8_t* op_call(VM* vm, uint8_t* ip) {
+        int argCount = *ip++;
+
+        // Get the function object (at position argCount from top)
+        Value function = vm->peek(argCount);
+
+        if (not vm->callValue(function, argCount)) {
+            vm->runtimeError("Cannot call function");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        // Remove the function object from the stack by shifting arguments up
+        for (int i = argCount - 1; i >= 0; i--) {
+            vm->stack[vm->stack.size() - argCount - 1 + i] = vm->stack[vm->stack.size() - argCount + i];
+        }
+        vm->stack.pop(); // Remove the duplicate top element
+
+        // Update the frame slots to point to the shifted arguments
+        vm->frames[vm->frameCount - 1].slots = vm->stack.data() + vm->stack.size() - argCount;
+
+        vm->currentFrame = &vm->frames[vm->frameCount - 1];
+        vm->updateChunkCache(); // Update cached chunk data for new frame
+        return vm->currentFrame->ip;
+    }
+
+    uint8_t* op_closure(VM* vm, uint8_t* ip) {
+        uint8_t constantIndex = *ip++;
+        auto functionValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        if (not IS_FUNC(functionValue)) {
+            vm->runtimeError("Closure operand must be a function.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+
+        ObjFunction* function = AS_FUNC(functionValue);
+        auto closure = new Closure(function);
+        vm->push(vm->trackNewValue(CLOSURE_VAL(closure)));
+
+        for (int i = 0; i < function->upvalueCount; i++) {
+            uint8_t isLocal = *ip++;
+            uint8_t index = *ip++;
+            if (isLocal) {
+                closure->upvalues[i] = vm->captureUpvalue(vm->currentFrame->slots + index);
+            } else {
+                closure->upvalues[i] = vm->currentFrame->closure->upvalues[index];
+            }
+        }
+        return ip;
+    }
+
+    uint8_t* op_get_upvalue(VM* vm, uint8_t* ip) {
+        vm->runtimeError("OP_Get_Upvalue not implemented yet");
+        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        return nullptr;
+    }
+
+    uint8_t* op_set_upvalue(VM* vm, uint8_t* ip) {
+        vm->runtimeError("OP_Set_Upvalue not implemented yet");
+        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        return nullptr;
+    }
+
+    uint8_t* op_close_upvalue(VM* vm, uint8_t* ip) {
+        vm->runtimeError("OP_Close_Upvalue not implemented yet");
+        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        return nullptr;
+    }
+
+    uint8_t* op_debug_print(VM* vm, uint8_t* ip) {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty()) {
+            vm->runtimeError("Nothing to print from the stack.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return nullptr;
+        }
+#endif
+        auto value = vm->pop();
+
+        if (IS_FUNC(value)) {
+            ObjFunction* func = AS_FUNC(value);
+            if (func != nullptr) {
+                vm->testOutput += "<" + func->name + "> \n";
+            } else {
+                vm->testOutput += "<script> \n";
+            }
+            vm->releaseAndDelete(value);
+            return ip;
+        }
+
+        // For testing: append to testOutput buffer instead of stdout
+        ElementType elem = valueToElement(value);
+        vm->testOutput += elem.toString() + "\n";
+        vm->releaseAndDelete(value);
+        return ip;
     }
 
 }
