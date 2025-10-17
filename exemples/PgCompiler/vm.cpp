@@ -8,6 +8,8 @@
 
 #include <chrono>
 
+#include "pgconstant.h"
+
 namespace pg
 {
     InterpretResult VM::interpret(const std::queue<Token>& tokens)
@@ -1096,84 +1098,6 @@ namespace pg
         return constant;
     }
 
-    void VM::binaryOp(std::function<Value(Value, Value)> op)
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (stack.size() < 2)
-        {
-            runtimeError((Strfy() << "Stack underflow on binary operation.").getData());
-            return;
-        }
-#endif
-
-        auto val1 = peek(0);
-        auto val2 = peek(1);
-
-        // Type check using Value operations
-        bool val1IsNumber = isValueNumber(val1);
-        bool val2IsNumber = isValueNumber(val2);
-        bool val1IsLiteral = IS_OBJ(val1) && AS_OBJ(val1)->isLitteral();
-        bool val2IsLiteral = IS_OBJ(val2) && AS_OBJ(val2)->isLitteral();
-
-        if (not (val1IsNumber and val2IsNumber) and not (val1IsLiteral and val2IsLiteral))
-        {
-            ElementType e1 = valueToElement(val1);
-            ElementType e2 = valueToElement(val2);
-            runtimeError((Strfy() << "Operands after a binary operator should be the same type: " << e1.getTypeString() << " and " << e2.getTypeString()).getData());
-            return;
-        }
-
-        auto b = pop();
-        auto a = pop();
-
-        push(op(a, b));
-        releaseAndDelete(a);
-        releaseAndDelete(b);
-    }
-
-    void VM::fastBinaryOp(Value (*op)(const Value&, const Value&))
-    {
-#ifdef DEBUG_CHECK_STACK
-        if (stack.size() < 2)
-        {
-            runtimeError((Strfy() << "Stack underflow on binary operation.").getData());
-            return;
-        }
-#endif
-
-        auto val1 = peek(0);
-        auto val2 = peek(1);
-
-        // Fast path for integers
-        if (IS_INT(val1) && IS_INT(val2)) {
-            auto b = pop();
-            auto a = pop();
-            push(op(a, b));
-            releaseAndDelete(a);
-            releaseAndDelete(b);
-            return;
-        }
-
-        // Type check for complex cases
-        bool val1IsNumber = isValueNumber(val1);
-        bool val2IsNumber = isValueNumber(val2);
-        bool val1IsLiteral = IS_OBJ(val1) && AS_OBJ(val1)->isLitteral();
-        bool val2IsLiteral = IS_OBJ(val2) && AS_OBJ(val2)->isLitteral();
-
-        if (not (val1IsNumber and val2IsNumber) and not (val1IsLiteral and val2IsLiteral))
-        {
-            ElementType e1 = valueToElement(val1);
-            ElementType e2 = valueToElement(val2);
-            runtimeError((Strfy() << "Operands after a binary operator should be the same type: " << e1.getTypeString() << " and " << e2.getTypeString()).getData());
-            return;
-        }
-
-        auto b = pop();
-        auto a = pop();
-        push(op(a, b));
-        releaseAndDelete(a);
-        releaseAndDelete(b);
-    }
 
     ObjUpvalue* VM::captureUpvalue(Value* local)
     {
@@ -1364,7 +1288,7 @@ namespace pg
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot compare function Values");
 
         // Fall back to ElementType for other complex cases (strings, etc.)
         ElementType elemA = valueToElement(a);
@@ -1406,7 +1330,7 @@ namespace pg
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot compare function Values");
 
         // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
@@ -1463,11 +1387,11 @@ namespace pg
             return INT_VAL(AS_INT(a) / AS_INT(b));
 
         // Fast path for floats
-        if (IS_FLOAT(a) and IS_FLOAT(b) and AS_FLOAT(b) != 0.0)
+        if (IS_FLOAT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
             return FLOAT_VAL(AS_FLOAT(a) / AS_FLOAT(b));
 
         // Mixed int/float cases - promote to float
-        if (IS_INT(a) and IS_FLOAT(b) and AS_FLOAT(b) != 0.0)
+        if (IS_INT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
             return FLOAT_VAL(static_cast<double>(AS_INT(a)) / AS_FLOAT(b));
 
         if (IS_FLOAT(a) and IS_INT(b) and AS_INT(b) != 0)
@@ -1478,7 +1402,7 @@ namespace pg
         {
             double floatA = static_cast<double>(AS_INT(a));
             double floatB = (*AS_OBJ(b)).get<float>();
-            if (floatB != 0.0)
+            if (areNotAlmostEqual(static_cast<float>(floatB), 0.0f))
                 return FLOAT_VAL(floatA / floatB);
         }
 
@@ -1486,7 +1410,7 @@ namespace pg
         {
             double floatA = (*AS_OBJ(a)).get<float>();
             double floatB = static_cast<double>(AS_INT(b));
-            if (floatB != 0.0)
+            if (areNotAlmostEqual(static_cast<float>(floatB), 0.0f))
                 return FLOAT_VAL(floatA / floatB);
         }
 
@@ -1524,20 +1448,20 @@ namespace pg
             return BOOL_VAL(AS_INT(a) == AS_INT(b));
 
         if (IS_FLOAT(a) and IS_FLOAT(b))
-            return BOOL_VAL(AS_FLOAT(a) == AS_FLOAT(b));
+            return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_FLOAT(b))));
 
         if (IS_INT(a) and IS_FLOAT(b))
-            return BOOL_VAL(static_cast<double>(AS_INT(a)) == AS_FLOAT(b));
+            return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_FLOAT(b))));
 
         if (IS_FLOAT(a) and IS_INT(b))
-            return BOOL_VAL(AS_FLOAT(a) == static_cast<double>(AS_INT(b)));
+            return BOOL_VAL(areAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
 
         if (IS_BOOL(a) and IS_BOOL(b))
             return BOOL_VAL(AS_BOOL(a) == AS_BOOL(b));
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot compare function Values");
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
@@ -1549,12 +1473,21 @@ namespace pg
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) != AS_INT(b));
 
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_FLOAT(b))));
+
+        if (IS_INT(a) and IS_FLOAT(b))
+            return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_INT(a)), static_cast<float>(AS_FLOAT(b))));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
+
         if (IS_BOOL(a) && IS_BOOL(b))
             return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot compare function Values");
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
@@ -1577,7 +1510,7 @@ namespace pg
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot compare function Values");
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
@@ -1589,9 +1522,18 @@ namespace pg
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) >= AS_INT(b));
 
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return BOOL_VAL(AS_FLOAT(a) >= AS_FLOAT(b));
+
+        if (IS_INT(a) and IS_FLOAT(b))
+            return BOOL_VAL(static_cast<double>(AS_INT(a)) >= AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return BOOL_VAL(AS_FLOAT(a) >= static_cast<double>(AS_INT(b)));
+
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot compare function Values");
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
@@ -1626,9 +1568,18 @@ namespace pg
         if (IS_INT(a) and IS_INT(b))
             return BOOL_VAL(AS_INT(a) <= AS_INT(b));
 
+        if (IS_FLOAT(a) and IS_FLOAT(b))
+            return BOOL_VAL(AS_FLOAT(a) <= AS_FLOAT(b));
+
+        if (IS_INT(a) and IS_FLOAT(b))
+            return BOOL_VAL(static_cast<double>(AS_INT(a)) <= AS_FLOAT(b));
+
+        if (IS_FLOAT(a) and IS_INT(b))
+            return BOOL_VAL(AS_FLOAT(a) <= static_cast<double>(AS_INT(b)));
+
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
-            throw std::runtime_error("Cannot add function Values");
+            throw std::runtime_error("Cannot compare function Values");
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);

@@ -13,6 +13,10 @@
 #include <stack>
 #include <functional>
 
+#include <cmath>
+#include <cstdlib>
+#include <algorithm>
+
 // Todo add this as a flag in when compiling in debug
 // #define DEBUG_TRACE_EXECUTION
 
@@ -25,7 +29,6 @@
 namespace pg
 {
     static constexpr size_t FRAMES_MAX = 64;
-
 
     inline bool isValueNumber(const Value& val)
     {
@@ -47,7 +50,13 @@ namespace pg
             return AS_INT(val) != 0;
 
         if (IS_FLOAT(val))
-            return AS_FLOAT(val) != 0.0;
+        {
+            const float a = static_cast<float>(AS_FLOAT(val));
+            const float b = 0.0f;
+            const float epsilon = 0.00001f;
+
+            return not (std::fabs(a - b) <= epsilon * std::max({1.0f, std::fabs(a), std::fabs(b)}));
+        }
 
         if (IS_OBJ(val))
             return AS_OBJ(val)->isTrue();
@@ -198,9 +207,6 @@ namespace pg
 
         Value readConstant();
         Value readLongConstant();
-
-        void binaryOp(std::function<Value(Value, Value)> op);
-        void fastBinaryOp(Value (*op)(const Value&, const Value&));
 
         // Core Value operations for performance
         inline void push(const Value& value)
