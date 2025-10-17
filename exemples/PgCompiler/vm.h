@@ -19,9 +19,9 @@
 #include <setjmp.h>
 
 // Todo add this as a flag in when compiling in debug
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
-#define DEBUG_CHECK_STACK
+// #define DEBUG_CHECK_STACK
 
 #define DEBUG_PROFILE_COMPILE
 
@@ -35,7 +35,7 @@ namespace pg
     struct VM;
 
     // Function pointer type for operation handlers
-    typedef uint8_t* (*OpHandler)(VM* vm, uint8_t* ip);
+    typedef void (*OpHandler)(VM* vm);
 
     // Operation information structure
     struct OpCodeInfo {
