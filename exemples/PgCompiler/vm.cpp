@@ -251,7 +251,9 @@ namespace pg
         switch (callee.type)
         {
             case CompilerValueType::COMPILER_VAL_CLOSURE:
+            {
                 return call(AS_CLOSURE(callee), argCount);
+            }
 
             case CompilerValueType::COMPILER_VAL_NATIVE:
             {
@@ -266,6 +268,35 @@ namespace pg
                 }
 
                 push(result);
+                return true;
+            }
+
+            case CompilerValueType::COMPILER_VAL_CLASS:
+            {
+                std::cout << "in class" << std::endl;
+                Klass* klass = AS_CLASS(callee);
+                ObjInstance* instance = new ObjInstance(klass);
+                // trackNewValue(INSTANCE_VAL(instance));
+
+                // push(trackNewValue(INSTANCE_VAL(instance)));
+
+                releaseAndDelete(stack[stack.size() - argCount - 1]);
+                stack[stack.size() - argCount - 1] = trackNewValue(INSTANCE_VAL(instance));
+                // push(INSTANCE_VAL(instance));
+
+                // // Call initializer if it exists
+                // Value initializer;
+                // if (klass->methods.get("init", initializer))
+                // {
+                //     return callValue(initializer, argCount);
+                // }
+                // else if (argCount != 0)
+                // {
+                //     runtimeError((Strfy() << "Expected 0 arguments but got: " << argCount << ".").getData());
+
+                //     return false;
+                // }
+
                 return true;
             }
 
@@ -298,6 +329,7 @@ namespace pg
 
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
+        // Point to first argument (skipping the function object at -argCount-1)
         frame->slots = stack.data() + stack.size() - argCount;
 
         return true;
@@ -841,6 +873,7 @@ namespace pg
     void op_get_local(VM* vm)
     {
         uint8_t slot = *vm->currentFrame->ip++;
+
         if (slot >= 255)
         {
             vm->runtimeError("Local variable slot out of range");
@@ -848,17 +881,16 @@ namespace pg
 
             return;
         }
+
         vm->push(vm->retainValue(vm->currentFrame->slots[slot]));
     }
 
     void op_set_local(VM* vm)
     {
         uint8_t slot = *vm->currentFrame->ip++;
-        auto value = vm->pop();
 
         if (slot >= 255)
         {
-            vm->releaseAndDelete(value);
             vm->runtimeError("Local variable slot out of range");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
 
@@ -866,9 +898,7 @@ namespace pg
         }
 
         vm->releaseAndDelete(vm->currentFrame->slots[slot]);
-        vm->currentFrame->slots[slot] = vm->retainValue(value);
-
-        vm->push(value);
+        vm->currentFrame->slots[slot] = vm->peek(0);
     }
 
     void op_long_jump_if_false(VM* vm)
@@ -923,22 +953,21 @@ namespace pg
             return;
         }
 
-        // Restore previous frame
-        CallFrame* returningFrame = vm->currentFrame;
+        size_t nbArgsToPop = (vm->stack.data() + vm->stack.size() - vm->currentFrame->slots);
 
+        // Restore previous frame
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache();
-        // vm->push(value);
 
-        // Todo change this
-        while (vm->stack.data() + vm->stack.size() > returningFrame->slots)
+        for (size_t i = 0; i < nbArgsToPop; i++)
         {
-            auto v = vm->stack.pop();
+            auto v = vm->pop();
             vm->releaseAndDelete(v);
         }
 
-        vm->push(vm->retainValue(value));
-        vm->releaseAndDelete(value);
+        vm->pop(); // Remove the closure
+
+        vm->push(value);
     }
 
     void op_negate(VM* vm)
@@ -1081,16 +1110,16 @@ namespace pg
             return;
         }
 
-        // Remove the function object from the stack by shifting arguments up
-        for (int i = argCount - 1; i >= 0; i--)
-        {
-            vm->stack[vm->stack.size() - argCount - 1 + i] = vm->stack[vm->stack.size() - argCount + i];
-        }
+        // // Remove the function object from the stack by shifting arguments up
+        // for (int i = argCount - 1; i >= 0; i--)
+        // {
+        //     vm->stack[vm->stack.size() - argCount - 1 + i] = vm->stack[vm->stack.size() - argCount + i];
+        // }
 
-        vm->stack.pop(); // Remove the duplicate top element
+        // vm->stack.pop(); // Remove the duplicate top element
 
-        // Update the frame slots to point to the shifted arguments
-        vm->frames[vm->frameCount - 1].slots = vm->stack.data() + vm->stack.size() - argCount;
+        // // Update the frame slots to point to the shifted arguments
+        // vm->frames[vm->frameCount - 1].slots = vm->stack.data() + vm->stack.size() - argCount;
 
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache(); // Update cached chunk data for new frame
@@ -1167,6 +1196,23 @@ namespace pg
             {
                 vm->testOutput += "<null class> \n";
             }
+            vm->releaseAndDelete(value);
+            return;
+        }
+
+        if (IS_INSTANCE(value))
+        {
+            ObjInstance* instance = AS_INSTANCE(value);
+
+            if (instance != nullptr && instance->klass != nullptr)
+            {
+                vm->testOutput += "<instance of " + instance->klass->name + "> \n";
+            }
+            else
+            {
+                vm->testOutput += "<null instance> \n";
+            }
+
             vm->releaseAndDelete(value);
             return;
         }
