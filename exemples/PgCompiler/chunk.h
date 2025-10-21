@@ -224,6 +224,9 @@ namespace pg
             case OpCode::OP_Closure:
                 return 2; // opcode + 1 byte operand (constant index), plus upvalue bytes handled separately
 
+            case OpCode::OP_Class:
+                return 2; // opcode + 1 byte operand (constant index for class name)
+
             default:
                 return 1; // default to single byte for unknown opcodes
         }

@@ -312,6 +312,8 @@ namespace pg
             case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
             case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
             case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_CLASS:   ptr = value.as.klass; break;
+            case COMPILER_VAL_INSTANCE: ptr = value.as.instance; break;
             default: return 0; // Primitives
         }
 
@@ -342,6 +344,12 @@ namespace pg
                 break;
             case COMPILER_VAL_NATIVE:
                 if (value.as.nativeFunc) delete value.as.nativeFunc;
+                break;
+            case COMPILER_VAL_CLASS:
+                if (value.as.klass) delete value.as.klass;
+                break;
+            case COMPILER_VAL_INSTANCE:
+                if (value.as.instance) delete value.as.instance;
                 break;
             default:
                 // Primitives don't need deletion
@@ -1148,6 +1156,21 @@ namespace pg
             return;
         }
 
+        if (IS_CLASS(value))
+        {
+            Klass* klass = AS_CLASS(value);
+            if (klass != nullptr)
+            {
+                vm->testOutput += "<class " + klass->name + "> \n";
+            }
+            else
+            {
+                vm->testOutput += "<null class> \n";
+            }
+            vm->releaseAndDelete(value);
+            return;
+        }
+
         // For testing: append to testOutput buffer instead of stdout
         ElementType elem = valueToElement(value);
         vm->testOutput += elem.toString() + "\n";
@@ -1319,7 +1342,7 @@ namespace pg
         auto oldValue = vm->retainValue(it->second);
         auto newValue = vm->addValues(it->second, INT_VAL(1));
         vm->releaseAndDelete(it->second);
-        it->second = newValue;
+        it->second = vm->retainValue(newValue);
 
         vm->push(oldValue); // Post-increment returns the old value
         vm->releaseAndDelete(nameValue);
@@ -1365,7 +1388,7 @@ namespace pg
 
         auto newValue = vm->addValues(it->second, INT_VAL(1));
         vm->releaseAndDelete(it->second);
-        it->second = newValue;
+        it->second = vm->retainValue(newValue);
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);
@@ -1412,7 +1435,7 @@ namespace pg
         auto oldValue = vm->retainValue(it->second);
         auto newValue = vm->subtractValues(it->second, INT_VAL(1));
         vm->releaseAndDelete(it->second);
-        it->second = newValue;
+        it->second = vm->retainValue(newValue);
 
         vm->push(oldValue); // Post-decrement returns the old value
         vm->releaseAndDelete(nameValue);
@@ -1458,7 +1481,7 @@ namespace pg
 
         auto newValue = vm->subtractValues(it->second, INT_VAL(1));
         vm->releaseAndDelete(it->second);
-        it->second = newValue;
+        it->second = vm->retainValue(newValue);
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(nameValue);
@@ -1493,7 +1516,10 @@ namespace pg
             return;
         }
 
-        if (not isValueNumber(vm->currentFrame->slots[index]))
+        // Calculate the absolute stack index from the frame-relative index
+        size_t stackIndex = (vm->currentFrame->slots - vm->stack.data()) + index;
+
+        if (not isValueNumber(vm->stack[stackIndex]))
         {
             vm->releaseAndDelete(slot);
             vm->runtimeError("Operand after an unary (++) must be a number.");
@@ -1501,12 +1527,12 @@ namespace pg
             return;
         }
 
-        auto oldValue = vm->retainValue(vm->currentFrame->slots[index]);
-        auto newValue = vm->addValues(vm->currentFrame->slots[index], INT_VAL(1));
-        vm->releaseAndDelete(vm->currentFrame->slots[index]);
-        vm->currentFrame->slots[index] = newValue;
+        // Old value is already on the stack (from OP_Get_Local before this opcode)
+        // We just need to increment the variable in its slot
+        auto newValue = vm->addValues(vm->stack[stackIndex], INT_VAL(1));
+        vm->releaseAndDelete(vm->stack[stackIndex]);
+        vm->stack[stackIndex] = newValue;
 
-        vm->push(oldValue);
         vm->releaseAndDelete(slot);
     }
 
@@ -1547,9 +1573,12 @@ namespace pg
             return;
         }
 
-        auto newValue = vm->addValues(vm->currentFrame->slots[index], INT_VAL(1));
-        vm->releaseAndDelete(vm->currentFrame->slots[index]);
-        vm->currentFrame->slots[index] = newValue;
+        // Calculate the absolute stack index from the frame-relative index
+        size_t stackIndex = (vm->currentFrame->slots - vm->stack.data()) + index;
+
+        auto newValue = vm->addValues(vm->stack[stackIndex], INT_VAL(1));
+        vm->releaseAndDelete(vm->stack[stackIndex]);
+        vm->stack[stackIndex] = newValue;
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(slot);
@@ -1584,7 +1613,10 @@ namespace pg
             return;
         }
 
-        if (not isValueNumber(vm->currentFrame->slots[index]))
+        // Calculate the absolute stack index from the frame-relative index
+        size_t stackIndex = (vm->currentFrame->slots - vm->stack.data()) + index;
+
+        if (not isValueNumber(vm->stack[stackIndex]))
         {
             vm->releaseAndDelete(slot);
             vm->runtimeError("Operand after an unary (--) must be a number.");
@@ -1592,12 +1624,12 @@ namespace pg
             return;
         }
 
-        auto oldValue = vm->retainValue(vm->currentFrame->slots[index]);
-        auto newValue = vm->subtractValues(vm->currentFrame->slots[index], INT_VAL(1));
-        vm->releaseAndDelete(vm->currentFrame->slots[index]);
-        vm->currentFrame->slots[index] = newValue;
+        // Old value is already on the stack (from OP_Get_Local before this opcode)
+        // We just need to decrement the variable in its slot
+        auto newValue = vm->subtractValues(vm->stack[stackIndex], INT_VAL(1));
+        vm->releaseAndDelete(vm->stack[stackIndex]);
+        vm->stack[stackIndex] = newValue;
 
-        vm->push(oldValue);
         vm->releaseAndDelete(slot);
     }
 
@@ -1638,9 +1670,12 @@ namespace pg
             return;
         }
 
-        auto newValue = vm->subtractValues(vm->currentFrame->slots[index], INT_VAL(1));
-        vm->releaseAndDelete(vm->currentFrame->slots[index]);
-        vm->currentFrame->slots[index] = newValue;
+        // Calculate the absolute stack index from the frame-relative index
+        size_t stackIndex = (vm->currentFrame->slots - vm->stack.data()) + index;
+
+        auto newValue = vm->subtractValues(vm->stack[stackIndex], INT_VAL(1));
+        vm->releaseAndDelete(vm->stack[stackIndex]);
+        vm->stack[stackIndex] = newValue;
 
         vm->push(vm->retainValue(newValue));
         vm->releaseAndDelete(slot);
