@@ -51,6 +51,19 @@ namespace pg
                 std::cout << "<null class>";
             }
         }
+        else if (IS_INSTANCE(value))
+        {
+            ObjInstance* instance = AS_INSTANCE(value);
+
+            if (instance != nullptr && instance->klass != nullptr)
+            {
+                std::cout << "<instance of " << instance->klass->name << ">";
+            }
+            else
+            {
+                std::cout << "<null instance>";
+            }
+        }
         else
         {
             std::cout << valueToElement(value).toString();
