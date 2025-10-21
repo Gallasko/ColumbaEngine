@@ -65,6 +65,9 @@ namespace pg
         OP_Close_Upvalue,
 
         OP_Class,
+
+        OP_Set_Property,
+        OP_Get_Property,
     };
 
     struct Chunk
@@ -140,6 +143,11 @@ namespace pg
         uint8_t addConstantIndex(ObjFunction* value)
         {
             return addConstantIndex(FUNC_VAL(value));
+        }
+
+        uint8_t addConstantIndex(const ElementType& value)
+        {
+            return addConstantIndex(elementToValue(value));
         }
 
         size_t addCode(const OpCode& op, int line)

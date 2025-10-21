@@ -126,19 +126,16 @@ namespace pg
         int arg = Compiler::current->resolveLocal(varToken);
 
         OpCode setOp, getOp;
-        bool isLocal = false;
 
         if (arg != -1)
         {
             setOp = OpCode::OP_Set_Local;
             getOp = OpCode::OP_Get_Local;
-            isLocal = true;
         }
         else if ((arg = Compiler::current->resolveUpvalue(varToken)) != -1)
         {
             setOp = OpCode::OP_Set_Upvalue;
             getOp = OpCode::OP_Get_Upvalue;
-            isLocal = true;
         }
         else
         {
@@ -448,6 +445,26 @@ namespace pg
         parser.emitBytes(OpCode::OP_Call, argCount);
     }
 
+    void dot(Parser& parser, bool canAssign)
+    {
+        parser.consume("Expect property name after '.'.", TokenType::EXPRESSION);
+
+        auto propertyName = parser.previousToken.text;
+        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(propertyName);
+
+        if (canAssign and parser.match(TokenType::EQUAL))
+        {
+            parser.expression();
+            parser.writeByte(OpCode::OP_Set_Property);
+            parser.writeByte(constantIndex);
+        }
+        else
+        {
+            parser.writeByte(OpCode::OP_Get_Property);
+            parser.writeByte(constantIndex);
+        }
+    }
+
     std::unordered_map<TokenType, ParseRule> rules = {
         {TokenType::EQUAL,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::PLUS,         {NULL,        binary, Precedence::TERM}},
@@ -468,7 +485,7 @@ namespace pg
         {TokenType::TILDE,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::AMPER,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::COMMA,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::POINT,        {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::POINT,        {NULL,        dot,    Precedence::CALL}},
         {TokenType::SMARK,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::DMARK,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SLASH,        {NULL,        binary, Precedence::FACTOR}},

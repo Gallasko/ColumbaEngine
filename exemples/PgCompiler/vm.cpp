@@ -62,6 +62,8 @@ namespace pg
     void op_post_decr_local(VM* vm);
     void op_decr_local(VM* vm);
     void op_class(VM* vm);
+    void op_get_property(VM* vm);
+    void op_set_property(VM* vm);
 }
 
 namespace pg
@@ -273,7 +275,6 @@ namespace pg
 
             case CompilerValueType::COMPILER_VAL_CLASS:
             {
-                std::cout << "in class" << std::endl;
                 Klass* klass = AS_CLASS(callee);
                 ObjInstance* instance = new ObjInstance(klass);
                 // trackNewValue(INSTANCE_VAL(instance));
@@ -785,6 +786,8 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Local), op_post_decr_local, "POST_DECR_LOCAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Local), op_decr_local, "DECR_LOCAL");
         register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class, "CLASS");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property, "GET_PROPERTY");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property, "SET_PROPERTY");
     }
 
     // Operation handler implementations
@@ -1745,6 +1748,79 @@ namespace pg
         std::string className = classNameElem.toString();
         auto* newClass = new Klass(className);
         vm->push(vm->trackNewValue(CLASS_VAL(newClass)));
+    }
+
+    void op_get_property(VM* vm)
+    {
+        if (not IS_INSTANCE(vm->peek(0)))
+        {
+            vm->runtimeError("Only instances have properties.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        auto* instance = AS_INSTANCE(vm->peek(0));
+
+        uint8_t constantIndex = *vm->currentFrame->ip++;
+        auto nameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        auto name = valueToElement(nameValue);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Property name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        if (instance->fields.find(name.toString()) == instance->fields.end())
+        {
+            vm->runtimeError("Undefined property '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        vm->pop(); // Remove the instance from the stack
+        vm->push(vm->retainValue(instance->fields[name.toString()]));
+    }
+
+    void op_set_property(VM *vm)
+    {
+        if (not IS_INSTANCE(vm->peek(1)))
+        {
+            vm->runtimeError("Only instances have fields.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        auto* instance = AS_INSTANCE(vm->peek(1));
+
+        uint8_t constantIndex = *vm->currentFrame->ip++;
+        auto nameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        auto name = valueToElement(nameValue);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Field name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        auto value = vm->pop(); // Value to set
+        vm->pop(); // Instance
+
+        // Todo maybe fix
+        if (instance->fields.find(name.toString()) != instance->fields.end())
+        {
+            vm->releaseAndDelete(instance->fields[name.toString()]);
+        }
+
+        instance->fields[name.toString()] = vm->retainValue(value);
+        vm->push(value);
     }
 
 }
