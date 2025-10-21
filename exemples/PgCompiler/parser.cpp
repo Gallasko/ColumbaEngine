@@ -122,19 +122,23 @@ namespace pg
     void variable(Parser& parser, bool canAssign)
     {
         auto varName = parser.previousToken.text;
-        int arg = Compiler::current->resolveLocal(parser.previousToken);
+        Token varToken = parser.previousToken;
+        int arg = Compiler::current->resolveLocal(varToken);
 
         OpCode setOp, getOp;
+        bool isLocal = false;
 
         if (arg != -1)
         {
             setOp = OpCode::OP_Set_Local;
             getOp = OpCode::OP_Get_Local;
+            isLocal = true;
         }
-        else if ((arg = Compiler::current->resolveUpvalue(parser.previousToken)) != -1)
+        else if ((arg = Compiler::current->resolveUpvalue(varToken)) != -1)
         {
             setOp = OpCode::OP_Set_Upvalue;
             getOp = OpCode::OP_Get_Upvalue;
+            isLocal = true;
         }
         else
         {
@@ -144,6 +148,20 @@ namespace pg
             {
                 parser.expression();
                 parser.writeByte(OpCode::OP_Set_Global);
+            }
+            else if (parser.match(TokenType::INCREMENT))
+            {
+                // Postfix increment: var++
+                parser.writeByte(OpCode::OP_Get_Global);
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Post_Incr_Global);
+            }
+            else if (parser.match(TokenType::DECREMENT))
+            {
+                // Postfix decrement: var--
+                parser.writeByte(OpCode::OP_Get_Global);
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Post_Decr_Global);
             }
             else
             {
@@ -159,6 +177,22 @@ namespace pg
             parser.expression();
             parser.writeByte(setOp);
             parser.writeByte(static_cast<uint8_t>(arg));
+        }
+        else if (parser.match(TokenType::INCREMENT))
+        {
+            // Postfix increment: var++
+            parser.writeByte(getOp);
+            parser.writeByte(static_cast<uint8_t>(arg));
+            parser.writeConstant(ElementType(arg));
+            parser.writeByte(OpCode::OP_Post_Incr_Local);
+        }
+        else if (parser.match(TokenType::DECREMENT))
+        {
+            // Postfix decrement: var--
+            parser.writeByte(getOp);
+            parser.writeByte(static_cast<uint8_t>(arg));
+            parser.writeConstant(ElementType(arg));
+            parser.writeByte(OpCode::OP_Post_Decr_Local);
         }
         else
         {
@@ -287,42 +321,47 @@ namespace pg
         // Stack currently has [old_value] from the variable access
         // We need to: return old_value, but also increment the variable
 
-        // Strategy: We need to re-identify the variable that was just accessed
-        // Since we're in a postfix context, we can look at the bytecode that was just generated
+        // Strategy: Examine the last bytecode instruction to determine variable type
+        // Local vars: OP_Get_Local <slot_byte>
+        // Global vars: OP_Constant <name_idx>, OP_Get_Global
 
-        // The last operations should have been:
-        // OP_Constant <var_name/slot>
-        // OP_Get_Global/Local
+        auto& chunk = Compiler::current->getCurrentChunk();
 
-        const auto& chunk = Compiler::current->getCurrentChunk();
-
-        // We can examine the last constant that was added to identify the variable
-        if (chunk.constants.empty())
+        if (chunk.code.size() < 2)
         {
             parser.errorAt(parser.previousToken, "No variable found for postfix increment");
             return;
         }
 
-        // Get the last constant (should be the variable identifier)
-        // ElementType lastConstant; = chunk.constants.back();
-        ElementType lastConstant;
+        // Check the last instruction (last byte in the code)
+        OpCode lastOp = static_cast<OpCode>(chunk.code.back());
 
-        // Determine if this is a local or global variable
         OpCode incrOp;
         ElementType identifier;
 
-        // Check if it's a number (local variable slot) or string (global variable name)
-        if (lastConstant.isNumber())
+        if (lastOp == OpCode::OP_Get_Local)
         {
-            // Local variable
+            // Local variable - the slot number is the second-to-last byte
+            uint8_t slot = chunk.code[chunk.code.size() - 2];
             incrOp = OpCode::OP_Post_Incr_Local;
+            identifier = ElementType(static_cast<int>(slot));
+        }
+        else if (lastOp == OpCode::OP_Get_Global)
+        {
+            // Global variable - the name is in the last constant
+            if (chunk.constants.empty())
+            {
+                parser.errorAt(parser.previousToken, "No constant found for global variable");
+                return;
+            }
+            ElementType lastConstant = valueToElement(chunk.constants.back());
+            incrOp = OpCode::OP_Post_Incr_Global;
             identifier = lastConstant;
         }
         else
         {
-            // Global variable
-            incrOp = OpCode::OP_Post_Incr_Global;
-            identifier = lastConstant;
+            parser.errorAt(parser.previousToken, "Postfix increment must follow a variable access");
+            return;
         }
 
         parser.writeConstant(identifier);      // [old_value, id]
@@ -335,40 +374,47 @@ namespace pg
         // Stack currently has [old_value] from the variable access
         // We need to: return old_value, but also decrement the variable
 
-        const auto& chunk = Compiler::current->getCurrentChunk();
+        auto& chunk = Compiler::current->getCurrentChunk();
 
-        // Strategy: Same as postfixIncrementOp - examine the last constant to identify the variable
-        if (chunk.constants.empty())
+        if (chunk.code.size() < 2)
         {
             parser.errorAt(parser.previousToken, "No variable found for postfix decrement");
             return;
         }
 
-        // Get the last constant (should be the variable identifier)
-        ElementType lastConstant = valueToElement(chunk.constants.back());
+        // Check the last instruction (last byte in the code)
+        OpCode lastOp = static_cast<OpCode>(chunk.code.back());
 
-        // Determine if this is a local or global variable
-        OpCode incrOp;
+        OpCode decrOp;
         ElementType identifier;
 
-        // Check if it's a number (local variable slot) or string (global variable name)
-        if (lastConstant.isNumber())
+        if (lastOp == OpCode::OP_Get_Local)
         {
-            // Local variable
-            incrOp = OpCode::OP_Post_Decr_Local;
+            // Local variable - the slot number is the second-to-last byte
+            uint8_t slot = chunk.code[chunk.code.size() - 2];
+            decrOp = OpCode::OP_Post_Decr_Local;
+            identifier = ElementType(static_cast<int>(slot));
+        }
+        else if (lastOp == OpCode::OP_Get_Global)
+        {
+            // Global variable - the name is in the last constant
+            if (chunk.constants.empty())
+            {
+                parser.errorAt(parser.previousToken, "No constant found for global variable");
+                return;
+            }
+            ElementType lastConstant = valueToElement(chunk.constants.back());
+            decrOp = OpCode::OP_Post_Decr_Global;
             identifier = lastConstant;
         }
         else
         {
-            // Global variable
-            incrOp = OpCode::OP_Post_Decr_Global;
-            identifier = lastConstant;
+            parser.errorAt(parser.previousToken, "Postfix decrement must follow a variable access");
+            return;
         }
 
         parser.writeConstant(identifier);
-        parser.writeByte(incrOp);
-
-        // Result: old_value is on stack (for return), variable has been decremented
+        parser.writeByte(decrOp);
     }
 
     uint8_t argumentList(Parser& parser)
@@ -439,8 +485,8 @@ namespace pg
         {TokenType::MODEQUAL,     {NULL,        NULL,   Precedence::NONE}},
         {TokenType::SUPEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
         {TokenType::INFEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
-        {TokenType::INCREMENT,    {incrementOp, postfixIncrementOp, Precedence::POSTFIX}},
-        {TokenType::DECREMENT,    {decrementOp, postfixDecrementOp, Precedence::POSTFIX}},
+        {TokenType::INCREMENT,    {incrementOp, NULL, Precedence::NONE}},
+        {TokenType::DECREMENT,    {decrementOp, NULL, Precedence::NONE}},
         {TokenType::LOGICAND,     {NULL,        andOp,  Precedence::AND}},
         {TokenType::LOGICOR,      {NULL,        orOp,   Precedence::OR}},
         {TokenType::SHIFTLEFT,    {NULL,        NULL,   Precedence::NONE}},
@@ -589,8 +635,9 @@ namespace pg
         consume("Expect class name.", TokenType::EXPRESSION);
         Token className = previousToken;
 
-        writeConstant(className.text);
-        writeByte(OpCode::OP_Class);
+        // Emit OP_Class with constant index as operand (not OP_Constant before it)
+        uint8_t nameConstant = Compiler::current->getCurrentChunk().addConstantIndex(elementToValue(ElementType(className.text)));
+        emitBytes(OpCode::OP_Class, nameConstant);
 
         // Compiler::current->beginScope();
 
@@ -598,6 +645,12 @@ namespace pg
         {
             declareVariable(className);
             Compiler::current->markInitialized();
+        }
+        else
+        {
+            // Define the class as a global variable
+            writeConstant(className.text);  // Push variable name onto stack
+            writeByte(OpCode::OP_Define_Global);
         }
 
         consume("Expect '{' before class body.", TokenType::BENTER);
