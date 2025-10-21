@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 #include "Memory/elementtype.h"
 
@@ -10,6 +11,7 @@ namespace pg
     struct Value;
     struct ObjFunction;
     struct ObjUpvalue;
+    struct ObjInstance;
 
     typedef Value (*NativeFn)(int argCount, Value* args);
 
@@ -33,14 +35,6 @@ namespace pg
 
         std::string name;
         // Additional class metadata would go here
-    };
-
-    struct ObjInstance
-    {
-        ObjInstance(Klass* klass) : klass(klass) {}
-
-        Klass* klass;
-        // Instance fields would go here
     };
 
     enum class FunctionType
@@ -226,6 +220,14 @@ namespace pg
         Value* location;
         Value closed = INT_VAL(0); // Closed-over value when moved from stack to heap
         ObjUpvalue* next = nullptr;
+    };
+
+    struct ObjInstance
+    {
+        ObjInstance(Klass* klass) : klass(klass) {}
+
+        Klass* klass;
+        std::unordered_map<std::string, Value> fields;
     };
 
     // Convert ElementType to optimized Value (minimize heap allocation)

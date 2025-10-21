@@ -59,7 +59,7 @@
             "name": "Compiler",
             "type": "cppdbg",
             "request": "launch",
-            "args": ["${workspaceFolder}/release/testFib.pg"],
+            "args": ["${workspaceFolder}/release/testProperties.pg"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],

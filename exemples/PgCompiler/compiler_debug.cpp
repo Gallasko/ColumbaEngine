@@ -347,6 +347,12 @@ namespace pg
             case OpCode::OP_Class:
                 return constantInstruction("OP_Class", chunk, offset);
 
+            case OpCode::OP_Set_Property:
+                return constantInstruction("OP_Set_Property", chunk, offset);
+
+            case OpCode::OP_Get_Property:
+                return constantInstruction("OP_Get_Property", chunk, offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

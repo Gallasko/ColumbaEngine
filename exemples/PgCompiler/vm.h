@@ -23,6 +23,12 @@
 
 // #define DEBUG_CHECK_STACK
 
+// #define DEBUG_RUNTIME_MEMORY
+
+#ifdef DEBUG_RUNTIME_MEMORY
+#include <iostream>
+#endif
+
 #define DEBUG_PROFILE_COMPILE
 
 #define EMIT_RUNTIME_ERROR(msg) do {runtimeError((Strfy() << msg).getData()); return InterpretResult::RUNTIME_ERROR;} while(0);
@@ -465,7 +471,15 @@ namespace pg
         }
 
         if (ptr != nullptr) {
-            refCounts[ptr]++;
+            // Only increment refcount if this value is already being tracked
+            auto it = refCounts.find(ptr);
+            if (it != refCounts.end()) {
+                it->second++;
+
+#ifdef DEBUG_RUNTIME_MEMORY
+                std::cout << "Retained " << ptr << ", nb: " << it->second << std::endl;
+#endif
+            }
         }
         return value;
     }
@@ -492,7 +506,11 @@ namespace pg
             auto it = refCounts.find(ptr);
             if (it != refCounts.end()) {
                 it->second--;
-                if (it->second <= 0) {
+                if (it->second <= 0)
+                {
+#ifdef DEBUG_RUNTIME_MEMORY
+                    std::cout << "Releasing object of type " << static_cast<int>(value.type) << " at " << ptr << std::endl;
+#endif
                     refCounts.erase(it);
                     return true; // Should delete
                 }
@@ -507,6 +525,7 @@ namespace pg
         if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
             return value;
 
+
         // For newly created objects, start with refcount=1
         void* ptr = nullptr;
         switch(value.type) {
@@ -518,7 +537,12 @@ namespace pg
             default: return value; // Already handled above
         }
 
-        if (ptr != nullptr) {
+#ifdef DEBUG_RUNTIME_MEMORY
+        std::cout << "Tracking new object of type " << static_cast<int>(value.type) << " at " << ptr << std::endl;
+#endif
+
+        if (ptr != nullptr)
+        {
             refCounts[ptr] = 1; // Start with refcount=1
         }
         return value;
