@@ -34,6 +34,7 @@ namespace pg
     {
         TYPE_FUNCTION,
         TYPE_METHOD,
+        TYPE_INITIALIZER,
         TYPE_SCRIPT,
     };
 
