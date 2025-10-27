@@ -71,6 +71,10 @@ namespace pg
         OP_Get_Property,
 
         OP_Method,
+
+        // Optimized opcodes can be added here
+
+        OP_AddLL, // ADD optimized for two local variables
     };
 
     struct Chunk
@@ -178,12 +182,14 @@ namespace pg
     };
 
     // Utility function to get the size of an instruction in bytes
-    inline size_t getInstructionSize(OpCode opcode) {
-        switch (opcode) {
+    inline int getInstructionSize(OpCode opcode)
+    {
+        switch (opcode)
+        {
             case OpCode::OP_Constant:
-            case OpCode::OP_Call:
             case OpCode::OP_Get_Local:
             case OpCode::OP_Set_Local:
+            case OpCode::OP_Call:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
@@ -239,6 +245,8 @@ namespace pg
             case OpCode::OP_Invoke:
                 return 3;
 
+            case OpCode::OP_AddLL:
+                return 3; // opcode + 2 byte operands (local variable indices)
 
             case OpCode::OP_Class:
                 return 2; // opcode + 1 byte operand (constant index for class name)

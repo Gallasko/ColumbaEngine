@@ -20,18 +20,24 @@ namespace pg {
         }
     }
 
-    void PassManager::runAllPasses(Chunk& chunk) {
-        if (passes.empty()) {
-            if (enableDebugOutput) {
+    void PassManager::runAllPasses(Chunk& chunk)
+    {
+        if (passes.empty())
+        {
+            if (enableDebugOutput)
+            {
                 LOG_INFO("PassManager", "No passes to run");
             }
+
             return;
         }
 
         LOG_INFO("PassManager", "Running " << passes.size() << " passes");
 
-        for (auto& pass : passes) {
-            if (enableDebugOutput) {
+        for (auto& pass : passes)
+        {
+            if (enableDebugOutput)
+            {
                 LOG_INFO("PassManager", "Running pass: " << pass->getName());
             }
 
@@ -39,25 +45,29 @@ namespace pg {
             int iterations = 0;
             const int maxIterations = 10; // Prevent infinite loops
 
-            do {
+            do
+            {
                 // Clear rewriter rules before each pass execution
                 rewriter->clearRules();
 
                 changed = pass->runPass(chunk, rewriter.get());
                 iterations++;
 
-                if (changed && enableDebugOutput) {
+                if (changed && enableDebugOutput)
+                {
                     LOG_INFO("PassManager", "Pass " << pass->getName() << " made changes (iteration " << iterations << ")");
                 }
 
-                if (iterations >= maxIterations) {
+                if (iterations >= maxIterations)
+                {
                     LOG_WARNING("PassManager", "Pass " << pass->getName() << " reached maximum iterations (" << maxIterations << ")");
                     break;
                 }
 
-            } while (changed && pass->requiresMultiplePasses());
+            } while (changed and pass->requiresMultiplePasses());
 
-            if (enableDebugOutput) {
+            if (enableDebugOutput)
+            {
                 LOG_INFO("PassManager", "Pass " << pass->getName() << " completed in " << iterations << " iteration(s)");
 
                 // Print bytecode after this pass
@@ -70,13 +80,14 @@ namespace pg {
         LOG_INFO("PassManager", "All passes completed");
     }
 
-    bool PassManager::runPass(const std::string& passName, Chunk& chunk) {
-        auto it = std::find_if(passes.begin(), passes.end(),
-            [&passName](const std::unique_ptr<BytecodePass>& pass) {
-                return pass->getName() == passName;
-            });
+    bool PassManager::runPass(const std::string& passName, Chunk& chunk)
+    {
+        auto it = std::find_if(passes.begin(), passes.end(), [&passName](const std::unique_ptr<BytecodePass>& pass) {
+            return pass->getName() == passName;
+        });
 
-        if (it != passes.end()) {
+        if (it != passes.end())
+        {
             LOG_INFO("PassManager", "Running specific pass: " << passName);
 
             // Clear rewriter rules before pass execution
@@ -84,9 +95,12 @@ namespace pg {
 
             bool changed = (*it)->runPass(chunk, rewriter.get());
 
-            if (changed) {
+            if (changed)
+            {
                 LOG_INFO("PassManager", "Pass " << passName << " made changes");
-            } else if (enableDebugOutput) {
+            }
+            else if (enableDebugOutput)
+            {
                 LOG_INFO("PassManager", "Pass " << passName << " made no changes");
             }
 
@@ -94,6 +108,7 @@ namespace pg {
         }
 
         LOG_ERROR("PassManager", "Pass not found: " << passName);
+
         return false;
     }
 

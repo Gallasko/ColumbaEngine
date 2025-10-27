@@ -66,6 +66,8 @@ namespace pg
     void op_get_property(VM* vm);
     void op_set_property(VM* vm);
     void op_method(VM* vm);
+
+    void op_add_ll(VM* vm);
 }
 
 namespace pg
@@ -100,31 +102,35 @@ namespace pg
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
         // Apply bytecode optimizations
-//         if (enableOptimizations && !function->chunk.code.empty())
-//         {
-//             begin = std::chrono::steady_clock::now();
+        for (auto func : compiler.parser.allocatedFunction)
+        {
+            if (enableOptimizations and not func->chunk.code.empty())
+            {
+                begin = std::chrono::steady_clock::now();
 
-//             LOG_INFO("VM", "Applying bytecode optimizations");
-//             size_t originalSize = function->chunk.code.size();
+                LOG_INFO("VM", "Applying bytecode optimizations");
+                size_t originalSize = func->chunk.code.size();
 
-//             passManager.runAllPasses(function->chunk);
+                passManager.runAllPasses(func->chunk);
 
-//             size_t optimizedSize = function->chunk.code.size();
-//             if (optimizedSize != originalSize)
-//             {
-//                 LOG_INFO("VM", "Optimization changed bytecode size from " <<
-//                          originalSize << " to " << optimizedSize << " bytes");
-//             }
+                size_t optimizedSize = func->chunk.code.size();
 
-//             end = std::chrono::steady_clock::now();
+                if (optimizedSize != originalSize)
+                {
+                    LOG_INFO("VM", "Optimization changed bytecode size from " <<
+                            originalSize << " to " << optimizedSize << " bytes");
+                }
 
-// #ifdef DEBUG_PROFILE_COMPILE
-//             std::cout << "Optimizations took: "
-//                       << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
-//                       << " ns"
-//                       << std::endl;
-// #endif
-//         }
+                end = std::chrono::steady_clock::now();
+
+    #ifdef DEBUG_PROFILE_COMPILE
+                std::cout << "Optimizations took: "
+                        << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
+                        << " ns"
+                        << std::endl;
+    #endif
+            }
+        }
 
         try
         {
@@ -869,6 +875,8 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property, "GET_PROPERTY");
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property, "SET_PROPERTY");
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method, "METHOD");
+
+        register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll, "ADD_LL");
     }
 
     // Operation handler implementations
@@ -2048,5 +2056,20 @@ namespace pg
         }
 
         klass->methods[methodName] = methodClosureValue;
+    }
+
+    void op_add_ll(VM* vm)
+    {
+        uint8_t local1 = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->slots[local1];
+
+        uint8_t local2 = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->slots[local2];
+
+        auto result = vm->addValues(value1, value2);
+
+        vm->push(result);
     }
 }
