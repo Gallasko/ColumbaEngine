@@ -23,7 +23,7 @@
 
 // #define DEBUG_CHECK_STACK
 
-// #define DEBUG_RUNTIME_MEMORY
+#define DEBUG_RUNTIME_MEMORY
 
 #ifdef DEBUG_RUNTIME_MEMORY
 #include <iostream>
@@ -463,11 +463,14 @@ namespace pg
         void* ptr = nullptr;
         switch(value.type)
         {
-            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_OBJ:          ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:         ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_CLASS:        ptr = value.as.klass; break;
+            case COMPILER_VAL_INSTANCE:     ptr = value.as.instance; break;
+            case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
             default: return value; // Already handled above, but safety
         }
 
@@ -503,6 +506,8 @@ namespace pg
             case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
             case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
             case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_CLASS:        ptr = value.as.klass; break;
+            case COMPILER_VAL_INSTANCE:     ptr = value.as.instance; break;
             case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
             default: return false; // Already handled above
         }
@@ -543,6 +548,8 @@ namespace pg
             case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
             case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
             case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_CLASS:        ptr = value.as.klass; break;
+            case COMPILER_VAL_INSTANCE:     ptr = value.as.instance; break;
             case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
             default: return value; // Already handled above
         }
