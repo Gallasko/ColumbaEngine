@@ -458,6 +458,13 @@ namespace pg
             parser.writeByte(OpCode::OP_Set_Property);
             parser.writeByte(constantIndex);
         }
+        else if (parser.match(TokenType::PENTER))
+        {
+            // Method call
+            auto argCount = argumentList(parser);
+            parser.emitBytes(OpCode::OP_Invoke, constantIndex);
+            parser.writeByte(argCount);
+        }
         else
         {
             parser.writeByte(OpCode::OP_Get_Property);

@@ -137,6 +137,21 @@ namespace pg
             return offset + 2;
         }
 
+        int invokeInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint8_t constant = chunk.code[offset + 1];
+            uint8_t argCount = chunk.code[offset + 2];
+
+            std::cout << std::left << std::setw(16) << name << " (" << static_cast<int>(argCount) << " args) "
+                      << static_cast<int>(constant) << " '";
+
+            printValue(chunk.constants[constant]);
+
+            std::cout << "'" << std::endl;
+
+            return offset + 3;
+        }
+
         int jumpInstruction(const std::string& name, const Chunk& chunk, int offset, int sign = 1)
         {
             uint16_t jump = (static_cast<uint16_t>(chunk.code[offset + 1]) << 8) |
@@ -305,6 +320,9 @@ namespace pg
 
             case OpCode::OP_Call:
                 return byteInstruction("OP_Call", chunk, offset);
+
+            case OpCode::OP_Invoke:
+                return invokeInstruction("OP_Invoke", chunk, offset);
 
             case OpCode::OP_Closure:
             {

@@ -57,6 +57,7 @@ namespace pg
         OP_Decr_Local,
 
         OP_Call,
+        OP_Invoke,
         OP_Closure,
 
         OP_Get_Upvalue,
@@ -232,7 +233,12 @@ namespace pg
                 return 5; // opcode + 4 byte operand
 
             case OpCode::OP_Closure:
+            case OpCode::OP_Method:
                 return 2; // opcode + 1 byte operand (constant index), plus upvalue bytes handled separately
+
+            case OpCode::OP_Invoke:
+                return 3;
+
 
             case OpCode::OP_Class:
                 return 2; // opcode + 1 byte operand (constant index for class name)
