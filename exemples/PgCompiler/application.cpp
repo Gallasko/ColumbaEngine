@@ -127,6 +127,7 @@ void CompilerApp::runFile()
     VM vm;
     // vm.addOptimizationPass(std::make_uniqueh
     vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
     // vm.enableBytecodeOptimization();
     // vm.enableOptimizationDebugging();

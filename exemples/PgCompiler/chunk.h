@@ -75,6 +75,10 @@ namespace pg
         // Optimized opcodes can be added here
 
         OP_AddLL, // ADD optimized for two local variables
+        OP_SubtractLL, // SUBTRACT optimized for two local variables
+
+        OP_SubtractLC, // SUBTRACT optimized for local and constant
+        OP_SubtractCL, // SUBTRACT optimized for constant and local
     };
 
     struct Chunk
@@ -246,6 +250,9 @@ namespace pg
                 return 3;
 
             case OpCode::OP_AddLL:
+            case OpCode::OP_SubtractLL:
+            case OpCode::OP_SubtractLC:
+            case OpCode::OP_SubtractCL:
                 return 3; // opcode + 2 byte operands (local variable indices)
 
             case OpCode::OP_Class:

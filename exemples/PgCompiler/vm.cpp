@@ -68,6 +68,10 @@ namespace pg
     void op_method(VM* vm);
 
     void op_add_ll(VM* vm);
+    void op_subtract_ll(VM* vm);
+
+    void op_subtract_lc(VM* vm);
+    void op_subtract_cl(VM* vm);
 }
 
 namespace pg
@@ -877,6 +881,10 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method, "METHOD");
 
         register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll, "ADD_LL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll, "SUBTRACT_LL");
+
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc, "SUBTRACT_LC");
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl, "SUBTRACT_CL");
     }
 
     // Operation handler implementations
@@ -2069,6 +2077,51 @@ namespace pg
         auto value2 = vm->currentFrame->slots[local2];
 
         auto result = vm->addValues(value1, value2);
+
+        vm->push(result);
+    }
+
+    void op_subtract_ll(VM* vm)
+    {
+        uint8_t local1 = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->slots[local1];
+
+        uint8_t local2 = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->slots[local2];
+
+        auto result = vm->subtractValues(value1, value2);
+
+        vm->push(result);
+    }
+
+    void op_subtract_lc(VM* vm)
+    {
+        uint8_t local1 = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->slots[local1];
+
+        uint8_t constantIndex = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        auto result = vm->subtractValues(value1, value2);
+
+        vm->push(result);
+    }
+
+    void op_subtract_cl(VM* vm)
+    {
+        uint8_t constantIndex = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+
+        uint8_t local2 = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->slots[local2];
+
+        auto result = vm->subtractValues(value1, value2);
 
         vm->push(result);
     }
