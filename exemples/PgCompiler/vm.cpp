@@ -302,6 +302,16 @@ namespace pg
                 return true;
             }
 
+            case CompilerValueType::COMPILER_VAL_BOUND_METHOD:
+            {
+                ObjBoundMethod* boundMethod = AS_BOUND_METHOD(callee);
+                // Insert the instance as the first argument
+
+                stack[stack.size() - argCount - 1] = boundMethod->receiver;
+
+                return callBound(boundMethod->method, argCount);
+            }
+
             default:
                 break;
         }
@@ -333,6 +343,32 @@ namespace pg
         frame->ip = closure->function->chunk.code.data();
         // Point to first argument (skipping the function object at -argCount-1)
         frame->slots = stack.data() + stack.size() - argCount;
+
+        return true;
+    }
+
+    bool VM::callBound(Closure* closure, int argCount)
+    {
+        if (argCount != closure->function->arity)
+        {
+            runtimeError((Strfy() << "Expected " << closure->function->arity << " arguments but got: " << argCount << ".").getData());
+
+            return false;
+        }
+
+        if (frameCount == FRAMES_MAX)
+        {
+            runtimeError("Stack overflow");
+
+            return false;
+        }
+
+        CallFrame *frame = &frames[frameCount++];
+
+        frame->closure = closure;
+        frame->ip = closure->function->chunk.code.data();
+        // Point to first argument (skipping the function object at -argCount-1)
+        frame->slots = stack.data() + stack.size() - argCount - 1;
 
         return true;
     }
@@ -384,6 +420,9 @@ namespace pg
                 break;
             case COMPILER_VAL_INSTANCE:
                 if (value.as.instance) delete value.as.instance;
+                break;
+            case COMPILER_VAL_BOUND_METHOD:
+                if (value.as.boundMethod) delete value.as.boundMethod;
                 break;
             default:
                 // Primitives don't need deletion
@@ -959,19 +998,23 @@ namespace pg
             return;
         }
 
-        size_t nbArgsToPop = (vm->stack.data() + vm->stack.size() - vm->currentFrame->slots);
+        // Pop arguments based on function arity, then pop the callee
+        int arity = vm->currentFrame->closure->function->arity;
 
         // Restore previous frame
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache();
 
-        for (size_t i = 0; i < nbArgsToPop; i++)
+        // Pop the arguments
+        for (int i = 0; i < arity; i++)
         {
             auto v = vm->pop();
             vm->releaseAndDelete(v);
         }
 
-        vm->pop(); // Remove the closure
+        // Pop the callee (closure for regular calls, instance for bound methods)
+        auto callee = vm->pop();
+        vm->releaseAndDelete(callee);
 
         vm->push(value);
     }
@@ -1217,6 +1260,23 @@ namespace pg
             else
             {
                 vm->testOutput += "<null instance> \n";
+            }
+
+            vm->releaseAndDelete(value);
+            return;
+        }
+
+        if (IS_BOUND_METHOD(value))
+        {
+            ObjBoundMethod* boundMethod = AS_BOUND_METHOD(value);
+
+            if (boundMethod != nullptr && boundMethod->method != nullptr && boundMethod->method->function != nullptr)
+            {
+                vm->testOutput += "<bound method " + boundMethod->method->function->name + "> \n";
+            }
+            else
+            {
+                vm->testOutput += "<null bound method> \n";
             }
 
             vm->releaseAndDelete(value);
@@ -1753,6 +1813,25 @@ namespace pg
         vm->push(vm->trackNewValue(CLASS_VAL(newClass)));
     }
 
+    bool bindMethod(VM* vm, Klass* klass, const std::string& name)
+    {
+        auto methodIt = klass->methods.find(name);
+        if (methodIt == klass->methods.end())
+        {
+            return false;
+        }
+
+        auto methodValue = methodIt->second;
+
+        // Create a bound method
+        auto* bound = new ObjBoundMethod(vm->peek(0), AS_CLOSURE(methodValue));
+
+        vm->pop(); // Remove the instance
+        vm->push(vm->trackNewValue(BOUND_METHOD_VAL(bound)));
+
+        return true;
+    }
+
     void op_get_property(VM* vm)
     {
         if (not IS_INSTANCE(vm->peek(0)))
@@ -1777,16 +1856,23 @@ namespace pg
             return;
         }
 
-        if (instance->fields.find(name.toString()) == instance->fields.end())
+        auto nameStr = name.toString();
+
+        // Try to find a field first
+        if (instance->fields.find(nameStr) != instance->fields.end())
         {
-            vm->runtimeError("Undefined property '" + name.toString() + "'.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            vm->pop(); // Remove the instance from the stack
+            vm->push(vm->retainValue(instance->fields[nameStr]));
 
             return;
         }
 
-        vm->pop(); // Remove the instance from the stack
-        vm->push(vm->retainValue(instance->fields[name.toString()]));
+        // Try to find a method in the class
+        if (not bindMethod(vm, instance->klass, nameStr))
+        {
+            vm->runtimeError("Undefined property '" + nameStr + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+        }
     }
 
     void op_set_property(VM *vm)

@@ -320,6 +320,7 @@ namespace pg
         bool callValue(const Value& callee, int argCount);
 
         bool call(Closure* closure, int argCount);
+        bool callBound(Closure* closure, int argCount);
 
         // Reference counting methods
         inline Value retainValue(const Value& value);   // Returns the value after retaining
@@ -470,10 +471,12 @@ namespace pg
             default: return value; // Already handled above, but safety
         }
 
-        if (ptr != nullptr) {
+        if (ptr != nullptr)
+        {
             // Only increment refcount if this value is already being tracked
             auto it = refCounts.find(ptr);
-            if (it != refCounts.end()) {
+            if (it != refCounts.end())
+            {
                 it->second++;
 
 #ifdef DEBUG_RUNTIME_MEMORY
@@ -481,6 +484,7 @@ namespace pg
 #endif
             }
         }
+
         return value;
     }
 
@@ -494,18 +498,22 @@ namespace pg
         void* ptr = nullptr;
         switch(value.type)
         {
-            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_OBJ:          ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:         ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
             default: return false; // Already handled above
         }
 
-        if (ptr != nullptr) {
+        if (ptr != nullptr)
+        {
             auto it = refCounts.find(ptr);
-            if (it != refCounts.end()) {
+            if (it != refCounts.end())
+            {
                 it->second--;
+
                 if (it->second <= 0)
                 {
 #ifdef DEBUG_RUNTIME_MEMORY
@@ -516,6 +524,7 @@ namespace pg
                 }
             }
         }
+
         return false; // Don't delete
     }
 
@@ -525,15 +534,16 @@ namespace pg
         if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
             return value;
 
-
         // For newly created objects, start with refcount=1
         void* ptr = nullptr;
-        switch(value.type) {
-            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
+        switch(value.type)
+        {
+            case COMPILER_VAL_OBJ:          ptr = value.as.obj; break;
+            case COMPILER_VAL_FUNC:         ptr = value.as.function; break;
+            case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
+            case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
+            case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
+            case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
             default: return value; // Already handled above
         }
 
@@ -545,6 +555,7 @@ namespace pg
         {
             refCounts[ptr] = 1; // Start with refcount=1
         }
+
         return value;
     }
 }

@@ -232,6 +232,13 @@ namespace pg
         Compiler::current = this;
 
         currentFunction->name = name;
+
+        if (type != FunctionType::TYPE_FUNCTION)
+        {
+            // The first local is always the function itself
+            locals.push_back(Local{Token(TokenType::TOK_FUN, "this", 0, 0), 0, false});
+            localCount++;
+        }
     }
 
     ObjFunction* Compiler::endCompiler()

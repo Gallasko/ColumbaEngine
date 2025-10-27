@@ -13,6 +13,7 @@ namespace pg
     struct ObjUpvalue;
     struct Klass;
     struct ObjInstance;
+    struct ObjBoundMethod;
 
     typedef Value (*NativeFn)(int argCount, Value* args);
 
@@ -32,7 +33,8 @@ namespace pg
     enum class FunctionType
     {
         TYPE_FUNCTION,
-        TYPE_SCRIPT
+        TYPE_METHOD,
+        TYPE_SCRIPT,
     };
 
     enum class InterpretResult
@@ -62,6 +64,7 @@ namespace pg
         COMPILER_VAL_UPVALUE,
         COMPILER_VAL_CLASS,
         COMPILER_VAL_INSTANCE,
+        COMPILER_VAL_BOUND_METHOD
     };
 
     struct Value
@@ -78,6 +81,7 @@ namespace pg
             ObjUpvalue* upvalue;
             Klass* klass;
             ObjInstance* instance;
+            ObjBoundMethod* boundMethod;
         } as;
     };
 
@@ -92,18 +96,20 @@ namespace pg
     #define IS_UPVALUE(value)       ((value).type == COMPILER_VAL_UPVALUE)
     #define IS_CLASS(value)         ((value).type == COMPILER_VAL_CLASS)
     #define IS_INSTANCE(value)      ((value).type == COMPILER_VAL_INSTANCE)
+    #define IS_BOUND_METHOD(value)  ((value).type == COMPILER_VAL_BOUND_METHOD)
 
     // Fast value extraction macros (direct memory access)
-    #define AS_BOOL(value)      ((value).as.boolean)
-    #define AS_INT(value)       ((value).as.number)
-    #define AS_FLOAT(value)     ((value).as.floatNum)
-    #define AS_OBJ(value)       ((value).as.obj)
-    #define AS_FUNC(value)      ((value).as.function)
-    #define AS_NAT_FUNC(value)  ((value).as.nativeFunc)
-    #define AS_CLOSURE(value)   ((value).as.closure)
-    #define AS_UPVALUE(value)   ((value).as.upvalue)
-    #define AS_CLASS(value)     ((value).as.klass)
-    #define AS_INSTANCE(value)  ((value).as.instance)
+    #define AS_BOOL(value)         ((value).as.boolean)
+    #define AS_INT(value)          ((value).as.number)
+    #define AS_FLOAT(value)        ((value).as.floatNum)
+    #define AS_OBJ(value)          ((value).as.obj)
+    #define AS_FUNC(value)         ((value).as.function)
+    #define AS_NAT_FUNC(value)     ((value).as.nativeFunc)
+    #define AS_CLOSURE(value)      ((value).as.closure)
+    #define AS_UPVALUE(value)      ((value).as.upvalue)
+    #define AS_CLASS(value)        ((value).as.klass)
+    #define AS_INSTANCE(value)     ((value).as.instance)
+    #define AS_BOUND_METHOD(value) ((value).as.boundMethod)
 
     struct CallFrame
     {
@@ -193,17 +199,26 @@ namespace pg
         return result;
     }
 
+    inline Value makeBoundMethodValue(ObjBoundMethod* boundMethod)
+    {
+        Value result;
+        result.type = COMPILER_VAL_BOUND_METHOD;
+        result.as.boundMethod = boundMethod;
+        return result;
+    }
+
     // Convenience macros
-    #define BOOL_VAL(value)        makeBoolValue(value)
-    #define INT_VAL(value)         makeIntValue(value)
-    #define FLOAT_VAL(value)       makeFloatValue(value)
-    #define OBJ_VAL(object)        makeObjValue(object)
-    #define FUNC_VAL(func)         makeFuncValue(func)
-    #define NATIVE_VAL(func)       makeNativeFuncValue(func)
-    #define CLOSURE_VAL(closure)   makeClosureValue(closure)
-    #define UPVALUE_VAL(upvalue)   makeUpvalueValue(upvalue)
-    #define CLASS_VAL(klass)       makeClassValue(klass)
-    #define INSTANCE_VAL(instance) makeInstanceValue(instance)
+    #define BOOL_VAL(value)           makeBoolValue(value)
+    #define INT_VAL(value)            makeIntValue(value)
+    #define FLOAT_VAL(value)          makeFloatValue(value)
+    #define OBJ_VAL(object)           makeObjValue(object)
+    #define FUNC_VAL(func)            makeFuncValue(func)
+    #define NATIVE_VAL(func)          makeNativeFuncValue(func)
+    #define CLOSURE_VAL(closure)      makeClosureValue(closure)
+    #define UPVALUE_VAL(upvalue)      makeUpvalueValue(upvalue)
+    #define CLASS_VAL(klass)          makeClassValue(klass)
+    #define INSTANCE_VAL(instance)    makeInstanceValue(instance)
+    #define BOUND_METHOD_VAL(bmethod) makeBoundMethodValue(bmethod)
 
     struct ObjUpvalue
     {
@@ -228,6 +243,14 @@ namespace pg
 
         Klass* klass;
         std::unordered_map<std::string, Value> fields;
+    };
+
+    struct ObjBoundMethod
+    {
+        ObjBoundMethod(const Value& receiver, Closure* method) : receiver(receiver), method(method) {}
+
+        Value receiver;
+        Closure* method;
     };
 
     // Convert ElementType to optimized Value (minimize heap allocation)
@@ -276,6 +299,8 @@ namespace pg
             return value; // Classes are pointers, just copy
         else if (IS_INSTANCE(value))
             return value; // Instances are pointers, just copy
+        else if (IS_BOUND_METHOD(value))
+            return value; // Bound methods are pointers, just copy
         // For heap objects, create a new copy
         else
             return OBJ_VAL(new ElementType(*AS_OBJ(value)));
@@ -314,7 +339,8 @@ namespace pg
             case COMPILER_VAL_UPVALUE:
             case COMPILER_VAL_CLASS:
             case COMPILER_VAL_INSTANCE:
-                throw std::runtime_error("Cannot convert function Value to ElementType");
+            case COMPILER_VAL_BOUND_METHOD:
+                throw std::runtime_error("Cannot convert Value to ElementType");
         }
 
         return ElementType(); // Should never reach

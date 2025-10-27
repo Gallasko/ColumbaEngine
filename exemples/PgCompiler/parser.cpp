@@ -465,6 +465,17 @@ namespace pg
         }
     }
 
+    void this_(Parser& parser, bool)
+    {
+        if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
+        {
+            parser.errorAt(parser.previousToken, "Can't use 'this' outside of a class.");
+            return;
+        }
+
+        variable(parser, false);
+    }
+
     std::unordered_map<TokenType, ParseRule> rules = {
         {TokenType::EQUAL,        {NULL,        NULL,   Precedence::NONE}},
         {TokenType::PLUS,         {NULL,        binary, Precedence::TERM}},
@@ -530,7 +541,7 @@ namespace pg
         {TokenType::TOK_FUN,      {NULL,        NULL,   Precedence::NONE}},
         {TokenType::TOK_RETURN,   {NULL,        NULL,   Precedence::NONE}},
         {TokenType::TOK_CLASS,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_THIS,     {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::TOK_THIS,     {this_,       NULL,   Precedence::NONE}},
         {TokenType::TOK_FOR,      {NULL,        NULL,   Precedence::NONE}},
         {TokenType::TOK_IMPORT,   {NULL,        NULL,   Precedence::NONE}},
         {TokenType::TOK_FROM,     {NULL,        NULL,   Precedence::NONE}},
@@ -903,8 +914,7 @@ namespace pg
         consume("Expect method name.", TokenType::EXPRESSION);
         Token methodName = previousToken;
 
-        FunctionType type = FunctionType::TYPE_FUNCTION;
-        // FunctionType type = FunctionType::TYPE_METHOD;
+        FunctionType type = FunctionType::TYPE_METHOD;
         // if (methodName.text == "init")
         // {
         //     type = FunctionType::TYPE_INITIALIZER;
