@@ -11,6 +11,7 @@ namespace pg
     struct Value;
     struct ObjFunction;
     struct ObjUpvalue;
+    struct Klass;
     struct ObjInstance;
 
     typedef Value (*NativeFn)(int argCount, Value* args);
@@ -26,15 +27,6 @@ namespace pg
 
         ObjFunction* function;
         std::vector<ObjUpvalue*> upvalues;
-        // Upvalues would go here for a full implementation
-    };
-
-    struct Klass
-    {
-        Klass(const std::string& className) : name(className) {}
-
-        std::string name;
-        // Additional class metadata would go here
     };
 
     enum class FunctionType
@@ -220,6 +212,14 @@ namespace pg
         Value* location;
         Value closed = INT_VAL(0); // Closed-over value when moved from stack to heap
         ObjUpvalue* next = nullptr;
+    };
+
+    struct Klass
+    {
+        Klass(const std::string& className) : name(className) {}
+
+        std::string name;
+        std::unordered_map<std::string, Value> methods;
     };
 
     struct ObjInstance

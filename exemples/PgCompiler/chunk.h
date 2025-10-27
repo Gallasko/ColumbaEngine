@@ -68,6 +68,8 @@ namespace pg
 
         OP_Set_Property,
         OP_Get_Property,
+
+        OP_Method,
     };
 
     struct Chunk

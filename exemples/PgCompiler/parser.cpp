@@ -670,15 +670,22 @@ namespace pg
             writeByte(OpCode::OP_Define_Global);
         }
 
+        pushVariableInStack(className.text);
+
+        skipEOL();
         consume("Expect '{' before class body.", TokenType::BENTER);
+        skipEOL();
 
-        // while (not check(TokenType::BCLOSE) and not isAtEnd())
-        // {
-        //     skipEOL();
-        //     funDeclaration();
-        // }
+        while (not check(TokenType::BCLOSE) and not isAtEnd())
+        {
+            methodStatement();
+            skipEOL();
+        }
 
+        skipEOL();
         consume("Expect '}' after class body.", TokenType::BCLOSE);
+
+        writeByte(OpCode::OP_Pop);
 
         // Compiler::current->endScope();
     }
@@ -891,6 +898,25 @@ namespace pg
         }
     }
 
+    void Parser::methodStatement()
+    {
+        consume("Expect method name.", TokenType::EXPRESSION);
+        Token methodName = previousToken;
+
+        FunctionType type = FunctionType::TYPE_FUNCTION;
+        // FunctionType type = FunctionType::TYPE_METHOD;
+        // if (methodName.text == "init")
+        // {
+        //     type = FunctionType::TYPE_INITIALIZER;
+        // }
+
+        parseFunction(type);
+
+        writeByte(OpCode::OP_Method);
+        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(methodName.text);
+        writeByte(constantIndex);
+    }
+
     ParseRule& Parser::getRule(const TokenType& type) const
     {
         return rules[type];
@@ -954,6 +980,33 @@ namespace pg
     void Parser::declareVariable(const Token& name)
     {
         Compiler::current->addLocal(name);
+    }
+
+    void Parser::pushVariableInStack(const std::string& varName)
+    {
+        int arg = Compiler::current->findLocal(varName);
+
+        OpCode getOp;
+
+        if (arg != -1)
+        {
+            getOp = OpCode::OP_Get_Local;
+        }
+        else if ((arg = Compiler::current->findUpvalue(varName)) != -1)
+        {
+            getOp = OpCode::OP_Get_Upvalue;
+        }
+        else
+        {
+            // Global variable - use constant pool
+            writeConstant(varName);
+            writeByte(OpCode::OP_Get_Global);
+
+            return;
+        }
+
+        writeByte(getOp);
+        writeByte(static_cast<uint8_t>(arg));
     }
 
     int Parser::emitJump(const OpCode& instruction)
