@@ -215,6 +215,12 @@ namespace pg
         this->enclosing = Compiler::current;
         this->currentType = type;
 
+        // Inherit the class context from the enclosing compiler (for methods)
+        if (this->enclosing != nullptr)
+        {
+            this->currentClass = this->enclosing->currentClass;
+        }
+
         // Create new function object
         if (currentFunction)
         {

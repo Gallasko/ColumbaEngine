@@ -467,7 +467,7 @@ namespace pg
 
     void this_(Parser& parser, bool)
     {
-        if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
+        if (Compiler::current->currentClass == nullptr)
         {
             parser.errorAt(parser.previousToken, "Can't use 'this' outside of a class.");
             return;
@@ -681,6 +681,11 @@ namespace pg
             writeByte(OpCode::OP_Define_Global);
         }
 
+        Compiler::ClassCompiler classCompiler;
+        classCompiler.enclosing = Compiler::current->currentClass;
+
+        Compiler::current->currentClass = &classCompiler;
+
         pushVariableInStack(className.text);
 
         skipEOL();
@@ -698,7 +703,7 @@ namespace pg
 
         writeByte(OpCode::OP_Pop);
 
-        // Compiler::current->endScope();
+        Compiler::current->currentClass = classCompiler.enclosing;
     }
 
     void Parser::statement()
@@ -903,6 +908,13 @@ namespace pg
         }
         else
         {
+            if (Compiler::current->currentType == FunctionType::TYPE_INITIALIZER)
+            {
+                errorAt(previousToken, "Can't return a value from an initializer.");
+                // emitReturn();
+                // return;
+            }
+
             expression();
             consume("Expect ';' or end of line after return value.", TokenType::EOL, TokenType::END);
             writeByte(OpCode::OP_Return);
@@ -915,10 +927,10 @@ namespace pg
         Token methodName = previousToken;
 
         FunctionType type = FunctionType::TYPE_METHOD;
-        // if (methodName.text == "init")
-        // {
-        //     type = FunctionType::TYPE_INITIALIZER;
-        // }
+        if (methodName.text == "init")
+        {
+            type = FunctionType::TYPE_INITIALIZER;
+        }
 
         parseFunction(type);
 
@@ -1061,6 +1073,20 @@ namespace pg
         writeByte((jump >> 16) & 0xFF);
         writeByte((jump >> 8) & 0xFF);
         writeByte(jump & 0xFF);
+    }
+
+    void Parser::emitReturn()
+    {
+        if (Compiler::current->currentType == FunctionType::TYPE_INITIALIZER)
+        {
+            // Load "this" for initializer return
+            writeByte(OpCode::OP_Get_Local);
+            writeByte(0);
+        }
+        else
+            writeConstant(0);
+
+        writeByte(OpCode::OP_Return);
     }
 
     void Parser::writeConstant(ObjFunction* constant)

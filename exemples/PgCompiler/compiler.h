@@ -80,5 +80,9 @@ namespace pg
 
         // Static member for tracking current compiler in the stack
         static Compiler* current;
+
+        struct ClassCompiler { ClassCompiler* enclosing = nullptr;  };
+
+        ClassCompiler* currentClass = nullptr;
     };
 }

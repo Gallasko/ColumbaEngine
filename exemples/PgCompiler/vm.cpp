@@ -278,26 +278,23 @@ namespace pg
             {
                 Klass* klass = AS_CLASS(callee);
                 ObjInstance* instance = new ObjInstance(klass);
-                // trackNewValue(INSTANCE_VAL(instance));
-
-                // push(trackNewValue(INSTANCE_VAL(instance)));
 
                 releaseAndDelete(stack[stack.size() - argCount - 1]);
                 stack[stack.size() - argCount - 1] = trackNewValue(INSTANCE_VAL(instance));
-                // push(INSTANCE_VAL(instance));
 
-                // // Call initializer if it exists
-                // Value initializer;
-                // if (klass->methods.get("init", initializer))
-                // {
-                //     return callValue(initializer, argCount);
-                // }
-                // else if (argCount != 0)
-                // {
-                //     runtimeError((Strfy() << "Expected 0 arguments but got: " << argCount << ".").getData());
+                // Call initializer if it exists
+                if (klass->methods.find("init") != klass->methods.end())
+                {
+                    auto initializer = klass->methods["init"];
 
-                //     return false;
-                // }
+                    return callBound(AS_CLOSURE(initializer), argCount);
+                }
+                else if (argCount != 0)
+                {
+                    runtimeError((Strfy() << "Expected 0 arguments but got: " << argCount << ".").getData());
+
+                    return false;
+                }
 
                 return true;
             }
@@ -305,7 +302,6 @@ namespace pg
             case CompilerValueType::COMPILER_VAL_BOUND_METHOD:
             {
                 ObjBoundMethod* boundMethod = AS_BOUND_METHOD(callee);
-                // Insert the instance as the first argument
 
                 stack[stack.size() - argCount - 1] = boundMethod->receiver;
 
