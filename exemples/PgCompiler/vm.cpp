@@ -1282,6 +1282,7 @@ namespace pg
         }
 
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
+        vm->updateChunkCache();
     }
 
     void op_closure(VM* vm)
