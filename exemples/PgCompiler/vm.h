@@ -23,7 +23,7 @@
 
 // #define DEBUG_CHECK_STACK
 
-#define DEBUG_RUNTIME_MEMORY
+// #define DEBUG_RUNTIME_MEMORY
 
 #ifdef DEBUG_RUNTIME_MEMORY
 #include <iostream>
@@ -318,6 +318,7 @@ namespace pg
         void closeUpvalues(Value* last);
 
         bool callValue(const Value& callee, int argCount);
+        bool callMethod(Klass* receiver, const std::string& methodName, int argCount);
 
         bool call(Closure* closure, int argCount);
         bool callBound(Closure* closure, int argCount);

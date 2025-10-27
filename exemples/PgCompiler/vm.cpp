@@ -48,6 +48,7 @@ namespace pg
     void op_long_jump_if_false(VM* vm);
     void op_long_loop(VM* vm);
     void op_call(VM* vm);
+    void op_invoke(VM* vm);
     void op_closure(VM* vm);
     void op_get_upvalue(VM* vm);
     void op_set_upvalue(VM* vm);
@@ -325,6 +326,22 @@ namespace pg
         runtimeError("Can only call functions and classes");
 
         return false;
+    }
+
+    bool VM::callMethod(Klass* receiver, const std::string& methodName, int argCount)
+    {
+        auto it = receiver->methods.find(methodName);
+
+        if (it == receiver->methods.end())
+        {
+            runtimeError((Strfy() << "Undefined method '" << methodName << "'." ).getData());
+
+            return false;
+        }
+
+        Closure* method = AS_CLOSURE(it->second);
+
+        return callBound(method, argCount);
     }
 
     bool VM::call(Closure* closure, int argCount)
@@ -834,6 +851,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False), op_long_jump_if_false, "LONG_JUMP_IF_FALSE", 4);
         register_operation(static_cast<uint8_t>(OpCode::OP_Long_Loop), op_long_loop, "LONG_LOOP", 4);
         register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call, "CALL", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Invoke), op_invoke, "INVOKE", 3);
         register_operation(static_cast<uint8_t>(OpCode::OP_Closure), op_closure, "CLOSURE", 1);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Upvalue), op_get_upvalue, "GET_UPVALUE", 1);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue, "SET_UPVALUE", 1);
@@ -1193,6 +1211,61 @@ namespace pg
 
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache(); // Update cached chunk data for new frame
+    }
+
+    bool invoke(VM* vm, const std::string& name, uint8_t argCount)
+    {
+        auto receiverValue = vm->peek(argCount);
+
+        if (not IS_INSTANCE(receiverValue))
+        {
+            return false;
+        }
+
+        ObjInstance* instance = AS_INSTANCE(receiverValue);
+
+        // Check for field first
+        auto fieldIt = instance->fields.find(name);
+        if (fieldIt != instance->fields.end())
+        {
+            Value fieldValue = fieldIt->second;
+            vm->releaseAndDelete(vm->stack[vm->stack.size() - argCount - 1]); // Remove receiver
+            vm->stack[vm->stack.size() - argCount - 1] = vm->retainValue(fieldValue); // Replace it with the field value
+            return vm->callValue(fieldValue, argCount);
+        }
+
+        // Then check for method
+        return vm->callMethod(instance->klass, name, argCount);
+    }
+
+    void op_invoke(VM* vm)
+    {
+        uint8_t methodIndex = *vm->currentFrame->ip++;
+
+        auto methodValue = vm->currentFrame->closure->function->chunk.constants[methodIndex];
+        auto methodValueName = valueToElement(methodValue);
+
+        uint8_t argCount = *vm->currentFrame->ip++;
+
+        if (not methodValueName.isLitteral())
+        {
+            vm->runtimeError("Invoke operand must be a method name string.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        auto methodName = methodValueName.toString();
+
+        if (not invoke(vm, methodName, argCount))
+        {
+            vm->runtimeError("Method '" + methodName + "' not found.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        vm->currentFrame = &vm->frames[vm->frameCount - 1];
     }
 
     void op_closure(VM* vm)
