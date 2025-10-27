@@ -137,6 +137,16 @@ namespace pg
             return offset + 2;
         }
 
+        int twoBytesInstruction(const std::string& name, const Chunk& chunk, int offset)
+        {
+            uint8_t byte1 = chunk.code[offset + 1];
+            uint8_t byte2 = chunk.code[offset + 2];
+
+            std::cout << std::left << std::setw(16) << name << " '" << static_cast<int>(byte1) << "' '" << static_cast<int>(byte2) << "'" << std::endl;
+
+            return offset + 3;
+        }
+
         int invokeInstruction(const std::string& name, const Chunk& chunk, int offset)
         {
             uint8_t constant = chunk.code[offset + 1];
@@ -379,6 +389,9 @@ namespace pg
 
             case OpCode::OP_Method:
                 return constantInstruction("OP_Method", chunk, offset);
+
+            case OpCode::OP_AddLL:
+                return twoBytesInstruction("OP_AddLL", chunk, offset);
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;

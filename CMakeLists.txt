@@ -671,6 +671,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
@@ -767,6 +769,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
         # Create the compiler test executable

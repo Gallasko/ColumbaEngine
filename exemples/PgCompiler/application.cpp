@@ -12,6 +12,8 @@
 #include "constant_uniformity_pass.h"
 #include "Interpreter/lexer.h"
 
+#include "pass/basic_operator_local_indexing.h"
+
 using namespace pg;
 
 namespace {
@@ -124,6 +126,12 @@ void CompilerApp::runFile()
 
     VM vm;
     // vm.addOptimizationPass(std::make_uniqueh
+    vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+
+    // vm.enableBytecodeOptimization();
+    // vm.enableOptimizationDebugging();
+
+    vm.disableBytecodeOptimization();
 
     vm.defineNative("logInfo", nativeLogInfo);
 
