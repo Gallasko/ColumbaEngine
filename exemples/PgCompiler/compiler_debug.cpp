@@ -64,6 +64,12 @@ namespace pg
                 std::cout << "<null instance>";
             }
         }
+        else if (IS_BOUND_METHOD(value))
+        {
+            std::cout << "<bound method: ";
+            printValue(FUNC_VAL(AS_BOUND_METHOD(value)->method->function));
+            std::cout << " >";
+        }
         else
         {
             std::cout << valueToElement(value).toString();
