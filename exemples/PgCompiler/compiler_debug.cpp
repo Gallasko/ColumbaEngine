@@ -393,6 +393,15 @@ namespace pg
             case OpCode::OP_AddLL:
                 return twoBytesInstruction("OP_AddLL", chunk, offset);
 
+            case OpCode::OP_SubtractLL:
+                return twoBytesInstruction("OP_SubtractLL", chunk, offset);
+
+            case OpCode::OP_SubtractLC:
+                return twoBytesInstruction("OP_SubtractLC", chunk, offset);
+
+            case OpCode::OP_SubtractCL:
+                return twoBytesInstruction("OP_SubtractCL", chunk, offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

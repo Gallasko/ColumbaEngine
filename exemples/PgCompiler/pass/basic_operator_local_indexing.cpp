@@ -42,6 +42,63 @@ namespace pg
             return newBytecode;
         });
 
+        std::vector<PatternElement> patternSubLL = {
+            PatternElement::match(OpCode::OP_Get_Local, true),
+            PatternElement::match(OpCode::OP_Get_Local, true),
+            PatternElement::match(OpCode::OP_Subtract),
+        };
+
+        rewriter->addAdvancedRule(patternSubLL, [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+            uint8_t localIndex1 = captured[0].operands[0];
+            uint8_t localIndex2 = captured[1].operands[0];
+
+            std::vector<uint8_t> newBytecode;
+
+            newBytecode.push_back(static_cast<uint8_t>(OpCode::OP_SubtractLL));
+            newBytecode.push_back(localIndex1);
+            newBytecode.push_back(localIndex2);
+
+            return newBytecode;
+        });
+
+        std::vector<PatternElement> patternSubLC = {
+            PatternElement::match(OpCode::OP_Get_Local, true),
+            PatternElement::match(OpCode::OP_Constant, true),
+            PatternElement::match(OpCode::OP_Subtract),
+        };
+
+        rewriter->addAdvancedRule(patternSubLC, [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+            uint8_t localIndex = captured[0].operands[0];
+            uint8_t constantIndex = captured[1].operands[0];
+
+            std::vector<uint8_t> newBytecode;
+
+            newBytecode.push_back(static_cast<uint8_t>(OpCode::OP_SubtractLC));
+            newBytecode.push_back(localIndex);
+            newBytecode.push_back(constantIndex);
+
+            return newBytecode;
+        });
+
+        std::vector<PatternElement> patternSubCL = {
+            PatternElement::match(OpCode::OP_Constant, true),
+            PatternElement::match(OpCode::OP_Get_Local, true),
+            PatternElement::match(OpCode::OP_Subtract),
+        };
+
+        rewriter->addAdvancedRule(patternSubCL, [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+            uint8_t constantIndex = captured[0].operands[0];
+            uint8_t localIndex = captured[1].operands[0];
+
+            std::vector<uint8_t> newBytecode;
+
+            newBytecode.push_back(static_cast<uint8_t>(OpCode::OP_SubtractCL));
+            newBytecode.push_back(constantIndex);
+            newBytecode.push_back(localIndex);
+
+            return newBytecode;
+        });
+
         return rewriter->rewrite(chunk);
     }
 }

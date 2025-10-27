@@ -6,16 +6,22 @@
 
 namespace pg {
 
-    PassManager::PassManager() {
+    PassManager::PassManager()
+    {
         rewriter = std::make_unique<BytecodeRewriter>();
+
         LOG_INFO("PassManager", "Initialized with shared BytecodeRewriter");
     }
 
-    void PassManager::addPass(std::unique_ptr<BytecodePass> pass) {
-        if (pass) {
-            if (enableDebugOutput) {
+    void PassManager::addPass(std::unique_ptr<BytecodePass> pass)
+    {
+        if (pass)
+        {
+            if (enableDebugOutput)
+            {
                 LOG_INFO("PassManager", "Added pass: " << pass->getName());
             }
+
             passes.push_back(std::move(pass));
         }
     }
@@ -112,21 +118,28 @@ namespace pg {
         return false;
     }
 
-    void PassManager::listPasses() const {
-        if (passes.empty()) {
+    void PassManager::listPasses() const
+    {
+        if (passes.empty())
+        {
             LOG_INFO("PassManager", "No passes registered");
+
             return;
         }
 
         LOG_INFO("PassManager", "Registered passes (" << passes.size() << "):");
-        for (size_t i = 0; i < passes.size(); ++i) {
+
+        for (size_t i = 0; i < passes.size(); ++i)
+        {
             std::string passInfo = std::to_string(i + 1) + ". " + passes[i]->getName();
 
-            if (passes[i]->changesSize()) {
+            if (passes[i]->changesSize())
+            {
                 passInfo += " [size-changing]";
             }
 
-            if (passes[i]->requiresMultiplePasses()) {
+            if (passes[i]->requiresMultiplePasses())
+            {
                 passInfo += " [multi-pass]";
             }
 
@@ -134,10 +147,13 @@ namespace pg {
         }
     }
 
-    void PassManager::clearPasses() {
-        if (enableDebugOutput) {
+    void PassManager::clearPasses()
+    {
+        if (enableDebugOutput)
+        {
             LOG_INFO("PassManager", "Clearing all passes");
         }
+
         passes.clear();
     }
 
