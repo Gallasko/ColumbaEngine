@@ -303,9 +303,19 @@ namespace pg
             {
                 ObjBoundMethod* boundMethod = AS_BOUND_METHOD(callee);
 
-                stack[stack.size() - argCount - 1] = boundMethod->receiver;
+                // Save the method closure before we delete the bound method
+                Closure* method = boundMethod->method;
 
-                return callBound(boundMethod->method, argCount);
+                // Retain the receiver since we're about to release the bound method
+                Value receiver = retainValue(boundMethod->receiver);
+
+                // Release the bound method since we're replacing it
+                releaseAndDelete(stack[stack.size() - argCount - 1]);
+
+                // Replace with the receiver
+                stack[stack.size() - argCount - 1] = receiver;
+
+                return callBound(method, argCount);
             }
 
             default:
@@ -412,13 +422,28 @@ namespace pg
                 if (value.as.nativeFunc) delete value.as.nativeFunc;
                 break;
             case COMPILER_VAL_CLASS:
-                if (value.as.klass) delete value.as.klass;
+                if (value.as.klass)
+                {
+                    // Release all method closures stored in the class
+                    for (auto& pair : value.as.klass->methods)
+                    {
+                        releaseAndDelete(pair.second);
+                    }
+                    delete value.as.klass;
+                }
                 break;
             case COMPILER_VAL_INSTANCE:
                 if (value.as.instance) delete value.as.instance;
                 break;
             case COMPILER_VAL_BOUND_METHOD:
-                if (value.as.boundMethod) delete value.as.boundMethod;
+                if (value.as.boundMethod)
+                {
+                    // Release the receiver and method before deleting the bound method
+                    releaseAndDelete(value.as.boundMethod->receiver);
+                    // Note: method closure is stored in the class's methods map,
+                    // which is managed separately, so we don't delete it here
+                    delete value.as.boundMethod;
+                }
                 break;
             default:
                 // Primitives don't need deletion
@@ -1059,7 +1084,7 @@ namespace pg
             return;
         }
 
-        vm->push(it->second); // Don't retain - global already holds reference
+        vm->push(vm->retainValue(it->second)); // Retain because stack becomes an owner
         vm->releaseAndDelete(nameValue);
     }
 
@@ -1822,7 +1847,8 @@ namespace pg
         // Create a bound method
         auto* bound = new ObjBoundMethod(vm->peek(0), AS_CLOSURE(methodValue));
 
-        vm->pop(); // Remove the instance
+        auto instance = vm->pop(); // Remove the instance
+        vm->releaseAndDelete(instance);
         vm->push(vm->trackNewValue(BOUND_METHOD_VAL(bound)));
 
         return true;
@@ -1857,7 +1883,8 @@ namespace pg
         // Try to find a field first
         if (instance->fields.find(nameStr) != instance->fields.end())
         {
-            vm->pop(); // Remove the instance from the stack
+            auto inst = vm->pop(); // Remove the instance from the stack
+            vm->releaseAndDelete(inst);
             vm->push(vm->retainValue(instance->fields[nameStr]));
 
             return;
@@ -1896,7 +1923,8 @@ namespace pg
         }
 
         auto value = vm->pop(); // Value to set
-        vm->pop(); // Instance
+        auto inst = vm->pop(); // Instance
+        vm->releaseAndDelete(inst);
 
         // Todo maybe fix
         if (instance->fields.find(name.toString()) != instance->fields.end())
