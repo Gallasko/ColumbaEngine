@@ -64,6 +64,7 @@ namespace pg
     void op_class(VM* vm);
     void op_get_property(VM* vm);
     void op_set_property(VM* vm);
+    void op_method(VM* vm);
 }
 
 namespace pg
@@ -392,7 +393,8 @@ namespace pg
 
     void VM::releaseAndDelete(const Value& value)
     {
-        if (releaseValue(value)) {
+        if (releaseValue(value))
+        {
             deleteValue(value);
         }
     }
@@ -788,6 +790,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class, "CLASS");
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property, "GET_PROPERTY");
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property, "SET_PROPERTY");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method, "METHOD");
     }
 
     // Operation handler implementations
@@ -1823,4 +1826,44 @@ namespace pg
         vm->push(value);
     }
 
+    void op_method(VM* vm)
+    {
+        uint8_t constantIndex = *vm->currentFrame->ip++;
+
+        auto methodNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
+        ElementType methodNameElem = valueToElement(methodNameValue);
+        if (not methodNameElem.isLitteral())
+        {
+            vm->runtimeError("Method name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        std::string methodName = methodNameElem.toString();
+
+        // The class is below the method closure on the stack
+        auto methodClosureValue = vm->pop();
+        auto classValue = vm->peek();
+
+        if (not IS_CLASS(classValue))
+        {
+            vm->runtimeError("Method definition must be on a class.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        Klass* klass = AS_CLASS(classValue);
+
+        if (not IS_CLOSURE(methodClosureValue))
+        {
+            vm->runtimeError("Method must be a closure.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        klass->methods[methodName] = methodClosureValue;
+    }
 }

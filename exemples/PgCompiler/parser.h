@@ -144,11 +144,13 @@ namespace pg
         void forStatement();
         void dprintStatement();
         void returnStatement();
+        void methodStatement();
 
         ParseRule& getRule(const TokenType& type) const;
 
         void parseFunction(const FunctionType& type);
         void declareVariable(const Token& name);
+        void pushVariableInStack(const std::string& varName);
 
         int emitJump(const OpCode& instruction);
         void patchJump(int offset);

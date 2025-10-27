@@ -92,6 +92,19 @@ namespace pg
         localCount++;
     }
 
+    int Compiler::findLocal(const std::string& name)
+    {
+        for (int i = localCount - 1; i >= 0; i--)
+        {
+            if (locals[i].name.text == name)
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
     int Compiler::resolveLocal(const Token& name)
     {
         for (int i = localCount - 1; i >= 0; i--)
@@ -132,6 +145,26 @@ namespace pg
         upvalues[upvalueCount].isLocal = isLocal;
 
         return currentFunction->upvalueCount++;
+    }
+
+    int Compiler::findUpvalue(const std::string& name)
+    {
+        if (enclosing == nullptr)
+            return -1;
+
+        int localIndex = enclosing->findLocal(name);
+        if (localIndex != -1)
+        {
+            return localIndex;
+        }
+
+        int upvalueIndex = enclosing->findUpvalue(name);
+        if (upvalueIndex != -1)
+        {
+            return upvalueIndex;
+        }
+
+        return -1;
     }
 
     int Compiler::resolveUpvalue(const Token& name)

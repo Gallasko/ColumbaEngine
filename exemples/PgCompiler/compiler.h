@@ -47,9 +47,11 @@ namespace pg
         void endScope();
 
         void addLocal(const Token& name);
+        int findLocal(const std::string& name);
         int resolveLocal(const Token& name);
 
         int addUpvalue(int index, bool isLocal);
+        int findUpvalue(const std::string& name);
         int resolveUpvalue(const Token& name);
 
         void markInitialized();
