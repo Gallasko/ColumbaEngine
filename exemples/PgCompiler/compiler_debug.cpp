@@ -1,15 +1,47 @@
 #include "compiler_debug.h"
+#include "vm.h"
 
 #include <iostream>
 #include <iomanip>
 
 namespace pg
 {
-    void printValue(const Value& value)
+    void printValue(VM* vm, const Value& value)
     {
+        // For disassembly (vm == nullptr), just print type info
+        if (vm == nullptr)
+        {
+            if (IS_FUNC(value))
+                std::cout << "<func #" << AS_FUNCTION_INDEX(value) << ">";
+            else if (IS_NAT_FUNC(value))
+                std::cout << "<native fn>";
+            else if (IS_CLOSURE(value))
+                std::cout << "<closure #" << AS_CLOSURE_INDEX(value) << ">";
+            else if (IS_UPVALUE(value))
+                std::cout << "<upvalue>";
+            else if (IS_CLASS(value))
+                std::cout << "<class #" << AS_CLASS_INDEX(value) << ">";
+            else if (IS_INSTANCE(value))
+                std::cout << "<instance #" << AS_INSTANCE_INDEX(value) << ">";
+            else if (IS_BOUND_METHOD(value))
+                std::cout << "<bound method #" << AS_BOUND_METHOD_INDEX(value) << ">";
+            else if (IS_STRING(value))
+                std::cout << "<string #" << AS_STRING_INDEX(value) << ">";
+            else if (IS_INT(value))
+                std::cout << AS_INT(value);
+            else if (IS_BOOL(value))
+                std::cout << (AS_BOOL(value) ? "true" : "false");
+            else if (IS_DOUBLE(value))
+                std::cout << AS_DOUBLE(value);
+            else
+                std::cout << "<unknown>";
+            return;
+        }
+
+        // Runtime printing with full VM access
         if (IS_FUNC(value))
         {
-            ObjFunction* func = AS_FUNC(value);
+            ObjFunction* func = vm->asFunction(value);
             if (func != nullptr)
             {
                 std::cout << "<" << func->name << ">";
@@ -25,7 +57,7 @@ namespace pg
         }
         else if (IS_CLOSURE(value))
         {
-            Closure* closure = AS_CLOSURE(value);
+            Closure* closure = vm->asClosure(value);
             if (closure != nullptr && closure->function != nullptr)
             {
                 std::cout << "<closure " << closure->function->name << ">";
@@ -41,7 +73,7 @@ namespace pg
         }
         else if (IS_CLASS(value))
         {
-            Klass* klass = AS_CLASS(value);
+            Klass* klass = vm->asClass(value);
             if (klass != nullptr)
             {
                 std::cout << "<class " << klass->name << ">";
@@ -53,7 +85,7 @@ namespace pg
         }
         else if (IS_INSTANCE(value))
         {
-            ObjInstance* instance = AS_INSTANCE(value);
+            ObjInstance* instance = vm->asInstance(value);
 
             if (instance != nullptr && instance->klass != nullptr)
             {
@@ -66,13 +98,17 @@ namespace pg
         }
         else if (IS_BOUND_METHOD(value))
         {
+            ObjBoundMethod* bound = vm->asBoundMethod(value);
             std::cout << "<bound method: ";
-            printValue(FUNC_VAL(AS_BOUND_METHOD(value)->method->function));
+            if (bound && bound->method && bound->method->function)
+            {
+                std::cout << "<" << bound->method->function->name << ">";
+            }
             std::cout << " >";
         }
         else
         {
-            std::cout << valueToElement(value).toString();
+            std::cout << vm->valueToElement(value).toString();
         }
     }
 
@@ -97,7 +133,7 @@ namespace pg
             else
             {
                 const Value& constant = chunk.constants[cIndex];
-                printValue(constant);
+                printValue(nullptr, constant);
             }
 
             std::cout << "'" << std::endl;
@@ -120,7 +156,7 @@ namespace pg
             else
             {
                 const Value& constant = chunk.constants[cIndex];
-                printValue(constant);
+                printValue(nullptr, constant);
             }
 
             std::cout << "'" << std::endl;
@@ -155,7 +191,7 @@ namespace pg
             std::cout << std::left << std::setw(16) << name << " (" << static_cast<int>(argCount) << " args) "
                       << static_cast<int>(constant) << " '";
 
-            printValue(chunk.constants[constant]);
+            printValue(nullptr, chunk.constants[constant]);
 
             std::cout << "'" << std::endl;
 
@@ -185,17 +221,17 @@ namespace pg
         }
     }
 
-    void disassembleChunk(const Chunk& chunk, const std::string& name)
+    void disassembleChunk(VM* vm, const Chunk& chunk, const std::string& name)
     {
         std::cout << "== " << name << " ==" << std::endl;
 
         for (size_t offset = 0; offset < chunk.code.size();)
         {
-            offset = disassembleInstruction(chunk, offset);
+            offset = disassembleInstruction(vm, chunk, offset);
         }
     }
 
-    int disassembleInstruction(const Chunk& chunk, int offset)
+    int disassembleInstruction(VM* vm, const Chunk& chunk, int offset)
     {
         std::cout << std::setw(4) << offset << " ";
 
@@ -346,7 +382,7 @@ namespace pg
                 else
                 {
                     const Value& constant = chunk.constants[cIndex];
-                    printValue(constant);
+                    printValue(nullptr, constant);
                 }
 
                 std::cout << "'" << std::endl;
@@ -357,7 +393,7 @@ namespace pg
                     return offset;
                 }
 
-                ObjFunction* function = AS_FUNC(chunk.constants[cIndex]);
+                ObjFunction* function = vm->asFunction(chunk.constants[cIndex]);
 
                 for (int i = 0; i < function->upvalueCount; i++)
                 {

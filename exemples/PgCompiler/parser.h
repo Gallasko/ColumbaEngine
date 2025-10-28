@@ -37,14 +37,14 @@ namespace pg
         Precedence precedence;
     };
 
+    struct VM;
+
     struct Parser
     {
-        Parser() {}
-        ~Parser()
-        {
-            for (auto func : allocatedFunction)
-                delete func;
-        }
+        VM *vm;
+
+        Parser(VM *vm) : vm(vm) {}
+        ~Parser();
 
         void parse(std::queue<Token> tokenList) { tokens = tokenList; }
 
@@ -165,7 +165,6 @@ namespace pg
             writeByte(byte2);
         }
 
-        void writeConstant(ObjFunction* constant);
         void writeConstant(const ElementType& constant);
         void writeByte(const OpCode& byte);
         void writeByte(uint8_t byte);
@@ -190,7 +189,7 @@ namespace pg
         void setCompiler(Compiler* compiler) { this->compiler = compiler; }
 
         // Members
-        std::vector<ObjFunction*> allocatedFunction; // To keep track of allocated functions for cleanup
+        std::vector<Value> allocatedFunction; // To keep track of allocated functions for cleanup
 
         Compiler* compiler = nullptr;
 

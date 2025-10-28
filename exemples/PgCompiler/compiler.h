@@ -30,16 +30,17 @@ namespace pg
         bool isLocal;
     };
 
+    struct VM;
+
     struct Compiler
     {
-        Compiler() {}
-        ~Compiler() {
-            if (currentFunction) {
-                delete currentFunction;
-            }
-        }
+        VM *vm;
 
-        ObjFunction* compile(std::queue<Token> tokens);
+        Compiler(VM *vm) : vm(vm), parser(vm) {}
+
+        ~Compiler();
+
+        Value compile(std::queue<Token> tokens);
 
         void printTokens(std::queue<Token> tokens);
 
@@ -58,17 +59,17 @@ namespace pg
 
         void reset();
 
-        Chunk& getCurrentChunk() { return currentFunction->chunk; }
+        Chunk& getCurrentChunk();
 
         // New methods for nested compiler support
         void initCompiler(FunctionType type, const std::string& name = "<script>");
-        ObjFunction* endCompiler();
+        Value endCompiler();
 
         Parser parser;
 
         // Modified to support nested compilers
         Compiler* enclosing = nullptr;  // Points to parent compiler
-        ObjFunction* currentFunction = nullptr;
+        Value currentFunction = 0x0;
         FunctionType currentType = FunctionType::TYPE_SCRIPT;
 
         std::vector<Local> locals;
