@@ -32,7 +32,7 @@ namespace pg
     // ============================================================================
 
     /** Quiet NaN mask - identifies tagged values */
-    static constexpr uint64_t QNAN_MASK = 0x7FFC000000000000ULL;
+    static constexpr uint64_t QNAN_MASK = 0x7FF8000000000000ULL;
 
     /** Sign bit - differentiates primary vs extended tags */
     static constexpr uint64_t SIGN_BIT = 0x8000000000000000ULL;

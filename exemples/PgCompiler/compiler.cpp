@@ -237,8 +237,7 @@ namespace pg
         // Create new function object
         if (currentFunction)
         {
-            auto index = AS_FUNCTION_INDEX(currentFunction);
-            vm->pools.functionPool.release(vm->asFunction(currentFunction));
+            vm->releaseAndDelete(currentFunction);
         }
 
         currentFunction = vm->createFunction();
