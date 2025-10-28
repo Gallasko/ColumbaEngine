@@ -858,7 +858,10 @@ namespace pg
         }
 #endif
         auto value = vm->pop();
-        vm->releaseAndDelete(value);
+        // Escape analysis: Only release heap objects, not primitives
+        if (requiresRefCount(value)) {
+            vm->releaseAndDelete(value);
+        }
     }
 
     void op_constant(VM* vm)
@@ -874,7 +877,13 @@ namespace pg
         }
 #endif
         Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        vm->push(vm->retainValue(constant));  // Retain for stack ownership
+        // Escape analysis: Constants live in bytecode chunk, don't need refcounting
+        // Only retain if it's a heap object that could be GC'd
+        if (requiresRefCount(constant)) {
+            vm->push(vm->retainValue(constant));
+        } else {
+            vm->push(constant);  // Primitives/constants just copied
+        }
     }
 
     void op_long_constant(VM* vm)
@@ -892,7 +901,12 @@ namespace pg
 #endif
 
         Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        vm->push(vm->retainValue(constant));  // Retain for stack ownership
+        // Escape analysis: Constants live in bytecode chunk, don't need refcounting
+        if (requiresRefCount(constant)) {
+            vm->push(vm->retainValue(constant));
+        } else {
+            vm->push(constant);  // Primitives/constants just copied
+        }
     }
 
 #define BINARY_OP_TEMPLATE(op_name, operation) \
@@ -901,8 +915,9 @@ namespace pg
         auto b = vm->pop(); \
         auto a = vm->pop(); \
         vm->push(vm->operation(a, b)); \
-        vm->releaseAndDelete(a); \
-        vm->releaseAndDelete(b); \
+        /* Escape analysis: Only release heap objects, not primitives */ \
+        if (requiresRefCount(a)) vm->releaseAndDelete(a); \
+        if (requiresRefCount(b)) vm->releaseAndDelete(b); \
     }
 
     BINARY_OP_TEMPLATE(op_add, addValues)
@@ -933,7 +948,13 @@ namespace pg
             return;
         }
 
-        vm->push(vm->retainValue(vm->currentFrame->slots[slot]));
+        Value value = vm->currentFrame->slots[slot];
+        // Escape analysis: Only retain heap objects, not primitives or stack values
+        if (requiresRefCount(value)) {
+            vm->push(vm->retainValue(value));
+        } else {
+            vm->push(value);  // Primitives just copied by value
+        }
     }
 
     void op_set_local(VM* vm)
@@ -948,7 +969,11 @@ namespace pg
             return;
         }
 
-        vm->releaseAndDelete(vm->currentFrame->slots[slot]);
+        Value oldValue = vm->currentFrame->slots[slot];
+        // Escape analysis: Only release old value if it's a heap object
+        if (requiresRefCount(oldValue)) {
+            vm->releaseAndDelete(oldValue);
+        }
         vm->currentFrame->slots[slot] = vm->peek(0);
     }
 

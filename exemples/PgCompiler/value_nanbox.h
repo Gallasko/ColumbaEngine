@@ -11,14 +11,17 @@
  *
  * Encoding scheme:
  * - Doubles: Standard IEEE 754 representation
- * - Tagged values: [Sign][0x7FF][1][TAG(3)][INDEX(48)]
+ * - Tagged values: [Sign][0x7FF][1][unused][TAG(3)][INDEX(47)]
  *   - Sign=0: Primary types (int, bool, string, closure, function, upvalue, class, native)
  *   - Sign=1: Extended types (instance, bound_method, + 6 reserved slots)
+ *   - Bit 50: Unused (avoids Intel QNaN Indefinite pattern)
+ *   - Bits [49:47]: 3-bit type tag
+ *   - Bits [46:0]: 47-bit payload/index
  *
  * This provides:
  * - 8 primary type tags + 8 extended type tags = 16 total types
- * - 48-bit indices: supports 281 trillion objects per pool
- * - 48-bit signed integers: ±140 trillion range
+ * - 47-bit indices: supports 140 trillion objects per pool
+ * - 47-bit signed integers: ±70 trillion range
  * - Full IEEE 754 double precision
  */
 
@@ -32,19 +35,19 @@ namespace pg
     // ============================================================================
 
     /** Quiet NaN mask - identifies tagged values */
-    static constexpr uint64_t QNAN_MASK = 0x7FF8000000000000ULL;
+    static constexpr uint64_t QNAN_MASK = 0x7FFC000000000000ULL;
 
     /** Sign bit - differentiates primary vs extended tags */
     static constexpr uint64_t SIGN_BIT = 0x8000000000000000ULL;
 
-    /** Tag bits position in mantissa [50:48] */
-    static constexpr uint64_t TAG_SHIFT = 48;
+    /** Tag bits position in mantissa [49:47] - shifted right to avoid Intel QNaN patterns */
+    static constexpr uint64_t TAG_SHIFT = 47;
 
-    /** Mask to extract 3-bit tag */
-    static constexpr uint64_t TAG_MASK = 0x0007000000000000ULL;
+    /** Mask to extract 3-bit tag at bits [49:47] */
+    static constexpr uint64_t TAG_MASK = 0x0003800000000000ULL;
 
-    /** Mask to extract 48-bit index/payload */
-    static constexpr uint64_t INDEX_MASK = 0x0000FFFFFFFFFFFFULL;
+    /** Mask to extract 47-bit index/payload at bits [46:0] */
+    static constexpr uint64_t INDEX_MASK = 0x00007FFFFFFFFFFFULL;
 
     /** Positive tagged value base (QNAN without sign bit) */
     static constexpr uint64_t POS_TAG_BASE = QNAN_MASK;
@@ -203,11 +206,11 @@ namespace pg
     }
 
     /**
-     * Create an integer value (48-bit signed integer)
-     * Range: -140,737,488,355,328 to +140,737,488,355,327
+     * Create an integer value (47-bit signed integer)
+     * Range: -70,368,744,177,664 to +70,368,744,177,663
      */
     inline Value makeIntValue(int64_t i) {
-        // Mask to 48 bits (preserves sign bit in bit 47)
+        // Mask to 47 bits (preserves sign bit in bit 46)
         uint64_t index = static_cast<uint64_t>(i) & INDEX_MASK;
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_INT) << TAG_SHIFT) | index;
     }
@@ -307,16 +310,16 @@ namespace pg
     }
 
     /**
-     * Extract 48-bit signed integer from value
+     * Extract 47-bit signed integer from value
      * Properly handles sign extension
      */
     inline int64_t AS_INT(Value v) {
-        // Extract 48-bit value
+        // Extract 47-bit value
         int64_t i = static_cast<int64_t>(v & INDEX_MASK);
 
-        // Sign extend from bit 47 to 64 bits
-        if (i & 0x800000000000LL) {
-            i |= 0xFFFF000000000000LL;
+        // Sign extend from bit 46 to 64 bits
+        if (i & 0x400000000000LL) {
+            i |= 0xFFFF800000000000LL;
         }
 
         return i;
