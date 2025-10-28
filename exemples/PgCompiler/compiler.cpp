@@ -32,7 +32,10 @@ namespace pg
         parser.setCompiler(this);
 
         while (not parser.isAtEnd() and not parser.hasError())
+        {
+            parser.skipEOL();  // Skip leading EOL tokens (e.g., from comment-only lines)
             parser.declaration();
+        }
 
         if (parser.hasError())
             return 0x0;
