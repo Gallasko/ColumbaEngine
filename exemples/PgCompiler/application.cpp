@@ -129,10 +129,12 @@ void CompilerApp::runFile()
     vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
-    // vm.enableBytecodeOptimization();
-    // vm.enableOptimizationDebugging();
+    vm.enableBytecodeOptimization();
+    vm.enableOptimizationDebugging();
 
-    vm.disableBytecodeOptimization();
+    // vm.disableBytecodeOptimization();
+
+    std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
     vm.defineNative("logInfo", nativeLogInfo);
 
