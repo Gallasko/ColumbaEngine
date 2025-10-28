@@ -129,12 +129,12 @@ namespace pg
         if (function == 0x0)
             return InterpretResult::COMPILE_ERROR;
 
-        push(trackNewValue(function));
+        push(function);  // function is already tracked from compiler
 
         auto closureValue = createClosure(asFunction(function));
         Closure *closure = asClosure(closureValue);
         pop();
-        push(trackNewValue(closureValue));
+        push(closureValue);  // closureValue is already tracked in createClosure
         call(closure, 0);
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -277,8 +277,7 @@ namespace pg
             return upvalue; // Existing upvalue found
         }
 
-        auto upValueValue = createUpvalue(local);
-        trackNewValue(upValueValue);
+        auto upValueValue = createUpvalue(local);  // Already tracked in createUpvalue
 
         ObjUpvalue* newUpvalue = asUpvalue(upValueValue);
         newUpvalue->next = upvalue;
@@ -300,7 +299,7 @@ namespace pg
         while (openUpvalues != nullptr and openUpvalues->location >= last)
         {
             ObjUpvalue* upvalue = openUpvalues;
-            upvalue->closed = *upvalue->location;
+            upvalue->closed = retainValue(*upvalue->location);  // Retain! Upvalue owns it now
             upvalue->location = &upvalue->closed;
             openUpvalues = upvalue->next;
         }
@@ -330,10 +329,10 @@ namespace pg
         else if (IS_CLASS(callee))
         {
             Klass* klass = asClass(callee);
-            auto instanceValue = createInstance(klass);
+            auto instanceValue = createInstance(klass);  // Already tracked in createInstance
 
             releaseAndDelete(stack[stack.size() - argCount - 1]);
-            stack[stack.size() - argCount - 1] = trackNewValue(instanceValue);
+            stack[stack.size() - argCount - 1] = instanceValue;
 
             // Call initializer if it exists
             if (klass->methods.find("init") != klass->methods.end())
@@ -485,7 +484,8 @@ namespace pg
         {
             auto *boundMethod = asBoundMethod(value);
 
-            releaseAndDelete(boundMethod->receiver);
+            // Don't release receiver here - it will be released when the bound method is released
+            // releaseAndDelete(boundMethod->receiver);
 
             pools.boundMethodPool.release(boundMethod);
         }
@@ -874,7 +874,7 @@ namespace pg
         }
 #endif
         Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        vm->push(constant);
+        vm->push(vm->retainValue(constant));  // Retain for stack ownership
     }
 
     void op_long_constant(VM* vm)
@@ -892,7 +892,7 @@ namespace pg
 #endif
 
         Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        vm->push(constant);
+        vm->push(vm->retainValue(constant));  // Retain for stack ownership
     }
 
 #define BINARY_OP_TEMPLATE(op_name, operation) \
@@ -1251,8 +1251,8 @@ namespace pg
         }
 
         ObjFunction* function = vm->asFunction(functionValue);
-        auto closure = vm->createClosure(function);
-        vm->push(vm->trackNewValue(closure));
+        auto closure = vm->createClosure(function);  // Already tracked in createClosure
+        vm->push(closure);
 
         for (int i = 0; i < function->upvalueCount; i++)
         {
@@ -1472,7 +1472,8 @@ namespace pg
         }
 #endif
         vm->closeUpvalues(&vm->stack[vm->stack.size() - 1]);
-        vm->pop();
+        auto value = vm->pop();
+        vm->releaseAndDelete(value);
     }
 
     void op_post_incr_global(VM* vm)
@@ -1871,8 +1872,8 @@ namespace pg
         }
 
         std::string className = classNameElem.toString();
-        auto newClass = vm->createClass(className);
-        vm->push(vm->trackNewValue(newClass));
+        auto newClass = vm->createClass(className);  // Already tracked in createClass
+        vm->push(newClass);
     }
 
     bool bindMethod(VM* vm, Klass* klass, const std::string& name)
@@ -1886,11 +1887,11 @@ namespace pg
         auto methodValue = methodIt->second;
 
         // Create a bound method
-        auto bound = vm->createBoundMethod(vm->peek(0), vm->asClosure(methodValue));
+        auto bound = vm->createBoundMethod(vm->peek(0), vm->asClosure(methodValue));  // Already tracked
 
         auto instance = vm->pop(); // Remove the instance
         vm->releaseAndDelete(instance);
-        vm->push(vm->trackNewValue(bound));
+        vm->push(bound);
 
         return true;
     }

@@ -21,7 +21,7 @@
 #include <setjmp.h>
 
 // Todo add this as a flag in when compiling in debug
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
 // #define DEBUG_CHECK_STACK
 
