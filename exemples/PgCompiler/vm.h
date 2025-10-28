@@ -19,7 +19,7 @@
 #include <setjmp.h>
 
 // Todo add this as a flag in when compiling in debug
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
 // #define DEBUG_CHECK_STACK
 
@@ -88,7 +88,6 @@ namespace pg
         return false;
     }
 
-
     // Memory management for heap-allocated objects
     inline void freeValue(Value& value)
     {
@@ -114,7 +113,15 @@ namespace pg
 
     public:
         // Direct Value operations (fast path)
-        void push(const Value& value)
+        inline void push(const Value& value)
+        {
+            if (stack_top >= MAX_STACK_SIZE)
+                throw std::runtime_error("Stack overflow");
+
+            stack_values[stack_top++] = value;  // Direct access, no function call
+        }
+
+        inline void push(const Value&& value)
         {
             if (stack_top >= MAX_STACK_SIZE)
                 throw std::runtime_error("Stack overflow");
@@ -123,17 +130,17 @@ namespace pg
         }
 
         // Legacy ElementType support (converts to Value)
-        void push(const ElementType& element)
+        inline void push(const ElementType& element)
         {
             push(elementToValue(element));
         }
 
-        void push(ElementType&& element)
+        inline void push(ElementType&& element)
         {
             push(elementToValue(element));
         }
 
-        Value pop()
+        inline Value pop()
         {
             if (stack_top == 0)
                 throw std::runtime_error("Trying to pop on an empty stack");
@@ -145,7 +152,7 @@ namespace pg
         }
 
         // For legacy compatibility - returns ElementType
-        ElementType popElement()
+        inline ElementType popElement()
         {
             Value val = pop();
             ElementType result = valueToElement(val);
@@ -157,7 +164,7 @@ namespace pg
         inline Value& operator[](size_t index) { return stack_values[index]; }
         inline const Value& operator[](size_t index) const { return stack_values[index]; }
 
-        Value top() const
+        inline Value top() const
         {
             if (stack_top == 0)
                 throw std::runtime_error("Stack is empty");
@@ -166,17 +173,17 @@ namespace pg
         }
 
         // For legacy compatibility
-        ElementType topElement() const
+        inline ElementType topElement() const
         {
             return valueToElement(top());
         }
 
-        bool empty() const { return stack_top == 0; }
-        size_t size() const { return stack_top; }
+        inline bool empty() const { return stack_top == 0; }
+        inline size_t size() const { return stack_top; }
 
         // Get pointer to stack data for frame slots
-        Value* data() { return stack_values; }
-        const Value* data() const { return reinterpret_cast<const Value*>(stack_memory); }
+        inline Value* data() { return stack_values; }
+        inline const Value* data() const { return reinterpret_cast<const Value*>(stack_memory); }
 
         void clear()
         {
@@ -245,7 +252,7 @@ namespace pg
             stack.push(val);
         }
 
-        Value pop()
+        inline Value pop()
         {
 #ifdef DEBUG_CHECK_STACK
             if (stack.empty())
@@ -266,7 +273,8 @@ namespace pg
         // Update cached chunk data pointer when switching functions
         inline void updateChunkCache()
         {
-            if (currentFrame && currentFrame->closure) {
+            if (currentFrame && currentFrame->closure)
+            {
                 auto& chunk = currentFrame->closure->function->chunk.code;
                 chunkData = chunk.data();
                 chunkDataEnd = chunk.data() + chunk.size();
