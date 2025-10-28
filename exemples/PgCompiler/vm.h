@@ -8,6 +8,8 @@
 
 #include "bytecode_pass.h"
 
+#include "value_nanbox.h"  // NaN-boxed value representation
+#include "vmpools.h"       // Pool-based memory management
 #include "object.h"
 
 #include <stack>
@@ -19,7 +21,7 @@
 #include <setjmp.h>
 
 // Todo add this as a flag in when compiling in debug
-// #define DEBUG_TRACE_EXECUTION
+#define DEBUG_TRACE_EXECUTION
 
 // #define DEBUG_CHECK_STACK
 
@@ -54,90 +56,29 @@ namespace pg
             : handler(h), name(n), operand_count(count) {}
     };
 
-    inline bool isValueNumber(const Value& val)
-    {
-        if (IS_INT(val) || IS_FLOAT(val))
-            return true;
+    // Forward declare VM for helper functions
+    struct VM;
 
-        if (IS_OBJ(val))
-            return AS_OBJ(val)->isNumber();
+    bool isValueNumber(const Value& val, VM* vm = nullptr);
 
-        return false;
-    }
-
-    inline bool isValueTrue(const Value& val)
-    {
-        if (IS_BOOL(val))
-            return AS_BOOL(val);
-
-        if (IS_INT(val))
-            return AS_INT(val) != 0;
-
-        if (IS_FLOAT(val))
-        {
-            const float a = static_cast<float>(AS_FLOAT(val));
-            const float b = 0.0f;
-            const float epsilon = 0.00001f;
-
-            return not (std::fabs(a - b) <= epsilon * std::max({1.0f, std::fabs(a), std::fabs(b)}));
-        }
-
-        if (IS_OBJ(val))
-            return AS_OBJ(val)->isTrue();
-
-        return false;
-    }
-
-    // Memory management for heap-allocated objects
-    inline void freeValue(Value& value)
-    {
-        if (IS_OBJ(value) and AS_OBJ(value) != nullptr)
-        {
-            delete AS_OBJ(value);
-            value.as.obj = nullptr;
-        }
-        else if (IS_NAT_FUNC(value) and AS_NAT_FUNC(value) != nullptr)
-        {
-            delete AS_NAT_FUNC(value);
-            value.as.nativeFunc = nullptr;
-        }
-    }
+    bool isValueTrue(const Value& val, VM* vm = nullptr);
 
     class IndexableStack
     {
     private:
         static constexpr size_t MAX_STACK_SIZE = FRAMES_MAX * 4096; // Callstack * 4K elements max
-        alignas(Value) char stack_memory[MAX_STACK_SIZE * sizeof(Value)];
-        Value* stack_values = reinterpret_cast<Value*>(stack_memory); // Cached pointer for fast access
+        // Now using 8-byte values directly (2.1 MB vs 4.2 MB before!)
+        alignas(uint64_t) uint64_t stack_values[MAX_STACK_SIZE];
         size_t stack_top = 0;
 
     public:
-        // Direct Value operations (fast path)
-        inline void push(const Value& value)
+        // Ultra-fast Value operations - single 64-bit MOV instruction
+        inline void push(Value value)  // Pass by value, not reference (64-bit fits in register)
         {
             if (stack_top >= MAX_STACK_SIZE)
                 throw std::runtime_error("Stack overflow");
 
-            stack_values[stack_top++] = value;  // Direct access, no function call
-        }
-
-        inline void push(const Value&& value)
-        {
-            if (stack_top >= MAX_STACK_SIZE)
-                throw std::runtime_error("Stack overflow");
-
-            stack_values[stack_top++] = value;  // Direct access, no function call
-        }
-
-        // Legacy ElementType support (converts to Value)
-        inline void push(const ElementType& element)
-        {
-            push(elementToValue(element));
-        }
-
-        inline void push(ElementType&& element)
-        {
-            push(elementToValue(element));
+            stack_values[stack_top++] = value;
         }
 
         inline Value pop()
@@ -145,20 +86,7 @@ namespace pg
             if (stack_top == 0)
                 throw std::runtime_error("Trying to pop on an empty stack");
 
-            Value value = stack_values[stack_top - 1];
-            stack_top--;  // No destructor needed for POD-like Value
-
-            return value;
-        }
-
-        // For legacy compatibility - returns ElementType
-        inline ElementType popElement()
-        {
-            Value val = pop();
-            ElementType result = valueToElement(val);
-            // Note: No cleanup here - caller is responsible for managing Value lifecycle
-
-            return result;
+            return stack_values[--stack_top];  // Single instruction!
         }
 
         inline Value& operator[](size_t index) { return stack_values[index]; }
@@ -172,25 +100,19 @@ namespace pg
             return stack_values[stack_top - 1];
         }
 
-        // For legacy compatibility
-        inline ElementType topElement() const
-        {
-            return valueToElement(top());
-        }
-
         inline bool empty() const { return stack_top == 0; }
         inline size_t size() const { return stack_top; }
 
         // Get pointer to stack data for frame slots
         inline Value* data() { return stack_values; }
-        inline const Value* data() const { return reinterpret_cast<const Value*>(stack_memory); }
+        inline const Value* data() const { return stack_values; }
 
         void clear()
         {
             // Clean up any heap-allocated objects
             while (stack_top > 0)
             {
-                freeValue(stack_values[--stack_top]);
+                pop();
             }
         }
     };
@@ -237,7 +159,7 @@ namespace pg
         InterpretResult run();
 
         // Core Value operations for performance
-        inline void push(const Value& value)
+        inline void push(Value value)  // Pass by value (64-bit in register)
         {
             stack.push(value);
         }
@@ -246,7 +168,7 @@ namespace pg
         {
             Value val = elementToValue(value);
             // Track if it's a heap object
-            if (IS_OBJ(val) || IS_FUNC(val) || IS_CLOSURE(val) || IS_UPVALUE(val) || IS_NAT_FUNC(val)) {
+            if (requiresRefCount(val)) {
                 val = trackNewValue(val);
             }
             stack.push(val);
@@ -336,11 +258,50 @@ namespace pg
         inline bool releaseValue(const Value& value);   // Returns true if should delete
         void deleteValue(const Value& value);    // Actually delete the object
         inline Value trackNewValue(const Value& value); // Track newly created object with refcount=1
-        int getValueRefCount(const Value& value) const;
-        size_t getTotalTrackedObjects() const { return refCounts.size(); }
+        size_t getTotalTrackedObjects() const {
+            return pools.stringPool.getNbElements() +
+                   pools.closurePool.getNbElements() +
+                   pools.functionPool.getNbElements() +
+                   pools.upvaluePool.getNbElements() +
+                   pools.classPool.getNbElements() +
+                   pools.nativeFuncPool.getNbElements() +
+                   pools.instancePool.getNbElements() +
+                   pools.boundMethodPool.getNbElements();
+        }
 
         // Convenience method for release + delete
         void releaseAndDelete(const Value& value);
+
+        // ====================================================================
+        // Pool Access Helpers - Convenient wrappers for vm->pools.getXXX()
+        // ====================================================================
+
+        // Get heap objects from pools (returns pointer to actual object)
+        inline ElementType* asString(Value v) { return pools.getString(v); }
+        inline Closure* asClosure(Value v) { return pools.getClosure(v); }
+        inline ObjFunction* asFunction(Value v) { return pools.getFunction(v); }
+        inline ObjUpvalue* asUpvalue(Value v) { return pools.getUpvalue(v); }
+        inline Klass* asClass(Value v) { return pools.getClass(v); }
+        inline NativeFunction* asNativeFunc(Value v) { return pools.getNativeFunc(v); }
+        inline ObjInstance* asInstance(Value v) { return pools.getInstance(v); }
+        inline ObjBoundMethod* asBoundMethod(Value v) { return pools.getBoundMethod(v); }
+
+        // Create new heap objects and return tracked Values
+        Value createString(const ElementType& element);
+        Value createClosure(ObjFunction* function);
+        Value createFunction();
+        Value createUpvalue(Value* slot);
+        Value createClass(const std::string& name);
+        Value createInstance(Klass* klass);
+        Value createBoundMethod(const Value& receiver, Closure* method);
+
+        // Convert between Value and ElementType
+        Value elementToValue(const ElementType& element);
+        ElementType valueToElement(const Value& value);
+
+        // Value utilities
+        Value copyValue(const Value& value);
+        int getValueAsInt(const Value& value);
 
         // Arithmetic operations with proper reference tracking
         Value addValues(const Value& a, const Value& b);
@@ -377,8 +338,8 @@ namespace pg
         jmp_buf exit_jump;
         InterpretResult exit_result;
 
-        // Reference counting for heap-allocated objects
-        std::unordered_map<void*, int> refCounts;
+        // Pool-based memory management (replaces old pointer-based refCounts)
+        VMPools pools;
 
         // Test output buffer for __dprint (used in tests)
         std::string testOutput;
@@ -424,12 +385,11 @@ namespace pg
 
         void defineNative(const std::string& name, NativeFn function)
         {
-            auto* nativeFunc = new NativeFunction();
+            uint32_t index = pools.nativeFuncPool.getNbElements();
+            NativeFunction* nativeFunc = pools.nativeFuncPool.allocate();
             nativeFunc->function = function;
 
-            Value val;
-            val.type = COMPILER_VAL_NATIVE;
-            val.as.nativeFunc = nativeFunc;
+            Value val = makeNativeFuncValue(index);
 
             globals[name] = trackNewValue(val);
         }
@@ -462,116 +422,68 @@ namespace pg
     };
 
     // Inline implementations for critical performance functions
-    inline Value VM::retainValue(const Value& value)
+    inline Value VM::retainValue(const Value& v)
     {
-        // Fast path for primitives - no function call overhead
-        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
-            return value;
+        // Fast path: primitives and doubles don't need refcounting
+        if (!requiresRefCount(v))
+            return v;
 
-        // Extract pointer from Value based on type
-        void* ptr = nullptr;
-        switch(value.type)
-        {
-            case COMPILER_VAL_OBJ:          ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:         ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
-            case COMPILER_VAL_CLASS:        ptr = value.as.klass; break;
-            case COMPILER_VAL_INSTANCE:     ptr = value.as.instance; break;
-            case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
-            default: return value; // Already handled above, but safety
-        }
+        // Increment refcount in appropriate pool vector
+        uint32_t index = GET_INDEX(v);
+        auto& refCounts = pools.getRefCountVector(v);
 
-        if (ptr != nullptr)
-        {
-            // Only increment refcount if this value is already being tracked
-            auto it = refCounts.find(ptr);
-            if (it != refCounts.end())
-            {
-                it->second++;
+        if (index < refCounts.size()) {
+            refCounts[index]++;
 
 #ifdef DEBUG_RUNTIME_MEMORY
-                std::cout << "Retained " << ptr << ", nb: " << it->second << std::endl;
+            std::cout << "Retained " << valueTypeName(v) << "[" << index << "], count: " << refCounts[index] << std::endl;
 #endif
-            }
         }
 
-        return value;
+        return v;
     }
 
-    inline bool VM::releaseValue(const Value& value)
+    inline bool VM::releaseValue(const Value& v)
     {
-        // Fast path for primitives - no cleanup needed
-        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
+        // Fast path: primitives and doubles don't need cleanup
+        if (!requiresRefCount(v))
             return false;
 
-        // Extract pointer from Value based on type
-        void* ptr = nullptr;
-        switch(value.type)
-        {
-            case COMPILER_VAL_OBJ:          ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:         ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
-            case COMPILER_VAL_CLASS:        ptr = value.as.klass; break;
-            case COMPILER_VAL_INSTANCE:     ptr = value.as.instance; break;
-            case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
-            default: return false; // Already handled above
-        }
+        // Decrement refcount in appropriate pool vector
+        uint32_t index = GET_INDEX(v);
+        auto& refCounts = pools.getRefCountVector(v);
 
-        if (ptr != nullptr)
-        {
-            auto it = refCounts.find(ptr);
-            if (it != refCounts.end())
-            {
-                it->second--;
+        if (index >= refCounts.size() || refCounts[index] == 0)
+            return false;
 
-                if (it->second <= 0)
-                {
+        refCounts[index]--;
+
+        if (refCounts[index] == 0) {
 #ifdef DEBUG_RUNTIME_MEMORY
-                    std::cout << "Releasing object of type " << static_cast<int>(value.type) << " at " << ptr << std::endl;
+            std::cout << "Releasing " << valueTypeName(v) << "[" << index << "]" << std::endl;
 #endif
-                    refCounts.erase(it);
-                    return true; // Should delete
-                }
-            }
+            pools.releaseToPool(v);
+            return true; // Object was deleted
         }
 
         return false; // Don't delete
     }
 
-    inline Value VM::trackNewValue(const Value& value)
+    inline Value VM::trackNewValue(const Value& v)
     {
-        // Fast path for primitives - no tracking needed
-        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
-            return value;
+        // Fast path: primitives and doubles don't need tracking
+        if (!requiresRefCount(v))
+            return v;
 
         // For newly created objects, start with refcount=1
-        void* ptr = nullptr;
-        switch(value.type)
-        {
-            case COMPILER_VAL_OBJ:          ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:         ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE:      ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE:      ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:       ptr = value.as.nativeFunc; break;
-            case COMPILER_VAL_CLASS:        ptr = value.as.klass; break;
-            case COMPILER_VAL_INSTANCE:     ptr = value.as.instance; break;
-            case COMPILER_VAL_BOUND_METHOD: ptr = value.as.boundMethod; break;
-            default: return value; // Already handled above
-        }
+        uint32_t index = GET_INDEX(v);
+        pools.ensureRefCountCapacity(v, index);
+        pools.getRefCountVector(v)[index] = 1;
 
 #ifdef DEBUG_RUNTIME_MEMORY
-        std::cout << "Tracking new object of type " << static_cast<int>(value.type) << " at " << ptr << std::endl;
+        std::cout << "Tracking new " << valueTypeName(v) << "[" << index << "]" << std::endl;
 #endif
 
-        if (ptr != nullptr)
-        {
-            refCounts[ptr] = 1; // Start with refcount=1
-        }
-
-        return value;
+        return v;
     }
 }

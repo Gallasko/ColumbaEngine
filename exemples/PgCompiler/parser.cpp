@@ -1,6 +1,7 @@
 #include "parser.h"
 
 #include "compiler.h"
+#include "vm.h"
 
 #include "logger.h"
 #include <unordered_map>
@@ -351,7 +352,7 @@ namespace pg
                 parser.errorAt(parser.previousToken, "No constant found for global variable");
                 return;
             }
-            ElementType lastConstant = valueToElement(chunk.constants.back());
+            ElementType lastConstant = parser.vm->valueToElement(chunk.constants.back());
             incrOp = OpCode::OP_Post_Incr_Global;
             identifier = lastConstant;
         }
@@ -400,7 +401,7 @@ namespace pg
                 parser.errorAt(parser.previousToken, "No constant found for global variable");
                 return;
             }
-            ElementType lastConstant = valueToElement(chunk.constants.back());
+            ElementType lastConstant = parser.vm->valueToElement(chunk.constants.back());
             decrOp = OpCode::OP_Post_Decr_Global;
             identifier = lastConstant;
         }
@@ -450,7 +451,8 @@ namespace pg
         parser.consume("Expect property name after '.'.", TokenType::EXPRESSION);
 
         auto propertyName = parser.previousToken.text;
-        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(propertyName);
+        auto value = parser.vm->createString(propertyName); // Ensure string is created in VM
+        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(value);
 
         if (canAssign and parser.match(TokenType::EQUAL))
         {
@@ -556,6 +558,13 @@ namespace pg
         {TokenType::TOK_ERROR,    {NULL,        NULL,   Precedence::NONE}},
     };
 
+    Parser::~Parser()
+    {
+        for (auto func : allocatedFunction)
+        {
+            vm->pools.functionPool.release(vm->asFunction(func));
+        }
+    }
 
     void Parser::parsePrecedence(const Precedence& precedence)
     {
@@ -671,7 +680,8 @@ namespace pg
         Token className = previousToken;
 
         // Emit OP_Class with constant index as operand (not OP_Constant before it)
-        uint8_t nameConstant = Compiler::current->getCurrentChunk().addConstantIndex(elementToValue(ElementType(className.text)));
+        auto value = vm->createString(className.text); // Ensure string is created in VM
+        uint8_t nameConstant = Compiler::current->getCurrentChunk().addConstantIndex(value);
         emitBytes(OpCode::OP_Class, nameConstant);
 
         // Compiler::current->beginScope();
@@ -942,7 +952,8 @@ namespace pg
         parseFunction(type);
 
         writeByte(OpCode::OP_Method);
-        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(methodName.text);
+        auto value = vm->createString(methodName.text); // Ensure string is created in VM
+        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(value);
         writeByte(constantIndex);
     }
 
@@ -953,7 +964,7 @@ namespace pg
 
     void Parser::parseFunction(const FunctionType& type)
     {
-        Compiler compiler;
+        Compiler compiler(vm);
 
         compiler.initCompiler(type, previousToken.text);
         compiler.beginScope();
@@ -966,8 +977,8 @@ namespace pg
         {
             do
             {
-                Compiler::current->currentFunction->arity++;
-                if (Compiler::current->currentFunction->arity > 255)
+                vm->asFunction(Compiler::current->currentFunction)->arity++;
+                if (vm->asFunction(Compiler::current->currentFunction)->arity > 255)
                 {
                     errorAt(previousToken, "Can't have more than 255 parameters.");
                 }
@@ -991,7 +1002,7 @@ namespace pg
 
         blockStatement();
 
-        ObjFunction *function = compiler.endCompiler();
+        auto function = compiler.endCompiler();
 
         allocatedFunction.push_back(function);
 
@@ -999,7 +1010,7 @@ namespace pg
         uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(function);
         writeByte(constantIndex);
 
-        for (int i = 0; i < function->upvalueCount; i++)
+        for (int i = 0; i < vm->asFunction(function)->upvalueCount; i++)
         {
             writeByte(compiler.upvalues[i].isLocal ? 1 : 0);
             writeByte(compiler.upvalues[i].index);
@@ -1096,14 +1107,9 @@ namespace pg
         writeByte(OpCode::OP_Return);
     }
 
-    void Parser::writeConstant(ObjFunction* constant)
-    {
-        Compiler::current->getCurrentChunk().addConstant(constant, previousToken.line);
-    }
-
     void Parser::writeConstant(const ElementType& constant)
     {
-        Compiler::current->getCurrentChunk().addConstant(constant, previousToken.line);
+        Compiler::current->getCurrentChunk().addConstant(vm->elementToValue(constant), previousToken.line);
     }
 
     void Parser::writeByte(const OpCode& byte)

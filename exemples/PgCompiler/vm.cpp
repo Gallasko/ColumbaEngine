@@ -12,6 +12,46 @@
 
 namespace pg
 {
+    bool isValueNumber(const Value& val, VM* vm)
+    {
+        if (IS_INT(val) || IS_DOUBLE(val))
+            return true;
+
+        // String objects might represent numbers - need pool access
+        if (IS_STRING(val) && vm != nullptr) {
+            ElementType* obj = vm->pools.getString(val);
+            return obj->isNumber();
+        }
+
+        return false;
+    }
+
+    bool isValueTrue(const Value& val, VM* vm)
+    {
+        if (IS_BOOL(val))
+            return AS_BOOL(val);
+
+        if (IS_INT(val))
+            return AS_INT(val) != 0;
+
+        if (IS_DOUBLE(val))
+        {
+            const double a = AS_DOUBLE(val);
+            const double b = 0.0;
+            const double epsilon = 0.00001;
+
+            return not (std::fabs(a - b) <= epsilon * std::max({1.0, std::fabs(a), std::fabs(b)}));
+        }
+
+        // String objects might represent booleans - need pool access
+        if (IS_STRING(val) && vm != nullptr) {
+            ElementType* obj = vm->pools.getString(val);
+            return obj->isTrue();
+        }
+
+        return false;
+    }
+
     // Static dispatch table definition
     OpCodeInfo VM::operations[256];
 
@@ -80,19 +120,21 @@ namespace pg
     {
         // Todo change this
         // Reset the compiler state before compiling a new chunk
-        Compiler compiler;
+        Compiler compiler(this);
 
         std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
 
-        auto *function = compiler.compile(tokens);
+        auto function = compiler.compile(tokens);
 
-        if (not function)
+        if (function == 0x0)
             return InterpretResult::COMPILE_ERROR;
 
-        push(trackNewValue(FUNC_VAL(function)));
-        Closure *closure = new Closure(function);
+        push(trackNewValue(function));
+
+        auto closureValue = createClosure(asFunction(function));
+        Closure *closure = asClosure(closureValue);
         pop();
-        push(trackNewValue(CLOSURE_VAL(closure)));
+        push(trackNewValue(closureValue));
         call(closure, 0);
 
         std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
@@ -106,8 +148,10 @@ namespace pg
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
         // Apply bytecode optimizations
-        for (auto func : compiler.parser.allocatedFunction)
+        for (auto f : compiler.parser.allocatedFunction)
         {
+            auto *func = asFunction(f);
+
             if (enableOptimizations and not func->chunk.code.empty())
             {
                 begin = std::chrono::steady_clock::now();
@@ -191,14 +235,14 @@ namespace pg
                 for (size_t i = 0; i < stack.size(); ++i)
                 {
                     std::cout << "[";
-                    printValue(stack[i]);
+                    printValue(this, stack[i]);
                     std::cout << "] ";
                 }
                 std::cout << std::endl;
 
                 // Update frame IP for debug output
                 // currentFrame->ip = ip;
-                disassembleInstruction(currentFrame->closure->function->chunk, currentFrame->ip - chunkData - 1);
+                disassembleInstruction(this, currentFrame->closure->function->chunk, currentFrame->ip - chunkData - 1);
 #endif
                 // Todo add those behind a debug flag
                 // if (operations[opcode].handler) {
@@ -233,8 +277,10 @@ namespace pg
             return upvalue; // Existing upvalue found
         }
 
-        ObjUpvalue* newUpvalue = new ObjUpvalue(local);
-        trackNewValue(UPVALUE_VAL(newUpvalue));
+        auto upValueValue = createUpvalue(local);
+        trackNewValue(upValueValue);
+
+        ObjUpvalue* newUpvalue = asUpvalue(upValueValue);
         newUpvalue->next = upvalue;
 
         if (prevUpvalue == nullptr)
@@ -262,75 +308,66 @@ namespace pg
 
     bool VM::callValue(const Value& callee, int argCount)
     {
-        switch (callee.type)
+        if (IS_CLOSURE(callee))
         {
-            case CompilerValueType::COMPILER_VAL_CLOSURE:
+            return call(asClosure(callee), argCount);
+        }
+        else if (IS_NAT_FUNC(callee))
+        {
+            auto* native = asNativeFunc(callee);
+            Value result = native->function(this, argCount, stack.data() + stack.size() - argCount);
+
+            // Remove arguments from the stack
+            for (int i = 0; i < argCount; i++)
             {
-                return call(AS_CLOSURE(callee), argCount);
+                auto v = pop();
+                releaseAndDelete(v);
             }
 
-            case CompilerValueType::COMPILER_VAL_NATIVE:
+            push(result);
+            return true;
+        }
+        else if (IS_CLASS(callee))
+        {
+            Klass* klass = asClass(callee);
+            auto instanceValue = createInstance(klass);
+
+            releaseAndDelete(stack[stack.size() - argCount - 1]);
+            stack[stack.size() - argCount - 1] = trackNewValue(instanceValue);
+
+            // Call initializer if it exists
+            if (klass->methods.find("init") != klass->methods.end())
             {
-                auto* native = AS_NAT_FUNC(callee);
-                Value result = native->function(argCount, stack.data() + stack.size() - argCount);
+                auto initializer = klass->methods["init"];
 
-                // Remove arguments from the stack
-                for (int i = 0; i < argCount; i++)
-                {
-                    auto v = pop();
-                    releaseAndDelete(v);
-                }
+                return callBound(asClosure(initializer), argCount);
+            }
+            else if (argCount != 0)
+            {
+                runtimeError((Strfy() << "Expected 0 arguments but got: " << argCount << ".").getData());
 
-                push(result);
-                return true;
+                return false;
             }
 
-            case CompilerValueType::COMPILER_VAL_CLASS:
-            {
-                Klass* klass = AS_CLASS(callee);
-                ObjInstance* instance = new ObjInstance(klass);
+            return true;
+        }
+        else if (IS_BOUND_METHOD(callee))
+        {
+            ObjBoundMethod* boundMethod = asBoundMethod(callee);
 
-                releaseAndDelete(stack[stack.size() - argCount - 1]);
-                stack[stack.size() - argCount - 1] = trackNewValue(INSTANCE_VAL(instance));
+            // Save the method closure before we delete the bound method
+            Closure* method = boundMethod->method;
 
-                // Call initializer if it exists
-                if (klass->methods.find("init") != klass->methods.end())
-                {
-                    auto initializer = klass->methods["init"];
+            // Retain the receiver since we're about to release the bound method
+            Value receiver = retainValue(boundMethod->receiver);
 
-                    return callBound(AS_CLOSURE(initializer), argCount);
-                }
-                else if (argCount != 0)
-                {
-                    runtimeError((Strfy() << "Expected 0 arguments but got: " << argCount << ".").getData());
+            // Release the bound method since we're replacing it
+            releaseAndDelete(stack[stack.size() - argCount - 1]);
 
-                    return false;
-                }
+            // Replace with the receiver
+            stack[stack.size() - argCount - 1] = receiver;
 
-                return true;
-            }
-
-            case CompilerValueType::COMPILER_VAL_BOUND_METHOD:
-            {
-                ObjBoundMethod* boundMethod = AS_BOUND_METHOD(callee);
-
-                // Save the method closure before we delete the bound method
-                Closure* method = boundMethod->method;
-
-                // Retain the receiver since we're about to release the bound method
-                Value receiver = retainValue(boundMethod->receiver);
-
-                // Release the bound method since we're replacing it
-                releaseAndDelete(stack[stack.size() - argCount - 1]);
-
-                // Replace with the receiver
-                stack[stack.size() - argCount - 1] = receiver;
-
-                return callBound(method, argCount);
-            }
-
-            default:
-                break;
+            return callBound(method, argCount);
         }
 
         runtimeError("Can only call functions and classes");
@@ -349,7 +386,7 @@ namespace pg
             return false;
         }
 
-        Closure* method = AS_CLOSURE(it->second);
+        Closure* method = asClosure(it->second);
 
         return callBound(method, argCount);
     }
@@ -406,75 +443,51 @@ namespace pg
         return true;
     }
 
-    int VM::getValueRefCount(const Value& value) const
-    {
-        void* ptr = nullptr;
-        switch(value.type) {
-            case COMPILER_VAL_OBJ:     ptr = value.as.obj; break;
-            case COMPILER_VAL_FUNC:    ptr = value.as.function; break;
-            case COMPILER_VAL_CLOSURE: ptr = value.as.closure; break;
-            case COMPILER_VAL_UPVALUE: ptr = value.as.upvalue; break;
-            case COMPILER_VAL_NATIVE:  ptr = value.as.nativeFunc; break;
-            case COMPILER_VAL_CLASS:   ptr = value.as.klass; break;
-            case COMPILER_VAL_INSTANCE: ptr = value.as.instance; break;
-            default: return 0; // Primitives
-        }
-
-        if (ptr != nullptr) {
-            auto it = refCounts.find(ptr);
-            if (it != refCounts.end()) {
-                return it->second;
-            }
-        }
-        return 0;
-    }
-
     void VM::deleteValue(const Value& value)
     {
         // Perform type-specific deletion
-        switch(value.type) {
-            case COMPILER_VAL_OBJ:
-                if (value.as.obj) delete value.as.obj;
-                break;
-            case COMPILER_VAL_FUNC:
-                if (value.as.function) delete value.as.function;
-                break;
-            case COMPILER_VAL_CLOSURE:
-                if (value.as.closure) delete value.as.closure;
-                break;
-            case COMPILER_VAL_UPVALUE:
-                if (value.as.upvalue) delete value.as.upvalue;
-                break;
-            case COMPILER_VAL_NATIVE:
-                if (value.as.nativeFunc) delete value.as.nativeFunc;
-                break;
-            case COMPILER_VAL_CLASS:
-                if (value.as.klass)
-                {
-                    // Release all method closures stored in the class
-                    for (auto& pair : value.as.klass->methods)
-                    {
-                        releaseAndDelete(pair.second);
-                    }
-                    delete value.as.klass;
-                }
-                break;
-            case COMPILER_VAL_INSTANCE:
-                if (value.as.instance) delete value.as.instance;
-                break;
-            case COMPILER_VAL_BOUND_METHOD:
-                if (value.as.boundMethod)
-                {
-                    // Release the receiver and method before deleting the bound method
-                    releaseAndDelete(value.as.boundMethod->receiver);
-                    // Note: method closure is stored in the class's methods map,
-                    // which is managed separately, so we don't delete it here
-                    delete value.as.boundMethod;
-                }
-                break;
-            default:
-                // Primitives don't need deletion
-                break;
+        if (IS_STRING(value))
+        {
+            pools.stringPool.release(asString(value));
+        }
+        else if (IS_FUNC(value))
+        {
+            pools.functionPool.release(asFunction(value));
+        }
+        else if (IS_CLOSURE(value))
+        {
+            pools.closurePool.release(asClosure(value));
+        }
+        else if (IS_UPVALUE(value))
+        {
+            pools.upvaluePool.release(asUpvalue(value));
+        }
+        else if (IS_NAT_FUNC(value))
+        {
+            pools.nativeFuncPool.release(asNativeFunc(value));
+        }
+        else if (IS_CLASS(value))
+        {
+            auto *klass = asClass(value);
+
+            for (auto& pair : klass->methods)
+            {
+                releaseAndDelete(pair.second);
+            }
+
+            pools.classPool.release(asClass(value));
+        }
+        else if (IS_INSTANCE(value))
+        {
+            pools.instancePool.release(asInstance(value));
+        }
+        else if (IS_BOUND_METHOD(value))
+        {
+            auto *boundMethod = asBoundMethod(value);
+
+            releaseAndDelete(boundMethod->receiver);
+
+            pools.boundMethodPool.release(boundMethod);
         }
     }
 
@@ -503,21 +516,6 @@ namespace pg
         if (IS_FLOAT(a) and IS_INT(b))
             return FLOAT_VAL(AS_FLOAT(a) + static_cast<double>(AS_INT(b)));
 
-        // Handle legacy object-based floats (for compatibility)
-        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
-        {
-            double floatA = static_cast<double>(AS_INT(a));
-            double floatB = (*AS_OBJ(b)).get<float>();
-            return FLOAT_VAL(floatA + floatB);
-        }
-
-        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
-        {
-            double floatA = (*AS_OBJ(a)).get<float>();
-            double floatB = static_cast<double>(AS_INT(b));
-            return FLOAT_VAL(floatA + floatB);
-        }
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot compare function Values");
@@ -544,21 +542,6 @@ namespace pg
 
         if (IS_FLOAT(a) and IS_INT(b))
             return FLOAT_VAL(AS_FLOAT(a) - static_cast<double>(AS_INT(b)));
-
-        // Handle legacy object-based floats (for compatibility)
-        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
-        {
-            double floatA = static_cast<double>(AS_INT(a));
-            double floatB = (*AS_OBJ(b)).get<float>();
-            return FLOAT_VAL(floatA - floatB);
-        }
-
-        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
-        {
-            double floatA = (*AS_OBJ(a)).get<float>();
-            double floatB = static_cast<double>(AS_INT(b));
-            return FLOAT_VAL(floatA - floatB);
-        }
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -587,21 +570,6 @@ namespace pg
         if (IS_FLOAT(a) and IS_INT(b))
             return FLOAT_VAL(AS_FLOAT(a) * static_cast<double>(AS_INT(b)));
 
-        // Handle legacy object-based floats (for compatibility)
-        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
-        {
-            double floatA = static_cast<double>(AS_INT(a));
-            double floatB = (*AS_OBJ(b)).get<float>();
-            return FLOAT_VAL(floatA * floatB);
-        }
-
-        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
-        {
-            double floatA = (*AS_OBJ(a)).get<float>();
-            double floatB = static_cast<double>(AS_INT(b));
-            return FLOAT_VAL(floatA * floatB);
-        }
-
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
             throw std::runtime_error("Cannot multiply function Values");
@@ -628,23 +596,6 @@ namespace pg
 
         if (IS_FLOAT(a) and IS_INT(b) and AS_INT(b) != 0)
             return FLOAT_VAL(AS_FLOAT(a) / static_cast<double>(AS_INT(b)));
-
-        // Handle legacy object-based floats (for compatibility)
-        if (IS_INT(a) and IS_OBJ(b) and AS_OBJ(b)->isNumber())
-        {
-            double floatA = static_cast<double>(AS_INT(a));
-            double floatB = (*AS_OBJ(b)).get<float>();
-            if (areNotAlmostEqual(static_cast<float>(floatB), 0.0f))
-                return FLOAT_VAL(floatA / floatB);
-        }
-
-        if (IS_OBJ(a) and AS_OBJ(a)->isNumber() and IS_INT(b))
-        {
-            double floatA = (*AS_OBJ(a)).get<float>();
-            double floatB = static_cast<double>(AS_INT(b));
-            if (areNotAlmostEqual(static_cast<float>(floatB), 0.0f))
-                return FLOAT_VAL(floatA / floatB);
-        }
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -1099,7 +1050,7 @@ namespace pg
         }
 #endif
         auto nameValue = vm->pop();  // variable name
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -1134,7 +1085,7 @@ namespace pg
 #endif
         auto value = vm->pop();
         auto nameValue = vm->pop();
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -1172,7 +1123,7 @@ namespace pg
         }
 #endif
         auto nameValue = vm->pop();  // variable name
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
         auto value = vm->pop(); // variable value
 
         if (not name.isLitteral())
@@ -1238,7 +1189,7 @@ namespace pg
             return false;
         }
 
-        ObjInstance* instance = AS_INSTANCE(receiverValue);
+        ObjInstance* instance = vm->asInstance(receiverValue);
 
         // Check for field first
         auto fieldIt = instance->fields.find(name);
@@ -1259,7 +1210,7 @@ namespace pg
         uint8_t methodIndex = *vm->currentFrame->ip++;
 
         auto methodValue = vm->currentFrame->closure->function->chunk.constants[methodIndex];
-        auto methodValueName = valueToElement(methodValue);
+        auto methodValueName = vm->valueToElement(methodValue);
 
         uint8_t argCount = *vm->currentFrame->ip++;
 
@@ -1299,9 +1250,9 @@ namespace pg
             return;
         }
 
-        ObjFunction* function = AS_FUNC(functionValue);
-        auto closure = new Closure(function);
-        vm->push(vm->trackNewValue(CLOSURE_VAL(closure)));
+        ObjFunction* function = vm->asFunction(functionValue);
+        auto closure = vm->createClosure(function);
+        vm->push(vm->trackNewValue(closure));
 
         for (int i = 0; i < function->upvalueCount; i++)
         {
@@ -1309,11 +1260,11 @@ namespace pg
             uint8_t index = *vm->currentFrame->ip++;
             if (isLocal)
             {
-                closure->upvalues[i] = vm->captureUpvalue(vm->currentFrame->slots + index);
+                vm->asClosure(closure)->upvalues[i] = vm->captureUpvalue(vm->currentFrame->slots + index);
             }
             else
             {
-                closure->upvalues[i] = vm->currentFrame->closure->upvalues[index];
+                vm->asClosure(closure)->upvalues[i] = vm->currentFrame->closure->upvalues[index];
             }
         }
     }
@@ -1332,7 +1283,7 @@ namespace pg
 
         if (IS_FUNC(value))
         {
-            ObjFunction* func = AS_FUNC(value);
+            ObjFunction* func = vm->asFunction(value);
             if (func != nullptr)
             {
                 vm->testOutput += "<" + func->name + "> \n";
@@ -1347,7 +1298,7 @@ namespace pg
 
         if (IS_CLASS(value))
         {
-            Klass* klass = AS_CLASS(value);
+            Klass* klass = vm->asClass(value);
             if (klass != nullptr)
             {
                 vm->testOutput += "<class " + klass->name + "> \n";
@@ -1362,7 +1313,7 @@ namespace pg
 
         if (IS_INSTANCE(value))
         {
-            ObjInstance* instance = AS_INSTANCE(value);
+            ObjInstance* instance = vm->asInstance(value);
 
             if (instance != nullptr && instance->klass != nullptr)
             {
@@ -1379,7 +1330,7 @@ namespace pg
 
         if (IS_BOUND_METHOD(value))
         {
-            ObjBoundMethod* boundMethod = AS_BOUND_METHOD(value);
+            ObjBoundMethod* boundMethod = vm->asBoundMethod(value);
 
             if (boundMethod != nullptr && boundMethod->method != nullptr && boundMethod->method->function != nullptr)
             {
@@ -1395,7 +1346,7 @@ namespace pg
         }
 
         // For testing: append to testOutput buffer instead of stdout
-        ElementType elem = valueToElement(value);
+        ElementType elem = vm->valueToElement(value);
         vm->testOutput += elem.toString() + "\n";
         vm->releaseAndDelete(value);
     }
@@ -1535,7 +1486,7 @@ namespace pg
         }
 #endif
         auto nameValue = vm->pop();
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -1582,7 +1533,7 @@ namespace pg
         }
 #endif
         auto nameValue = vm->pop();
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -1628,7 +1579,7 @@ namespace pg
         }
 #endif
         auto nameValue = vm->pop();
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -1675,7 +1626,7 @@ namespace pg
         }
 #endif
         auto nameValue = vm->pop();
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -1730,7 +1681,7 @@ namespace pg
             return;
         }
 
-        int index = getValueAsInt(slot);
+        int index = vm->getValueAsInt(slot);
         if (index < 0)
         {
             vm->releaseAndDelete(slot);
@@ -1779,7 +1730,7 @@ namespace pg
             return;
         }
 
-        int index = getValueAsInt(slot);
+        int index = vm->getValueAsInt(slot);
         if (index < 0)
         {
             vm->releaseAndDelete(slot);
@@ -1827,7 +1778,7 @@ namespace pg
             return;
         }
 
-        int index = getValueAsInt(slot);
+        int index = vm->getValueAsInt(slot);
         if (index < 0)
         {
             vm->releaseAndDelete(slot);
@@ -1876,7 +1827,7 @@ namespace pg
             return;
         }
 
-        int index = getValueAsInt(slot);
+        int index = vm->getValueAsInt(slot);
         if (index < 0)
         {
             vm->releaseAndDelete(slot);
@@ -1910,7 +1861,7 @@ namespace pg
 
         auto classNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
 
-        ElementType classNameElem = valueToElement(classNameValue);
+        ElementType classNameElem = vm->valueToElement(classNameValue);
         if (not classNameElem.isLitteral())
         {
             vm->runtimeError("Class name must be a litteral.");
@@ -1920,8 +1871,8 @@ namespace pg
         }
 
         std::string className = classNameElem.toString();
-        auto* newClass = new Klass(className);
-        vm->push(vm->trackNewValue(CLASS_VAL(newClass)));
+        auto newClass = vm->createClass(className);
+        vm->push(vm->trackNewValue(newClass));
     }
 
     bool bindMethod(VM* vm, Klass* klass, const std::string& name)
@@ -1935,11 +1886,11 @@ namespace pg
         auto methodValue = methodIt->second;
 
         // Create a bound method
-        auto* bound = new ObjBoundMethod(vm->peek(0), AS_CLOSURE(methodValue));
+        auto bound = vm->createBoundMethod(vm->peek(0), vm->asClosure(methodValue));
 
         auto instance = vm->pop(); // Remove the instance
         vm->releaseAndDelete(instance);
-        vm->push(vm->trackNewValue(BOUND_METHOD_VAL(bound)));
+        vm->push(vm->trackNewValue(bound));
 
         return true;
     }
@@ -1954,11 +1905,11 @@ namespace pg
             return;
         }
 
-        auto* instance = AS_INSTANCE(vm->peek(0));
+        auto* instance = vm->asInstance(vm->peek(0));
 
         uint8_t constantIndex = *vm->currentFrame->ip++;
         auto nameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -1998,11 +1949,11 @@ namespace pg
             return;
         }
 
-        auto* instance = AS_INSTANCE(vm->peek(1));
+        auto* instance = vm->asInstance(vm->peek(1));
 
         uint8_t constantIndex = *vm->currentFrame->ip++;
         auto nameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        auto name = valueToElement(nameValue);
+        auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
@@ -2031,7 +1982,7 @@ namespace pg
         uint8_t constantIndex = *vm->currentFrame->ip++;
 
         auto methodNameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        ElementType methodNameElem = valueToElement(methodNameValue);
+        ElementType methodNameElem = vm->valueToElement(methodNameValue);
         if (not methodNameElem.isLitteral())
         {
             vm->runtimeError("Method name must be a litteral.");
@@ -2054,7 +2005,7 @@ namespace pg
             return;
         }
 
-        Klass* klass = AS_CLASS(classValue);
+        Klass* klass = vm->asClass(classValue);
 
         if (not IS_CLOSURE(methodClosureValue))
         {
@@ -2125,5 +2076,139 @@ namespace pg
         auto result = vm->subtractValues(value1, value2);
 
         vm->push(result);
+    }
+
+    // ========================================================================
+    // VM Helper Method Implementations
+    // ========================================================================
+
+    Value VM::createString(const ElementType& element)
+    {
+        uint32_t index = pools.stringPool.getNbElements();  // Get index before allocation
+        pools.stringPool.allocate(element);
+        Value val = makeStringValue(index);
+        return trackNewValue(val);
+    }
+
+    Value VM::createClosure(ObjFunction* function)
+    {
+        uint32_t index = pools.closurePool.getNbElements();
+        pools.closurePool.allocate(function);
+        Value val = makeClosureValue(index);
+        return trackNewValue(val);
+    }
+
+    Value VM::createFunction()
+    {
+        uint32_t index = pools.functionPool.getNbElements();
+        pools.functionPool.allocate();
+        Value val = makeFunctionValue(index);
+        return trackNewValue(val);
+    }
+
+    Value VM::createUpvalue(Value* slot)
+    {
+        uint32_t index = pools.upvaluePool.getNbElements();
+        pools.upvaluePool.allocate(slot);
+        Value val = makeUpvalueValue(index);
+        return trackNewValue(val);
+    }
+
+    Value VM::createClass(const std::string& name)
+    {
+        uint32_t index = pools.classPool.getNbElements();
+        pools.classPool.allocate(name);
+        Value val = makeClassValue(index);
+        return trackNewValue(val);
+    }
+
+    Value VM::createInstance(Klass* klass)
+    {
+        uint32_t index = pools.instancePool.getNbElements();
+        pools.instancePool.allocate(klass);
+        Value val = makeInstanceValue(index);
+        return trackNewValue(val);
+    }
+
+    Value VM::createBoundMethod(const Value& receiver, Closure* method)
+    {
+        uint32_t index = pools.boundMethodPool.getNbElements();
+        pools.boundMethodPool.allocate(receiver, method);
+        Value val = makeBoundMethodValue(index);
+        return trackNewValue(val);
+    }
+
+    Value VM::elementToValue(const ElementType& element)
+    {
+        if (element.isBool())
+            return makeBoolValue(element.get<bool>());
+        else if (element.type == ElementType::UnionType::INT)
+        {
+            int intVal = element.get<int>();
+            return makeIntValue(static_cast<int64_t>(intVal));
+        }
+        else if (element.type == ElementType::UnionType::FLOAT)
+        {
+            float floatVal = element.get<float>();
+            return makeDoubleValue(static_cast<double>(floatVal));
+        }
+        else if (element.type == ElementType::UnionType::DOUBLE)
+        {
+            double doubleVal = element.get<double>();
+            return makeDoubleValue(doubleVal);
+        }
+        else
+        {
+            // Strings and complex types go to string pool
+            return createString(element);
+        }
+    }
+
+    ElementType VM::valueToElement(const Value& value)
+    {
+        if (IS_BOOL(value))
+            return ElementType(AS_BOOL(value));
+        else if (IS_INT(value))
+            return ElementType(static_cast<int>(AS_INT(value)));
+        else if (IS_DOUBLE(value))
+            return ElementType(AS_DOUBLE(value));
+        else if (IS_STRING(value))
+            return *asString(value);
+        else
+            throw std::runtime_error("Cannot convert Value to ElementType - unsupported type");
+    }
+
+    Value VM::copyValue(const Value& value)
+    {
+        // Primitives and doubles can be copied directly (no heap allocation)
+        if (IS_INT(value) || IS_BOOL(value) || IS_DOUBLE(value))
+            return value;
+
+        // For heap objects with reference counting, just retain and return
+        // (we use reference counting, not deep copying)
+        if (requiresRefCount(value))
+        {
+            return retainValue(value);
+        }
+
+        return value;
+    }
+
+    int VM::getValueAsInt(const Value& value)
+    {
+        if (IS_INT(value))
+            return static_cast<int>(AS_INT(value));
+        else if (IS_DOUBLE(value))
+            return static_cast<int>(AS_DOUBLE(value));
+        else if (IS_BOOL(value))
+            return AS_BOOL(value) ? 1 : 0;
+        else if (IS_STRING(value))
+        {
+            ElementType* obj = asString(value);
+            if (obj->type == ElementType::UnionType::INT)
+                return obj->get<int>();
+        }
+
+        throw std::runtime_error("Value is not an integer");
     }
 }
