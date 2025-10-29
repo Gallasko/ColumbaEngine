@@ -1,0 +1,2 @@
+// Syntax error - missing operand
+__dprint(1 + + 2);

@@ -1,0 +1,3 @@
+// Boolean literals test
+__dprint(true);
+__dprint(false);
