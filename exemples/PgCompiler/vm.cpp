@@ -1322,11 +1322,11 @@ namespace pg
             ObjFunction* func = vm->asFunction(value);
             if (func != nullptr)
             {
-                vm->testOutput += "<" + func->name + "> \n";
+                vm->testOutput += "<" + func->name + ">\n";
             }
             else
             {
-                vm->testOutput += "<script> \n";
+                vm->testOutput += "<script>\n";
             }
             vm->releaseAndDelete(value);
             return;
@@ -1337,11 +1337,11 @@ namespace pg
             Klass* klass = vm->asClass(value);
             if (klass != nullptr)
             {
-                vm->testOutput += "<class " + klass->name + "> \n";
+                vm->testOutput += "<class " + klass->name + ">\n";
             }
             else
             {
-                vm->testOutput += "<null class> \n";
+                vm->testOutput += "<null class>\n";
             }
             vm->releaseAndDelete(value);
             return;
@@ -1353,11 +1353,11 @@ namespace pg
 
             if (instance != nullptr && instance->klass != nullptr)
             {
-                vm->testOutput += "<instance of " + instance->klass->name + "> \n";
+                vm->testOutput += "<instance of " + instance->klass->name + ">\n";
             }
             else
             {
-                vm->testOutput += "<null instance> \n";
+                vm->testOutput += "<null instance>\n";
             }
 
             vm->releaseAndDelete(value);
@@ -1370,11 +1370,11 @@ namespace pg
 
             if (boundMethod != nullptr && boundMethod->method != nullptr && boundMethod->method->function != nullptr)
             {
-                vm->testOutput += "<bound method " + boundMethod->method->function->name + "> \n";
+                vm->testOutput += "<bound method " + boundMethod->method->function->name + ">\n";
             }
             else
             {
-                vm->testOutput += "<null bound method> \n";
+                vm->testOutput += "<null bound method>\n";
             }
 
             vm->releaseAndDelete(value);
@@ -1387,11 +1387,11 @@ namespace pg
 
             if (closure != nullptr && closure->function != nullptr)
             {
-                vm->testOutput += "<closure " + closure->function->name + "> \n";
+                vm->testOutput += "<closure " + closure->function->name + ">\n";
             }
             else
             {
-                vm->testOutput += "<null closure> \n";
+                vm->testOutput += "<null closure>\n";
             }
 
             vm->releaseAndDelete(value);
