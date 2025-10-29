@@ -1,0 +1,4 @@
+// String literals
+__dprint("hello");
+__dprint("world");
+__dprint("");

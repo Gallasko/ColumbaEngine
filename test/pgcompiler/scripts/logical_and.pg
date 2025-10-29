@@ -1,0 +1,7 @@
+// Logical AND operator with short-circuit
+__dprint(true and true);
+__dprint(true and false);
+__dprint(false and true);
+__dprint(false and false);
+__dprint(5 > 3 and 2 < 4);
+__dprint(5 > 3 and 2 > 4);

@@ -187,6 +187,134 @@ TEST_F(ScriptTestBench, EqualityComparison) {
     testScript("equality_comparison");
 }
 
+TEST_F(ScriptTestBench, InequalityComparison) {
+    testScript("inequality_comparison");
+}
+
+TEST_F(ScriptTestBench, LessThanComparison) {
+    testScript("less_than_comparison");
+}
+
+TEST_F(ScriptTestBench, GreaterThanComparison) {
+    testScript("greater_than_comparison");
+}
+
+TEST_F(ScriptTestBench, ComparisonMixed) {
+    testScript("comparison_mixed");
+}
+
+// ============================================================================
+// Logical Operators
+// ============================================================================
+
+TEST_F(ScriptTestBench, LogicalAnd) {
+    testScript("logical_and");
+}
+
+TEST_F(ScriptTestBench, LogicalOr) {
+    testScript("logical_or");
+}
+
+TEST_F(ScriptTestBench, LogicalCombinations) {
+    testScript("logical_combinations");
+}
+
+// ============================================================================
+// Unary Operators
+// ============================================================================
+
+TEST_F(ScriptTestBench, UnaryNegation) {
+    testScript("unary_negation");
+}
+
+TEST_F(ScriptTestBench, UnaryComplex) {
+    testScript("unary_complex");
+}
+
+// ============================================================================
+// Variables
+// ============================================================================
+
+TEST_F(ScriptTestBench, VariableDeclaration) {
+    testScript("variable_declaration");
+}
+
+TEST_F(ScriptTestBench, VariableAssignment) {
+    testScript("variable_assignment");
+}
+
+TEST_F(ScriptTestBench, MultipleVariables) {
+    testScript("multiple_variables");
+}
+
+TEST_F(ScriptTestBench, LocalScope) {
+    testScript("local_scope");
+}
+
+TEST_F(ScriptTestBench, PrefixIncrement) {
+    testScript("prefix_increment");
+}
+
+TEST_F(ScriptTestBench, PostfixIncrement) {
+    testScript("postfix_increment");
+}
+
+TEST_F(ScriptTestBench, PrefixDecrement) {
+    testScript("prefix_decrement");
+}
+
+TEST_F(ScriptTestBench, PostfixDecrement) {
+    testScript("postfix_decrement");
+}
+
+// ============================================================================
+// Control Flow
+// ============================================================================
+
+TEST_F(ScriptTestBench, IfStatement) {
+    testScript("if_statement");
+}
+
+TEST_F(ScriptTestBench, IfElseStatement) {
+    testScript("if_else_statement");
+}
+
+TEST_F(ScriptTestBench, IfElseIfChain) {
+    testScript("if_else_if_chain");
+}
+
+TEST_F(ScriptTestBench, WhileLoop) {
+    testScript("while_loop");
+}
+
+TEST_F(ScriptTestBench, WhileLoopZero) {
+    testScript("while_loop_zero");
+}
+
+TEST_F(ScriptTestBench, ForLoop) {
+    testScript("for_loop");
+}
+
+TEST_F(ScriptTestBench, ForLoopIncrement) {
+    testScript("for_loop_increment");
+}
+
+// ============================================================================
+// Strings
+// ============================================================================
+
+TEST_F(ScriptTestBench, StringLiterals) {
+    testScript("string_literals");
+}
+
+TEST_F(ScriptTestBench, StringConcatenation) {
+    testScript("string_concatenation");
+}
+
+TEST_F(ScriptTestBench, StringInVariables) {
+    testScript("string_in_variables");
+}
+
 // ============================================================================
 // Complex Expressions
 // ============================================================================

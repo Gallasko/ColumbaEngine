@@ -1,0 +1,11 @@
+fun outer() {
+  var x = "outside";
+  fun inner() {
+    __dprint(x);
+  }
+
+  return inner;
+}
+
+var closure = outer();
+closure();

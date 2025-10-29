@@ -1,0 +1,20 @@
+class Pair {}
+
+// Classical pair (everything is in the constant table)
+var pair1 = Pair()
+
+pair1.first = "Hello"
+pair1.second = "World"
+
+// Pair with generated value (not in the constant table)
+var pair2 = Pair()
+
+pair2.first = 5 + 3;
+pair2.second = "Goodbye" + " Universe"
+
+
+__dprint(pair1)
+__dprint(pair1.first + pair1.second)
+__dprint(pair2)
+__dprint(pair2.first)
+__dprint(pair2.second)

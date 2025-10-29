@@ -1,0 +1,4 @@
+// For loop with increment operator
+for (var i = 0; i < 5; i++) {
+    __dprint(i);
+}

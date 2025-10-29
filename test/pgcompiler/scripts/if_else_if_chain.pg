@@ -1,0 +1,18 @@
+// If-else-if chain
+var x = 5;
+if (x < 3) {
+    __dprint(1);
+} else if (x < 7) {
+    __dprint(2);
+} else {
+    __dprint(3);
+}
+
+var y = 10;
+if (y < 3) {
+    __dprint(4);
+} else if (y < 7) {
+    __dprint(5);
+} else {
+    __dprint(6);
+}
