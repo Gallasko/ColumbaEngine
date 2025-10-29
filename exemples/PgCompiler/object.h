@@ -3,19 +3,25 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <cstdint>
 
 #include "Memory/elementtype.h"
+#include "value_nanbox.h"
 
 namespace pg
 {
-    struct Value;
+    // Forward declarations
     struct ObjFunction;
     struct ObjUpvalue;
     struct Klass;
     struct ObjInstance;
     struct ObjBoundMethod;
+    struct VM;
 
-    typedef Value (*NativeFn)(int argCount, Value* args);
+    // Value is now defined in value_nanbox.h as uint64_t
+    typedef uint64_t Value;
+
+    typedef Value (*NativeFn)(VM* vm, int argCount, Value* args);
 
     struct NativeFunction
     {
@@ -45,72 +51,7 @@ namespace pg
         RUNTIME_ERROR
     };
 
-    /**
-     * @brief Tagged union value representation following Crafting Interpreters pattern
-     *
-     * Stores small values (int, bool) directly in the union for zero-allocation performance.
-     * Complex values (strings, floats) use pointer overflow to ElementType on the heap.
-     *
-     * Memory layout: 16 bytes total (8-byte union + 4-byte type + 4-byte padding)
-     */
-    enum CompilerValueType
-    {
-        COMPILER_VAL_BOOL,
-        COMPILER_VAL_INT,
-        COMPILER_VAL_FLOAT,   // Native float support for performance
-        COMPILER_VAL_OBJ,     // Pointer overflow for complex values (strings, etc.)
-        COMPILER_VAL_FUNC,
-        COMPILER_VAL_NATIVE,
-        COMPILER_VAL_CLOSURE,
-        COMPILER_VAL_UPVALUE,
-        COMPILER_VAL_CLASS,
-        COMPILER_VAL_INSTANCE,
-        COMPILER_VAL_BOUND_METHOD
-    };
-
-    struct Value
-    {
-        CompilerValueType type;
-        union {
-            bool boolean;
-            int64_t number;     // Use int64_t for wider range than int
-            double floatNum;    // Native float for performance
-            ElementType* obj;   // Heap-allocated for strings, etc.
-            ObjFunction* function;
-            NativeFunction* nativeFunc;
-            Closure* closure;
-            ObjUpvalue* upvalue;
-            Klass* klass;
-            ObjInstance* instance;
-            ObjBoundMethod* boundMethod;
-        } as;
-    };
-
-    // Fast type checking macros (compile-time constant)
-    #define IS_BOOL(value)          ((value).type == COMPILER_VAL_BOOL)
-    #define IS_INT(value)           ((value).type == COMPILER_VAL_INT)
-    #define IS_FLOAT(value)         ((value).type == COMPILER_VAL_FLOAT)
-    #define IS_OBJ(value)           ((value).type == COMPILER_VAL_OBJ)
-    #define IS_FUNC(value)          ((value).type == COMPILER_VAL_FUNC)
-    #define IS_NAT_FUNC(value)      ((value).type == COMPILER_VAL_NATIVE)
-    #define IS_CLOSURE(value)       ((value).type == COMPILER_VAL_CLOSURE)
-    #define IS_UPVALUE(value)       ((value).type == COMPILER_VAL_UPVALUE)
-    #define IS_CLASS(value)         ((value).type == COMPILER_VAL_CLASS)
-    #define IS_INSTANCE(value)      ((value).type == COMPILER_VAL_INSTANCE)
-    #define IS_BOUND_METHOD(value)  ((value).type == COMPILER_VAL_BOUND_METHOD)
-
-    // Fast value extraction macros (direct memory access)
-    #define AS_BOOL(value)         ((value).as.boolean)
-    #define AS_INT(value)          ((value).as.number)
-    #define AS_FLOAT(value)        ((value).as.floatNum)
-    #define AS_OBJ(value)          ((value).as.obj)
-    #define AS_FUNC(value)         ((value).as.function)
-    #define AS_NAT_FUNC(value)     ((value).as.nativeFunc)
-    #define AS_CLOSURE(value)      ((value).as.closure)
-    #define AS_UPVALUE(value)      ((value).as.upvalue)
-    #define AS_CLASS(value)        ((value).as.klass)
-    #define AS_INSTANCE(value)     ((value).as.instance)
-    #define AS_BOUND_METHOD(value) ((value).as.boundMethod)
+    // Value type checking and extraction macros are now in value_nanbox.h
 
     struct CallFrame
     {
@@ -119,107 +60,12 @@ namespace pg
         Value *slots;
     };
 
-    // Fast value creation functions (C++ compatible)
-    inline Value makeBoolValue(bool value)
-    {
-        Value result;
-        result.type = COMPILER_VAL_BOOL;
-        result.as.boolean = value;
-        return result;
-    }
-
-    inline Value makeIntValue(int64_t value)
-    {
-        Value result;
-        result.type = COMPILER_VAL_INT;
-        result.as.number = value;
-        return result;
-    }
-
-    inline Value makeFloatValue(double value)
-    {
-        Value result;
-        result.type = COMPILER_VAL_FLOAT;
-        result.as.floatNum = value;
-        return result;
-    }
-
-    inline Value makeObjValue(ElementType* obj)
-    {
-        Value result;
-        result.type = COMPILER_VAL_OBJ;
-        result.as.obj = obj;
-        return result;
-    }
-
-    inline Value makeFuncValue(ObjFunction* func)
-    {
-        Value result;
-        result.type = COMPILER_VAL_FUNC;
-        result.as.function = func;
-        return result;
-    }
-
-    inline Value makeNativeFuncValue(NativeFunction *func)
-    {
-        Value result;
-        result.type = COMPILER_VAL_NATIVE;
-        result.as.nativeFunc = func;
-        return result;
-    }
-
-    inline Value makeClosureValue(Closure* closure)
-    {
-        Value result;
-        result.type = COMPILER_VAL_CLOSURE;
-        result.as.closure = closure;
-        return result;
-    }
-
-    inline Value makeUpvalueValue(ObjUpvalue* upvalue)
-    {
-        Value result;
-        result.type = COMPILER_VAL_UPVALUE;
-        result.as.upvalue = upvalue;
-        return result;
-    }
-
-    inline Value makeClassValue(Klass* klass)
-    {
-        Value result;
-        result.type = COMPILER_VAL_CLASS;
-        result.as.klass = klass;
-        return result;
-    }
-
-    inline Value makeInstanceValue(ObjInstance* instance)
-    {
-        Value result;
-        result.type = COMPILER_VAL_INSTANCE;
-        result.as.instance = instance;
-        return result;
-    }
-
-    inline Value makeBoundMethodValue(ObjBoundMethod* boundMethod)
-    {
-        Value result;
-        result.type = COMPILER_VAL_BOUND_METHOD;
-        result.as.boundMethod = boundMethod;
-        return result;
-    }
-
-    // Convenience macros
+    // Value creation functions are now in value_nanbox.h
+    // Convenience macros for backward compatibility
     #define BOOL_VAL(value)           makeBoolValue(value)
     #define INT_VAL(value)            makeIntValue(value)
     #define FLOAT_VAL(value)          makeFloatValue(value)
-    #define OBJ_VAL(object)           makeObjValue(object)
-    #define FUNC_VAL(func)            makeFuncValue(func)
-    #define NATIVE_VAL(func)          makeNativeFuncValue(func)
-    #define CLOSURE_VAL(closure)      makeClosureValue(closure)
-    #define UPVALUE_VAL(upvalue)      makeUpvalueValue(upvalue)
-    #define CLASS_VAL(klass)          makeClassValue(klass)
-    #define INSTANCE_VAL(instance)    makeInstanceValue(instance)
-    #define BOUND_METHOD_VAL(bmethod) makeBoundMethodValue(bmethod)
+    #define DOUBLE_VAL(value)         makeDoubleValue(value)
 
     struct ObjUpvalue
     {
@@ -254,96 +100,6 @@ namespace pg
         Closure* method;
     };
 
-    // Convert ElementType to optimized Value (minimize heap allocation)
-    inline Value elementToValue(const ElementType& element)
-    {
-        if (element.isBool())
-            return BOOL_VAL(element.get<bool>());
-        else if (element.type == ElementType::UnionType::INT)
-        {
-            int intVal = element.get<int>();
-            return INT_VAL(static_cast<int64_t>(intVal));
-        }
-        else if (element.type == ElementType::UnionType::FLOAT)
-        {
-            float floatVal = element.get<float>();
-            return FLOAT_VAL(static_cast<double>(floatVal));
-        }
-        else if (element.type == ElementType::UnionType::DOUBLE)
-        {
-            double doubleVal = element.get<double>();
-            return FLOAT_VAL(doubleVal);
-        }
-        else
-        {
-            // Strings, floats, complex types always use heap
-            return OBJ_VAL(new ElementType(element));
-        }
-    }
-
-    // Create a copy of a Value (for when we need to store the same value in multiple places)
-    inline Value copyValue(const Value& value)
-    {
-        // Integers and booleans can be copied directly (no heap allocation)
-        if (IS_INT(value) || IS_BOOL(value) || IS_FLOAT(value))
-            return value;
-        // Functions are pointers, just copy the pointer
-        else if (IS_FUNC(value))
-            return value;
-        else if (IS_NAT_FUNC(value))
-            return value;
-        else if (IS_CLOSURE(value))
-            return value; // Todo: deep copy closure if needed
-        else if (IS_UPVALUE(value))
-            return value; // Upvalues are pointers, just copy
-        else if (IS_CLASS(value))
-            return value; // Classes are pointers, just copy
-        else if (IS_INSTANCE(value))
-            return value; // Instances are pointers, just copy
-        else if (IS_BOUND_METHOD(value))
-            return value; // Bound methods are pointers, just copy
-        // For heap objects, create a new copy
-        else
-            return OBJ_VAL(new ElementType(*AS_OBJ(value)));
-    }
-
-    inline int getValueAsInt(const Value& value)
-    {
-        if (IS_INT(value))
-            return static_cast<int>(AS_INT(value));
-        else if (IS_FLOAT(value))
-            return static_cast<int>(AS_FLOAT(value));
-        else if (IS_BOOL(value))
-            return AS_BOOL(value) ? 1 : 0;
-        else if (IS_OBJ(value) && AS_OBJ(value)->type == ElementType::UnionType::INT)
-            return AS_OBJ(value)->get<int>();
-
-        throw std::runtime_error("Value is not an integer");
-    }
-
-    // Convert Value back to ElementType when needed
-    inline ElementType valueToElement(const Value& value)
-    {
-        switch (value.type)
-        {
-            case COMPILER_VAL_BOOL:
-                return ElementType(AS_BOOL(value));
-            case COMPILER_VAL_INT:
-                return ElementType(static_cast<int>(AS_INT(value)));
-            case COMPILER_VAL_FLOAT:
-                return ElementType(AS_FLOAT(value));
-            case COMPILER_VAL_OBJ:
-                return *AS_OBJ(value);
-            case COMPILER_VAL_FUNC:
-            case COMPILER_VAL_NATIVE:
-            case COMPILER_VAL_CLOSURE:
-            case COMPILER_VAL_UPVALUE:
-            case COMPILER_VAL_CLASS:
-            case COMPILER_VAL_INSTANCE:
-            case COMPILER_VAL_BOUND_METHOD:
-                throw std::runtime_error("Cannot convert Value to ElementType");
-        }
-
-        return ElementType(); // Should never reach
-    }
+    // Note: elementToValue, valueToElement, copyValue, getValueAsInt are now VM member functions
+    // Access them via: vm->elementToValue(), vm->valueToElement(), etc.
 }

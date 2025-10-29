@@ -20,14 +20,14 @@ namespace {
     static const char *const DOM = "App";
 }
 
-Value nativeLogInfo(int argCount, Value* args) {
+Value nativeLogInfo(VM* vm, int argCount, Value* args) {
     if (argCount != 1) {
         throw std::runtime_error("logInfo expects exactly one argument");
     }
 
-    if (IS_OBJ(args[0]))
+    if (IS_STRING(args[0]))
     {
-        LOG_INFO("DOM", *AS_OBJ(args[0]));
+        LOG_INFO("DOM", *vm->asString(args[0]));
     }
     else if (IS_INT(args[0]))
     {
@@ -37,12 +37,16 @@ Value nativeLogInfo(int argCount, Value* args) {
     {
         LOG_INFO("DOM", AS_BOOL(args[0]));
     }
+    else if (IS_DOUBLE(args[0]))
+    {
+        LOG_INFO("DOM", AS_DOUBLE(args[0]));
+    }
     else
     {
         LOG_INFO("DOM", "Unsupported type for logInfo");
     }
 
-    return BOOL_VAL(true);
+    return makeBoolValue(true);
 }
 
 CompilerApp::CompilerApp(const std::string &fileName) : fileName(fileName) {
@@ -129,10 +133,10 @@ void CompilerApp::runFile()
     vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
 
-    vm.enableBytecodeOptimization();
-    vm.enableOptimizationDebugging();
+    // vm.enableBytecodeOptimization();
+    // vm.enableOptimizationDebugging();
 
-    // vm.disableBytecodeOptimization();
+    vm.disableBytecodeOptimization();
 
     std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 

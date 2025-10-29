@@ -89,17 +89,8 @@ namespace pg
 
         std::vector<int> lines;
 
-        // Destructor to clean up heap-allocated constants
-        ~Chunk()
-        {
-            for (const Value& constant : constants)
-            {
-                if (constant.type == COMPILER_VAL_OBJ && constant.as.obj != nullptr)
-                {
-                    delete constant.as.obj;  // Free the ElementType* object
-                }
-            }
-        }
+        // Note: With NaN-boxing and pool-based memory, constants don't need cleanup in destructor
+        // The VM's pools handle all memory management via reference counting
 
         size_t addConstant(const Value& value, int line)
         {
@@ -129,16 +120,6 @@ namespace pg
             return code.size() - 1;
         }
 
-        size_t addConstant(const ElementType& value, int line)
-        {
-            return addConstant(elementToValue(value), line);
-        }
-
-        size_t addConstant(ObjFunction* value, int line)
-        {
-            return addConstant(FUNC_VAL(value), line);
-        }
-
         // Add constant to array without emitting opcodes (for instructions like OP_Closure)
         uint8_t addConstantIndex(const Value& value)
         {
@@ -149,16 +130,6 @@ namespace pg
                 throw std::runtime_error("Too many constants for single-byte index");
             }
             return static_cast<uint8_t>(cIndex);
-        }
-
-        uint8_t addConstantIndex(ObjFunction* value)
-        {
-            return addConstantIndex(FUNC_VAL(value));
-        }
-
-        uint8_t addConstantIndex(const ElementType& value)
-        {
-            return addConstantIndex(elementToValue(value));
         }
 
         size_t addCode(const OpCode& op, int line)
