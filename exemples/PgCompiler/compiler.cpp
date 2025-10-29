@@ -255,9 +255,9 @@ namespace pg
 
         vm->asFunction(currentFunction)->name = name;
 
-        if (type != FunctionType::TYPE_FUNCTION)
+        if (type == FunctionType::TYPE_METHOD || type == FunctionType::TYPE_INITIALIZER)
         {
-            // The first local is always the function itself
+            // For methods and initializers, the first local is "this"
             locals.push_back(Local{Token(TokenType::TOK_FUN, "this", 0, 0), 0, false});
             localCount++;
         }

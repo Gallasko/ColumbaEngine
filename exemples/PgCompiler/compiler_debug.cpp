@@ -44,7 +44,7 @@ namespace pg
             ObjFunction* func = vm->asFunction(value);
             if (func != nullptr)
             {
-                std::cout << "<" << func->name << ">";
+                std::cout << "<" << func->name << "> #" << AS_FUNCTION_INDEX(value);
             }
             else
             {
@@ -53,14 +53,14 @@ namespace pg
         }
         else if (IS_NAT_FUNC(value))
         {
-            std::cout << "<native fn>";
+            std::cout << "<native fn> #" << AS_NATIVE_INDEX(value);
         }
         else if (IS_CLOSURE(value))
         {
             Closure* closure = vm->asClosure(value);
             if (closure != nullptr && closure->function != nullptr)
             {
-                std::cout << "<closure " << closure->function->name << ">";
+                std::cout << "<closure " << closure->function->name << "> #" << AS_CLOSURE_INDEX(value);
             }
             else
             {
@@ -69,14 +69,14 @@ namespace pg
         }
         else if (IS_UPVALUE(value))
         {
-            std::cout << "<upvalue>";
+            std::cout << "<upvalue> #" << AS_UPVALUE_INDEX(value);
         }
         else if (IS_CLASS(value))
         {
             Klass* klass = vm->asClass(value);
             if (klass != nullptr)
             {
-                std::cout << "<class " << klass->name << ">";
+                std::cout << "<class " << klass->name << "> #" << AS_CLASS_INDEX(value);
             }
             else
             {
@@ -89,7 +89,7 @@ namespace pg
 
             if (instance != nullptr && instance->klass != nullptr)
             {
-                std::cout << "<instance of " << instance->klass->name << ">";
+                std::cout << "<instance of " << instance->klass->name << "> #" << AS_INSTANCE_INDEX(value);
             }
             else
             {
@@ -104,7 +104,11 @@ namespace pg
             {
                 std::cout << "<" << bound->method->function->name << ">";
             }
-            std::cout << " >";
+            std::cout << " > #" << AS_BOUND_METHOD_INDEX(value);
+        }
+        else if (IS_STRING(value))
+        {
+            std::cout << "<string " << vm->valueToElement(value).toString() << "> #" << AS_STRING_INDEX(value);
         }
         else
         {
@@ -120,7 +124,7 @@ namespace pg
             return offset + 1;
         }
 
-        int constantInstruction(const std::string& name, const Chunk& chunk, int offset)
+        int constantInstruction(VM *vm, const std::string& name, const Chunk& chunk, int offset)
         {
             uint8_t cIndex = chunk.code[offset + 1];
 
@@ -133,7 +137,7 @@ namespace pg
             else
             {
                 const Value& constant = chunk.constants[cIndex];
-                printValue(nullptr, constant);
+                printValue(vm, constant);
             }
 
             std::cout << "'" << std::endl;
@@ -183,7 +187,7 @@ namespace pg
             return offset + 3;
         }
 
-        int invokeInstruction(const std::string& name, const Chunk& chunk, int offset)
+        int invokeInstruction(VM *vm, const std::string& name, const Chunk& chunk, int offset)
         {
             uint8_t constant = chunk.code[offset + 1];
             uint8_t argCount = chunk.code[offset + 2];
@@ -191,7 +195,7 @@ namespace pg
             std::cout << std::left << std::setw(16) << name << " (" << static_cast<int>(argCount) << " args) "
                       << static_cast<int>(constant) << " '";
 
-            printValue(nullptr, chunk.constants[constant]);
+            printValue(vm, chunk.constants[constant]);
 
             std::cout << "'" << std::endl;
 
@@ -248,7 +252,7 @@ namespace pg
                 return simpleInstruction("OP_Return", offset);
 
             case OpCode::OP_Constant:
-                return constantInstruction("OP_Constant", chunk, offset);
+                return constantInstruction(vm, "OP_Constant", chunk, offset);
 
             case OpCode::OP_LongConstant:
                 return longConstantInstruction("OP_LongConstant", chunk, offset);
@@ -368,7 +372,7 @@ namespace pg
                 return byteInstruction("OP_Call", chunk, offset);
 
             case OpCode::OP_Invoke:
-                return invokeInstruction("OP_Invoke", chunk, offset);
+                return invokeInstruction(vm, "OP_Invoke", chunk, offset);
 
             case OpCode::OP_Closure:
             {
@@ -382,7 +386,7 @@ namespace pg
                 else
                 {
                     const Value& constant = chunk.constants[cIndex];
-                    printValue(nullptr, constant);
+                    printValue(vm, constant);
                 }
 
                 std::cout << "'" << std::endl;
@@ -415,16 +419,16 @@ namespace pg
                 return simpleInstruction("OP_Close_Upvalue", offset);
 
             case OpCode::OP_Class:
-                return constantInstruction("OP_Class", chunk, offset);
+                return constantInstruction(vm, "OP_Class", chunk, offset);
 
             case OpCode::OP_Set_Property:
-                return constantInstruction("OP_Set_Property", chunk, offset);
+                return constantInstruction(vm, "OP_Set_Property", chunk, offset);
 
             case OpCode::OP_Get_Property:
-                return constantInstruction("OP_Get_Property", chunk, offset);
+                return constantInstruction(vm, "OP_Get_Property", chunk, offset);
 
             case OpCode::OP_Method:
-                return constantInstruction("OP_Method", chunk, offset);
+                return constantInstruction(vm, "OP_Method", chunk, offset);
 
             case OpCode::OP_AddLL:
                 return twoBytesInstruction("OP_AddLL", chunk, offset);
