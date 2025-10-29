@@ -87,7 +87,7 @@ namespace pg
             LOG_THIS_MEMBER("Memory Pool");
 
             for (PGMemChunk<T>* chunk : chunkList)
-                delete chunk;
+                delete[] chunk;  // Use delete[] to match new[]
         }
 
         /**

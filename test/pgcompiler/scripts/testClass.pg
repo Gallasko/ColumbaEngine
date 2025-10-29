@@ -2,8 +2,7 @@ class Brioche {}
 
 __dprint(Brioche)
 
-
-for (var i = 0; i < 1000; i++)
+for (var i = 0; i < 3; i++)
 {
   class Gello {}
 

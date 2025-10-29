@@ -3,7 +3,7 @@ fun testModulo()
     var i = 0;
     while (i < 10)
     {
-        var even = i - (i / 2.0) * 2;
+        var even = i - (i / 2) * 2;
         __dprint(i);
         __dprint(even);
         i = i + 1;
