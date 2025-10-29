@@ -1,0 +1,12 @@
+var a = 0;
+
+fun test(x, y, z)
+{
+  __dprint(x);
+  __dprint(a);
+}
+
+__dprint(test)
+
+test(1, 2, 3);
+

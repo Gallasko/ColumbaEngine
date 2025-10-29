@@ -1,0 +1,1 @@
+var result = 1; var multiplier = 2; while (result < 100) { result = result * multiplier++; }

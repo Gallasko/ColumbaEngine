@@ -1,0 +1,7 @@
+// Prefix increment (++x returns new value)
+var x = 5;
+__dprint(++x);
+__dprint(x);
+var y = ++x;
+__dprint(y);
+__dprint(x);

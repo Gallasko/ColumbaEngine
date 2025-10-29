@@ -1,0 +1,14 @@
+class Brunch {
+  bacon()
+  {
+    __dprint("bacon");
+    return "Hello world";
+  }
+
+  eggs() {}
+}
+
+var b = Brunch();
+
+__dprint(b.bacon)
+__dprint(b.bacon())

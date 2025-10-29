@@ -1,0 +1,6 @@
+// Variable declaration
+var x;
+var y = 5;
+var z = 10 + 20;
+__dprint(y);
+__dprint(z);

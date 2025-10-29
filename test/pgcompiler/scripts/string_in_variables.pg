@@ -1,0 +1,6 @@
+// Strings in variables
+var name = "Alice";
+var greeting = "Hello, ";
+__dprint(greeting + name);
+name = "Bob";
+__dprint(greeting + name);

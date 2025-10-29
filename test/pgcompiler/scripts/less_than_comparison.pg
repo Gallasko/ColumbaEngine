@@ -1,0 +1,7 @@
+// Less than comparison test (< and <=)
+__dprint(3 < 5);
+__dprint(5 < 3);
+__dprint(5 < 5);
+__dprint(3 <= 5);
+__dprint(5 <= 5);
+__dprint(7 <= 5);

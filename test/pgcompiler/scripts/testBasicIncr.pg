@@ -1,0 +1,9 @@
+var a = 5;
+var b = a++;
+var c = a;
+//__dprint(a);
+//__dprint(b);
+//__dprint(c);
+a;
+b;
+c;

@@ -1,0 +1,9 @@
+// Variable assignment
+var x = 5;
+__dprint(x);
+x = 10;
+__dprint(x);
+x = x + 5;
+__dprint(x);
+x = x * 2;
+__dprint(x);

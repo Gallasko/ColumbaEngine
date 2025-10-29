@@ -31,7 +31,7 @@
 #include <iostream>
 #endif
 
-#define DEBUG_PROFILE_COMPILE
+// #define DEBUG_PROFILE_COMPILE
 
 #define EMIT_RUNTIME_ERROR(msg) do {runtimeError((Strfy() << msg).getData()); return InterpretResult::RUNTIME_ERROR;} while(0);
 
