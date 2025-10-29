@@ -20,18 +20,9 @@
 #include <algorithm>
 #include <setjmp.h>
 
-// Todo add this as a flag in when compiling in debug
-// #define DEBUG_TRACE_EXECUTION
-
-// #define DEBUG_CHECK_STACK
-
-// #define DEBUG_RUNTIME_MEMORY
-
 #ifdef DEBUG_RUNTIME_MEMORY
 #include <iostream>
 #endif
-
-// #define DEBUG_PROFILE_COMPILE
 
 #define EMIT_RUNTIME_ERROR(msg) do {runtimeError((Strfy() << msg).getData()); return InterpretResult::RUNTIME_ERROR;} while(0);
 

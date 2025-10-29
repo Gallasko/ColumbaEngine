@@ -328,6 +328,111 @@ TEST_F(ScriptTestBench, ParenthesesTest) {
 }
 
 // ============================================================================
+// Functions & Closures
+// ============================================================================
+
+TEST_F(ScriptTestBench, TestSimpleReturn) {
+    testScript("testSimpleReturn");
+}
+
+TEST_F(ScriptTestBench, TestFunc) {
+    testScript("testFunc");
+}
+
+TEST_F(ScriptTestBench, TestIncr) {
+    testScript("testIncr");
+}
+
+TEST_F(ScriptTestBench, TestFib) {
+    testScript("testFib");
+}
+
+TEST_F(ScriptTestBench, TestSimpleClosure) {
+    testScript("testSimpleClosure");
+}
+
+TEST_F(ScriptTestBench, TestClosedClosure) {
+    testScript("testClosedClosure");
+}
+
+TEST_F(ScriptTestBench, TestClosure) {
+    testScript("testClosure");
+}
+
+// ============================================================================
+// Classes & Objects
+// ============================================================================
+
+TEST_F(ScriptTestBench, TestClass) {
+    testScript("testClass");
+}
+
+TEST_F(ScriptTestBench, TestClassLocal) {
+    testScript("testClassLocal");
+}
+
+TEST_F(ScriptTestBench, TestClassPostIncr) {
+    testScript("testClassPostIncr");
+}
+
+TEST_F(ScriptTestBench, TestInstance) {
+    testScript("testInstance");
+}
+
+TEST_F(ScriptTestBench, TestMethods) {
+    testScript("testMethods");
+}
+
+TEST_F(ScriptTestBench, TestBound) {
+    testScript("testBound");
+}
+
+TEST_F(ScriptTestBench, TestProperties) {
+    testScript("testProperties");
+}
+
+TEST_F(ScriptTestBench, TestCoffee) {
+    testScript("testCoffee");
+}
+
+TEST_F(ScriptTestBench, TestOops) {
+    testScript("testOops");
+}
+
+// ============================================================================
+// Loop Tests
+// ============================================================================
+
+TEST_F(ScriptTestBench, TestLoop) {
+    testScript("testLoop");
+}
+
+TEST_F(ScriptTestBench, TestLoop2) {
+    testScript("testLoop2");
+}
+
+TEST_F(ScriptTestBench, TestLoopLocal) {
+    testScript("testLoopLocal");
+}
+
+TEST_F(ScriptTestBench, TestModulo) {
+    testScript("testModulo");
+}
+
+// Performance tests (no output expected)
+TEST_F(ScriptTestBench, TestBasicIncr) {
+    testScript("testBasicIncr");
+}
+
+TEST_F(ScriptTestBench, TestIncrLoop) {
+    testScript("testIncrLoop");
+}
+
+TEST_F(ScriptTestBench, TestLoopGlobal) {
+    testScript("testLoopGlobal");
+}
+
+// ============================================================================
 // Error Tests
 // ============================================================================
 
@@ -337,6 +442,10 @@ TEST_F(ScriptTestBench, SyntaxError) {
 
 TEST_F(ScriptTestBench, RuntimeError) {
     testScriptError("runtime_error", InterpretResult::RUNTIME_ERROR);
+}
+
+TEST_F(ScriptTestBench, TestFuncFailed) {
+    testScriptError("testFuncFailed", InterpretResult::RUNTIME_ERROR);
 }
 
 } // namespace test
