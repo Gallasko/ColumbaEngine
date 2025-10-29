@@ -78,7 +78,7 @@ namespace pg {
 
                 // Print bytecode after this pass
                 std::cout << "\n=== BYTECODE AFTER " << pass->getName() << " ===" << std::endl;
-                disassembleChunk(chunk, "After " + pass->getName());
+                // disassembleChunk(chunk, "After " + pass->getName());
                 std::cout << std::endl;
             }
         }

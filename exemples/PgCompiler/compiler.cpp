@@ -1,5 +1,7 @@
 #include "compiler.h"
 
+#include "vm.h"
+
 #include "chunk.h"
 
 #include "compiler_debug.h"
@@ -8,7 +10,16 @@ namespace pg
 {
     // Define the static member
     Compiler* Compiler::current = nullptr;
-    ObjFunction* Compiler::compile(std::queue<Token> tokens)
+
+    Compiler::~Compiler()
+    {
+        if (currentFunction)
+        {
+            vm->pools.functionPool.release(vm->asFunction(currentFunction));
+        }
+    }
+
+    Value Compiler::compile(std::queue<Token> tokens)
     {
         // Initialize this compiler as the root script compiler
         initCompiler(FunctionType::TYPE_SCRIPT);
@@ -21,10 +32,13 @@ namespace pg
         parser.setCompiler(this);
 
         while (not parser.isAtEnd() and not parser.hasError())
+        {
+            parser.skipEOL();  // Skip leading EOL tokens (e.g., from comment-only lines)
             parser.declaration();
+        }
 
         if (parser.hasError())
-            return nullptr;
+            return 0x0;
 
         auto func = endCompiler();
 
@@ -126,7 +140,7 @@ namespace pg
     int Compiler::addUpvalue(int index, bool isLocal)
     {
         // Check if upvalue already exists
-        auto upvalueCount = currentFunction->upvalueCount;
+        auto upvalueCount = vm->asFunction(currentFunction)->upvalueCount;
         for (int i = 0; i < upvalueCount; i++)
         {
             if (upvalues[i].index == index and upvalues[i].isLocal == isLocal)
@@ -144,7 +158,7 @@ namespace pg
         upvalues[upvalueCount].index = static_cast<uint8_t>(index);
         upvalues[upvalueCount].isLocal = isLocal;
 
-        return currentFunction->upvalueCount++;
+        return vm->asFunction(currentFunction)->upvalueCount++;
     }
 
     int Compiler::findUpvalue(const std::string& name)
@@ -205,10 +219,12 @@ namespace pg
         scopeDepth = 0;
 
         // Clear the current function's chunk
-        currentFunction->chunk.clear();
+        vm->asFunction(currentFunction)->chunk.clear();
 
         parser.reset();
     }
+
+    Chunk& Compiler::getCurrentChunk() { return vm->asFunction(currentFunction)->chunk; }
 
     void Compiler::initCompiler(FunctionType type, const std::string& name)
     {
@@ -224,10 +240,10 @@ namespace pg
         // Create new function object
         if (currentFunction)
         {
-            delete currentFunction;
+            vm->releaseAndDelete(currentFunction);
         }
 
-        currentFunction = new ObjFunction();
+        currentFunction = vm->createFunction();
 
         // Reset local state for this new function
         locals.clear();
@@ -237,7 +253,7 @@ namespace pg
         // Set this as the current compiler
         Compiler::current = this;
 
-        currentFunction->name = name;
+        vm->asFunction(currentFunction)->name = name;
 
         if (type != FunctionType::TYPE_FUNCTION)
         {
@@ -247,7 +263,7 @@ namespace pg
         }
     }
 
-    ObjFunction* Compiler::endCompiler()
+    Value Compiler::endCompiler()
     {
         // Emit implicit return for functions that don't have an explicit return
         parser.emitReturn();
@@ -255,12 +271,12 @@ namespace pg
 #ifdef DEBUG_PRINT_CODE
         if (not parser.hadError)
         {
-            disassembleChunk(getCurrentChunk(), currentFunction != nullptr ? currentFunction->name : "<script>");
+            disassembleChunk(vm, getCurrentChunk(), currentFunction != 0x0 ? vm->asFunction(currentFunction)->name : "<script>");
         }
 #endif
 
-        ObjFunction* function = currentFunction;
-        currentFunction = nullptr;
+        Value function = currentFunction;
+        currentFunction = 0x0;
 
         // Restore the previous compiler as current
         Compiler::current = enclosing;
