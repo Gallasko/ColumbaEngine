@@ -10,7 +10,7 @@
 
 // Debugging features
 // Flag used to trace execution step-by-step (With the stack contents)
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
 // Flag to unforce stack checks that should never fail
 // #define DEBUG_CHECK_STACK
@@ -25,7 +25,7 @@
 // #define DEBUG_PRINT_TOKENS
 
 // Flag to print compiled bytecode
-#define DEBUG_PRINT_CODE
+// #define DEBUG_PRINT_CODE
 
 namespace pg
 {

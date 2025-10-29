@@ -59,7 +59,7 @@
             "name": "Compiler",
             "type": "cppdbg",
             "request": "launch",
-            "args": ["${workspaceFolder}/release/testProperties.pg"],
+            "args": ["${workspaceFolder}/release/testSimpleClosure.pg"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
