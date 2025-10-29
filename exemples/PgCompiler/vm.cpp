@@ -410,8 +410,18 @@ namespace pg
 
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
-        // Point to first argument (skipping the function object at -argCount-1)
         frame->slots = stack.data() + stack.size() - argCount;
+
+        // Point to first argument (skipping the function object at -argCount-1)
+
+        // if (closure->function == FunctionType::TYPE_FUNCTION)
+        // {
+        //     frame->slots = stack.data() + stack.size() - argCount;
+        // }
+        // else
+        // {
+        //     frame->slots = stack.data() + stack.size() - argCount - 1;
+        // }
 
         return true;
     }
@@ -1364,6 +1374,23 @@ namespace pg
             else
             {
                 vm->testOutput += "<null bound method> \n";
+            }
+
+            vm->releaseAndDelete(value);
+            return;
+        }
+
+        if (IS_CLOSURE(value))
+        {
+            Closure* closure = vm->asClosure(value);
+
+            if (closure != nullptr && closure->function != nullptr)
+            {
+                vm->testOutput += "<closure " + closure->function->name + "> \n";
+            }
+            else
+            {
+                vm->testOutput += "<null closure> \n";
             }
 
             vm->releaseAndDelete(value);
