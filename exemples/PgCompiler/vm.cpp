@@ -411,6 +411,7 @@ namespace pg
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
         frame->slots = stack.data() + stack.size() - argCount;
+        // frame->slots = stack.data() + stack.size() - argCount - 1;
 
         // Point to first argument (skipping the function object at -argCount-1)
 
