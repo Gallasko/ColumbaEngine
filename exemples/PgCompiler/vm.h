@@ -453,11 +453,10 @@ namespace pg
 #ifdef DEBUG_RUNTIME_MEMORY
             std::cout << "Releasing " << valueTypeName(v) << "[" << index << "]" << std::endl;
 #endif
-            pools.releaseToPool(v);
-            return true; // Object was deleted
+            return true; // Should delete - refcount reached zero
         }
 
-        return false; // Don't delete
+        return false; // Don't delete - still has references
     }
 
     inline Value VM::trackNewValue(const Value& v)
