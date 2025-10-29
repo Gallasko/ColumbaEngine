@@ -1,0 +1,5 @@
+// Equality comparison test
+__dprint(5 == 5);
+__dprint(5 == 3);
+__dprint(true == true);
+__dprint(true == false);
