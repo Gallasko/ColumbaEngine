@@ -163,6 +163,50 @@ namespace pg
             return ::new(&(chunk->element)) T(std::forward<Args>(args)...);
         }
 
+        /**
+         * @brief Allocate an element and return both the pointer and its index
+         *
+         * @return std::pair<T*, size_t> Pair of (pointer to element, index in pool)
+         */
+        template <typename... Args>
+        std::pair<T*, size_t> allocateWithIndex(Args&&... args)
+        {
+            LOG_THIS_MEMBER("Memory Pool");
+
+            if (freeList)
+            {
+                auto chunk = freeList;
+                freeList = chunk->next;
+
+                ::new(&(chunk->element)) T(std::forward<Args>(args)...);
+
+                nbElements++;
+
+                // Find the index by calculating from chunk pointer
+                T* ptr = reinterpret_cast<T*>(chunk);
+                size_t index = 0;
+                for (size_t i = 0; i < size; i++)
+                {
+                    if (getElement(i) == ptr)
+                    {
+                        index = i;
+                        break;
+                    }
+                }
+
+                return {ptr, index};
+            }
+
+            const size_t index = nbElements++;
+
+            if (index >= size) reserve(index);
+
+            PGMemChunk<T>* chunk = getChunk(index);
+            T* ptr = ::new(&(chunk->element)) T(std::forward<Args>(args)...);
+
+            return {ptr, index};
+        }
+
         // Todo add a bulk allocation and deallocation function
 
         /**
