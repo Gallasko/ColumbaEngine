@@ -185,6 +185,10 @@ namespace pg
             // Initialize function pointer dispatch table
             register_builtin_operations();
 
+            // Freeze constant indices - all pool allocations up to this point are constants
+            // Runtime allocations will have indices above these max values
+            pools.freezeConstantIndices();
+
             begin = std::chrono::steady_clock::now();
             auto result = run();
             end = std::chrono::steady_clock::now();
@@ -2140,49 +2144,49 @@ namespace pg
     {
         auto [ptr, index] = pools.stringPool.allocateWithIndex(element);
         Value val = makeStringValue(static_cast<uint32_t>(index));
-        return trackNewValue(val);
+        return val;
     }
 
     Value VM::createClosure(ObjFunction* function)
     {
         auto [ptr, index] = pools.closurePool.allocateWithIndex(function);
         Value val = makeClosureValue(static_cast<uint32_t>(index));
-        return trackNewValue(val);
+        return val;
     }
 
     Value VM::createFunction()
     {
         auto [ptr, index] = pools.functionPool.allocateWithIndex();
         Value val = makeFunctionValue(static_cast<uint32_t>(index));
-        return trackNewValue(val);
+        return val;
     }
 
     Value VM::createUpvalue(Value* slot)
     {
         auto [ptr, index] = pools.upvaluePool.allocateWithIndex(slot);
         Value val = makeUpvalueValue(static_cast<uint32_t>(index));
-        return trackNewValue(val);
+        return val;
     }
 
     Value VM::createClass(const std::string& name)
     {
         auto [ptr, index] = pools.classPool.allocateWithIndex(name);
         Value val = makeClassValue(static_cast<uint32_t>(index));
-        return trackNewValue(val);
+        return val;
     }
 
     Value VM::createInstance(Klass* klass)
     {
         auto [ptr, index] = pools.instancePool.allocateWithIndex(klass);
         Value val = makeInstanceValue(static_cast<uint32_t>(index));
-        return trackNewValue(val);
+        return val;
     }
 
     Value VM::createBoundMethod(const Value& receiver, Closure* method)
     {
         auto [ptr, index] = pools.boundMethodPool.allocateWithIndex(receiver, method);
         Value val = makeBoundMethodValue(static_cast<uint32_t>(index));
-        return trackNewValue(val);
+        return val;
     }
 
     Value VM::elementToValue(const ElementType& element)

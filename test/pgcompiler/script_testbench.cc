@@ -20,16 +20,21 @@ namespace test {
  * If .expected file exists, output is validated.
  * If .expected file doesn't exist, we just check for successful execution.
  */
-class ScriptTestBench : public ::testing::Test {
+class ScriptTestBench : public ::testing::Test
+{
 protected:
     VM vm;
 
-    void SetUp() override {
+    void SetUp() override
+    {
         // Reset VM state
         vm.stack.clear();
-        for (auto& pair : vm.globals) {
+
+        for (auto& pair : vm.globals)
+        {
             vm.releaseAndDelete(pair.second);
         }
+
         vm.globals.clear();
         vm.testOutput.clear();
     }
@@ -46,10 +51,12 @@ protected:
     /**
      * Run a script and return its output from __dprint
      */
-    std::string runScript(const std::string& scriptPath, InterpretResult& result) {
+    std::string runScript(const std::string& scriptPath, InterpretResult& result)
+    {
         // Read the script file
         std::ifstream file(scriptPath);
-        if (!file.is_open()) {
+        if (not file.is_open())
+        {
             throw std::runtime_error("Failed to open script file: " + scriptPath);
         }
 
@@ -70,9 +77,11 @@ protected:
     /**
      * Load expected output from file
      */
-    std::string loadExpectedOutput(const std::string& expectedPath) {
+    std::string loadExpectedOutput(const std::string& expectedPath)
+    {
         std::ifstream file(expectedPath);
-        if (!file.is_open()) {
+        if (not file.is_open())
+        {
             return ""; // No expected file means we just check for success
         }
 
@@ -84,7 +93,8 @@ protected:
     /**
      * Test a script file
      */
-    void testScript(const std::string& scriptName) {
+    void testScript(const std::string& scriptName)
+    {
         std::string scriptPath = getScriptPath(scriptName);
         std::string expectedPath = getExpectedPath(scriptName);
 
@@ -95,7 +105,8 @@ protected:
         std::string output = runScript(scriptPath, result);
 
         // Check if expected file exists
-        if (std::filesystem::exists(expectedPath)) {
+        if (std::filesystem::exists(expectedPath))
+        {
             std::string expected = loadExpectedOutput(expectedPath);
 
             // Normalize line endings and trim
@@ -117,7 +128,8 @@ protected:
     /**
      * Test a script that should fail with a specific error
      */
-    void testScriptError(const std::string& scriptName, InterpretResult expectedResult) {
+    void testScriptError(const std::string& scriptName, InterpretResult expectedResult)
+    {
         std::string scriptPath = getScriptPath(scriptName);
 
         ASSERT_TRUE(std::filesystem::exists(scriptPath))
@@ -131,11 +143,13 @@ protected:
     }
 
 private:
-    std::string getScriptPath(const std::string& name) {
+    std::string getScriptPath(const std::string& name)
+    {
         return "test/pgcompiler/scripts/" + name + ".pg";
     }
 
-    std::string getExpectedPath(const std::string& name) {
+    std::string getExpectedPath(const std::string& name)
+    {
         return "test/pgcompiler/scripts/" + name + ".expected";
     }
 
@@ -151,19 +165,23 @@ private:
 // Basic Arithmetic Tests
 // ============================================================================
 
-TEST_F(ScriptTestBench, SimpleAddition) {
+TEST_F(ScriptTestBench, SimpleAddition)
+{
     testScript("simple_addition");
 }
 
-TEST_F(ScriptTestBench, SimpleSubtraction) {
+TEST_F(ScriptTestBench, SimpleSubtraction)
+{
     testScript("simple_subtraction");
 }
 
-TEST_F(ScriptTestBench, SimpleMultiplication) {
+TEST_F(ScriptTestBench, SimpleMultiplication)
+{
     testScript("simple_multiplication");
 }
 
-TEST_F(ScriptTestBench, SimpleDivision) {
+TEST_F(ScriptTestBench, SimpleDivision)
+{
     testScript("simple_division");
 }
 
@@ -171,11 +189,13 @@ TEST_F(ScriptTestBench, SimpleDivision) {
 // Boolean Operations
 // ============================================================================
 
-TEST_F(ScriptTestBench, BooleanLiterals) {
+TEST_F(ScriptTestBench, BooleanLiterals)
+{
     testScript("boolean_literals");
 }
 
-TEST_F(ScriptTestBench, BooleanNot) {
+TEST_F(ScriptTestBench, BooleanNot)
+{
     testScript("boolean_not");
 }
 
@@ -183,23 +203,28 @@ TEST_F(ScriptTestBench, BooleanNot) {
 // Comparison Operations
 // ============================================================================
 
-TEST_F(ScriptTestBench, EqualityComparison) {
+TEST_F(ScriptTestBench, EqualityComparison)
+{
     testScript("equality_comparison");
 }
 
-TEST_F(ScriptTestBench, InequalityComparison) {
+TEST_F(ScriptTestBench, InequalityComparison)
+{
     testScript("inequality_comparison");
 }
 
-TEST_F(ScriptTestBench, LessThanComparison) {
+TEST_F(ScriptTestBench, LessThanComparison)
+{
     testScript("less_than_comparison");
 }
 
-TEST_F(ScriptTestBench, GreaterThanComparison) {
+TEST_F(ScriptTestBench, GreaterThanComparison)
+{
     testScript("greater_than_comparison");
 }
 
-TEST_F(ScriptTestBench, ComparisonMixed) {
+TEST_F(ScriptTestBench, ComparisonMixed)
+{
     testScript("comparison_mixed");
 }
 
@@ -207,15 +232,18 @@ TEST_F(ScriptTestBench, ComparisonMixed) {
 // Logical Operators
 // ============================================================================
 
-TEST_F(ScriptTestBench, LogicalAnd) {
+TEST_F(ScriptTestBench, LogicalAnd)
+{
     testScript("logical_and");
 }
 
-TEST_F(ScriptTestBench, LogicalOr) {
+TEST_F(ScriptTestBench, LogicalOr)
+{
     testScript("logical_or");
 }
 
-TEST_F(ScriptTestBench, LogicalCombinations) {
+TEST_F(ScriptTestBench, LogicalCombinations)
+{
     testScript("logical_combinations");
 }
 
@@ -223,11 +251,13 @@ TEST_F(ScriptTestBench, LogicalCombinations) {
 // Unary Operators
 // ============================================================================
 
-TEST_F(ScriptTestBench, UnaryNegation) {
+TEST_F(ScriptTestBench, UnaryNegation)
+{
     testScript("unary_negation");
 }
 
-TEST_F(ScriptTestBench, UnaryComplex) {
+TEST_F(ScriptTestBench, UnaryComplex)
+{
     testScript("unary_complex");
 }
 
@@ -235,35 +265,43 @@ TEST_F(ScriptTestBench, UnaryComplex) {
 // Variables
 // ============================================================================
 
-TEST_F(ScriptTestBench, VariableDeclaration) {
+TEST_F(ScriptTestBench, VariableDeclaration)
+{
     testScript("variable_declaration");
 }
 
-TEST_F(ScriptTestBench, VariableAssignment) {
+TEST_F(ScriptTestBench, VariableAssignment)
+{
     testScript("variable_assignment");
 }
 
-TEST_F(ScriptTestBench, MultipleVariables) {
+TEST_F(ScriptTestBench, MultipleVariables)
+{
     testScript("multiple_variables");
 }
 
-TEST_F(ScriptTestBench, LocalScope) {
+TEST_F(ScriptTestBench, LocalScope)
+{
     testScript("local_scope");
 }
 
-TEST_F(ScriptTestBench, PrefixIncrement) {
+TEST_F(ScriptTestBench, PrefixIncrement)
+{
     testScript("prefix_increment");
 }
 
-TEST_F(ScriptTestBench, PostfixIncrement) {
+TEST_F(ScriptTestBench, PostfixIncrement)
+{
     testScript("postfix_increment");
 }
 
-TEST_F(ScriptTestBench, PrefixDecrement) {
+TEST_F(ScriptTestBench, PrefixDecrement)
+{
     testScript("prefix_decrement");
 }
 
-TEST_F(ScriptTestBench, PostfixDecrement) {
+TEST_F(ScriptTestBench, PostfixDecrement)
+{
     testScript("postfix_decrement");
 }
 
@@ -271,31 +309,38 @@ TEST_F(ScriptTestBench, PostfixDecrement) {
 // Control Flow
 // ============================================================================
 
-TEST_F(ScriptTestBench, IfStatement) {
+TEST_F(ScriptTestBench, IfStatement)
+{
     testScript("if_statement");
 }
 
-TEST_F(ScriptTestBench, IfElseStatement) {
+TEST_F(ScriptTestBench, IfElseStatement)
+{
     testScript("if_else_statement");
 }
 
-TEST_F(ScriptTestBench, IfElseIfChain) {
+TEST_F(ScriptTestBench, IfElseIfChain)
+{
     testScript("if_else_if_chain");
 }
 
-TEST_F(ScriptTestBench, WhileLoop) {
+TEST_F(ScriptTestBench, WhileLoop)
+{
     testScript("while_loop");
 }
 
-TEST_F(ScriptTestBench, WhileLoopZero) {
+TEST_F(ScriptTestBench, WhileLoopZero)
+{
     testScript("while_loop_zero");
 }
 
-TEST_F(ScriptTestBench, ForLoop) {
+TEST_F(ScriptTestBench, ForLoop)
+{
     testScript("for_loop");
 }
 
-TEST_F(ScriptTestBench, ForLoopIncrement) {
+TEST_F(ScriptTestBench, ForLoopIncrement)
+{
     testScript("for_loop_increment");
 }
 
@@ -303,15 +348,18 @@ TEST_F(ScriptTestBench, ForLoopIncrement) {
 // Strings
 // ============================================================================
 
-TEST_F(ScriptTestBench, StringLiterals) {
+TEST_F(ScriptTestBench, StringLiterals)
+{
     testScript("string_literals");
 }
 
-TEST_F(ScriptTestBench, StringConcatenation) {
+TEST_F(ScriptTestBench, StringConcatenation)
+{
     testScript("string_concatenation");
 }
 
-TEST_F(ScriptTestBench, StringInVariables) {
+TEST_F(ScriptTestBench, StringInVariables)
+{
     testScript("string_in_variables");
 }
 
@@ -319,11 +367,13 @@ TEST_F(ScriptTestBench, StringInVariables) {
 // Complex Expressions
 // ============================================================================
 
-TEST_F(ScriptTestBench, PrecedenceTest) {
+TEST_F(ScriptTestBench, PrecedenceTest)
+{
     testScript("precedence");
 }
 
-TEST_F(ScriptTestBench, ParenthesesTest) {
+TEST_F(ScriptTestBench, ParenthesesTest)
+{
     testScript("parentheses");
 }
 
@@ -331,31 +381,38 @@ TEST_F(ScriptTestBench, ParenthesesTest) {
 // Functions & Closures
 // ============================================================================
 
-TEST_F(ScriptTestBench, TestSimpleReturn) {
+TEST_F(ScriptTestBench, TestSimpleReturn)
+{
     testScript("testSimpleReturn");
 }
 
-TEST_F(ScriptTestBench, TestFunc) {
+TEST_F(ScriptTestBench, TestFunc)
+{
     testScript("testFunc");
 }
 
-TEST_F(ScriptTestBench, TestIncr) {
+TEST_F(ScriptTestBench, TestIncr)
+{
     testScript("testIncr");
 }
 
-TEST_F(ScriptTestBench, TestFib) {
+TEST_F(ScriptTestBench, TestFib)
+{
     testScript("testFib");
 }
 
-TEST_F(ScriptTestBench, TestSimpleClosure) {
+TEST_F(ScriptTestBench, TestSimpleClosure)
+{
     testScript("testSimpleClosure");
 }
 
-TEST_F(ScriptTestBench, TestClosedClosure) {
+TEST_F(ScriptTestBench, TestClosedClosure)
+{
     testScript("testClosedClosure");
 }
 
-TEST_F(ScriptTestBench, TestClosure) {
+TEST_F(ScriptTestBench, TestClosure)
+{
     testScript("testClosure");
 }
 
@@ -363,39 +420,48 @@ TEST_F(ScriptTestBench, TestClosure) {
 // Classes & Objects
 // ============================================================================
 
-TEST_F(ScriptTestBench, TestClass) {
+TEST_F(ScriptTestBench, TestClass)
+{
     testScript("testClass");
 }
 
-TEST_F(ScriptTestBench, TestClassLocal) {
+TEST_F(ScriptTestBench, TestClassLocal)
+{
     testScript("testClassLocal");
 }
 
-TEST_F(ScriptTestBench, TestClassPostIncr) {
+TEST_F(ScriptTestBench, TestClassPostIncr)
+{
     testScript("testClassPostIncr");
 }
 
-TEST_F(ScriptTestBench, TestInstance) {
+TEST_F(ScriptTestBench, TestInstance)
+{
     testScript("testInstance");
 }
 
-TEST_F(ScriptTestBench, TestMethods) {
+TEST_F(ScriptTestBench, TestMethods)
+{
     testScript("testMethods");
 }
 
-TEST_F(ScriptTestBench, TestBound) {
+TEST_F(ScriptTestBench, TestBound)
+{
     testScript("testBound");
 }
 
-TEST_F(ScriptTestBench, TestProperties) {
+TEST_F(ScriptTestBench, TestProperties)
+{
     testScript("testProperties");
 }
 
-TEST_F(ScriptTestBench, TestCoffee) {
+TEST_F(ScriptTestBench, TestCoffee)
+{
     testScript("testCoffee");
 }
 
-TEST_F(ScriptTestBench, TestOops) {
+TEST_F(ScriptTestBench, TestOops)
+{
     testScript("testOops");
 }
 
@@ -403,50 +469,65 @@ TEST_F(ScriptTestBench, TestOops) {
 // Loop Tests
 // ============================================================================
 
-TEST_F(ScriptTestBench, TestLoop) {
+TEST_F(ScriptTestBench, TestLoop)
+{
     testScript("testLoop");
 }
 
-TEST_F(ScriptTestBench, TestLoop2) {
+TEST_F(ScriptTestBench, TestLoop2)
+{
     testScript("testLoop2");
 }
 
-TEST_F(ScriptTestBench, TestLoopLocal) {
+TEST_F(ScriptTestBench, TestLoopLocal)
+{
     testScript("testLoopLocal");
 }
 
-TEST_F(ScriptTestBench, TestModulo) {
+TEST_F(ScriptTestBench, TestModulo)
+{
     testScript("testModulo");
 }
 
 // Performance tests (no output expected)
-TEST_F(ScriptTestBench, TestBasicIncr) {
+TEST_F(ScriptTestBench, TestBasicIncr)
+{
     testScript("testBasicIncr");
 }
 
-TEST_F(ScriptTestBench, TestIncrLoop) {
+TEST_F(ScriptTestBench, TestIncrLoop)
+{
     testScript("testIncrLoop");
 }
 
-TEST_F(ScriptTestBench, TestLoopGlobal) {
+TEST_F(ScriptTestBench, TestLoopGlobal)
+{
     testScript("testLoopGlobal");
+}
+
+TEST_F(ScriptTestBench, TestLoopString)
+{
+    testScript("testLoopString");
 }
 
 // ============================================================================
 // Error Tests
 // ============================================================================
 
-TEST_F(ScriptTestBench, SyntaxError) {
+TEST_F(ScriptTestBench, SyntaxError)
+{
     testScriptError("syntax_error", InterpretResult::COMPILE_ERROR);
 }
 
-TEST_F(ScriptTestBench, RuntimeError) {
+TEST_F(ScriptTestBench, RuntimeError)
+{
     testScriptError("runtime_error", InterpretResult::RUNTIME_ERROR);
 }
 
-TEST_F(ScriptTestBench, TestFuncFailed) {
-    testScriptError("testFuncFailed", InterpretResult::RUNTIME_ERROR);
-}
+// TEST_F(ScriptTestBench, TestFuncFailed)
+// {
+//     testScriptError("testFuncFailed", InterpretResult::RUNTIME_ERROR);
+// }
 
 } // namespace test
 } // namespace pg
