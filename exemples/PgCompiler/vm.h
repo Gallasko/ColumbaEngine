@@ -419,6 +419,10 @@ namespace pg
         if (!requiresRefCount(v))
             return v;
 
+        // Constants are never ref-counted (they live forever in the constant table)
+        if (pools.isConstant(v))
+            return v;
+
         // Increment refcount in appropriate pool vector
         uint32_t index = GET_INDEX(v);
         auto& refCounts = pools.getRefCountVector(v);
@@ -438,6 +442,10 @@ namespace pg
     {
         // Fast path: primitives and doubles don't need cleanup
         if (!requiresRefCount(v))
+            return false;
+
+        // Constants are never released (they live forever in the constant table)
+        if (pools.isConstant(v))
             return false;
 
         // Decrement refcount in appropriate pool vector

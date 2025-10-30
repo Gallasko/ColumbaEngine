@@ -90,6 +90,35 @@ namespace pg
         std::vector<uint32_t> boundMethodRefCounts;
 
         // ====================================================================
+        // Max Constant Indices - values at or below these indices are constants
+        // and should never be ref-counted or released
+        // ====================================================================
+
+        /** Max constant index for string pool (all indices <= this are constants) */
+        uint32_t maxConstantStringIndex = 0;
+
+        /** Max constant index for closure pool */
+        uint32_t maxConstantClosureIndex = 0;
+
+        /** Max constant index for function pool */
+        uint32_t maxConstantFunctionIndex = 0;
+
+        /** Max constant index for upvalue pool */
+        uint32_t maxConstantUpvalueIndex = 0;
+
+        /** Max constant index for class pool */
+        uint32_t maxConstantClassIndex = 0;
+
+        /** Max constant index for native function pool */
+        uint32_t maxConstantNativeFuncIndex = 0;
+
+        /** Max constant index for instance pool */
+        uint32_t maxConstantInstanceIndex = 0;
+
+        /** Max constant index for bound method pool */
+        uint32_t maxConstantBoundMethodIndex = 0;
+
+        // ====================================================================
         // Public API
         // ====================================================================
 
@@ -131,6 +160,55 @@ namespace pg
             nativeFuncRefCounts.reserve(functionCount);
             instanceRefCounts.reserve(instanceCount);
             boundMethodRefCounts.reserve(instanceCount);
+        }
+
+        /**
+         * @brief Freeze current pool states as constant indices
+         *
+         * Call this after compilation but before VM execution.
+         * All currently allocated pool indices are marked as constants
+         * and will never be ref-counted or released.
+         */
+        void freezeConstantIndices()
+        {
+            // Record the last allocated index for each pool as the max constant index
+            // All indices <= max are constants and won't be ref-counted
+            maxConstantStringIndex = stringPool.getNbElements() > 0 ? stringPool.getNbElements() - 1 : 0;
+            maxConstantClosureIndex = closurePool.getNbElements() > 0 ? closurePool.getNbElements() - 1 : 0;
+            maxConstantFunctionIndex = functionPool.getNbElements() > 0 ? functionPool.getNbElements() - 1 : 0;
+            maxConstantUpvalueIndex = upvaluePool.getNbElements() > 0 ? upvaluePool.getNbElements() - 1 : 0;
+            maxConstantClassIndex = classPool.getNbElements() > 0 ? classPool.getNbElements() - 1 : 0;
+            maxConstantNativeFuncIndex = nativeFuncPool.getNbElements() > 0 ? nativeFuncPool.getNbElements() - 1 : 0;
+            maxConstantInstanceIndex = instancePool.getNbElements() > 0 ? instancePool.getNbElements() - 1 : 0;
+            maxConstantBoundMethodIndex = boundMethodPool.getNbElements() > 0 ? boundMethodPool.getNbElements() - 1 : 0;
+        }
+
+        /**
+         * @brief Check if a value index is a constant (not runtime-allocated)
+         *
+         * @param v The value to check
+         * @return true if the value is a constant and should not be ref-counted
+         */
+        inline bool isConstant(Value v) const
+        {
+            if (IS_STRING(v)) {
+                return AS_STRING_INDEX(v) <= maxConstantStringIndex;
+            } else if (IS_CLOSURE(v)) {
+                return AS_CLOSURE_INDEX(v) <= maxConstantClosureIndex;
+            } else if (IS_FUNC(v)) {
+                return AS_FUNCTION_INDEX(v) <= maxConstantFunctionIndex;
+            } else if (IS_UPVALUE(v)) {
+                return AS_UPVALUE_INDEX(v) <= maxConstantUpvalueIndex;
+            } else if (IS_CLASS(v)) {
+                return AS_CLASS_INDEX(v) <= maxConstantClassIndex;
+            } else if (IS_NAT_FUNC(v)) {
+                return AS_NATIVE_INDEX(v) <= maxConstantNativeFuncIndex;
+            } else if (IS_INSTANCE(v)) {
+                return AS_INSTANCE_INDEX(v) <= maxConstantInstanceIndex;
+            } else if (IS_BOUND_METHOD(v)) {
+                return AS_BOUND_METHOD_INDEX(v) <= maxConstantBoundMethodIndex;
+            }
+            return false;
         }
 
         /**

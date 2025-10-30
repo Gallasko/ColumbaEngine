@@ -72,7 +72,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
         set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
-        #set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O3")
+        # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O3")
 
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
@@ -778,6 +778,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         # Add DEBUG_CHECK_STACK define for test_compiler target
         # target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
+        target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD)
 
         # Copy test script files to build directory
         add_custom_command(TARGET test_compiler POST_BUILD
