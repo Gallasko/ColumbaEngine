@@ -10,6 +10,8 @@
 
 #include "pgconstant.h"
 
+#include "chunk_serializer.h"
+
 namespace pg
 {
     bool isValueNumber(const Value& val, VM* vm)
@@ -121,7 +123,7 @@ namespace pg
 
 namespace pg
 {
-    InterpretResult VM::interpret(const std::queue<Token>& tokens)
+    InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
         // Todo change this
         // Reset the compiler state before compiling a new chunk
@@ -185,6 +187,33 @@ namespace pg
             }
         }
 
+        // Optionally dump bytecode to file
+        if (dumpByteCode != "")
+        {
+            std::ofstream outFile(dumpByteCode, std::ios::binary);
+            if (outFile.is_open())
+            {
+                LOG_INFO("VM", "Dumping bytecode to file: " << dumpByteCode);
+
+                ChunkSerializer serializer;
+                if (not serializer.serialize(asFunction(function)->chunk, outFile, this))
+                {
+                    LOG_ERROR("VM", "Failed to dump bytecode to file: " << dumpByteCode);
+                }
+
+                outFile.close();
+            }
+            else
+            {
+                LOG_ERROR("VM", "Could not open file for bytecode dump: " << dumpByteCode);
+            }
+        }
+
+        if (compileOnly)
+        {
+            return InterpretResult::OK;
+        }
+
         try
         {
             // Initialize function pointer dispatch table
@@ -216,6 +245,51 @@ namespace pg
             return InterpretResult::RUNTIME_ERROR;
         }
 
+    }
+
+    InterpretResult VM::interpretFromBytecodeFile(const std::string& filename)
+    {
+        Chunk chunk;
+
+        ChunkSerializer serializer;
+        if (not serializer.deserializeFromFile(chunk, filename, this))
+        {
+            LOG_ERROR("VM", "Failed to load bytecode from file: " << filename);
+            return InterpretResult::COMPILE_ERROR;
+        }
+
+        auto function = createFunction();  // Already tracked in createFunction
+        ObjFunction* funcObj = asFunction(function);
+        funcObj->chunk = chunk;
+
+        push(function);  // function is already tracked from createFunction
+
+        auto closureValue = createClosure(funcObj);
+        Closure *closure = asClosure(closureValue);
+        pop();
+        push(closureValue);  // closureValue is already tracked in createClosure
+        call(closure, 0);
+
+        try
+        {
+            // Initialize function pointer dispatch table
+            register_builtin_operations();
+
+            // Initialize built-in classes (like Table)
+            initialize_builtin_classes();
+
+            // Freeze constant indices - all pool allocations up to this point are constants
+            // Runtime allocations will have indices above these max values
+            pools.freezeConstantIndices();
+
+            return run();
+        }
+        catch(const std::exception& e)
+        {
+            LOG_ERROR("VM", e.what());
+
+            return InterpretResult::RUNTIME_ERROR;
+        }
     }
 
     InterpretResult VM::run()
