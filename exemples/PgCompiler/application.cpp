@@ -70,7 +70,12 @@ int CompilerApp::exec()
     LOG_THIS_MEMBER(DOM);
 
     if (not fileName.empty())
-        runFile();
+    {
+        if (fileName.find(".pgc") != std::string::npos)
+            runFile(false);
+        else
+            runFile();
+    }
     else
         runREPL();
 
@@ -124,41 +129,50 @@ void CompilerApp::runREPL()
     std::cout << "Goodbye!\n";
 }
 
-void CompilerApp::runFile()
+void CompilerApp::runFile(bool needCompile)
 {
     LOG_THIS_MEMBER(DOM);
 
     VM vm;
-    // vm.addOptimizationPass(std::make_uniqueh
-    vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
-    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    InterpretResult result;
 
-    // vm.enableBytecodeOptimization();
-    // vm.enableOptimizationDebugging();
-
-    vm.disableBytecodeOptimization();
-
-    std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
-
-    vm.defineNative("logInfo", nativeLogInfo);
-
-    Lexer lexer;
-
-    try
+    if (needCompile)
     {
-        lexer.readFromFile(fileName);
+        // vm.addOptimizationPass(std::make_uniqueh
+        vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+        vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+
+        // vm.enableBytecodeOptimization();
+        // vm.enableOptimizationDebugging();
+
+        vm.disableBytecodeOptimization();
+
+        std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
+
+        vm.defineNative("logInfo", nativeLogInfo);
+
+        Lexer lexer;
+
+        try
+        {
+            lexer.readFromFile(fileName);
+        }
+        catch(const std::exception& e)
+        {
+            LOG_ERROR(DOM, "Failed to read file '" << fileName << "': " << e.what());
+            return;
+        }
+
+        auto tokens = lexer.getTokens();
+
+        vm.listOptimizationPasses();
+
+        result = vm.interpret(tokens, false, "temp.pgc");
     }
-    catch(const std::exception& e)
+    else
     {
-        LOG_ERROR(DOM, "Failed to read file '" << fileName << "': " << e.what());
-        return;
+        result = vm.interpretFromBytecodeFile(fileName);
     }
-
-    auto tokens = lexer.getTokens();
-
-    vm.listOptimizationPasses();
-
-    InterpretResult result = vm.interpret(tokens);
 
     switch (result)
     {

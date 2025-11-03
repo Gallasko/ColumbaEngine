@@ -673,6 +673,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
 
+            exemples/PgCompiler/chunk_serializer.cpp
+
             exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
@@ -749,6 +751,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
 
             exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )

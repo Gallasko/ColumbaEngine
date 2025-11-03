@@ -126,7 +126,7 @@ namespace pg
             }
         }
 
-        InterpretResult interpretFromText(const std::string& source)
+        InterpretResult interpretFromText(const std::string& source, bool compileOnly = false, const std::string& dumpByteCode = "")
         {
             Lexer lexer;
 
@@ -142,10 +142,12 @@ namespace pg
 
             auto tokens = lexer.getTokens();
 
-            return interpret(tokens);
+            return interpret(tokens, compileOnly, dumpByteCode);
         }
 
-        InterpretResult interpret(const std::queue<Token>& tokens);
+        InterpretResult interpret(const std::queue<Token>& tokens, bool compileOnly = false, const std::string& dumpByteCode = "");
+
+        InterpretResult interpretFromBytecodeFile(const std::string& filename);
 
         InterpretResult run();
 
