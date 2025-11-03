@@ -410,6 +410,7 @@ namespace pg
         void vm_return(InterpretResult result);
         static void register_builtin_operations();
         static void register_operation(uint8_t opcode, OpHandler handler, const char* name, uint8_t operand_count = 0);
+        void initialize_builtin_classes();
     };
 
     // Inline implementations for critical performance functions
