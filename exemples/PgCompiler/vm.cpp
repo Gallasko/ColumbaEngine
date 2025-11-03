@@ -112,6 +112,11 @@ namespace pg
 
     void op_subtract_lc(VM* vm);
     void op_subtract_cl(VM* vm);
+
+    // Table operations
+    void op_build_table(VM* vm);
+    void op_get_index(VM* vm);
+    void op_set_index(VM* vm);
 }
 
 namespace pg
@@ -184,6 +189,9 @@ namespace pg
         {
             // Initialize function pointer dispatch table
             register_builtin_operations();
+
+            // Initialize built-in classes (like Table)
+            initialize_builtin_classes();
 
             // Freeze constant indices - all pool allocations up to this point are constants
             // Runtime allocations will have indices above these max values
@@ -851,6 +859,18 @@ namespace pg
 
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc, "SUBTRACT_LC");
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl, "SUBTRACT_CL");
+
+        // Table operations
+        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table, "BUILD_TABLE", 1);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index, "GET_INDEX");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index, "SET_INDEX");
+    }
+
+    void VM::initialize_builtin_classes()
+    {
+        // Create the built-in Table class
+        Value tableClass = createClass("__Table");
+        globals["__Table"] = retainValue(tableClass);
     }
 
     // Operation handler implementations
@@ -2261,5 +2281,179 @@ namespace pg
         }
 
         throw std::runtime_error("Value is not an integer");
+    }
+
+    // ========================================================================
+    // Table Operations
+    // ========================================================================
+
+    void op_build_table(VM* vm)
+    {
+        uint8_t pairCount = *vm->currentFrame->ip++;
+
+        // Get the built-in Table class
+        auto it = vm->globals.find("__Table");
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Table class not found - was initializeTableClass() called?");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        Value tableClassVal = it->second;
+        if (!IS_CLASS(tableClassVal))
+        {
+            vm->runtimeError("Table is not a class");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        Klass* tableClass = vm->asClass(tableClassVal);
+
+        // Create new instance of Table
+        Value instanceVal = vm->createInstance(tableClass);
+        ObjInstance* table = vm->asInstance(instanceVal);
+
+        // Pop pairCount key-value pairs from stack (in reverse)
+        std::vector<std::pair<std::string, Value>> pairs;
+        pairs.reserve(pairCount);
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            Value key = vm->pop();
+            Value value = vm->pop();
+
+            // Convert key to string
+            std::string keyStr;
+            if (IS_STRING(key))
+            {
+                keyStr = vm->asString(key)->toString();
+            }
+            else if (IS_INT(key))
+            {
+                keyStr = std::to_string(AS_INT(key));
+            }
+            else
+            {
+                vm->releaseAndDelete(key);
+                vm->releaseAndDelete(value);
+                vm->runtimeError("Table key must be string or integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            vm->releaseAndDelete(key);  // We've converted it to string, release original
+            pairs.push_back({keyStr, value});
+        }
+
+        // Insert pairs in correct order (we popped in reverse)
+        for (auto it = pairs.rbegin(); it != pairs.rend(); ++it)
+        {
+            table->fields[it->first] = vm->retainValue(it->second);
+            vm->releaseAndDelete(it->second);  // Release our temporary reference
+        }
+
+        // Push the table instance we created
+        vm->push(instanceVal);
+    }
+
+    void op_get_index(VM* vm)
+    {
+        Value index = vm->pop();
+        Value instance = vm->pop();
+
+        if (!IS_INSTANCE(instance))
+        {
+            vm->releaseAndDelete(index);
+            vm->releaseAndDelete(instance);
+            vm->runtimeError("Can only index tables/instances");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjInstance* inst = vm->asInstance(instance);
+
+        // Convert index to string key
+        std::string key;
+        if (IS_INT(index))
+        {
+            key = std::to_string(AS_INT(index));
+        }
+        else if (IS_STRING(index))
+        {
+            key = vm->asString(index)->toString();
+        }
+        else
+        {
+            vm->releaseAndDelete(index);
+            vm->releaseAndDelete(instance);
+            vm->runtimeError("Index must be integer or string");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->releaseAndDelete(index);
+        vm->releaseAndDelete(instance);
+
+        // Look up in fields map
+        auto it = inst->fields.find(key);
+        if (it == inst->fields.end())
+        {
+            vm->push(BOOL_VAL(false));  // Or NIL_VAL if you have it
+        }
+        else
+        {
+            vm->push(vm->retainValue(it->second));
+        }
+    }
+
+    void op_set_index(VM* vm)
+    {
+        Value value = vm->pop();
+        Value index = vm->pop();
+        Value instance = vm->peek(0); // Keep instance on stack
+
+        if (!IS_INSTANCE(instance))
+        {
+            vm->releaseAndDelete(value);
+            vm->releaseAndDelete(index);
+            vm->runtimeError("Can only index tables/instances");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjInstance* inst = vm->asInstance(instance);
+
+        // Convert index to string key
+        std::string key;
+        if (IS_INT(index))
+        {
+            key = std::to_string(AS_INT(index));
+        }
+        else if (IS_STRING(index))
+        {
+            key = vm->asString(index)->toString();
+        }
+        else
+        {
+            vm->releaseAndDelete(value);
+            vm->releaseAndDelete(index);
+            vm->runtimeError("Index must be integer or string");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->releaseAndDelete(index);
+
+        // Release old value if it exists
+        auto it = inst->fields.find(key);
+        if (it != inst->fields.end())
+        {
+            vm->releaseAndDelete(it->second);
+        }
+
+        // Store in fields map
+        inst->fields[key] = vm->retainValue(value);
+        vm->releaseAndDelete(value);  // Release our reference (field now owns it)
     }
 }

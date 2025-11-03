@@ -79,6 +79,11 @@ namespace pg
 
         OP_SubtractLC, // SUBTRACT optimized for local and constant
         OP_SubtractCL, // SUBTRACT optimized for constant and local
+
+        // Table operations
+        OP_Build_Table,   // Create table instance from stack key-value pairs
+        OP_Get_Index,     // table[index] - get field by computed key
+        OP_Set_Index,     // table[index] = val - set field by computed key
     };
 
     struct Chunk
@@ -228,6 +233,13 @@ namespace pg
 
             case OpCode::OP_Class:
                 return 2; // opcode + 1 byte operand (constant index for class name)
+
+            case OpCode::OP_Build_Table:
+                return 2; // opcode + 1 byte operand (pair count)
+
+            case OpCode::OP_Get_Index:
+            case OpCode::OP_Set_Index:
+                return 1; // opcode only
 
             default:
                 return 1; // default to single byte for unknown opcodes

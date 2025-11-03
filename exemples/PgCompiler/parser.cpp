@@ -485,77 +485,133 @@ namespace pg
         variable(parser, false);
     }
 
+    void createTable(Parser& parser, bool)
+    {
+        uint8_t autoIndex = 0;
+
+        if (not parser.check(TokenType::CCLOSE))
+        {
+            do
+            {
+                parser.skipEOL();
+
+                if (parser.check(TokenType::CCLOSE)) break; // trailing comma
+
+                Token first = parser.currentToken();
+                parser.advance(); // now 'previousToken' == first
+
+                if (parser.match(TokenType::DPOINT))
+                {
+                    // Parse the value expression normally
+                    parser.expression(); // value
+                    parser.writeConstant(first.text);
+                }
+                else
+                {
+                    parser.parsePrecedenceFromPrev(Precedence::ASSIGNMENT);
+                    parser.writeConstant(autoIndex); // Implicit key
+                }
+
+                autoIndex++;
+
+                parser.skipEOL();
+            } while (parser.match(TokenType::COMMA));
+        }
+
+        parser.skipEOL();
+        parser.consume("Expect ']' after table values.", TokenType::CCLOSE);
+
+        parser.writeByte(OpCode::OP_Build_Table);
+        parser.writeByte(autoIndex);
+    }
+
+    void indexTable(Parser& parser, bool canAssign)
+    {
+        parser.expression(); // Index expression
+        parser.consume("Expect ']' after index expression.", TokenType::CCLOSE);
+
+        if (canAssign and parser.match(TokenType::EQUAL))
+        {
+            parser.expression(); // Value to assign
+            parser.writeByte(OpCode::OP_Set_Index);
+        }
+        else
+        {
+            parser.writeByte(OpCode::OP_Get_Index);
+        }
+    }
+
     std::unordered_map<TokenType, ParseRule> rules = {
-        {TokenType::EQUAL,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::PLUS,         {NULL,        binary, Precedence::TERM}},
-        {TokenType::MINUS,        {unary,       binary, Precedence::TERM}},
-        {TokenType::STAR,         {NULL,        binary, Precedence::FACTOR}},
-        {TokenType::MOD,          {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::POW,          {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::PENTER,       {grouping,    call,   Precedence::CALL}},
-        {TokenType::PCLOSE,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::BENTER,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::BCLOSE,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::CENTER,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::CCLOSE,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SUP,          {NULL,        binary, Precedence::COMPARISON}},
-        {TokenType::INF,          {NULL,        binary, Precedence::COMPARISON}},
-        {TokenType::NOT,          {unary,       NULL,   Precedence::NONE}},
-        {TokenType::QMARK,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TILDE,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::AMPER,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::COMMA,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::POINT,        {NULL,        dot,    Precedence::CALL}},
-        {TokenType::SMARK,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::DMARK,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SLASH,        {NULL,        binary, Precedence::FACTOR}},
-        {TokenType::BSLASH,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SSLASH,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::HTAG,         {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::DPOINT,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::END,          {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::EOL,          {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::PLUSEQUAL,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::MINUSEQUAL,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::STAREQUAL,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::DIVIDEQUAL,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::MODEQUAL,     {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SUPEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
-        {TokenType::INFEQUAL,     {NULL,        binary, Precedence::COMPARISON}},
-        {TokenType::INCREMENT,    {incrementOp, NULL, Precedence::NONE}},
-        {TokenType::DECREMENT,    {decrementOp, NULL, Precedence::NONE}},
-        {TokenType::LOGICAND,     {NULL,        andOp,  Precedence::AND}},
-        {TokenType::LOGICOR,      {NULL,        orOp,   Precedence::OR}},
-        {TokenType::SHIFTLEFT,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SHIFTRIGHT,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::EQUALEQUAL,   {NULL,        binary, Precedence::EQUALITY}},
-        {TokenType::NOTEQUAL,     {NULL,        binary, Precedence::EQUALITY}},
-        {TokenType::ARROW,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::SCOPE,        {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::ENDOFFILE,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::EXPRESSION,   {variable,    NULL,   Precedence::NONE}},
-        {TokenType::STRING,       {strLiterral, NULL,   Precedence::NONE}},
-        {TokenType::NUMBER,       {intNumber,   NULL,   Precedence::NONE}},
-        {TokenType::FLOAT,        {floatNumber, NULL,   Precedence::NONE}},
-        {TokenType::KEYTRUE,      {litteral,    NULL,   Precedence::NONE}},
-        {TokenType::KEYFALSE,     {litteral,    NULL,   Precedence::NONE}},
-        {TokenType::NOOP,         {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::INVALID,      {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_CONST,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_INCLUDE,  {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_IF,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_ELSE,     {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_VAR,      {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_WHILE,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_FUN,      {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_RETURN,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_CLASS,    {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_THIS,     {this_,       NULL,   Precedence::NONE}},
-        {TokenType::TOK_FOR,      {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_IMPORT,   {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_FROM,     {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_AS,       {NULL,        NULL,   Precedence::NONE}},
-        {TokenType::TOK_ERROR,    {NULL,        NULL,   Precedence::NONE}},
+        {TokenType::EQUAL,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::PLUS,         {NULL,        binary,     Precedence::TERM}},
+        {TokenType::MINUS,        {unary,       binary,     Precedence::TERM}},
+        {TokenType::STAR,         {NULL,        binary,     Precedence::FACTOR}},
+        {TokenType::MOD,          {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::POW,          {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::PENTER,       {grouping,    call,       Precedence::CALL}},
+        {TokenType::PCLOSE,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::BENTER,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::BCLOSE,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::CENTER,       {createTable, indexTable, Precedence::CALL}},
+        {TokenType::CCLOSE,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SUP,          {NULL,        binary,     Precedence::COMPARISON}},
+        {TokenType::INF,          {NULL,        binary,     Precedence::COMPARISON}},
+        {TokenType::NOT,          {unary,       NULL,       Precedence::NONE}},
+        {TokenType::QMARK,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TILDE,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::AMPER,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::COMMA,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::POINT,        {NULL,        dot,        Precedence::CALL}},
+        {TokenType::SMARK,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::DMARK,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SLASH,        {NULL,        binary,     Precedence::FACTOR}},
+        {TokenType::BSLASH,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SSLASH,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::HTAG,         {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::DPOINT,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::END,          {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::EOL,          {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::PLUSEQUAL,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::MINUSEQUAL,   {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::STAREQUAL,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::DIVIDEQUAL,   {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::MODEQUAL,     {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SUPEQUAL,     {NULL,        binary,     Precedence::COMPARISON}},
+        {TokenType::INFEQUAL,     {NULL,        binary,     Precedence::COMPARISON}},
+        {TokenType::INCREMENT,    {incrementOp, NULL,       Precedence::NONE}},
+        {TokenType::DECREMENT,    {decrementOp, NULL,       Precedence::NONE}},
+        {TokenType::LOGICAND,     {NULL,        andOp,      Precedence::AND}},
+        {TokenType::LOGICOR,      {NULL,        orOp,       Precedence::OR}},
+        {TokenType::SHIFTLEFT,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SHIFTRIGHT,   {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::EQUALEQUAL,   {NULL,        binary,     Precedence::EQUALITY}},
+        {TokenType::NOTEQUAL,     {NULL,        binary,     Precedence::EQUALITY}},
+        {TokenType::ARROW,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SCOPE,        {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::ENDOFFILE,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::EXPRESSION,   {variable,    NULL,       Precedence::NONE}},
+        {TokenType::STRING,       {strLiterral, NULL,       Precedence::NONE}},
+        {TokenType::NUMBER,       {intNumber,   NULL,       Precedence::NONE}},
+        {TokenType::FLOAT,        {floatNumber, NULL,       Precedence::NONE}},
+        {TokenType::KEYTRUE,      {litteral,    NULL,       Precedence::NONE}},
+        {TokenType::KEYFALSE,     {litteral,    NULL,       Precedence::NONE}},
+        {TokenType::NOOP,         {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::INVALID,      {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_CONST,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_INCLUDE,  {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_IF,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_ELSE,     {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_VAR,      {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_WHILE,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_FUN,      {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_RETURN,   {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_CLASS,    {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_THIS,     {this_,       NULL,       Precedence::NONE}},
+        {TokenType::TOK_FOR,      {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_IMPORT,   {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_FROM,     {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_AS,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_ERROR,    {NULL,        NULL,       Precedence::NONE}},
     };
 
     Parser::~Parser()
@@ -566,10 +622,8 @@ namespace pg
         }
     }
 
-    void Parser::parsePrecedence(const Precedence& precedence)
+    void Parser::parsePrecedenceFromPrev(const Precedence& precedence)
     {
-        advance();
-
         ParseFn prefixRule = getRule(previousToken.type).prefix;
 
         if (prefixRule == NULL)
@@ -593,6 +647,13 @@ namespace pg
         {
             errorAt(previousToken, "Invalid assignment target.");
         }
+    }
+
+    void Parser::parsePrecedence(const Precedence& precedence)
+    {
+        advance();
+
+        parsePrecedenceFromPrev(precedence);
     }
 
     void Parser::declaration()

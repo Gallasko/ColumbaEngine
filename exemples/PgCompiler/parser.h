@@ -48,6 +48,7 @@ namespace pg
 
         void parse(std::queue<Token> tokenList) { tokens = tokenList; }
 
+        void parsePrecedenceFromPrev(const Precedence& precedence);
         void parsePrecedence(const Precedence& precedence);
 
         void advance()
