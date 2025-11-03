@@ -28,6 +28,16 @@ protected:
     void SetUp() override
     {
         // Reset VM state
+        resetVm();
+    }
+
+    void TearDown() override {
+        // Clean up
+        resetVm();
+    }
+
+    void resetVm()
+    {
         vm.stack.clear();
 
         for (auto& pair : vm.globals)
@@ -37,15 +47,6 @@ protected:
 
         vm.globals.clear();
         vm.testOutput.clear();
-    }
-
-    void TearDown() override {
-        // Clean up
-        vm.stack.clear();
-        for (auto& pair : vm.globals) {
-            vm.releaseAndDelete(pair.second);
-        }
-        vm.globals.clear();
     }
 
     /**
@@ -65,10 +66,15 @@ protected:
         std::string source = buffer.str();
 
         // Clear previous test output
-        vm.testOutput.clear();
+        resetVm();
+
+        if (scriptPath.find(".pgc") != std::string::npos)
+            result = vm.interpretFromBytecodeFile(scriptPath);
+        else
+            result = vm.interpretFromText(source, false, scriptPath + ".compiled.pgc");
 
         // Use VM's built-in interpretFromText method
-        result = vm.interpretFromText(source);
+
 
         // Return captured output from __dprint
         return vm.testOutput;
@@ -101,7 +107,7 @@ protected:
         ASSERT_TRUE(std::filesystem::exists(scriptPath))
             << "Script file not found: " << scriptPath;
 
-        InterpretResult result;
+        InterpretResult result, compiledResult;
         std::string output = runScript(scriptPath, result);
 
         // Check if expected file exists
@@ -118,6 +124,20 @@ protected:
                 << "Output mismatch!\n"
                 << "Expected:\n" << expected << "\n"
                 << "Got:\n" << output;
+
+            // Try to run the compiled bytecode version as well
+            output = runScript(scriptPath + ".compiled.pgc", compiledResult);
+
+            output = trim(output);
+
+            EXPECT_EQ(output, expected)
+                << "Script (compiled): " << scriptName << "\n"
+                << "Output mismatch!\n"
+                << "Expected:\n" << expected << "\n"
+                << "Got:\n" << output;
+
+            EXPECT_EQ(compiledResult, InterpretResult::OK)
+                << "Script (compiled):" << scriptName << " failed to execute";
         }
 
         // Always check for successful execution
