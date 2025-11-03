@@ -1,0 +1,26 @@
+// Test 1: Pure array
+var arr = [10, 20, 30, 40]
+__dprint(arr[0])   // 10
+__dprint(arr[3])   // 40
+arr[1] = 99
+__dprint(arr[1])   // 99
+
+// Test 2: Pure map
+var map = ["name": "Alice", "age": 25]
+__dprint(map["name"])  // "Alice"
+map["age"] = 26
+__dprint(map["age"])   // 26
+
+// Test 3: Mixed with auto-indexing
+var mixed = ["a": 1, 2, 3, "b": 4, 5]
+__dprint(mixed["a"])   // 1
+__dprint(mixed["1"])   // 2  (auto-indexed)
+__dprint(mixed["2"])   // 3  (auto-indexed)
+__dprint(mixed["b"])   // 4
+__dprint(mixed["4"])   // 5  (auto-indexed, skipped 3)
+
+// Test 4: Gap handling
+var gaps = [100, "x": 200, 300]
+__dprint(gaps["0"])    // 100
+__dprint(gaps["x"])    // 200
+__dprint(gaps["2"])    // 300 (autoIndex continued from 1)
