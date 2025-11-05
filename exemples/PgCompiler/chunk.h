@@ -99,6 +99,30 @@ namespace pg
 
         size_t addConstant(const Value& value, int line)
         {
+            // Check if constant already exists
+            for (size_t i = 0; i < constants.size(); i++)
+            {
+                if (constants[i] == value)
+                {
+                    // Found existing constant, emit code to load it
+                    auto cIndex = i;
+                    if (cIndex > 255)
+                    {
+                        addCode(OpCode::OP_LongConstant, line);
+                        addCode((cIndex >> 16) & 0xFF, line);
+                        addCode((cIndex >> 8) & 0xFF, line);
+                        addCode(cIndex & 0xFF, line);
+                    }
+                    else
+                    {
+                        addCode(OpCode::OP_Constant, line);
+                        addCode(cIndex, line);
+                    }
+                    return code.size() - 1;
+                }
+            }
+
+            // Constant doesn't exist, add it
             constants.push_back(value);
             auto cIndex = constants.size() - 1;
 
@@ -128,12 +152,29 @@ namespace pg
         // Add constant to array without emitting opcodes (for instructions like OP_Closure)
         uint8_t addConstantIndex(const Value& value)
         {
+            // Check if constant already exists
+            for (size_t i = 0; i < constants.size(); i++)
+            {
+                if (constants[i] == value)
+                {
+                    if (i > 255)
+                    {
+                        throw std::runtime_error("Too many constants for single-byte index");
+                    }
+
+                    return static_cast<uint8_t>(i);
+                }
+            }
+
+            // Constant doesn't exist, add it
             constants.push_back(value);
             auto cIndex = constants.size() - 1;
+
             if (cIndex > 255)
             {
                 throw std::runtime_error("Too many constants for single-byte index");
             }
+
             return static_cast<uint8_t>(cIndex);
         }
 
