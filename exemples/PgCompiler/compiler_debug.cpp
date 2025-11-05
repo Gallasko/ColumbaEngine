@@ -451,6 +451,9 @@ namespace pg
             case OpCode::OP_Set_Index:
                 return simpleInstruction("OP_Set_Index", offset);
 
+            case OpCode::OP_Import:
+                return simpleInstruction("OP_Import", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

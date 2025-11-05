@@ -145,6 +145,7 @@ namespace pg
         void forStatement();
         void dprintStatement();
         void returnStatement();
+        void importStatement();
         void methodStatement();
 
         ParseRule& getRule(const TokenType& type) const;

@@ -812,6 +812,10 @@ namespace pg
         {
             returnStatement();
         }
+        else if (match(TokenType::TOK_IMPORT))
+        {
+            importStatement();
+        }
         else
         {
             expressionStatement();
@@ -994,9 +998,39 @@ namespace pg
             }
 
             expression();
-            consume("Expect ';' or end of line after return value.", TokenType::EOL, TokenType::END);
+            consumeEnd("Expect ';' or end of line after return value.");
             writeByte(OpCode::OP_Return);
         }
+    }
+
+    void Parser::importStatement()
+    {
+        // Parse the module name (should be a string expression)
+        // This will put the module name string on the stack
+        expression();
+
+        // Emit OP_Import to perform the import
+        // The module name is on the stack, OP_Import will:
+        // 1. Pop the module name
+        // 2. Resolve and load the module
+        // 3. Execute module initialization (if needed)
+        writeByte(OpCode::OP_Import);
+
+        // Check for multiple imports: import "mod1", "mod2", "mod3"
+        while (match(TokenType::COMMA))
+        {
+            skipEOL();
+            expression();
+            writeByte(OpCode::OP_Import);
+        }
+
+        // TODO: Support "as" alias: import "module" as mymodule
+        // if (match(TokenType::TOK_AS))
+        // {
+        //     consume("Expect alias name after 'as'.", TokenType::EXPRESSION);
+        // }
+
+        consumeEnd("Expect ';' or end of line after import statement.");
     }
 
     void Parser::methodStatement()

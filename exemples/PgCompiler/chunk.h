@@ -84,6 +84,9 @@ namespace pg
         OP_Build_Table,   // Create table instance from stack key-value pairs
         OP_Get_Index,     // table[index] - get field by computed key
         OP_Set_Index,     // table[index] = val - set field by computed key
+
+        // Module operations
+        OP_Import,        // Import a module (expects module name string on stack)
     };
 
     struct Chunk
@@ -281,6 +284,9 @@ namespace pg
             case OpCode::OP_Get_Index:
             case OpCode::OP_Set_Index:
                 return 1; // opcode only
+
+            case OpCode::OP_Import:
+                return 1; // opcode only (module name is on stack)
 
             default:
                 return 1; // default to single byte for unknown opcodes
