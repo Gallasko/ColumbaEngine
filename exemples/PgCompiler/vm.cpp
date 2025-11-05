@@ -872,72 +872,72 @@ namespace pg
         longjmp(exit_jump, 1);
     }
 
-    void VM::register_operation(uint8_t opcode, OpHandler handler, const char* name, uint8_t operand_count) {
-        operations[opcode] = OpCodeInfo(handler, name, operand_count);
+    void VM::register_operation(uint8_t opcode, OpHandler handler) {
+        operations[opcode] = OpCodeInfo(handler);
     }
 
     void VM::register_builtin_operations() {
-        register_operation(static_cast<uint8_t>(OpCode::OP_Return), op_return, "RETURN");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Constant), op_constant, "CONSTANT", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_LongConstant), op_long_constant, "LONGCONSTANT", 3);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Add), op_add, "ADD");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Subtract), op_subtract, "SUBTRACT");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply, "MULTIPLY");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide, "DIVIDE");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate, "NEGATE");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal, "EQUAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_NotEqual), op_not_equal, "NOT_EQUAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Greater), op_greater, "GREATER");
-        register_operation(static_cast<uint8_t>(OpCode::OP_GreaterEqual), op_greater_equal, "GREATER_EQUAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Less), op_less, "LESS");
-        register_operation(static_cast<uint8_t>(OpCode::OP_LessEqual), op_less_equal, "LESS_EQUAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true, "TRUE");
-        register_operation(static_cast<uint8_t>(OpCode::OP_False), op_false, "FALSE");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Not), op_not, "NOT");
-        register_operation(static_cast<uint8_t>(OpCode::OP_And), op_and, "AND");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Or), op_or, "OR");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Pop), op_pop, "POP");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local, "GET_LOCAL", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local, "SET_LOCAL", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Global), op_get_global, "GET_GLOBAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global), op_define_global, "DEFINE_GLOBAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Global), op_set_global, "SET_GLOBAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Jump), op_jump, "JUMP", 2);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False), op_jump_if_false, "JUMP_IF_FALSE", 2);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Loop), op_loop, "LOOP", 2);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump), op_long_jump, "LONG_JUMP", 4);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False), op_long_jump_if_false, "LONG_JUMP_IF_FALSE", 4);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Loop), op_long_loop, "LONG_LOOP", 4);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call, "CALL", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Invoke), op_invoke, "INVOKE", 3);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Closure), op_closure, "CLOSURE", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Upvalue), op_get_upvalue, "GET_UPVALUE", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue, "SET_UPVALUE", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Close_Upvalue), op_close_upvalue, "CLOSE_UPVALUE");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Debug_Print), op_debug_print, "DEBUG_PRINT");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Global), op_post_incr_global, "POST_INCR_GLOBAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Global), op_incr_global, "INCR_GLOBAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Global), op_post_decr_global, "POST_DECR_GLOBAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Global), op_decr_global, "DECR_GLOBAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Local), op_post_incr_local, "POST_INCR_LOCAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Local), op_incr_local, "INCR_LOCAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Local), op_post_decr_local, "POST_DECR_LOCAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Local), op_decr_local, "DECR_LOCAL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class, "CLASS");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property, "GET_PROPERTY");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property, "SET_PROPERTY");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method, "METHOD");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Return), op_return);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Constant), op_constant);
+        register_operation(static_cast<uint8_t>(OpCode::OP_LongConstant), op_long_constant);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Add), op_add);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Subtract), op_subtract);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal);
+        register_operation(static_cast<uint8_t>(OpCode::OP_NotEqual), op_not_equal);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Greater), op_greater);
+        register_operation(static_cast<uint8_t>(OpCode::OP_GreaterEqual), op_greater_equal);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Less), op_less);
+        register_operation(static_cast<uint8_t>(OpCode::OP_LessEqual), op_less_equal);
+        register_operation(static_cast<uint8_t>(OpCode::OP_True), op_true);
+        register_operation(static_cast<uint8_t>(OpCode::OP_False), op_false);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Not), op_not);
+        register_operation(static_cast<uint8_t>(OpCode::OP_And), op_and);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Or), op_or);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Pop), op_pop);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Global), op_get_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global), op_define_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Global), op_set_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Jump), op_jump);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False), op_jump_if_false);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Loop), op_loop);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump), op_long_jump);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Jump_If_False), op_long_jump_if_false);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Long_Loop), op_long_loop);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Call), op_call);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Invoke), op_invoke);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Closure), op_closure);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Upvalue), op_get_upvalue);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Upvalue), op_set_upvalue);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Close_Upvalue), op_close_upvalue);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Debug_Print), op_debug_print);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Global), op_post_incr_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Global), op_incr_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Global), op_post_decr_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Global), op_decr_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Incr_Local), op_post_incr_local);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_Local), op_incr_local);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Post_Decr_Local), op_post_decr_local);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Decr_Local), op_decr_local);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Class), op_class);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
 
-        register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll, "ADD_LL");
-        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll, "SUBTRACT_LL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll);
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll);
 
-        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc, "SUBTRACT_LC");
-        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl, "SUBTRACT_CL");
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc);
+        register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl);
 
         // Table operations
-        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table, "BUILD_TABLE", 1);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index, "GET_INDEX");
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index, "SET_INDEX");
+        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index);
     }
 
     void VM::initialize_builtin_classes()
