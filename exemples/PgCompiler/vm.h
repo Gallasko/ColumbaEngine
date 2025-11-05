@@ -39,12 +39,9 @@ namespace pg
     // Operation information structure
     struct OpCodeInfo {
         OpHandler handler;
-        const char* name;
-        uint8_t operand_count;
 
-        OpCodeInfo() : handler(nullptr), name("UNKNOWN"), operand_count(0) {}
-        OpCodeInfo(OpHandler h, const char* n, uint8_t count = 0)
-            : handler(h), name(n), operand_count(count) {}
+        OpCodeInfo() : handler(nullptr) {}
+        OpCodeInfo(OpHandler h) : handler(h) {}
     };
 
     // Forward declare VM for helper functions
@@ -411,7 +408,7 @@ namespace pg
         // Function pointer dispatch methods
         void vm_return(InterpretResult result);
         static void register_builtin_operations();
-        static void register_operation(uint8_t opcode, OpHandler handler, const char* name, uint8_t operand_count = 0);
+        static void register_operation(uint8_t opcode, OpHandler handler);
         void initialize_builtin_classes();
     };
 
