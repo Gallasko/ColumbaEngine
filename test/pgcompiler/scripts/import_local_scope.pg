@@ -1,0 +1,9 @@
+fun testImport()
+{
+  import "test/pgcompiler/scripts/import_helper_add"
+  var result = add(7, 3)
+  return result
+}
+
+var value = testImport()
+__dprint(value)

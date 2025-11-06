@@ -545,6 +545,45 @@ TEST_F(ScriptTestBench, TestTables2)
 }
 
 // ============================================================================
+// Import Tests
+// ============================================================================
+
+TEST_F(ScriptTestBench, ImportSingle)
+{
+    testScript("import_single");
+}
+
+TEST_F(ScriptTestBench, ImportMultiple)
+{
+    testScript("import_multiple");
+}
+
+TEST_F(ScriptTestBench, ImportWithVars)
+{
+    testScript("import_with_vars");
+}
+
+TEST_F(ScriptTestBench, ImportChained)
+{
+    testScript("import_chained");
+}
+
+TEST_F(ScriptTestBench, ImportNested)
+{
+    testScript("import_nested");
+}
+
+TEST_F(ScriptTestBench, ImportDuplicate)
+{
+    testScript("import_duplicate");
+}
+
+TEST_F(ScriptTestBench, ImportLocalScope)
+{
+    testScript("import_local_scope");
+}
+
+// ============================================================================
 // Error Tests
 // ============================================================================
 

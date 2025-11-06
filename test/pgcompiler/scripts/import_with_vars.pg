@@ -1,0 +1,5 @@
+import "test/pgcompiler/scripts/import_helper_math"
+
+var result = multiply(pi, 2)
+__dprint(result)
+__dprint(divide(12, 4))

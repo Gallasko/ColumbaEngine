@@ -3,6 +3,7 @@
 #include "compiler.h"
 #include "vm.h"
 
+#include "Interpreter/lexer.h"
 #include "logger.h"
 #include <unordered_map>
 
@@ -1005,30 +1006,161 @@ namespace pg
 
     void Parser::importStatement()
     {
-        // Parse the module name (should be a string expression)
-        // This will put the module name string on the stack
-        expression();
+        // Get the module name
+        if (not check(TokenType::STRING))
+        {
+            error("Expect string literal after 'import'.");
+            return;
+        }
 
-        // Emit OP_Import to perform the import
-        // The module name is on the stack, OP_Import will:
-        // 1. Pop the module name
-        // 2. Resolve and load the module
-        // 3. Execute module initialization (if needed)
-        writeByte(OpCode::OP_Import);
+        advance();
+        Token moduleNameToken = previousToken;
+        std::string moduleName = moduleNameToken.text;
+
+        // Remove quotes from the module name
+        if (moduleName.size() >= 2 && moduleName.front() == '"' && moduleName.back() == '"')
+        {
+            moduleName = moduleName.substr(1, moduleName.size() - 2);
+        }
+
+        // Add .pg extension if not present
+        std::string fileName = moduleName;
+        if (fileName.find(".pg") == std::string::npos)
+        {
+            fileName += ".pg";
+        }
+
+        // Load and compile the imported file during parsing
+        try
+        {
+            // Use the Lexer to read and tokenize the file
+            Lexer lexer;
+            lexer.readFromFile(fileName);
+            auto importTokens = lexer.getTokens();
+
+            // Create a nested compiler for the imported module
+            Compiler importCompiler(vm);
+            importCompiler.initCompiler(FunctionType::TYPE_SCRIPT);
+            importCompiler.parser.parse(importTokens);
+            importCompiler.parser.setCompiler(&importCompiler);
+
+            // Parse all declarations in the imported file
+            while (not importCompiler.parser.isAtEnd() and not importCompiler.parser.hasError())
+            {
+                importCompiler.parser.skipEOL();
+                importCompiler.parser.declaration();
+            }
+
+            if (importCompiler.parser.hasError())
+            {
+                error("Error compiling imported module '" + moduleName + "'.");
+                return;
+            }
+
+            auto importedFunction = importCompiler.endCompiler();
+            allocatedFunction.push_back(importedFunction);
+
+            // Transfer ownership of all functions from imported parser to prevent premature release
+            for (auto func : importCompiler.parser.allocatedFunction)
+            {
+                allocatedFunction.push_back(func);
+            }
+            importCompiler.parser.allocatedFunction.clear();
+
+            // Emit bytecode to call the imported script immediately
+            // This will execute it in the same VM and populate globals
+            uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
+            writeByte(OpCode::OP_Closure);
+            writeByte(constant);
+
+            // No upvalues for scripts - upvalue count is 0
+
+            // Call the imported script with 0 arguments
+            writeByte(OpCode::OP_Call);
+            writeByte(0);  // 0 arguments
+
+            // Pop the return value
+            writeByte(OpCode::OP_Pop);
+        }
+        catch (const std::exception& e)
+        {
+            error("Failed to import '" + moduleName + "': " + std::string(e.what()));
+            return;
+        }
 
         // Check for multiple imports: import "mod1", "mod2", "mod3"
         while (match(TokenType::COMMA))
         {
             skipEOL();
-            expression();
-            writeByte(OpCode::OP_Import);
-        }
 
-        // TODO: Support "as" alias: import "module" as mymodule
-        // if (match(TokenType::TOK_AS))
-        // {
-        //     consume("Expect alias name after 'as'.", TokenType::EXPRESSION);
-        // }
+            if (not check(TokenType::STRING))
+            {
+                error("Expect string literal in import list.");
+                return;
+            }
+
+            advance();
+            moduleNameToken = previousToken;
+            moduleName = moduleNameToken.text;
+
+            // Remove quotes
+            if (moduleName.size() >= 2 && moduleName.front() == '"' && moduleName.back() == '"')
+            {
+                moduleName = moduleName.substr(1, moduleName.size() - 2);
+            }
+
+            fileName = moduleName;
+            if (fileName.find(".pg") == std::string::npos)
+            {
+                fileName += ".pg";
+            }
+
+            try
+            {
+                Lexer lexer;
+                lexer.readFromFile(fileName);
+                auto importTokens = lexer.getTokens();
+
+                Compiler importCompiler(vm);
+                importCompiler.initCompiler(FunctionType::TYPE_SCRIPT);
+                importCompiler.parser.parse(importTokens);
+                importCompiler.parser.setCompiler(&importCompiler);
+
+                while (not importCompiler.parser.isAtEnd() and not importCompiler.parser.hasError())
+                {
+                    importCompiler.parser.skipEOL();
+                    importCompiler.parser.declaration();
+                }
+
+                if (importCompiler.parser.hasError())
+                {
+                    error("Error compiling imported module '" + moduleName + "'.");
+                    return;
+                }
+
+                auto importedFunction = importCompiler.endCompiler();
+                allocatedFunction.push_back(importedFunction);
+
+                // Transfer ownership of all functions from imported parser to prevent premature release
+                for (auto func : importCompiler.parser.allocatedFunction)
+                {
+                    allocatedFunction.push_back(func);
+                }
+                importCompiler.parser.allocatedFunction.clear();
+
+                uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
+                writeByte(OpCode::OP_Closure);
+                writeByte(constant);
+                writeByte(OpCode::OP_Call);
+                writeByte(0);
+                writeByte(OpCode::OP_Pop);
+            }
+            catch (const std::exception& e)
+            {
+                error("Failed to import '" + moduleName + "': " + std::string(e.what()));
+                return;
+            }
+        }
 
         consumeEnd("Expect ';' or end of line after import statement.");
     }
@@ -1253,7 +1385,7 @@ namespace pg
 
         panicMode = true;
 
-        LOG_ERROR("Parser", "Syntax Error: " + message + " at line " + std::to_string(token.line) + ", column " + std::to_string(token.column));
+        LOG_ERROR("Parser", "Syntax Error: " << message << " at line " << token.line << ", column " << token.column << ", in file: " << vm->currentFileName << ".");
 
         hadError = true;
     }
