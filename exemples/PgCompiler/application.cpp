@@ -167,6 +167,8 @@ void CompilerApp::runFile(bool needCompile)
 
         vm.listOptimizationPasses();
 
+
+        vm.currentFileName = fileName;
         result = vm.interpret(tokens, false, "temp.pgc");
     }
     else
