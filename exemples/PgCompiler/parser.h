@@ -150,7 +150,7 @@ namespace pg
 
         ParseRule& getRule(const TokenType& type) const;
 
-        void parseImportFile(const std::string& moduleName);
+        bool parseImportFile(const std::string& moduleName);
         void parseFunction(const FunctionType& type);
         void declareVariable(const Token& name);
         void pushVariableInStack(const std::string& varName);

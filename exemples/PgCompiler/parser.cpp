@@ -5,6 +5,7 @@
 
 #include "Interpreter/lexer.h"
 #include "logger.h"
+#include "chunk_serializer.h"
 #include <unordered_map>
 
 namespace pg
@@ -1049,7 +1050,7 @@ namespace pg
         return rules[type];
     }
 
-    void Parser::parseImportFile(const std::string& moduleName)
+    bool Parser::parseImportFile(const std::string& moduleName)
     {
         // Add .pg extension if not present
         std::string fileName = moduleName;
@@ -1058,63 +1059,137 @@ namespace pg
             fileName += ".pg";
         }
 
-        // Load and compile the imported file during parsing
-        try
+        // Determine the compiled file name based on what exists
+        std::string compiledFileName;
+        if (fileName.find(".pgc") != std::string::npos)
         {
-            // Use the Lexer to read and tokenize the file
-            Lexer lexer;
-            lexer.readFromFile(fileName);
-            auto importTokens = lexer.getTokens();
-
-            // Create a nested compiler for the imported module
-            Compiler importCompiler(vm);
-            importCompiler.initCompiler(FunctionType::TYPE_SCRIPT);
-            importCompiler.parser.parse(importTokens);
-            importCompiler.parser.setCompiler(&importCompiler);
-
-            // Parse all declarations in the imported file
-            while (not importCompiler.parser.isAtEnd() and not importCompiler.parser.hasError())
-            {
-                importCompiler.parser.skipEOL();
-                importCompiler.parser.declaration();
-            }
-
-            if (importCompiler.parser.hasError())
-            {
-                error("Error compiling imported module '" + moduleName + "'.");
-                return;
-            }
-
-            auto importedFunction = importCompiler.endCompiler();
-            allocatedFunction.push_back(importedFunction);
-
-            // Transfer ownership of all functions from imported parser to prevent premature release
-            for (auto func : importCompiler.parser.allocatedFunction)
-            {
-                allocatedFunction.push_back(func);
-            }
-            importCompiler.parser.allocatedFunction.clear();
-
-            // Emit bytecode to call the imported script immediately
-            // This will execute it in the same VM and populate globals
-            uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
-            writeByte(OpCode::OP_Closure);
-            writeByte(constant);
-
-            // No upvalues for scripts - upvalue count is 0
-
-            // Call the imported script with 0 arguments
-            writeByte(OpCode::OP_Call);
-            writeByte(0);  // 0 arguments
-
-            // Pop the return value
-            writeByte(OpCode::OP_Pop);
+            compiledFileName = fileName;
         }
-        catch (const std::exception& e)
+        else if (UniversalFileAccessor::exists(fileName + "c"))
         {
-            error("Failed to import '" + moduleName + "': " + std::string(e.what()));
-            return;
+            compiledFileName = fileName + "c";
         }
+        else if (UniversalFileAccessor::exists(fileName + ".pgc"))
+        {
+            compiledFileName = fileName + ".pgc";
+        }
+        else
+        {
+            compiledFileName = fileName.substr(0, fileName.find_last_of(".")) + ".pgc";
+        }
+
+        if (fileName.find(".pgc") != std::string::npos or UniversalFileAccessor::exists(fileName + "c") or UniversalFileAccessor::exists(fileName + ".pgc"))
+        {
+            // Load from serialized bytecode (.pgc file)
+            try
+            {
+                std::cout << "Trying a compiled source" << std::endl;
+
+                // Load the chunk from the .pgc file
+                Chunk chunk;
+                ChunkSerializer serializer;
+                if (!serializer.deserializeFromFile(chunk, compiledFileName, vm))
+                {
+                    error("Failed to load compiled module '" + moduleName + "' from " + compiledFileName);
+                    return false;
+                }
+
+                std::cout << "Loaded compiled module '" + moduleName + "' from " << compiledFileName << std::endl;
+
+                // Wrap the deserialized chunk in a script function
+                Value funcValue = vm->createFunction();
+                ObjFunction* funcObj = vm->asFunction(funcValue);
+                funcObj->chunk = chunk;
+                funcObj->name = moduleName;
+                funcObj->arity = 0;
+                funcObj->upvalueCount = 0;
+
+                allocatedFunction.push_back(funcValue);
+
+                // Emit bytecode to call the imported script immediately
+                // This will execute it in the same VM and populate globals
+                uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(funcValue);
+                writeByte(OpCode::OP_Closure);
+                writeByte(constant);
+
+                // No upvalues for scripts - upvalue count is 0
+
+                // Call the imported script with 0 arguments
+                writeByte(OpCode::OP_Call);
+                writeByte(0);  // 0 arguments
+
+                // Pop the return value
+                writeByte(OpCode::OP_Pop);
+            }
+            catch (const std::exception& e)
+            {
+                error("Failed to import compiled module '" + moduleName + "': " + std::string(e.what()));
+                return true;
+            }
+        }
+        else
+        {
+            // Load and compile the imported file during parsing (.pg file)
+            try
+            {
+                // Use the Lexer to read and tokenize the file
+                Lexer lexer;
+                lexer.readFromFile(fileName);
+                auto importTokens = lexer.getTokens();
+
+                // Create a nested compiler for the imported module
+                Compiler importCompiler(vm);
+                importCompiler.initCompiler(FunctionType::TYPE_SCRIPT);
+                importCompiler.parser.parse(importTokens);
+                importCompiler.parser.setCompiler(&importCompiler);
+
+                // Parse all declarations in the imported file
+                while (not importCompiler.parser.isAtEnd() and not importCompiler.parser.hasError())
+                {
+                    importCompiler.parser.skipEOL();
+                    importCompiler.parser.declaration();
+                }
+
+                if (importCompiler.parser.hasError())
+                {
+                    error("Error compiling imported module '" + moduleName + "'.");
+                    return true;
+                }
+
+                auto importedFunction = importCompiler.endCompiler();
+                allocatedFunction.push_back(importedFunction);
+
+                // Transfer ownership of all functions from imported parser to prevent premature release
+                for (auto func : importCompiler.parser.allocatedFunction)
+                {
+                    allocatedFunction.push_back(func);
+                }
+
+                importCompiler.parser.allocatedFunction.clear();
+
+                // Emit bytecode to call the imported script immediately
+                // This will execute it in the same VM and populate globals
+                uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
+                writeByte(OpCode::OP_Closure);
+                writeByte(constant);
+
+                // No upvalues for scripts - upvalue count is 0
+
+                // Call the imported script with 0 arguments
+                writeByte(OpCode::OP_Call);
+                writeByte(0);  // 0 arguments
+
+                // Pop the return value
+                writeByte(OpCode::OP_Pop);
+            }
+            catch (const std::exception& e)
+            {
+                error("Failed to import '" + moduleName + "': " + std::string(e.what()));
+                return false;
+            }
+        }
+
+        return true;
     }
 
     void Parser::parseFunction(const FunctionType& type)
