@@ -583,6 +583,11 @@ TEST_F(ScriptTestBench, ImportLocalScope)
     testScript("import_local_scope");
 }
 
+TEST_F(ScriptTestBench, ImportCompiled)
+{
+    testScript("compiled_import");
+}
+
 // ============================================================================
 // Error Tests
 // ============================================================================
