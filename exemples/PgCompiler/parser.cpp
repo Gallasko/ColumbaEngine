@@ -1060,6 +1060,13 @@ namespace pg
             auto importedFunction = importCompiler.endCompiler();
             allocatedFunction.push_back(importedFunction);
 
+            // Transfer ownership of all functions from imported parser to prevent premature release
+            for (auto func : importCompiler.parser.allocatedFunction)
+            {
+                allocatedFunction.push_back(func);
+            }
+            importCompiler.parser.allocatedFunction.clear();
+
             // Emit bytecode to call the imported script immediately
             // This will execute it in the same VM and populate globals
             uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
@@ -1133,6 +1140,13 @@ namespace pg
 
                 auto importedFunction = importCompiler.endCompiler();
                 allocatedFunction.push_back(importedFunction);
+
+                // Transfer ownership of all functions from imported parser to prevent premature release
+                for (auto func : importCompiler.parser.allocatedFunction)
+                {
+                    allocatedFunction.push_back(func);
+                }
+                importCompiler.parser.allocatedFunction.clear();
 
                 uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
                 writeByte(OpCode::OP_Closure);
