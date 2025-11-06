@@ -1,0 +1,22 @@
+// Test 2: Import file-based math module
+// This should load mathNative.pg INSTEAD of the native "mathNative" module
+// The file takes precedence over native modules
+import "mathNative";
+
+__dprint(PI);      // Should print 3.14 (from file, not native 3.14159...)
+__dprint(E);       // Should print 2.71 (from file, not native 2.71828...)
+
+var result = sqrt(16);  // Should print "Using FILE-based sqrt" and return 8 (not 4)
+__dprint(result);
+
+var absVal = abs(-42);  // Should print "Using FILE-based abs" and return 42
+__dprint(absVal);
+
+var power = pow(2, 8);  // Should print "Using FILE-based pow" and return 16 (not 256)
+__dprint(power);
+
+var floored = floor(3.9);  // Should print "Using FILE-based floor" and return 0
+__dprint(floored);
+
+var ceiled = ceil(2.1);    // Should print "Using FILE-based ceil" and return 1
+__dprint(ceiled);

@@ -1,0 +1,33 @@
+// File-based math module (overrides native module)
+// This should be loaded INSTEAD of the native module when both exist
+
+var PI = 3.14;
+var E = 2.71;
+
+fun sqrt(x) {
+    __dprint("Using FILE-based sqrt, not native!");
+    return x / 2;  // Dummy implementation
+}
+
+fun abs(x) {
+    __dprint("Using FILE-based abs, not native!");
+    if (x < 0) {
+        return -x;
+    }
+    return x;
+}
+
+fun pow(base, exp) {
+    __dprint("Using FILE-based pow, not native!");
+    return base * exp;  // Dummy implementation
+}
+
+fun floor(x) {
+    __dprint("Using FILE-based floor, not native!");
+    return 0;  // Dummy implementation
+}
+
+fun ceil(x) {
+    __dprint("Using FILE-based ceil, not native!");
+    return 1;  // Dummy implementation
+}

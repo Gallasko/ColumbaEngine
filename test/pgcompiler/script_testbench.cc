@@ -1,5 +1,6 @@
 #include "gtest/gtest.h"
 #include "vm.h"
+#include "math_module.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -29,6 +30,10 @@ protected:
     {
         // Reset VM state
         resetVm();
+
+        // Register native modules for testing
+        vm.addNativeModule("math", MathModule());
+        vm.addNativeModule("mathNative", MathModule());
     }
 
     void TearDown() override {
@@ -586,6 +591,16 @@ TEST_F(ScriptTestBench, ImportLocalScope)
 TEST_F(ScriptTestBench, ImportCompiled)
 {
     testScript("compiled_import");
+}
+
+TEST_F(ScriptTestBench, ImportNativeModule)
+{
+    testScript("test_native_math_module");
+}
+
+TEST_F(ScriptTestBench, ImportFileOverridesNative)
+{
+    testScript("test_file_overrides_native");
 }
 
 // ============================================================================
