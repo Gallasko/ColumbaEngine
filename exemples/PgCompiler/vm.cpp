@@ -119,6 +119,9 @@ namespace pg
     void op_build_table(VM* vm);
     void op_get_index(VM* vm);
     void op_set_index(VM* vm);
+
+    // Module operations
+    void op_import(VM* vm);
 }
 
 namespace pg
@@ -249,6 +252,8 @@ namespace pg
 
     InterpretResult VM::interpretFromBytecodeFile(const std::string& filename)
     {
+        currentFileName = filename;
+
         Chunk chunk;
 
         ChunkSerializer serializer;
@@ -938,6 +943,9 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index);
+
+        // Module operations
+        register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import);
     }
 
     void VM::initialize_builtin_classes()
@@ -1192,6 +1200,12 @@ namespace pg
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
+        }
+
+        for (auto& global : vm->globals)
+        {
+            // Debug output for globals
+            std::cout << "Global variable: " << global.first << std::endl;
         }
 
         auto it = vm->globals.find(name.toString());
@@ -2529,5 +2543,106 @@ namespace pg
         // Store in fields map
         inst->fields[key] = vm->retainValue(value);
         vm->releaseAndDelete(value);  // Release our reference (field now owns it)
+    }
+
+    // ========================================================================
+    // Module Operations
+    // ========================================================================
+
+    void op_import(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.empty())
+        {
+            vm->runtimeError("Stack underflow on import.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        // Pop the module name from the stack
+        auto moduleNameValue = vm->pop();
+
+        // Convert to string
+        if (not IS_STRING(moduleNameValue))
+        {
+            vm->releaseAndDelete(moduleNameValue);
+            vm->runtimeError("Import module name must be a string.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        std::string moduleName = vm->asString(moduleNameValue)->toString();
+        vm->releaseAndDelete(moduleNameValue);
+
+        // TODO: Implement the full import logic:
+        // 1. Check for moduleName.pgc in cache
+        // 2. If not found, check for moduleName.pg in folder paths
+        // 3. If found, compile and cache
+        // 4. If not found, check for native module
+        // 5. Load module exports into global scope
+
+        // For now, just log that we're importing
+        LOG_INFO("VM", "Import requested for module: " << moduleName);
+
+        VM importerVm;
+        importerVm.interpretFromFile(moduleName + ".pg", false, moduleName + ".pgc");
+
+        for (const auto& globalPair : importerVm.globals)
+        {
+            // Skip special globals
+            if (globalPair.first == "__Table")
+            {
+                continue; 
+            }
+            else if (IS_INT(globalPair.second) or IS_BOOL(globalPair.second) or IS_DOUBLE(globalPair.second))
+            {
+                LOG_INFO("VM", "Importing primitive global: " << globalPair.first);
+                // Primitives can be copied directly
+                vm->globals[globalPair.first] = globalPair.second;
+            }
+            else if (IS_FUNC(globalPair.second))
+            {
+                LOG_INFO("VM", "Importing function global: " << globalPair.first);
+                // Functions need to be converted to closures in the current VM
+                ObjFunction* func = importerVm.asFunction(globalPair.second);
+                Value closureVal = vm->createClosure(func);
+                vm->globals[globalPair.first] = closureVal;
+            }
+            else if (IS_CLOSURE(globalPair.second))
+            {
+                LOG_INFO("VM", "Importing closure global: " << globalPair.first);
+                // Closures need to be recreated in the current VM
+                Closure* closure = importerVm.asClosure(globalPair.second);
+                for (size_t i = 0; i < closure->upvalues.size(); i++)
+                {
+                    vm->createUpvalue(closure->upvalues[i]->location);
+                }
+                Value newClosureVal = vm->createClosure(closure->function);
+                vm->globals[globalPair.first] = newClosureVal;
+            }
+            else if (IS_STRING(globalPair.second))
+            {
+                LOG_INFO("VM", "Importing string global: " << globalPair.first);
+                // Strings need to be recreated in the current VM
+                ElementType* strElem = importerVm.asString(globalPair.second);
+                Value newStrVal = vm->createString(*strElem);
+                vm->globals[globalPair.first] = newStrVal;
+            }
+            else
+            {
+                LOG_INFO("VM", "Importing global '" << globalPair.first << "' of unsupported type: " << valueTypeName(globalPair.second));
+            }
+
+            LOG_INFO("VM", "Importing global: " << globalPair.first);
+        }
+
+        for (auto& global : vm->globals)
+        {
+            LOG_INFO("VM", "Post-import global: " << global.first);
+        }
+
+        // Placeholder: Module import not yet implemented
+        // vm->runtimeError("Module import not yet implemented: '" + moduleName + "'");
+        // vm->vm_return(InterpretResult::RUNTIME_ERROR);
     }
 }

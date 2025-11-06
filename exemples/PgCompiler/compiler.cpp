@@ -8,8 +8,9 @@
 
 namespace pg
 {
-    // Define the static member
+    // Define the static members
     Compiler* Compiler::current = nullptr;
+    int Compiler::scriptIndex = 0;
 
     Compiler::~Compiler()
     {
@@ -253,7 +254,14 @@ namespace pg
         // Set this as the current compiler
         Compiler::current = this;
 
-        vm->asFunction(currentFunction)->name = name;
+        // For scripts, add an index to differentiate imported modules
+        std::string functionName = name;
+        if (type == FunctionType::TYPE_SCRIPT)
+        {
+            functionName = "<script #" + std::to_string(scriptIndex++) + ">";
+        }
+
+        vm->asFunction(currentFunction)->name = functionName;
 
         if (type == FunctionType::TYPE_METHOD || type == FunctionType::TYPE_INITIALIZER)
         {

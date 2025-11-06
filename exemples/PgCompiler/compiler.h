@@ -62,6 +62,9 @@ namespace pg
         void initCompiler(FunctionType type, const std::string& name = "<script>");
         Value endCompiler();
 
+        // Script index tracking for imports
+        static int scriptIndex;
+
         Parser parser;
 
         // Modified to support nested compilers

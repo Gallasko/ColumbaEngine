@@ -125,11 +125,34 @@ namespace pg
 
         InterpretResult interpretFromText(const std::string& source, bool compileOnly = false, const std::string& dumpByteCode = "")
         {
+            currentFileName = "text_source";
+
             Lexer lexer;
 
             try
             {
                 lexer.readFromText(source);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("VM", e.what());
+                return InterpretResult::COMPILE_ERROR;
+            }
+
+            auto tokens = lexer.getTokens();
+
+            return interpret(tokens, compileOnly, dumpByteCode);
+        }
+
+        InterpretResult interpretFromFile(const std::string& filename, bool compileOnly = false, const std::string& dumpByteCode = "")
+        {
+            currentFileName = filename;
+
+            Lexer lexer;
+
+            try
+            {
+                lexer.readFromFile(filename);
             }
             catch (const std::exception& e)
             {
@@ -410,6 +433,8 @@ namespace pg
         static void register_builtin_operations();
         static void register_operation(uint8_t opcode, OpHandler handler);
         void initialize_builtin_classes();
+
+        std::string currentFileName;
     };
 
     // Inline implementations for critical performance functions
