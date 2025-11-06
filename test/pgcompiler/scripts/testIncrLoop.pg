@@ -1,1 +1,13 @@
-var result = 1; var multiplier = 2; while (result < 100) { result = result * multiplier++; }
+var result = 1;
+var multiplier = 2;
+var a = 4;
+while (result < 100)
+{
+    var b = 2;
+
+    a = a * b++
+    result = result * multiplier++
+}
+
+__dprint(a)
+__dprint(result)
