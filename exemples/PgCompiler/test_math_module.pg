@@ -1,0 +1,11 @@
+// Test native math module
+import "math";
+
+__dprint(PI);
+__dprint(E);
+
+__dprint(sqrt(16));
+__dprint(abs(-5));
+__dprint(pow(2, 3));
+__dprint(floor(3.7));
+__dprint(ceil(3.2));

@@ -13,6 +13,7 @@
 #include "Interpreter/lexer.h"
 
 #include "pass/basic_operator_local_indexing.h"
+#include "example_math_module.h"
 
 using namespace pg;
 
@@ -149,7 +150,11 @@ void CompilerApp::runFile(bool needCompile)
 
         std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
+        // Register individual native functions
         vm.defineNative("logInfo", nativeLogInfo);
+
+        // Register native modules
+        vm.addNativeModule("math", MathModule());
 
         Lexer lexer;
 

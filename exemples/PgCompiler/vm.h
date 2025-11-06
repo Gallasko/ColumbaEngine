@@ -11,9 +11,12 @@
 #include "value_nanbox.h"  // NaN-boxed value representation
 #include "vmpools.h"       // Pool-based memory management
 #include "object.h"
+#include "native_module.h"
 
 #include <stack>
 #include <functional>
+#include <map>
+#include <unordered_map>
 
 #include <cmath>
 #include <cstdlib>
@@ -346,6 +349,14 @@ namespace pg
 
         std::unordered_map<std::string, Value> globals;
 
+        // Native module registry (per VM instance)
+        struct NativeModuleData {
+            std::map<std::string, NativeFn> functions;
+            std::map<std::string, ElementType> variables;
+        };
+
+        std::unordered_map<std::string, NativeModuleData> nativeModules;
+
         // Function pointer dispatch system
         static OpCodeInfo operations[256];
         jmp_buf exit_jump;
@@ -405,6 +416,38 @@ namespace pg
             Value val = makeNativeFuncValue(index);
 
             globals[name] = trackNewValue(val);
+        }
+
+        // Native module system - per VM instance
+        void addNativeModule(const std::string& moduleName, const NativeModule& moduleData)
+        {
+            NativeModuleData data;
+            data.functions = moduleData.exportedFunctions;
+            data.variables = moduleData.exportedVariables;
+            nativeModules[moduleName] = data;
+        }
+
+        bool loadNativeModule(const std::string& moduleName)
+        {
+            auto it = nativeModules.find(moduleName);
+            if (it == nativeModules.end())
+            {
+                return false;
+            }
+
+            // Define all native functions from the module into this VM's globals
+            for (const auto& [name, func] : it->second.functions)
+            {
+                defineNative(name, func);
+            }
+
+            // Define all native variables from the module into this VM's globals
+            for (const auto& [name, value] : it->second.variables)
+            {
+                globals[name] = trackNewValue(elementToValue(value));
+            }
+
+            return true;
         }
 
         // Test helper: Set up VM with a specific chunk for testing
