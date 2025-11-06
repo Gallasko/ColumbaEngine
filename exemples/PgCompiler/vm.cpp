@@ -1673,12 +1673,10 @@ namespace pg
             return;
         }
 
-        auto oldValue = vm->retainValue(it->second);
         auto newValue = vm->addValues(it->second, INT_VAL(1));
         vm->releaseAndDelete(it->second);
         it->second = vm->retainValue(newValue);
 
-        vm->push(oldValue); // Post-increment returns the old value
         vm->releaseAndDelete(nameValue);
     }
 
@@ -1766,12 +1764,10 @@ namespace pg
             return;
         }
 
-        auto oldValue = vm->retainValue(it->second);
         auto newValue = vm->subtractValues(it->second, INT_VAL(1));
         vm->releaseAndDelete(it->second);
         it->second = vm->retainValue(newValue);
 
-        vm->push(oldValue); // Post-decrement returns the old value
         vm->releaseAndDelete(nameValue);
     }
 
@@ -2586,7 +2582,7 @@ namespace pg
             // Skip special globals
             if (globalPair.first == "__Table")
             {
-                continue; 
+                continue;
             }
             else if (IS_INT(globalPair.second) or IS_BOOL(globalPair.second) or IS_DOUBLE(globalPair.second))
             {
