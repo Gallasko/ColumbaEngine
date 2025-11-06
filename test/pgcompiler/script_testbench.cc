@@ -568,6 +568,21 @@ TEST_F(ScriptTestBench, ImportChained)
     testScript("import_chained");
 }
 
+TEST_F(ScriptTestBench, ImportNested)
+{
+    testScript("import_nested");
+}
+
+TEST_F(ScriptTestBench, ImportDuplicate)
+{
+    testScript("import_duplicate");
+}
+
+TEST_F(ScriptTestBench, ImportLocalScope)
+{
+    testScript("import_local_scope");
+}
+
 // ============================================================================
 // Error Tests
 // ============================================================================

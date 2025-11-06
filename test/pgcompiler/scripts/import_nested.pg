@@ -1,0 +1,4 @@
+import "test/pgcompiler/scripts/import_helper_combined"
+
+var result = combined(10, 5, 3)
+__dprint(result)
