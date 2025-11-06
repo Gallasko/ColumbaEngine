@@ -1007,22 +1007,50 @@ namespace pg
     void Parser::importStatement()
     {
         // Get the module name
-        if (not check(TokenType::STRING))
+
+        auto moduleName = getModuleName();
+
+        parseImportFile(moduleName);
+
+        // Check for multiple imports: import "mod1", "mod2", "mod3"
+        while (match(TokenType::COMMA))
         {
-            error("Expect string literal after 'import'.");
-            return;
+            skipEOL();
+
+            moduleName = getModuleName();
+
+            parseImportFile(moduleName);
         }
 
-        advance();
-        Token moduleNameToken = previousToken;
-        std::string moduleName = moduleNameToken.text;
+        consumeEnd("Expect ';' or end of line after import statement.");
+    }
 
-        // Remove quotes from the module name
-        if (moduleName.size() >= 2 && moduleName.front() == '"' && moduleName.back() == '"')
+    void Parser::methodStatement()
+    {
+        consume("Expect method name.", TokenType::EXPRESSION);
+        Token methodName = previousToken;
+
+        FunctionType type = FunctionType::TYPE_METHOD;
+        if (methodName.text == "init")
         {
-            moduleName = moduleName.substr(1, moduleName.size() - 2);
+            type = FunctionType::TYPE_INITIALIZER;
         }
 
+        parseFunction(type);
+
+        writeByte(OpCode::OP_Method);
+        auto value = vm->createString(methodName.text); // Ensure string is created in VM
+        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(value);
+        writeByte(constantIndex);
+    }
+
+    ParseRule& Parser::getRule(const TokenType& type) const
+    {
+        return rules[type];
+    }
+
+    void Parser::parseImportFile(const std::string& moduleName)
+    {
         // Add .pg extension if not present
         std::string fileName = moduleName;
         if (fileName.find(".pg") == std::string::npos)
@@ -1087,106 +1115,6 @@ namespace pg
             error("Failed to import '" + moduleName + "': " + std::string(e.what()));
             return;
         }
-
-        // Check for multiple imports: import "mod1", "mod2", "mod3"
-        while (match(TokenType::COMMA))
-        {
-            skipEOL();
-
-            if (not check(TokenType::STRING))
-            {
-                error("Expect string literal in import list.");
-                return;
-            }
-
-            advance();
-            moduleNameToken = previousToken;
-            moduleName = moduleNameToken.text;
-
-            // Remove quotes
-            if (moduleName.size() >= 2 && moduleName.front() == '"' && moduleName.back() == '"')
-            {
-                moduleName = moduleName.substr(1, moduleName.size() - 2);
-            }
-
-            fileName = moduleName;
-            if (fileName.find(".pg") == std::string::npos)
-            {
-                fileName += ".pg";
-            }
-
-            try
-            {
-                Lexer lexer;
-                lexer.readFromFile(fileName);
-                auto importTokens = lexer.getTokens();
-
-                Compiler importCompiler(vm);
-                importCompiler.initCompiler(FunctionType::TYPE_SCRIPT);
-                importCompiler.parser.parse(importTokens);
-                importCompiler.parser.setCompiler(&importCompiler);
-
-                while (not importCompiler.parser.isAtEnd() and not importCompiler.parser.hasError())
-                {
-                    importCompiler.parser.skipEOL();
-                    importCompiler.parser.declaration();
-                }
-
-                if (importCompiler.parser.hasError())
-                {
-                    error("Error compiling imported module '" + moduleName + "'.");
-                    return;
-                }
-
-                auto importedFunction = importCompiler.endCompiler();
-                allocatedFunction.push_back(importedFunction);
-
-                // Transfer ownership of all functions from imported parser to prevent premature release
-                for (auto func : importCompiler.parser.allocatedFunction)
-                {
-                    allocatedFunction.push_back(func);
-                }
-                importCompiler.parser.allocatedFunction.clear();
-
-                uint8_t constant = Compiler::current->getCurrentChunk().addConstantIndex(importedFunction);
-                writeByte(OpCode::OP_Closure);
-                writeByte(constant);
-                writeByte(OpCode::OP_Call);
-                writeByte(0);
-                writeByte(OpCode::OP_Pop);
-            }
-            catch (const std::exception& e)
-            {
-                error("Failed to import '" + moduleName + "': " + std::string(e.what()));
-                return;
-            }
-        }
-
-        consumeEnd("Expect ';' or end of line after import statement.");
-    }
-
-    void Parser::methodStatement()
-    {
-        consume("Expect method name.", TokenType::EXPRESSION);
-        Token methodName = previousToken;
-
-        FunctionType type = FunctionType::TYPE_METHOD;
-        if (methodName.text == "init")
-        {
-            type = FunctionType::TYPE_INITIALIZER;
-        }
-
-        parseFunction(type);
-
-        writeByte(OpCode::OP_Method);
-        auto value = vm->createString(methodName.text); // Ensure string is created in VM
-        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(value);
-        writeByte(constantIndex);
-    }
-
-    ParseRule& Parser::getRule(const TokenType& type) const
-    {
-        return rules[type];
     }
 
     void Parser::parseFunction(const FunctionType& type)

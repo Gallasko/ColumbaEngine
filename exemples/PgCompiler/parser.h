@@ -150,6 +150,7 @@ namespace pg
 
         ParseRule& getRule(const TokenType& type) const;
 
+        void parseImportFile(const std::string& moduleName);
         void parseFunction(const FunctionType& type);
         void declareVariable(const Token& name);
         void pushVariableInStack(const std::string& varName);
@@ -189,6 +190,27 @@ namespace pg
         }
 
         void setCompiler(Compiler* compiler) { this->compiler = compiler; }
+
+        std::string getModuleName()
+        {
+            if (not check(TokenType::STRING))
+            {
+                error("Expect string literal after 'import'.");
+                return "";
+            }
+
+            advance();
+            Token moduleNameToken = previousToken;
+            std::string moduleName = moduleNameToken.text;
+
+            // Remove quotes from the module name
+            if (moduleName.size() >= 2 && moduleName.front() == '"' && moduleName.back() == '"')
+            {
+                moduleName = moduleName.substr(1, moduleName.size() - 2);
+            }
+
+            return moduleName;
+        }
 
         // Members
         std::vector<Value> allocatedFunction; // To keep track of allocated functions for cleanup
