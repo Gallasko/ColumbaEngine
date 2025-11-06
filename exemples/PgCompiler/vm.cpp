@@ -1202,12 +1202,6 @@ namespace pg
             return;
         }
 
-        for (auto& global : vm->globals)
-        {
-            // Debug output for globals
-            std::cout << "Global variable: " << global.first << std::endl;
-        }
-
         auto it = vm->globals.find(name.toString());
         if (it == vm->globals.end())
         {
