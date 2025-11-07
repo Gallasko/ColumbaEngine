@@ -313,11 +313,24 @@ namespace pg
 
         // Clean up: release the chunk constants before destroying the function
         // The constants array contains Values that point to heap objects (strings, etc.)
+        // NOTE: We need to bypass the isConstant() check in releaseValue() because these
+        // bytecode constants should be released when the function is destroyed
         for (const auto& constant : funcObj->chunk.constants)
         {
             if (requiresRefCount(constant))
             {
-                releaseAndDelete(constant);
+                // Manually decrement refcount and delete, bypassing isConstant() check
+                uint32_t index = GET_INDEX(constant);
+                auto& refCounts = pools.getRefCountVector(constant);
+
+                if (index < refCounts.size() && refCounts[index] > 0)
+                {
+                    refCounts[index]--;
+                    if (refCounts[index] == 0)
+                    {
+                        deleteValue(constant);
+                    }
+                }
             }
         }
 
