@@ -16,7 +16,7 @@ public:
     int exec();
 
     void runREPL();
-    void runFile();
+    void runFile(bool needCompile = true);
 
 private:
     std::string fileName;

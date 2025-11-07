@@ -1,0 +1,17 @@
+// If-else statement
+if (true) {
+    __dprint(1);
+} else {
+    __dprint(2);
+}
+if (false) {
+    __dprint(3);
+} else {
+    __dprint(4);
+}
+var x = 10;
+if (x > 5) {
+    __dprint(5);
+} else {
+    __dprint(6);
+}

@@ -1,0 +1,13 @@
+class Brunch
+{
+  bacon(b)
+  {
+    return this.a + b;
+  }
+}
+
+var bru = Brunch();
+
+bru.a = "Hello ";
+
+__dprint(bru.bacon("World !"))

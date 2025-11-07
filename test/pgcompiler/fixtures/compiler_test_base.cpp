@@ -15,8 +15,6 @@ void CompilerTestBase::TearDown() {
 }
 
 Chunk CompilerTestBase::compileExpression(const std::string& source) {
-    Chunk chunk;
-    
     // Reset compiler state before each compilation
     compiler.reset();
     
@@ -25,13 +23,14 @@ Chunk CompilerTestBase::compileExpression(const std::string& source) {
     lexer.readFromText(source);
     auto tokens = lexer.getTokens();
     
-    // Compile to chunk
-    bool success = compiler.compile(tokens, chunk);
+    // Compile using new interface (no chunk parameter)
+    bool success = compiler.compile(tokens);
     if (!success) {
         throw std::runtime_error("Compilation failed for: " + source);
     }
     
-    return chunk;
+    // Return the compiled chunk from the compiler
+    return compiler.getCurrentChunk();
 }
 
 InterpretResult CompilerTestBase::executeChunk(const Chunk& chunk) {
@@ -118,7 +117,17 @@ void CompilerTestBase::assertConstantValue(const Chunk& chunk, size_t index, con
 }
 
 void CompilerTestBase::resetVM() {
-    vm = VM();
+    // Clean up stack first
+    vm.stack.clear();  // This already frees Values properly
+    
+    // Properly free globals 
+    for (auto& pair : vm.globals) {
+        freeValue(pair.second);
+    }
+    vm.globals.clear();
+    
+    vm.testOutput.clear();
+    vm.ip = 0;
 }
 
 void CompilerTestBase::resetCompiler() {

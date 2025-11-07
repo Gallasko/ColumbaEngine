@@ -1,0 +1,39 @@
+// Test for-in loop with tables
+
+logInfo("=== Testing for-in loop ===");
+logInfo("");
+
+// Create a simple table
+var myTable = {
+    "name": "Player",
+    "health": 100,
+    "score": 5000,
+    "level": 5
+};
+
+logInfo("Iterating over myTable:");
+for (var key : myTable) {
+    logInfo("  " + key + " = " + toString(myTable[key]));
+}
+
+logInfo("");
+logInfo("=== Testing with entity table ===");
+logInfo("");
+
+// The playerEntity is passed from C++
+logInfo("Iterating over playerEntity:");
+for (var key : playerEntity) {
+    var value = playerEntity[key];
+
+    if (key == "PositionComponent") {
+        logInfo("Found PositionComponent:");
+        for (var propKey : value) {
+            logInfo("    " + propKey + " = " + toString(value[propKey]));
+        }
+    } else {
+        logInfo("  " + key + " = " + toString(value));
+    }
+}
+
+logInfo("");
+logInfo("=== Test Complete ===");

@@ -48,7 +48,7 @@ TEST_F(ChunkTest, AddByteCode) {
 
 TEST_F(ChunkTest, AddConstantShort) {
     ElementType value(3.14);
-    auto index = chunk.addConstant(value, 1);
+    chunk.addConstant(value, 1);
 
     // Should generate OP_Constant + index
     EXPECT_EQ(chunk.code.size(), 2);
@@ -81,7 +81,7 @@ TEST_F(ChunkTest, AddLongConstant) {
 
     // This should trigger OP_LongConstant
     ElementType value(999.0);
-    auto index = chunk.addConstant(value, 1);
+    chunk.addConstant(value, 1);
 
     // Should generate OP_LongConstant + 3 bytes for index
     EXPECT_GE(chunk.code.size(), 4);

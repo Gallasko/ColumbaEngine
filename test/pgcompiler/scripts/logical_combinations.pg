@@ -1,0 +1,7 @@
+// Complex logical operator combinations
+__dprint((true or false) and true);
+__dprint(true and (false or true));
+__dprint((5 > 3 or 2 > 4) and (1 < 2));
+__dprint(!(true and false));
+__dprint(!(false or false));
+__dprint(true and true and true);

@@ -1,0 +1,5 @@
+// String concatenation
+__dprint("hello" + " " + "world");
+__dprint("a" + "b");
+var s = "test";
+__dprint(s + "!");

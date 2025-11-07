@@ -1,0 +1,4 @@
+// Boolean NOT test
+__dprint(!true);
+__dprint(!false);
+__dprint(!!true);

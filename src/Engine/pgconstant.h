@@ -1,5 +1,5 @@
-#ifndef CONSTANT_H
-#define CONSTANT_H
+#ifndef PG_CONSTANT_H
+#define PG_CONSTANT_H
 
 //TODO have no include in constant
 

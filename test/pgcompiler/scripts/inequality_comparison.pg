@@ -1,0 +1,5 @@
+// Inequality comparison test (!=)
+__dprint(5 != 3);
+__dprint(5 != 5);
+__dprint(true != false);
+__dprint(false != false);

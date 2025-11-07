@@ -6,6 +6,11 @@
 
 namespace pg
 {
-    void disassembleChunk(const Chunk& chunk, const std::string& name);
-    int disassembleInstruction(const Chunk& chunk, int offset);
+    // Forward declaration
+    struct VM;
+
+    void printValue(VM* vm, const Value& value);
+
+    void disassembleChunk(VM* vm, const Chunk& chunk, const std::string& name);
+    int disassembleInstruction(VM* vm, const Chunk& chunk, int offset);
 }

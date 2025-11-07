@@ -23,6 +23,8 @@ namespace pg
     public:
         static TextFile openTextFile(const std::string& filepath) noexcept;
         static std::vector<TextFile> openTextFolder(const std::string& foldername) noexcept;
+
+        static bool exists(const std::string& filepath) noexcept;
     };
 
     class FileAccessor
@@ -32,6 +34,8 @@ namespace pg
         static std::vector<TextFile> openTextFolder(const std::string& foldername, bool recursive = false) noexcept;
 
         static bool writeToFile(const TextFile& file, const std::string& data, bool truncate = false) noexcept;
+
+        static bool exists(const std::string& filepath) noexcept;
     };
 
     class UniversalFileAccessor
@@ -45,5 +49,7 @@ namespace pg
         static std::string getFileName(const TextFile& file) noexcept;
         static std::string getFoldername(const TextFile& file) noexcept;
         static std::string getRelativePath(const TextFile& file) noexcept;
+
+        static bool exists(const std::string& filepath) noexcept;
     };
 }

@@ -1,0 +1,9 @@
+import "test/pgcompiler/scripts/import_helper_add"
+import "test/pgcompiler/scripts/import_helper_sub"
+
+fun combined(a, b, c)
+{
+  var sum = add(a, b)
+  var diff = sub(sum, c)
+  return diff
+}

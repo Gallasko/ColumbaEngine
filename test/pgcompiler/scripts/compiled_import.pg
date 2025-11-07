@@ -1,0 +1,3 @@
+import "helper_add"
+
+__dprint(add(3, 1))
