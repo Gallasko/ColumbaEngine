@@ -7,6 +7,7 @@
 #include "2D/position.h"
 
 #include "UI/sizer.h"
+#include "UI/thememanager.h"
 
 namespace pg
 {

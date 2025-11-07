@@ -1,0 +1,7 @@
+// Unary negation operator
+__dprint(-5);
+__dprint(-0);
+__dprint(-(3 + 2));
+__dprint(-10 + 5);
+__dprint(3 + -2);
+__dprint(-(-5));

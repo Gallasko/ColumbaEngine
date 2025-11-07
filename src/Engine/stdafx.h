@@ -13,6 +13,8 @@
 #include <iostream>
 #include <fstream>
 #include <filesystem>
+#include <variant>
+#include <unordered_map>
 
 #include "Maths/geometry.h"
 

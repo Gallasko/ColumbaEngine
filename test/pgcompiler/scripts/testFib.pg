@@ -1,0 +1,14 @@
+fun fib(n)
+{
+  if (n < 2)
+    return n;
+
+  return fib(n - 2) + fib(n - 1);
+}
+
+var val = fib(30);
+
+// logInfo(val)
+
+__dprint(val);
+//__dprint(fib(30));

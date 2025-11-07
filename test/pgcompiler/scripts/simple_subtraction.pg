@@ -1,0 +1,4 @@
+// Simple subtraction test
+__dprint(5 - 3);
+__dprint(10 - 10);
+__dprint(0 - 5);

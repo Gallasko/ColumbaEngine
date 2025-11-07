@@ -1,0 +1,68 @@
+import "nexus"
+import "achievement"
+import "log"
+
+setDefaultTags(["tutorial", "tier0", "basic"])
+
+quickButton("TouchAltar", "Touch Altar",
+    [req("startTuto")],
+    [fact("altar_touched", true), gamelog("Altar is coming back to life...")],
+    "A pretty dusty altar...")
+
+quickButton("FalseBasicHarvest", "Harvest Altar",
+    [req("altar_touched")],
+    [reward("add_res_display", "res", "mana"),
+     reward("add_generator", "id", "altar", "res", "mana", "prod", 5.0, "storage", 20.0),
+     fact("mana_max_value", 20.0),
+     fact("false_harvest_clicked", true)],
+    "Harvest the mana stored in the altar",
+    "Harvest")
+
+setDefaultTags(["tier0", "basic"])
+
+quickButton("BasicHarvest", "Harvest Altar",
+    [req("false_harvest_clicked")],
+    [ harvest("altar"),
+      resource("mana", 0.5) ],
+    "Harvest the mana stored in the altar",
+    "Harvest",
+    [],
+    0)
+
+quickButton("PowerOnScrapper", "Touch Black Box",
+    [req("false_harvest_clicked")],
+    [ gamelog("Black box is turning on! Weird scraps comes out of it..."),
+      fact("scrapper_on", true),
+      reward("add_res_display", "res", "scrap"),
+      resource("scrap", 1),
+      fact("scrap_max_value", 5) ],
+    "A weird black box near the altar, it should be useful...",
+    "Main",
+    [cost("mana", 10)])
+
+quickButton("BasicReadingTools", "Reading Tools",
+    [req("total_scrap>=2")],
+    [ gamelog("Books around you start to make some sense."),
+      fact("basic_reading_tools", true),
+      fact("knowledge_max_value", 10),
+      fact("knowledge_per_completion", 0.5),
+      reward("add_res_display", "res", "knowledge") ],
+    "A weird black box near the altar, it should be useful...",
+    "Main",
+    [cost("mana", 20), cost("scrap", 5)])
+
+var scrapConverter = Converter("scrap_converter")
+
+scrapConverter.input = ["mana"]
+scrapConverter.output = ["scrap"]
+scrapConverter.cost = [5.0]
+scrapConverter.yield = [1.0]
+
+var scrapConverterId = registerConverter(scrapConverter)
+
+quickButton("Prestige1", "First Prestige",
+      [req("total_knowledge>=5")],
+      [prestige(1),                    // Clean helper function!
+       fact("prestige_level", 1),
+       fact("prestige_points", 50)],
+      "Reset progress for prestige currency!")

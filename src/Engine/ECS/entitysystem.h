@@ -1041,6 +1041,12 @@ namespace pg
 
                 auto comp = deserialize<Type>(serializedStr);
 
+                if constexpr(std::is_base_of_v<Component, Type>)
+                {
+                    comp.entityId = entity.id;
+                    comp.ecsRef = entity.ecsRef;
+                }
+
                 ecsRef->attach<Type>(entity, comp);
             });
 

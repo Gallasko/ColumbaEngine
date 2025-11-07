@@ -1,12 +1,8 @@
 #pragma once
 
 #include <cstdarg>
-
+#include <mutex>
 #include <memory>
-
-#include "ECS/entitysystem.h"
-
-#include "Input/inputcomponent.h"
 
 // Todo see if we support multiple window rendering in which case we need to correctly send the events to correct window
 
@@ -28,12 +24,17 @@
 
 namespace pg
 {
-    // Type forwarding
-    class PgInterpreter;
-    class MasterRenderer;
+    // Forward declarations
+    class EntitySystem;
     class Input;
     class UiComponent;
+    class PgInterpreter;
+    class MasterRenderer;
     struct AudioSystem;
+    using _unique_id = uint64_t;
+    struct EntityRef;
+    template<typename T> struct CompRef;
+    struct Point2D;
 
     class Window
     {
@@ -55,7 +56,7 @@ namespace pg
         const Input * getInputHandler() const { return inputHandler; }
 
     public:
-        EntitySystem ecs;
+        EntitySystem* ecs;
 
         PgInterpreter *interpreter = nullptr;
 
@@ -80,16 +81,17 @@ namespace pg
         Input *inputHandler = nullptr;
         AudioSystem *audioSystem = nullptr;
 
-        EntityRef screenEntity;
-        CompRef<UiComponent> screenUi;
+        EntityRef* screenEntity;
+        CompRef<UiComponent>* screenUi;
 
-        Point2D mousePos;
+        Point2D* mousePos;
 
         std::mutex renderMutex;
 
         float xSensitivity = 1.0f;
         float ySensitivity = 1.0f;
 
-        std::shared_ptr<Logger::LogSink> terminalSink;
+        // Todo: remove this
+        void* terminalSink; // std::shared_ptr<Logger::LogSink>
     };
 }

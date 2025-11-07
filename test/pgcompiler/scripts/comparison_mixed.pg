@@ -1,0 +1,7 @@
+// Mixed comparison operations
+__dprint(2 + 3 > 4);
+__dprint(2 * 3 == 6);
+__dprint(10 / 2 < 6);
+__dprint(5 - 2 >= 3);
+__dprint(1 + 1 != 3);
+__dprint(4 * 2 <= 8);

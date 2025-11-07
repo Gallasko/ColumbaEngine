@@ -1,0 +1,13 @@
+import "test/pgcompiler/scripts/import_helper_add"
+import "test/pgcompiler/scripts/import_helper_sub"
+import "test/pgcompiler/scripts/import_helper_math"
+
+var a = add(5, 3)
+var b = sub(10, 2)
+var c = multiply(a, b)
+var d = divide(c, 2)
+
+__dprint(a)
+__dprint(b)
+__dprint(c)
+__dprint(d)

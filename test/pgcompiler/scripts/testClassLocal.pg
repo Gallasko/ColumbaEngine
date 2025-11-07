@@ -1,0 +1,4 @@
+{
+    class Local {}
+    __dprint(Local)
+}

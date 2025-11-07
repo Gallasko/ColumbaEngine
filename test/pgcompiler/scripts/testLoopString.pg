@@ -1,0 +1,14 @@
+var c = ""
+
+for (var i = 0; i < 10; i++)
+{
+  c = c + "a"
+}
+
+__dprint(c)
+
+c = "b"
+
+__dprint(c)
+
+

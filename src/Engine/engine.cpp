@@ -76,7 +76,7 @@ Engine& Engine::setPostInitFunction(std::function<void(EntitySystem&, Window&)> 
 
 EntitySystem* Engine::getECS() const
 {
-    return mainWindow ? &mainWindow->ecs : nullptr;
+    return mainWindow ? mainWindow->ecs : nullptr;
 }
 
 void Engine::setupFilesystem()
@@ -87,11 +87,11 @@ void Engine::setupFilesystem()
         try {
             var saveFolder = UTF8ToString($0);
             console.log("Creating save folder:", saveFolder);
-            
+
             if (! FS.analyzePath('/' + saveFolder).exists) {
                 FS.mkdir('/' + saveFolder);
             }
-            
+
             FS.mount(IDBFS, {autoPersist: true}, '/' + saveFolder);
 
             FS.syncfs(true, function (err) {
@@ -136,7 +136,7 @@ void Engine::initializeECS()
     }
 
     printf("Initializing engine...\n");
-    
+
     try
     {
         mainWindow->initEngine();
@@ -146,7 +146,7 @@ void Engine::initializeECS()
         if (setup)
         {
             printf("Setting up systems...\n");
-            setup(mainWindow->ecs, *mainWindow);
+            setup(*mainWindow->ecs, *mainWindow);
         }
         else
         {
@@ -155,20 +155,20 @@ void Engine::initializeECS()
 
         printf("Starting ECS...\n");
 
-        mainWindow->ecs.start();
+        mainWindow->ecs->start();
         ecsReady = true;
 
         if (postInit)
         {
             printf("Running post-init...\n");
-            postInit(mainWindow->ecs, *mainWindow);
+            postInit(*mainWindow->ecs, *mainWindow);
         }
         else
         {
             printf("No post-init provided, nothing to be done...\n");
         }
 
-        mainWindow->ecs.dumbTaskflow();
+        mainWindow->ecs->dumbTaskflow();
         printf("Engine initialized successfully\n");
     }
     catch (const std::exception& e)
@@ -228,7 +228,7 @@ static void mainLoopCallback(void* arg)
             printf("Exception during ECS init: %s\n", e.what());
             return;
         }
-        
+
         if (engine->mainWindow)
         {
             printf("Resizing window to %dx%d...\n", engine->config.width, engine->config.height);
@@ -244,7 +244,7 @@ static void mainLoopCallback(void* arg)
                 return;
             }
         }
-        
+
         engine->initialized = true;
 
         printf("Full initialization complete - entering main loop\n");
@@ -295,19 +295,19 @@ static void mainLoopCallback(void* arg)
 
 int Engine::exec()
 {
-    printf("Starting engine with config - App: %s, Size: %dx%d, Save: %s\n", 
+    printf("Starting engine with config - App: %s, Size: %dx%d, Save: %s\n",
            appName.c_str(), config.width, config.height, config.saveFolder.c_str());
 
     setupFilesystem();
 
 #ifdef __EMSCRIPTEN__
     printf("Starting Emscripten build...\n");
-    
+
     initThread = new std::thread([this]()
-    { 
+    {
         printf("Window init thread started...\n");
 
-        this->initializeWindow(); 
+        this->initializeWindow();
 
         printf("Window init thread completed\n");
     });
@@ -340,14 +340,14 @@ int Engine::exec()
 
 #else
     printf("Starting desktop build...\n");
-    
+
     initializeWindow();
     if (not mainWindow)
     {
         printf("Failed to create window on desktop\n");
         return -1;
     }
-    
+
     mainWindow->init(config.width, config.height, config.fullscreen);
     initializeECS();
     mainWindow->resize(config.width, config.height);

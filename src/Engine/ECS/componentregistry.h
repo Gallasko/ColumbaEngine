@@ -144,6 +144,17 @@ namespace pg
     {
         StandardEvent(const std::string& name = "Noop") : name(name) {}
 
+        StandardEvent(const std::string& name, const std::string& valueName, const ElementType& value) : name(name)
+        {
+            values[valueName] = value;
+        }
+
+        template <typename... Args>
+        StandardEvent(const std::string& name, const std::string& valueName, const ElementType& value, const Args&... args) : StandardEvent(name, args...)
+        {
+            values[valueName] = value;
+        }
+
         template <typename Type>
         StandardEvent(const std::string& name, const std::string& valueName, const Type& value) : name(name)
         {

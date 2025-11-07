@@ -127,7 +127,8 @@
         "__verbose_abort": "cpp",
         "execution": "cpp",
         "print": "cpp",
-        "*.expression": "cpp"
+        "*.expression": "cpp",
+        "__split_buffer": "cpp"
     },
     "files.exclude": {
         "**/*.o": true,
@@ -149,5 +150,6 @@
         "plaintext": false,
         "markdown": false,
         "scminput": false
-    }
+    },
+    "CodeGPT.apiKey": "Claude Code"
 }

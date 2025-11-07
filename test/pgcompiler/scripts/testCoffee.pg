@@ -1,0 +1,18 @@
+class CoffeeMaker
+{
+  init(coffee)
+  {
+    this.coffee = coffee;
+  }
+
+  brew()
+  {
+    __dprint("Enjoy your cup of " + this.coffee);
+
+    // No reusing the grounds!
+    this.coffee = "0";
+  }
+}
+
+var maker = CoffeeMaker("coffee and chicory");
+maker.brew();
