@@ -440,43 +440,48 @@ namespace pg
                 continue;
             }
 
-            // Create a string stream for the segment so we can split on whitespace.
-            std::istringstream iss(seg.text);
-            std::string word;
-            bool firstWordInLine = true;
-
-            while (iss >> word)
+            // Process text character by character to preserve all spaces
+            for (size_t charIndex = 0; charIndex < seg.text.length(); charIndex++)
             {
-                // Compute the width of the word.
-                float wordWidth = computeWordWidth(word, obj->fontPath, scale);
-                // Get the width of a space if needed.
-                float spaceWidth = firstWordInLine ? 0.0f : getGlyphAdvance(' ', obj->fontPath, scale);
-
-                // If adding this word (with a preceding space) would exceed the allowed width, wrap.
-                if (wrap and (currentX - startX + spaceWidth + wordWidth > maxWidth))
+                char c = seg.text[charIndex];
+                
+                if (c == ' ')
                 {
-                    currentY += lineHeight;
-                    currentX = startX;
-                    firstWordInLine = true;
-                }
-
-                // If not the first word, add a space glyph render call.
-                if (not firstWordInLine)
-                {
+                    // Handle space character
+                    float spaceWidth = getGlyphAdvance(' ', obj->fontPath, scale);
                     currentX += spaceWidth;
                 }
-
-                // For each character in the word, create a glyph render call.
-                for (char c : word)
+                else
                 {
+                    // When we hit a non-space character, check if it's the start of a word for wrapping
+                    if (charIndex == 0 || seg.text[charIndex - 1] == ' ')
+                    {
+                        // Beginning of a word - calculate word width for wrapping check
+                        std::string currentWord;
+                        size_t wordEnd = charIndex;
+                        
+                        // Extract the full word (until space or end)
+                        while (wordEnd < seg.text.length() && seg.text[wordEnd] != ' ')
+                        {
+                            currentWord += seg.text[wordEnd];
+                            wordEnd++;
+                        }
+                        
+                        float wordWidth = computeWordWidth(currentWord, obj->fontPath, scale);
+                        
+                        // Check if word would exceed line width
+                        if (wrap && (currentX - startX + wordWidth > maxWidth))
+                        {
+                            currentY += lineHeight;
+                            currentX = startX;
+                        }
+                    }
+                    
+                    // Process the character normally
                     RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, seg.colors, viewport);
                     calls.push_back(call);
-                    // Advance the current X position based on the glyph's advance.
-                    float advance = getGlyphAdvance(c, fontPath, scale);
-                    currentX += advance;
+                    currentX += getGlyphAdvance(c, fontPath, scale);
                 }
-
-                firstWordInLine = false;
             }
         }
 

@@ -8,7 +8,6 @@
 #include "UI/prefab.h"
 #include "UI/sizer.h"
 
-#include "Interpreter/pginterpreter.h"
 #include "Systems/logmodule.h"
 #include "gamemodule.h"
 
@@ -17,17 +16,13 @@
 
 #include "Systems/tween.h"
 
+// Forward declarations for functions we'll use
+std::string floatToString(float value, int decimalPlaces);
+
 namespace pg
 {
     namespace
     {
-        std::string floatToString(float value, int decimalPlaces)
-        {
-            std::ostringstream out;
-            out << std::fixed << std::setprecision(decimalPlaces) << value;
-            return out.str();
-        }
-
         struct OnBackgroundButtonHover
         {
             std::string buttonId;
@@ -43,6 +38,65 @@ namespace pg
         };
 
         struct UpdateGenView {};
+
+        // Helper function to check if button costs can be afforded
+        bool checkButtonCosts(WorldFacts* wf, const DynamicNexusButton& button)
+        {
+            for (size_t i = 0; i < button.costs.size(); ++i)
+            {
+                const auto& cost = button.costs[i];
+
+                float requiredAmount = cost.value;
+                if (!cost.valueId.empty())
+                {
+                    requiredAmount = wf->getFact<float>(cost.valueId, cost.value);
+                }
+
+                if (button.costIncrease.size() > i)
+                {
+                    requiredAmount *= std::pow(button.costIncrease[i], button.nbClick);
+                }
+
+                if (!wf->canAfford(cost.resourceId, requiredAmount))
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        // Helper function to deduct button costs
+        void deductButtonCosts(WorldFacts* wf, const DynamicNexusButton& button)
+        {
+            for (size_t i = 0; i < button.costs.size(); ++i)
+            {
+                const auto& cost = button.costs[i];
+
+                if (cost.consumed)
+                {
+                    float requiredAmount = cost.value;
+                    if (!cost.valueId.empty())
+                    {
+                        requiredAmount = wf->getFact<float>(cost.valueId, cost.value);
+                    }
+
+                    if (button.costIncrease.size() > i)
+                    {
+                        requiredAmount *= std::pow(button.costIncrease[i], button.nbClick);
+                    }
+
+                    wf->spendResource(cost.resourceId, requiredAmount);
+                }
+            }
+        }
+
+        // Helper function to get resource with optional max value
+        std::pair<float, float> getResourceWithMax(WorldFacts* wf, const std::string& resourceName)
+        {
+            float value = wf->getResource(resourceName);
+            float maxValue = wf->getFact<float>(resourceName + "_max_value", 0.0f);
+            return {value, maxValue};
+        }
 
         constant::Vector4D getButtonColors(ThemeInfo& info, bool clickable, bool activable, bool highlight = false)
         {
@@ -86,9 +140,9 @@ namespace pg
 
         bool isButtonClickable(const std::unordered_map<std::string, ElementType>& factMap, const DynamicNexusButton& button)
         {
-            for (const auto& it : button.conditions)
+            for (const auto& condition : button.conditions)
             {
-                if (not it.check(factMap))
+                if (!condition.check(factMap))
                 {
                     return false;
                 }
@@ -96,27 +150,27 @@ namespace pg
 
             for (size_t i = 0; i < button.costs.size(); ++i)
             {
-                auto it = button.costs[i];
+                const auto& cost = button.costs[i];
 
                 auto fc = FactChecker();
-                fc.name = it.resourceId;
+                fc.name = cost.resourceId;
                 fc.equality = FactCheckEquality::GreaterEqual;
 
-                if (it.valueId != "" and factMap.find(it.valueId) != factMap.end())
+                if (!cost.valueId.empty() && factMap.find(cost.valueId) != factMap.end())
                 {
-                    fc.value = factMap.at(it.valueId);
+                    fc.value = factMap.at(cost.valueId);
                 }
                 else
                 {
-                    fc.value = it.value;
+                    fc.value = cost.value;
                 }
 
-                if (button.costIncrease.size() > i and fc.value.isNumber())
+                if (button.costIncrease.size() > i && fc.value.isNumber())
                 {
                     fc.value = ElementType{fc.value.get<float>() * std::pow(button.costIncrease[i], button.nbClick)};
                 }
 
-                if (not fc.check(factMap))
+                if (!fc.check(factMap))
                 {
                     return false;
                 }
@@ -124,349 +178,6 @@ namespace pg
 
             return true;
         }
-    }
-
-    template <>
-    void serialize(Archive& archive, const NexusButtonCost& value)
-    {
-        archive.startSerialization("NexusButtonCost");
-
-        serialize(archive, "resourceId", value.resourceId);
-        serialize(archive, "value", value.value);
-        serialize(archive, "valueId", value.valueId);
-        serialize(archive, "consumed", value.consumed);
-
-        archive.endSerialization();
-    }
-
-    template <>
-    NexusButtonCost deserialize(const UnserializedObject& serializedString)
-    {
-        LOG_THIS("NexusButtonCost");
-
-        std::string type = "";
-
-        if (serializedString.isNull())
-        {
-            LOG_ERROR("NexusButtonCost", "Element is null");
-        }
-        else
-        {
-            LOG_MILE("NexusButtonCost", "Deserializing NexusButtonCost");
-
-            NexusButtonCost data;
-
-            defaultDeserialize(serializedString, "resourceId", data.resourceId);
-            defaultDeserialize(serializedString, "value", data.value);
-            defaultDeserialize(serializedString, "valueId", data.valueId);
-            defaultDeserialize(serializedString, "consumed", data.consumed);
-
-            return data;
-        }
-
-        return NexusButtonCost{};
-    }
-
-    template <>
-    void serialize(Archive& archive, const DynamicNexusButton& value)
-    {
-        archive.startSerialization("DynamicNexusButton");
-
-        serialize(archive, "id", value.id);
-        serialize(archive, "label", value.label);
-        serialize(archive, "conditions", value.conditions);
-        serialize(archive, "outcome", value.outcome);
-        serialize(archive, "category", value.category);
-        serialize(archive, "description", value.description);
-        serialize(archive, "nbClickBeforeArchive", value.nbClickBeforeArchive);
-        serialize(archive, "costs", value.costs);
-        serialize(archive, "costIncrease", value.costIncrease);
-        serialize(archive, "neededConditionsForVisibility", value.neededConditionsForVisibility);
-        serialize(archive, "nbClick", value.nbClick);
-        serialize(archive, "archived", value.archived);
-        serialize(archive, "activable", value.activable);
-        serialize(archive, "active", value.active);
-        serialize(archive, "activeTime", value.activeTime);
-        serialize(archive, "activationTime", value.activationTime);
-
-        archive.endSerialization();
-    }
-
-    template <>
-    DynamicNexusButton deserialize(const UnserializedObject& serializedString)
-    {
-        LOG_THIS("DynamicNexusButton");
-
-        std::string type = "";
-
-        if (serializedString.isNull())
-        {
-            LOG_ERROR("DynamicNexusButton", "Element is null");
-        }
-        else
-        {
-            LOG_MILE("DynamicNexusButton", "Deserializing DynamicNexusButton");
-
-            DynamicNexusButton data;
-
-            defaultDeserialize(serializedString, "id", data.id);
-            defaultDeserialize(serializedString, "label", data.label);
-            defaultDeserialize(serializedString, "conditions", data.conditions);
-            defaultDeserialize(serializedString, "outcome", data.outcome);
-            defaultDeserialize(serializedString, "category", data.category);
-            defaultDeserialize(serializedString, "description", data.description);
-            defaultDeserialize(serializedString, "nbClickBeforeArchive", data.nbClickBeforeArchive);
-            defaultDeserialize(serializedString, "costs", data.costs);
-            defaultDeserialize(serializedString, "costIncrease", data.costIncrease);
-            defaultDeserialize(serializedString, "neededConditionsForVisibility", data.neededConditionsForVisibility);
-            defaultDeserialize(serializedString, "nbClick", data.nbClick);
-            defaultDeserialize(serializedString, "archived", data.archived);
-            defaultDeserialize(serializedString, "activable", data.activable);
-            defaultDeserialize(serializedString, "active", data.active);
-            defaultDeserialize(serializedString, "activeTime", data.activeTime);
-            defaultDeserialize(serializedString, "activationTime", data.activationTime);
-
-            return data;
-        }
-
-        return DynamicNexusButton{};
-    }
-
-    class CreateNexusButton : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp()
-        {
-            setArity(0, 0);
-        }
-
-        virtual ValuablePtr call(ValuableQueue&) override
-        {
-            DynamicNexusButton button;
-
-            auto list = serializeToInterpreter(this, button);
-
-            return list;
-        }
-    };
-
-    class RegisterNexusButton : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(1, 1);
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto nexusButton = args.front();
-            args.pop();
-
-            auto button = deserializeTo<DynamicNexusButton>(nexusButton);
-
-            sys->savedButtons.push_back(button);
-
-            return nullptr;
-        }
-
-        NexusSystem *sys;
-    };
-
-    class TrackNewResource : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(1, 1);
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            auto resName = args.front()->getElement().toString();
-            args.pop();
-
-            sys->addResourceDisplay(resName);
-
-            return nullptr;
-        }
-
-        NexusSystem *sys;
-    };
-
-    class CreateGenerator : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(2, 6);
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            // Todo check type of elements gotten here
-
-            RessourceGenerator gen;
-
-            gen.id = args.front()->getElement().toString();
-            args.pop();
-
-            gen.ressource = args.front()->getElement().toString();
-            args.pop();
-
-            if (not args.empty())
-            {
-                gen.currentMana = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                gen.productionRate = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                gen.capacity = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                gen.active = args.front()->getElement().get<bool>();
-                args.pop();
-            }
-
-            sys->ecsRef->sendEvent(RessourceGenerator{gen});
-
-            return makeVar(gen.id);
-        }
-
-        NexusSystem *sys;
-    };
-
-    class CreateButtonCost : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 4); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            NexusButtonCost cost;
-
-            // Todo check type of elements gotten here
-            // Assume arguments: eventName (string), key (string), message (string)
-            cost.resourceId = args.front()->getElement().toString();
-            args.pop();
-
-            if (not args.empty())
-            {
-                cost.value = args.front()->getElement().get<float>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                cost.valueId = args.front()->getElement().get<std::string>();
-                args.pop();
-            }
-
-            if (not args.empty())
-            {
-                cost.consumed = args.front()->getElement().get<bool>();
-                args.pop();
-            }
-
-            return serializeToInterpreter(this, cost);
-        }
-    };
-
-    class CreateConverter : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp() { setArity(1, 1); }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            ConverterComponent converter;
-
-            // Todo check type of elements gotten here
-            // Assume arguments: eventName (string), key (string), message (string)
-            converter.id = args.front()->getElement().toString();
-            args.pop();
-
-            return serializeToInterpreter(this, converter);
-        }
-    };
-
-    class RegisterConverter : public Function
-    {
-        using Function::Function;
-    public:
-        void setUp(NexusSystem *sys)
-        {
-            this->sys = sys;
-
-            setArity(1, 1);
-        }
-
-        virtual ValuablePtr call(ValuableQueue& args) override
-        {
-            // Todo check type of elements gotten here
-            // Assume arguments: eventName (string), key (string), message (string)
-            auto arg = args.front();
-            args.pop();
-
-            auto converter = deserializeTo<ConverterComponent>(arg);
-
-            auto converterEntity = sys->ecsRef->createEntity();
-            sys->ecsRef->attach<ConverterComponent>(converterEntity, converter);
-
-            return makeVar(converterEntity.id);
-        }
-
-        NexusSystem *sys;
-    };
-
-    struct NexusModule : public SysModule
-    {
-        NexusModule(NexusSystem *sys)
-        {
-            addSystemFunction<CreateNexusButton>("NexusButton");
-            addSystemFunction<RegisterNexusButton>("registerNexusButton", sys);
-            addSystemFunction<TrackNewResource>("addResourceDisplay", sys);
-            addSystemFunction<CreateGenerator>("createGenerator", sys);
-            addSystemFunction<CreateButtonCost>("ButtonCost");
-            addSystemFunction<CreateConverter>("Converter");
-            addSystemFunction<RegisterConverter>("registerConverter", sys);
-
-            //Todo add basic generator / converter ids as system vars
-            //addSystemVar("SCANCODE_A", SDL_SCANCODE_A);
-        }
-    };
-
-    void NexusSystem::init()
-    {
-        PgInterpreter interpreter;
-
-        interpreter.addSystemModule("nexus", NexusModule{this});
-        interpreter.addSystemModule("log", LogModule{nullptr});
-        interpreter.addSystemModule("achievement", AchievementModule{});
-
-        interpreter.interpretFromFile("nexus.pg");
     }
 
     void NexusSystem::execute()
@@ -490,35 +201,20 @@ namespace pg
 
             if (currentActiveButton->activeTime >= currentActiveButton->activationTime)
             {
-                // Todo check if all the conditions are met
-                for (auto it2 : currentActiveButton->outcome)
+                // Track task completion statistics
+                wf->incrementStat("stat_tasks_completed");
+                wf->incrementStat("stat_task_completions_" + currentActiveButton->id);
+
+                // Execute outcomes
+                for (const auto& outcome : currentActiveButton->outcome)
                 {
-                    it2.call(ecsRef);
+                    outcome.call(ecsRef);
                 }
 
-                if (not currentActiveButton->costs.empty())
+                // Deduct costs using helper function
+                if (!currentActiveButton->costs.empty())
                 {
-                    for (size_t i = 0; i < currentActiveButton->costs.size(); ++i)
-                    {
-                        auto it3 = currentActiveButton->costs[i];
-
-                        if (it3.consumed)
-                        {
-                            auto cost = IncreaseFact(it3.resourceId, -it3.value);
-
-                            if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
-                            {
-                                cost.value = -wf->factMap.at(it3.valueId);
-                            }
-
-                            if (currentActiveButton->costIncrease.size() > i and cost.value.isNumber())
-                            {
-                                cost.value = ElementType{cost.value.get<float>() * std::pow(currentActiveButton->costIncrease[i], currentActiveButton->nbClick)};
-                            }
-
-                            ecsRef->sendEvent(cost);
-                        }
-                    }
+                    deductButtonCosts(wf, *currentActiveButton);
                 }
 
                 currentActiveButton->nbClick++;
@@ -539,6 +235,424 @@ namespace pg
             deltaTime = 0;
         }
 
+    }
+
+    void NexusSystem::onEvent(const AutoClickerAction& event)
+    {
+        LOG_INFO("AutoClickerAction", "Auto-clicker " << event.autoClickerId << " trying to click button: " << event.targetButtonId);
+
+        // Find the button that the auto-clicker is targeting
+        auto it = std::find_if(savedButtons.begin(), savedButtons.end(),
+                              [&event](const DynamicNexusButton& button) { return button.id == event.targetButtonId; });
+
+        if (it != savedButtons.end())
+        {
+            LOG_INFO("AutoClickerAction", "Found target button: " << it->id << " (activable: " << it->activable << ", archived: " << it->archived << ")");
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+
+            // Check if the button is clickable (visibility and conditions)
+            if (isButtonClickable(wf->factMap, *it) && !it->archived)
+            {
+                // Simulate clicking the button
+                auto buttonCopy = *it;
+
+                // Check if it's an activable button and not already active
+                if (buttonCopy.activable && !buttonCopy.active && !activeButton)
+                {
+                    // Activate the button
+                    buttonCopy.active = true;
+                    buttonCopy.activeTime = 0.0f;
+
+                    ecsRef->sendEvent(NexusButtonStateChange{buttonCopy});
+
+                    LOG_INFO("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " activated button: " << event.targetButtonId);
+                }
+                else if (!buttonCopy.activable)
+                {
+                    // Regular button - trigger immediately
+                    LOG_INFO("AutoClickerAction", "Button " << buttonCopy.id << " has " << buttonCopy.costs.size() << " costs to check");
+
+                    // Check costs using helper function
+                    bool canAfford = checkButtonCosts(wf, buttonCopy);
+                    LOG_INFO("AutoClickerAction", "Button " << buttonCopy.id << " canAfford: " << canAfford);
+
+                    if (canAfford)
+                    {
+                        // Deduct costs using helper function
+                        deductButtonCosts(wf, buttonCopy);
+
+                        // Execute outcomes
+                        LOG_INFO("AutoClickerAction", "Executing " << buttonCopy.outcome.size() << " outcomes for button: " << buttonCopy.id);
+                        for (const auto& outcome : buttonCopy.outcome)
+                        {
+                            outcome.call(ecsRef);
+                        }
+
+                        // Update button state
+                        buttonCopy.nbClick++;
+
+                        // Check if button should be archived
+                        if (buttonCopy.nbClickBeforeArchive > 0 && buttonCopy.nbClick >= buttonCopy.nbClickBeforeArchive)
+                        {
+                            buttonCopy.archived = true;
+                        }
+
+                        ecsRef->sendEvent(NexusButtonStateChange{buttonCopy});
+
+                        // Update statistics using helper methods
+                        wf->incrementStat("stat_total_button_clicks");
+                        wf->incrementStat("stat_clicks_" + buttonCopy.id);
+
+                        LOG_INFO("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " clicked button: " << event.targetButtonId);
+                    }
+                    else
+                    {
+                        LOG_WARNING("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " cannot afford button: " << event.targetButtonId);
+                    }
+                }
+                else
+                {
+                    LOG_WARNING("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " cannot activate button " << event.targetButtonId << " - button already active or another is active");
+                }
+            }
+            else
+            {
+                LOG_WARNING("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " cannot click button " << event.targetButtonId << " - button not clickable or archived");
+            }
+        }
+        else
+        {
+            LOG_ERROR("AutoClickerSystem", "Auto-clicker " << event.autoClickerId << " target button not found: " << event.targetButtonId);
+        }
+    }
+
+    void NexusSystem::onEvent(const StandardEvent& event)
+    {
+        if (event.name == "perform_prestige")
+        {
+            // Extract prestige level from the event
+            auto levelIt = event.values.find("level");
+            if (levelIt != event.values.end()) {
+                int prestigeLevel = levelIt->second.get<int>();
+                resetByPrestigeLevel(prestigeLevel);
+            }
+        }
+    }
+
+    void NexusSystem::resetByPrestigeLevel(int prestigeLevel)
+    {
+        LOG_INFO("NexusSystem", "Performing prestige level " << prestigeLevel);
+
+        // Get all tags that should be reset (current tier and below)
+        std::vector<std::string> tagsToReset;
+        for (const auto& [tag, tier] : tagToTierMap) {
+            if (tier <= prestigeLevel) {
+                tagsToReset.push_back(tag);
+                LOG_INFO("NexusSystem", "Adding tag '" << tag << "' (tier " << tier << ") to reset list");
+            }
+        }
+
+        // Reset WorldFacts
+        resetFactsByTags(tagsToReset);
+
+        // Reset button states
+        int buttonsReset = 0;
+        for (auto& button : savedButtons) {
+            bool shouldReset = false;
+            for (const auto& buttonTag : button.prestigeTags) {
+                if (std::find(tagsToReset.begin(), tagsToReset.end(), buttonTag) != tagsToReset.end()) {
+                    shouldReset = true;
+                    break;
+                }
+            }
+
+            if (shouldReset) {
+                LOG_INFO("NexusSystem", "Resetting button: " << button.id);
+                button.nbClick = 0;
+                button.archived = false;
+                button.active = false;
+                button.activeTime = 0.0f;
+                buttonsReset++;
+            }
+        }
+
+        // Reset resources
+        resetResourcesByTags(tagsToReset);
+
+        // Reset generators and converters
+        resetGeneratorsByTags(tagsToReset);
+        resetConvertersByTags(tagsToReset);
+
+        // Apply starting values
+        applyStartingValues(tagsToReset);
+
+        // Todo this failes + the res are invisible when we switch tabs
+        // Notify UI to update after prestige
+        // ecsRef->sendEvent(StandardEvent("prestige_completed"));
+
+        // LOG_INFO("NexusSystem", "Prestige complete! Reset " << buttonsReset << " buttons and WorldFacts with tags: " << tagsToReset.size());
+    }
+
+    void NexusSystem::resetFactsByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+        std::vector<std::string> factsToRemove;
+
+        for (const auto& [factName, metadata] : worldFacts->factMetadata) {
+            // Check if this fact was created by a button with any of the reset tags
+            auto nbTagsIt = metadata.meta.find("nbTags");
+            if (nbTagsIt != metadata.meta.end()) {
+                int nbTags = nbTagsIt->second.get<int>();
+
+                for (int i = 0; i < nbTags; i++) {
+                    auto tagIt = metadata.meta.find("tag" + std::to_string(i));
+                    if (tagIt != metadata.meta.end()) {
+                        std::string tag = tagIt->second.toString();
+
+                        if (std::find(tagsToReset.begin(), tagsToReset.end(), tag) != tagsToReset.end()) {
+                            factsToRemove.push_back(factName);
+                            break; // Found matching tag, no need to check more
+                        }
+                    }
+                }
+            }
+        }
+
+        // Remove the facts using WorldFacts events
+        for (const std::string& factName : factsToRemove) {
+            ecsRef->sendEvent(RemoveFact{factName});
+            LOG_INFO("NexusSystem", "Removed fact: " << factName);
+        }
+    }
+
+    std::vector<std::string> NexusSystem::getFactsCreatedByTags(const std::vector<std::string>& tags) const
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+        std::vector<std::string> matchingFacts;
+
+        for (const auto& [factName, metadata] : worldFacts->factMetadata) {
+            auto nbTagsIt = metadata.meta.find("nbTags");
+            if (nbTagsIt != metadata.meta.end()) {
+                int nbTags = nbTagsIt->second.get<int>();
+
+                for (int i = 0; i < nbTags; i++) {
+                    auto tagIt = metadata.meta.find("tag" + std::to_string(i));
+                    if (tagIt != metadata.meta.end()) {
+                        std::string tag = tagIt->second.toString();
+
+                        if (std::find(tags.begin(), tags.end(), tag) != tags.end()) {
+                            matchingFacts.push_back(factName);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        return matchingFacts;
+    }
+
+    void NexusSystem::resetResourcesByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+
+        // Get resources that were created by buttons with these tags
+        std::vector<std::string> resourcesToReset = getResourcesAffectedByTags(tagsToReset);
+
+        LOG_INFO("NexusSystem", "Starting resource reset for " << resourcesToReset.size() << " resources");
+
+        for (const std::string& resourceName : resourcesToReset) {
+            // Reset the resource value (but don't remove the fact completely)
+            worldFacts->setFact(resourceName, 0.0f);
+            worldFacts->setFact("total_" + resourceName, 0.0f);
+
+            // Reset max values if they exist
+            if (worldFacts->hasFact(resourceName + "_max_value")) {
+                worldFacts->setFact(resourceName + "_max_value", 0.0f);
+            }
+
+            LOG_INFO("NexusSystem", "Reset resource: " << resourceName);
+        }
+
+        // Store resources to reset for UI cleanup (will be handled by prestige_completed event)
+        resourcesToRemoveFromDisplay = resourcesToReset;
+
+        LOG_INFO("NexusSystem", "Finished resource reset");
+    }
+
+    void NexusSystem::resetGeneratorsByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* genSystem = ecsRef->getSystem<RessourceGeneratorSystem>();
+        if (!genSystem) return;
+
+        // Reset generators that have matching tags
+        for (auto gen : genSystem->view<RessourceGenerator>()) {
+            bool shouldReset = false;
+            for (const auto& genTag : gen->prestigeTags) {
+                if (std::find(tagsToReset.begin(), tagsToReset.end(), genTag) != tagsToReset.end()) {
+                    shouldReset = true;
+                    break;
+                }
+            }
+
+            if (shouldReset) {
+                LOG_INFO("NexusSystem", "Resetting generator: " << gen->id);
+                gen->currentMana = 0.0f;
+                gen->active = false;
+                // Don't reset productionRate and capacity here - they'll be set by starting values
+            }
+        }
+    }
+
+    void NexusSystem::resetConvertersByTags(const std::vector<std::string>& tagsToReset)
+    {
+        auto* convSystem = ecsRef->getSystem<ConverterSystem>();
+        if (!convSystem) return;
+
+        // Reset converters that have matching tags
+        for (auto conv : convSystem->view<ConverterComponent>()) {
+            bool shouldReset = false;
+            for (const auto& convTag : conv->prestigeTags) {
+                if (std::find(tagsToReset.begin(), tagsToReset.end(), convTag) != tagsToReset.end()) {
+                    shouldReset = true;
+                    break;
+                }
+            }
+
+            if (shouldReset) {
+                LOG_INFO("NexusSystem", "Resetting converter: " << conv->id);
+                conv->active = false;
+                // Don't reset cost/yield here - they'll be set by starting values
+            }
+        }
+    }
+
+    void NexusSystem::applyStartingValues(const std::vector<std::string>& tagsToReset)
+    {
+        auto* worldFacts = ecsRef->getSystem<WorldFacts>();
+        auto* genSystem = ecsRef->getSystem<RessourceGeneratorSystem>();
+        auto* convSystem = ecsRef->getSystem<ConverterSystem>();
+
+        LOG_INFO("NexusSystem", "Starting to apply starting values");
+
+        // Apply starting resource values
+        std::vector<std::string> resourcesToReset = getResourcesAffectedByTags(tagsToReset);
+
+        // Store resources that should be re-displayed
+        std::vector<std::string> resourcesToReDisplay;
+
+        for (const std::string& resourceName : resourcesToReset) {
+            // Apply starting values if they exist
+            if (worldFacts->hasFact("starting_" + resourceName)) {
+                float startingValue = worldFacts->getFact<float>("starting_" + resourceName, 0.0f);
+                worldFacts->setFact(resourceName, startingValue);
+
+                // Store for re-display if starting value > 0
+                if (startingValue > 0.0f) {
+                    resourcesToReDisplay.push_back(resourceName);
+                }
+
+                LOG_INFO("NexusSystem", "Applied starting value for " << resourceName << ": " << startingValue);
+            }
+
+            if (worldFacts->hasFact("starting_max_" + resourceName)) {
+                float startingMaxValue = worldFacts->getFact<float>("starting_max_" + resourceName, 0.0f);
+                worldFacts->setFact(resourceName + "_max_value", startingMaxValue);
+                LOG_INFO("NexusSystem", "Applied starting max value for " << resourceName << ": " << startingMaxValue);
+            }
+        }
+
+        // Store for later UI handling
+        resourcesToAddToDisplay = resourcesToReDisplay;
+
+        // Apply starting values for generators
+        if (genSystem) {
+            for (auto gen : genSystem->view<RessourceGenerator>()) {
+                bool shouldReset = false;
+                for (const auto& genTag : gen->prestigeTags) {
+                    if (std::find(tagsToReset.begin(), tagsToReset.end(), genTag) != tagsToReset.end()) {
+                        shouldReset = true;
+                        break;
+                    }
+                }
+
+                if (shouldReset) {
+                    if (worldFacts->hasFact("starting_" + gen->id + "_productionRate")) {
+                        gen->productionRate = worldFacts->getFact<float>("starting_" + gen->id + "_productionRate", 1.0f);
+                    }
+                    if (worldFacts->hasFact("starting_" + gen->id + "_capacity")) {
+                        gen->capacity = worldFacts->getFact<float>("starting_" + gen->id + "_capacity", 100.0f);
+                    }
+                    if (worldFacts->hasFact("starting_" + gen->id + "_currentMana")) {
+                        gen->currentMana = worldFacts->getFact<float>("starting_" + gen->id + "_currentMana", 0.0f);
+                    }
+                    LOG_INFO("NexusSystem", "Applied starting values for generator: " << gen->id);
+                }
+            }
+        }
+
+        // Apply starting values for converters
+        if (convSystem) {
+            for (auto conv : convSystem->view<ConverterComponent>()) {
+                bool shouldReset = false;
+                for (const auto& convTag : conv->prestigeTags) {
+                    if (std::find(tagsToReset.begin(), tagsToReset.end(), convTag) != tagsToReset.end()) {
+                        shouldReset = true;
+                        break;
+                    }
+                }
+
+                if (shouldReset) {
+                    // Apply starting costs and yields if they exist
+                    for (size_t i = 0; i < conv->cost.size(); ++i) {
+                        std::string costKey = "starting_" + conv->id + "_cost" + std::to_string(i);
+                        if (worldFacts->hasFact(costKey)) {
+                            conv->cost[i] = worldFacts->getFact<float>(costKey, conv->cost[i]);
+                        }
+                    }
+                    for (size_t i = 0; i < conv->yield.size(); ++i) {
+                        std::string yieldKey = "starting_" + conv->id + "_yield" + std::to_string(i);
+                        if (worldFacts->hasFact(yieldKey)) {
+                            conv->yield[i] = worldFacts->getFact<float>(yieldKey, conv->yield[i]);
+                        }
+                    }
+                    LOG_INFO("NexusSystem", "Applied starting values for converter: " << conv->id);
+                }
+            }
+        }
+    }
+
+    std::vector<std::string> NexusSystem::getResourcesAffectedByTags(const std::vector<std::string>& tags) const
+    {
+        std::set<std::string> uniqueResources;
+
+        // Go through all buttons with matching tags and look for add_res_display events
+        for (const auto& button : savedButtons) {
+            bool buttonHasTag = false;
+            for (const auto& buttonTag : button.prestigeTags) {
+                if (std::find(tags.begin(), tags.end(), buttonTag) != tags.end()) {
+                    buttonHasTag = true;
+                    break;
+                }
+            }
+
+            if (buttonHasTag) {
+                // Check button outcomes for add_res_display events
+                for (const auto& outcome : button.outcome) {
+                    if (outcome.type == AchievementRewardType::Event) {
+                        const auto& event = std::get<StandardEvent>(outcome.reward);
+                        if (event.name == "add_res_display") {
+                            auto resIt = event.values.find("res");
+                            if (resIt != event.values.end()) {
+                                uniqueResources.insert(resIt->second.toString());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return std::vector<std::string>(uniqueResources.begin(), uniqueResources.end());
     }
 
     void NexusScene::init()
@@ -772,10 +886,14 @@ namespace pg
 
         listenToStandardEvent("add_res_display", [this](const StandardEvent& event) {
             auto res = event.values.at("res").get<std::string>();
-
-            ecsRef->getSystem<NexusSystem>()->addResourceDisplay(res);
-
+            LOG_INFO("NexusScene", "Adding resource display: " << res);
             addResourceDisplay(res);
+        });
+
+        listenToStandardEvent("remove_res_display", [this](const StandardEvent& event) {
+            auto res = event.values.at("res").get<std::string>();
+            LOG_INFO("NexusScene", "Removing resource display: " << res);
+            removeResourceDisplay(res);
         });
 
         listenToStandardEvent("add_generator", [this](const StandardEvent& event) {
@@ -821,24 +939,20 @@ namespace pg
 
             auto res = event.values.at("res").get<std::string>();
 
-            ElementType givenValue;
+            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+            if (!wf) return;
 
+            ElementType givenValue;
             if (event.values.find("value") != event.values.end())
             {
                 givenValue = event.values.at("value");
             }
-
-            WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
-            if (not wf) return;
-
-            if (event.values.find("valueId") != event.values.end())
+            else if (event.values.find("valueId") != event.values.end())
             {
                 auto valueId = event.values.at("valueId").get<std::string>();
-
-                auto it = wf->factMap.find(valueId);
-                if (it != wf->factMap.end())
+                if (wf->hasFact(valueId))
                 {
-                    givenValue = it->second;
+                    givenValue = ElementType{wf->getFact<float>(valueId, 0.0f)};
                 }
                 else
                 {
@@ -847,22 +961,11 @@ namespace pg
                 }
             }
 
-            float value = 0.0f;
-            float maxValue = 0.0f;
-            bool hasMax = false;
+            // Use helper function to get resource with max value
+            auto [value, maxValue] = getResourceWithMax(wf, res);
+            bool hasMax = maxValue > 0.0f;
 
-            auto it = wf->factMap.find(res);
-            if (it != wf->factMap.end())
-            {
-                value = it->second.get<float>();
-            }
-
-            auto itMax = wf->factMap.find(res + "_max_value");
-            if (itMax != wf->factMap.end())
-            {
-                maxValue = itMax->second.get<float>();
-                hasMax = true;
-            }
+            float v = 0.0f;
 
             if (hasMax)
             {
@@ -874,16 +977,20 @@ namespace pg
                     return;
                 }
 
-                availableSpace = std::min(availableSpace, givenValue.get<float>());
-
-                ecsRef->sendEvent(IncreaseFact{res, availableSpace});
-                ecsRef->sendEvent(IncreaseFact{"total_" + res, availableSpace});
+                v = std::min(availableSpace, givenValue.get<float>());
             }
             else
             {
-                ecsRef->sendEvent(IncreaseFact{res, givenValue});
-                ecsRef->sendEvent(IncreaseFact{"total_" + res, givenValue});
+                v = givenValue.get<float>();
             }
+
+            // Use WorldFacts helpers for resource updates
+            wf->addResource(res, v);
+            wf->addResource("total_" + res, v);
+
+            // Track resource generation statistics
+            wf->incrementStat("stat_total_resources_generated", v);
+            wf->incrementStat("stat_" + res + "_generated", v);
         });
 
         listenToEvent<UpdateGenView>([this](const UpdateGenView&) {
@@ -892,6 +999,46 @@ namespace pg
 
         listenToStandardEvent("activate_gen", [this](const StandardEvent&) {
             updateGeneratorViews();
+        });
+
+        listenToStandardEvent("prestige_completed", [this](const StandardEvent&) {
+            LOG_INFO("NexusScene", "Handling prestige_completed event");
+
+            // Sync button visibility after prestige - move unarchived buttons back to masked list
+            auto nexusSys = ecsRef->getSystem<NexusSystem>();
+            if (nexusSys) {
+                // Handle resource display updates
+                for (const auto& resourceName : nexusSys->resourcesToRemoveFromDisplay) {
+                    removeResourceDisplay(resourceName);
+                    removeResourceDisplay("total_" + resourceName);
+                }
+                for (const auto& resourceName : nexusSys->resourcesToAddToDisplay) {
+                    addResourceDisplay(resourceName);
+                }
+
+                // Clear the temporary storage
+                nexusSys->resourcesToRemoveFromDisplay.clear();
+                nexusSys->resourcesToAddToDisplay.clear();
+
+                // Clear current visible buttons and rebuild from savedButtons
+                maskedButtons.clear();
+                visibleButtons.clear();
+
+                for (const auto& savedButton : nexusSys->savedButtons) {
+                    if (!savedButton.archived) {
+                        auto buttonCopy = savedButton;
+                        buttonCopy.entityId = 0; // Reset entity ID so it gets recreated
+                        maskedButtons.push_back(buttonCopy);
+                    }
+                }
+
+                LOG_INFO("NexusScene", "Rebuilt button lists: " << maskedButtons.size() << " masked, " << visibleButtons.size() << " visible");
+            }
+
+            // Force UI update
+            updateUi = true;
+
+            LOG_INFO("NexusScene", "Finished handling prestige_completed event");
         });
 
         // Listen for world fact updates to log mana or upgrades.
@@ -929,6 +1076,9 @@ namespace pg
 
                 if (event.state)
                 {
+                    // Track which button is being hovered for periodic updates
+                    currentHoveredButtonId = buttonId;
+
                     tooltipsEntities["background"]->get<PositionComponent>()->setVisibility(true);
                     tooltipsEntities["backHighlight"]->get<PositionComponent>()->setVisibility(true);
 
@@ -946,7 +1096,10 @@ namespace pg
                     if (it->description != "")
                     {
                         tooltipsEntities["desc"]->get<PositionComponent>()->setVisibility(true);
-                        tooltipsEntities["desc"]->get<TTFText>()->setText(it->description);
+
+                        // Use enhanced description with time remaining for active buttons
+                        std::string enhancedDesc = getEnhancedDescription(*it);
+                        tooltipsEntities["desc"]->get<TTFText>()->setText(enhancedDesc);
 
                         tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["desc"]->get<UiAnchor>()->bottom);
                     }
@@ -960,6 +1113,8 @@ namespace pg
                         std::ostringstream costText;
 
                         bool addEscape = false;
+
+                        WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
 
                         for (size_t i = 0; i < it->costs.size(); ++i)
                         {
@@ -980,7 +1135,18 @@ namespace pg
                                 value = value * std::pow(it->costIncrease[i], it->nbClick);
                             }
 
-                            costText << str << ": " << value;
+                            // Check if player has enough resources using helper
+                            bool hasEnoughResources = wf ? wf->canAfford(cost.resourceId, value) : false;
+
+                            // Add color coding: green if available, red if missing
+                            if (hasEnoughResources)
+                            {
+                                costText << "\\c{0, 255, 0, 255}" << str << ": " << value << "\\c{}";
+                            }
+                            else
+                            {
+                                costText << "\\c{255, 0, 0, 255}" << str << ": " << value << "\\c{}";
+                            }
 
                             addEscape = true;
                         }
@@ -989,6 +1155,11 @@ namespace pg
 
                         tooltipsEntities["background"]->get<UiAnchor>()->setBottomAnchor(tooltipsEntities["costValues"]->get<UiAnchor>()->bottom);
                     }
+                }
+                else
+                {
+                    // Clear the hovered button ID when hover ends
+                    currentHoveredButtonId = "";
                 }
 
                 if (not it->clickable)
@@ -1098,37 +1269,21 @@ namespace pg
                     return;
                 }
 
+                // Track button click statistics using WorldFacts helpers
+                WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
+                wf->incrementStat("stat_total_button_clicks");
+                wf->incrementStat("stat_clicks_" + buttonId);
+
                 // Todo check if all the conditions are met
                 for (auto it2 : it->outcome)
                 {
                     it2.call(ecsRef);
                 }
 
-                if (not it->costs.empty())
+                if (!it->costs.empty())
                 {
-                    WorldFacts* wf = ecsRef->getSystem<WorldFacts>();
-
-                    for (size_t i = 0; i < it->costs.size(); ++i)
-                    {
-                        auto it3 = it->costs[i];
-
-                        if (it3.consumed)
-                        {
-                            auto cost = IncreaseFact(it3.resourceId, -it3.value);
-
-                            if (it3.valueId != "" and wf->factMap.find(it3.valueId) != wf->factMap.end())
-                            {
-                                cost.value = -wf->factMap.at(it3.valueId);
-                            }
-
-                            if (it->costIncrease.size() > i and cost.value.isNumber())
-                            {
-                                cost.value = ElementType{cost.value.get<float>() * std::pow(it->costIncrease[i], it->nbClick)};
-                            }
-
-                            ecsRef->sendEvent(cost);
-                        }
-                    }
+                    // Deduct costs using helper function
+                    deductButtonCosts(wf, *it);
 
                     std::ostringstream costText;
                     bool addEscape = false;
@@ -1152,7 +1307,18 @@ namespace pg
                             value = value * std::pow(it->costIncrease[i], it->nbClick + 1);
                         }
 
-                        costText << str << ": " << value;
+                        // Check if player has enough resources for next click using helper
+                        bool hasEnoughResources = wf->canAfford(cost.resourceId, value);
+
+                        // Add color coding: green if available, red if missing
+                        if (hasEnoughResources)
+                        {
+                            costText << "\\c{0, 255, 0, 255}" << str << ": " << value << "\\c{}";
+                        }
+                        else
+                        {
+                            costText << "\\c{255, 0, 0, 255}" << str << ": " << value << "\\c{}";
+                        }
 
                         addEscape = true;
                     }
@@ -1164,7 +1330,7 @@ namespace pg
 
                 it->nbClick++;
 
-                LOG_ERROR("NexusScene", "Button clicked: " << buttonId << ", clicked: " << it->nbClick << ", it->id: " << it->id);
+                LOG_INFO("NexusScene", "Button clicked: " << buttonId << ", clicked: " << it->nbClick << ", it->id: " << it->id);
 
                 if (it->nbClickBeforeArchive != 0 and it->nbClick >= it->nbClickBeforeArchive)
                 {
@@ -1247,7 +1413,89 @@ namespace pg
             newRes = true;
         }
 
+        // Update tooltip for active button every 4-5 ticks
+        tooltipUpdateTicks++;
+        if (tooltipUpdateTicks >= 4 && !currentHoveredButtonId.empty())
+        {
+            tooltipUpdateTicks = 0;
+
+            // Find the currently hovered button
+            auto it = std::find_if(visibleButtons.begin(), visibleButtons.end(),
+                [this](const DynamicNexusButton& button) {
+                    return button.id == currentHoveredButtonId;
+                });
+
+            if (it != visibleButtons.end() && it->activable)
+            {
+                // Check if tooltip is currently visible
+                if (tooltipsEntities["desc"]->get<PositionComponent>()->visible)
+                {
+                    // Update the description with current time remaining
+                    std::string enhancedDesc = getEnhancedDescription(*it);
+                    tooltipsEntities["desc"]->get<TTFText>()->setText(enhancedDesc);
+                }
+            }
+        }
+
         // This scene could be extended to update UI, handle animations, etc.
+    }
+
+    std::string NexusScene::formatTimeRemaining(float remainingMs)
+    {
+        if (remainingMs <= 0) return "0:00:00:00";
+
+        // Convert milliseconds to seconds
+        int totalSeconds = static_cast<int>(std::ceil(remainingMs / 1000.0f));
+
+        int days = totalSeconds / (24 * 3600);
+        totalSeconds %= (24 * 3600);
+
+        int hours = totalSeconds / 3600;
+        totalSeconds %= 3600;
+
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+
+        std::ostringstream oss;
+        oss << days << ":"
+            << std::setfill('0') << std::setw(2) << hours << ":"
+            << std::setfill('0') << std::setw(2) << minutes << ":"
+            << std::setfill('0') << std::setw(2) << seconds;
+
+        return oss.str();
+    }
+
+    std::string NexusScene::getEnhancedDescription(const DynamicNexusButton& button)
+    {
+        std::string description = button.description;
+
+        // Check if this is an activable button (has duration)
+        if (button.activable)
+        {
+            auto nexusSys = ecsRef->getSystem<NexusSystem>();
+
+            // If this button is currently active, show remaining time
+            if (nexusSys && nexusSys->activeButton && nexusSys->currentActiveButton &&
+                nexusSys->currentActiveButton->id == button.id)
+            {
+                float remainingTime = button.activationTime - nexusSys->currentActiveButton->activeTime;
+                if (remainingTime > 0)
+                {
+                    description += "\n\n\\c{255, 165, 0, 255}Time Remaining: " + formatTimeRemaining(remainingTime) + "\\c{}";
+                }
+                else
+                {
+                    description += "\n\n\\c{0, 255, 0, 255}Completing...\\c{}";
+                }
+            }
+            else
+            {
+                // Show total duration for inactive activable buttons
+                description += "\n\n\\c{100, 149, 237, 255}Task Duration: " + formatTimeRemaining(button.activationTime) + "\\c{}";
+            }
+        }
+
+        return description;
     }
 
     EntityRef createButtonPrefab(NexusScene *scene, const std::string& text, const std::string& id, DynamicNexusButton* button)
@@ -1483,6 +1731,14 @@ namespace pg
         }
     }
 
+    void NexusScene::addResourceDisplay(const std::string& resourceName)
+    {
+        // Check if resource is already displayed to prevent duplicates
+        if (!hasResourceDisplay(resourceName)) {
+            resourceToBeDisplayed.push(resourceName);
+        }
+    }
+
     // Helper method to add a new resource display entry.
     void NexusScene::_addResourceDisplay(const std::string& resourceName)
     {
@@ -1500,6 +1756,33 @@ namespace pg
         resourceList.push_back(entry);
     }
 
+    void NexusScene::removeResourceDisplay(const std::string& resourceName)
+    {
+        // Find the resource in the display list
+        auto it = std::find_if(resourceList.begin(), resourceList.end(),
+            [&resourceName](const ResourceDisplayEntry& entry) {
+                return entry.resourceName == resourceName;
+            });
+
+        if (it != resourceList.end()) {
+            // Remove from ListView
+            if (resLayout && resLayout->has<ListView>()) {
+                resLayout->get<ListView>()->removeEntity(it->uiEntity);
+            }
+
+            // Remove from resource list
+            resourceList.erase(it);
+        }
+    }
+
+    bool NexusScene::hasResourceDisplay(const std::string& resourceName) const
+    {
+        return std::find_if(resourceList.begin(), resourceList.end(),
+            [&resourceName](const ResourceDisplayEntry& entry) {
+                return entry.resourceName == resourceName;
+            }) != resourceList.end();
+    }
+
     void NexusScene::updateRessourceView()
     {
         // Update the resource list view.
@@ -1508,22 +1791,9 @@ namespace pg
 
         for (auto& entry : resourceList)
         {
-            float value = 0.0f;
-            float maxValue = 0.0f;
-            bool hasMax = false;
-
-            auto it = wf->factMap.find(entry.resourceName);
-            if (it != wf->factMap.end())
-            {
-                value = it->second.get<float>();
-            }
-
-            auto itMax = wf->factMap.find(entry.resourceName + "_max_value");
-            if (itMax != wf->factMap.end())
-            {
-                maxValue = itMax->second.get<float>();
-                hasMax = true;
-            }
+            // Use helper function to get resource with max value
+            auto [value, maxValue] = getResourceWithMax(wf, entry.resourceName);
+            bool hasMax = maxValue > 0.0f;
 
             std::ostringstream oss;
             oss << entry.resourceName << ": " << value;
@@ -1681,5 +1951,209 @@ namespace pg
                 }
             }
         }
+    }
+
+    // AutoClickerSystem implementation
+    void AutoClickerSystem::init()
+    {
+        // Register StandardEvent types we listen to
+        addListenerToStandardEvent("purchase_autoclicker");
+        addListenerToStandardEvent("toggle_autoclicker");
+
+        // Initialize global auto-clicker multiplier if it doesn't exist
+        auto* factSys = ecsRef->getSystem<WorldFacts>();
+        factSys->setFactIfNotExists("autoclicker_global_multiplier", 1.0f);
+    }
+
+    void AutoClickerSystem::execute()
+    {
+        // Process owned auto-clickers that are active
+        for (auto& clicker : ownedAutoClickers)
+        {
+            if (clicker.active && clicker.owned)
+            {
+                clicker.timer += deltaTime;
+
+                float interval = getClickInterval(clicker);
+                if (clicker.timer >= interval)
+                {
+                    // Send auto-click event
+                    LOG_INFO("AutoClickerSystem", "Auto-clicker " << clicker.id << " firing! Timer: " << clicker.timer << ", Interval: " << interval);
+                    ecsRef->sendEvent(AutoClickerAction{clicker.id, clicker.targetButtonId});
+
+                    // Reset timer AFTER logging
+                    clicker.timer = 0.0f;
+
+                    // Update statistics
+                    clicker.clickCount++;
+                    auto* factSys = ecsRef->getSystem<WorldFacts>();
+                    factSys->incrementStat("stat_autoclicker_clicks_" + clicker.id);
+                    factSys->incrementStat("stat_total_autoclicker_clicks");
+                }
+            }
+        }
+
+        // Reset deltaTime after processing all auto-clickers
+        deltaTime = 0;
+    }
+
+    void AutoClickerSystem::onEvent(const StandardEvent& event)
+    {
+        if (event.name == "purchase_autoclicker")
+        {
+            auto autoClickerId = event.values.at("id").get<std::string>();
+
+            // Find the auto-clicker definition
+            auto it = std::find_if(availableAutoClickers.begin(), availableAutoClickers.end(),
+                                  [&autoClickerId](const AutoClicker& clicker) { return clicker.id == autoClickerId; });
+
+            if (it != availableAutoClickers.end())
+            {
+                auto* factSys = ecsRef->getSystem<WorldFacts>();
+
+                // Check if already owned using WorldFacts helper
+                if (factSys->getFact<bool>(it->id + "_owned", false))
+                {
+                    LOG_WARNING("AutoClickerSystem", "Auto-clicker " << it->id << " is already owned");
+                    return;
+                }
+
+                // Check costs and conditions
+                bool canPurchase = true;
+
+                // Check unlock conditions
+                for (const auto& condition : it->unlockConditions)
+                {
+                    if (!condition.check(factSys->factMap))
+                    {
+                        canPurchase = false;
+                        break;
+                    }
+                }
+
+                // Check costs using WorldFacts helpers
+                if (canPurchase)
+                {
+                    for (const auto& cost : it->costs)
+                    {
+                        float requiredAmount = cost.value;
+                        if (!cost.valueId.empty())
+                        {
+                            requiredAmount = factSys->getFact<float>(cost.valueId, cost.value);
+                        }
+
+                        if (!factSys->canAfford(cost.resourceId, requiredAmount))
+                        {
+                            canPurchase = false;
+                            break;
+                        }
+                    }
+                }
+
+                if (canPurchase)
+                {
+                    // Deduct costs using WorldFacts helpers
+                    for (const auto& cost : it->costs)
+                    {
+                        if (cost.consumed)
+                        {
+                            float requiredAmount = cost.value;
+                            if (!cost.valueId.empty())
+                            {
+                                requiredAmount = factSys->getFact<float>(cost.valueId, cost.value);
+                            }
+                            factSys->spendResource(cost.resourceId, requiredAmount);
+                        }
+                    }
+
+                    // Add to owned auto-clickers
+                    AutoClicker ownedClicker = *it;
+                    ownedClicker.owned = true;
+                    ownedClicker.active = true; // Start active by default!
+                    ownedAutoClickers.push_back(ownedClicker);
+
+                    // Set ownership fact
+                    factSys->setFact(it->id + "_owned", true);
+
+                    // Create auto-clicker specific facts
+                    createAutoClickerFacts(ownedClicker);
+
+                    LOG_INFO("AutoClickerSystem", "Purchased and activated auto-clicker: " << it->id << " (targeting: " << it->targetButtonId << ")");
+                }
+                else
+                {
+                    LOG_WARNING("AutoClickerSystem", "Cannot purchase auto-clicker " << it->id << " - requirements not met");
+                }
+            }
+            else
+            {
+                LOG_ERROR("AutoClickerSystem", "Auto-clicker definition not found: " << autoClickerId);
+            }
+        }
+        else if (event.name == "toggle_autoclicker")
+        {
+            auto autoClickerId = event.values.at("id").get<std::string>();
+            bool enable = event.values.at("enable").get<bool>();
+
+            auto it = std::find_if(ownedAutoClickers.begin(), ownedAutoClickers.end(),
+                                  [&autoClickerId](const AutoClicker& clicker) { return clicker.id == autoClickerId; });
+
+            if (it != ownedAutoClickers.end())
+            {
+                if (it->owned)
+                {
+                    it->active = enable;
+                    it->timer = 0.0f; // Reset timer when toggling
+
+                    LOG_INFO("AutoClickerSystem", "Auto-clicker " << it->id << " is now " << (it->active ? "active" : "inactive") << " (targeting: " << it->targetButtonId << ")");
+                }
+                else
+                {
+                    LOG_WARNING("AutoClickerSystem", "Cannot toggle auto-clicker " << it->id << " - not owned");
+                }
+            }
+            else
+            {
+                LOG_ERROR("AutoClickerSystem", "Owned auto-clicker not found: " << autoClickerId);
+            }
+        }
+    }
+
+    void AutoClickerSystem::onEvent(const TickEvent& event)
+    {
+        deltaTime += event.tick; // event.tick is already in milliseconds
+    }
+
+    void AutoClickerSystem::save(Archive& archive)
+    {
+        serialize(archive, "availableAutoClickers", availableAutoClickers);
+        serialize(archive, "ownedAutoClickers", ownedAutoClickers);
+    }
+
+    void AutoClickerSystem::load(const UnserializedObject& serializedString)
+    {
+        defaultDeserialize(serializedString, "availableAutoClickers", availableAutoClickers);
+        defaultDeserialize(serializedString, "ownedAutoClickers", ownedAutoClickers);
+    }
+
+    float AutoClickerSystem::getClickInterval(const AutoClicker& clicker)
+    {
+        auto* factSys = ecsRef->getSystem<WorldFacts>();
+
+        float baseInterval = factSys->getFact<float>("autoclicker_interval_" + clicker.id, clicker.baseInterval);
+        float individualMultiplier = factSys->getFact<float>("autoclicker_multiplier_" + clicker.id, 1.0f);
+        float globalMultiplier = factSys->getFact<float>("autoclicker_global_multiplier", 1.0f);
+
+        return baseInterval / (individualMultiplier * globalMultiplier);  // Smaller = faster
+    }
+
+    void AutoClickerSystem::createAutoClickerFacts(const AutoClicker& clicker)
+    {
+        auto* factSys = ecsRef->getSystem<WorldFacts>();
+
+        // Create auto-clicker facts using WorldFacts helpers
+        factSys->setFactIfNotExists("autoclicker_interval_" + clicker.id, clicker.baseInterval);
+        factSys->setFactIfNotExists("autoclicker_multiplier_" + clicker.id, 1.0f);
+        factSys->setFactIfNotExists("stat_autoclicker_clicks_" + clicker.id, 0.0f);
     }
 }

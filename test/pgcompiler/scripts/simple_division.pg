@@ -1,0 +1,4 @@
+// Simple division test
+__dprint(10 / 2);
+__dprint(9 / 3);
+__dprint(1 / 2);

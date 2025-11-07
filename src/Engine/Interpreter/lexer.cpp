@@ -27,23 +27,24 @@ namespace pg
     {
         /** The table of used keywords and the corresponding TokenType */
         const std::unordered_map<std::string, TokenType> keywords = {
-            {"true",    TokenType::KEYTRUE},
-            {"false",   TokenType::KEYFALSE},
-            {"if",      TokenType::TOK_IF},
-            {"else",    TokenType::TOK_ELSE},
-            {"var",     TokenType::TOK_VAR},
-            {"while",   TokenType::TOK_WHILE},
-            {"for",     TokenType::TOK_FOR},
-            {"and",     TokenType::LOGICAND},
-            {"or",      TokenType::LOGICOR},
-            {"not",     TokenType::NOT},
-            {"fun",     TokenType::TOK_FUN},
-            {"return",  TokenType::TOK_RETURN},
-            {"class",   TokenType::TOK_CLASS},
-            {"this",    TokenType::TOK_THIS},
-            {"import",  TokenType::TOK_IMPORT},
-            {"from",    TokenType::TOK_FROM},
-            {"as",      TokenType::TOK_AS}
+            {"true",     TokenType::KEYTRUE},
+            {"false",    TokenType::KEYFALSE},
+            {"if",       TokenType::TOK_IF},
+            {"else",     TokenType::TOK_ELSE},
+            {"var",      TokenType::TOK_VAR},
+            {"while",    TokenType::TOK_WHILE},
+            {"for",      TokenType::TOK_FOR},
+            {"__dprint", TokenType::TOK_DPRINT},
+            {"and",      TokenType::LOGICAND},
+            {"or",       TokenType::LOGICOR},
+            {"not",      TokenType::NOT},
+            {"fun",      TokenType::TOK_FUN},
+            {"return",   TokenType::TOK_RETURN},
+            {"class",    TokenType::TOK_CLASS},
+            {"this",     TokenType::TOK_THIS},
+            {"import",   TokenType::TOK_IMPORT},
+            {"from",     TokenType::TOK_FROM},
+            {"as",       TokenType::TOK_AS}
 
         };
 

@@ -1,0 +1,11 @@
+// Expected bytecode for "1 + 2"
+// This is a human-readable representation of expected bytecode
+
+OP_Constant 0    // Load constant 1.0
+OP_Constant 1    // Load constant 2.0  
+OP_Add           // Add top two values
+OP_Return        // Return result
+
+// Constants pool:
+// 0: 1.0
+// 1: 2.0

@@ -1,0 +1,4 @@
+// Simple addition test
+__dprint(1 + 2);
+__dprint(10 + 5);
+__dprint(0 + 0);

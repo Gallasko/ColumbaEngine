@@ -1,0 +1,7 @@
+class Pain {}
+
+var brioche = Pain();
+
+__dprint(brioche) 
+__dprint(Pain)
+__dprint(Pain())

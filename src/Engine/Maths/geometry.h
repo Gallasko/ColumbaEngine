@@ -2,6 +2,8 @@
 
 #include <cmath>
 
+#include "pgconstant.h"
+
 namespace pg
 {
     /**
@@ -32,7 +34,7 @@ namespace pg
          */
         bool operator==(const Point2D& other) const
         {
-            return (x == other.x and y == other.y);
+            return (areAlmostEqual(x, other.x) and areAlmostEqual(y, other.y));
         }
 
         /**
@@ -125,7 +127,7 @@ namespace pg
         Point2D normalizedDirection() const
         {
             float len = length();
-            if (len == 0.0f)
+            if (areAlmostEqual(len, 0.0f))
                 return Point2D(0.0f, 0.0f);
 
             return Point2D((end.x - start.x) / len, (end.y - start.y) / len);

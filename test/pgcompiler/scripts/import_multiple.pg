@@ -1,0 +1,7 @@
+import "test/pgcompiler/scripts/import_helper_add", "test/pgcompiler/scripts/import_helper_sub"
+
+var sum = add(10, 5)
+var diff = sub(10, 5)
+
+__dprint(sum)
+__dprint(diff)

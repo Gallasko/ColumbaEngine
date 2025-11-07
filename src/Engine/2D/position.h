@@ -26,6 +26,25 @@ namespace pg
         HorizontalCenter
     };
 
+    enum class ResizeHandle : uint8_t
+    {
+        None = 0,
+        TopLeft,
+        Top,
+        TopRight,
+        Left,
+        Right,
+        BottomLeft,
+        Bottom,
+        BottomRight
+    };
+
+    enum class RotationHandle : uint8_t
+    {
+        None = 0,
+        Rotation
+    };
+
     struct PositionComponentChangedEvent
     {
         _unique_id id = 0;
@@ -82,14 +101,71 @@ namespace pg
         _unique_id id = 0;
     };
 
+    struct StartResize
+    {
+        _unique_id entityId = 0;
+        ResizeHandle handle = ResizeHandle::None;
+        float startX = 0.0f, startY = 0.0f;
+    };
+
+    struct EndResize
+    {
+        _unique_id entityId = 0;
+        ResizeHandle handle = ResizeHandle::None;
+        float startWidth = 0.0f, startHeight = 0.0f, startX = 0.0f, startY = 0.0f;
+        float endWidth = 0.0f, endHeight = 0.0f, endX = 0.0f, endY = 0.0f;
+    };
+
+    struct StartRotation
+    {
+        _unique_id entityId = 0;
+        RotationHandle handle = RotationHandle::None;
+        float startX = 0.0f, startY = 0.0f;
+    };
+
+    struct EndRotation
+    {
+        _unique_id entityId = 0;
+        RotationHandle handle = RotationHandle::None;
+        float startRotation = 0.0f;
+        float endRotation = 0.0f;
+    };
+
+    struct ResizeHandleComponent : public Component
+    {
+        DEFAULT_COMPONENT_MEMBERS(ResizeHandleComponent)
+
+        ResizeHandle handle = ResizeHandle::None;
+        float handleSize = 8.0f;
+        bool isHovered = false;
+        bool isDragging = false;
+
+        inline static std::string getType() { return "ResizeHandleComponent"; }
+    };
+
+    struct RotationHandleComponent : public Component
+    {
+        DEFAULT_COMPONENT_MEMBERS(RotationHandleComponent)
+
+        RotationHandle handle = RotationHandle::None;
+        float handleSize = 8.0f;
+        float distance = 30.0f; // Distance above the entity
+        bool isHovered = false;
+        bool isDragging = false;
+
+        inline static std::string getType() { return "RotationHandleComponent"; }
+    };
+
     // Forward declaration
     struct PositionComponent;
 
     // Todo add a Dtor that remove any parenting
     // Be careful on edge case such as being anchored and clipped at the same time to the same entity
     // Need to count the number of time a child is parented to another entity
-    struct UiAnchor : public Ctor, Dtor
+    struct UiAnchor : public Component, Dtor
     {
+        DEFAULT_COMPONENT_MEMBERS(UiAnchor)
+
         // Current Anchor of this component
         PosAnchor top;
         PosAnchor left;
@@ -178,12 +254,6 @@ namespace pg
         bool update(CompRef<PositionComponent> positionComp);
 
         inline static std::string getType() { return "UiAnchor"; }
-
-        // Private:
-
-        _unique_id id = 0;
-
-        EntitySystem *ecsRef = nullptr;
     };
 
     // Todo add a Dtor that remove any parenting
@@ -270,6 +340,12 @@ namespace pg
     void serialize(Archive& archive, const PosConstrain& value);
 
     template <>
+    void serialize(Archive& archive, const ResizeHandleComponent& value);
+
+    template <>
+    void serialize(Archive& archive, const RotationHandleComponent& value);
+
+    template <>
     PositionComponent deserialize(const UnserializedObject& serializedString);
 
     template <>
@@ -280,6 +356,12 @@ namespace pg
 
     template <>
     PosConstrain deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    ResizeHandleComponent deserialize(const UnserializedObject& serializedString);
+
+    template <>
+    RotationHandleComponent deserialize(const UnserializedObject& serializedString);
 
     // Todo add Listener<ResizeEvent>,
     struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, QueuedListener<PositionComponentChangedEvent>>

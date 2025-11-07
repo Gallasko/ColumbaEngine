@@ -52,6 +52,10 @@
 // #define LOG_TEST(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::test)
 // #define LOG_MILE(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::mile)
 
+// #define LOG_INFO(scope, msg)
+// #define LOG_ERROR(scope, msg)
+// #define LOG_WARNING(scope, msg)
+
 #define LOG_INFO(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::info)
 #define LOG_ERROR(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::error)
 #define LOG_WARNING(scope, msg) _SINGLE_LOG(scope, msg, pg::Logger::InfoLevel::warning)

@@ -1,0 +1,21 @@
+// Test 1: Import native math module
+// This should fallback to the native "math" module since no math.pg or math.pgc exists
+import "math";
+
+__dprint(PI);
+__dprint(E);
+
+var result = sqrt(16);
+__dprint(result);
+
+var absVal = abs(-42);
+__dprint(absVal);
+
+var power = pow(2, 8);
+__dprint(power);
+
+var floored = floor(3.9);
+__dprint(floored);
+
+var ceiled = ceil(2.1);
+__dprint(ceiled);

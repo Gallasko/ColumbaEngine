@@ -1,0 +1,10 @@
+// Basic if statement
+if (true) {
+    __dprint(1);
+}
+if (false) {
+    __dprint(2);
+}
+if (5 > 3) {
+    __dprint(3);
+}

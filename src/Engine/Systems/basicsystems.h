@@ -175,7 +175,7 @@ namespace pg
                     move->deltaPos.x = diffx / distance;
                     move->deltaPos.y = diffy / distance;
 
-                    if (move->distanceToTravel == 0.0f)
+                    if (areAlmostEqual(move->distanceToTravel, 0.0f))
                         move->distanceToTravel = distance;
 
                     move->changed = false;

@@ -1,0 +1,7 @@
+// Logical OR operator with short-circuit
+__dprint(true or true);
+__dprint(true or false);
+__dprint(false or true);
+__dprint(false or false);
+__dprint(5 > 3 or 2 > 4);
+__dprint(5 < 3 or 2 < 4);

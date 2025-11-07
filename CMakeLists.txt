@@ -72,6 +72,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
         set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
+        # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O3")
 
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
@@ -167,11 +168,13 @@ set(ENGINESOURCE
     src/Engine/UI/button.cpp
     src/Engine/UI/focusable.cpp
     src/Engine/UI/listview.cpp
+    src/Engine/UI/namedanchor.cpp
     src/Engine/UI/progressbar.cpp
     src/Engine/UI/scrollable.cpp
     src/Engine/UI/sentencesystem.cpp
     src/Engine/UI/sizer.cpp
     src/Engine/UI/textinput.cpp
+    src/Engine/UI/thememanager.cpp
     src/Engine/UI/ttftext.cpp
     src/Engine/UI/uianimation.cpp
     src/Engine/UI/uiconstant.cpp
@@ -503,6 +506,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             src/application.h
             src/Editor/Gui/contextmenu.cpp
             src/Editor/Gui/inspector.cpp
+            src/Editor/Gui/entitylist.cpp
             src/Editor/Gui/projectmanager.cpp
         )
 
@@ -510,7 +514,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         add_executable(GameOff exemples/GameOff/main.cpp)
 
-        configure_file(res/nexus.pg nexus.pg COPYONLY)
+        # configure_file(res/main.pg nexus.pg COPYONLY)
 
         target_include_directories(GameOff PUBLIC exemples/GameOff)
 
@@ -527,6 +531,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/GameOff/locationscene.cpp
             exemples/GameOff/mainscene.cpp
             exemples/GameOff/managenerator.cpp
+            exemples/GameOff/nexusbindings.cpp
+            exemples/GameOff/nexusmodule.cpp
             exemples/GameOff/nexusscene.cpp
             exemples/GameOff/skilltree.cpp
             exemples/GameOff/passives.cpp
@@ -636,6 +642,69 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
 
+        ###
+
+        add_executable(PgInterpreter exemples/PgInterpreter/main.cpp)
+
+        target_include_directories(PgInterpreter PUBLIC exemples/PgInterpreter)
+
+        target_sources(PgInterpreter PRIVATE
+            exemples/PgInterpreter/application.cpp
+        )
+
+        target_link_libraries(PgInterpreter PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(PgCompiler exemples/PgCompiler/main.cpp)
+
+        target_include_directories(PgCompiler PUBLIC exemples/PgCompiler)
+
+        target_sources(PgCompiler PRIVATE
+            exemples/PgCompiler/application.cpp
+            exemples/PgCompiler/compiler_debug.cpp
+            exemples/PgCompiler/vm.cpp
+            exemples/PgCompiler/compiler.cpp
+            exemples/PgCompiler/object.cpp
+            exemples/PgCompiler/cparser.cpp
+            exemples/PgCompiler/bytecode_pass.cpp
+            exemples/PgCompiler/bytecode_rewriter.cpp
+
+            exemples/PgCompiler/long_jump_optimization_pass.cpp
+            exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
+        )
+
+        target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(EcsSerializationExample exemples/PgCompiler/ecs_serialization_example.cpp)
+
+        target_include_directories(EcsSerializationExample PUBLIC exemples/PgCompiler)
+
+        target_sources(EcsSerializationExample PRIVATE
+            exemples/PgCompiler/compiler_debug.cpp
+            exemples/PgCompiler/vm.cpp
+            exemples/PgCompiler/compiler.cpp
+            exemples/PgCompiler/object.cpp
+            exemples/PgCompiler/cparser.cpp
+            exemples/PgCompiler/bytecode_pass.cpp
+            exemples/PgCompiler/bytecode_rewriter.cpp
+
+            exemples/PgCompiler/long_jump_optimization_pass.cpp
+            exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
+        )
+
+        target_link_libraries(EcsSerializationExample PRIVATE ColumbaEngine)
+
         # Only build tests if not building static lib only
         enable_testing()
 
@@ -690,6 +759,66 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)
+
+        # ===============================================
+        # COMPILER TEST TARGET (simple script-based testbench)
+        # ===============================================
+
+        # PgCompiler source files (needed for testing)
+        set(PGCOMPILER_SOURCES
+            exemples/PgCompiler/vm.cpp
+            exemples/PgCompiler/compiler.cpp
+            exemples/PgCompiler/cparser.cpp
+            exemples/PgCompiler/compiler_debug.cpp
+            exemples/PgCompiler/bytecode_pass.cpp
+            exemples/PgCompiler/bytecode_rewriter.cpp
+            exemples/PgCompiler/object.cpp
+
+            exemples/PgCompiler/long_jump_optimization_pass.cpp
+            exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
+        )
+
+        # Create the compiler test executable with simple script testbench
+        add_executable(test_compiler
+            test/pgcompiler/main_compiler_test.cc
+            test/pgcompiler/script_testbench.cc
+            ${PGCOMPILER_SOURCES}
+        )
+
+        # Include directories for compiler tests
+        target_include_directories(test_compiler PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine
+            ${CMAKE_CURRENT_SOURCE_DIR}/exemples/PgCompiler
+            ${GTEST_DIR}/googletest/include
+            ${GTEST_DIR}/googletest/include/gtest
+            ${GTEST_DIR}/googletest/include/gtest/internal
+        )
+
+        # Link libraries for compiler tests
+        target_link_libraries(test_compiler PRIVATE
+            gtest
+            gtest_main
+            ColumbaEngine
+        )
+
+        # Add DEBUG_CHECK_STACK define for test_compiler target
+        # target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
+        target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD)
+
+        # Copy test script files to build directory
+        add_custom_command(TARGET test_compiler POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/scripts $<TARGET_FILE_DIR:test_compiler>/test/pgcompiler/scripts)
+
+        # Register compiler tests with CTest
+        gtest_discover_tests(test_compiler
+            WORKING_DIRECTORY $<TARGET_FILE_DIR:test_compiler>
+            PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "$<TARGET_FILE_DIR:test_compiler>"
+        )
     endif()
 endif()
 
