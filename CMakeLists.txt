@@ -71,8 +71,8 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_compile_options(-DGLEW_STATIC)
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
-        # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
-        set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O3")
+        set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
+        # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O3")
 
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
@@ -666,7 +666,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PgCompiler/vm.cpp
             exemples/PgCompiler/compiler.cpp
             exemples/PgCompiler/object.cpp
-            exemples/PgCompiler/parser.cpp
+            exemples/PgCompiler/cparser.cpp
             exemples/PgCompiler/bytecode_pass.cpp
             exemples/PgCompiler/bytecode_rewriter.cpp
 
@@ -679,6 +679,31 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(EcsSerializationExample exemples/PgCompiler/ecs_serialization_example.cpp)
+
+        target_include_directories(EcsSerializationExample PUBLIC exemples/PgCompiler)
+
+        target_sources(EcsSerializationExample PRIVATE
+            exemples/PgCompiler/compiler_debug.cpp
+            exemples/PgCompiler/vm.cpp
+            exemples/PgCompiler/compiler.cpp
+            exemples/PgCompiler/object.cpp
+            exemples/PgCompiler/cparser.cpp
+            exemples/PgCompiler/bytecode_pass.cpp
+            exemples/PgCompiler/bytecode_rewriter.cpp
+
+            exemples/PgCompiler/long_jump_optimization_pass.cpp
+            exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
+        )
+
+        target_link_libraries(EcsSerializationExample PRIVATE ColumbaEngine)
 
         # Only build tests if not building static lib only
         enable_testing()
@@ -743,7 +768,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         set(PGCOMPILER_SOURCES
             exemples/PgCompiler/vm.cpp
             exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/parser.cpp
+            exemples/PgCompiler/cparser.cpp
             exemples/PgCompiler/compiler_debug.cpp
             exemples/PgCompiler/bytecode_pass.cpp
             exemples/PgCompiler/bytecode_rewriter.cpp

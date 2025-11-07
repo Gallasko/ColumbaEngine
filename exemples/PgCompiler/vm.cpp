@@ -126,6 +126,15 @@ namespace pg
 
 namespace pg
 {
+    VM::VM()
+    {
+        // Initialize function pointer dispatch table
+        register_builtin_operations();
+
+        // Initialize built-in classes (like Table)
+        initialize_builtin_classes();
+    }
+
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
         // Todo change this
@@ -219,12 +228,6 @@ namespace pg
 
         try
         {
-            // Initialize function pointer dispatch table
-            register_builtin_operations();
-
-            // Initialize built-in classes (like Table)
-            initialize_builtin_classes();
-
             // Freeze constant indices - all pool allocations up to this point are constants
             // Runtime allocations will have indices above these max values
             pools.freezeConstantIndices();
@@ -408,7 +411,7 @@ namespace pg
             Value result = native->function(this, argCount, stack.data() + stack.size() - argCount);
 
             // Remove arguments from the stack
-            for (int i = 0; i < argCount; i++)
+            for (int i = 0; i < argCount + 1; i++)
             {
                 auto v = pop();
                 releaseAndDelete(v);

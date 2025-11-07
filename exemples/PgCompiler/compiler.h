@@ -6,7 +6,7 @@
 
 #include "object.h"
 
-#include "parser.h"
+#include "cparser.h"
 
 #include <iostream>
 #include <iomanip>
@@ -65,7 +65,7 @@ namespace pg
         // Script index tracking for imports
         static int scriptIndex;
 
-        Parser parser;
+        CParser parser;
 
         // Modified to support nested compilers
         Compiler* enclosing = nullptr;  // Points to parent compiler

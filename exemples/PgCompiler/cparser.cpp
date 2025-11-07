@@ -1,4 +1,4 @@
-#include "parser.h"
+#include "cparser.h"
 
 #include "compiler.h"
 #include "vm.h"
@@ -10,25 +10,25 @@
 
 namespace pg
 {
-    void intNumber(Parser& parser, bool)
+    void intNumber(CParser& parser, bool)
     {
         auto n = std::stoi(parser.previousToken.text);
         parser.writeConstant(n);
     }
 
-    void floatNumber(Parser& parser, bool)
+    void floatNumber(CParser& parser, bool)
     {
         auto n = std::stof(parser.previousToken.text);
         parser.writeConstant(n);
     }
 
-    void strLiterral(Parser& parser, bool)
+    void strLiterral(CParser& parser, bool)
     {
         auto str = parser.previousToken.text;
         parser.writeConstant(str);
     }
 
-    void litteral(Parser& parser, bool)
+    void litteral(CParser& parser, bool)
     {
         switch (parser.previousToken.type)
         {
@@ -43,13 +43,13 @@ namespace pg
         }
     }
 
-    void grouping(Parser& parser, bool)
+    void grouping(CParser& parser, bool)
     {
         parser.expression();
         parser.consume("Expect ')' after expression.", TokenType::PCLOSE);
     }
 
-    void unary(Parser& parser, bool)
+    void unary(CParser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
 
@@ -73,7 +73,7 @@ namespace pg
         }
     }
 
-    void binary(Parser& parser, bool)
+    void binary(CParser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
         Precedence precedence = static_cast<Precedence>(static_cast<int>(parser.getRule(operatorToken.type).precedence) + 1);
@@ -122,7 +122,7 @@ namespace pg
         }
     }
 
-    void variable(Parser& parser, bool canAssign)
+    void variable(CParser& parser, bool canAssign)
     {
         auto varName = parser.previousToken.text;
         Token varToken = parser.previousToken;
@@ -201,7 +201,7 @@ namespace pg
         }
     }
 
-    void andOp(Parser& parser, bool)
+    void andOp(CParser& parser, bool)
     {
         // For 'and': if the left operand is false, short-circuit to false
         // If left operand is true, evaluate right operand
@@ -213,7 +213,7 @@ namespace pg
         parser.patchJump(endJump);
     }
 
-    void orOp(Parser& parser, bool)
+    void orOp(CParser& parser, bool)
     {
         // For 'or': if the left operand is false, jump to evaluate right operand
         // If left operand is true, short-circuit to true
@@ -227,7 +227,7 @@ namespace pg
         parser.patchJump(endJump);
     }
 
-    void decrementOp(Parser& parser, bool)
+    void decrementOp(CParser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
 
@@ -273,7 +273,7 @@ namespace pg
         }
     }
 
-    void incrementOp(Parser& parser, bool)
+    void incrementOp(CParser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
 
@@ -315,7 +315,7 @@ namespace pg
         }
     }
 
-    void postfixIncrementOp(Parser& parser, bool)
+    void postfixIncrementOp(CParser& parser, bool)
     {
         // For postfix increment: var++ (return old value, modify variable)
         // Stack currently has [old_value] from the variable access
@@ -368,7 +368,7 @@ namespace pg
         parser.writeByte(incrOp);
     }
 
-    void postfixDecrementOp(Parser& parser, bool)
+    void postfixDecrementOp(CParser& parser, bool)
     {
         // For postfix decrement: var-- (return old value, modify variable)
         // Stack currently has [old_value] from the variable access
@@ -417,7 +417,7 @@ namespace pg
         parser.writeByte(decrOp);
     }
 
-    uint8_t argumentList(Parser& parser)
+    uint8_t argumentList(CParser& parser)
     {
         uint8_t argCount = 0;
 
@@ -441,14 +441,14 @@ namespace pg
         return argCount;
     }
 
-    void call(Parser& parser, bool)
+    void call(CParser& parser, bool)
     {
         auto argCount = argumentList(parser);
 
         parser.emitBytes(OpCode::OP_Call, argCount);
     }
 
-    void dot(Parser& parser, bool canAssign)
+    void dot(CParser& parser, bool canAssign)
     {
         parser.consume("Expect property name after '.'.", TokenType::EXPRESSION);
 
@@ -476,7 +476,7 @@ namespace pg
         }
     }
 
-    void this_(Parser& parser, bool)
+    void this_(CParser& parser, bool)
     {
         if (Compiler::current->currentClass == nullptr)
         {
@@ -487,7 +487,7 @@ namespace pg
         variable(parser, false);
     }
 
-    void createTable(Parser& parser, bool)
+    void createTable(CParser& parser, bool)
     {
         uint8_t autoIndex = 0;
 
@@ -527,7 +527,7 @@ namespace pg
         parser.writeByte(autoIndex);
     }
 
-    void indexTable(Parser& parser, bool canAssign)
+    void indexTable(CParser& parser, bool canAssign)
     {
         parser.expression(); // Index expression
         parser.consume("Expect ']' after index expression.", TokenType::CCLOSE);
@@ -616,7 +616,7 @@ namespace pg
         {TokenType::TOK_ERROR,    {NULL,        NULL,       Precedence::NONE}},
     };
 
-    Parser::~Parser()
+    CParser::~CParser()
     {
         for (auto func : allocatedFunction)
         {
@@ -624,7 +624,7 @@ namespace pg
         }
     }
 
-    void Parser::parsePrecedenceFromPrev(const Precedence& precedence)
+    void CParser::parsePrecedenceFromPrev(const Precedence& precedence)
     {
         ParseFn prefixRule = getRule(previousToken.type).prefix;
 
@@ -651,14 +651,14 @@ namespace pg
         }
     }
 
-    void Parser::parsePrecedence(const Precedence& precedence)
+    void CParser::parsePrecedence(const Precedence& precedence)
     {
         advance();
 
         parsePrecedenceFromPrev(precedence);
     }
 
-    void Parser::declaration()
+    void CParser::declaration()
     {
         if (match(TokenType::TOK_VAR))
         {
@@ -683,7 +683,7 @@ namespace pg
             synchronize();
     }
 
-    void Parser::varDeclaration()
+    void CParser::varDeclaration()
     {
         consume("Expect variable name.", TokenType::EXPRESSION);
 
@@ -715,7 +715,7 @@ namespace pg
         writeByte(OpCode::OP_Define_Global);
     }
 
-    void Parser::funDeclaration()
+    void CParser::funDeclaration()
     {
         consume("Expect variable name.", TokenType::EXPRESSION);
 
@@ -737,7 +737,7 @@ namespace pg
         }
     }
 
-    void Parser::classDeclaration()
+    void CParser::classDeclaration()
     {
         consume("Expect class name.", TokenType::EXPRESSION);
         Token className = previousToken;
@@ -786,7 +786,7 @@ namespace pg
         Compiler::current->currentClass = classCompiler.enclosing;
     }
 
-    void Parser::statement()
+    void CParser::statement()
     {
         if (match(TokenType::BENTER))
         {
@@ -824,14 +824,14 @@ namespace pg
         }
     }
 
-    void Parser::expressionStatement()
+    void CParser::expressionStatement()
     {
         expression();
         consumeEnd("Expect end of expression.");
         writeByte(OpCode::OP_Pop);
     }
 
-    void Parser::blockStatement()
+    void CParser::blockStatement()
     {
         while (not check(TokenType::BCLOSE) and not isAtEnd())
         {
@@ -842,7 +842,7 @@ namespace pg
         consume("Expect '}' after block.", TokenType::BCLOSE);
     }
 
-    void Parser::ifStatement()
+    void CParser::ifStatement()
     {
         skipEOL();
         consume("Expect '(' after 'if'.", TokenType::PENTER);
@@ -871,7 +871,7 @@ namespace pg
         patchJump(elseJump);
     }
 
-    void Parser::dprintStatement()
+    void CParser::dprintStatement()
     {
         skipEOL();
         consume("Expect '(' after '__dprint'.", TokenType::PENTER);
@@ -885,7 +885,7 @@ namespace pg
         writeByte(OpCode::OP_Debug_Print);
     }
 
-    void Parser::whileStatement()
+    void CParser::whileStatement()
     {
         int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
@@ -908,7 +908,7 @@ namespace pg
         writeByte(OpCode::OP_Pop); // Pop the condition
     }
 
-    void Parser::forStatement()
+    void CParser::forStatement()
     {
         Compiler::current->beginScope();
 
@@ -979,7 +979,7 @@ namespace pg
         Compiler::current->endScope();
     }
 
-    void Parser::returnStatement()
+    void CParser::returnStatement()
     {
         if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
         {
@@ -1005,7 +1005,7 @@ namespace pg
         }
     }
 
-    void Parser::importStatement()
+    void CParser::importStatement()
     {
         // Get the module name
 
@@ -1041,7 +1041,7 @@ namespace pg
         consumeEnd("Expect ';' or end of line after import statement.");
     }
 
-    void Parser::methodStatement()
+    void CParser::methodStatement()
     {
         consume("Expect method name.", TokenType::EXPRESSION);
         Token methodName = previousToken;
@@ -1060,12 +1060,12 @@ namespace pg
         writeByte(constantIndex);
     }
 
-    ParseRule& Parser::getRule(const TokenType& type) const
+    ParseRule& CParser::getRule(const TokenType& type) const
     {
         return rules[type];
     }
 
-    bool Parser::parseImportFile(const std::string& moduleName)
+    bool CParser::parseImportFile(const std::string& moduleName)
     {
         // Add .pg extension if not present
         std::string fileName = moduleName;
@@ -1215,7 +1215,7 @@ namespace pg
         }
     }
 
-    void Parser::parseFunction(const FunctionType& type)
+    void CParser::parseFunction(const FunctionType& type)
     {
         Compiler compiler(vm);
 
@@ -1270,12 +1270,12 @@ namespace pg
         }
     }
 
-    void Parser::declareVariable(const Token& name)
+    void CParser::declareVariable(const Token& name)
     {
         Compiler::current->addLocal(name);
     }
 
-    void Parser::pushVariableInStack(const std::string& varName)
+    void CParser::pushVariableInStack(const std::string& varName)
     {
         int arg = Compiler::current->findLocal(varName);
 
@@ -1302,7 +1302,7 @@ namespace pg
         writeByte(static_cast<uint8_t>(arg));
     }
 
-    int Parser::emitJump(const OpCode& instruction)
+    int CParser::emitJump(const OpCode& instruction)
     {
         writeByte(instruction);
         writeByte(0xff);
@@ -1313,7 +1313,7 @@ namespace pg
         return static_cast<int>(Compiler::current->getCurrentChunk().code.size() - 4);
     }
 
-    void Parser::patchJump(int offset)
+    void CParser::patchJump(int offset)
     {
         // -1 to adjust for the bytecode for the jump offset itself
         size_t jump = Compiler::current->getCurrentChunk().code.size() - offset - 4;
@@ -1329,7 +1329,7 @@ namespace pg
         Compiler::current->getCurrentChunk().code[offset + 3] = jump & 0xFF;
     }
 
-    void Parser::emitLoop(int offset)
+    void CParser::emitLoop(int offset)
     {
         writeByte(OpCode::OP_Long_Loop);
 
@@ -1346,7 +1346,7 @@ namespace pg
         writeByte(jump & 0xFF);
     }
 
-    void Parser::emitReturn()
+    void CParser::emitReturn()
     {
         if (Compiler::current->currentType == FunctionType::TYPE_INITIALIZER)
         {
@@ -1360,22 +1360,22 @@ namespace pg
         writeByte(OpCode::OP_Return);
     }
 
-    void Parser::writeConstant(const ElementType& constant)
+    void CParser::writeConstant(const ElementType& constant)
     {
         Compiler::current->getCurrentChunk().addConstant(vm->elementToValue(constant), previousToken.line);
     }
 
-    void Parser::writeByte(const OpCode& byte)
+    void CParser::writeByte(const OpCode& byte)
     {
         Compiler::current->getCurrentChunk().addCode(byte, previousToken.line);
     }
 
-    void Parser::writeByte(uint8_t byte)
+    void CParser::writeByte(uint8_t byte)
     {
         Compiler::current->getCurrentChunk().addCode(byte, previousToken.line);
     }
 
-    void Parser::synchronize()
+    void CParser::synchronize()
     {
         panicMode = false;
 
@@ -1404,14 +1404,14 @@ namespace pg
         }
     }
 
-    void Parser::errorAt(const Token& token, const std::string& message)
+    void CParser::errorAt(const Token& token, const std::string& message)
     {
         if (panicMode)
             return;
 
         panicMode = true;
 
-        LOG_ERROR("Parser", "Syntax Error: " << message << " at line " << token.line << ", column " << token.column << ", in file: " << vm->currentFileName << ".");
+        LOG_ERROR("CParser", "Syntax Error: " << message << " at line " << token.line << ", column " << token.column << ", in file: " << vm->currentFileName << ".");
 
         hadError = true;
     }
