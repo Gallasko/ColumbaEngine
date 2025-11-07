@@ -246,6 +246,9 @@ namespace pg
 
         currentFunction = vm->createFunction();
 
+        // Set the stringPool on the chunk for constant deduplication
+        vm->asFunction(currentFunction)->chunk.stringPool = &vm->pools.stringPool;
+
         // Reset local state for this new function
         locals.clear();
         localCount = 0;

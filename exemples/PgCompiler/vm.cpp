@@ -280,22 +280,24 @@ namespace pg
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
 
+        // disassembleChunk(this, chunk, "<compiled chunk>");
+
+
+        // Retain the function to prevent it from being freed when popped
+        // The closure needs the function to stay alive
+        retainValue(function);
+
         push(function);  // function is already tracked from createFunction
 
         auto closureValue = createClosure(funcObj);
         Closure *closure = asClosure(closureValue);
-        pop();
+        pop();  // Pop function
         push(closureValue);  // closureValue is already tracked in createClosure
+
         call(closure, 0);
 
         try
         {
-            // Initialize function pointer dispatch table
-            register_builtin_operations();
-
-            // Initialize built-in classes (like Table)
-            initialize_builtin_classes();
-
             // Freeze constant indices - all pool allocations up to this point are constants
             // Runtime allocations will have indices above these max values
             pools.freezeConstantIndices();

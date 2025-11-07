@@ -18,6 +18,9 @@
 #include "logger.h"
 #include "Interpreter/lexer.h"
 
+#include "long_jump_optimization_pass.h"
+#include "pass/basic_operator_local_indexing.h"
+
 using namespace pg;
 
 // ============================================================================
@@ -115,31 +118,34 @@ int main(int argc, char* argv[])
     // Create VM
     VM vm;
 
+    vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+    // vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+
     // Register native logInfo function for the script
-    vm.defineNative("logInfo", [](VM* vm, int argCount, Value* args) -> Value {
+    vm.registerNative("logInfo", [](VM* vm, int argCount, Value* args) -> Value {
         if (argCount != 1) return makeBoolValue(false);
 
-        if (IS_STRING(args[0]))
-        {
-            LOG_INFO("Script", vm->asString(args[0])->toString());
-        }
-        else if (IS_INT(args[0]))
-        {
-            LOG_INFO("Script", AS_INT(args[0]));
-        }
-        else if (IS_DOUBLE(args[0]))
-        {
-            LOG_INFO("Script", AS_DOUBLE(args[0]));
-        }
-        else if (IS_BOOL(args[0]))
-        {
-            LOG_INFO("Script", (AS_BOOL(args[0]) ? "true" : "false"));
-        }
+        // if (IS_STRING(args[0]))
+        // {
+        //     LOG_INFO("Script", vm->asString(args[0])->toString());
+        // }
+        // else if (IS_INT(args[0]))
+        // {
+        //     LOG_INFO("Script", AS_INT(args[0]));
+        // }
+        // else if (IS_DOUBLE(args[0]))
+        // {
+        //     LOG_INFO("Script", AS_DOUBLE(args[0]));
+        // }
+        // else if (IS_BOOL(args[0]))
+        // {
+        //     LOG_INFO("Script", (AS_BOOL(args[0]) ? "true" : "false"));
+        // }
 
         return makeBoolValue(true);
     });
 
-    vm.defineNative("toString", [](VM *vm, int argCount, Value* args) -> Value {
+    vm.registerNative("toString", [](VM *vm, int argCount, Value* args) -> Value {
         if (argCount != 1) return makeBoolValue(false);
 
         std::string str;
@@ -168,7 +174,7 @@ int main(int argc, char* argv[])
         return vm->createString(str);
     });
 
-    vm.defineNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {
+    vm.registerNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {
         if (argCount != 1) return makeBoolValue(false);
 
         if (IS_INSTANCE(args[0]))
@@ -211,16 +217,24 @@ int main(int argc, char* argv[])
     vm.releaseAndDelete(globalName);
 
     LOG_INFO("Example", "");
-    LOG_INFO("Example", "Running script...");
+    LOG_INFO("Example", "Compiling script...");
     LOG_INFO("Example", "");
 
-    // Compile and run the script
-    Lexer lexer;
-    // lexer.readFromText(exampleScript);
-    lexer.readFromFile("entity_test.pg");
-    auto tokens = lexer.getTokens();
+    // Compile the script once
+    vm.interpretFromFile("entity_test.pg", true, "entity_test.pgc");
+    vm.reset();
 
-    auto result = vm.interpret(tokens);
+    // Compile and run the script
+    // Lexer lexer;
+    // lexer.readFromText(exampleScript);
+    // lexer.readFromFile("entity_test.pg");
+    // auto tokens = lexer.getTokens();
+
+    // Run it multiple times to test performance
+    InterpretResult result;
+    for (int i = 0; i < 10; i++)
+        result = vm.interpretFromBytecodeFile("entity_test.pgc");
+        // result = vm.interpret(tokens);
 
     if (result == InterpretResult::OK)
     {

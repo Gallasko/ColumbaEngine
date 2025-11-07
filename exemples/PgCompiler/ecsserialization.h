@@ -76,6 +76,7 @@ namespace pg
                 Value classNameValue = vm->createString(compNode.className);
                 addField(vm->asString(classNameKey)->toString(), classNameValue);
                 vm->releaseAndDelete(classNameKey);
+                vm->releaseAndDelete(classNameValue);  // Release initial reference
             }
 
             // Recursively add all children (component properties)
@@ -116,7 +117,11 @@ namespace pg
 
                     currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(value);
                     vm->releaseAndDelete(key);
-                    vm->releaseAndDelete(value);
+                    // Only release strings (heap objects), not primitives (int, bool, double)
+                    if (IS_STRING(value))
+                    {
+                        vm->releaseAndDelete(value);
+                    }
                 }
 
                 // If this node has children, process them
@@ -681,6 +686,7 @@ namespace pg
                 Value classNameValue = vm->createString(compNode.className);
                 addField(vm->asString(classNameKey)->toString(), classNameValue);
                 vm->releaseAndDelete(classNameKey);
+                vm->releaseAndDelete(classNameValue);  // Release initial reference
             }
 
             // Recursively add all children (component properties)
@@ -721,7 +727,11 @@ namespace pg
 
                     currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(value);
                     vm->releaseAndDelete(key);
-                    vm->releaseAndDelete(value);
+                    // Only release strings (heap objects), not primitives (int, bool, double)
+                    if (IS_STRING(value))
+                    {
+                        vm->releaseAndDelete(value);
+                    }
                 }
 
                 // If this node has children, process them
