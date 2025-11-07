@@ -451,6 +451,12 @@ namespace pg
             case OpCode::OP_Set_Index:
                 return simpleInstruction("OP_Set_Index", offset);
 
+            case OpCode::OP_Get_Iterator:
+                return simpleInstruction("OP_Get_Iterator", offset);
+
+            case OpCode::OP_Iterator_Next:
+                return simpleInstruction("OP_Iterator_Next", offset);
+
             case OpCode::OP_Import:
                 return simpleInstruction("OP_Import", offset);
 

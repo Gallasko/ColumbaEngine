@@ -33,27 +33,42 @@ logInfo("");
 // Check if playerEntity exists
 logInfo("Entity ID: " + toString(playerEntity["__entityId"]));
 
+var resId = 0;
+for (var i = 0; i < 1000000; i = i + 1) {
+    // Just a loop to simulate some processing
+    resId = resId + i;
+}
+
+logInfo("Computed resId: " + toString(resId));
+
 // Access the PositionComponent
 var position = playerEntity["PositionComponent"];
 
-logInfo("Position Component found!");
-logInfo("  x: " + toString(position["x"]));
-logInfo("  y: " + toString(position["y"]));
-logInfo("  z: " + toString(position["z"]));
-logInfo("  width: " + toString(position["width"]));
-logInfo("  height: " + toString(position["height"]));
-logInfo("  rotation: " + toString(position["rotation"]));
-logInfo("  visible: " + toString(position["visible"]));
+if (position)
+{
+    logInfo("Position Component found!");
+    logInfo("  x: " + toString(position["x"]));
+    logInfo("  y: " + toString(position["y"]));
+    logInfo("  z: " + toString(position["z"]));
+    logInfo("  width: " + toString(position["width"]));
+    logInfo("  height: " + toString(position["height"]));
+    logInfo("  rotation: " + toString(position["rotation"]));
+    logInfo("  visible: " + toString(position["visible"]));
 
-logInfo("");
-logInfo("Modifying position values...");
+    logInfo("");
+    logInfo("Modifying position values...");
 
-// Modify the values
-position["x"] = position["x"] + 50;
-position["y"] = position["y"] + 25;
+    // Modify the values
+    position["x"] = position["x"] + 50;
+    position["y"] = position["y"] + 25;
 
-logInfo("New x: " + toString(position["x"]));
-logInfo("New y: " + toString(position["y"]));
+    logInfo("New x: " + toString(position["x"]));
+    logInfo("New y: " + toString(position["y"]));
+}
+else
+{
+    logInfo("Position Component not found!");
+}
 
 logInfo("");
 logInfo("=== Script Complete ===");
@@ -153,6 +168,38 @@ int main(int argc, char* argv[])
         return vm->createString(str);
     });
 
+    vm.defineNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {
+        if (argCount != 1) return makeBoolValue(false);
+
+        if (IS_INSTANCE(args[0]))
+        {
+            ObjInstance* table = vm->asInstance(args[0]);
+            LOG_INFO("Script", "Table contents:");
+            for (const auto& [key, value] : table->fields)
+            {
+                std::string valStr;
+                if (IS_STRING(value))
+                    valStr = vm->asString(value)->toString();
+                else if (IS_INT(value))
+                    valStr = std::to_string(AS_INT(value));
+                else if (IS_DOUBLE(value))
+                    valStr = std::to_string(AS_DOUBLE(value));
+                else if (IS_BOOL(value))
+                    valStr = AS_BOOL(value) ? "true" : "false";
+                else
+                    valStr = "<complex type>";
+
+                LOG_INFO("Script", "  " << key << " : " << valStr);
+            }
+        }
+        else
+        {
+            LOG_INFO("Script", "Value is not a table instance");
+        }
+
+        return makeBoolValue(true);
+    });
+
     // Serialize entity to VM table
     LOG_INFO("Example", "Serializing entity to VM table...");
     Value entityTable = serializeEntityToTable(&vm, &ecs, entity.entity);
@@ -169,13 +216,16 @@ int main(int argc, char* argv[])
 
     // Compile and run the script
     Lexer lexer;
-    lexer.readFromText(exampleScript);
+    // lexer.readFromText(exampleScript);
+    lexer.readFromFile("entity_test.pg");
     auto tokens = lexer.getTokens();
 
     auto result = vm.interpret(tokens);
 
     if (result == InterpretResult::OK)
     {
+        LOG_INFO("Example", "Script executed successfully! Results: " << vm.testOutput);
+
         LOG_INFO("Example", "");
         LOG_INFO("Example", "=== Reading modified values back to C++ ===");
 
