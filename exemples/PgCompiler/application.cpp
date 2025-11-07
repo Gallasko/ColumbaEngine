@@ -100,6 +100,8 @@ void CompilerApp::runREPL()
     vm.enableBytecodeOptimization();
     vm.enableOptimizationDebugging();
 
+    vm.addNativeModule("math", MathModule());
+
     while (std::getline(std::cin, line))
     {
         if (line == "exit")
