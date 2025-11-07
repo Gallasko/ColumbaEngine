@@ -119,25 +119,34 @@ namespace pg
                     vm->releaseAndDelete(value);
                 }
 
-                // If this node has children, create a nested table
+                // If this node has children, process them
                 if (node.children.size() > 0)
                 {
-                    Value nestedTableValue = vm->createInstance(tableClass);
-                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                    for (const auto& child : node.children)
-                    {
-                        processNode(child, nestedTable);
-                    }
-
+                    // If the node has a name, create a nested table for the children
+                    // Otherwise, add children directly to the current table
                     if (!node.name.empty())
                     {
+                        Value nestedTableValue = vm->createInstance(tableClass);
+                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
+
+                        for (const auto& child : node.children)
+                        {
+                            processNode(child, nestedTable);
+                        }
+
                         Value key = vm->createString(node.name);
                         currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(nestedTableValue);
                         vm->releaseAndDelete(key);
+                        vm->releaseAndDelete(nestedTableValue);
                     }
-
-                    vm->releaseAndDelete(nestedTableValue);
+                    else
+                    {
+                        // Node has no name, so add children directly to current table
+                        for (const auto& child : node.children)
+                        {
+                            processNode(child, currentTable);
+                        }
+                    }
                 }
             };
 
@@ -270,7 +279,7 @@ namespace pg
         }
 
         // Convert the table to UnserializedObject
-        UnserializedObject obj(typeName, typeName, "");
+        UnserializedObject obj("", typeName, "");
 
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
@@ -555,7 +564,7 @@ namespace pg
         }
 
         // Create the root unserialized object
-        UnserializedObject obj(typeName, typeName, "");
+        UnserializedObject obj("", typeName, "");
 
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
@@ -711,25 +720,34 @@ namespace pg
                     vm->releaseAndDelete(value);
                 }
 
-                // If this node has children, create a nested table
+                // If this node has children, process them
                 if (node.children.size() > 0)
                 {
-                    Value nestedTableValue = vm->createInstance(tableClass);
-                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                    for (const auto& child : node.children)
-                    {
-                        processNode(child, nestedTable);
-                    }
-
+                    // If the node has a name, create a nested table for the children
+                    // Otherwise, add children directly to the current table
                     if (!node.name.empty())
                     {
+                        Value nestedTableValue = vm->createInstance(tableClass);
+                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
+
+                        for (const auto& child : node.children)
+                        {
+                            processNode(child, nestedTable);
+                        }
+
                         Value key = vm->createString(node.name);
                         currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(nestedTableValue);
                         vm->releaseAndDelete(key);
+                        vm->releaseAndDelete(nestedTableValue);
                     }
-
-                    vm->releaseAndDelete(nestedTableValue);
+                    else
+                    {
+                        // Node has no name, so add children directly to current table
+                        for (const auto& child : node.children)
+                        {
+                            processNode(child, currentTable);
+                        }
+                    }
                 }
             };
 
