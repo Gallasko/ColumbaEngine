@@ -1,0 +1,29 @@
+var emptyTable = []
+
+__dprint(emptyTable)
+
+var sTable = [5, 10, 15, 20]
+
+__dprint(sTable)
+
+__dprint(sTable["0"])
+
+var cTable = ["name": "Emma", "age": 23]
+
+__dprint(cTable)
+
+__dprint(cTable["name"])
+
+var mTable = ["a": 12, 3, 14, "b": 4, "c"]
+
+__dprint(mTable)
+
+__dprint(mTable[0])
+__dprint(mTable["a"])
+__dprint(mTable[1])
+
+mTable[0] = 15
+mTable["a"] = "Gello"
+
+__dprint(mTable[0])
+__dprint(mTable["a"])

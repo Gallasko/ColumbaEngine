@@ -23,8 +23,7 @@ TEST_F(CompilerTest, CompilerReset) {
         {TokenType::NUMBER, "42"}
     });
 
-    Chunk chunk;
-    compiler.compile(tokens, chunk);
+    compiler.compile(tokens);
 
     // Reset should clear parser state
     compiler.reset();

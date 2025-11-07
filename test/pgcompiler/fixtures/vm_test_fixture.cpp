@@ -13,15 +13,18 @@ void VMTestFixture::TearDown() {
 }
 
 void VMTestFixture::pushToStack(const ElementType& value) {
-    vm.push(value);
+    vm.push(elementToValue(value));
 }
 
 ElementType VMTestFixture::popFromStack() {
-    return vm.pop();
+    auto value = vm.pop();
+    auto element = valueToElement(value);
+    freeValue(value);
+    return element;
 }
 
 ElementType VMTestFixture::peekStack(size_t distance) {
-    return vm.peek(distance);
+    return valueToElement(vm.peek(distance));
 }
 
 void VMTestFixture::clearStack() {
@@ -122,15 +125,15 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
     if (vm.chunk.code.empty()) {
         return InterpretResult::OK;
     }
-    
+
     // Manually execute each instruction since VM's run() expects OP_Return
     while (vm.ip < vm.chunk.code.size()) {
         auto instruction = static_cast<OpCode>(vm.chunk.code[vm.ip++]);
-        
+
         switch (instruction) {
             case OpCode::OP_Constant: {
                 uint8_t constantIndex = vm.chunk.code[vm.ip++];
-                vm.push(vm.chunk.constants[constantIndex]);
+                vm.push(elementToValue(vm.chunk.constants[constantIndex]));
                 break;
             }
             case OpCode::OP_LongConstant: {
@@ -143,116 +146,138 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
                 vm.ip++;
                 constantIndex |= static_cast<uint32_t>(vm.chunk.code[vm.ip]);
                 vm.ip++;
-                vm.push(vm.chunk.constants[constantIndex]);
+                vm.push(elementToValue(vm.chunk.constants[constantIndex]));
                 break;
             }
             case OpCode::OP_Add: {
-                vm.binaryOp(std::plus<ElementType>());
+                vm.fastBinaryOp(addValues);
                 break;
             }
             case OpCode::OP_Subtract: {
-                vm.binaryOp(std::minus<ElementType>());
+                vm.fastBinaryOp(subtractValues);
                 break;
             }
             case OpCode::OP_Multiply: {
-                vm.binaryOp(std::multiplies<ElementType>());
+                vm.fastBinaryOp(multiplyValues);
                 break;
             }
             case OpCode::OP_Divide: {
-                vm.binaryOp(std::divides<ElementType>());
+                vm.fastBinaryOp(divideValues);
                 break;
             }
             case OpCode::OP_Negate: {
-                if (!vm.peek(0).isNumber()) {
+                if (!isValueNumber(vm.peek(0))) {
                     return InterpretResult::RUNTIME_ERROR;
                 }
                 auto value = vm.pop();
-                vm.push(-value);
+                vm.push(negateValue(value));
+                freeValue(value);
                 break;
             }
             case OpCode::OP_True: {
-                vm.push(ElementType(true));
+                vm.push(BOOL_VAL(true));
                 break;
             }
             case OpCode::OP_False: {
-                vm.push(ElementType(false));
+                vm.push(BOOL_VAL(false));
                 break;
             }
             case OpCode::OP_Not: {
-                if (vm.peek(0).getTypeString() != "bool") {
+                if (!IS_BOOL(vm.peek(0))) {
                     return InterpretResult::RUNTIME_ERROR;
                 }
                 auto value = vm.pop();
-                vm.push(ElementType(!value.isTrue()));
+                vm.push(BOOL_VAL(!isValueTrue(value)));
+                freeValue(value);
                 break;
             }
             case OpCode::OP_Equal: {
                 vm.checkBooleanBinaryOp();
                 auto b = vm.pop();
                 auto a = vm.pop();
-                vm.push(a == b);
+                vm.push(equalsValues(a, b));
+                freeValue(a);
+                freeValue(b);
                 break;
             }
             case OpCode::OP_NotEqual: {
                 vm.checkBooleanBinaryOp();
                 auto b = vm.pop();
                 auto a = vm.pop();
-                vm.push(a != b);
+                vm.push(notEqualsValues(a, b));
+                freeValue(a);
+                freeValue(b);
                 break;
             }
             case OpCode::OP_Greater: {
                 vm.checkBooleanBinaryOp();
                 auto b = vm.pop();
                 auto a = vm.pop();
-                vm.push(a > b);
+                vm.push(greaterValues(a, b));
+                freeValue(a);
+                freeValue(b);
                 break;
             }
             case OpCode::OP_GreaterEqual: {
                 vm.checkBooleanBinaryOp();
                 auto b = vm.pop();
                 auto a = vm.pop();
-                vm.push(a >= b);
+                vm.push(greaterEqualValues(a, b));
+                freeValue(a);
+                freeValue(b);
                 break;
             }
             case OpCode::OP_Less: {
                 vm.checkBooleanBinaryOp();
                 auto b = vm.pop();
                 auto a = vm.pop();
-                vm.push(a < b);
+                vm.push(lessValues(a, b));
+                freeValue(a);
+                freeValue(b);
                 break;
             }
             case OpCode::OP_LessEqual: {
                 vm.checkBooleanBinaryOp();
                 auto b = vm.pop();
                 auto a = vm.pop();
-                vm.push(a <= b);
+                vm.push(lessEqualValues(a, b));
+                freeValue(a);
+                freeValue(b);
                 break;
             }
             case OpCode::OP_Define_Global: {
                 if (vm.stack.size() < 2) {
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                auto name = vm.pop();  // variable name
+                auto nameValue = vm.pop();  // variable name
+                auto name = valueToElement(nameValue);
                 auto value = vm.pop(); // variable value
                 if (!name.isLitteral()) {
+                    freeValue(nameValue);
+                    freeValue(value);
                     return InterpretResult::RUNTIME_ERROR;
                 }
                 vm.globals[name.toString()] = value;
+                freeValue(nameValue);
                 break;
             }
             case OpCode::OP_Get_Global: {
                 if (vm.stack.empty()) {
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                auto name = vm.pop();  // variable name
+                auto nameValue = vm.pop();  // variable name
+                auto name = valueToElement(nameValue);
                 if (!name.isLitteral()) {
+                    freeValue(nameValue);
                     return InterpretResult::RUNTIME_ERROR;
                 }
                 auto it = vm.globals.find(name.toString());
                 if (it == vm.globals.end()) {
+                    freeValue(nameValue);
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                vm.push(it->second);
+                vm.push(copyValue(it->second));  // Push a copy to avoid double-free
+                freeValue(nameValue);
                 break;
             }
             case OpCode::OP_Set_Global: {
@@ -260,30 +285,39 @@ InterpretResult VMTestFixture::executeChunkWithoutReturn() {
                     return InterpretResult::RUNTIME_ERROR;
                 }
                 auto value = vm.pop(); // new variable value (popped first, was on top)
-                auto name = vm.pop();  // variable name (popped second, was below value)
+                auto nameValue = vm.pop();  // variable name (popped second, was below value)
+                auto name = valueToElement(nameValue);
                 if (!name.isLitteral()) {
+                    freeValue(nameValue);
+                    freeValue(value);
                     return InterpretResult::RUNTIME_ERROR;
                 }
                 auto it = vm.globals.find(name.toString());
                 if (it == vm.globals.end()) {
+                    freeValue(nameValue);
+                    freeValue(value);
                     return InterpretResult::RUNTIME_ERROR;
                 }
+                // Free the old value that was stored
+                freeValue(it->second);
                 it->second = value;
-                vm.push(value);
+                vm.push(copyValue(value));  // Push a copy to avoid double-free
+                freeValue(nameValue);
                 break;
             }
             case OpCode::OP_Pop: {
                 if (vm.stack.empty()) {
                     return InterpretResult::RUNTIME_ERROR;
                 }
-                vm.pop();
+                auto value = vm.pop();
+                freeValue(value);
                 break;
             }
             default:
                 return InterpretResult::RUNTIME_ERROR;
         }
     }
-    
+
     return InterpretResult::OK;
 }
 
@@ -370,7 +404,7 @@ std::vector<ElementType> VMTestFixture::getStackContents() {
     // Pop all elements to get them in order (bottom to top)
     std::vector<ElementType> reversed;
     while (!tempStack.empty()) {
-        reversed.push_back(tempStack.top());
+        reversed.push_back(valueToElement(tempStack.top()));
         tempStack.pop();
     }
 
@@ -417,7 +451,7 @@ Chunk VMTestFixture::buildSetGlobalChunk(const std::string& name, const ElementT
 }
 
 void VMTestFixture::defineGlobal(const std::string& name, const ElementType& value) {
-    vm.globals[name] = value;
+    vm.globals[name] = elementToValue(value);
 }
 
 bool VMTestFixture::hasGlobal(const std::string& name) const {
@@ -427,12 +461,16 @@ bool VMTestFixture::hasGlobal(const std::string& name) const {
 ElementType VMTestFixture::getGlobal(const std::string& name) const {
     auto it = vm.globals.find(name);
     if (it != vm.globals.end()) {
-        return it->second;
+        return valueToElement(it->second);
     }
     throw std::runtime_error("Global variable not found: " + name);
 }
 
 void VMTestFixture::clearGlobals() {
+    // Free all stored Values before clearing the map
+    for (auto& pair : vm.globals) {
+        freeValue(pair.second);
+    }
     vm.globals.clear();
 }
 

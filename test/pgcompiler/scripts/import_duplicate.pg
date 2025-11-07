@@ -1,0 +1,8 @@
+import "test/pgcompiler/scripts/import_helper_combined"
+import "test/pgcompiler/scripts/import_helper_add"
+
+var result1 = combined(10, 5, 3)
+var result2 = add(20, 10)
+
+__dprint(result1)
+__dprint(result2)

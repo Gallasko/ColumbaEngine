@@ -1,0 +1,8 @@
+// Local scope in blocks
+var x = 1;
+__dprint(x);
+{
+    var x = 2;
+    __dprint(x);
+}
+__dprint(x);

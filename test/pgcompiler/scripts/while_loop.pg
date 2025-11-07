@@ -1,0 +1,6 @@
+// Basic while loop
+var i = 0;
+while (i < 5) {
+    __dprint(i);
+    i = i + 1;
+}

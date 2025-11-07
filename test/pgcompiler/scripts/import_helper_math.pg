@@ -1,0 +1,11 @@
+fun multiply(a, b)
+{
+  return a * b;
+}
+
+fun divide(a, b)
+{
+  return a / b;
+}
+
+var pi = 3

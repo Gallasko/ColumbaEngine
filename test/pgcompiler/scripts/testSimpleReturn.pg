@@ -1,0 +1,6 @@
+fun a()
+{
+  return 55;
+}
+
+__dprint(a())

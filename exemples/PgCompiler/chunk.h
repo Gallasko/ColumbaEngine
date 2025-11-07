@@ -6,7 +6,10 @@
 
 #include <stdexcept>
 
+#include "object.h"
+
 #include "Memory/elementtype.h"
+#include "Memory/memorypool.h"
 
 namespace pg
 {
@@ -44,18 +47,124 @@ namespace pg
         OP_Loop,
         OP_Long_Loop,
         OP_Debug_Print,
+
+        OP_Post_Incr_Global,
+        OP_Incr_Global,
+        OP_Post_Incr_Local,
+        OP_Incr_Local,
+        OP_Post_Decr_Global,
+        OP_Decr_Global,
+        OP_Post_Decr_Local,
+        OP_Decr_Local,
+
+        OP_Call,
+        OP_Invoke,
+        OP_Closure,
+
+        OP_Get_Upvalue,
+        OP_Set_Upvalue,
+
+        OP_Close_Upvalue,
+
+        OP_Class,
+
+        OP_Set_Property,
+        OP_Get_Property,
+
+        OP_Method,
+
+        // Optimized opcodes can be added here
+
+        OP_AddLL, // ADD optimized for two local variables
+        OP_SubtractLL, // SUBTRACT optimized for two local variables
+
+        OP_SubtractLC, // SUBTRACT optimized for local and constant
+        OP_SubtractCL, // SUBTRACT optimized for constant and local
+
+        // Table operations
+        OP_Build_Table,   // Create table instance from stack key-value pairs
+        OP_Get_Index,     // table[index] - get field by computed key
+        OP_Set_Index,     // table[index] = val - set field by computed key
+
+        // Iterator operations
+        OP_Get_Iterator,  // Get iterator for a table (pushes iterator state)
+        OP_Iterator_Next, // Advance iterator and push key (or nil if done), updates iterator state
+
+        // Module operations
+        OP_Import,        // Import a module (expects module name string on stack)
     };
 
     struct Chunk
     {
         std::vector<uint8_t> code;
 
-        std::vector<ElementType> constants;
+        std::vector<Value> constants;
 
         std::vector<int> lines;
 
-        size_t addConstant(const ElementType& value, int line)
+        // Note: With NaN-boxing and pool-based memory, constants don't need cleanup in destructor
+        // The VM's pools handle all memory management via reference counting
+
+        // Helper function to compare two values for semantic equality
+        // For primitives (int, bool, double), compares bit patterns
+        // For strings, compares actual string content (requires stringPool)
+        bool valuesEqual(Value a, Value b, AllocatorPool<ElementType, 64>* stringPool = nullptr) const
         {
+            // Fast path: if bit patterns match, they're definitely equal
+            if (a == b) return true;
+
+            // For non-string types, only bit pattern equality matters
+            if (!IS_STRING(a) || !IS_STRING(b))
+                return false;
+
+            // If no string pool available, can only compare bit patterns
+            if (!stringPool)
+                return false;
+
+            // Compare actual string content
+            uint32_t indexA = AS_STRING_INDEX(a);
+            uint32_t indexB = AS_STRING_INDEX(b);
+
+            // Bounds check
+            if (indexA >= stringPool->getNbElements() || indexB >= stringPool->getNbElements())
+                return false;
+
+            auto strA = stringPool->getElement(indexA);
+            auto strB = stringPool->getElement(indexB);
+
+            if (!strA || !strB)
+                return false;
+
+            return strA->toString() == strB->toString();        }
+
+        AllocatorPool<ElementType, 64>* stringPool = nullptr;  // Set by compiler/VM for string comparison
+
+        size_t addConstant(const Value& value, int line)
+        {
+            // Check if constant already exists
+            for (size_t i = 0; i < constants.size(); i++)
+            {
+                if (valuesEqual(constants[i], value, stringPool))
+                {
+                    // Found existing constant, emit code to load it
+                    auto cIndex = i;
+                    if (cIndex > 255)
+                    {
+                        addCode(OpCode::OP_LongConstant, line);
+                        addCode((cIndex >> 16) & 0xFF, line);
+                        addCode((cIndex >> 8) & 0xFF, line);
+                        addCode(cIndex & 0xFF, line);
+                    }
+                    else
+                    {
+                        addCode(OpCode::OP_Constant, line);
+                        addCode(cIndex, line);
+                    }
+                    return code.size() - 1;
+                }
+            }
+
+            // Constant doesn't exist, add it
             constants.push_back(value);
             auto cIndex = constants.size() - 1;
 
@@ -82,6 +191,35 @@ namespace pg
             return code.size() - 1;
         }
 
+        // Add constant to array without emitting opcodes (for instructions like OP_Closure)
+        uint8_t addConstantIndex(const Value& value)
+        {
+            // Check if constant already exists
+            for (size_t i = 0; i < constants.size(); i++)
+            {
+                if (valuesEqual(constants[i], value, stringPool))
+                {
+                    if (i > 255)
+                    {
+                        throw std::runtime_error("Too many constants for single-byte index");
+                    }
+
+                    return static_cast<uint8_t>(i);
+                }
+            }
+
+            // Constant doesn't exist, add it
+            constants.push_back(value);
+            auto cIndex = constants.size() - 1;
+
+            if (cIndex > 255)
+            {
+                throw std::runtime_error("Too many constants for single-byte index");
+            }
+
+            return static_cast<uint8_t>(cIndex);
+        }
+
         size_t addCode(const OpCode& op, int line)
         {
             code.push_back(static_cast<uint8_t>(op));
@@ -97,19 +235,29 @@ namespace pg
 
             return code.size() - 1;
         }
+
+        void clear()
+        {
+            code.clear();
+            constants.clear();
+            lines.clear();
+        }
     };
 
     // Utility function to get the size of an instruction in bytes
-    inline size_t getInstructionSize(OpCode opcode) {
-        switch (opcode) {
+    inline int getInstructionSize(OpCode opcode)
+    {
+        switch (opcode)
+        {
             case OpCode::OP_Constant:
+            case OpCode::OP_Get_Local:
+            case OpCode::OP_Set_Local:
+            case OpCode::OP_Call:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
             case OpCode::OP_Get_Global:
             case OpCode::OP_Set_Global:
-            case OpCode::OP_Get_Local:
-            case OpCode::OP_Set_Local:
             case OpCode::OP_Return:
             case OpCode::OP_Negate:
             case OpCode::OP_Add:
@@ -129,6 +277,15 @@ namespace pg
             case OpCode::OP_LessEqual:
             case OpCode::OP_Pop:
             case OpCode::OP_Debug_Print:
+            case OpCode::OP_Post_Incr_Global:
+            case OpCode::OP_Incr_Global:
+            case OpCode::OP_Post_Incr_Local:
+            case OpCode::OP_Incr_Local:
+            case OpCode::OP_Post_Decr_Global:
+            case OpCode::OP_Decr_Global:
+            case OpCode::OP_Post_Decr_Local:
+            case OpCode::OP_Decr_Local:
+            case OpCode::OP_Close_Upvalue:
                 return 1; // opcode only, no operand
 
             case OpCode::OP_LongConstant:
@@ -144,8 +301,42 @@ namespace pg
             case OpCode::OP_Long_Loop:
                 return 5; // opcode + 4 byte operand
 
+            case OpCode::OP_Closure:
+            case OpCode::OP_Method:
+                return 2; // opcode + 1 byte operand (constant index), plus upvalue bytes handled separately
+
+            case OpCode::OP_Invoke:
+                return 3;
+
+            case OpCode::OP_AddLL:
+            case OpCode::OP_SubtractLL:
+            case OpCode::OP_SubtractLC:
+            case OpCode::OP_SubtractCL:
+                return 3; // opcode + 2 byte operands (local variable indices)
+
+            case OpCode::OP_Class:
+                return 2; // opcode + 1 byte operand (constant index for class name)
+
+            case OpCode::OP_Build_Table:
+                return 2; // opcode + 1 byte operand (pair count)
+
+            case OpCode::OP_Get_Index:
+            case OpCode::OP_Set_Index:
+                return 1; // opcode only
+
+            case OpCode::OP_Import:
+                return 1; // opcode only (module name is on stack)
+
             default:
                 return 1; // default to single byte for unknown opcodes
         }
     }
+
+    struct ObjFunction
+    {
+        Chunk chunk;
+        int arity; // Number of parameters
+        std::string name;
+        int upvalueCount = 0;
+    };
 }

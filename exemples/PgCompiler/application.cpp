@@ -12,10 +12,42 @@
 #include "constant_uniformity_pass.h"
 #include "Interpreter/lexer.h"
 
+#include "pass/basic_operator_local_indexing.h"
+#include "example_math_module.h"
+
 using namespace pg;
 
 namespace {
     static const char *const DOM = "App";
+}
+
+Value nativeLogInfo(VM* vm, int argCount, Value* args) {
+    if (argCount != 1) {
+        throw std::runtime_error("logInfo expects exactly one argument");
+    }
+
+    if (IS_STRING(args[0]))
+    {
+        LOG_INFO("DOM", *vm->asString(args[0]));
+    }
+    else if (IS_INT(args[0]))
+    {
+        LOG_INFO("DOM", AS_INT(args[0]));
+    }
+    else if (IS_BOOL(args[0]))
+    {
+        LOG_INFO("DOM", AS_BOOL(args[0]));
+    }
+    else if (IS_DOUBLE(args[0]))
+    {
+        LOG_INFO("DOM", AS_DOUBLE(args[0]));
+    }
+    else
+    {
+        LOG_INFO("DOM", "Unsupported type for logInfo");
+    }
+
+    return makeBoolValue(true);
 }
 
 CompilerApp::CompilerApp(const std::string &fileName) : fileName(fileName) {
@@ -39,7 +71,12 @@ int CompilerApp::exec()
     LOG_THIS_MEMBER(DOM);
 
     if (not fileName.empty())
-        runFile();
+    {
+        if (fileName.find(".pgc") != std::string::npos)
+            runFile(false);
+        else
+            runFile();
+    }
     else
         runREPL();
 
@@ -62,6 +99,8 @@ void CompilerApp::runREPL()
 
     vm.enableBytecodeOptimization();
     vm.enableOptimizationDebugging();
+
+    vm.addNativeModule("math", MathModule());
 
     while (std::getline(std::cin, line))
     {
@@ -93,39 +132,65 @@ void CompilerApp::runREPL()
     std::cout << "Goodbye!\n";
 }
 
-void CompilerApp::runFile()
+void CompilerApp::runFile(bool needCompile)
 {
     LOG_THIS_MEMBER(DOM);
 
     VM vm;
-    vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
-    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    InterpretResult result;
 
-    vm.enableBytecodeOptimization();
-    vm.enableOptimizationDebugging();
-    
-    Lexer lexer;
-    
-    try
+    if (needCompile)
     {
-        lexer.readFromFile(fileName);
+        // vm.addOptimizationPass(std::make_uniqueh
+        vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+        vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+
+        // vm.enableBytecodeOptimization();
+        // vm.enableOptimizationDebugging();
+
+        vm.disableBytecodeOptimization();
+
+        std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
+
+        // Register individual native functions
+        vm.defineNative("logInfo", nativeLogInfo);
+
+        // Register native modules
+        vm.addNativeModule("math", MathModule());
+
+        Lexer lexer;
+
+        try
+        {
+            lexer.readFromFile(fileName);
+        }
+        catch(const std::exception& e)
+        {
+            LOG_ERROR(DOM, "Failed to read file '" << fileName << "': " << e.what());
+            return;
+        }
+
+        auto tokens = lexer.getTokens();
+
+        vm.listOptimizationPasses();
+
+
+        vm.currentFileName = fileName;
+        result = vm.interpret(tokens, false, "temp.pgc");
     }
-    catch(const std::exception& e)
+    else
     {
-        LOG_ERROR(DOM, "Failed to read file '" << fileName << "': " << e.what());
-        return;
+        result = vm.interpretFromBytecodeFile(fileName);
     }
-    
-    auto tokens = lexer.getTokens();
-    
-    vm.listOptimizationPasses();
-    
-    InterpretResult result = vm.interpret(tokens);
-    
+
     switch (result)
     {
         case InterpretResult::OK:
             LOG_INFO(DOM, "File executed successfully");
+
+            // LOG_INFO(DOM, "Results: " << vm.testOutput);
+            std::cout << vm.testOutput << std::endl;
+
             break;
         case InterpretResult::COMPILE_ERROR:
             LOG_ERROR(DOM, "Compile error occurred");

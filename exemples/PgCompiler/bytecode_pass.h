@@ -7,9 +7,10 @@
 
 #include "bytecode_rewriter.h"
 
-namespace pg {
-
-    class BytecodePass {
+namespace pg
+{
+    class BytecodePass
+    {
     public:
         virtual ~BytecodePass() = default;
 
@@ -22,7 +23,8 @@ namespace pg {
         virtual bool requiresMultiplePasses() const { return false; }
     };
 
-    class PassManager {
+    class PassManager
+    {
     private:
         std::vector<std::unique_ptr<BytecodePass>> passes;
         std::unique_ptr<BytecodeRewriter> rewriter;

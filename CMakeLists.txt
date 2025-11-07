@@ -72,6 +72,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
         set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
+        # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O3")
 
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
             set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ftime-trace")
@@ -664,15 +665,45 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PgCompiler/compiler_debug.cpp
             exemples/PgCompiler/vm.cpp
             exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/parser.cpp
+            exemples/PgCompiler/object.cpp
+            exemples/PgCompiler/cparser.cpp
             exemples/PgCompiler/bytecode_pass.cpp
             exemples/PgCompiler/bytecode_rewriter.cpp
 
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(EcsSerializationExample exemples/PgCompiler/ecs_serialization_example.cpp)
+
+        target_include_directories(EcsSerializationExample PUBLIC exemples/PgCompiler)
+
+        target_sources(EcsSerializationExample PRIVATE
+            exemples/PgCompiler/compiler_debug.cpp
+            exemples/PgCompiler/vm.cpp
+            exemples/PgCompiler/compiler.cpp
+            exemples/PgCompiler/object.cpp
+            exemples/PgCompiler/cparser.cpp
+            exemples/PgCompiler/bytecode_pass.cpp
+            exemples/PgCompiler/bytecode_rewriter.cpp
+
+            exemples/PgCompiler/long_jump_optimization_pass.cpp
+            exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
+        )
+
+        target_link_libraries(EcsSerializationExample PRIVATE ColumbaEngine)
 
         # Only build tests if not building static lib only
         enable_testing()
@@ -730,48 +761,31 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)
 
         # ===============================================
-        # COMPILER TEST TARGET (separate from main tests)
+        # COMPILER TEST TARGET (simple script-based testbench)
         # ===============================================
-
-        # Compiler test sources
-        set(COMPILER_TEST_SOURCES
-            test/pgcompiler/unit/test_chunk.cc
-            test/pgcompiler/unit/test_vm.cc
-            test/pgcompiler/unit/test_parser.cc
-            test/pgcompiler/unit/test_compiler.cc
-            test/pgcompiler/unit/test_compiler_debug.cc
-
-            test/pgcompiler/unit/test_long_jump_optimization.cc
-            test/pgcompiler/unit/test_long_jump_optimization_integration.cc
-            test/pgcompiler/unit/test_long_jump_edge_cases.cc
-
-            test/pgcompiler/integration/test_compilation_pipeline.cc
-            test/pgcompiler/integration/test_error_handling.cc
-            test/pgcompiler/integration/test_language_features.cc
-
-            # Test fixtures and helpers
-            test/pgcompiler/fixtures/compiler_test_base.cpp
-            test/pgcompiler/fixtures/vm_test_fixture.cpp
-            test/pgcompiler/fixtures/test_helpers.cpp
-        )
 
         # PgCompiler source files (needed for testing)
         set(PGCOMPILER_SOURCES
             exemples/PgCompiler/vm.cpp
             exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/parser.cpp
+            exemples/PgCompiler/cparser.cpp
             exemples/PgCompiler/compiler_debug.cpp
             exemples/PgCompiler/bytecode_pass.cpp
             exemples/PgCompiler/bytecode_rewriter.cpp
+            exemples/PgCompiler/object.cpp
 
             exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
+
+            exemples/PgCompiler/chunk_serializer.cpp
+
+            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
-        # Create the compiler test executable
+        # Create the compiler test executable with simple script testbench
         add_executable(test_compiler
             test/pgcompiler/main_compiler_test.cc
-            ${COMPILER_TEST_SOURCES}
+            test/pgcompiler/script_testbench.cc
             ${PGCOMPILER_SOURCES}
         )
 
@@ -779,7 +793,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_include_directories(test_compiler PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine
             ${CMAKE_CURRENT_SOURCE_DIR}/exemples/PgCompiler
-            ${CMAKE_CURRENT_SOURCE_DIR}/test/pgcompiler/fixtures
             ${GTEST_DIR}/googletest/include
             ${GTEST_DIR}/googletest/include/gtest
             ${GTEST_DIR}/googletest/include/gtest/internal
@@ -793,12 +806,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         # Add DEBUG_CHECK_STACK define for test_compiler target
-        target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
+        # target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
+        target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD)
 
-        # Copy test data files to build directory
+        # Copy test script files to build directory
         add_custom_command(TARGET test_compiler POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
-                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/data $<TARGET_FILE_DIR:test_compiler>/test_data)
+                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/scripts $<TARGET_FILE_DIR:test_compiler>/test/pgcompiler/scripts)
 
         # Register compiler tests with CTest
         gtest_discover_tests(test_compiler

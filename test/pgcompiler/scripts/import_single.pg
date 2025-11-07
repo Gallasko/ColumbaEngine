@@ -1,0 +1,4 @@
+import "test/pgcompiler/scripts/import_helper_add"
+
+var result = add(5, 3)
+__dprint(result)
