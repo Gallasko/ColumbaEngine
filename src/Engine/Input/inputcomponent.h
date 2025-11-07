@@ -2,7 +2,7 @@
 
 #include "input.h"
 
-#include "constant.h"
+#include "pgconstant.h"
 
 #include "ECS/system.h"
 #include "ECS/callable.h"

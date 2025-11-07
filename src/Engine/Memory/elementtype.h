@@ -42,6 +42,7 @@ namespace pg
             ~U() {}
 
             float f;        ///< Float representation of the element type.
+            double d;       ///< Double representation of the element type.
             int i;          ///< Int representation of the element type.
             size_t l;       ///< Size_t representation of the element type
             std::string s;  ///< String representation of the element type.
@@ -53,6 +54,7 @@ namespace pg
         enum class UnionType
         {
             FLOAT,
+            DOUBLE,
             INT,
             SIZE_T,
             STRING,
@@ -85,17 +87,39 @@ namespace pg
          *  -   bool
          */
         template <typename Type>
-        explicit ElementType(const Type& value) { this->setValue(value); }
+        ElementType(const Type& value) { this->setValue(value); }
+
+        ElementType(const char* value) { this->setValue(value); }
 
         ElementType(const ElementType& other)
         {
             switch (other.type)
             {
                 case UnionType::FLOAT:  this->setValue(other.data.f); break;
+                case UnionType::DOUBLE: this->setValue(other.data.d); break;
                 case UnionType::INT:    this->setValue(other.data.i); break;
                 case UnionType::SIZE_T: this->setValue(other.data.l); break;
                 case UnionType::STRING: this->setValue(other.data.s); break;
                 case UnionType::BOOL:   this->setValue(other.data.b); break;
+            }
+        }
+
+        ElementType(ElementType&& other) noexcept
+            : type(other.type), emptyFlag(other.emptyFlag)
+        {
+            switch (other.type)
+            {
+                case UnionType::FLOAT:  data.f = other.data.f; break;
+                case UnionType::DOUBLE: data.d = other.data.d; break;
+                case UnionType::INT:    data.i = other.data.i; break;
+                case UnionType::SIZE_T: data.l = other.data.l; break;
+                case UnionType::STRING:
+                    new(&data.s) std::string(std::move(other.data.s));
+                    other.data.s.~basic_string();
+                    other.type = UnionType::INT;
+                    other.data.i = 0;
+                    break;
+                case UnionType::BOOL:   data.b = other.data.b; break;
             }
         }
 
@@ -106,6 +130,7 @@ namespace pg
             switch (other.type)
             {
                 case UnionType::FLOAT:  this->setValue(other.data.f); break;
+                case UnionType::DOUBLE: this->setValue(other.data.d); break;
                 case UnionType::INT:    this->setValue(other.data.i); break;
                 case UnionType::SIZE_T: this->setValue(other.data.l); break;
                 case UnionType::STRING: this->setValue(other.data.s); break;
@@ -113,7 +138,39 @@ namespace pg
             }
         }
 
+        ElementType& operator=(ElementType&& other) noexcept
+        {
+            if (this != &other)
+            {
+                clearPreviousType();
+
+                type = other.type;
+                emptyFlag = other.emptyFlag;
+
+                switch (other.type)
+                {
+                    case UnionType::FLOAT:  data.f = other.data.f; break;
+                    case UnionType::DOUBLE: data.d = other.data.d; break;
+                    case UnionType::INT:    data.i = other.data.i; break;
+                    case UnionType::SIZE_T: data.l = other.data.l; break;
+                    case UnionType::STRING:
+                        new(&data.s) std::string(std::move(other.data.s));
+                        other.data.s.~basic_string();
+                        other.type = UnionType::INT;
+                        other.data.i = 0;
+                        break;
+                    case UnionType::BOOL:   data.b = other.data.b; break;
+                }
+            }
+            return *this;
+        }
+
         void operator=(const float& value)
+        {
+            this->setValue(value);
+        }
+
+        void operator=(const double& value)
         {
             this->setValue(value);
         }
@@ -145,7 +202,7 @@ namespace pg
 
         void setValue(float value)
         {
-            clearPreviousType();
+            clearPreviousTypeIfNeeded(UnionType::FLOAT);
 
             data.f = value;
             this->type = UnionType::FLOAT;
@@ -153,17 +210,15 @@ namespace pg
 
         void setValue(double value)
         {
-            // Todo !
-            clearPreviousType();
+            clearPreviousTypeIfNeeded(UnionType::DOUBLE);
 
-            data.f = value;
-            // Todo add union for double
-            this->type = UnionType::FLOAT;
+            data.d = value;
+            this->type = UnionType::DOUBLE;
         }
 
         void setValue(int value)
         {
-            clearPreviousType();
+            clearPreviousTypeIfNeeded(UnionType::INT);
 
             data.i = value;
             this->type = UnionType::INT;
@@ -171,7 +226,7 @@ namespace pg
 
         void setValue(size_t value)
         {
-            clearPreviousType();
+            clearPreviousTypeIfNeeded(UnionType::SIZE_T);
 
             data.l = value;
             this->type = UnionType::SIZE_T;
@@ -212,7 +267,7 @@ namespace pg
 
         void setValue(bool value)
         {
-            clearPreviousType();
+            clearPreviousTypeIfNeeded(UnionType::BOOL);
 
             data.b = value;
             this->type = UnionType::BOOL;
@@ -224,9 +279,14 @@ namespace pg
             return static_cast<Type>(*this);
         }
 
+        bool isBool() const
+        {
+            return type == UnionType::BOOL;
+        }
+
         bool isNumber() const
         {
-            return type == UnionType::INT || type == UnionType::FLOAT || type == UnionType::SIZE_T;
+            return type == UnionType::INT || type == UnionType::FLOAT || type == UnionType::DOUBLE || type == UnionType::SIZE_T;
         }
 
         bool isLitteral() const
@@ -277,9 +337,19 @@ namespace pg
             // TODO add Big Int clear too here
         }
 
+        void clearPreviousTypeIfNeeded(UnionType newType)
+        {
+            emptyFlag = false;
+
+            // Optimization: only clear if we're changing from string to non-string
+            if (this->type == UnionType::STRING && newType != UnionType::STRING)
+                data.s.~basic_string();
+        }
+
         std::string enumTypeToString(const ElementType::UnionType& type) const;
 
         explicit operator float() const;
+        explicit operator double() const;
         explicit operator int() const;
         explicit operator size_t() const;
         explicit operator std::string() const;

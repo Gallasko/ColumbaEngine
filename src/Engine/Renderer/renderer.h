@@ -14,7 +14,7 @@
 
 #include "Loaders/atlasloader.h"
 
-#include "constant.h"
+#include "pgconstant.h"
 #include "mesh.h"
 #include "camera.h"
 

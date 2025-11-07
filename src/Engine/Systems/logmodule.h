@@ -13,18 +13,26 @@ namespace pg
     public:
         void setUp()
         {
-            setArity(1, 1);
+            setArity(1, -1);
         }
 
         virtual ValuablePtr call(ValuableQueue& args) override
         {
             // TODO: change this
 
-            auto v = args.front()->getElement();
-            args.pop();
+            std::string output;
+
+            do
+            {
+                auto v = args.front()->getElement();
+                args.pop();
+
+                output += v.toString();
+
+            } while (not args.empty());
 
             // Todo
-            std::cout << "[Interpreter]: " << v.toString() << std::endl;
+            std::cout << "[Interpreter]: " << output << std::endl;
 
             return nullptr;
         }
@@ -78,7 +86,7 @@ namespace pg
         void setUp(std::shared_ptr<Logger::LogSink> sink)
         {
             setArity(2, 2);
-            
+
             this->sink = sink;
         }
 
@@ -116,7 +124,7 @@ namespace pg
         void setUp(std::shared_ptr<Logger::LogSink> sink)
         {
             setArity(2, 2);
-            
+
             this->sink = sink;
         }
 
@@ -168,7 +176,7 @@ namespace pg
     struct LogModule : public SysModule
     {
         LogModule(std::shared_ptr<Logger::LogSink> terminalSink)
-        {            
+        {
             addSystemFunction<TestPrint>("log");
             addSystemFunction<DebugPrint>("debugLog");
             addSystemFunction<AddFilterScopeFunction>("addFilterScope", terminalSink);

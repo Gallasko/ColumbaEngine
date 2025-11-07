@@ -4,9 +4,9 @@
     #include <SDL2/SDL.h>
 #else
     #ifdef __linux__
-    #include <SDL2/SDL.h>
+        #include <SDL2/SDL.h>
     #elif _WIN32
-    #include <SDL.h>
+        #include <SDL.h>
     #endif
 #endif
 
@@ -24,55 +24,14 @@ namespace pg
 
     struct EngineConfig
     {
-        int width = 800;
-        int height = 600;
-
+        int width = 820;
+        int height = 640;
         bool resizable = true;
         bool fullscreen = false;
-
         std::string saveFolder = "save";
         std::string saveSystemFile = "system.sz";
-
         bool vsync = true;
         int targetFPS = 60;
-    };
-
-    // Base interface for app initialization callbacks
-    class AppInitializer
-    {
-    public:
-        virtual ~AppInitializer() = default;
-        virtual void setupSystems(EntitySystem& ecs, Window& window) = 0;
-        virtual void postInit(EntitySystem& ecs, Window& window) = 0;
-    };
-
-    // Simple function-based initializer
-    class FunctionInitializer : public AppInitializer
-    {
-    private:
-        std::function<void(EntitySystem&, Window&)> setupFunc;
-        std::function<void(EntitySystem&, Window&)> postInitFunc;
-
-    public:
-        FunctionInitializer(
-            std::function<void(EntitySystem&, Window&)> setup,
-            std::function<void(EntitySystem&, Window&)> postInit = nullptr) :
-            setupFunc(setup), postInitFunc(postInit)
-        {
-
-        }
-
-        void setupSystems(EntitySystem& ecs, Window& window) override
-        {
-            if (setupFunc)
-                setupFunc(ecs, window);
-        }
-
-        void postInit(EntitySystem& ecs, Window& window) override
-        {
-            if (postInitFunc)
-                postInitFunc(ecs, window);
-        }
     };
 
     class Engine
@@ -81,9 +40,8 @@ namespace pg
         Engine(const std::string& appName, const EngineConfig& config = {});
         ~Engine();
 
-        Engine& setInitializer(std::unique_ptr<AppInitializer> init);
-        Engine& setSetupFunction(std::function<void(EntitySystem&, Window&)> setup,
-            std::function<void(EntitySystem&, Window&)> postInit = nullptr);
+        Engine& setSetupFunction(std::function<void(EntitySystem&, Window&)> setup);
+        Engine& setPostInitFunction(std::function<void(EntitySystem&, Window&)> postInit);
 
         int exec();
 
@@ -96,27 +54,31 @@ namespace pg
         bool isECSReady() const { return ecsReady.load(); }
         bool isFullyInitialized() const { return initialized; }
 
-    public:
+        // Public for callback access
         std::string appName;
         EngineConfig config;
-        std::unique_ptr<AppInitializer> initializer;
-
+        std::function<void(EntitySystem&, Window&)> setup = nullptr;
+        std::function<void(EntitySystem&, Window&)> postInit = nullptr;
         Window* mainWindow = nullptr;
         std::atomic<bool> windowReady{false};
         std::atomic<bool> ecsReady{false};
         bool initialized = false;
         std::string savePath;
 
-        void initializeWindow();
+#ifdef __EMSCRIPTEN__
+        std::thread* initThread = nullptr;
+
+    public:
         void initializeECS();
+#else
+    private:
+        void initializeECS();
+#endif
+
+    private:
+        void initializeWindow();
         void setupFilesystem();
         std::string constructSavePath() const;
-        void windowInitCallback();
-        void mainLoopCallback(void* arg);
-
-    #ifdef __EMSCRIPTEN__
-        std::thread* initThread = nullptr;
-    #endif
     };
 
 } // namespace pg

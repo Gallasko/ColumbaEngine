@@ -1,0 +1,7 @@
+import "theme"
+
+print(getCurrentTheme())
+
+setCurrentTheme("default")
+
+print(getCurrentTheme())

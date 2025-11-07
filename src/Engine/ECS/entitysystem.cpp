@@ -151,6 +151,25 @@ namespace pg
         }
     }
 
+    EntityRef EntitySystem::createEntity(const std::string& name)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        if (running)
+        {
+            auto ent = cmdDispatcher.createEntity();
+            ent->attach<EntityName>(name);
+            return ent;
+        }
+        else
+        {
+            const auto& id = registry.idGenerator.generateId();
+            auto ent = entityPool.addComponent(id, id, this);
+            ent->attach<EntityName>(name);
+            return ent;
+        }
+    }
+
     void EntitySystem::removeEntity(Entity* entity)
     {
         LOG_THIS_MEMBER("ECS");

@@ -2,8 +2,18 @@
 
 #include "Scene/scenemanager.h"
 
+// UI includes moved from header
 #include "UI/prefab.h"
+#include "UI/namedanchor.h"
+#include "UI/sizer.h"
+#include "UI/textinput.h"
+#include "UI/thememanager.h"
 #include "2D/simple2dobject.h"
+#include "2D/texture.h"
+
+#include "Systems/coresystems.h"
+
+#include "Prefabs/foldablecard.h"
 
 namespace pg
 {
@@ -104,9 +114,25 @@ namespace pg
         {
             lastFocusedId = inspectorSys->currentId;
 
-            id = callback(ecsRef);
+            auto ent = callback(ecsRef);
+
+            ecsRef->attach<SceneElement>(ent);
+
+            std::string name = "Entity_" + std::to_string(inspectorSys->nbEntity);
+
+            inspectorSys->nbEntity++;
+
+            ecsRef->attach<EntityName>(ent, name);
+
+            ecsRef->attach<NamedUiAnchor>(ent);
+
+            id = ent.id;
 
             inspectorSys->currentId = id;
+
+            // Need to redraw the inspector
+            inspectorSys->event.entity = ent;
+            inspectorSys->eventRequested = true;
         }
 
         void CreateEntityCommand::undo()
@@ -142,65 +168,98 @@ namespace pg
 
             auto windowUi = windowEnt->get<UiAnchor>();
 
+            auto actionEnt = ecsRef->getEntity("__ActionTab");
+
+            auto actionUi = actionEnt->get<UiAnchor>();
+
             auto listView = makeVerticalLayout(ecsRef, 1, 1, 300, 1, true);
 
             listView.get<PositionComponent>()->setZ(1);
             auto listViewUi = listView.get<UiAnchor>();
 
-            listViewUi->setTopAnchor(windowUi->top);
+            listViewUi->setTopAnchor(actionUi->bottom);
             listViewUi->setBottomAnchor(windowUi->bottom);
             listViewUi->setRightAnchor(windowUi->right);
 
-            auto listViewBackground = makeUiTexture(ecsRef, 0, 0, "TabTexture");
+            auto themeManager = ecsRef->getSystem<ThemeManager>();
+            auto listViewBackground = makeEditorPanel(ecsRef, themeManager, 0, 0);
 
             auto listViewBackgroundUi = listViewBackground.get<UiAnchor>();
             listViewBackgroundUi->fillIn(listViewUi);
 
             view = listView.get<VerticalLayout>();
 
+            // Store reference to the inspector panel for visibility toggling
+            inspectorPanel = listView.entity;
+
+            // Create toggle button on left side of inspector, vertically centered
+            auto toggleButtonShape = makeEditorButton(ecsRef, themeManager, 20, 20);
+            toggleButton = toggleButtonShape.entity;
+
+            auto toggleButtonPos = toggleButtonShape.get<PositionComponent>();
+            toggleButtonPos->setZ(3); // Above background and content
+
+            auto toggleButtonUi = toggleButtonShape.get<UiAnchor>();
+            toggleButtonUi->setLeftAnchor(listViewUi->left);
+            toggleButtonUi->setVerticalCenter(listViewUi->verticalCenter);
+            toggleButtonUi->setLeftMargin(-25); // Position outside the inspector panel
+
+            // Create toggle button text
+            auto toggleText = makeEditorText(ecsRef, themeManager, 0, 0, 12.0f, "light", "◀", 0.5);
+            toggleButtonText = toggleText.entity;
+
+            auto toggleTextPos = toggleText.get<PositionComponent>();
+            toggleTextPos->setZ(4); // Above button
+
+            auto toggleTextUi = toggleText.get<UiAnchor>();
+            toggleTextUi->centeredIn(toggleButtonUi);
+
+            // Add click handler to toggle button
+            ecsRef->attach<MouseLeftClickComponent>(toggleButton, makeCallable<ToggleInspectorEvent>());
+
             registerAttachableComponent<PositionComponent>();
             registerAttachableComponent<UiAnchor>();
             registerAttachableComponent<Simple2DObject>(Shape2D::Square);
         }
 
-        void InspectorSystem::addNewText(const std::string& text)
+        CompRef<VerticalLayout> InspectorSystem::addNewText(const std::string& text, CompRef<VerticalLayout> currentView)
         {
             std::string textTemp = text;
 
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
-            auto sentence = makeTTFText(ecsRef, 1, 1, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4);
+            auto fold = makeFoldableCard(ecsRef, textTemp);
 
-            auto sentUi = sentence.get<PositionComponent>();
+            currentView->addEntity(fold);
 
-            view->addEntity(sentence.entity);
+            return fold.get<VerticalLayout>();
         }
 
         // Todo to remove type
-        void InspectorSystem::addNewAttribute(const std::string& text, const std::string&, std::string& value)
+        void InspectorSystem::addNewAttribute(const std::string& text, std::string& value, CompRef<VerticalLayout> currentView)
         {
-            InspectorWidgets::makeLabeledTextInput(ecsRef, view, text, value, this);
+            InspectorWidgets::makeLabeledTextInput(ecsRef, currentView, text, value, this);
         }
 
-        void InspectorSystem::printChildren(SerializedInfoHolder& parent)
+        void InspectorSystem::printChildren(SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView)
         {
             auto it = customDrawers.find(parent.className);
 
             if (it != customDrawers.end())
             {
-                it->second(this, parent);
+                it->second(this, parent, currentView);
                 return;
             }
             else
             {
-                defaultInspectWidget(this, parent);
+                defaultInspectWidget(this, parent, currentView);
             }
         }
 
 
         void InspectorSystem::processEntityChanged(const EntityChangedEvent& event)
         {
-            if (currentId == 0 or event.id != currentId)
+            if (event.id == 0 or currentId == 0 or event.id != currentId)
                 return;
 
             auto pos = ecsRef->getComponent<PositionComponent>(currentId);
@@ -280,7 +339,7 @@ namespace pg
 
                 archive.mainNode.children.clear();
 
-                ecsRef->sendEvent(SkipRenderPass{3});
+                ecsRef->sendEvent(SkipRenderPass{8});
 
                 needClear = false;
             }
@@ -294,17 +353,18 @@ namespace pg
 
             for (auto& child : archive.mainNode.children)
             {
-                printChildren(child);
+                printChildren(child, view);
             }
 
             eventRequested = false;
 
-            auto row = makeHorizontalLayout(ecsRef, 0,0, 0,0);
+            auto row = makeHorizontalLayout(ecsRef, 0, 0, 300, 30, true);
             row.get<HorizontalLayout>()->fitToAxis = true;
             row.get<HorizontalLayout>()->spacing  = 8.f;
 
             // label
-            auto label = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", "Add Component", 0.4f);
+            auto themeManager = ecsRef->getSystem<ThemeManager>();
+            auto label = makeEditorHeaderText(ecsRef, themeManager, 0, 0, 1, "bold", "Add Component", 0.4f);
             view->addEntity(label.entity);
 //
             // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
@@ -328,7 +388,7 @@ namespace pg
                 {
                     const auto& name = pair.first;
 
-                    auto item = makeTTFText(ecsRef, 0,0, 1, "res/font/Inter/static/Inter_28pt-Light.ttf", name, 0.35f);
+                    auto item = makeEditorText(ecsRef, themeManager, 0, 0, 1, "light", name, 0.35f);
                     // indent it a bit
                     // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
 
@@ -367,22 +427,23 @@ namespace pg
             }
         }
 
-        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent)
+        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView)
         {
             // If no class name then we got an attribute
             if (parent.className == "")
             {
-                sys->addNewAttribute(parent.name, parent.type, parent.value);
+                sys->addNewAttribute(parent.name, parent.value, currentView);
             }
             // We got a class name then it is a class ! So no type nor value
             else
             {
-                sys->addNewText(parent.className);
+                auto name = parent.name == "" ? parent.className : parent.name;
+                currentView = sys->addNewText(name, currentView);
             }
 
             for (auto& child : parent.children)
             {
-                sys->printChildren(child);
+                sys->printChildren(child, currentView);
             }
         }
 
@@ -393,7 +454,7 @@ namespace pg
             std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
 
             // Horizontal row
-            auto row = makeHorizontalLayout(ecs, 0, 0, 0, 0);
+            auto row = makeHorizontalLayout(ecs, 0, 0, 300, 30, true);
             auto rowAnchor = row.get<UiAnchor>();
             auto rowView = row.get<HorizontalLayout>();
 
@@ -403,7 +464,8 @@ namespace pg
             rowView->fitToAxis = true;
 
             // Label
-            auto labelEnt = makeTTFText(ecs, 0, 0, 1, "res/font/Inter/static/Inter_28pt-Bold.ttf", textTemp, 0.4f);
+            auto themeManager = ecs->getSystem<ThemeManager>();
+            auto labelEnt = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", textTemp, 0.4f);
             // auto labelPos = labelEnt.get<PositionComponent>();
             rowView->addEntity(labelEnt.entity);
 
@@ -412,20 +474,17 @@ namespace pg
             auto prefab = prefabEnt.get<Prefab>();
 
             // Text input
-            auto background = makeUiSimple2DShape(ecs, Shape2D::Square, 140, 0, {55.f, 55.f, 55.f, 255.f});
+            auto background = makeEditorInputBackground(ecs, themeManager, 140, 0);
             // auto backgroundPos = background.get<PositionComponent>();
             auto backgroundAnchor = background.get<UiAnchor>();
 
             prefab->setMainEntity(background.entity);
 
-            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "res/font/Inter/static/Inter_28pt-Light.ttf", { boundValue }, 0.4f);
+            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "light", { boundValue }, 0.4f);
             auto input = inputEnt.get<TextInputComponent>();
-            auto inputPos = inputEnt.get<PositionComponent>();
             auto inputAnchor = inputEnt.get<UiAnchor>();
 
             input->clearTextAfterEnter = false;
-
-            inputPos->setZ(2);
 
             backgroundAnchor->setHeightConstrain(PosConstrain{inputEnt.entity.id, AnchorType::Height, PosOpType::Add, 4.f});
 
@@ -435,6 +494,7 @@ namespace pg
             inputAnchor->setLeftMargin(2.f);
             inputAnchor->setRightAnchor(backgroundAnchor->right);
             inputAnchor->setRightMargin(2.f);
+            inputAnchor->setZConstrain(PosConstrain{background.entity.id, AnchorType::Z, PosOpType::Add, 1.f});
 
             prefab->addToPrefab(inputEnt.entity);
             rowView->addEntity(prefabEnt.entity);
@@ -443,6 +503,131 @@ namespace pg
 
             // Add the row into the parent vertical layout
             parentLayout->addEntity(row.entity);
+        }
+
+        void ResizeCommand::execute()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(endX);
+            pos->setY(endY);
+            pos->setWidth(endWidth);
+            pos->setHeight(endHeight);
+
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        void ResizeCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(startX);
+            pos->setY(startY);
+            pos->setWidth(startWidth);
+            pos->setHeight(startHeight);
+
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        void RotationCommand::execute()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+            pos->setRotation(endRotation);
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        void RotationCommand::undo()
+        {
+            auto ent = ecsRef->getEntity(entityId);
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+            pos->setRotation(startRotation);
+            ecsRef->sendEvent(EntityChangedEvent{entityId});
+        }
+
+        void InspectorSystem::toggleInspectorVisibility()
+        {
+            if (inspectorPanel.empty() || toggleButtonText.empty())
+                return;
+
+            isInspectorVisible = !isInspectorVisible;
+
+            auto panelPos = inspectorPanel.get<PositionComponent>();
+            auto buttonTextComp = ecsRef->getComponent<TTFText>(toggleButtonText.id);
+            auto toggleButtonUi = toggleButton.get<UiAnchor>();
+
+            if (not panelPos || not buttonTextComp || not toggleButtonUi)
+                return;
+
+            auto windowEnt = ecsRef->getEntity("__MainWindow");
+            auto windowUi = windowEnt->get<UiAnchor>();
+            auto inspectorUi = inspectorPanel.get<UiAnchor>();
+
+            if (not windowUi || not inspectorUi)
+                return;
+
+            if (isInspectorVisible)
+            {
+                // Show: restore inspector panel and reposition button to inspector left
+                panelPos->setVisibility(true);
+                buttonTextComp->text = "◀";
+
+                // Reposition button to left of inspector panel
+                toggleButtonUi->clearRightAnchor();
+                toggleButtonUi->setLeftAnchor(inspectorUi->left);
+                toggleButtonUi->setVerticalCenter(inspectorUi->verticalCenter);
+                toggleButtonUi->setLeftMargin(-25);
+
+                LOG_INFO("Inspector", "Inspector panel shown");
+            }
+            else
+            {
+                // Hide: make panel invisible and reposition button to main window right edge
+                panelPos->setVisibility(false);
+                buttonTextComp->text = "▶";
+
+                // Reposition button to right edge of main window
+                toggleButtonUi->clearLeftAnchor();
+                toggleButtonUi->setRightAnchor(windowUi->right);
+                toggleButtonUi->setVerticalCenter(windowUi->verticalCenter);
+                toggleButtonUi->setRightMargin(5);
+
+                // Keep toggle button visible
+                auto buttonPos = toggleButton.get<PositionComponent>();
+                if (buttonPos)
+                {
+                    buttonPos->setVisibility(true);
+                }
+
+                auto buttonTextPos = toggleButtonText.get<PositionComponent>();
+                if (buttonTextPos)
+                {
+                    buttonTextPos->setVisibility(true);
+                }
+
+                LOG_INFO("Inspector", "Inspector panel hidden, button moved to window edge");
+            }
+
+            // Send update events to refresh display
+            ecsRef->sendEvent(EntityChangedEvent{toggleButtonText.id});
+            ecsRef->sendEvent(EntityChangedEvent{toggleButton.id});
+            ecsRef->sendEvent(EntityChangedEvent{inspectorPanel.id});
         }
     }
 }

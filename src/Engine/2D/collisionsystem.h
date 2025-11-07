@@ -7,7 +7,7 @@
 
 #include "position.h"
 
-#include "constant.h"
+#include "pgconstant.h"
 
 #include <string>
 

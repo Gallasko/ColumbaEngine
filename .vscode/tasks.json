@@ -100,9 +100,13 @@
                     "--config",
                     "Release",
                     "--target",
-                    "BoxBouncer",
+                    // "BoxBouncer",
+                    // "InvadersBreaker",
                     // "GMTK2025",
                     // "ColumbaEngineEditor",
+                    // "GameOff",
+                    "PgInterpreter",
+                    "PgCompiler",
                     // "PixelJam",
                     "-j",
                     "8"
@@ -130,7 +134,7 @@
                 "showOutput": "always",
                 "args": [
                     "-c",
-                    "cd ${workspaceFolder}/em; emcmake cmake .; cmake --build . --config Release --target BoxBouncer -j 10 --"
+                    "cd ${workspaceFolder}/em; emcmake cmake .; cmake --build . --config Release --target InvadersBreaker -j 10 --"
                 ]
             },
             "linux": {

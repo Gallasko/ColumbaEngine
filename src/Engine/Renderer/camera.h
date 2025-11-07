@@ -10,7 +10,7 @@
 // #include <QObject>
 // #include <QOpenGLFunctions>
 
-#include "constant.h"
+#include "pgconstant.h"
 // #include "Input/input.h"
 
 namespace pg

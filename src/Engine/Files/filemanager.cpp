@@ -100,6 +100,13 @@ namespace pg
         return folder;
     }
 
+    bool ResourceAccessor::exists(const std::string& filepath) noexcept
+    {
+        fs::path p {":/" + filepath};
+
+        return fs::exists(p);
+    }
+
     TextFile FileAccessor::openTextFile(const std::string& filepath) noexcept
     {
         LOG_THIS(DOM);
@@ -176,6 +183,13 @@ namespace pg
         return true;
     }
 
+    bool FileAccessor::exists(const std::string& filepath) noexcept
+    {
+        fs::path p {filepath};
+
+        return fs::exists(p);
+    }
+
     /**
      * @brief Universal file accessor for both res file and system files
      *
@@ -250,5 +264,19 @@ namespace pg
         LOG_THIS(DOM);
 
         return file.filepath;
+    }
+
+    bool UniversalFileAccessor::exists(const std::string& filepath) noexcept
+    {
+        LOG_THIS(DOM);
+
+        if (ResourceAccessor::exists(filepath))
+            return true;
+
+        if (FileAccessor::exists(filepath))
+            return true;
+
+        return false;
+
     }
 }

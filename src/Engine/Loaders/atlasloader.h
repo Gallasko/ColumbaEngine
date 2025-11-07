@@ -6,7 +6,7 @@
 #include <memory>
 #include <functional>
 
-#include "constant.h"
+#include "pgconstant.h"
 
 namespace pg {
     // Type forwarding

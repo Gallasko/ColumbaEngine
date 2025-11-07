@@ -1,0 +1,351 @@
+import "nexus"
+import "achievement"
+import "log"
+
+setTagTier("tier0", 0)    // P0 resets tier0 content
+setTagTier("tier1", 1)    // P1 resets tier1 content
+
+// Import tutorial content
+import "nexusscript/tuto.pg"
+
+// ========================================
+// BASIC PROGRESSION
+// ========================================
+setDefaultTags(["basic", "tier1", "reset"])
+
+quickButton("ScrapBox", "Scrap Box",
+    [req("storage_1_learned")],
+    [increase("scrap_max_value", 5.0)],
+    "Use some scrap and forge them into a scrap box using some mana.\nThis should help to hold more of those pesky scraps",
+    "Storage", [cost("mana", 5), cost("scrap", 3)], 0,
+    [1.3, 1.3]) // costIncrease
+
+quickButton("ScrapConverter", "Convert [Scrap]",
+    [req("scrapper_on")],
+    [resource("scrap", 1)],
+    "Convert Mana to Scrap",
+    "Task",
+    [cost("mana", 0, "scrap_converter_mana_cost")],
+    0)
+
+// ========================================
+// KNOWLEDGE SYSTEM
+// ========================================
+setDefaultTags(["knowledge", "tier1", "partial_preserve"])
+
+quickButton("KnowledgeFocus", "Read Books",
+    [req("basic_reading_tools")],
+    [resourceFrom("knowledge", "knowledge_per_completion")],
+    "Read books to gain some knowledge about this place",
+    "Knowledge", [], 0,
+    [], 500.0) // activationTime - makes it activable
+
+quickButton("LearnRuneCarving", "Learn Runes",
+    [req("total_knowledge>=1")],
+    [fact("carving_runes_learned", true),
+     reward("add_res_display", "res", "rune")],
+    "Learn how to carve some magical runes",
+    "Knowledge",
+    [cost("knowledge", 5)],
+    1)
+
+quickButton("LearnScrollWriting", "Learn Scroll",
+    [req("total_knowledge>=1")],
+    [fact("writing_scrolls_learned", true),
+     reward("add_res_display", "res", "scroll")],
+    "Learn how to create some magical scroll",
+    "Knowledge",
+    [cost("knowledge", 5)],
+    1)
+
+// Knowledge storage upgrades
+quickButton("Storage1", "Storage Research",
+    [req("writing_scrolls_learned")],
+    [fact("storage_1_learned", true)],
+    "Research some ways to use our spare scrap to build some storage",
+    "Knowledge",
+    [cost("knowledge", 15)],
+    1)
+
+quickButton("Storage2", "Magic Storage Research",
+    [req("storage_1_learned")],
+    [fact("storage_2_learned", true)],
+    "Scrap box cannot hold any magical items like runes and scroll, we need to find a better way to store our materials...",
+    "Knowledge",
+    [cost("knowledge", 35)],
+    1)
+
+// ========================================
+// CRAFTING SYSTEM
+// ========================================
+setDefaultTags(["crafting", "tier2", "preserve"])
+
+quickButton("CarvingRunes", "Carve Rune",
+    [req("carving_runes_learned")],
+    [resource("rune", 1)],
+    "Take your time to mold and carve some scrap into a magical rune",
+    "Crafting",
+    [cost("scrap", 3), cost("mana", 5)],
+    0) // Repeatable crafting
+
+quickButton("CreateScroll", "Create Scroll",
+    [req("writing_scrolls_learned")],
+    [resource("scroll", 1)],
+    "By pouring decent amount of mana in some scrap, you can manage to create some scroll to write some off your newly acquired knowledge",
+    "Crafting",
+    [cost("scrap", 1), cost("mana", 10)],
+    0)
+
+// ========================================
+// STORAGE UPGRADES
+// ========================================
+setDefaultTags(["storage", "tier2", "preserve"])
+
+quickButton("Crate", "Magic Crate",
+    [req("storage_2_learned")],
+    [increase("rune_max_value", 5.0), increase("scroll_max_value", 5.0)],
+    "Use lot of scraps reinforced with some rune and forge them into a more durable crate using some mana.\nThis should help store our magical mats without them losing their magical attributes",
+    "Storage", [cost("mana", 30), cost("scrap", 20), cost("rune", 2)], 0,
+    [1.3, 1.3, 1.3]) // costIncrease
+
+// ========================================
+// MAJOR UPGRADES
+// ========================================
+setDefaultTags(["upgrade", "tier2", "preserve"])
+
+quickButton("UpgradeAltarSpeed1", "Upgrade Altar",
+    [req("carving_runes_learned")],
+    [reward("res_gen_upgrade", "id", "altar", "upgradeAmount", 1),
+     increase("mana_max_value", 20),
+     fact("first_altar_upgrade", true)],
+    "Upgrade Mana generation (+1 mana/sec) and increase mana storage by 20",
+    "Upgrades",
+    [cost("rune", 5), cost("mana", 20)],
+    1) // One-time major upgrade
+
+// ========================================
+// KNOWLEDGE ADVANCEMENT
+// ========================================
+setDefaultTags(["knowledge_advanced", "tier2", "preserve"])
+
+quickButton("TakeSomeNotes", "Write Notes",
+    [req("writing_scrolls_learned"), req("first_knowledge_cap")],
+    [increase("knowledge_max_value", 20), increase("note_taken", 1)],
+    "Take some notes about your new found knowledge, to further increase the knowledge that you can understand.\n(Knowledge cap +20)",
+    "Knowledge", [cost("knowledge", 5), cost("scroll", 1)], 0,
+    [1.5, 1.2]) // costIncrease
+
+quickButton("SpeedReading1", "Speed Reading",
+    [req("writing_scrolls_learned"), req("first_knowledge_cap")],
+    [increase("knowledge_per_completion", 0.5)],
+    "Increase the speed at which you read your books\n(Knowledge per second +1)",
+    "Knowledge",
+    [cost("knowledge", 20)],
+    1)
+
+// ========================================
+// MEDITATION SYSTEM
+// ========================================
+setDefaultTags(["meditation", "tier2", "preserve"])
+
+quickButton("Meditation1", "Learn Meditation",
+    [req("note_taken>=1")],
+    [fact("learn_meditation_1", true)],
+    "Understand some meditation technique that could be useful to store more mana in your body.",
+    "Knowledge",
+    [cost("knowledge", 25)],
+    1)
+
+quickButton("MeditationActive1", "Meditate",
+    [req("learn_meditation_1")],
+    [increase("mana_max_value", 10), increase("basic_meditation_done", 1)],
+    "Take some time to harness the ambiant mana.\n(Mana cap +10)",
+    "Activities", [], 5,
+    [], 30000.0) // activationTime - makes it activable
+
+// ========================================
+// RESEARCH PROJECTS
+// ========================================
+setDefaultTags(["research", "tier3", "preserve"])
+
+quickButton("AutoAltarFarming", "Altar Collection Research",
+    [req("note_taken>=3")],
+    [fact("auto_altar_collection_researched", true)],
+    "Research a way to harvest the mana stored in the altar automatically",
+    "Research",
+    [cost("knowledge", 65)],
+    1)
+
+quickButton("ManaReserveKnowledge1", "Mana Reserve Research",
+    [req("note_taken>=3")],
+    [fact("mana_reservoir_1_researched", true)],
+    "Research a way to increase your own mana reserve.",
+    "Research",
+    [cost("knowledge", 65)],
+    1)
+
+quickButton("ManaReserveUpgrade1", "Mana Reservoir",
+    [req("mana_reservoir_1_researched")],
+    [increase("mana_max_value", 25)],
+    "Attune some runes with your body to increase your mana reserve.",
+    "Upgrades", [cost("knowledge", 65)], 0,
+    [1.3]) // costIncrease
+
+// ========================================
+// SPECIALIZATIONS
+// ========================================
+setDefaultTags(["specialization", "tier3", "major_unlock", "preserve"])
+
+quickButton("Scribe", "Become Scribe",
+    [req("writing_scrolls_learned"), req("first_knowledge_cap"), req("mage_tier==0")],
+    [increase("knowledge_max_value", 100),
+     increase("mana_max_value", 50),
+     fact("mage_tier", 1)],
+    "Specialize yourself in the creation of magical scroll.\nA major \\c{255, 0, 0, 255}step\\c{} in the mage process (Mutually exclusive with other specialization!)\nKnowledge cap +100\nMana cap +50",
+    "Specialization",
+    [cost("knowledge", 50), cost("scroll", 10), cost("mana", 100)],
+    1)
+
+// ========================================
+// SIMPLIFIED SYNTAX EXAMPLES (UPDATED)
+// ========================================
+clearDefaultTags() // Clear for examples
+
+quickButton("TestQuick", "Quick Test",
+    [req("mana>=50")],
+    [gamelog("Quick button works!")],
+    "A test button using the new simplified syntax",
+    "Test", [], 1,
+    [], 0, ["test", "example"]) // costIncrease, activationTime, tags
+
+quickButton("QuickScrapConvert", "Quick Convert",
+    [req("scrapper_on")],
+    [resource("scrap", 2)],
+    "Quickly convert mana to scrap",
+    "Test", [], 0,
+    [], 0, ["test", "repeatable"]) // costIncrease, activationTime, tags
+
+quickButton("QuickComplexTest", "Complex Test",
+    [req("!complex_test_done"), req("total_scrap>=5"), req("mana>=25")],
+    [fact("complex_test_done", true), increase("mana_max_value", 10), gamelog("Complex test completed!")],
+    "A complex test showing multiple requirements and outcomes",
+    "Test", [], 1,
+    [], 0, ["test", "complex"]) // costIncrease, activationTime, tags
+
+quickButton("QuickUpgrade", "Quick Upgrade",
+    [req("first_altar_upgrade")],
+    [increase("mana_max_value", 30)],
+    "Quick upgrade test",
+    "Test", [cost("mana", 50), cost("rune", 3)], 1,
+    [], 0, ["test", "upgrade"]) // costIncrease, activationTime, tags
+
+// ========================================
+// AUTO-CLICKER SYSTEM
+// ========================================
+setDefaultTags(["autoclicker", "automation", "preserve"])
+
+// Define auto-clickers
+createAutoClicker("basic_clicker", "BasicHarvest", 5000.0, [], [])
+createAutoClicker("advanced_clicker", "BasicHarvest", 3000.0,
+    [cost("mana", 100)],
+    [req("basic_clicker_owned")])
+
+// Purchase buttons
+quickButton("buy_basic_autoclicker", "Buy Basic Auto-Clicker",
+    [req("mana>=5")],
+    [purchaseAutoClicker("basic_clicker"), gamelog("Purchased Basic Auto-Clicker! It will click 'Harvest Altar' every 5 seconds.")],
+    "Automatically clicks the Harvest Altar button every 5 seconds",
+    "AutoClickers",
+    [cost("mana", 10)],
+    1)
+
+quickButton("buy_advanced_autoclicker", "Buy Advanced Auto-Clicker",
+    [req("basic_clicker_owned")],
+    [purchaseAutoClicker("advanced_clicker"), gamelog("Purchased Advanced Auto-Clicker! Faster clicking power!")],
+    "A faster auto-clicker that clicks every 3 seconds",
+    "AutoClickers",
+    [],
+    1)
+
+// Toggle buttons
+quickButton("toggle_basic_clicker", "Toggle Basic Auto-Clicker",
+    [req("basic_clicker_owned")],
+    [toggleAutoClicker("basic_clicker"), gamelog("Toggled Basic Auto-Clicker!")],
+    "Enable/disable the Basic Auto-Clicker",
+    "AutoClickers",
+    [],
+    0)
+
+quickButton("toggle_advanced_clicker", "Toggle Advanced Auto-Clicker",
+    [req("advanced_clicker_owned")],
+    [toggleAutoClicker("advanced_clicker"), gamelog("Toggled Advanced Auto-Clicker!")],
+    "Enable/disable the Advanced Auto-Clicker",
+    "AutoClickers",
+    [],
+    0)
+
+// ========================================
+// AUTO-CLICKER UPGRADES
+// ========================================
+setDefaultTags(["autoclicker_upgrade", "automation", "preserve"])
+
+quickButton("upgrade_all_autoclickers", "Global Speed Boost",
+    [req("mana>=500")],
+    [increase("autoclicker_global_multiplier", 0.5), gamelog("All auto-clickers are now 50% faster!")],
+    "Increases all auto-clicker speeds by 50%",
+    "Upgrades",
+    [cost("mana", 500)],
+    0)
+
+quickButton("mega_upgrade_all", "Mega Speed Boost",
+    [req("mana>=2000"), req("autoclicker_global_multiplier>=2.0")],
+    [fact("autoclicker_global_multiplier", 3.0), gamelog("MEGA BOOST! All auto-clickers tripled speed!")],
+    "Sets all auto-clicker speeds to 3x multiplier",
+    "Upgrades",
+    [cost("mana", 2000)],
+    1)
+
+quickButton("upgrade_basic_clicker_speed", "Upgrade Basic Auto-Clicker",
+    [req("basic_clicker_owned"), req("mana>=100")],
+    [increase("autoclicker_multiplier_basic_clicker", 0.5), gamelog("Basic Auto-Clicker upgraded!")],
+    "Increases Basic Auto-Clicker speed by 50%",
+    "Upgrades",
+    [cost("mana", 100)],
+    0)
+
+quickButton("turbo_basic_clicker", "Turbo Basic Auto-Clicker",
+    [req("basic_clicker_owned"), req("autoclicker_multiplier_basic_clicker>=2.0"), req("scrap>=10")],
+    [fact("autoclicker_multiplier_basic_clicker", 5.0), gamelog("Basic Auto-Clicker is now TURBO! 5x speed!")],
+    "Sets Basic Auto-Clicker to 5x speed",
+    "Upgrades",
+    [cost("scrap", 10)],
+    1)
+
+quickButton("optimize_advanced_clicker", "Optimize Advanced Auto-Clicker",
+    [req("advanced_clicker_owned"), req("rune>=5")],
+    [fact("autoclicker_interval_advanced_clicker", 1500.0), gamelog("Advanced Auto-Clicker optimized to 1.5 seconds!")],
+    "Reduces Advanced Auto-Clicker interval to 1.5 seconds",
+    "Upgrades",
+    [cost("rune", 5)],
+    1)
+
+// Example of an auto-clicker for a different button
+createAutoClicker("scrapper_clicker", "ScrapConverter", 8000.0,
+    [cost("scrap", 5)],
+    [req("scrapper_on")])
+
+quickButton("buy_scrapper_autoclicker", "Buy Scrapper Auto-Clicker",
+    [req("scrap>=10"), req("scrapper_on")],
+    [purchaseAutoClicker("scrapper_clicker"), gamelog("Scrapper Auto-Clicker purchased! It will automatically collect scrap.")],
+    "Automatically collects scrap every 8 seconds",
+    "AutoClickers",
+    [cost("scrap", 10)],
+    1)
+
+quickButton("toggle_scrapper_clicker", "Toggle Scrapper Auto-Clicker",
+    [req("scrapper_clicker_owned")],
+    [toggleAutoClicker("scrapper_clicker"), gamelog("Toggled Scrapper Auto-Clicker!")],
+    "Enable/disable the Scrapper Auto-Clicker",
+    "AutoClickers",
+    [],
+    0)

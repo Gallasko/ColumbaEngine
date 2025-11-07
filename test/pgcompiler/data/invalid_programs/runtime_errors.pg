@@ -1,0 +1,22 @@
+// Runtime errors for testing error handling
+
+// Type errors - unary operations on wrong types
+-true
+-false
+!42
+!3.14
+!0
+
+// Note: Some of these might be caught at compile time
+// depending on the implementation
+
+// Mixed type operations (if strict typing)
+// true + 1
+// 1 + true
+// false * 2
+
+// Boolean arithmetic (if not supported)
+// true + false
+// true * false
+// true / false
+// true - false

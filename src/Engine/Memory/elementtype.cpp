@@ -4,7 +4,7 @@
 
 #include "logger.h"
 
-#include "constant.h"
+#include "pgconstant.h"
 
 namespace pg
 {
@@ -24,6 +24,10 @@ namespace pg
         {
         case ElementType::UnionType::FLOAT:
             return os << "float";
+            break;
+
+        case ElementType::UnionType::DOUBLE:
+            return os << "double";
             break;
 
         case ElementType::UnionType::INT:
@@ -62,6 +66,11 @@ namespace pg
         case ElementType::UnionType::FLOAT:
             serialize(archive, "type", element.enumTypeToString(element.type));
             serialize(archive, "data", element.data.f);
+            break;
+
+        case ElementType::UnionType::DOUBLE:
+            serialize(archive, "type", element.enumTypeToString(element.type));
+            serialize(archive, "data", element.data.d);
             break;
 
         case ElementType::UnionType::INT:
@@ -109,6 +118,8 @@ namespace pg
 
             if (type == "float")
                 value.setValue(deserialize<float>(serializedString["data"]));
+            else if (type == "double")
+                value.setValue(deserialize<double>(serializedString["data"]));
             else if (type == "int")
                 value.setValue(deserialize<int>(serializedString["data"]));
             else if (type == "size_t")
@@ -131,7 +142,8 @@ namespace pg
     {
         switch(type)
         {
-            case UnionType::FLOAT:  return get<float>() != 0.0f;     break;
+            case UnionType::FLOAT:  return std::abs(get<float>()) > std::numeric_limits<float>::epsilon();     break;
+            case UnionType::DOUBLE: return std::abs(get<double>()) > std::numeric_limits<double>::epsilon();    break;
             case UnionType::INT:    return get<int>() != 0;          break;
             case UnionType::SIZE_T: return get<size_t>() != 0;       break;
             case UnionType::STRING: return get<std::string>() != ""; break;
@@ -146,7 +158,36 @@ namespace pg
 
     ElementType ElementType::operator+(const ElementType& other) const
     {
-        if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
+        // Fast path for most common case: int + int
+        if (type == UnionType::INT && other.type == UnionType::INT)
+        {
+            ElementType result;
+            result.data.i = data.i + other.data.i;
+            result.type = UnionType::INT;
+            return result;
+        }
+
+        if (type == UnionType::DOUBLE and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<double>() + other.get<double>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::FLOAT)
+        {
+            return ElementType { get<double>() + other.get<float>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::INT)
+        {
+            return ElementType { get<double>() + other.get<int>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::SIZE_T)
+        {
+            return ElementType { get<double>() + other.get<size_t>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<float>() + other.get<double>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
         {
             return ElementType { get<float>() + other.get<float>() };
         }
@@ -158,9 +199,9 @@ namespace pg
         {
             return ElementType { get<float>() + other.get<size_t>() };
         }
-        else if (type == UnionType::INT and other.type == UnionType::INT)
+        else if (type == UnionType::INT and other.type == UnionType::DOUBLE)
         {
-            return ElementType { get<int>() + other.get<int>() };
+            return ElementType { get<int>() + other.get<double>() };
         }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
@@ -178,6 +219,10 @@ namespace pg
         {
             return ElementType { get<size_t>() + other.get<int>() };
         }
+        else if (type == UnionType::SIZE_T and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<size_t>() + other.get<double>() };
+        }
         else if (type == UnionType::SIZE_T and other.type == UnionType::FLOAT)
         {
             return ElementType { get<size_t>() + other.get<float>() };
@@ -194,7 +239,27 @@ namespace pg
 
     ElementType ElementType::operator-(const ElementType& other) const
     {
-        if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
+        if (type == UnionType::DOUBLE and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<double>() - other.get<double>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::FLOAT)
+        {
+            return ElementType { get<double>() - other.get<float>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::INT)
+        {
+            return ElementType { get<double>() - other.get<int>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::SIZE_T)
+        {
+            return ElementType { get<double>() - other.get<size_t>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<float>() - other.get<double>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
         {
             return ElementType { get<float>() - other.get<float>() };
         }
@@ -209,6 +274,10 @@ namespace pg
         else if (type == UnionType::INT and other.type == UnionType::INT)
         {
             return ElementType { get<int>() - other.get<int>() };
+        }
+        else if (type == UnionType::INT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<int>() - other.get<double>() };
         }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
@@ -226,6 +295,10 @@ namespace pg
         {
             return ElementType { get<size_t>() - other.get<int>() };
         }
+        else if (type == UnionType::SIZE_T and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<size_t>() - other.get<double>() };
+        }
         else if (type == UnionType::SIZE_T and other.type == UnionType::FLOAT)
         {
             return ElementType { get<size_t>() - other.get<float>() };
@@ -238,7 +311,27 @@ namespace pg
 
     ElementType ElementType::operator*(const ElementType& other) const
     {
-        if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
+        if (type == UnionType::DOUBLE and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<double>() * other.get<double>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::FLOAT)
+        {
+            return ElementType { get<double>() * other.get<float>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::INT)
+        {
+            return ElementType { get<double>() * other.get<int>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::SIZE_T)
+        {
+            return ElementType { get<double>() * other.get<size_t>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<float>() * other.get<double>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
         {
             return ElementType { get<float>() * other.get<float>() };
         }
@@ -253,6 +346,10 @@ namespace pg
         else if (type == UnionType::INT and other.type == UnionType::INT)
         {
             return ElementType { get<int>() * other.get<int>() };
+        }
+        else if (type == UnionType::INT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<int>() * other.get<double>() };
         }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
@@ -270,6 +367,10 @@ namespace pg
         {
             return ElementType { get<size_t>() * other.get<int>() };
         }
+        else if (type == UnionType::SIZE_T and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<size_t>() * other.get<double>() };
+        }
         else if (type == UnionType::SIZE_T and other.type == UnionType::FLOAT)
         {
             return ElementType { get<size_t>() * other.get<float>() };
@@ -282,9 +383,54 @@ namespace pg
 
     ElementType ElementType::operator/(const ElementType& other) const
     {
-        if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
+        if (type == UnionType::DOUBLE and other.type == UnionType::DOUBLE)
         {
-            if (other.get<float>() == 0.0f)
+            if (std::abs(other.get<double>()) <= std::numeric_limits<double>::epsilon())
+            {
+                throw std::runtime_error("Division by zero");
+            }
+
+            return ElementType { get<double>() / other.get<double>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::FLOAT)
+        {
+            if (std::abs(other.get<float>()) <= std::numeric_limits<float>::epsilon())
+            {
+                throw std::runtime_error("Division by zero");
+            }
+
+            return ElementType { get<double>() / other.get<float>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::INT)
+        {
+            if (other.get<int>() == 0)
+            {
+                throw std::runtime_error("Division by zero");
+            }
+
+            return ElementType { get<double>() / other.get<int>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::SIZE_T)
+        {
+            if (other.get<size_t>() == 0)
+            {
+                throw std::runtime_error("Division by zero");
+            }
+
+            return ElementType { get<double>() / other.get<size_t>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::DOUBLE)
+        {
+            if (std::abs(other.get<double>()) <= std::numeric_limits<double>::epsilon())
+            {
+                throw std::runtime_error("Division by zero");
+            }
+
+            return ElementType { get<float>() / other.get<double>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
+        {
+            if (std::abs(other.get<float>()) <= std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("Division by zero");
             }
@@ -302,7 +448,7 @@ namespace pg
         }
         else if (type == UnionType::FLOAT and other.type == UnionType::SIZE_T)
         {
-            if (other.get<size_t>() == 0.0f)
+            if (other.get<size_t>() == 0)
             {
                 throw std::runtime_error("Division by zero");
             }
@@ -318,9 +464,18 @@ namespace pg
 
             return ElementType { static_cast<float>(get<int>()) / other.get<int>() };
         }
+        else if (type == UnionType::INT and other.type == UnionType::DOUBLE)
+        {
+            if (std::abs(other.get<double>()) <= std::numeric_limits<double>::epsilon())
+            {
+                throw std::runtime_error("Division by zero");
+            }
+
+            return ElementType { get<int>() / other.get<double>() };
+        }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
-            if (other.get<float>() == 0.0f)
+            if (std::abs(other.get<float>()) <= std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("Division by zero");
             }
@@ -354,9 +509,18 @@ namespace pg
 
             return ElementType { get<size_t>() / other.get<int>() };
         }
+        else if (type == UnionType::SIZE_T and other.type == UnionType::DOUBLE)
+        {
+            if (std::abs(other.get<double>()) <= std::numeric_limits<double>::epsilon())
+            {
+                throw std::runtime_error("Division by zero");
+            }
+
+            return ElementType { get<size_t>() / other.get<double>() };
+        }
         else if (type == UnionType::SIZE_T and other.type == UnionType::FLOAT)
         {
-            if (other.get<float>() == 0.0f)
+            if (std::abs(other.get<float>()) <= std::numeric_limits<float>::epsilon())
             {
                 throw std::runtime_error("Division by zero");
             }
@@ -395,7 +559,27 @@ namespace pg
 
     ElementType ElementType::operator>(const ElementType& other) const
     {
-        if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
+        if (type == UnionType::DOUBLE and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<double>() > other.get<double>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::FLOAT)
+        {
+            return ElementType { get<double>() > other.get<float>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::INT)
+        {
+            return ElementType { get<double>() > other.get<int>() };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::SIZE_T)
+        {
+            return ElementType { get<double>() > other.get<size_t>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<float>() > other.get<double>() };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
         {
             return ElementType { get<float>() > other.get<float>() };
         }
@@ -410,6 +594,10 @@ namespace pg
         else if (type == UnionType::INT and other.type == UnionType::INT)
         {
             return ElementType { get<int>() > other.get<int>() };
+        }
+        else if (type == UnionType::INT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<int>() > other.get<double>() };
         }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
@@ -432,6 +620,10 @@ namespace pg
                 return ElementType { false };
             else
                 return ElementType { get<size_t>() > static_cast<unsigned int>(other.get<int>()) };
+        }
+        else if (type == UnionType::SIZE_T and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { get<size_t>() > other.get<double>() };
         }
         else if (type == UnionType::SIZE_T and other.type == UnionType::FLOAT)
         {
@@ -457,6 +649,15 @@ namespace pg
 
     ElementType ElementType::operator< (const ElementType& other) const
     {
+        // Fast path for int < int (most common in loops)
+        if (type == UnionType::INT && other.type == UnionType::INT)
+        {
+            ElementType result;
+            result.data.b = data.i < other.data.i;
+            result.type = UnionType::BOOL;
+            return result;
+        }
+
         try
         {
             return ElementType { (other > *this) };
@@ -481,7 +682,27 @@ namespace pg
 
     ElementType ElementType::operator==(const ElementType& other) const
     {
-        if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
+        if (type == UnionType::DOUBLE and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { areAlmostEqual(get<double>(), other.get<double>()) };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::FLOAT)
+        {
+            return ElementType { areAlmostEqual(get<double>(), other.get<float>()) };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::INT)
+        {
+            return ElementType { areAlmostEqual(get<double>(), other.get<int>()) };
+        }
+        else if (type == UnionType::DOUBLE and other.type == UnionType::SIZE_T)
+        {
+            return ElementType { areAlmostEqual(get<double>(), other.get<size_t>()) };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { areAlmostEqual(get<float>(), other.get<double>()) };
+        }
+        else if (type == UnionType::FLOAT and other.type == UnionType::FLOAT)
         {
             return ElementType { areAlmostEqual(get<float>(), other.get<float>()) };
         }
@@ -496,6 +717,10 @@ namespace pg
         else if (type == UnionType::INT and other.type == UnionType::INT)
         {
             return ElementType { get<int>() == other.get<int>() };
+        }
+        else if (type == UnionType::INT and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { areAlmostEqual(get<int>(), other.get<double>()) };
         }
         else if (type == UnionType::INT and other.type == UnionType::FLOAT)
         {
@@ -518,6 +743,10 @@ namespace pg
                 return ElementType { false };
             else
                 return ElementType { get<size_t>() == static_cast<unsigned int>(other.get<int>()) };
+        }
+        else if (type == UnionType::SIZE_T and other.type == UnionType::DOUBLE)
+        {
+            return ElementType { areAlmostEqual(get<size_t>(), other.get<double>()) };
         }
         else if (type == UnionType::SIZE_T and other.type == UnionType::FLOAT)
         {
@@ -555,6 +784,10 @@ namespace pg
         {
             return ElementType { -get<int>() };
         }
+        else if (type == UnionType::DOUBLE)
+        {
+            return ElementType { -get<double>() };
+        }
         else if (type == UnionType::FLOAT)
         {
             return ElementType { -get<float>() };
@@ -573,11 +806,12 @@ namespace pg
     {
         switch(type)
         {
-            case UnionType::STRING: return get<std::string>(); break;
-            case UnionType::INT: return std::to_string(get<int>()); break;
+            case UnionType::FLOAT:  return std::to_string(get<float>()); break;
+            case UnionType::DOUBLE: return std::to_string(get<double>()); break;
+            case UnionType::INT:    return std::to_string(get<int>()); break;
             case UnionType::SIZE_T: return std::to_string(get<size_t>()); break;
-            case UnionType::FLOAT: return std::to_string(get<float>()); break;
-            case UnionType::BOOL: return get<bool>() ? "true" : "false"; break;
+            case UnionType::STRING: return get<std::string>(); break;
+            case UnionType::BOOL:   return get<bool>() ? "true" : "false"; break;
 
             default:
                 LOG_ERROR(DOM, "Error in casting type to string");
@@ -590,11 +824,12 @@ namespace pg
     {
         switch(type)
         {
-            case UnionType::FLOAT: return "float"; break;
-            case UnionType::INT: return "int"; break;
+            case UnionType::FLOAT:  return "float"; break;
+            case UnionType::DOUBLE: return "double"; break;
+            case UnionType::INT:    return "int"; break;
             case UnionType::SIZE_T: return "size_t"; break;
             case UnionType::STRING: return "string"; break;
-            case UnionType::BOOL: return "bool"; break;
+            case UnionType::BOOL:   return "bool"; break;
             default:
                 LOG_ERROR(DOM, "Error in casting type to a string");
                 return "int";
@@ -606,6 +841,8 @@ namespace pg
     {
         if (this->type == UnionType::FLOAT)
             return data.f;
+        else if (this->type == UnionType::DOUBLE)
+            return static_cast<float>(data.d);
         else if (this->type == UnionType::INT)
             return static_cast<float>(data.i);
         else if (this->type == UnionType::SIZE_T)
@@ -621,6 +858,8 @@ namespace pg
     {
         if (this->type == UnionType::INT)
             return data.i;
+        else if (this->type == UnionType::DOUBLE)
+            return static_cast<int>(data.d);
         else if (this->type == UnionType::FLOAT)
             return static_cast<int>(data.f);
         else if (this->type == UnionType::SIZE_T)
@@ -632,12 +871,29 @@ namespace pg
         }
     }
 
+    ElementType::operator double() const
+    {
+        if (this->type == UnionType::DOUBLE)
+            return data.d;
+        else if (this->type == UnionType::INT)
+            return static_cast<double>(data.i);
+        else if (this->type == UnionType::SIZE_T)
+            return static_cast<double>(data.l);
+        else
+        {
+            LOG_ERROR(DOM, "Error in casting an element to double when defined as " + enumTypeToString(this->type));
+            return 0.0;
+        }
+    }
+
     ElementType::operator size_t() const
     {
         if (this->type == UnionType::SIZE_T)
             return data.l;
         else if (this->type == UnionType::INT)
             return static_cast<size_t>(data.i);
+        else if (this->type == UnionType::DOUBLE)
+            return static_cast<size_t>(data.d);
         else if (this->type == UnionType::FLOAT)
             return static_cast<size_t>(data.f);
         else

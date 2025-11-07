@@ -1,0 +1,4 @@
+// Simple multiplication test
+__dprint(2 * 3);
+__dprint(5 * 0);
+__dprint(4 * 2);

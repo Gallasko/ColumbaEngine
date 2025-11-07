@@ -39,7 +39,7 @@ namespace pg
         END    = ';',
         EOL    = '\n',
 
-        //Two characters Operators
+        // Two characters Operators
 
         PLUSEQUAL  = 270,
         MINUSEQUAL = 271,
@@ -74,7 +74,7 @@ namespace pg
         KEYFALSE,
         NOOP,
         INVALID,
-        
+
         TOK_CONST,
         TOK_INCLUDE,
         TOK_IF,
@@ -88,23 +88,26 @@ namespace pg
         TOK_FOR,
         TOK_IMPORT,
         TOK_FROM,
-        TOK_AS
+        TOK_AS,
+        TOK_DPRINT,
 
+        TOK_ERROR,
     };
 
     struct Token
     {
-        Token(const TokenType& type, const std::string& text, unsigned line, unsigned column) : type(type), text(text), line(line), column(column) { }
-        Token(const Token& other) : type(other.type), text(other.text), line(other.line), column(other.column) { }
+        Token(const TokenType& type, const std::string& text, unsigned line, unsigned column, unsigned length = 0) : type(type), text(text), line(line), column(column), length(length) { }
+        Token(const Token& other) : type(other.type), text(other.text), line(other.line), column(other.column), length(other.length) { }
 
-        Token() : Token(TokenType::INVALID, "", 0, 0) { }
+        Token() : Token(TokenType::INVALID, "", 0, 0, 0) { }
 
-        void operator=(const Token& other) { type = other.type; text = other.text; line = other.line; column = other.column; }
+        void operator=(const Token& other) { type = other.type; text = other.text; line = other.line; column = other.column; length = other.length; }
 
         TokenType type;
         std::string text;
         unsigned line;
         unsigned column;
+        unsigned length = 0;
     };
 
 }

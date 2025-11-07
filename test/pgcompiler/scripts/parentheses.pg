@@ -1,0 +1,5 @@
+// Parentheses override precedence
+__dprint((2 + 3) * 4);
+__dprint(2 * (3 + 4));
+__dprint((10 - 8) / 2);
+__dprint(10 / (2 - 3));

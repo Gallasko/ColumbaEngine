@@ -16,3 +16,4 @@ CMakeCache.txt
 /linux*
 .idea*
 /clang*
+save/*

@@ -1,0 +1,7 @@
+fun f()
+{
+  return this;
+}
+
+f()
+

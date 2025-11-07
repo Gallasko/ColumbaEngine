@@ -9,6 +9,7 @@ namespace pg
 
         serialize(archive, "name", value.name);
         serialize(archive, "value", value.value);
+        serialize(archive, "metadata", value.metadata);
 
         archive.endSerialization();
     }
@@ -32,6 +33,7 @@ namespace pg
 
             defaultDeserialize(serializedString, "name", data.name);
             defaultDeserialize(serializedString, "value", data.value);
+            defaultDeserialize(serializedString, "metadata", data.metadata);
 
             return data;
         }
@@ -79,6 +81,7 @@ namespace pg
 
         serialize(archive, "name", value.name);
         serialize(archive, "value", value.value);
+        serialize(archive, "metadata", value.metadata);
 
         archive.endSerialization();
     }
@@ -102,6 +105,7 @@ namespace pg
 
             defaultDeserialize(serializedString, "name", data.name);
             defaultDeserialize(serializedString, "value", data.value);
+            defaultDeserialize(serializedString, "metadata", data.metadata);
 
             return data;
         }

@@ -175,6 +175,15 @@ namespace pg
         EntityRef createEntity();
 
         /**
+         * @brief Create a Entity object
+         *
+         * @param name Name of the entity
+         *
+         * @return EntityRef A reference object to the entity created
+         */
+        EntityRef createEntity(const std::string& name);
+
+        /**
          * @brief Remove an Entity object
          *
          * @param entity Pointer to the entity to delete from the ecs (Remove it from the entity pool)
@@ -1031,6 +1040,12 @@ namespace pg
                     return;
 
                 auto comp = deserialize<Type>(serializedStr);
+
+                if constexpr(std::is_base_of_v<Component, Type>)
+                {
+                    comp.entityId = entity.id;
+                    comp.ecsRef = entity.ecsRef;
+                }
 
                 ecsRef->attach<Type>(entity, comp);
             });

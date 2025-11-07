@@ -6,7 +6,7 @@
 
 #include "Renderer/renderer.h"
 
-#include "constant.h"
+#include "pgconstant.h"
 
 // Todo this system can be faulty during scene changing !
 

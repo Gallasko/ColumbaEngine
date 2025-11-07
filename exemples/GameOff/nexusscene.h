@@ -21,6 +21,40 @@ namespace pg
         bool consumed = true;
     };
 
+    // AutoClicker system structures
+    struct AutoClicker
+    {
+        std::string id;                         // Unique identifier
+        std::string targetButtonId;            // Button to auto-click
+        float baseInterval = 5000.0f;          // Base time between clicks (ms)
+        bool active = false;                   // Is the auto-clicker running
+        float timer = 0.0f;                    // Current timer countdown
+        size_t clickCount = 0;                 // Statistics tracking
+        
+        // Purchase/unlock system
+        std::vector<NexusButtonCost> costs = {};        // Cost to buy this auto-clicker
+        std::vector<FactChecker> unlockConditions = {}; // Conditions to unlock
+        bool owned = false;                             // Player owns this auto-clicker
+    };
+
+    // AutoClicker events
+    struct PurchaseAutoClicker
+    {
+        std::string autoClickerId;
+    };
+
+    struct ToggleAutoClicker
+    {
+        std::string autoClickerId;
+        bool enable = true;  // true = enable, false = disable
+    };
+
+    struct AutoClickerAction
+    {
+        std::string autoClickerId;
+        std::string targetButtonId;  // For statistics tracking
+    };
+
     // A data‐driven UI button definition.
     struct DynamicNexusButton
     {
@@ -51,6 +85,9 @@ namespace pg
 
         _unique_id entityId = 0;                // Entity identifier
         _unique_id backgroundId = 0;            // Background identifier
+
+        // Prestige system fields
+        std::vector<std::string> prestigeTags = {}; // Tags for prestige system (e.g., ["basic", "reset", "tutorial"])
     };
 
     struct ResourceDisplayEntry
@@ -65,6 +102,8 @@ namespace pg
     template <>
     void serialize(Archive& archive, const DynamicNexusButton& value);
 
+    template <>
+    void serialize(Archive& archive, const AutoClicker& value);
 
     struct NexusButtonStateChange
     {
@@ -76,7 +115,7 @@ namespace pg
         std::vector<std::string> ids;
     };
 
-    struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, SaveSys, InitSys>
+    struct NexusSystem : public System<Listener<NexusButtonStateChange>, Listener<TickEvent>, Listener<AutoClickerAction>, Listener<StandardEvent>, SaveSys, InitSys>
     {
         virtual std::string getSystemName() const override { return "NexusSystem"; }
 
@@ -116,23 +155,30 @@ namespace pg
         virtual void onEvent(const TickEvent& event) override
         {
             deltaTime += event.tick;
+            
+            // Track playtime statistics
+            ecsRef->sendEvent(IncreaseFact{"stat_playtime_seconds", event.tick / 1000.0f});
         }
+
+        virtual void onEvent(const AutoClickerAction& event) override;
+        
+        virtual void onEvent(const StandardEvent& event) override;
 
         virtual void execute() override;
 
         virtual void onRegisterFinished() override
         {
-            for (const auto& button : savedButtons)
+            for (auto& button : savedButtons)
             {
                 auto id = button.id;
                 auto it = std::find_if(initButtons.begin(), initButtons.end(), [id](const DynamicNexusButton& button) { return button.id == id; });
 
                 if (it != initButtons.end())
                 {
-                    it->archived = button.archived;
-                    it->nbClick = button.nbClick;
-                    it->active = button.active;
-                    it->activeTime = button.activeTime;
+                    button.archived = it->archived;
+                    button.nbClick = it->nbClick;
+                    button.active = it->active;
+                    button.activeTime = it->activeTime;
                 }
 
                 categories.insert(button.category);
@@ -143,15 +189,32 @@ namespace pg
         {
             serialize(archive, "nexusbuttons", savedButtons);
             serialize(archive, "resourceToBeDisplayed", resourceToBeDisplayed);
+            serialize(archive, "tagToTierMap", tagToTierMap);
         }
 
         virtual void load(const UnserializedObject& serializedString) override
         {
             defaultDeserialize(serializedString, "nexusbuttons", initButtons);
             defaultDeserialize(serializedString, "resourceToBeDisplayed", resourceToBeDisplayed);
+            defaultDeserialize(serializedString, "tagToTierMap", tagToTierMap);
         }
 
         virtual void addResourceDisplay(const std::string& res) { resourceToBeDisplayed.push_back(res); }
+        
+        // Prestige system methods
+        void resetByPrestigeLevel(int prestigeLevel);
+        void resetFactsByTags(const std::vector<std::string>& tagsToReset);
+        void resetResourcesByTags(const std::vector<std::string>& tagsToReset);
+        void resetGeneratorsByTags(const std::vector<std::string>& tagsToReset);
+        void resetConvertersByTags(const std::vector<std::string>& tagsToReset);
+        void applyStartingValues(const std::vector<std::string>& tagsToReset);
+        std::vector<std::string> getFactsCreatedByTags(const std::vector<std::string>& tags) const;
+        std::vector<std::string> getResourcesAffectedByTags(const std::vector<std::string>& tags) const;
+        void setTagToTierMapping(const std::string& tag, int tier) { tagToTierMap[tag] = tier; }
+        int getTagTier(const std::string& tag) const { 
+            auto it = tagToTierMap.find(tag); 
+            return (it != tagToTierMap.end()) ? it->second : -1; 
+        }
 
         std::vector<DynamicNexusButton> initButtons;
         std::vector<DynamicNexusButton> savedButtons;
@@ -159,10 +222,53 @@ namespace pg
 
         std::set<std::string> categories;
 
+        // Prestige tag system state
+        std::vector<std::string> defaultPrestigeTags;
+        std::stack<std::vector<std::string>> prestigeTagStack;
+        
+        // Prestige tier mapping
+        std::unordered_map<std::string, int> tagToTierMap = {
+            {"tier0", 0},
+            {"tier1", 1},
+            {"tier2", 2}
+        };
+
         size_t deltaTime = 0;
 
         bool activeButton = false;
         DynamicNexusButton* currentActiveButton;
+        
+        // Temporary storage for prestige system
+        std::vector<std::string> resourcesToRemoveFromDisplay;
+        std::vector<std::string> resourcesToAddToDisplay;
+    };
+
+    struct AutoClickerSystem : public System<
+        Listener<TickEvent>, 
+        Listener<StandardEvent>,
+        SaveSys, 
+        InitSys
+    >
+    {
+        virtual std::string getSystemName() const override { return "AutoClickerSystem"; }
+
+        virtual void init() override;
+        virtual void execute() override;
+
+        virtual void onEvent(const StandardEvent& event) override;
+        virtual void onEvent(const TickEvent& event) override;
+
+        virtual void save(Archive& archive) override;
+        virtual void load(const UnserializedObject& serializedString) override;
+
+        std::vector<AutoClicker> availableAutoClickers;  // Defined auto-clickers
+        std::vector<AutoClicker> ownedAutoClickers;      // Player's auto-clickers
+
+        void createAutoClickerFacts(const AutoClicker& clicker); // Auto-generates WorldFacts
+
+    private:
+        float getClickInterval(const AutoClicker& clicker); // Gets speed from WorldFact
+        float deltaTime = 0.0f;  // Accumulated delta time from TickEvent
     };
 
     struct NexusScene : public Scene
@@ -190,8 +296,10 @@ namespace pg
         std::unordered_map<std::string, EntityRef> activeButtonsUi;
 
         // Adds a resource entry to the list view.
-        void addResourceDisplay(const std::string& resourceName) { resourceToBeDisplayed.push(resourceName); }
+        void addResourceDisplay(const std::string& resourceName);
         void _addResourceDisplay(const std::string& resourceName);
+        void removeResourceDisplay(const std::string& resourceName);
+        bool hasResourceDisplay(const std::string& resourceName) const;
 
         void updateRessourceView();
 
@@ -213,6 +321,17 @@ namespace pg
         // A vector storing all resource display entries.
         std::vector<ResourceDisplayEntry> resourceList;
 
+        // Helper functions for active button time display
+        std::string formatTimeRemaining(float remainingMs);
+        std::string getEnhancedDescription(const DynamicNexusButton& button);
+        
+        // Tick counter for periodic tooltip updates
+        size_t tooltipUpdateTicks = 0;
+        std::string currentHoveredButtonId = "";
+
         ThemeInfo theme;
     };
+
+    // Forward declarations for shared functions
+    std::string floatToString(float value, int decimalPlaces = 2);
 }

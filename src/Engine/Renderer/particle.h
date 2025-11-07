@@ -3,7 +3,7 @@
 // #include <vector>
 // #include <functional>
 
-// #include "../constant.h"
+// #include "../pgconstant.h"
 // #include "renderer.h"
 
 // //TODO create a 3D particles system -> this one can only draw 2D particles
@@ -24,7 +24,7 @@
 //     struct ParticleComponent : protected QOpenGLFunctions
 //     {
 //         ParticleComponent() { initializeOpenGLFunctions(); }
-        
+
 //         unsigned int count;
 //         unsigned int texture;
 //         std::function<void()> onTick;
@@ -36,10 +36,10 @@
 //         QOpenGLBuffer *instanceVBO = nullptr;
 //     };
 
-//     struct ParticleMoveSubData : public ParticleSubData 
+//     struct ParticleMoveSubData : public ParticleSubData
 //     {
 //         ParticleMoveSubData(const constant::Vector3D& velocity, const std::vector<float>& textureSeq, const unsigned int& textureChangeRate) : timeAlive(0), velocity(velocity), textureSeq(textureSeq), textureChangeRate(textureChangeRate) {}
-        
+
 //         int timeAlive;
 //         constant::Vector3D velocity;
 //         std::vector<float> textureSeq;

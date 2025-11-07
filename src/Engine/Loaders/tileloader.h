@@ -12,11 +12,11 @@
 // #include <map>
 // #include <memory>
 
-// #include "../constant.h"
+// #include "../pgconstant.h"
 
 // namespace pg
 // {
-// 	enum class TileType 
+// 	enum class TileType
 // 	{
 // 		BLANK,
 // 		HOUSE,
@@ -41,10 +41,10 @@
 // 			inline std::string getName() const { return name; }
 // 			inline QOpenGLVertexArrayObject* getMesh() const { return VAO; }
 
-// 			inline bool operator==(const std::string& rhs) const { return name == rhs; } 
+// 			inline bool operator==(const std::string& rhs) const { return name == rhs; }
 // 			inline bool operator==(const TileType& rhs) const { return tileType == rhs; }
 
-// 			inline bool operator!=(const std::string& rhs) const { return !(name == rhs); } 
+// 			inline bool operator!=(const std::string& rhs) const { return !(name == rhs); }
 // 			inline bool operator!=(const TileType& rhs) const { return !(tileType == rhs); }
 
 // 			inline constant::SquareInfo getModelInfo() const { return modelInfo; }
@@ -52,7 +52,7 @@
 // 		protected:
 // 			inline void setId(int id) { this->id = id; }
 // 			inline void setName(std::string name) { this->name = name; }
-// 			void setMesh(int textureId); 
+// 			void setMesh(int textureId);
 // 			void setType(std::string type);
 
 // 		private:

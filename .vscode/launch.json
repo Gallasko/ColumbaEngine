@@ -13,7 +13,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/GMTK2025"
+                "program": "${workspaceFolder}/release/GameOff"
             },
             "osx": {
                 "MIMode": "lldb",
@@ -34,13 +34,40 @@
             "request": "launch",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/release",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/TugOfWar"
+                "program": "${workspaceFolder}/release/ColumbaEngineEditor"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
+            // },
+            // "preLaunchTask": "build"
+        },
+        {
+            "name": "Compiler",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": ["${workspaceFolder}/release/testSimpleClosure.pg"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/release/PgCompiler"
             },
             "osx": {
                 "MIMode": "lldb",

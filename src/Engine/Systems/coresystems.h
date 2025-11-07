@@ -15,22 +15,15 @@ namespace pg
 
     // Todo add all the logger thing to all those systems and doc too
 
-    struct EntityName : public Ctor
+    struct EntityName : public Component
     {
-        EntityName() {}
+        DEFAULT_COMPONENT_MEMBERS(EntityName)
+
         EntityName(const std::string& name) : name(name) {}
-        EntityName(const EntityName& other) : name(other.name), entityId(other.entityId) {}
 
         inline static std::string getType() { return "EntityName"; }
 
-        virtual void onCreation(EntityRef entity) override
-        {
-            entityId = entity->id;
-        }
-
         std::string name;
-
-        _unique_id entityId;
     };
 
     template <>

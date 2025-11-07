@@ -1,0 +1,6 @@
+// Complex unary expressions
+__dprint(-(-(-5)));
+__dprint(!(!true));
+__dprint(!(!false));
+__dprint(-(5 * 2));
+__dprint(!!(5 > 3));
