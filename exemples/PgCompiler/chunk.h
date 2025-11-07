@@ -9,6 +9,7 @@
 #include "object.h"
 
 #include "Memory/elementtype.h"
+#include "Memory/memorypool.h"
 
 namespace pg
 {
@@ -104,12 +105,46 @@ namespace pg
         // Note: With NaN-boxing and pool-based memory, constants don't need cleanup in destructor
         // The VM's pools handle all memory management via reference counting
 
+        // Helper function to compare two values for semantic equality
+        // For primitives (int, bool, double), compares bit patterns
+        // For strings, compares actual string content (requires stringPool)
+        bool valuesEqual(Value a, Value b, AllocatorPool<ElementType, 64>* stringPool = nullptr) const
+        {
+            // Fast path: if bit patterns match, they're definitely equal
+            if (a == b) return true;
+
+            // For non-string types, only bit pattern equality matters
+            if (!IS_STRING(a) || !IS_STRING(b))
+                return false;
+
+            // If no string pool available, can only compare bit patterns
+            if (!stringPool)
+                return false;
+
+            // Compare actual string content
+            uint32_t indexA = AS_STRING_INDEX(a);
+            uint32_t indexB = AS_STRING_INDEX(b);
+
+            // Bounds check
+            if (indexA >= stringPool->getNbElements() || indexB >= stringPool->getNbElements())
+                return false;
+
+            auto strA = stringPool->getElement(indexA);
+            auto strB = stringPool->getElement(indexB);
+
+            if (!strA || !strB)
+                return false;
+
+            return strA->toString() == strB->toString();        }
+
+        AllocatorPool<ElementType, 64>* stringPool = nullptr;  // Set by compiler/VM for string comparison
+
         size_t addConstant(const Value& value, int line)
         {
             // Check if constant already exists
             for (size_t i = 0; i < constants.size(); i++)
             {
-                if (constants[i] == value)
+                if (valuesEqual(constants[i], value, stringPool))
                 {
                     // Found existing constant, emit code to load it
                     auto cIndex = i;
@@ -162,7 +197,7 @@ namespace pg
             // Check if constant already exists
             for (size_t i = 0; i < constants.size(); i++)
             {
-                if (constants[i] == value)
+                if (valuesEqual(constants[i], value, stringPool))
                 {
                     if (i > 255)
                     {

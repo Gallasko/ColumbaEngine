@@ -128,6 +128,36 @@ namespace pg
             }
         }
 
+        void reset()
+        {
+            // Free all Values stored in globals before destruction
+            for (auto& pair : globals)
+            {
+                releaseAndDelete(pair.second);
+            }
+            // Clean up any remaining Values on the stack
+            while (!stack.empty())
+            {
+                auto value = stack.pop();
+                releaseAndDelete(value);
+            }
+
+            // Clear call frames to avoid dangling pointers to freed chunks
+            frameCount = 0;
+            currentFrame = nullptr;
+
+            // Initialize function pointer dispatch table
+            register_builtin_operations();
+
+            // Initialize built-in classes (like Table)
+            initialize_builtin_classes();
+
+            for (auto [name, fun] : registeredNativeFunctions)
+            {
+                defineNative(name, fun);
+            }
+        }
+
         InterpretResult interpretFromText(const std::string& source, bool compileOnly = false, const std::string& dumpByteCode = "")
         {
             currentFileName = "text_source";
@@ -409,6 +439,13 @@ namespace pg
             passManager.addPass(std::move(pass));
         }
 
+        void registerNative(const std::string& name, NativeFn function)
+        {
+            registeredNativeFunctions[name] = function;
+
+            defineNative(name, function);
+        }
+
         void defineNative(const std::string& name, NativeFn function)
         {
             uint32_t index = pools.nativeFuncPool.getNbElements();
@@ -480,6 +517,8 @@ namespace pg
         void initialize_builtin_classes();
 
         std::string currentFileName;
+
+        std::unordered_map<std::string, NativeFn> registeredNativeFunctions;
     };
 
     // Inline implementations for critical performance functions
