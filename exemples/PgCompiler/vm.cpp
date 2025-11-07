@@ -158,11 +158,11 @@ namespace pg
         if (function == 0x0)
             return InterpretResult::COMPILE_ERROR;
 
-        push(function);  // function is already tracked from compiler
+        // push(function);  // function is already tracked from compiler
 
         auto closureValue = createClosure(asFunction(function));
         Closure *closure = asClosure(closureValue);
-        pop();
+        // pop();
         push(closureValue);  // closureValue is already tracked in createClosure
         call(closure, 0);
 
@@ -285,31 +285,47 @@ namespace pg
 
         // Retain the function to prevent it from being freed when popped
         // The closure needs the function to stay alive
-        retainValue(function);
+        // retainValue(function);
 
-        push(function);  // function is already tracked from createFunction
+        // push(function);  // function is already tracked from createFunction
 
         auto closureValue = createClosure(funcObj);
         Closure *closure = asClosure(closureValue);
-        pop();  // Pop function
+        // pop();  // Pop function
         push(closureValue);  // closureValue is already tracked in createClosure
 
         call(closure, 0);
 
+        InterpretResult result;
         try
         {
             // Freeze constant indices - all pool allocations up to this point are constants
             // Runtime allocations will have indices above these max values
             pools.freezeConstantIndices();
 
-            return run();
+            result = run();
         }
         catch(const std::exception& e)
         {
             LOG_ERROR("VM", e.what());
-
-            return InterpretResult::RUNTIME_ERROR;
+            result = InterpretResult::RUNTIME_ERROR;
         }
+
+        // Clean up: release the chunk constants before destroying the function
+        // The constants array contains Values that point to heap objects (strings, etc.)
+        for (const auto& constant : funcObj->chunk.constants)
+        {
+            if (requiresRefCount(constant))
+            {
+                releaseAndDelete(constant);
+            }
+        }
+
+        // Clean up: release the function to free the chunk's vectors
+        // The function was allocated but never tracked, so we need to manually release it
+        pools.functionPool.release(funcObj);
+
+        return result;
     }
 
     InterpretResult VM::run()
