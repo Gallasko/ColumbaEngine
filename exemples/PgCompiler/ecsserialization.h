@@ -299,7 +299,7 @@ namespace pg
                 }
                 else
                 {
-                    // Leaf value - convert to string
+                    // Leaf value - create as an attribute (isClass=false)
                     std::string valueStr;
                     std::string typeStr;
 
@@ -324,7 +324,9 @@ namespace pg
                         typeStr = "string";
                     }
 
-                    UnserializedObject attr(key, typeStr, valueStr);
+                    // Format as: __PGSA type {value}
+                    std::string serializedStr = "__PGSA " + typeStr + " {" + valueStr + "}";
+                    UnserializedObject attr(serializedStr, key, false);
                     currentObj.children.push_back(std::move(attr));
                 }
             }
@@ -584,7 +586,7 @@ namespace pg
                 }
                 else
                 {
-                    // Leaf value - convert to string
+                    // Leaf value - create as an attribute (isClass=false)
                     std::string valueStr;
                     std::string typeStr;
 
@@ -609,7 +611,9 @@ namespace pg
                         typeStr = "string";
                     }
 
-                    UnserializedObject attr(key, typeStr, valueStr);
+                    // Format as: __PGSA type {value}
+                    std::string serializedStr = "__PGSA " + typeStr + " {" + valueStr + "}";
+                    UnserializedObject attr(serializedStr, key, false);
                     currentObj.children.push_back(std::move(attr));
                 }
             }
