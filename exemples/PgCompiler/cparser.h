@@ -28,7 +28,7 @@ namespace pg
         PRIMARY = 11
     };
 
-    typedef void (*ParseFn)(struct Parser&, bool);
+    typedef void (*ParseFn)(struct CParser&, bool);
 
     struct ParseRule
     {
@@ -39,12 +39,12 @@ namespace pg
 
     struct VM;
 
-    struct Parser
+    struct CParser
     {
         VM *vm;
 
-        Parser(VM *vm) : vm(vm) {}
-        ~Parser();
+        CParser(VM *vm) : vm(vm) {}
+        ~CParser();
 
         void parse(std::queue<Token> tokenList) { tokens = tokenList; }
 

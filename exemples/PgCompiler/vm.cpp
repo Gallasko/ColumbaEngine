@@ -51,6 +51,12 @@ namespace pg
             return obj->isTrue();
         }
 
+        if (IS_CLOSURE(val) || IS_FUNC(val) || IS_NAT_FUNC(val) ||
+            IS_CLASS(val) || IS_INSTANCE(val) || IS_BOUND_METHOD(val))
+        {
+            return true; // Non-null objects are true
+        }
+
         return false;
     }
 
@@ -120,12 +126,25 @@ namespace pg
     void op_get_index(VM* vm);
     void op_set_index(VM* vm);
 
+    // Iterator operations
+    void op_get_iterator(VM* vm);
+    void op_iterator_next(VM* vm);
+
     // Module operations
     void op_import(VM* vm);
 }
 
 namespace pg
 {
+    VM::VM()
+    {
+        // Initialize function pointer dispatch table
+        register_builtin_operations();
+
+        // Initialize built-in classes (like Table)
+        initialize_builtin_classes();
+    }
+
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
         // Todo change this
@@ -139,11 +158,11 @@ namespace pg
         if (function == 0x0)
             return InterpretResult::COMPILE_ERROR;
 
-        push(function);  // function is already tracked from compiler
+        // push(function);  // function is already tracked from compiler
 
         auto closureValue = createClosure(asFunction(function));
         Closure *closure = asClosure(closureValue);
-        pop();
+        // pop();
         push(closureValue);  // closureValue is already tracked in createClosure
         call(closure, 0);
 
@@ -219,12 +238,6 @@ namespace pg
 
         try
         {
-            // Initialize function pointer dispatch table
-            register_builtin_operations();
-
-            // Initialize built-in classes (like Table)
-            initialize_builtin_classes();
-
             // Freeze constant indices - all pool allocations up to this point are constants
             // Runtime allocations will have indices above these max values
             pools.freezeConstantIndices();
@@ -267,34 +280,65 @@ namespace pg
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
 
-        push(function);  // function is already tracked from createFunction
+        // disassembleChunk(this, chunk, "<compiled chunk>");
+
+
+        // Retain the function to prevent it from being freed when popped
+        // The closure needs the function to stay alive
+        // retainValue(function);
+
+        // push(function);  // function is already tracked from createFunction
 
         auto closureValue = createClosure(funcObj);
         Closure *closure = asClosure(closureValue);
-        pop();
+        // pop();  // Pop function
         push(closureValue);  // closureValue is already tracked in createClosure
+
         call(closure, 0);
 
+        InterpretResult result;
         try
         {
-            // Initialize function pointer dispatch table
-            register_builtin_operations();
-
-            // Initialize built-in classes (like Table)
-            initialize_builtin_classes();
-
             // Freeze constant indices - all pool allocations up to this point are constants
             // Runtime allocations will have indices above these max values
             pools.freezeConstantIndices();
 
-            return run();
+            result = run();
         }
         catch(const std::exception& e)
         {
             LOG_ERROR("VM", e.what());
-
-            return InterpretResult::RUNTIME_ERROR;
+            result = InterpretResult::RUNTIME_ERROR;
         }
+
+        // Clean up: release the chunk constants before destroying the function
+        // The constants array contains Values that point to heap objects (strings, etc.)
+        // NOTE: We need to bypass the isConstant() check in releaseValue() because these
+        // bytecode constants should be released when the function is destroyed
+        for (const auto& constant : funcObj->chunk.constants)
+        {
+            if (requiresRefCount(constant))
+            {
+                // Manually decrement refcount and delete, bypassing isConstant() check
+                uint32_t index = GET_INDEX(constant);
+                auto& refCounts = pools.getRefCountVector(constant);
+
+                if (index < refCounts.size() && refCounts[index] > 0)
+                {
+                    refCounts[index]--;
+                    if (refCounts[index] == 0)
+                    {
+                        deleteValue(constant);
+                    }
+                }
+            }
+        }
+
+        // Clean up: release the function to free the chunk's vectors
+        // The function was allocated but never tracked, so we need to manually release it
+        pools.functionPool.release(funcObj);
+
+        return result;
     }
 
     InterpretResult VM::run()
@@ -408,7 +452,7 @@ namespace pg
             Value result = native->function(this, argCount, stack.data() + stack.size() - argCount);
 
             // Remove arguments from the stack
-            for (int i = 0; i < argCount; i++)
+            for (int i = 0; i < argCount + 1; i++)
             {
                 auto v = pop();
                 releaseAndDelete(v);
@@ -943,6 +987,10 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index);
+
+        // Iterator operations
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Iterator), op_get_iterator);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Iterator_Next), op_iterator_next);
 
         // Module operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import);
@@ -2533,6 +2581,76 @@ namespace pg
         // Store in fields map
         inst->fields[key] = vm->retainValue(value);
         vm->releaseAndDelete(value);  // Release our reference (field now owns it)
+    }
+
+    // ========================================================================
+    // Iterator Operations
+    // ========================================================================
+
+    void op_get_iterator(VM* vm)
+    {
+        Value tableVal = vm->peek(0);  // Don't pop, we keep table on stack
+
+        if (!IS_INSTANCE(tableVal))
+        {
+            vm->runtimeError("Can only iterate over tables");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        // Create an integer to track iteration index (we'll iterate by index in fields map)
+        // Push 0 as the initial iterator state
+        vm->push(makeIntValue(0));
+    }
+
+    void op_iterator_next(VM* vm)
+    {
+        // Stack layout: [table, iterator_state]
+        Value iteratorState = vm->pop();
+        Value tableVal = vm->peek(0);  // Keep table on stack
+
+        if (!IS_INT(iteratorState))
+        {
+            vm->releaseAndDelete(iteratorState);
+            vm->runtimeError("Invalid iterator state");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (!IS_INSTANCE(tableVal))
+        {
+            vm->releaseAndDelete(iteratorState);
+            vm->runtimeError("Can only iterate over tables");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjInstance* table = vm->asInstance(tableVal);
+        int64_t index = AS_INT(iteratorState);
+
+        // Check if we've reached the end
+        if (static_cast<size_t>(index) >= table->fields.size())
+        {
+            // End of iteration - push nil and update iterator
+            vm->push(makeIntValue(index));  // Push updated iterator state
+            vm->push(makeBoolValue(false)); // Push false to indicate end
+            vm->releaseAndDelete(iteratorState);
+            return;
+        }
+
+        // Get the key at the current index
+        auto it = table->fields.begin();
+        std::advance(it, index);
+        std::string key = it->first;
+
+        // Update iterator state (increment index)
+        vm->push(makeIntValue(index + 1));
+
+        // Push the key as a string
+        Value keyVal = vm->createString(key);
+        vm->push(keyVal);
+
+        vm->releaseAndDelete(iteratorState);
     }
 
     // ========================================================================

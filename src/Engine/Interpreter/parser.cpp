@@ -851,7 +851,10 @@ namespace pg
         skipEOL();
 
         if (match(TokenType::TOK_ELSE))
+        {
+            skipEOL();
             elseBranch = statement();
+        }
 
         return std::make_shared<IfStatement>(condition, thenBranch, elseBranch);
     }
