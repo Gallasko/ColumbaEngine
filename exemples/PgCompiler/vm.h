@@ -110,6 +110,8 @@ namespace pg
 
     struct VM
     {
+        VM();
+
         // Destructor to properly clean up globals map and stack
         ~VM()
         {

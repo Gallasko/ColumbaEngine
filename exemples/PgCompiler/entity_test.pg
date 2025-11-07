@@ -1,0 +1,39 @@
+// Example PgCompiler script that accesses an entity passed as a global
+// The C++ code passes 'playerEntity' as a global variable
+
+logInfo("=== Accessing Entity from Script ===");
+logInfo("");
+
+// Check entity ID
+logInfo("Entity ID: " + playerEntity["__entityId"]);
+logInfo("");
+
+// Access the PositionComponent
+var position = playerEntity["PositionComponent"];
+
+logInfo("PositionComponent properties:");
+logInfo("  x: " + position["x"]);
+logInfo("  y: " + position["y"]);
+logInfo("  z: " + position["z"]);
+logInfo("  width: " + position["width"]);
+logInfo("  height: " + position["height"]);
+logInfo("  rotation: " + position["rotation"]);
+logInfo("  visible: " + position["visible"]);
+
+logInfo("");
+logInfo("Calculating center position...");
+var centerX = position["x"] + (position["width"] / 2);
+var centerY = position["y"] + (position["height"] / 2);
+logInfo("  Center: (" + centerX + ", " + centerY + ")");
+
+logInfo("");
+logInfo("Modifying position...");
+position["x"] = position["x"] + 50;
+position["y"] = position["y"] + 25;
+
+logInfo("New position:");
+logInfo("  x: " + position["x"]);
+logInfo("  y: " + position["y"]);
+
+logInfo("");
+logInfo("=== Script Complete ===");
