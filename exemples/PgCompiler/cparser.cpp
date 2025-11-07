@@ -863,8 +863,10 @@ namespace pg
         patchJump(thenJump);
         writeByte(OpCode::OP_Pop); // Pop the condition
 
+        skipEOL();
         if (match(TokenType::TOK_ELSE))
         {
+            skipEOL();
             statement();
         }
 
@@ -916,14 +918,103 @@ namespace pg
         consume("Expect '(' after 'for'.", TokenType::PENTER);
         skipEOL();
 
-        // Initializer
-        if (match(TokenType::END))
+        // Check for for-in loop: for (var key : table)
+        if (match(TokenType::TOK_VAR))
+        {
+            // Get the variable name
+            consume("Expect variable name after 'var'.", TokenType::EXPRESSION);
+            Token varToken = previousToken;
+
+            skipEOL();
+
+            // Check if this is a for-in loop
+            if (match(TokenType::DPOINT)) // : token
+            {
+                // This is a for-in loop: for (var key : table)
+                skipEOL();
+
+                // Parse the table expression
+                expression();
+
+                consume("Expect ')' after for-in expression.", TokenType::PCLOSE);
+                skipEOL();
+
+                // Emit code for for-in loop
+                // Stack at this point: [table]
+
+                // Get iterator for the table
+                writeByte(OpCode::OP_Get_Iterator);
+                // Stack now: [table, iterator_state]
+
+                // Store iterator state in a local variable (hidden from user)
+                int iteratorSlot = Compiler::current->locals.size();
+                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__iterator", currentToken().line, 0));
+                Compiler::current->markInitialized();
+
+                // Loop start
+                int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
+
+                // Get next key from iterator
+                // Push the iterator state and table
+                writeByte(OpCode::OP_Get_Local);
+                writeByte(static_cast<uint8_t>(iteratorSlot));
+
+                // Advance iterator and get next key
+                writeByte(OpCode::OP_Iterator_Next);
+                // Stack now: [table, iterator_state, key_or_nil]
+
+                // Duplicate the key to check if it's nil
+                writeByte(OpCode::OP_Get_Local);
+                writeByte(static_cast<uint8_t>(Compiler::current->locals.size()));
+
+                // Jump if nil (end of iteration)
+                int exitJump = emitJump(OpCode::OP_Long_Jump_If_False);
+                writeByte(OpCode::OP_Pop); // Pop the duplicate key check
+
+                // Declare the loop variable and assign the key to it
+                Compiler::current->addLocal(varToken);
+                Compiler::current->markInitialized();
+
+                // Body of loop
+                statement();
+
+                // Pop the loop variable
+                writeByte(OpCode::OP_Pop);
+
+                // Jump back to loop start
+                emitLoop(loopStart);
+
+                // Exit point
+                patchJump(exitJump);
+                writeByte(OpCode::OP_Pop); // Pop the nil/false value
+                writeByte(OpCode::OP_Pop); // Pop iterator state
+                writeByte(OpCode::OP_Pop); // Pop table
+
+                Compiler::current->endScope();
+                return;
+            }
+            else
+            {
+                // Regular for loop with initializer
+                // var was already consumed, continue with variable declaration
+                Compiler::current->addLocal(varToken);
+
+                if (match(TokenType::EQUAL))
+                {
+                    expression();
+                }
+                else
+                {
+                    writeByte(OpCode::OP_False); // Default initialize to false
+                }
+
+                Compiler::current->markInitialized();
+                consume("Expect ';' after variable declaration.", TokenType::END);
+            }
+        }
+        else if (match(TokenType::END))
         {
             // No initializer
-        }
-        else if (match(TokenType::TOK_VAR))
-        {
-            varDeclaration();
         }
         else
         {

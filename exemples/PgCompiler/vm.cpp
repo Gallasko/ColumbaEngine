@@ -51,6 +51,12 @@ namespace pg
             return obj->isTrue();
         }
 
+        if (IS_CLOSURE(val) || IS_FUNC(val) || IS_NAT_FUNC(val) ||
+            IS_CLASS(val) || IS_INSTANCE(val) || IS_BOUND_METHOD(val))
+        {
+            return true; // Non-null objects are true
+        }
+
         return false;
     }
 
@@ -119,6 +125,10 @@ namespace pg
     void op_build_table(VM* vm);
     void op_get_index(VM* vm);
     void op_set_index(VM* vm);
+
+    // Iterator operations
+    void op_get_iterator(VM* vm);
+    void op_iterator_next(VM* vm);
 
     // Module operations
     void op_import(VM* vm);
@@ -946,6 +956,10 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index);
+
+        // Iterator operations
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Iterator), op_get_iterator);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Iterator_Next), op_iterator_next);
 
         // Module operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import);
@@ -2536,6 +2550,76 @@ namespace pg
         // Store in fields map
         inst->fields[key] = vm->retainValue(value);
         vm->releaseAndDelete(value);  // Release our reference (field now owns it)
+    }
+
+    // ========================================================================
+    // Iterator Operations
+    // ========================================================================
+
+    void op_get_iterator(VM* vm)
+    {
+        Value tableVal = vm->peek(0);  // Don't pop, we keep table on stack
+
+        if (!IS_INSTANCE(tableVal))
+        {
+            vm->runtimeError("Can only iterate over tables");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        // Create an integer to track iteration index (we'll iterate by index in fields map)
+        // Push 0 as the initial iterator state
+        vm->push(makeIntValue(0));
+    }
+
+    void op_iterator_next(VM* vm)
+    {
+        // Stack layout: [table, iterator_state]
+        Value iteratorState = vm->pop();
+        Value tableVal = vm->peek(0);  // Keep table on stack
+
+        if (!IS_INT(iteratorState))
+        {
+            vm->releaseAndDelete(iteratorState);
+            vm->runtimeError("Invalid iterator state");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (!IS_INSTANCE(tableVal))
+        {
+            vm->releaseAndDelete(iteratorState);
+            vm->runtimeError("Can only iterate over tables");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjInstance* table = vm->asInstance(tableVal);
+        int64_t index = AS_INT(iteratorState);
+
+        // Check if we've reached the end
+        if (static_cast<size_t>(index) >= table->fields.size())
+        {
+            // End of iteration - push nil and update iterator
+            vm->push(makeIntValue(index));  // Push updated iterator state
+            vm->push(makeBoolValue(false)); // Push false to indicate end
+            vm->releaseAndDelete(iteratorState);
+            return;
+        }
+
+        // Get the key at the current index
+        auto it = table->fields.begin();
+        std::advance(it, index);
+        std::string key = it->first;
+
+        // Update iterator state (increment index)
+        vm->push(makeIntValue(index + 1));
+
+        // Push the key as a string
+        Value keyVal = vm->createString(key);
+        vm->push(keyVal);
+
+        vm->releaseAndDelete(iteratorState);
     }
 
     // ========================================================================

@@ -85,6 +85,10 @@ namespace pg
         OP_Get_Index,     // table[index] - get field by computed key
         OP_Set_Index,     // table[index] = val - set field by computed key
 
+        // Iterator operations
+        OP_Get_Iterator,  // Get iterator for a table (pushes iterator state)
+        OP_Iterator_Next, // Advance iterator and push key (or nil if done), updates iterator state
+
         // Module operations
         OP_Import,        // Import a module (expects module name string on stack)
     };
