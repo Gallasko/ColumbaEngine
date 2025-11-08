@@ -783,19 +783,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         # Create the compiler test executable with simple script testbench
-        add_executable(test_compiler
-            test/pgcompiler/main_compiler_test.cc
-            test/pgcompiler/script_testbench.cc
-            ${PGCOMPILER_SOURCES}
-        )
+        add_executable(test_compiler test/pgcompiler/script_testbench.cc)
+
+        target_sources(test_compiler PRIVATE ${PGCOMPILER_SOURCES})
 
         # Include directories for compiler tests
         target_include_directories(test_compiler PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine
             ${CMAKE_CURRENT_SOURCE_DIR}/exemples/PgCompiler
-            ${GTEST_DIR}/googletest/include
-            ${GTEST_DIR}/googletest/include/gtest
-            ${GTEST_DIR}/googletest/include/gtest/internal
         )
 
         # Link libraries for compiler tests
@@ -804,13 +798,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             gtest_main
             ColumbaEngine
         )
-
-        # Remove SDL2main from test_compiler since gtest provides its own main
-        if(TARGET SDL2::SDL2main)
-            get_target_property(test_compiler_libs test_compiler LINK_LIBRARIES)
-            list(REMOVE_ITEM test_compiler_libs SDL2::SDL2main)
-            set_target_properties(test_compiler PROPERTIES LINK_LIBRARIES "${test_compiler_libs}")
-        endif()
 
         # Add DEBUG_CHECK_STACK define for test_compiler target
         # target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
