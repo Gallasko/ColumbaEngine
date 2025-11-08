@@ -16,7 +16,7 @@ namespace pg
 {
     std::vector<AsepriteFrame> AsepriteLoader::__emptyAnimation = {};
 
-    AsepriteFile AsepriteLoader::loadAnim(const std::string &path)
+    AsepriteFile AsepriteLoader::loadAnim(const std::string &path, const std::string &shortname)
     {
         AsepriteFile result;
 
@@ -24,7 +24,8 @@ namespace pg
 
         if (not in.is_open())
         {
-            throw std::runtime_error("Failed to open: " + path);
+            LOG_ERROR("AsepriteLoader", "Failed to open: " << path);
+            return result;
         }
 
         fs::path jsonPath = fs::absolute(path);                  // full path to JSON
@@ -111,7 +112,7 @@ namespace pg
         }
 
         // Store loaded animation
-        loadedAnims[path] = result;
+        loadedAnims[shortname] = result;
 
         return result;
     }

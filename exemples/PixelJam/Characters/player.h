@@ -17,10 +17,10 @@
 
 #include "../config.h"
 
-#include "Aseprite_Lib/AsepriteLoader.h"
-
 #include "UI/prefab.h"
 #include "UI/ttftext.h"
+
+#include "Loaders/Aseprite/asepriteloader.h"
 
 namespace pg
 {
@@ -352,9 +352,6 @@ namespace pg
         QueuedListener<PlayerHitEvent>, Listener<PlayerInvincibilityEndEvent>, Listener<PlayerDodgeEndEvent>,
         Listener<TickEvent>, QueuedListener<OnMouseMove>, QueuedListener<SnapCamera>>
     {
-        AsepriteFile animFile;
-        PlayerSystem(const AsepriteFile& animFile) : animFile(animFile) {}
-
         virtual std::string getSystemName() const override { return "Player System"; }
 
         virtual void init() override;

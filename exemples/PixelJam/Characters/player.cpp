@@ -19,25 +19,6 @@ namespace pg
         return weapon;
     }
 
-    // Todo : move to aseprite loader
-    std::vector<Animation2DKeyPoint> getAnimationKeypoint(const std::vector<AsepriteFrame>& frames)
-    {
-        std::vector<Animation2DKeyPoint> keypoints;
-
-        size_t cumulativeAnimationDuration = 0;
-
-        for (const auto& anim : frames)
-        {
-            keypoints.push_back({cumulativeAnimationDuration, {anim.textureName, 1}});
-
-            cumulativeAnimationDuration += anim.durationInMilliseconds;
-        }
-
-        keypoints.push_back({cumulativeAnimationDuration, {frames.back().textureName, 1}});
-
-        return keypoints;
-    }
-
     void PlayerSystem::init()
     {
         auto cursorEnt = makeAnchoredPosition(ecsRef);
@@ -51,7 +32,9 @@ namespace pg
         cursor = cursorEnt.entity;
 
         // auto frame = animFile.frames[7];
-        auto idleAnim = animFile["Idle_Front"];
+        auto sys = ecsRef->getSystem<AsepriteLoader>();
+
+        auto idleAnim = sys->getAnimationFrames("main-char", "Idle_Front");
 
         auto playerEnt = makeUiTexture(ecsRef, 44, 64, idleAnim[0].textureName);
         // auto playerEnt = makeSimple2DShape(ecsRef, Shape2D::Square, 50.f, 50.f, {0.f, 255.f, 0.f, 255.f});
@@ -62,7 +45,7 @@ namespace pg
         ecsRef->attach<EntityName>(playerEnt.entity, "Player");
         ecsRef->attach<PlayerFlag>(playerEnt.entity);
 
-        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, getAnimationKeypoint(idleAnim), true, true);
+        ecsRef->attach<Texture2DAnimationComponent>(playerEnt.entity, idleAnim, true, true);
 
         playerEnt.get<Texture2DComponent>()->setViewport(1);
 
@@ -293,33 +276,23 @@ namespace pg
     {
         if (areAlmostEqual(lastMoveDir.x, 1.f))
         {
-            auto playingAnim = animFile["Run_Profile"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Run_Profile");
         }
         else if (areAlmostEqual(lastMoveDir.x, -1.f))
         {
-            auto playingAnim = animFile["Run_Profile_L"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Run_Profile_L");
         }
         else if (lastMoveDir == constant::Vector2D{0.f, -1.f})
         {
-            auto playingAnim = animFile["Run_Back"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Run_Back");
         }
         else if (lastMoveDir == constant::Vector2D{0.f, 1.f})
         {
-            auto playingAnim = animFile["Run_Front"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Run_Front");
         }
         else
         {
-            auto playingAnim = animFile["Idle_Front"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Idle_Front");
         }
     }
 
@@ -518,27 +491,19 @@ namespace pg
 
         if (areAlmostEqual(lastMoveDir.x, 1.f))
         {
-            auto playingAnim = animFile["Dodge_Profile"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Dodge_Profile");
         }
         else if (areAlmostEqual(lastMoveDir.x, -1.f))
         {
-            auto playingAnim = animFile["Dodge_Profile_L"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Dodge_Profile_L");
         }
         else if (areAlmostEqual(lastMoveDir.y, -1.f))
         {
-            auto playingAnim = animFile["Dodge_Back"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Dodge_Back");
         }
         else if (areAlmostEqual(lastMoveDir.y, 1.f))
         {
-            auto playingAnim = animFile["Dodge_Front"];
-
-            player->get<Texture2DAnimationComponent>()->changeAnimation(getAnimationKeypoint(playingAnim));
+            player->get<Texture2DAnimationComponent>()->changeAsepriteAnimation("main-char/Dodge_Front");
         }
 
         dashElapsed = 0.0f;

@@ -15,16 +15,17 @@ namespace pg
     class AsepriteLoader : public System<StoragePolicy>
     {
     public:
-        AsepriteFile loadAnim(const std::string &path);
+        AsepriteFile loadAnim(const std::string &path, const std::string &shortname);
 
-        AsepriteFile& getLoadedFile(const std::string &path)
+        AsepriteFile& getLoadedFile(const std::string &shortname)
         {
-            if (loadedAnims.find(path) == loadedAnims.end())
+            if (loadedAnims.find(shortname) == loadedAnims.end())
             {
-                loadedAnims[path] = loadAnim(path);
+                LOG_ERROR("AsepriteLoader", "Aseprite file not loaded: " << shortname << ". Loading now.");
+                loadedAnims[shortname] = loadAnim(shortname, shortname);
             }
 
-            return loadedAnims[path];
+            return loadedAnims[shortname];
         }
 
         std::vector<AsepriteFrame>& getAnimationFrames(const std::string &path, const std::string &animName)
@@ -38,6 +39,19 @@ namespace pg
             }
 
             return asepriteFile.animations[animName];
+        }
+
+        std::string getFirstFrame(const std::string &path)
+        {
+            AsepriteFile &asepriteFile = getLoadedFile(path);
+
+            if (asepriteFile.frames.empty())
+            {
+                LOG_ERROR("AsepriteLoader", "No frames found in file: " << path);
+                return "";
+            }
+
+            return asepriteFile.frames[0].textureName;
         }
 
     static std::vector<AsepriteFrame> __emptyAnimation;

@@ -24,6 +24,11 @@ namespace pg
         return keypoints;
     }
 
+    Texture2DAnimationComponent::Texture2DAnimationComponent(const std::vector<AsepriteFrame>& keypoints, bool runningOnStartup, bool loop) : running(runningOnStartup), looping(loop)
+    {
+        this->keypoints = getAnimationKeypoint(keypoints);
+    }
+
     void Texture2DAnimatorSystem::onProcessEvent(const ChangeAsepriteTexture2DAnimationEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
@@ -34,8 +39,6 @@ namespace pg
             return;
 
         auto texAnim = ent->get<Texture2DAnimationComponent>();
-
-        // sys->getAnimationFrames
 
         auto name = event.animName;
 
@@ -51,12 +54,11 @@ namespace pg
             auto keypoints = getAnimationKeypoint(frames);
 
             // Todo maybe set the texture to the first frame right away
-            
+            // sys->getFirstFrame(path);
+
             texAnim->keypoints = keypoints;
             texAnim->startId = -1;
             texAnim->elapsedTime = 0;
-            texAnim->running = event.runningOnStartup;
-            texAnim->looping = event.loop;
         }
         else
         {
