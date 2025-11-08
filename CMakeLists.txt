@@ -805,6 +805,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             ColumbaEngine
         )
 
+        # Remove SDL2main from test_compiler since gtest provides its own main
+        if(TARGET SDL2::SDL2main)
+            get_target_property(test_compiler_libs test_compiler LINK_LIBRARIES)
+            list(REMOVE_ITEM test_compiler_libs SDL2::SDL2main)
+            set_target_properties(test_compiler PROPERTIES LINK_LIBRARIES "${test_compiler_libs}")
+        endif()
+
         # Add DEBUG_CHECK_STACK define for test_compiler target
         # target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
         target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD)
