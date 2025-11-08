@@ -185,10 +185,6 @@ namespace pg
     // System responsible for spawning waves of enemies
     struct EnemySpawnSystem : public System<InitSys, Listener<StartSpawnWaveEvent>, Listener<SpawnWaveEvent>, Listener<SpawnEnemiesEvent>, QueuedListener<RemoveEntityEvent>>
     {
-        std::unordered_map<std::string, AsepriteFile> anims;
-
-        EnemySpawnSystem(const std::unordered_map<std::string, AsepriteFile>& anims) : anims(anims) {}
-
         virtual std::string getSystemName() const override { return "EnemySpawnSystem"; }
 
         void onProcessEvent(const RemoveEntityEvent& event) override {
@@ -214,6 +210,8 @@ namespace pg
 
         void onEvent(const SpawnEnemiesEvent& event) override
         {
+            auto sys = ecsRef->getSystem<AsepriteLoader>();
+
             for (auto& spawnData : event.enemies)
             {
                 Weapon weapon = spawnData.enemy.weapon;
@@ -235,16 +233,16 @@ namespace pg
                 switch (weapon.pattern)
                 {
                     case BulletPattern::Radial:
-                        textureName = anims["raider-variant-002"].frames[0].textureName;
+                        textureName = sys->getFirstFrame("raider-variant-002");
                         break;
 
                     case BulletPattern::Cone:
-                        textureName = anims["raider-variant-001"].frames[0].textureName;
+                        textureName = sys->getFirstFrame("raider-variant-001");
                         break;
 
                     case BulletPattern::AtPlayer:
                     default:
-                        textureName = anims["raider"].frames[0].textureName;
+                        textureName =sys->getFirstFrame("raider");
                         break;
                 }
 

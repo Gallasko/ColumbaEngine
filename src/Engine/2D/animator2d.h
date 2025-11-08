@@ -41,13 +41,14 @@ namespace pg
     {
         _unique_id id = 0;
         std::string animName;
-        bool runningOnStartup = true;
-        bool loop = false;
     };
+
+    struct AsepriteFrame;
 
     struct Texture2DAnimationComponent : public Ctor
     {
         Texture2DAnimationComponent(const std::vector<Animation2DKeyPoint>& keypoints, bool runningOnStartup = true, bool loop = false) : running(runningOnStartup), keypoints(keypoints), looping(loop) {}
+        Texture2DAnimationComponent(const std::vector<AsepriteFrame>& keypoints, bool runningOnStartup = true, bool loop = false);
         Texture2DAnimationComponent(const Texture2DAnimationComponent& other) : id(other.id), ecsRef(other.ecsRef), running(other.running), elapsedTime(other.elapsedTime), startId(other.startId), keypoints(other.keypoints), looping(other.looping) {}
 
         void start() { startId = -1; elapsedTime = 0; running = true; }
@@ -64,9 +65,9 @@ namespace pg
             ecsRef->sendEvent(ChangeTexture2DAnimationEvent{id, keypoints});
         }
 
-        void changeAsepriteAnimation(const std::string& animName, bool runningOnStartup, bool loop)
+        void changeAsepriteAnimation(const std::string& animName)
         {
-            ecsRef->sendEvent(ChangeAsepriteTexture2DAnimationEvent{id, animName, runningOnStartup, loop});
+            ecsRef->sendEvent(ChangeAsepriteTexture2DAnimationEvent{id, animName});
         }
 
         _unique_id id = 0;
