@@ -37,6 +37,14 @@ namespace pg
         _unique_id id = 0;
     };
 
+    struct ChangeAsepriteTexture2DAnimationEvent
+    {
+        _unique_id id = 0;
+        std::string animName;
+        bool runningOnStartup = true;
+        bool loop = false;
+    };
+
     struct Texture2DAnimationComponent : public Ctor
     {
         Texture2DAnimationComponent(const std::vector<Animation2DKeyPoint>& keypoints, bool runningOnStartup = true, bool loop = false) : running(runningOnStartup), keypoints(keypoints), looping(loop) {}
@@ -54,6 +62,11 @@ namespace pg
         void changeAnimation(const std::vector<Animation2DKeyPoint>& keypoints)
         {
             ecsRef->sendEvent(ChangeTexture2DAnimationEvent{id, keypoints});
+        }
+
+        void changeAsepriteAnimation(const std::string& animName, bool runningOnStartup, bool loop)
+        {
+            ecsRef->sendEvent(ChangeAsepriteTexture2DAnimationEvent{id, animName, runningOnStartup, loop});
         }
 
         _unique_id id = 0;
@@ -126,7 +139,9 @@ namespace pg
         bool looping = false;
     };
 
-    struct Texture2DAnimatorSystem : public System<Own<Texture2DAnimationComponent>, Listener<TickEvent>, QueuedListener<ChangeTexture2DAnimationEvent>, QueuedListener<OverrideTexture2DAnimationEvent>, InitSys>
+    struct Texture2DAnimatorSystem : public System<Own<Texture2DAnimationComponent>, Listener<TickEvent>,
+        QueuedListener<ChangeTexture2DAnimationEvent>, QueuedListener<ChangeAsepriteTexture2DAnimationEvent>,
+        QueuedListener<OverrideTexture2DAnimationEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -151,6 +166,8 @@ namespace pg
             anim->startId = -1;
             anim->elapsedTime = 0;
         }
+
+        virtual void onProcessEvent(const ChangeAsepriteTexture2DAnimationEvent& event) override;
 
         virtual void onProcessEvent(const OverrideTexture2DAnimationEvent& event) override
         {

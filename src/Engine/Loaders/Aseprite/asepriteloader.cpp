@@ -3,8 +3,8 @@
 //
 #include "stdafx.h"
 
-#include "AsepriteLoader.h"
-#include "json.hpp"
+#include "asepriteloader.h"
+#include "Helpers/json.hpp"
 
 #include <fstream>
 #include <filesystem>
@@ -14,6 +14,8 @@ using json = nlohmann::json;
 
 namespace pg
 {
+    std::vector<AsepriteFrame> AsepriteLoader::__emptyAnimation = {};
+
     AsepriteFile AsepriteLoader::loadAnim(const std::string &path)
     {
         AsepriteFile result;
@@ -107,6 +109,9 @@ namespace pg
 
             result.animations[anim.name] = frames;
         }
+
+        // Store loaded animation
+        loadedAnims[path] = result;
 
         return result;
     }

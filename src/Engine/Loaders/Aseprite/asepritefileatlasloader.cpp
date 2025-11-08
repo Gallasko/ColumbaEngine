@@ -3,7 +3,7 @@
 //
 #include "stdafx.h"
 
-#include "AsepriteFileAtlasLoader.h"
+#include "asepritefileatlasloader.h"
 
 namespace pg
 {

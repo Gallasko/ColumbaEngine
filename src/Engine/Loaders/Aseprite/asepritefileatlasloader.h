@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "AsepriteFile.h"
+#include "asepritefile.h"
 #include "Loaders/atlasloader.h"
 
 namespace pg

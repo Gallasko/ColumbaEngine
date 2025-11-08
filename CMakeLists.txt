@@ -113,6 +113,7 @@ set(ENGINESOURCE
     src/Engine/configuration.cpp
     src/Engine/logger.cpp
     src/Engine/serialization.cpp
+    src/Engine/2D/animator2d.cpp
     src/Engine/2D/camera2d.cpp
     src/Engine/2D/collisionsystem.cpp
     src/Engine/2D/position.cpp
@@ -148,6 +149,9 @@ set(ENGINESOURCE
     src/Engine/Interpreter/token.cpp
     src/Engine/Interpreter/valuable.cpp
     src/Engine/Loaders/atlasloader.cpp
+    src/Engine/Loaders/Aseprite/asepritefile.cpp
+    src/Engine/Loaders/Aseprite/asepritefileatlasloader.cpp
+    src/Engine/Loaders/Aseprite/asepriteloader.cpp
     src/Engine/Maths/noise.cpp
     src/Engine/Maths/randomnumbergenerator.cpp
     src/Engine/Memory/elementtype.cpp
@@ -551,8 +555,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PixelJam/Characters/enemy.cpp
             exemples/PixelJam/Characters/player.cpp
             exemples/PixelJam/config.cpp
-            exemples/PixelJam/Aseprite_Lib/AsepriteLoader.cpp
-            exemples/PixelJam/Aseprite_Lib/AsepriteFileAtlasLoader.cpp
             exemples/PixelJam/Tiled_Lib/TiledLoader.cpp
             exemples/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
             exemples/PixelJam/Room/room.cpp
