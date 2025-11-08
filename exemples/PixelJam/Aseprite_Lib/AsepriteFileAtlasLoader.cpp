@@ -1,31 +1,37 @@
 //
 // Created by nicol on 5/17/2025.
 //
+#include "stdafx.h"
 
 #include "AsepriteFileAtlasLoader.h"
 
-pg::AsepriteFileAtlasLoader::AsepriteFileAtlasLoader(const AsepriteFile &aseprite) {
-    this->imagePath = aseprite.metadata.imagePath;
-    this->atlasWidth = aseprite.metadata.imageWidthInSPixels;
-    this->atlasHeight = aseprite.metadata.imageHeightInSPixels;
+namespace pg
+{
+    AsepriteFileAtlasLoader::AsepriteFileAtlasLoader(const AsepriteFile &aseprite)
+    {
+        this->imagePath = aseprite.metadata.imagePath;
+        this->atlasWidth = aseprite.metadata.imageWidthInSPixels;
+        this->atlasHeight = aseprite.metadata.imageHeightInSPixels;
 
-    int i = 0;
+        int i = 0;
 
-    for (const auto &frame: aseprite.frames) {
-        const auto name = std::to_string(i);
+        for (const auto &frame: aseprite.frames)
+        {
+            const auto name = std::to_string(i);
 
-        AtlasTexture atlasTex;
-        atlasTex.setHeight(frame.heightInSPixels);
-        atlasTex.setWidth(frame.widthInSPixels);
-        atlasTex.setId(i);
-        atlasTex.setName(name);
-        atlasTex.setMesh(frame.topLeftCornerInSPixelsX, frame.topLeftCornerInSPixelsY + frame.heightInSPixels - 1,
-                         aseprite.metadata.imageWidthInSPixels, aseprite.metadata.imageHeightInSPixels);
+            AtlasTexture atlasTex;
+            atlasTex.setHeight(frame.heightInSPixels);
+            atlasTex.setWidth(frame.widthInSPixels);
+            atlasTex.setId(i);
+            atlasTex.setName(name);
+            atlasTex.setMesh(frame.topLeftCornerInSPixelsX, frame.topLeftCornerInSPixelsY + frame.heightInSPixels - 1,
+                            aseprite.metadata.imageWidthInSPixels, aseprite.metadata.imageHeightInSPixels);
 
 
-        this->textureList.push_back(atlasTex);
-        this->textureDict[name] = this->nbTextureId++;
+            this->textureList.push_back(atlasTex);
+            this->textureDict[name] = this->nbTextureId++;
 
-        i++;
+            i++;
+        }
     }
 }
