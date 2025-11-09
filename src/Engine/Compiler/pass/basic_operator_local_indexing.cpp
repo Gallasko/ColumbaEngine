@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "basic_operator_local_indexing.h"
 
 #include "logger.h"

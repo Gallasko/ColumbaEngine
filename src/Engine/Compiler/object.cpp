@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "object.h"
 
 #include "chunk.h"

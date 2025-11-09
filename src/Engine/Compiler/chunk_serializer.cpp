@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "chunk_serializer.h"
 #include "vm.h"
 

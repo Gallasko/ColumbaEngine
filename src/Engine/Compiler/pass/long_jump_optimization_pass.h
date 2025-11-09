@@ -1,7 +1,7 @@
 #pragma once
 
-#include "bytecode_pass.h"
-#include "chunk.h"
+#include "../bytecode_pass.h"
+#include "../chunk.h"
 #include <vector>
 #include <cstdint>
 

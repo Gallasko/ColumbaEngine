@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "compiler_debug.h"
 #include "vm.h"
 

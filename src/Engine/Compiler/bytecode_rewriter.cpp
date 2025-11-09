@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "bytecode_rewriter.h"
 #include "logger.h"
 #include <algorithm>

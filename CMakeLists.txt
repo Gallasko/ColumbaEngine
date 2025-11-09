@@ -120,6 +120,16 @@ set(ENGINESOURCE
     src/Engine/2D/simple2dobject.cpp
     src/Engine/2D/texture.cpp
     src/Engine/Audio/audiosystem.cpp
+    src/Engine/Compiler/compiler_debug.cpp
+    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/object.cpp
+    src/Engine/Compiler/cparser.cpp
+    src/Engine/Compiler/bytecode_pass.cpp
+    src/Engine/Compiler/bytecode_rewriter.cpp
+    src/Engine/Compiler/chunk_serializer.cpp
+    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -664,20 +674,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(PgCompiler PRIVATE
             exemples/PgCompiler/application.cpp
-            exemples/PgCompiler/compiler_debug.cpp
-            exemples/PgCompiler/vm.cpp
-            exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/object.cpp
-            exemples/PgCompiler/cparser.cpp
-            exemples/PgCompiler/bytecode_pass.cpp
-            exemples/PgCompiler/bytecode_rewriter.cpp
-
-            exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
-
-            exemples/PgCompiler/chunk_serializer.cpp
-
-            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
@@ -689,20 +686,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_include_directories(EcsSerializationExample PUBLIC exemples/PgCompiler)
 
         target_sources(EcsSerializationExample PRIVATE
-            exemples/PgCompiler/compiler_debug.cpp
-            exemples/PgCompiler/vm.cpp
-            exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/object.cpp
-            exemples/PgCompiler/cparser.cpp
-            exemples/PgCompiler/bytecode_pass.cpp
-            exemples/PgCompiler/bytecode_rewriter.cpp
-
-            exemples/PgCompiler/long_jump_optimization_pass.cpp
-            exemples/PgCompiler/constant_uniformity_pass.cpp
-
-            exemples/PgCompiler/chunk_serializer.cpp
-
-            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
         target_link_libraries(EcsSerializationExample PRIVATE ColumbaEngine)
@@ -767,22 +750,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # ===============================================
 
         # PgCompiler source files (needed for testing)
-        set(PGCOMPILER_SOURCES
-            exemples/PgCompiler/vm.cpp
-            exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/cparser.cpp
-            exemples/PgCompiler/compiler_debug.cpp
-            exemples/PgCompiler/bytecode_pass.cpp
-            exemples/PgCompiler/bytecode_rewriter.cpp
-            exemples/PgCompiler/object.cpp
-
-            exemples/PgCompiler/long_jump_optimization_pass.cpp
-            exemples/PgCompiler/constant_uniformity_pass.cpp
-
-            exemples/PgCompiler/chunk_serializer.cpp
-
-            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
-        )
+        set(PGCOMPILER_SOURCES)
 
         # Create the compiler test executable with simple script testbench
         add_executable(test_compiler test/pgcompiler/script_testbench.cc)
