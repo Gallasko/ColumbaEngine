@@ -1,5 +1,5 @@
 #include "gtest/gtest.h"
-#include "vm.h"
+#include "Compiler/vm.h"
 #include "math_module.h"
 #include <filesystem>
 #include <fstream>

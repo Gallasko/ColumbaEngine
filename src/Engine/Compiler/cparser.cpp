@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "cparser.h"
 
 #include "compiler.h"

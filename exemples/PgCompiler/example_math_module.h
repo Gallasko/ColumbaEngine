@@ -1,6 +1,6 @@
 #pragma once
 
-#include "native_module.h"
+#include "Compiler/native_module.h"
 #include <cmath>
 
 namespace pg

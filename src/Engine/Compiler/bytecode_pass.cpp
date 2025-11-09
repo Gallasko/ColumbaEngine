@@ -1,3 +1,5 @@
+#include "stdafx.h"
+
 #include "bytecode_pass.h"
 #include "compiler_debug.h"
 #include "logger.h"

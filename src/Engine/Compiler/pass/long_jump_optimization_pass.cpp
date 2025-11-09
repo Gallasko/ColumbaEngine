@@ -1,5 +1,7 @@
+#include "stdafx.h"
+
 #include "long_jump_optimization_pass.h"
-#include "bytecode_rewriter.h"
+#include "../bytecode_rewriter.h"
 #include "logger.h"
 
 namespace pg {

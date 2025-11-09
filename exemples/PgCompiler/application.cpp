@@ -2,17 +2,17 @@
 
 #include "logger.h"
 
-#include "chunk.h"
-#include "compiler_debug.h"
+#include "Compiler/chunk.h"
+#include "Compiler/compiler_debug.h"
 
-#include "vm.h"
-#include "compiler.h"
+#include "Compiler/vm.h"
+#include "Compiler/compiler.h"
 
-#include "long_jump_optimization_pass.h"
+#include "Compiler/pass/long_jump_optimization_pass.h"
 #include "constant_uniformity_pass.h"
 #include "Interpreter/lexer.h"
 
-#include "pass/basic_operator_local_indexing.h"
+#include "Compiler/pass/basic_operator_local_indexing.h"
 #include "example_math_module.h"
 
 using namespace pg;
