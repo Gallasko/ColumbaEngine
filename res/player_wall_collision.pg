@@ -1,0 +1,26 @@
+
+import "math"
+
+var wpos = ent1["PositionComponent"]
+var epos = ent2["PositionComponent"]
+
+// compute normalized vector from wall→enemy
+var x = epos["x"];
+var y = epos["y"];
+var wx = wpos["x"];
+var wy = wpos["y"];
+
+var dx = x - wx;
+var dy = y - wy;
+
+var len = sqrt(dx * dx + dy * dy);
+
+if (len > 0.00001)
+{
+    dx = dx / len;
+    dy = dy / len;
+    
+    // shove enemy out
+    epos["x"] = (x + dx * 0.1);
+    epos["y"] = (y + dy * 0.1);
+}

@@ -40,6 +40,8 @@ namespace pg
     class Environment;
     class ClassInstance;
 
+    struct VM;
+
     // Todo add this in a window dependancy
     // This event is fired when the window is resized
     struct ResizeEvent { float width, height; };
@@ -715,6 +717,8 @@ namespace pg
         inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
 
         void reportSystemProfiles();
+
+        void setupVm(VM& vm);
 
     private:
         // Todo maybe

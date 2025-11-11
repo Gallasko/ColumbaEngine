@@ -160,17 +160,13 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->sendEvent(EnterRoomEvent{room->roomIndex});
         });
 
-        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, WallFlag *) {
-            LOG_INFO(DOM, "Bullet hit a wall! ");
+        // makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
+        //     [](Entity* ent) { return ent->has<AllyBulletFlag>(); }, 
+        //     [](Entity* ent) { return ent->has<WallFlag>(); });
 
-            ecsRef->removeEntity(bullet->entityId);
-        });
-
-        makeCollisionHandlePair(ecsRef, [&](EnemyBulletFlag *bullet, WallFlag *) {
-            LOG_INFO(DOM, "Bullet hit a wall! ");
-
-            ecsRef->removeEntity(bullet->entityId);
-        });
+        // makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
+        //     [](Entity* ent) { return ent->has<EnemyBulletFlag>(); }, 
+        //     [](Entity* ent) { return ent->has<WallFlag>(); });
 
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, EnemyFlag *enemy) {
             LOG_INFO(DOM, "Bullet hit an enemy! ");
@@ -239,37 +235,41 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         // Todo make a macro for LOG_INFO and LOG_ERROR with a single argument that use a default DOM
 
+        makeCollisionHandleScript(ecsRef, "res/player_wall_collision.pg",
+            [](Entity* ent) { return ent->has<PlayerFlag>(); }, 
+            [](Entity* ent) { return ent->has<WallFlag>(); });
+
         // Todo we need this because sweep move is bugged
-        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall) {
-            // get both entities’ positions
-            auto wallEnt   = wall->ecsRef->getEntity(wall->entityId);
-            auto playerEnt = player->ecsRef->getEntity(player->entityId);
-            auto wpos      = wallEnt->get<PositionComponent>();
-            auto epos      = playerEnt->get<PositionComponent>();
+        // makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall) {
+        //     // get both entities’ positions
+        //     auto wallEnt   = wall->ecsRef->getEntity(wall->entityId);
+        //     auto playerEnt = player->ecsRef->getEntity(player->entityId);
+        //     auto wpos      = wallEnt->get<PositionComponent>();
+        //     auto epos      = playerEnt->get<PositionComponent>();
 
-            // compute normalized vector from wall→enemy
+        //     // compute normalized vector from wall→enemy
 
-            float x = epos->x;
-            float y = epos->y;
+        //     float x = epos->x;
+        //     float y = epos->y;
 
-            float wx = wpos->x;
-            float wy = wpos->y;
+        //     float wx = wpos->x;
+        //     float wy = wpos->y;
 
-            LOG_INFO(DOM, "Player hit wall: " << wall->entityId << " at " << wx << ", " << wy << " and player at " << x << ", " << y);
+        //     LOG_INFO(DOM, "Player hit wall: " << wall->entityId << " at " << wx << ", " << wy << " and player at " << x << ", " << y);
 
-            float dx = x - wx;
-            float dy = y - wy;
-            float len = std::sqrt(dx * dx + dy * dy);
+        //     float dx = x - wx;
+        //     float dy = y - wy;
+        //     float len = std::sqrt(dx * dx + dy * dy);
 
-            if (len > 1e-5f)
-            {
-                dx /= len;
-                dy /= len;
-                // shove enemy out
-                epos->setX(x + dx * repulsionStrength);
-                epos->setY(y + dy * repulsionStrength);
-            }
-        });
+        //     if (len > 1e-5f)
+        //     {
+        //         dx /= len;
+        //         dy /= len;
+        //         // shove enemy out
+        //         epos->setX(x + dx * repulsionStrength);
+        //         epos->setY(y + dy * repulsionStrength);
+        //     }
+        // });
 
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, HoleFlag* hole){
             // get both entities’ positions

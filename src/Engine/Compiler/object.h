@@ -4,6 +4,7 @@
 #include <vector>
 #include <unordered_map>
 #include <cstdint>
+#include <functional>
 
 #include "Memory/elementtype.h"
 #include "value_nanbox.h"
@@ -42,7 +43,7 @@ namespace pg
     // Value is now defined in value_nanbox.h as uint64_t
     typedef uint64_t Value;
 
-    typedef Value (*NativeFn)(VM* vm, int argCount, Value* args);
+    typedef std::function<Value(VM* vm, int argCount, Value* args)> NativeFn;
 
     struct NativeFunction
     {

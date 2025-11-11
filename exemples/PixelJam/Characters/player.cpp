@@ -241,6 +241,8 @@ namespace pg
                 {
                     auto bullet = makeSimple2DShape(ecsRef, Shape2D::Square, weapon.projectileSize, weapon.projectileSize, {125.f, 125.f, 0.f, 255.f});
 
+                    LOG_INFO("Player", "Creating bullet entity with ID: " << bullet.id);
+
                     bullet.get<Simple2DObject>()->setViewport(1);
 
                     bullet.get<PositionComponent>()->setX(pos->x + 25.f);
