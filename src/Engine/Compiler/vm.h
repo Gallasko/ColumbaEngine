@@ -135,6 +135,9 @@ namespace pg
             {
                 releaseAndDelete(pair.second);
             }
+
+            globals.clear();
+            
             // Clean up any remaining Values on the stack
             while (!stack.empty())
             {
@@ -155,6 +158,12 @@ namespace pg
             for (auto [name, fun] : registeredNativeFunctions)
             {
                 defineNative(name, fun);
+            }
+
+            // Re-load all native modules that were registered
+            for (const auto& [moduleName, moduleData] : nativeModules)
+            {
+                loadNativeModule(moduleName);
             }
         }
 
@@ -448,6 +457,12 @@ namespace pg
 
         void defineNative(const std::string& name, NativeFn function)
         {
+            // Skip if already defined in globals
+            if (globals.find(name) != globals.end())
+            {
+                return;
+            }
+
             uint32_t index = pools.nativeFuncPool.getNbElements();
             NativeFunction* nativeFunc = pools.nativeFuncPool.allocate();
             nativeFunc->function = function;
@@ -464,6 +479,8 @@ namespace pg
             data.functions = moduleData.exportedFunctions;
             data.variables = moduleData.exportedVariables;
             nativeModules[moduleName] = data;
+
+            loadNativeModule(moduleName);
         }
 
         bool loadNativeModule(const std::string& moduleName)
@@ -483,7 +500,11 @@ namespace pg
             // Define all native variables from the module into this VM's globals
             for (const auto& [name, value] : it->second.variables)
             {
-                globals[name] = trackNewValue(elementToValue(value));
+                // Skip if already defined in globals
+                if (globals.find(name) == globals.end())
+                {
+                    globals[name] = trackNewValue(elementToValue(value));
+                }
             }
 
             return true;

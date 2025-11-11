@@ -413,6 +413,29 @@ namespace pg
             return makeBoolValue(true);
         });
 
+        vm.registerNative("debugGlobal", [](VM *vm, int argCount, Value*) -> Value {
+            if (argCount != 0) return makeBoolValue(false);
+
+            for (const auto& [key, value] : vm->globals)
+            {
+                std::string valStr;
+                if (IS_STRING(value))
+                    valStr = vm->asString(value)->toString();
+                else if (IS_INT(value))
+                    valStr = std::to_string(AS_INT(value));
+                else if (IS_DOUBLE(value))
+                    valStr = std::to_string(AS_DOUBLE(value));
+                else if (IS_BOOL(value))
+                    valStr = AS_BOOL(value) ? "true" : "false";
+                else
+                    valStr = "<complex type>";
+
+                LOG_INFO("Script", "Global " << key << " : " << valStr);
+            }
+
+            return makeBoolValue(true);
+        });
+
         // Setup the VM with necessary bindings and references
         // For example, bind the ECS reference to the VM for script access
         // This is a placeholder implementation; actual implementation may vary
