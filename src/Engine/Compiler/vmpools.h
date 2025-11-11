@@ -21,6 +21,8 @@
 #include <vector>
 #include <cstdint>
 #include <stdexcept>
+#include <unordered_map>
+#include <string>
 
 namespace pg
 {
@@ -39,6 +41,9 @@ namespace pg
 
         /** Pool for string objects (ElementType) */
         AllocatorPool<ElementType, 64> stringPool;
+
+        /** String interning map - maps string content to pool index for deduplication */
+        std::unordered_map<std::string, uint32_t> internedStrings;
 
         /** Pool for closure objects */
         AllocatorPool<Closure, 32> closurePool;

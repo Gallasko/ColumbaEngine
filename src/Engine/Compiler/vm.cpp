@@ -2290,8 +2290,24 @@ namespace pg
 
     Value VM::createString(const ElementType& element)
     {
+        // Convert ElementType to string for lookup (assuming ElementType has toString() or similar)
+        std::string stringContent = element.toString();
+
+        // Check if string already exists in the intern map
+        auto it = pools.internedStrings.find(stringContent);
+        if (it != pools.internedStrings.end())
+        {
+            // String already exists, reuse it
+            return makeStringValue(it->second);
+        }
+
+        // String doesn't exist, create new one
         auto [ptr, index] = pools.stringPool.allocateWithIndex(element);
         Value val = makeStringValue(static_cast<uint32_t>(index));
+
+        // Add to intern map for future reuse
+        pools.internedStrings[stringContent] = static_cast<uint32_t>(index);
+
         return val;
     }
 
