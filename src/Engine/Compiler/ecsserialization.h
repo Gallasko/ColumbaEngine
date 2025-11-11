@@ -197,6 +197,8 @@ namespace pg
         Value entityTableValue = vm->createInstance(tableClass);
         ObjInstance* entityTable = vm->asInstance(entityTableValue);
 
+        LOG_INFO("ECS Serialization", "Serializing entity ID " << entity->id);
+
         // Add the entity ID
         Value idKey = vm->createString("__entityId");
         Value idValue = makeIntValue(static_cast<int64_t>(entity->id));
@@ -365,7 +367,7 @@ namespace pg
     inline EntityRef deserializeEntityFromTable(VM* vm,
                                                EntitySystem* ecsRef,
                                                Value entityTable,
-                                               bool createNew = true)
+                                               bool createNew = false)
     {
         if (!IS_INSTANCE(entityTable))
         {

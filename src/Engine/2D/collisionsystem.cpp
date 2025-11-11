@@ -367,10 +367,10 @@ namespace pg
         }
 
         // LOG_INFO(DOM, "Got all cell");
-
-        // We remove our id as we don't want to test the collision on ourselves
+        touchedIds.erase(0);
         touchedIds.erase(comp->entityId);
 
+        // We remove our id as we don't want to test the collision on ourselves
         std::set<_unique_id> collidedIds;
 
         for (auto id : touchedIds)

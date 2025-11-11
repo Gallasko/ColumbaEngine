@@ -38,6 +38,11 @@ namespace
 #endif
 }
 
+// Include for the vm setup
+#include "Compiler/vm.h"
+#include "ecsmodule.h"
+#include "Helpers/mathmodule.h"
+
 namespace pg
 {
     // Todo maybe
@@ -367,5 +372,53 @@ namespace pg
         _systemExecutionTimes.clear();
         _systemExecutionCounts.clear();
 #endif
+    }
+
+    void EntitySystem::setupVm(VM& vm)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        vm.addNativeModule("math", MathModule{});
+        vm.addNativeModule("ecs", EcsCompiledModule{this});
+
+        vm.registerNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {
+            if (argCount != 1) return makeBoolValue(false);
+
+            if (IS_INSTANCE(args[0]))
+            {
+                ObjInstance* table = vm->asInstance(args[0]);
+                LOG_INFO("Script", "Table contents:");
+                for (const auto& [key, value] : table->fields)
+                {
+                    std::string valStr;
+                    if (IS_STRING(value))
+                        valStr = vm->asString(value)->toString();
+                    else if (IS_INT(value))
+                        valStr = std::to_string(AS_INT(value));
+                    else if (IS_DOUBLE(value))
+                        valStr = std::to_string(AS_DOUBLE(value));
+                    else if (IS_BOOL(value))
+                        valStr = AS_BOOL(value) ? "true" : "false";
+                    else
+                        valStr = "<complex type>";
+
+                    LOG_INFO("Script", "  " << key << " : " << valStr);
+                }
+            }
+            else
+            {
+                LOG_INFO("Script", "Value is not a table instance");
+            }
+
+            return makeBoolValue(true);
+        });
+
+        // Setup the VM with necessary bindings and references
+        // For example, bind the ECS reference to the VM for script access
+        // This is a placeholder implementation; actual implementation may vary
+        // depending on the VM and its API
+
+        // Example:
+        // vm.bindECS(this);
     }
 }

@@ -1,0 +1,7 @@
+__dprint(ent1)
+
+import "ecs"
+
+debugTable(ent1)
+
+removeEntity(ent1)
