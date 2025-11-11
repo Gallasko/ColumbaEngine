@@ -378,6 +378,31 @@ namespace pg
             std::function<bool(Entity*)> filterEnt2 = [](Entity*) { return true; }) : ecsRef(ecsRef), fnName(fnName), filterEnt1(filterEnt1), filterEnt2(filterEnt2)
         {
             ecsRef->setupVm(vm);
+
+            // Check file extension and compile/load accordingly
+            if (fnName.size() >= 3 && fnName.substr(fnName.size() - 3) == ".pg")
+            {
+                // Compile .pg script and cache to .pgc
+                VM compiler;
+                ecsRef->setupVm(compiler);
+
+                auto result = compiler.interpretFromFile(fnName, true, fnName + "c");
+
+                if (result != InterpretResult::OK)
+                {
+                    LOG_ERROR("CollisionHandleScript", "Failed to compile script: " << fnName);
+                }
+
+                this->fnName += "c";
+            }
+            else if (fnName.size() >= 4 && fnName.substr(fnName.size() - 4) == ".pgc")
+            {
+                LOG_MILE("CollisionHandleScript", "Loading precompiled script: " << fnName);
+            }
+            else
+            {
+                LOG_ERROR("CollisionHandleScript", "Invalid script file extension. Must be .pg or .pgc: " << fnName);
+            }
         }
 
         CollisionHandleScript(const CollisionHandleScript& other) : fnName(other.fnName) {}
@@ -395,28 +420,30 @@ namespace pg
 
             if (filterEnt1(ent1) and filterEnt2(ent2))
             {
-                vm.reset();
+                // vm.reset();
+                VM testVm;
+                ecsRef->setupVm(testVm);
 
-                Value entity1Table = serializeEntityToTable(&vm, ecsRef, ent1);
-                Value entity2Table = serializeEntityToTable(&vm, ecsRef, ent2);
+                Value entity1Table = serializeEntityToTable(&testVm, ecsRef, ent1);
+                Value entity2Table = serializeEntityToTable(&testVm, ecsRef, ent2);
 
                 // Pass entity table as a global to the script (like a system module)
-                vm.globals["ent1"] = entity1Table;
-                vm.globals["ent2"] = entity2Table;
+                testVm.globals["ent1"] = entity1Table;
+                testVm.globals["ent2"] = entity2Table;
 
                 // Compile the script once
-                auto result = vm.interpretFromFile(fnName);
+                auto result = testVm.interpretFromBytecodeFile(fnName);
 
                 if (result == InterpretResult::OK)
                 {
-                    LOG_INFO("Example", "Script executed successfully! Results: " << vm.testOutput);
+                    LOG_INFO("Example", "Script executed successfully! Results: " << testVm.testOutput);
 
                     // Read the modified values back from the table
                     if (IS_INSTANCE(entity1Table) and IS_INSTANCE(entity2Table))
                     {
                         LOG_INFO("Example", "Deserializing modified entities from script");
-                        deserializeEntityFromTable(&vm, ecsRef, entity1Table, false);
-                        deserializeEntityFromTable(&vm, ecsRef, entity2Table, false);
+                        deserializeEntityFromTable(&testVm, ecsRef, entity1Table, false);
+                        deserializeEntityFromTable(&testVm, ecsRef, entity2Table, false);
                     }
                 }
 
@@ -424,28 +451,30 @@ namespace pg
             // and swap:
             else if (filterEnt1(ent2) and filterEnt2(ent1))
             {
-                vm.reset();
+                VM testVm;
+                ecsRef->setupVm(testVm);
+                // vm.reset();
 
-                Value entity1Table = serializeEntityToTable(&vm, ecsRef, ent2);
-                Value entity2Table = serializeEntityToTable(&vm, ecsRef, ent1);
+                Value entity1Table = serializeEntityToTable(&testVm, ecsRef, ent2);
+                Value entity2Table = serializeEntityToTable(&testVm, ecsRef, ent1);
 
                 // Pass entity table as a global to the script (like a system module)
-                vm.globals["ent1"] = entity1Table;
-                vm.globals["ent2"] = entity2Table;
+                testVm.globals["ent1"] = entity1Table;
+                testVm.globals["ent2"] = entity2Table;
 
                 // Compile the script once
-                auto result = vm.interpretFromFile(fnName);
+                auto result = testVm.interpretFromBytecodeFile(fnName);
 
                 if (result == InterpretResult::OK)
                 {
-                    LOG_INFO("Example", "Script executed successfully! Results: " << vm.testOutput);
+                    LOG_INFO("Example", "Script executed successfully! Results: " << testVm.testOutput);
 
                     // Read the modified values back from the table
                     if (IS_INSTANCE(entity1Table) and IS_INSTANCE(entity2Table))
                     {
                         LOG_INFO("Example", "Deserializing modified entities from script");
-                        deserializeEntityFromTable(&vm, ecsRef, entity1Table, false);
-                        deserializeEntityFromTable(&vm, ecsRef, entity2Table, false);
+                        deserializeEntityFromTable(&testVm, ecsRef, entity1Table, false);
+                        deserializeEntityFromTable(&testVm, ecsRef, entity2Table, false);
                     }
                 }
 

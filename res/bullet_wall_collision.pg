@@ -3,5 +3,6 @@ __dprint(ent1)
 import "ecs"
 
 debugTable(ent1)
+debugGlobal()
 
 removeEntity(ent1)

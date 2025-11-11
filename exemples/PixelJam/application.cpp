@@ -160,13 +160,13 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->sendEvent(EnterRoomEvent{room->roomIndex});
         });
 
-        // makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
-        //     [](Entity* ent) { return ent->has<AllyBulletFlag>(); }, 
-        //     [](Entity* ent) { return ent->has<WallFlag>(); });
+        makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
+            [](Entity* ent) { return ent->has<AllyBulletFlag>(); }, 
+            [](Entity* ent) { return ent->has<WallFlag>(); });
 
-        // makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
-        //     [](Entity* ent) { return ent->has<EnemyBulletFlag>(); }, 
-        //     [](Entity* ent) { return ent->has<WallFlag>(); });
+        makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
+            [](Entity* ent) { return ent->has<EnemyBulletFlag>(); }, 
+            [](Entity* ent) { return ent->has<WallFlag>(); });
 
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, EnemyFlag *enemy) {
             LOG_INFO(DOM, "Bullet hit an enemy! ");
