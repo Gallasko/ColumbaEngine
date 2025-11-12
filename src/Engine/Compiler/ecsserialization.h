@@ -263,6 +263,9 @@ namespace pg
 
         ObjInstance* table = vm->asInstance(componentTable);
 
+        LOG_INFO("ECS Serialization", "=== deserializeComponentFromTable START ===");
+        LOG_INFO("ECS Serialization", "Table has " << table->fields.size() << " fields");
+
         // Determine the component type name
         std::string typeName = componentTypeName;
 
@@ -285,12 +288,19 @@ namespace pg
             }
         }
 
+        LOG_INFO("ECS Serialization", "Component type name: " << typeName);
+
         // Convert the table to UnserializedObject
-        UnserializedObject obj("", typeName, "");
+        // Create a dummy serialized string that parseString() can parse correctly
+        // Format: "TypeName: TypeName {"
+        std::string dummySerializedString = typeName + ": " + typeName + " {";
+        UnserializedObject obj(typeName, typeName, dummySerializedString);
+        LOG_INFO("ECS Serialization", "Created UnserializedObject - objectName=" << obj.getObjectName() << ", objectType=" << obj.getObjectType());
 
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
         processTable = [&](ObjInstance* currentTable, UnserializedObject& currentObj) {
+            LOG_INFO("ECS Serialization", "Processing table with " << currentTable->fields.size() << " fields");
             for (const auto& [key, value] : currentTable->fields)
             {
                 // Skip special fields
@@ -299,6 +309,7 @@ namespace pg
 
                 if (IS_INSTANCE(value))
                 {
+                    LOG_INFO("ECS Serialization", "  Field '" << key << "' is a nested table");
                     // Nested table - create child object
                     UnserializedObject child(key, "", "");
                     processTable(vm->asInstance(value), child);
@@ -333,6 +344,7 @@ namespace pg
 
                     // Format as: __PGSA type {value}
                     std::string serializedStr = "__PGSA " + typeStr + " {" + valueStr + "}";
+                    LOG_INFO("ECS Serialization", "  Field '" << key << "' = " << serializedStr);
                     UnserializedObject attr(serializedStr, key, false);
                     currentObj.children.push_back(std::move(attr));
                 }
@@ -340,6 +352,7 @@ namespace pg
         };
 
         processTable(table, obj);
+        LOG_INFO("ECS Serialization", "After processTable, obj has " << obj.children.size() << " children");
 
         // Use the component registry to deserialize and attach
         ecsRef->getComponentRegistry()->deserializeComponentToEntity(obj, entity);
@@ -573,7 +586,9 @@ namespace pg
         }
 
         // Create the root unserialized object
-        UnserializedObject obj("", typeName, "");
+        // Create a dummy serialized string that parseString() can parse correctly
+        std::string dummySerializedString = typeName + ": " + typeName + " {";
+        UnserializedObject obj(typeName, typeName, dummySerializedString);
 
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
