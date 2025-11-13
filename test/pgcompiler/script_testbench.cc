@@ -24,19 +24,16 @@ namespace test {
 class ScriptTestBench : public ::testing::Test
 {
 protected:
-    VM vm;
+    VM *vm;
 
-    void SetUp() override
+    void registerNativeFunctions(VM* vmInstance)
     {
-        // Reset VM state
-        resetVm();
-
         // Register native modules for testing
-        vm.addNativeModule("math", MathModule());
-        vm.addNativeModule("mathNative", MathModule());
+        vmInstance->addNativeModule("math", MathModule());
+        vmInstance->addNativeModule("mathNative", MathModule());
 
         // Register toString native function
-        vm.registerNative("__toString", [](VM *vm, int argCount, Value* args) -> Value {
+        vmInstance->registerNative("__toString", [](VM *vm, int argCount, Value* args) -> Value {
             if (argCount != 1) return makeBoolValue(false);
 
             std::string str;
@@ -66,23 +63,16 @@ protected:
         });
     }
 
-    void TearDown() override {
-        // Clean up
-        resetVm();
+    void SetUp() override
+    {
+        // Reset VM state
+        vm = new VM();
+        registerNativeFunctions(vm);
     }
 
-    void resetVm()
-    {
-        vm.stack.clear();
-
-        for (auto& pair : vm.globals)
-        {
-            vm.releaseAndDelete(pair.second);
-        }
-
-        vm.globals.clear();
-        vm.testOutput.clear();
-        vm.pools.internedStrings.clear();
+    void TearDown() override {
+        // Clean up
+        delete vm;
     }
 
     /**
@@ -102,18 +92,23 @@ protected:
         std::string source = buffer.str();
 
         // Clear previous test output
-        resetVm();
+        if (vm)
+        {
+            delete vm;
+            vm = new VM();
+            registerNativeFunctions(vm);
+        }
 
         if (scriptPath.find(".pgc") != std::string::npos)
-            result = vm.interpretFromBytecodeFile(scriptPath);
+            result = vm->interpretFromBytecodeFile(scriptPath);
         else
-            result = vm.interpretFromText(source, false, scriptPath + ".compiled.pgc");
+            result = vm->interpretFromText(source, false, scriptPath + ".compiled.pgc");
 
         // Use VM's built-in interpretFromText method
 
 
         // Return captured output from __dprint
-        return vm.testOutput;
+        return vm->testOutput;
     }
 
     /**

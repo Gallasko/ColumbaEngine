@@ -137,7 +137,7 @@ namespace pg
             }
 
             globals.clear();
-            
+
             // Clean up any remaining Values on the stack
             while (!stack.empty())
             {
@@ -315,7 +315,9 @@ namespace pg
         inline bool releaseValue(const Value& value);   // Returns true if should delete
         void deleteValue(const Value& value);    // Actually delete the object
         inline Value trackNewValue(const Value& value); // Track newly created object with refcount=1
-        size_t getTotalTrackedObjects() const {
+
+        size_t getTotalTrackedObjects() const
+        {
             return pools.stringPool.getNbElements() +
                    pools.closurePool.getNbElements() +
                    pools.functionPool.getNbElements() +
@@ -334,13 +336,13 @@ namespace pg
         // ====================================================================
 
         // Get heap objects from pools (returns pointer to actual object)
-        inline ElementType* asString(Value v) { return pools.getString(v); }
-        inline Closure* asClosure(Value v) { return pools.getClosure(v); }
-        inline ObjFunction* asFunction(Value v) { return pools.getFunction(v); }
-        inline ObjUpvalue* asUpvalue(Value v) { return pools.getUpvalue(v); }
-        inline Klass* asClass(Value v) { return pools.getClass(v); }
-        inline NativeFunction* asNativeFunc(Value v) { return pools.getNativeFunc(v); }
-        inline ObjInstance* asInstance(Value v) { return pools.getInstance(v); }
+        inline ElementType* asString(Value v)         { return pools.getString(v); }
+        inline Closure* asClosure(Value v)            { return pools.getClosure(v); }
+        inline ObjFunction* asFunction(Value v)       { return pools.getFunction(v); }
+        inline ObjUpvalue* asUpvalue(Value v)         { return pools.getUpvalue(v); }
+        inline Klass* asClass(Value v)                { return pools.getClass(v); }
+        inline NativeFunction* asNativeFunc(Value v)  { return pools.getNativeFunc(v); }
+        inline ObjInstance* asInstance(Value v)       { return pools.getInstance(v); }
         inline ObjBoundMethod* asBoundMethod(Value v) { return pools.getBoundMethod(v); }
 
         // Create new heap objects and return tracked Values
@@ -503,7 +505,7 @@ namespace pg
                 // Skip if already defined in globals
                 if (globals.find(name) == globals.end())
                 {
-                    globals[name] = trackNewValue(elementToValue(value));
+                    globals[name] = elementToValue(value);
                 }
             }
 
