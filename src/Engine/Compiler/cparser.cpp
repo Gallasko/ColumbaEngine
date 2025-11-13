@@ -145,15 +145,16 @@ namespace pg
         else
         {
             // Global variable - use constant pool
-            parser.writeConstant(varName);
             if (canAssign and parser.match(TokenType::EQUAL))
             {
                 parser.expression();
+                parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Set_Global);
             }
             else if (parser.match(TokenType::INCREMENT))
             {
                 // Postfix increment: var++
+                parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Get_Global);
                 parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Post_Incr_Global);
@@ -161,12 +162,14 @@ namespace pg
             else if (parser.match(TokenType::DECREMENT))
             {
                 // Postfix decrement: var--
+                parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Get_Global);
                 parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Post_Decr_Global);
             }
             else
             {
+                parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Get_Global);
             }
 
