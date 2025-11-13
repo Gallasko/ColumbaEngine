@@ -9,6 +9,8 @@
 
 namespace pg
 {
+    struct VM;
+
     class BytecodePass
     {
     public:
@@ -35,7 +37,7 @@ namespace pg
 
         void addPass(std::unique_ptr<BytecodePass> pass);
 
-        void runAllPasses(Chunk& chunk);
+        void runAllPasses(VM *vm, Chunk& chunk);
 
         bool runPass(const std::string& passName, Chunk& chunk);
 

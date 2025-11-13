@@ -28,7 +28,7 @@ namespace pg {
         }
     }
 
-    void PassManager::runAllPasses(Chunk& chunk)
+    void PassManager::runAllPasses(VM *vm, Chunk& chunk)
     {
         if (passes.empty())
         {
@@ -80,7 +80,7 @@ namespace pg {
 
                 // Print bytecode after this pass
                 std::cout << "\n=== BYTECODE AFTER " << pass->getName() << " ===" << std::endl;
-                // disassembleChunk(chunk, "After " + pass->getName());
+                disassembleChunk(vm, chunk, "After " + pass->getName());
                 std::cout << std::endl;
             }
         }

@@ -132,6 +132,8 @@ namespace pg
     void op_get_iterator(VM* vm);
     void op_iterator_next(VM* vm);
 
+    void op_define_global_non_popping(VM *vm);
+
     // Module operations
     void op_import(VM* vm);
 }
@@ -190,7 +192,7 @@ namespace pg
                 LOG_INFO("VM", "Applying bytecode optimizations");
                 size_t originalSize = func->chunk.code.size();
 
-                passManager.runAllPasses(func->chunk);
+                passManager.runAllPasses(this, func->chunk);
 
                 size_t optimizedSize = func->chunk.code.size();
 
@@ -1005,6 +1007,8 @@ namespace pg
 
         // Module operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import);
+
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global_Non_Popping), op_define_global_non_popping);
     }
 
     void VM::initialize_builtin_classes()
@@ -1339,6 +1343,32 @@ namespace pg
         vm->globals[name.toString()] = vm->retainValue(value);
         vm->releaseAndDelete(nameValue);
         vm->releaseAndDelete(value);
+    }
+
+    void op_define_global_non_popping(VM* vm)
+    {
+#ifdef DEBUG_CHECK_STACK
+        if (vm->stack.size() < 2)
+        {
+            vm->runtimeError("Not enough values on stack for variable definition.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+#endif
+        auto nameValue = vm->pop();  // variable name
+        auto name = vm->valueToElement(nameValue);
+        auto value = vm->peek(); // variable value
+
+        if (not name.isLitteral())
+        {
+            vm->releaseAndDelete(nameValue);
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->globals[name.toString()] = vm->retainValue(value);
+        vm->releaseAndDelete(nameValue);
     }
 
     void op_long_jump(VM* vm)
