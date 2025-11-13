@@ -52,6 +52,7 @@ protected:
 
         vm.globals.clear();
         vm.testOutput.clear();
+        vm.pools.internedStrings.clear();
     }
 
     /**

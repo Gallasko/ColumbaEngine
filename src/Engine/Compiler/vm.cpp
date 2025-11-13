@@ -626,6 +626,11 @@ namespace pg
         }
         else if (IS_INSTANCE(value))
         {
+            for (auto& [ _ , field] : asInstance(value)->fields)
+            {
+                releaseAndDelete(field);
+            }
+
             pools.instancePool.release(asInstance(value));
         }
         else if (IS_BOUND_METHOD(value))
@@ -671,7 +676,7 @@ namespace pg
         // Fall back to ElementType for other complex cases (strings, etc.)
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA + elemB));
+        return elementToValue(elemA + elemB);
     }
 
     Value VM::subtractValues(const Value& a, const Value& b)
@@ -698,7 +703,7 @@ namespace pg
         // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA - elemB));
+        return elementToValue(elemA - elemB);
     }
 
     Value VM::multiplyValues(const Value& a, const Value& b)
@@ -725,7 +730,7 @@ namespace pg
         // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA * elemB));
+        return elementToValue(elemA * elemB);
     }
 
     Value VM::divideValues(const Value& a, const Value& b)
@@ -752,7 +757,7 @@ namespace pg
         // Fall back to ElementType for other complex cases
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA / elemB));
+        return elementToValue(elemA / elemB);
     }
 
     Value VM::negateValue(const Value& val)
@@ -770,7 +775,7 @@ namespace pg
             throw std::runtime_error("Cannot negate function Values");
 
         ElementType elem = valueToElement(val);
-        return trackNewValue(elementToValue(-elem));
+        return elementToValue(-elem);
     }
 
     Value VM::equalsValues(const Value& a, const Value& b)
@@ -796,7 +801,7 @@ namespace pg
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA == elemB));
+        return elementToValue(elemA == elemB);
     }
 
     Value VM::notEqualsValues(const Value& a, const Value& b)
@@ -822,7 +827,7 @@ namespace pg
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA != elemB));
+        return elementToValue(elemA != elemB);
     }
 
     Value VM::greaterValues(const Value& a, const Value& b)
@@ -845,7 +850,7 @@ namespace pg
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA > elemB));
+        return elementToValue(elemA > elemB);
     }
 
     Value VM::greaterEqualValues(const Value& a, const Value& b)
@@ -868,7 +873,7 @@ namespace pg
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA >= elemB));
+        return elementToValue(elemA >= elemB);
     }
 
     Value VM::lessValues(const Value& a, const Value& b)
@@ -891,7 +896,7 @@ namespace pg
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA < elemB));
+        return elementToValue(elemA < elemB);
     }
 
     Value VM::lessEqualValues(const Value& a, const Value& b)
@@ -914,7 +919,7 @@ namespace pg
 
         ElementType elemA = valueToElement(a);
         ElementType elemB = valueToElement(b);
-        return trackNewValue(elementToValue(elemA <= elemB));
+        return elementToValue(elemA <= elemB);
     }
 
     // Function pointer dispatch implementation
@@ -2298,7 +2303,7 @@ namespace pg
         if (it != pools.internedStrings.end())
         {
             // String already exists, reuse it
-            return makeStringValue(it->second);
+            return retainValue(makeStringValue(it->second));
         }
 
         // String doesn't exist, create new one
@@ -2308,49 +2313,49 @@ namespace pg
         // Add to intern map for future reuse
         pools.internedStrings[stringContent] = static_cast<uint32_t>(index);
 
-        return val;
+        return trackNewValue(val);
     }
 
     Value VM::createClosure(ObjFunction* function)
     {
         auto [ptr, index] = pools.closurePool.allocateWithIndex(function);
         Value val = makeClosureValue(static_cast<uint32_t>(index));
-        return val;
+        return trackNewValue(val);
     }
 
     Value VM::createFunction()
     {
         auto [ptr, index] = pools.functionPool.allocateWithIndex();
         Value val = makeFunctionValue(static_cast<uint32_t>(index));
-        return val;
+        return trackNewValue(val);
     }
 
     Value VM::createUpvalue(Value* slot)
     {
         auto [ptr, index] = pools.upvaluePool.allocateWithIndex(slot);
         Value val = makeUpvalueValue(static_cast<uint32_t>(index));
-        return val;
+        return trackNewValue(val);
     }
 
     Value VM::createClass(const std::string& name)
     {
         auto [ptr, index] = pools.classPool.allocateWithIndex(name);
         Value val = makeClassValue(static_cast<uint32_t>(index));
-        return val;
+        return trackNewValue(val);
     }
 
     Value VM::createInstance(Klass* klass)
     {
         auto [ptr, index] = pools.instancePool.allocateWithIndex(klass);
         Value val = makeInstanceValue(static_cast<uint32_t>(index));
-        return val;
+        return trackNewValue(val);
     }
 
     Value VM::createBoundMethod(const Value& receiver, Closure* method)
     {
         auto [ptr, index] = pools.boundMethodPool.allocateWithIndex(receiver, method);
         Value val = makeBoundMethodValue(static_cast<uint32_t>(index));
-        return val;
+        return trackNewValue(val);
     }
 
     Value VM::elementToValue(const ElementType& element)
