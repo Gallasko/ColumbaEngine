@@ -21,6 +21,8 @@
 #include "Compiler/pass/long_jump_optimization_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
 
+#include <chrono>
+
 using namespace pg;
 
 // ============================================================================
@@ -83,9 +85,7 @@ Value setupVm(VM& vm, EntitySystem* ecsRef, Entity* entity)
 
     // Pass entity table as a global to the script (like a system module)
     LOG_INFO("Example", "Adding entity as global 'playerEntity' to script...");
-    Value globalName = vm.createString("playerEntity");
-    vm.globals[vm.asString(globalName)->toString()] = vm.retainValue(entityTable);
-    vm.releaseAndDelete(globalName);
+    vm.globals["playerEntity"] = entityTable;
 
     vm.registerNative("logInfo", [](VM* vm, int argCount, Value* args) -> Value {
         if (argCount != 1) return makeBoolValue(false);
@@ -245,17 +245,24 @@ int main(int argc, char* argv[])
     InterpretResult result;
     for (int i = 0; i < 10; i++)
     {
+        auto start = std::chrono::high_resolution_clock::now();
+
         VM testVm;
 
         auto entityTable = setupVm(testVm, &ecs, entity.entity);
 
         result = testVm.interpretFromBytecodeFile("entity_test.pgc");
 
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+        LOG_INFO("Example", "Iteration " << i << " took " << duration_ns << " nanoseconds ("
+                 << duration_ns / 1000000.0 << " milliseconds)");
+
         if (result == InterpretResult::OK)
         {
             LOG_INFO("Example", "Script executed successfully! Results: " << testVm.testOutput);
 
-            LOG_INFO("Example", "");
             LOG_INFO("Example", "=== Reading modified values back to C++ ===");
 
             // Read the modified values back from the table
@@ -269,16 +276,12 @@ int main(int argc, char* argv[])
                     // Deserialize the modified PositionComponent
                     PositionComponent modifiedPos = deserializeTo<PositionComponent>(&testVm, posIt->second);
 
-                    LOG_INFO("Example", "Modified values from script:");
-                    LOG_INFO("Example", "  x: " << modifiedPos.x << " (was " << pos->x << ")");
-                    LOG_INFO("Example", "  y: " << modifiedPos.y << " (was " << pos->y << ")");
-                    LOG_INFO("Example", "");
+                    LOG_INFO("Example", "Modified values from script, x: " << modifiedPos.x << " (was " << pos->x << ")" <<
+                        "  y: " << modifiedPos.y << " (was " << pos->y << ")");
 
                     // Optionally apply changes back to the entity
                     pos->x = modifiedPos.x;
                     pos->y = modifiedPos.y;
-
-                    LOG_INFO("Example", "Changes applied to entity!");
                 }
             }
         }
@@ -289,8 +292,17 @@ int main(int argc, char* argv[])
         // result = vm.interpret(tokens);
     }
 
+    auto start = std::chrono::high_resolution_clock::now();
+
     VM lastVm;
     auto entityTable = setupVm(lastVm, &ecs, entity.entity);
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+    LOG_INFO("Example", "VM init took: " << duration_ns << " nanoseconds ("
+             << duration_ns / 1000000.0 << " milliseconds)");
+
     result = lastVm.interpretFromBytecodeFile("entity_test.pgc");
 
     if (result == InterpretResult::OK)

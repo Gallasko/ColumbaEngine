@@ -59,11 +59,6 @@ namespace pg
         Value tableValue = vm->createInstance(tableClass);
         ObjInstance* table = vm->asInstance(tableValue);
 
-        // Helper function to add field to table
-        auto addField = [&](const std::string& key, Value value) {
-            table->fields[key] = vm->retainValue(value);
-        };
-
         // Parse the archive and populate the table
         if (archive.mainNode.children.size() > 0)
         {
@@ -72,11 +67,14 @@ namespace pg
             // Add the class name (component type)
             if (!compNode.className.empty())
             {
-                Value classNameKey = vm->createString("__className");
                 Value classNameValue = vm->createString(compNode.className);
-                addField(vm->asString(classNameKey)->toString(), classNameValue);
-                vm->releaseAndDelete(classNameKey);
-                vm->releaseAndDelete(classNameValue);  // Release initial reference
+
+                if (table->fields.find("__className") != table->fields.end())
+                {
+                    vm->releaseAndDelete(table->fields["__className"]);
+                }
+
+                table->fields["__className"] = classNameValue;
             }
 
             // Recursively add all children (component properties)
@@ -85,7 +83,6 @@ namespace pg
                 // If this node has a value (it's a leaf property), add it
                 if (!node.value.empty() && !node.name.empty())
                 {
-                    Value key = vm->createString(node.name);
                     Value value;
 
                     // Convert the string value to appropriate VM type
@@ -97,11 +94,11 @@ namespace pg
                     {
                         value = makeBoolValue(node.value == "true");
                     }
-                    else if (node.type == "float" || node.type == "double")
+                    else if (node.type == "float" or node.type == "double")
                     {
                         value = makeDoubleValue(std::stod(node.value));
                     }
-                    else if (node.type == "size_t" || node.type == "unsigned int")
+                    else if (node.type == "size_t" or node.type == "unsigned int")
                     {
                         value = makeIntValue(std::stoull(node.value));
                     }
@@ -115,13 +112,7 @@ namespace pg
                         value = vm->createString(node.value);
                     }
 
-                    currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(value);
-                    vm->releaseAndDelete(key);
-                    // Only release strings (heap objects), not primitives (int, bool, double)
-                    if (IS_STRING(value))
-                    {
-                        vm->releaseAndDelete(value);
-                    }
+                    currentTable->fields[node.name] = value;
                 }
 
                 // If this node has children, process them
@@ -139,10 +130,12 @@ namespace pg
                             processNode(child, nestedTable);
                         }
 
-                        Value key = vm->createString(node.name);
-                        currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(nestedTableValue);
-                        vm->releaseAndDelete(key);
-                        vm->releaseAndDelete(nestedTableValue);
+                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
+                        {
+                            vm->releaseAndDelete(currentTable->fields[node.name]);
+                        }
+
+                        currentTable->fields[node.name] = nestedTableValue;
                     }
                     else
                     {
@@ -180,9 +173,7 @@ namespace pg
      * @param entity Pointer to the entity to serialize
      * @return Value A VM Value containing the entity table
      */
-    inline Value serializeEntityToTable(VM* vm,
-                                       EntitySystem* ecsRef,
-                                       Entity* entity)
+    inline Value serializeEntityToTable(VM* vm, EntitySystem* ecsRef, Entity* entity)
     {
         // Get the Table class
         auto it = vm->globals.find("__Table");
@@ -200,10 +191,8 @@ namespace pg
         LOG_INFO("ECS Serialization", "Serializing entity ID " << entity->id);
 
         // Add the entity ID
-        Value idKey = vm->createString("__entityId");
         Value idValue = makeIntValue(static_cast<int64_t>(entity->id));
-        entityTable->fields[vm->asString(idKey)->toString()] = vm->retainValue(idValue);
-        vm->releaseAndDelete(idKey);
+        entityTable->fields["__entityId"] = idValue;
 
         // Serialize each component
         for (const auto& compRef : entity->componentList)
@@ -226,10 +215,7 @@ namespace pg
                 }
 
                 // Add to entity table
-                Value compKey = vm->createString(componentTypeName);
-                entityTable->fields[vm->asString(compKey)->toString()] = vm->retainValue(componentTableValue);
-                vm->releaseAndDelete(compKey);
-                vm->releaseAndDelete(componentTableValue);
+                entityTable->fields[componentTypeName] = componentTableValue;
             }
         }
 
