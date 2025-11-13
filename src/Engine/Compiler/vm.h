@@ -126,6 +126,20 @@ namespace pg
                 auto value = stack.pop();
                 releaseAndDelete(value);
             }
+
+            // Destroy all remaining objects in pools (including constants)
+            // This is necessary to properly cleanup objects with complex destructors like ElementType
+            pools.stringPool.destroyAll();
+            pools.closurePool.destroyAll();
+            pools.functionPool.destroyAll();
+            pools.upvaluePool.destroyAll();
+            pools.classPool.destroyAll();
+            pools.nativeFuncPool.destroyAll();
+            pools.instancePool.destroyAll();
+            pools.boundMethodPool.destroyAll();
+
+            // Clear the interned strings map
+            pools.internedStrings.clear();
         }
 
         void reset()
