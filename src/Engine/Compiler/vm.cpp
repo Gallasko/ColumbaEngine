@@ -595,7 +595,11 @@ namespace pg
         // Perform type-specific deletion
         if (IS_STRING(value))
         {
-            pools.stringPool.release(asString(value));
+            // Remove from interned strings map before releasing
+            ElementType* str = asString(value);
+            std::string strContent = str->toString();
+            pools.internedStrings.erase(strContent);
+            pools.stringPool.release(str);
         }
         else if (IS_FUNC(value))
         {
