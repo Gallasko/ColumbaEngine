@@ -462,6 +462,9 @@ namespace pg
             case OpCode::OP_Import:
                 return simpleInstruction("OP_Import", offset);
 
+            case OpCode::OP_Define_Global_Non_Popping:
+                return simpleInstruction("OP_Define_Global_Non_Popping", offset);
+
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
                 return offset + 1;

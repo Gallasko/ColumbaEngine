@@ -15,6 +15,8 @@
 #include "Compiler/pass/basic_operator_local_indexing.h"
 #include "example_math_module.h"
 
+#include "Compiler/pass/remove_def_get_global_redunduncy.h"
+
 using namespace pg;
 
 namespace {
@@ -96,6 +98,7 @@ void CompilerApp::runREPL()
     VM vm;
     vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
     vm.enableBytecodeOptimization();
     vm.enableOptimizationDebugging();
@@ -144,11 +147,12 @@ void CompilerApp::runFile(bool needCompile)
         // vm.addOptimizationPass(std::make_uniqueh
         vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
         vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+        vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
-        // vm.enableBytecodeOptimization();
-        // vm.enableOptimizationDebugging();
+        vm.enableBytecodeOptimization();
+        vm.enableOptimizationDebugging();
 
-        vm.disableBytecodeOptimization();
+        // vm.disableBytecodeOptimization();
 
         std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
