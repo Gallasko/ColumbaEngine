@@ -34,6 +34,36 @@ protected:
         // Register native modules for testing
         vm.addNativeModule("math", MathModule());
         vm.addNativeModule("mathNative", MathModule());
+
+        // Register toString native function
+        vm.registerNative("__toString", [](VM *vm, int argCount, Value* args) -> Value {
+            if (argCount != 1) return makeBoolValue(false);
+
+            std::string str;
+
+            if (IS_STRING(args[0]))
+            {
+                str = vm->asString(args[0])->toString();
+            }
+            else if (IS_INT(args[0]))
+            {
+                str = std::to_string(AS_INT(args[0]));
+            }
+            else if (IS_DOUBLE(args[0]))
+            {
+                str = std::to_string(AS_DOUBLE(args[0]));
+            }
+            else if (IS_BOOL(args[0]))
+            {
+                str = AS_BOOL(args[0]) ? "true" : "false";
+            }
+            else
+            {
+                str = "<unknown>";
+            }
+
+            return vm->createString(str);
+        });
     }
 
     void TearDown() override {
@@ -534,6 +564,11 @@ TEST_F(ScriptTestBench, TestLoopGlobal)
 TEST_F(ScriptTestBench, TestLoopString)
 {
     testScript("testLoopString");
+}
+
+TEST_F(ScriptTestBench, TestStringReleaseRetrack)
+{
+    testScript("testStringReleaseRetrack");
 }
 
 // ============================================================================

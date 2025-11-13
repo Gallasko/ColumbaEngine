@@ -12,10 +12,10 @@
 #ifndef IN_PGCOMPILER_TESTS_BUILD
 // Debugging features
 // Flag used to trace execution step-by-step (With the stack contents)
-#define DEBUG_TRACE_EXECUTION
+// #define DEBUG_TRACE_EXECUTION
 
 // Flag to debug runtime memory management (tracking allocations/frees)
-#define DEBUG_RUNTIME_MEMORY
+// #define DEBUG_RUNTIME_MEMORY
 
 // Flag to unforce stack checks that should never fail
 // #define DEBUG_CHECK_STACK
