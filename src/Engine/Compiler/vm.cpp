@@ -1288,14 +1288,13 @@ namespace pg
             return;
         }
 #endif
-        auto value = vm->pop();
         auto nameValue = vm->pop();
+        auto value = vm->peek();
         auto name = vm->valueToElement(nameValue);
 
         if (not name.isLitteral())
         {
             vm->releaseAndDelete(nameValue);
-            vm->releaseAndDelete(value);
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -1305,7 +1304,6 @@ namespace pg
         if (it == vm->globals.end())
         {
             vm->releaseAndDelete(nameValue);
-            vm->releaseAndDelete(value);
             vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -1313,7 +1311,6 @@ namespace pg
 
         vm->releaseAndDelete(it->second);
         it->second = vm->retainValue(value);
-        vm->push(value);
         vm->releaseAndDelete(nameValue);
     }
 
