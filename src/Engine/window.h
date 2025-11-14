@@ -27,7 +27,7 @@ namespace pg
     // Forward declarations
     class EntitySystem;
     class Input;
-    class UiComponent;
+    // class UiComponent;
     class PgInterpreter;
     class MasterRenderer;
     struct AudioSystem;
@@ -82,7 +82,7 @@ namespace pg
         AudioSystem *audioSystem = nullptr;
 
         EntityRef* screenEntity;
-        CompRef<UiComponent>* screenUi;
+        // CompRef<UiComponent>* screenUi;
 
         Point2D* mousePos;
 

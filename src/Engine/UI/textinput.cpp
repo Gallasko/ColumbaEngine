@@ -25,10 +25,10 @@ namespace pg
 
                 text->text += event.text;
 
-                if (entity->entity->has<SentenceText>())
-                {
-                    entity->entity->get<SentenceText>()->setText(text->text);
-                }
+                // if (entity->entity->has<SentenceText>())
+                // {
+                //     entity->entity->get<SentenceText>()->setText(text->text);
+                // }
 
                 if (entity->entity->has<TTFText>())
                 {
@@ -70,10 +70,10 @@ namespace pg
 
                         ecsRef->sendEvent(event);
 
-                        if (entity->entity->has<SentenceText>())
-                        {
-                            entity->entity->get<SentenceText>()->setText(text->text);
-                        }
+                        // if (entity->entity->has<SentenceText>())
+                        // {
+                        //     entity->entity->get<SentenceText>()->setText(text->text);
+                        // }
 
                         if (entity->entity->has<TTFText>())
                         {
@@ -101,10 +101,10 @@ namespace pg
                             }
                         }
 
-                        if (entity->entity->has<SentenceText>())
-                        {
-                            entity->entity->get<SentenceText>()->setText(text->text);
-                        }
+                        // if (entity->entity->has<SentenceText>())
+                        // {
+                        //     entity->entity->get<SentenceText>()->setText(text->text);
+                        // }
 
                         if (entity->entity->has<TTFText>())
                         {

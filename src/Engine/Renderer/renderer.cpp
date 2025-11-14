@@ -40,25 +40,25 @@ namespace pg
         LOG_INFO("RenderCall", "Data values: " << dataString);
     }
 
-    void RenderCall::processUiComponent(UiComponent *component)
-    {
-        setVisibility(component->isVisible());
+    // void RenderCall::processUiComponent(UiComponent *component)
+    // {
+    //     setVisibility(component->isVisible());
 
-        if (not component->isWindowClipped())
-        {
-            state.scissorEnabled = true;
-            float tx = component->clipTopLeft.horizontalAnchor;
-            float ty = component->clipTopLeft.verticalAnchor;
+    //     if (not component->isWindowClipped())
+    //     {
+    //         state.scissorEnabled = true;
+    //         float tx = component->clipTopLeft.horizontalAnchor;
+    //         float ty = component->clipTopLeft.verticalAnchor;
 
-            float bx = component->clipBottomRight.horizontalAnchor;
-            float by = component->clipBottomRight.verticalAnchor;
+    //         float bx = component->clipBottomRight.horizontalAnchor;
+    //         float by = component->clipBottomRight.verticalAnchor;
 
-            // To get width and height you need to subtract bottom corner to the top corner
-            state.scissorBound = constant::Vector4D{tx, ty, bx - tx, by - ty};
-        }
+    //         // To get width and height you need to subtract bottom corner to the top corner
+    //         state.scissorBound = constant::Vector4D{tx, ty, bx - tx, by - ty};
+    //     }
 
-        setDepth(component->pos.z);
-    }
+    //     setDepth(component->pos.z);
+    // }
 
     void RenderCall::processPositionComponent(CompRef<PositionComponent> component)
     {

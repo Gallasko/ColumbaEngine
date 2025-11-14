@@ -8,7 +8,7 @@
 #include <chrono>
 
 #include "ECS/entitysystem.h"
-#include "ECS/loggersystem.h" 
+#include "ECS/loggersystem.h"
 #include "ECS/ecsmodule.h"
 #include "Input/inputcomponent.h"
 
@@ -137,7 +137,7 @@ namespace pg
     {
         ecs = new EntitySystem(savePath);
         screenEntity = nullptr;
-        screenUi = nullptr;
+        // screenUi = nullptr;
         mousePos = new Point2D();
         terminalSink = new std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
 
@@ -157,14 +157,14 @@ namespace pg
         interpreter->addSystemFunction<ToString>("toString");
 
         interpreter->addSystemModule("log", LogModule{*static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink)});
-        interpreter->addSystemModule("ui", UiModule{ecs});
+        // interpreter->addSystemModule("ui", UiModule{ecs});
         interpreter->addSystemModule("2Dshapes", Shape2DModule{ecs});
         interpreter->addSystemModule("2Dtexture", Texture2DModule{ecs});
         interpreter->addSystemModule("time", TimeModule{ecs});
         interpreter->addSystemModule("ecs", EcsModule{ecs});
         interpreter->addSystemModule("core", CoreModule{ecs});
         interpreter->addSystemModule("input", InputModule{ecs});
-        interpreter->addSystemModule("uitext", SentenceModule{ecs});
+        // interpreter->addSystemModule("uitext", SentenceModule{ecs});
         interpreter->addSystemModule("scene", SceneModule{ecs});
         interpreter->addSystemModule("audio", AudioModule{ecs});
 
@@ -183,9 +183,9 @@ namespace pg
 
         ecs->stop();
         delete ecs;
-        
+
         delete screenEntity;
-        delete screenUi;
+        // delete screenUi;
         delete mousePos;
         delete static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink);
 
@@ -398,7 +398,7 @@ namespace pg
 
         ecs->createSystem<OnEventComponentSystem>();
 
-        ecs->createSystem<UiComponentSystem>();
+        // ecs->createSystem<UiComponentSystem>();
 
         ecs->createSystem<PositionComponentSystem>();
         ecs->createSystem<NamedUiAnchorSystem>();
@@ -409,7 +409,7 @@ namespace pg
 
         ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);
 
-        ecs->createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
+        // ecs->createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
 
         ecs->createSystem<AnimationPositionSystem>();
 
@@ -446,8 +446,8 @@ namespace pg
 
         ecs->succeed<MouseClickSystem, TickingSystem>();
 
-        ecs->succeed<UiComponentSystem, PrefabSystem>();
-        ecs->succeed<UiComponentSystem, MouseClickSystem>();
+        // ecs->succeed<UiComponentSystem, PrefabSystem>();
+        // ecs->succeed<UiComponentSystem, MouseClickSystem>();
 
         ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();
         ecs->succeed<PositionComponentSystem, ProgressBarComponentSystem>();
@@ -460,11 +460,11 @@ namespace pg
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs->succeed<MasterRenderer, Simple2DObjectSystem>();
         ecs->succeed<MasterRenderer, Texture2DComponentSystem>();
-        ecs->succeed<MasterRenderer, SentenceSystem>();
+        // ecs->succeed<MasterRenderer, SentenceSystem>();
         ecs->succeed<MasterRenderer, ProgressBarComponentSystem>();
         ecs->succeed<MasterRenderer, PrefabSystem>();
 
-        ecs->succeed<MasterRenderer, UiComponentSystem>();
+        // ecs->succeed<MasterRenderer, UiComponentSystem>();
         ecs->succeed<MasterRenderer, PositionComponentSystem>();
 
         ecs->succeed<SceneElementSystem, MasterRenderer>();
@@ -478,11 +478,11 @@ namespace pg
         delete screenEntity;
         screenEntity = new EntityRef(ecs->createEntity());
         // Todo remove this
-        delete screenUi;
-        screenUi = new CompRef<UiComponent>(ecs->attach<UiComponent>(*screenEntity));
-        (*screenUi)->width = width;
-        (*screenUi)->height = height;
-        (*screenUi)->setZ(-1);
+        // delete screenUi;
+        // screenUi = new CompRef<UiComponent>(ecs->attach<UiComponent>(*screenEntity));
+        // (*screenUi)->width = width;
+        // (*screenUi)->height = height;
+        // (*screenUi)->setZ(-1);
 
         auto screenPos = ecs->attach<PositionComponent>(*screenEntity);
         screenPos->setWidth(width);
@@ -495,7 +495,7 @@ namespace pg
 
         ecs->attach<MouseLeftClickComponent>(*screenEntity, makeCallable<OnFocus>(screenEntity->id));
 
-        (*screenUi)->update();
+        // (*screenUi)->update();
 
         ecs->attach<EntityName>(*screenEntity, "__MainWindow");
 
@@ -623,15 +623,15 @@ namespace pg
             pos->setHeight(height);
         }
 
-        if (areNotAlmostEqual((*screenUi)->width, width))
-        {
-            (*screenUi)->setWidth(width);
-        }
+        // if (areNotAlmostEqual((*screenUi)->width, width))
+        // {
+        //     (*screenUi)->setWidth(width);
+        // }
 
-        if (areNotAlmostEqual((*screenUi)->height, height))
-        {
-            (*screenUi)->setHeight(height);
-        }
+        // if (areNotAlmostEqual((*screenUi)->height, height))
+        // {
+        //     (*screenUi)->setHeight(height);
+        // }
 
         ecs->sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});
     }

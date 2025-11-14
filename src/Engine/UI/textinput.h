@@ -100,10 +100,10 @@ namespace pg
 
             text->text = event.text;
 
-            if (ent->has<SentenceText>())
-            {
-                ent->get<SentenceText>()->setText(text->text);
-            }
+            // if (ent->has<SentenceText>())
+            // {
+            //     ent->get<SentenceText>()->setText(text->text);
+            // }
 
             if (ent->has<TTFText>())
             {
@@ -118,33 +118,33 @@ namespace pg
         Input *inputHandler;
     };
 
-    template <typename Type>
-    CompList<PositionComponent, UiAnchor, SentenceText, FocusableComponent, TextInputComponent> makeTextInput(Type *ecs, float x, float y, StandardEvent event, const SentenceText& defaultText = {"Input"})
-    {
-        LOG_THIS("Text Input System");
+    // template <typename Type>
+    // CompList<PositionComponent, UiAnchor, SentenceText, FocusableComponent, TextInputComponent> makeTextInput(Type *ecs, float x, float y, StandardEvent event, const SentenceText& defaultText = {"Input"})
+    // {
+    //     LOG_THIS("Text Input System");
 
-        auto entity = ecs->createEntity();
+    //     auto entity = ecs->createEntity();
 
-        auto ui = ecs->template attach<PositionComponent>(entity);
+    //     auto ui = ecs->template attach<PositionComponent>(entity);
 
-        ui->setX(x);
-        ui->setY(y);
+    //     ui->setX(x);
+    //     ui->setY(y);
 
-        auto sentence = ecs->template attach<SentenceText>(entity, defaultText);
+    //     auto sentence = ecs->template attach<SentenceText>(entity, defaultText);
 
-        ui->setWidth(sentence->textWidth);
-        ui->setHeight(sentence->textHeight);
+    //     ui->setWidth(sentence->textWidth);
+    //     ui->setHeight(sentence->textHeight);
 
-        auto anchor = ecs->template attach<UiAnchor>(entity);
+    //     auto anchor = ecs->template attach<UiAnchor>(entity);
 
-        auto focused = ecs->template attach<FocusableComponent>(entity);
+    //     auto focused = ecs->template attach<FocusableComponent>(entity);
 
-        ecs->template attach<MouseLeftClickComponent>(entity, makeCallable<OnFocus>(OnFocus{entity.id}) );
+    //     ecs->template attach<MouseLeftClickComponent>(entity, makeCallable<OnFocus>(OnFocus{entity.id}) );
 
-        auto textInputComp = ecs->template attach<TextInputComponent>(entity, event, defaultText.getText());
+    //     auto textInputComp = ecs->template attach<TextInputComponent>(entity, event, defaultText.getText());
 
-        return {entity, ui, anchor, sentence, focused, textInputComp};
-    }
+    //     return {entity, ui, anchor, sentence, focused, textInputComp};
+    // }
 
     template <typename Type>
     CompList<PositionComponent, UiAnchor, TTFText, FocusableComponent, TextInputComponent> makeTTFTextInput(Type *ecs, float x, float y, StandardEvent event, const std::string& font, const std::string& defaultText = "Input", float size = 1)
