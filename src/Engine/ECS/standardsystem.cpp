@@ -159,12 +159,30 @@ namespace pg
         {
             LOG_THIS_MEMBER("StandardSystemImpl");
 
+            if (serializedData.isNull())
+            {
+                LOG_ERROR("StandardSystemImpl", "Serialized data is null");
+                return;
+            }
+
             if (loadCallback)
             {
                 std::unordered_map<std::string, ElementType> loadData;
 
-                // TODO: Implement deserialization based on your UnserializedObject structure
-                // This is a placeholder - you'll need to adapt to your serialization format
+                // Iterate through all children in the serialized object
+                // Each child is a key-value pair that was saved
+                for (const auto& child : serializedData.children)
+                {
+                    const std::string& key = child.getObjectName();
+
+                    // Deserialize the ElementType value
+                    ElementType value;
+                    defaultDeserialize(serializedData, key, value);
+
+                    loadData[key] = value;
+                }
+
+                LOG_INFO("StandardSystemImpl", "Loaded " << loadData.size() << " values from save data");
 
                 loadCallback(&handle, loadData);
             }
