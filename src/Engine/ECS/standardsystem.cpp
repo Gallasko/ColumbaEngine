@@ -5,38 +5,80 @@
 
 namespace pg
 {
-    // Internal implementation of the standard system
-    // This hides all the template complexity from the user
-    class StandardSystemImpl : public System<Listener<StandardEvent>, InitSys>
+    // Simple base system - no templates, everything added manually
+    class StandardSystemImpl : public AbstractSystem
     {
     public:
-        StandardSystemImpl(const std::string& name, const std::vector<std::string>& eventNames, StandardSystemBuilder::InitCallback initCb,
-            StandardSystemBuilder::EventCallback eventCb, StandardSystemBuilder::ExecuteCallback executeCb) :
-            systemName(name), listenedEvents(eventNames), initCallback(initCb), eventCallback(eventCb), executeCallback(executeCb)
+        StandardSystemImpl(const std::string& name,
+                          const std::vector<std::string>& eventNames,
+                          const std::vector<std::string>& componentNames,
+                          StandardSystemBuilder::InitCallback initCb,
+                          StandardSystemBuilder::EventCallback eventCb,
+                          StandardSystemBuilder::ExecuteCallback executeCb)
+            : systemName(name)
+            , listenedEvents(eventNames)
+            , ownedComponents(componentNames)
+            , initCallback(initCb)
+            , eventCallback(eventCb)
+            , executeCallback(executeCb)
         {
             handle._internalSystemPtr = this;
         }
 
-        virtual ~StandardSystemImpl() override = default;
+        virtual ~StandardSystemImpl() override
+        {
+            removeFromRegistry();
+        }
 
-        virtual void init() override
+        void setRegistry(EntitySystem* ecs)
         {
             LOG_THIS_MEMBER("StandardSystemImpl");
 
-            // Register for all requested standard events
-            for (const auto& eventName : listenedEvents)
+            ecsRef = ecs;
+            registry = &(ecs->registry);
+
+            // Create and register Own<StandardComponent> for each component type
+            for (const auto& componentName : ownedComponents)
             {
-                addListenerToStandardEvent(eventName);
+                auto* owner = new Own<StandardComponent>(componentName);
+                owner->setRegistry(registry);
+                componentOwners[componentName] = owner;
+
+                LOG_INFO("StandardSystemImpl", "Registered component owner for: " << componentName);
             }
 
-            // Call user init callback
-            if (initCallback)
+            // Register event listeners
+            for (const auto& eventName : listenedEvents)
             {
-                initCallback(&handle);
+                registry->addStandardEventListener(eventName, this);
+            }
+
+            LOG_INFO("StandardSystemImpl", "System fully registered with " << componentOwners.size() << " components and " << listenedEvents.size() << " events");
+        }
+
+        virtual void removeFromRegistry() override
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            // Unregister all components
+            if (registry)
+            {
+                for (auto& [typeName, owner] : componentOwners)
+                {
+                    owner->unsetRegistry(registry);
+                    delete owner;
+                }
+                componentOwners.clear();
+
+                // Unregister event listeners
+                for (const auto& eventName : listenedEvents)
+                {
+                    registry->removeStandardEventListener(eventName, this);
+                }
             }
         }
 
-        virtual void onEvent(const StandardEvent& event) override
+        void onEvent(const StandardEvent& event)
         {
             LOG_THIS_MEMBER("StandardSystemImpl");
 
@@ -44,6 +86,17 @@ namespace pg
             if (eventCallback)
             {
                 eventCallback(&handle, event);
+            }
+        }
+
+        virtual void onRegisterFinished() override
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            // Call user init callback
+            if (initCallback)
+            {
+                initCallback(&handle);
             }
         }
 
@@ -65,9 +118,17 @@ namespace pg
 
         StandardSystemHandle& getHandle() { return handle; }
 
+        Own<StandardComponent>* getComponentOwner(const std::string& typeName)
+        {
+            auto it = componentOwners.find(typeName);
+            return (it != componentOwners.end()) ? it->second : nullptr;
+        }
+
     private:
         std::string systemName;
         std::vector<std::string> listenedEvents;
+        std::vector<std::string> ownedComponents;
+        std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
         StandardSystemHandle handle;
 
         StandardSystemBuilder::InitCallback initCallback;
@@ -446,6 +507,7 @@ namespace pg
             system = new StandardSystemImpl(
                 data.systemName,
                 data.eventNames,
+                data.componentNames,
                 data.initCallback,
                 data.eventCallback,
                 data.executeCallback
