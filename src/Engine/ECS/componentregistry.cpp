@@ -71,15 +71,16 @@ namespace pg
         {
             LOG_INFO("Standard", "Deserializing StandardComponent");
 
-            StandardComponent data;
+            std::string typeName;
+            defaultDeserialize(serializedString, "typeName", typeName);
 
-            defaultDeserialize(serializedString, "typeName", data.typeName);
+            StandardComponent data(typeName);
             defaultDeserialize(serializedString, "properties", data.properties);
 
             return data;
         }
 
-        return StandardComponent{};
+        return StandardComponent("");
     }
 
     ComponentRegistry::ComponentRegistry(EntitySystem *ecs) : ecsRef(ecs)
@@ -142,6 +143,60 @@ namespace pg
         {
             eventListener.second(event);
         }
+    }
+
+    // ============================================================================
+    // StandardComponent Management Implementation
+    // ============================================================================
+
+    void ComponentRegistry::storeStandardComponent(const std::string& typeName, Own<StandardComponent>* owner)
+    {
+        LOG_THIS_MEMBER("Component Registry");
+        LOG_INFO("Component Registry", "Registering StandardComponent type: " << typeName);
+
+        standardComponentStorageMap[typeName] = owner;
+    }
+
+    void ComponentRegistry::unstoreStandardComponent(const std::string& typeName)
+    {
+        LOG_THIS_MEMBER("Component Registry");
+        LOG_INFO("Component Registry", "Unregistering StandardComponent type: " << typeName);
+
+        auto it = standardComponentStorageMap.find(typeName);
+        if (it != standardComponentStorageMap.end())
+        {
+            standardComponentStorageMap.erase(it);
+        }
+    }
+
+    Own<StandardComponent>* ComponentRegistry::retrieveStandardComponent(const std::string& typeName) const
+    {
+        LOG_THIS_MEMBER("Component Registry");
+
+        auto it = standardComponentStorageMap.find(typeName);
+        if (it != standardComponentStorageMap.end())
+        {
+            return it->second;
+        }
+
+        LOG_WARNING("Component Registry", "StandardComponent type '" << typeName << "' not registered");
+        return nullptr;
+    }
+
+    bool ComponentRegistry::hasStandardComponent(const std::string& typeName) const
+    {
+        return standardComponentStorageMap.find(typeName) != standardComponentStorageMap.end();
+    }
+
+    std::vector<std::string> ComponentRegistry::getStandardComponentTypes() const
+    {
+        std::vector<std::string> types;
+        types.reserve(standardComponentStorageMap.size());
+        for (const auto& [typeName, _] : standardComponentStorageMap)
+        {
+            types.push_back(typeName);
+        }
+        return types;
     }
 
 }
