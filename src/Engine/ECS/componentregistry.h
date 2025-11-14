@@ -230,6 +230,8 @@ namespace pg
     template<>
     void serialize(Archive& archive, const StandardComponent& event);
 
+    // Forward of the standard component owner
+    struct Own<StandardComponent>;
 
     class ComponentRegistry
     {
@@ -286,6 +288,44 @@ namespace pg
 
             return static_cast<Own<Type>*>(componentStorageMap.at(id));
         }
+
+        /**
+         * @brief Register a StandardComponent type by name
+         *
+         * @param typeName The string name of the component type
+         * @param owner Pointer to the Own<StandardComponent> that manages this type
+         */
+        void storeStandardComponent(const std::string& typeName, Own<StandardComponent>* owner);
+
+        /**
+         * @brief Unregister a StandardComponent type by name
+         *
+         * @param typeName The string name of the component type
+         */
+        void unstoreStandardComponent(const std::string& typeName);
+
+        /**
+         * @brief Retrieve the owner of a StandardComponent type by name
+         *
+         * @param typeName The string name of the component type
+         * @return Own<StandardComponent>* Pointer to the owner, or nullptr if not found
+         */
+        Own<StandardComponent>* retrieveStandardComponent(const std::string& typeName) const;
+
+        /**
+         * @brief Check if a StandardComponent type is registered
+         *
+         * @param typeName The string name of the component type
+         * @return bool True if registered, false otherwise
+         */
+        bool hasStandardComponent(const std::string& typeName) const;
+
+        /**
+         * @brief Get all registered StandardComponent type names
+         *
+         * @return std::vector<std::string> List of registered type names
+         */
+        std::vector<std::string> getStandardComponentTypes() const;
 
         template <typename Event, typename EventListener>
         void addEventListener(EventListener* listener)
@@ -616,6 +656,9 @@ namespace pg
         std::unordered_map<_unique_id, std::unordered_map<intptr_t, std::function<void(const std::any&)>>> eventStorageMap;
         std::unordered_map<std::string, std::unordered_map<intptr_t, std::function<void(const StandardEvent&)>>> standardEventStorageMap;
 
+        // StandardComponent storage: typeName -> owner mapping
+        mutable std::unordered_map<std::string, Own<StandardComponent>*> standardComponentStorageMap;
+
         Serializer systemSerializer;
     };
 
@@ -845,5 +888,234 @@ namespace pg
         Comp* component;
         _unique_id entityId;
         const EntitySystem* ecsRef;
+    };
+
+    // ============================================================================
+    // Template Specializations for StandardComponent
+    // ============================================================================
+
+    /**
+     * @brief Specialization of Ref for StandardComponent
+     *
+     * This specialization can reference StandardComponents by typeName
+     */
+    template <>
+    struct Ref<StandardComponent>
+    {
+        Ref(const std::string& typeName) : ref(nullptr), typeName(typeName)
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+        }
+
+        Ref(Own<StandardComponent>* ref, const std::string& typeName) : ref(ref), typeName(typeName)
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+        }
+
+        virtual ~Ref()
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+        }
+
+        void setTypeName(const std::string& name)
+        {
+            typeName = name;
+        }
+
+        void setRegistry(ComponentRegistry* registry)
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+
+            if (not registry)
+            {
+                LOG_ERROR("ECS", "Cannot set a null registry");
+                return;
+            }
+
+            if (typeName.empty())
+            {
+                LOG_ERROR("ECS", "Cannot retrieve an empty type name in registry");
+                return;
+            }
+            else
+            {
+                ref = registry->retrieveStandardComponent(typeName);
+
+                if (!ref)
+                {
+                    LOG_ERROR("ECS", "StandardComponent with typeName '" << typeName << "' not registered");
+                }
+            }
+        }
+
+        template <typename... Args>
+        inline StandardComponent* internalCreateComponent(Entity* entity, Args&&... args)
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+            return ref->internalCreateComponent(entity, std::forward<Args>(args)...);
+        }
+
+        inline void internalRemoveComponent(Entity* entity)
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+            ref->internalRemoveComponent(entity);
+        }
+
+        inline typename ComponentSet<StandardComponent>::ComponentSetList view() const
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+            return ref->view();
+        }
+
+        inline _unique_id getId() const
+        {
+            return ref->getId();
+        }
+
+        const std::string& getTypeName() const
+        {
+            return typeName;
+        }
+
+        Own<StandardComponent>* ref;
+
+    private:
+        std::string typeName;
+    };
+
+    /**
+     * @brief Specialization of Own for StandardComponent
+     *
+     * This specialization stores StandardComponents by their typeName string
+     * instead of using the C++ template type system.
+     */
+    template <>
+    struct Own<StandardComponent> : public Ref<StandardComponent>
+    {
+        Own(const std::string& typeName) : Ref<StandardComponent>(this, typeName), typeName(typeName)
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+        }
+
+        virtual ~Own()
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+        }
+
+        /**
+         * @brief Set the type name for this StandardComponent owner
+         */
+        void setTypeName(const std::string& name)
+        {
+            typeName = name;
+        }
+
+        /**
+         * @brief Register this owner in the registry with string-based storage
+         */
+        void setRegistry(ComponentRegistry* registry)
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+
+            if (typeName.empty())
+            {
+                LOG_ERROR("Own<StandardComponent>", "No typeName set, cannot store an unnamed standard component owner");
+            }
+            else
+            {
+                LOG_INFO("Own<StandardComponent>", "Registering StandardComponent with typeName: " << typeName);
+                registry->storeStandardComponent(typeName, this);
+            }
+        }
+
+        /**
+         * @brief Unregister this owner from the registry
+         */
+        void unsetRegistry(ComponentRegistry* registry)
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+
+            if (typeName.empty())
+            {
+                LOG_ERROR("Own<StandardComponent>", "No typeName set, cannot unstore an unnamed standard component owner");
+            }
+            else
+            {
+                LOG_INFO("Own<StandardComponent>", "Unregistering StandardComponent with typeName: " << typeName);
+                registry->unstoreStandardComponent(typeName);
+            }
+        }
+
+        template <typename... Args>
+        inline StandardComponent* internalCreateComponent(Entity* entity, Args&&... args)
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+
+            auto comp = components.addComponent(entity, std::forward<Args>(args)...);
+
+            if (!typeName.empty())
+            {
+                comp->typeName = typeName;
+            }
+            else
+            {
+                LOG_ERROR("Own<StandardComponent>", "Cannot get an unnamed component");
+                return nullptr;
+            }
+
+            entity->componentList.emplace(_componentId);
+
+            for (const auto& callback : onComponentCreation)
+                callback.second(entity);
+
+            return comp;
+        }
+
+        inline void internalRemoveComponent(Entity* entity)
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+
+            for (const auto& callback : onComponentDeletion)
+                callback.second(entity);
+
+            auto it = std::find(entity->componentList.begin(), entity->componentList.end(), _componentId);
+
+            if (it != entity->componentList.end())
+                entity->componentList.erase(it);
+
+            if (components.has(entity->id))
+                components.removeComponent(entity);
+        }
+
+        inline StandardComponent* getComponent(_unique_id id) const
+        {
+            return components.atEntity(id);
+        }
+
+        inline typename ComponentSet<StandardComponent>::ComponentSetList view() const
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+            return components.viewComponents();
+        }
+
+        inline _unique_id getId() const
+        {
+            return _componentId;
+        }
+
+        const std::string& getTypeName() const
+        {
+            return typeName;
+        }
+
+        ComponentSet<StandardComponent> components;
+
+        std::map<_unique_id, void(*)(EntityRef)> onComponentCreation;
+        std::map<_unique_id, void(*)(EntityRef)> onComponentDeletion;
+
+        _unique_id _componentId = 0;
+
+    private:
+        std::string typeName;
     };
 }
