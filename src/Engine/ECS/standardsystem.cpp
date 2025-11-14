@@ -237,20 +237,83 @@ namespace pg
 
     StandardComponent* StandardSystemHandle::createComponent(size_t entityId, const std::string& componentType)
     {
-        // TODO: Implement based on your component system
-        // This would need integration with your component registry
-        return nullptr;
+        if (!_internalSystemPtr)
+            return nullptr;
+
+        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
+
+        // Get the component owner for this type
+        auto* owner = sys->getComponentOwner(componentType);
+        if (!owner)
+        {
+            LOG_WARNING("StandardSystemHandle", "Component type '" << componentType << "' is not owned by this system");
+            return nullptr;
+        }
+
+        // Get the entity
+        auto* entity = sys->world()->getEntity(entityId);
+        if (!entity)
+        {
+            LOG_ERROR("StandardSystemHandle", "Entity " << entityId << " does not exist");
+            return nullptr;
+        }
+
+        // Create the component with the typeName set
+        auto* comp = owner->internalCreateComponent(entity, componentType);
+
+        LOG_INFO("StandardSystemHandle", "Created StandardComponent '" << componentType << "' for entity " << entityId);
+
+        return comp;
     }
 
     void StandardSystemHandle::removeComponent(size_t entityId, const std::string& componentType)
     {
-        // TODO: Implement based on your component system
+        if (!_internalSystemPtr)
+            return;
+
+        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
+
+        // Get the component owner for this type
+        auto* owner = sys->getComponentOwner(componentType);
+        if (!owner)
+        {
+            LOG_WARNING("StandardSystemHandle", "Component type '" << componentType << "' is not owned by this system");
+            return;
+        }
+
+        // Get the entity
+        auto* entity = sys->world()->getEntity(entityId);
+        if (!entity)
+        {
+            LOG_ERROR("StandardSystemHandle", "Entity " << entityId << " does not exist");
+            return;
+        }
+
+        // Remove the component
+        owner->internalRemoveComponent(entity);
+
+        LOG_INFO("StandardSystemHandle", "Removed StandardComponent '" << componentType << "' from entity " << entityId);
     }
 
     StandardComponent* StandardSystemHandle::getComponent(size_t entityId, const std::string& componentType)
     {
-        // TODO: Implement based on your component system
-        return nullptr;
+        if (!_internalSystemPtr)
+            return nullptr;
+
+        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
+
+        // Get the component owner for this type
+        auto* owner = sys->getComponentOwner(componentType);
+        if (!owner)
+        {
+            LOG_WARNING("StandardSystemHandle", "Component type '" << componentType << "' is not owned by this system");
+            return nullptr;
+        }
+
+        // Get the component for this entity
+        auto* comp = owner->getComponent(entityId);
+
+        return comp;
     }
 
     // ============================================================================
