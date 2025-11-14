@@ -6,23 +6,36 @@
 namespace pg
 {
     // Simple base system - no templates, everything added manually
+    // This system supports all features based on configuration
     class StandardSystemImpl : public AbstractSystem
     {
     public:
         StandardSystemImpl(const std::string& name,
                           const std::vector<std::string>& eventNames,
                           const std::vector<std::string>& componentNames,
+                          bool saveLoadEnabled,
                           StandardSystemBuilder::InitCallback initCb,
                           StandardSystemBuilder::EventCallback eventCb,
-                          StandardSystemBuilder::ExecuteCallback executeCb)
+                          StandardSystemBuilder::ExecuteCallback executeCb,
+                          StandardSystemBuilder::SaveCallback saveCb,
+                          StandardSystemBuilder::LoadCallback loadCb,
+                          StandardSystemBuilder::InitCallback firstLoadCb)
             : systemName(name)
             , listenedEvents(eventNames)
             , ownedComponents(componentNames)
+            , saveLoadEnabled(saveLoadEnabled)
             , initCallback(initCb)
             , eventCallback(eventCb)
             , executeCallback(executeCb)
+            , saveCallback(saveCb)
+            , loadCallback(loadCb)
+            , firstLoadCallback(firstLoadCb)
         {
             handle._internalSystemPtr = this;
+            if (saveLoadEnabled)
+            {
+                saveable = true;
+            }
         }
 
         virtual ~StandardSystemImpl() override
@@ -124,82 +137,10 @@ namespace pg
             return (it != componentOwners.end()) ? it->second : nullptr;
         }
 
-    private:
-        std::string systemName;
-        std::vector<std::string> listenedEvents;
-        std::vector<std::string> ownedComponents;
-        std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
-        StandardSystemHandle handle;
-
-        StandardSystemBuilder::InitCallback initCallback;
-        StandardSystemBuilder::EventCallback eventCallback;
-        StandardSystemBuilder::ExecuteCallback executeCallback;
-    };
-
-    // Saveable variant
-    class StandardSystemImplSaveable : public System<Listener<StandardEvent>, InitSys, SaveSys>
-    {
-    public:
-        StandardSystemImplSaveable(const std::string& name,
-                                  const std::vector<std::string>& eventNames,
-                                  StandardSystemBuilder::InitCallback initCb,
-                                  StandardSystemBuilder::EventCallback eventCb,
-                                  StandardSystemBuilder::ExecuteCallback executeCb,
-                                  StandardSystemBuilder::SaveCallback saveCb,
-                                  StandardSystemBuilder::LoadCallback loadCb,
-                                  StandardSystemBuilder::InitCallback firstLoadCb)
-            : systemName(name)
-            , listenedEvents(eventNames)
-            , initCallback(initCb)
-            , eventCallback(eventCb)
-            , executeCallback(executeCb)
-            , saveCallback(saveCb)
-            , loadCallback(loadCb)
-            , firstLoadCallback(firstLoadCb)
+        // Save/load methods (called when saveLoadEnabled is true)
+        void save(Archive& archive)
         {
-            handle._internalSystemPtr = this;
-        }
-
-        virtual ~StandardSystemImplSaveable() override = default;
-
-        virtual void init() override
-        {
-            LOG_THIS_MEMBER("StandardSystemImplSaveable");
-
-            for (const auto& eventName : listenedEvents)
-            {
-                addListenerToStandardEvent(eventName);
-            }
-
-            if (initCallback)
-            {
-                initCallback(&handle);
-            }
-        }
-
-        virtual void onEvent(const StandardEvent& event) override
-        {
-            LOG_THIS_MEMBER("StandardSystemImplSaveable");
-
-            if (eventCallback)
-            {
-                eventCallback(&handle, event);
-            }
-        }
-
-        virtual void execute() override
-        {
-            LOG_THIS_MEMBER("StandardSystemImplSaveable");
-
-            if (executeCallback)
-            {
-                executeCallback(&handle);
-            }
-        }
-
-        virtual void save(Archive& archive) override
-        {
-            LOG_THIS_MEMBER("StandardSystemImplSaveable");
+            LOG_THIS_MEMBER("StandardSystemImpl");
 
             if (saveCallback)
             {
@@ -214,15 +155,14 @@ namespace pg
             }
         }
 
-        virtual void load(const UnserializedObject& serializedData) override
+        void load(const UnserializedObject& serializedData)
         {
-            LOG_THIS_MEMBER("StandardSystemImplSaveable");
+            LOG_THIS_MEMBER("StandardSystemImpl");
 
             if (loadCallback)
             {
                 std::unordered_map<std::string, ElementType> loadData;
 
-                // Deserialize the data
                 // TODO: Implement deserialization based on your UnserializedObject structure
                 // This is a placeholder - you'll need to adapt to your serialization format
 
@@ -230,9 +170,9 @@ namespace pg
             }
         }
 
-        virtual void firstLoad() override
+        void firstLoad()
         {
-            LOG_THIS_MEMBER("StandardSystemImplSaveable");
+            LOG_THIS_MEMBER("StandardSystemImpl");
 
             if (firstLoadCallback)
             {
@@ -240,17 +180,14 @@ namespace pg
             }
         }
 
-        virtual std::string getSystemName() const override
-        {
-            return systemName;
-        }
-
-        StandardSystemHandle& getHandle() { return handle; }
-
     private:
         std::string systemName;
         std::vector<std::string> listenedEvents;
+        std::vector<std::string> ownedComponents;
+        std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
         StandardSystemHandle handle;
+
+        bool saveLoadEnabled;
 
         StandardSystemBuilder::InitCallback initCallback;
         StandardSystemBuilder::EventCallback eventCallback;
@@ -258,65 +195,6 @@ namespace pg
         StandardSystemBuilder::SaveCallback saveCallback;
         StandardSystemBuilder::LoadCallback loadCallback;
         StandardSystemBuilder::InitCallback firstLoadCallback;
-    };
-
-    // Storage policy variant
-    class StandardSystemImplStorage : public System<Listener<StandardEvent>, StoragePolicy, InitSys>
-    {
-    public:
-        StandardSystemImplStorage(const std::string& name,
-                                 const std::vector<std::string>& eventNames,
-                                 StandardSystemBuilder::InitCallback initCb,
-                                 StandardSystemBuilder::EventCallback eventCb)
-            : systemName(name)
-            , listenedEvents(eventNames)
-            , initCallback(initCb)
-            , eventCallback(eventCb)
-        {
-            handle._internalSystemPtr = this;
-        }
-
-        virtual ~StandardSystemImplStorage() override = default;
-
-        virtual void init() override
-        {
-            LOG_THIS_MEMBER("StandardSystemImplStorage");
-
-            for (const auto& eventName : listenedEvents)
-            {
-                addListenerToStandardEvent(eventName);
-            }
-
-            if (initCallback)
-            {
-                initCallback(&handle);
-            }
-        }
-
-        virtual void onEvent(const StandardEvent& event) override
-        {
-            LOG_THIS_MEMBER("StandardSystemImplStorage");
-
-            if (eventCallback)
-            {
-                eventCallback(&handle, event);
-            }
-        }
-
-        virtual std::string getSystemName() const override
-        {
-            return systemName;
-        }
-
-        StandardSystemHandle& getHandle() { return handle; }
-
-    private:
-        std::string systemName;
-        std::vector<std::string> listenedEvents;
-        StandardSystemHandle handle;
-
-        StandardSystemBuilder::InitCallback initCallback;
-        StandardSystemBuilder::EventCallback eventCallback;
     };
 
     // ============================================================================
@@ -476,46 +354,26 @@ namespace pg
 
     AbstractSystem* StandardSystemBuilder::build()
     {
-        AbstractSystem* system = nullptr;
+        // Create a single StandardSystemImpl with all features
+        auto* system = new StandardSystemImpl(
+            data.systemName,
+            data.eventNames,
+            data.componentNames,
+            data.saveLoadEnabled,
+            data.initCallback,
+            data.eventCallback,
+            data.executeCallback,
+            data.saveCallback,
+            data.loadCallback,
+            data.firstLoadCallback
+        );
 
-        // Create the appropriate system variant based on configuration
-        if (data.saveLoadEnabled)
+        // Apply execution policy
+        if (data.executionPolicy == "storage")
         {
-            system = new StandardSystemImplSaveable(
-                data.systemName,
-                data.eventNames,
-                data.initCallback,
-                data.eventCallback,
-                data.executeCallback,
-                data.saveCallback,
-                data.loadCallback,
-                data.firstLoadCallback
-            );
+            system->setPolicy(ExecutionPolicy::Storage);
         }
-        else if (data.executionPolicy == "storage")
-        {
-            system = new StandardSystemImplStorage(
-                data.systemName,
-                data.eventNames,
-                data.initCallback,
-                data.eventCallback
-            );
-        }
-        else
-        {
-            // Default: sequential with normal execution
-            system = new StandardSystemImpl(
-                data.systemName,
-                data.eventNames,
-                data.componentNames,
-                data.initCallback,
-                data.eventCallback,
-                data.executeCallback
-            );
-        }
-
-        // Apply execution policy if not storage (storage is handled in type)
-        if (data.executionPolicy == "manual" && !data.saveLoadEnabled)
+        else if (data.executionPolicy == "manual")
         {
             system->setPolicy(ExecutionPolicy::Manual);
         }
@@ -527,6 +385,7 @@ namespace pg
         {
             system->setPolicy(ExecutionPolicy::Independent);
         }
+        // else: defaults to Sequential
 
         return system;
     }
