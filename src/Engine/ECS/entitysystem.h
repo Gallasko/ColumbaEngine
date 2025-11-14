@@ -39,6 +39,7 @@ namespace pg
     class InterpreterSystem;
     class Environment;
     class ClassInstance;
+    class StandardSystemImpl;
 
     struct VM;
 
@@ -70,6 +71,7 @@ namespace pg
     friend struct InputModule;
     friend struct OnEventComponent;
     friend struct OnStandardEventComponent;
+    friend class StandardSystemImpl;
 
     private:
         class EventDispatcher
