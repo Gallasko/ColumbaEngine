@@ -22,17 +22,17 @@ namespace pg
     template <>
     StandardEvent deserialize(const UnserializedObject& serializedString)
     {
-        LOG_THIS("IncreaseFact");
+        LOG_THIS("Standard");
 
         std::string type = "";
 
         if (serializedString.isNull())
         {
-            LOG_ERROR("AddFact", "Element is null");
+            LOG_ERROR("Standard", "Element is null");
         }
         else
         {
-            LOG_INFO("AddFact", "Deserializing IncreaseFact");
+            LOG_INFO("Standard", "Deserializing StandardEvent");
 
             StandardEvent data;
 
@@ -43,6 +43,43 @@ namespace pg
         }
 
         return StandardEvent{};
+    }
+
+    template <>
+    void serialize(Archive& archive, const StandardComponent& value)
+    {
+        archive.startSerialization(StandardComponent::getType());
+
+        serialize(archive, "typeName", value.typeName);
+        serialize(archive, "properties", value.properties);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    StandardComponent deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("Standard");
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("Standard", "Element is null");
+        }
+        else
+        {
+            LOG_INFO("Standard", "Deserializing StandardComponent");
+
+            StandardComponent data;
+
+            defaultDeserialize(serializedString, "typeName", data.typeName);
+            defaultDeserialize(serializedString, "properties", data.properties);
+
+            return data;
+        }
+
+        return StandardComponent{};
     }
 
     ComponentRegistry::ComponentRegistry(EntitySystem *ecs) : ecsRef(ecs)

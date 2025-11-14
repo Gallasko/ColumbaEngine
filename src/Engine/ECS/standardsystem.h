@@ -14,6 +14,7 @@ namespace pg
     class ComponentRegistry;
     struct AbstractSystem;
     struct StandardEvent;
+    struct StandardComponent;
 
     /**
      * @brief A simplified interface for creating systems that work with StandardEvent
@@ -47,39 +48,6 @@ namespace pg
      *     .build();
      * @endcode
      */
-
-    /**
-     * @brief Standard Component - a named component with dynamic properties
-     */
-    struct StandardComponent
-    {
-        StandardComponent() = default;
-        StandardComponent(const std::string& typeName) : typeName(typeName) {}
-
-        std::string typeName;
-        std::unordered_map<std::string, ElementType> properties;
-
-        // Helper to get/set properties
-        template<typename T>
-        void set(const std::string& key, const T& value)
-        {
-            properties[key] = ElementType{value};
-        }
-
-        template<typename T>
-        T get(const std::string& key) const
-        {
-            auto it = properties.find(key);
-            if (it != properties.end())
-                return it->second.get<T>();
-            return T{};
-        }
-
-        bool has(const std::string& key) const
-        {
-            return properties.find(key) != properties.end();
-        }
-    };
 
     /**
      * @brief Handle for accessing standard system functionality

@@ -187,6 +187,50 @@ namespace pg
     template <>
     void serialize(Archive& archive, const StandardEvent& event);
 
+    /**
+     * @brief Standard Component - a named component with dynamic properties
+     *
+     * This component type uses a string-based type name and a map of properties
+     * instead of C++ types, allowing for dynamic component creation at runtime.
+     */
+    struct StandardComponent : public Component
+    {
+        StandardComponent(const std::string& typeName) : typeName(typeName) {}
+
+        DEFAULT_COMPONENT_MEMBERS(StandardComponent)
+
+        std::string typeName;
+        std::unordered_map<std::string, ElementType> properties;
+
+        // Helper to get/set properties
+        template<typename T>
+        void set(const std::string& key, const T& value)
+        {
+            properties[key] = ElementType{value};
+        }
+
+        template<typename T>
+        T get(const std::string& key) const
+        {
+            auto it = properties.find(key);
+            if (it != properties.end())
+                return it->second.get<T>();
+            return T{};
+        }
+
+        bool has(const std::string& key) const
+        {
+            return properties.find(key) != properties.end();
+        }
+
+        // Get type name for this component
+        static std::string getType() { return "StandardComponent"; }
+    };
+
+    template<>
+    void serialize(Archive& archive, const StandardComponent& event);
+
+
     class ComponentRegistry
     {
     public:
