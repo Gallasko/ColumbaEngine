@@ -7,10 +7,24 @@ option(UseGDB "UseGDB" OFF)
 option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds" OFF)
 option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
+option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Enable ccache if available and requested
+if(USE_CCACHE)
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        message(STATUS "Found ccache: ${CCACHE_PROGRAM}")
+        message(STATUS "Enabling ccache to speed up rebuilds")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    else()
+        message(WARNING "ccache requested but not found - install with: sudo apt install ccache")
+    endif()
+endif()
 
 # Dependency settings
 set(TF_BUILD_EXAMPLES OFF)
