@@ -154,7 +154,50 @@ namespace pg
         LOG_THIS_MEMBER("Component Registry");
         LOG_INFO("Component Registry", "Registering StandardComponent type: " << typeName);
 
+        // Generate a unique ID for this specific StandardComponent type name
+        const auto id = idGenerator.generateId();
+
+        LOG_INFO("Component Registry", "Generated ID " << id << " for StandardComponent typeName: " << typeName);
+
+        // Register delete callback
+        componentDeleteMap.emplace(id, [owner](Entity* entity) {
+            // auto res = owner->getComponent(entity->id);
+            // if (res)
+            // {
+            //     res->onDeletion(entity);
+            // }
+            owner->internalRemoveComponent(entity);
+        });
+
+        // Register serialize callback
+        componentSerializeMap.emplace(id, [owner](Archive& archive, const Entity* entity) {
+            serialize(archive, *(owner->getComponent(entity->id)));
+        });
+
+        // Register deserialize callback using the typeName
+        componentDeserializeMap.emplace(typeName, [this, typeName](const UnserializedObject& serializedStr, EntityRef entity) {
+            if (serializedStr.isNull())
+                return;
+
+            auto comp = deserialize<StandardComponent>(serializedStr);
+            comp.entityId = entity.id;
+            comp.ecsRef = entity.ecsRef;
+            comp.typeName = typeName;
+
+            ecsRef->attach<StandardComponent>(entity, comp);
+        });
+
+        // Register detach callback using the typeName
+        componentDetachMap.emplace(typeName, [this](EntityRef entity) {
+            ecsRef->detach<StandardComponent>(entity);
+        });
+
+        // Store in both maps
+        componentStorageMap.emplace(id, owner);
         standardComponentStorageMap[typeName] = owner;
+
+        // Set the component ID on the owner
+        owner->_componentId = id;
     }
 
     void ComponentRegistry::unstoreStandardComponent(const std::string& typeName)
@@ -162,11 +205,46 @@ namespace pg
         LOG_THIS_MEMBER("Component Registry");
         LOG_INFO("Component Registry", "Unregistering StandardComponent type: " << typeName);
 
-        auto it = standardComponentStorageMap.find(typeName);
-        if (it != standardComponentStorageMap.end())
+        // Find the owner to get its ID
+        auto ownerIt = standardComponentStorageMap.find(typeName);
+        if (ownerIt == standardComponentStorageMap.end())
         {
-            standardComponentStorageMap.erase(it);
+            LOG_WARNING("Component Registry", "Cannot unstore StandardComponent '" << typeName << "' - not found");
+            return;
         }
+
+        const auto id = ownerIt->second->_componentId;
+
+        LOG_INFO("Component Registry", "Unregistering ID " << id << " for StandardComponent typeName: " << typeName);
+
+        // Remove from all maps
+        if (const auto& it = componentDeleteMap.find(id); it != componentDeleteMap.end())
+        {
+            componentDeleteMap.erase(it);
+        }
+
+        if (const auto& it = componentSerializeMap.find(id); it != componentSerializeMap.end())
+        {
+            componentSerializeMap.erase(it);
+        }
+
+        if (const auto& it = componentDeserializeMap.find(typeName); it != componentDeserializeMap.end())
+        {
+            componentDeserializeMap.erase(it);
+        }
+
+        if (const auto& it = componentDetachMap.find(typeName); it != componentDetachMap.end())
+        {
+            componentDetachMap.erase(it);
+        }
+
+        if (const auto& it = componentStorageMap.find(id); it != componentStorageMap.end())
+        {
+            componentStorageMap.erase(it);
+        }
+
+        // Remove from string-based map
+        standardComponentStorageMap.erase(ownerIt);
     }
 
     Own<StandardComponent>* ComponentRegistry::retrieveStandardComponent(const std::string& typeName) const

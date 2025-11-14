@@ -231,6 +231,7 @@ namespace pg
     void serialize(Archive& archive, const StandardComponent& event);
 
     // Forward of the standard component owner
+    template <>
     struct Own<StandardComponent>;
 
     class ComponentRegistry
@@ -902,6 +903,16 @@ namespace pg
     template <>
     struct Ref<StandardComponent>
     {
+        Ref() : ref(nullptr)
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+        }
+
+        Ref(Own<StandardComponent>* ref) : ref(ref)
+        {
+            LOG_THIS_MEMBER("Ref<StandardComponent>");
+        }
+
         Ref(const std::string& typeName) : ref(nullptr), typeName(typeName)
         {
             LOG_THIS_MEMBER("Ref<StandardComponent>");
@@ -949,28 +960,13 @@ namespace pg
         }
 
         template <typename... Args>
-        inline StandardComponent* internalCreateComponent(Entity* entity, Args&&... args)
-        {
-            LOG_THIS_MEMBER("Ref<StandardComponent>");
-            return ref->internalCreateComponent(entity, std::forward<Args>(args)...);
-        }
+        inline StandardComponent* internalCreateComponent(Entity* entity, Args&&... args);
 
-        inline void internalRemoveComponent(Entity* entity)
-        {
-            LOG_THIS_MEMBER("Ref<StandardComponent>");
-            ref->internalRemoveComponent(entity);
-        }
+        inline void internalRemoveComponent(Entity* entity);
 
-        inline typename ComponentSet<StandardComponent>::ComponentSetList view() const
-        {
-            LOG_THIS_MEMBER("Ref<StandardComponent>");
-            return ref->view();
-        }
+        inline typename ComponentSet<StandardComponent>::ComponentSetList view() const;
 
-        inline _unique_id getId() const
-        {
-            return ref->getId();
-        }
+        inline _unique_id getId() const;
 
         const std::string& getTypeName() const
         {
@@ -992,6 +988,11 @@ namespace pg
     template <>
     struct Own<StandardComponent> : public Ref<StandardComponent>
     {
+        Own() : Ref<StandardComponent>(this)
+        {
+            LOG_THIS_MEMBER("Own<StandardComponent>");
+        }
+
         Own(const std::string& typeName) : Ref<StandardComponent>(this, typeName), typeName(typeName)
         {
             LOG_THIS_MEMBER("Own<StandardComponent>");
@@ -1118,4 +1119,32 @@ namespace pg
     private:
         std::string typeName;
     };
+
+    // ============================================================================
+    // Ref<StandardComponent> method implementations (defined after Own<StandardComponent>)
+    // ============================================================================
+
+    template <typename... Args>
+    inline StandardComponent* Ref<StandardComponent>::internalCreateComponent(Entity* entity, Args&&... args)
+    {
+        LOG_THIS_MEMBER("Ref<StandardComponent>");
+        return ref->internalCreateComponent(entity, std::forward<Args>(args)...);
+    }
+
+    inline void Ref<StandardComponent>::internalRemoveComponent(Entity* entity)
+    {
+        LOG_THIS_MEMBER("Ref<StandardComponent>");
+        ref->internalRemoveComponent(entity);
+    }
+
+    inline typename ComponentSet<StandardComponent>::ComponentSetList Ref<StandardComponent>::view() const
+    {
+        LOG_THIS_MEMBER("Ref<StandardComponent>");
+        return ref->view();
+    }
+
+    inline _unique_id Ref<StandardComponent>::getId() const
+    {
+        return ref->getId();
+    }
 }
