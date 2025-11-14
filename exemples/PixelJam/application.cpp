@@ -161,11 +161,11 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         });
 
         makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
-            [](Entity* ent) { return ent->has<AllyBulletFlag>(); }, 
+            [](Entity* ent) { return ent->has<AllyBulletFlag>(); },
             [](Entity* ent) { return ent->has<WallFlag>(); });
 
         makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
-            [](Entity* ent) { return ent->has<EnemyBulletFlag>(); }, 
+            [](Entity* ent) { return ent->has<EnemyBulletFlag>(); },
             [](Entity* ent) { return ent->has<WallFlag>(); });
 
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, EnemyFlag *enemy) {
@@ -236,7 +236,7 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
         // Todo make a macro for LOG_INFO and LOG_ERROR with a single argument that use a default DOM
 
         makeCollisionHandleScript(ecsRef, "res/player_wall_collision.pg",
-            [](Entity* ent) { return ent->has<PlayerFlag>(); }, 
+            [](Entity* ent) { return ent->has<PlayerFlag>(); },
             [](Entity* ent) { return ent->has<WallFlag>(); });
 
         // Todo we need this because sweep move is bugged
@@ -628,7 +628,7 @@ void initGame() {
     // mainWindow->ecs->registerFlagComponent<PlayerFlag>();
     // mainWindow->ecs->registerFlagComponent<HoleFlag>();
 
-    mainWindow->ecs->createSystem<FpsSystem>();
+    // mainWindow->ecs->createSystem<FpsSystem>();
 
     mainWindow->ecs->createSystem<MoveToSystem>();
 

@@ -152,6 +152,7 @@ set(ENGINESOURCE
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
     src/Engine/ECS/sparseset.cpp
+    src/Engine/ECS/standardsystem.cpp
     src/Engine/ECS/system.cpp
     src/Engine/ECS/uniqueid.cpp
     src/Engine/Event/eventloop.cpp
