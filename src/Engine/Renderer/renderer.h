@@ -30,7 +30,7 @@ namespace pg
 
     // TODO make a specialized renderer for std::nullptr_t to catch nullptr error;
 
-    class UiComponent;
+    // class UiComponent;
     struct PositionComponent;
 
     enum class RenderStage : uint8_t
@@ -191,7 +191,7 @@ namespace pg
         void log() const;
 
         // deprecated
-        void processUiComponent(UiComponent *component);
+        // void processUiComponent(UiComponent *component);
 
         void processPositionComponent(CompRef<PositionComponent> component);
 

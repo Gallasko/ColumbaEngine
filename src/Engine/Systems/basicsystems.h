@@ -10,104 +10,104 @@
 
 namespace pg
 {
-    struct FpsSystem : public System<Listener<TickEvent>, InitSys, StoragePolicy>
-    {
-        virtual std::string getSystemName() const override { return "Fps System"; }
+    // struct FpsSystem : public System<Listener<TickEvent>, InitSys, StoragePolicy>
+    // {
+    //     virtual std::string getSystemName() const override { return "Fps System"; }
 
-        virtual void init() override
-        {
-            LOG_INFO("FPS System initialized", "FPS System initializing");
+    //     virtual void init() override
+    //     {
+    //         LOG_INFO("FPS System initialized", "FPS System initializing");
 
-            auto mainWindowEnt = ecsRef->getEntity(ecsRef->getSystem<EntityNameSystem>()->getEntityId("__MainWindow"));
+    //         auto mainWindowEnt = ecsRef->getEntity(ecsRef->getSystem<EntityNameSystem>()->getEntityId("__MainWindow"));
 
-            auto ui = mainWindowEnt->get<UiComponent>();
+    //         auto ui = mainWindowEnt->get<UiComponent>();
 
-            auto sentence = makeSentence(ecsRef, 0, 0, {"0"});
-            auto s2 = makeSentence(ecsRef, 0, 0, {"0"});
-            auto s3 = makeSentence(ecsRef, 0, 0, {"0"});
-            auto s4 = makeSentence(ecsRef, 0, 0, {"0"});
+    //         auto sentence = makeSentence(ecsRef, 0, 0, {"0"});
+    //         auto s2 = makeSentence(ecsRef, 0, 0, {"0"});
+    //         auto s3 = makeSentence(ecsRef, 0, 0, {"0"});
+    //         auto s4 = makeSentence(ecsRef, 0, 0, {"0"});
 
-            sentence.get<UiComponent>()->setZ(10);
-            s2.get<UiComponent>()->setZ(10);
-            s3.get<UiComponent>()->setZ(10);
-            s4.get<UiComponent>()->setZ(10);
+    //         sentence.get<UiComponent>()->setZ(10);
+    //         s2.get<UiComponent>()->setZ(10);
+    //         s3.get<UiComponent>()->setZ(10);
+    //         s4.get<UiComponent>()->setZ(10);
 
-            sentence.get<UiComponent>()->setRightAnchor(ui->right);
-            s2.get<UiComponent>()->setRightAnchor(sentence.get<UiComponent>()->right);
-            s3.get<UiComponent>()->setRightAnchor(s2.get<UiComponent>()->right);
-            s4.get<UiComponent>()->setRightAnchor(s3.get<UiComponent>()->right);
+    //         sentence.get<UiComponent>()->setRightAnchor(ui->right);
+    //         s2.get<UiComponent>()->setRightAnchor(sentence.get<UiComponent>()->right);
+    //         s3.get<UiComponent>()->setRightAnchor(s2.get<UiComponent>()->right);
+    //         s4.get<UiComponent>()->setRightAnchor(s3.get<UiComponent>()->right);
 
-            s2.get<UiComponent>()->setTopAnchor(sentence.get<UiComponent>()->bottom);
-            s3.get<UiComponent>()->setTopAnchor(s2.get<UiComponent>()->bottom);
-            s4.get<UiComponent>()->setTopAnchor(s3.get<UiComponent>()->bottom);
+    //         s2.get<UiComponent>()->setTopAnchor(sentence.get<UiComponent>()->bottom);
+    //         s3.get<UiComponent>()->setTopAnchor(s2.get<UiComponent>()->bottom);
+    //         s4.get<UiComponent>()->setTopAnchor(s3.get<UiComponent>()->bottom);
 
-            fpsText = sentence.get<SentenceText>();
-            generatedText = s2.get<SentenceText>();
-            executionText = s3.get<SentenceText>();
-            drawCallText = s4.get<SentenceText>();
-        }
+    //         fpsText = sentence.get<SentenceText>();
+    //         generatedText = s2.get<SentenceText>();
+    //         executionText = s3.get<SentenceText>();
+    //         drawCallText = s4.get<SentenceText>();
+    //     }
 
-        virtual void onEvent(const TickEvent& event) override
-        {
-            LOG_THIS_MEMBER("FactorySystem");
+    //     virtual void onEvent(const TickEvent& event) override
+    //     {
+    //         LOG_THIS_MEMBER("FactorySystem");
 
-            accumulatedTick += event.tick;
+    //         accumulatedTick += event.tick;
 
-            if (accumulatedTick >= 1000)
-            {
-                accumulatedTick %= 1000;
+    //         if (accumulatedTick >= 1000)
+    //         {
+    //             accumulatedTick %= 1000;
 
-                auto rendererSys = ecsRef->getSystem<MasterRenderer>();
+    //             auto rendererSys = ecsRef->getSystem<MasterRenderer>();
 
-                if (not rendererSys)
-                    return;
+    //             if (not rendererSys)
+    //                 return;
 
-                auto currentNbOfFrames = rendererSys->getNbRenderedFrames();
-                auto currentNbGOfFrames = rendererSys->getNbGeneratedFrames();
+    //             auto currentNbOfFrames = rendererSys->getNbRenderedFrames();
+    //             auto currentNbGOfFrames = rendererSys->getNbGeneratedFrames();
 
-                // In case of overflow of size_t
-                if (currentNbOfFrames < lastNbOfFrames)
-                {
-                    lastNbOfFrames = currentNbOfFrames;
-                    return;
-                }
+    //             // In case of overflow of size_t
+    //             if (currentNbOfFrames < lastNbOfFrames)
+    //             {
+    //                 lastNbOfFrames = currentNbOfFrames;
+    //                 return;
+    //             }
 
-                if (currentNbGOfFrames < lastNbOfGeneratedFrames)
-                {
-                    lastNbOfGeneratedFrames = currentNbGOfFrames;
-                    return;
-                }
+    //             if (currentNbGOfFrames < lastNbOfGeneratedFrames)
+    //             {
+    //                 lastNbOfGeneratedFrames = currentNbGOfFrames;
+    //                 return;
+    //             }
 
-                auto res = currentNbOfFrames - lastNbOfFrames;
-                auto res2 = currentNbGOfFrames - lastNbOfGeneratedFrames;
+    //             auto res = currentNbOfFrames - lastNbOfFrames;
+    //             auto res2 = currentNbGOfFrames - lastNbOfGeneratedFrames;
 
-                auto fpsStr = Strfy() << res;
-                auto fpsStr2 = Strfy() << res2;
+    //             auto fpsStr = Strfy() << res;
+    //             auto fpsStr2 = Strfy() << res2;
 
-                lastNbOfFrames = currentNbOfFrames;
-                lastNbOfGeneratedFrames = currentNbGOfFrames;
+    //             lastNbOfFrames = currentNbOfFrames;
+    //             lastNbOfGeneratedFrames = currentNbGOfFrames;
 
-                // Print FPS
-                fpsText->setText(fpsStr.getData());
-                generatedText->setText(fpsStr2.getData());
-                executionText->setText(std::to_string(ecsRef->getCurrentNbOfExecution()));
-                drawCallText->setText(std::to_string(rendererSys->getNbRenderCall()));
+    //             // Print FPS
+    //             fpsText->setText(fpsStr.getData());
+    //             generatedText->setText(fpsStr2.getData());
+    //             executionText->setText(std::to_string(ecsRef->getCurrentNbOfExecution()));
+    //             drawCallText->setText(std::to_string(rendererSys->getNbRenderCall()));
 
-                ecsRef->reportSystemProfiles();
+    //             ecsRef->reportSystemProfiles();
 
-                // rendererSys->printAllDrawCalls();
-            }
-        }
+    //             // rendererSys->printAllDrawCalls();
+    //         }
+    //     }
 
-        CompRef<SentenceText> fpsText;
-        CompRef<SentenceText> generatedText;
-        CompRef<SentenceText> executionText;
-        CompRef<SentenceText> drawCallText;
+    //     CompRef<SentenceText> fpsText;
+    //     CompRef<SentenceText> generatedText;
+    //     CompRef<SentenceText> executionText;
+    //     CompRef<SentenceText> drawCallText;
 
-        size_t accumulatedTick = 0;
-        size_t lastNbOfFrames = 0;
-        size_t lastNbOfGeneratedFrames = 0;
-    };
+    //     size_t accumulatedTick = 0;
+    //     size_t lastNbOfFrames = 0;
+    //     size_t lastNbOfGeneratedFrames = 0;
+    // };
 
     struct MoveToComponent
     {
