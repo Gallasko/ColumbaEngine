@@ -7,6 +7,15 @@
 namespace pg
 {
     UniqueIdGenerator ComponentRegistry::globalIdGenerator;
+    std::unordered_map<std::string, _unique_id> ComponentRegistry::globalStringIdGenerator;
+
+    void Component::onCreation(EntityRef entity)
+    {
+        LOG_THIS_MEMBER("Component");
+
+        ecsRef = entity->world();
+        entityId = entity->id;
+    }
 
     template <>
     void serialize(Archive& archive, const StandardEvent& value)

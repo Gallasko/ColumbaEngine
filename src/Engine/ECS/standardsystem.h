@@ -7,6 +7,11 @@
 
 #include "Memory/elementtype.h"
 
+// Those include are not necessary here, but anyone that wants to use a standard system
+// Should use at least one of them.
+#include "component.h"
+#include "standardevent.h"
+
 namespace pg
 {
     // Forward declarations to avoid including heavy headers

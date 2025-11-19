@@ -41,6 +41,10 @@ namespace pg
         archive.endSerialization();
     }
 
+    EntityRef::EntityRef(Entity* ent, bool initialized) : initialized(initialized), entity(ent), id(ent->id), ecsRef(ent->world())
+    {
+    }
+
     bool EntityRef::operator==(const EntityRef& rhs)
     {
         return id == rhs.id;
