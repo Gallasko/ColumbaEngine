@@ -145,7 +145,7 @@ namespace pg
     /**
      * Example 4: Complex game system with multiple responsibilities
      */
-    AbstractSystem* createInventorySystem()
+    auto* createInventorySystem()
     {
         // This could be stored somewhere accessible by callbacks if needed
         struct InventoryData

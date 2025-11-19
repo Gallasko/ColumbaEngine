@@ -672,6 +672,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(StandardSys exemples/StandardSys/main.cpp)
+
+        target_include_directories(StandardSys PUBLIC exemples/StandardSys)
+
+        target_sources(StandardSys PRIVATE
+            exemples/StandardSys/application.cpp
+        )
+
+        target_link_libraries(StandardSys PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(PgInterpreter exemples/PgInterpreter/main.cpp)
 
         target_include_directories(PgInterpreter PUBLIC exemples/PgInterpreter)
