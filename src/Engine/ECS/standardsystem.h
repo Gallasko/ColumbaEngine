@@ -15,6 +15,7 @@ namespace pg
     struct AbstractSystem;
     struct StandardEvent;
     struct StandardComponent;
+    class StandardSystemImpl;
 
     /**
      * @brief A simplified interface for creating systems that work with StandardEvent
@@ -105,8 +106,8 @@ namespace pg
         using InitCallback = std::function<void(StandardSystemHandle*)>;
         using EventCallback = std::function<void(StandardSystemHandle*, const StandardEvent&)>;
         using ExecuteCallback = std::function<void(StandardSystemHandle*)>;
-        using SaveCallback = std::function<void(StandardSystemHandle*, std::unordered_map<std::string, ElementType>&)>;
-        using LoadCallback = std::function<void(StandardSystemHandle*, const std::unordered_map<std::string, ElementType>&)>;
+        using SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
+        using LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
 
         StandardSystemBuilder& onInit(InitCallback callback);
         StandardSystemBuilder& onEvent(EventCallback callback);
@@ -115,8 +116,8 @@ namespace pg
         StandardSystemBuilder& onLoad(LoadCallback callback);
         StandardSystemBuilder& onFirstLoad(InitCallback callback);
 
-        // Build and return the system (returns AbstractSystem* that can be registered)
-        AbstractSystem* build();
+        // Build and return the system (returns StandardSystemImpl* that can be registered)
+        StandardSystemImpl* build();
 
     private:
         struct BuilderData
