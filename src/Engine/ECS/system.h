@@ -130,12 +130,12 @@ namespace pg
         {
             for (auto [key, _] : eventMap)
             {
-                listenedEvents.push_back(key);
+                listenedEvents.insert(key);
             }
 
             for (auto [key, _] : eventScriptMap)
             {
-                listenedEvents.push_back(key);
+                listenedEvents.insert(key);
             }
 
             handle._internalSystemPtr = this;
@@ -150,30 +150,7 @@ namespace pg
             removeFromRegistry();
         }
 
-        void addToRegistry(ComponentRegistry *registry)
-        {
-            LOG_THIS_MEMBER("StandardSystemImpl");
-
-            this->registry = registry;
-
-            // Create and register Own<StandardComponent> for each component type
-            for (const auto& componentName : ownedComponents)
-            {
-                auto* owner = new Own<StandardComponent>(componentName);
-                owner->setRegistry(registry);
-                componentOwners[componentName] = owner;
-
-                LOG_INFO("StandardSystemImpl", "Registered component owner for: " << componentName);
-            }
-
-            // Register event listeners
-            for (const auto& eventName : listenedEvents)
-            {
-                registry->addStandardEventListener(eventName, this);
-            }
-
-            LOG_INFO("StandardSystemImpl", "System fully registered with " << componentOwners.size() << " components and " << listenedEvents.size() << " events");
-        }
+        void addToRegistry(ComponentRegistry *registry);
 
         virtual void removeFromRegistry() override
         {
@@ -209,11 +186,11 @@ namespace pg
                 it->second(&handle, event);
             }
 
-            auto it2 = eventScriptCallbackList.find(event.name);
+            auto it2 = eventCompiledScriptCallbackList.find(event.name);
 
-            if (it2 != eventScriptCallbackList.end())
+            if (it2 != eventCompiledScriptCallbackList.end())
             {
-                LOG_ERROR("StandardSystemImpl", "Not supported Yet !");
+                it2->second(&handle, event);
             }
         }
 
@@ -315,7 +292,7 @@ namespace pg
 
     private:
         std::string systemName;
-        std::vector<std::string> listenedEvents;
+        std::set<std::string> listenedEvents;
         std::vector<std::string> ownedComponents;
         std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
         StandardSystemHandle handle;
@@ -326,6 +303,7 @@ namespace pg
 
         StandardSystemBuilder::EventMap eventCallbackList;
         StandardSystemBuilder::EventScriptMap eventScriptCallbackList;
+        StandardSystemBuilder::EventMap eventCompiledScriptCallbackList;
 
         StandardSystemBuilder::ExecuteCallback executeCallback;
         StandardSystemBuilder::SaveCallback saveCallback;
