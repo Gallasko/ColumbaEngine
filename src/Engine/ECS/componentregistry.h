@@ -502,7 +502,7 @@ namespace pg
             // Todo add a variable to keep track of the running state of the ECS
             if (it == idMap.end())
             {
-                LOG_MILE("ID", "Generating a new id for" << typeid(Type).name());
+                LOG_MILE("ID", "Generating a new id for " << typeid(Type).name());
 
                 return idMap[globalId] = idGenerator.generateId();
             }
@@ -512,6 +512,23 @@ namespace pg
             // This can't work as the static make this id the same through all the different object
             // static const _unique_id id = idGenerator.generateId();
             // return id;
+        }
+
+        _unique_id getTypeId(const std::string& name) const noexcept
+        {
+            auto globalId = getGlobalGenericId(name);
+
+            auto it = idMap.find(globalId);
+
+            // Todo add a variable to keep track of the running state of the ECS
+            if (it == idMap.end())
+            {
+                LOG_MILE("ID", "Generating a new id for " << name);
+
+                return idMap[globalId] = idGenerator.generateId();
+            }
+
+            return it->second;
         }
 
         template <typename Type>
@@ -641,7 +658,23 @@ namespace pg
             return id;
         }
 
+        _unique_id getGlobalGenericId(const std::string& name) const noexcept
+        {
+            auto it = globalStringIdGenerator.find(name);
+
+            // Todo add a variable to keep track of the running state of the ECS
+            if (it == globalStringIdGenerator.end())
+            {
+                LOG_MILE("ID", "Generating a new global id for " << name);
+
+                return globalStringIdGenerator[name] = globalIdGenerator.generateId();
+            }
+
+            return it->second;
+        }
+
         static UniqueIdGenerator globalIdGenerator;
+        static std::unordered_map<std::string, _unique_id> globalStringIdGenerator;
 
         mutable std::unordered_map<_unique_id, _unique_id> idMap;
 

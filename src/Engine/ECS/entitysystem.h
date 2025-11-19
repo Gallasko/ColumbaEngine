@@ -331,6 +331,118 @@ namespace pg
             return system;
         }
 
+        /**
+         * @brief Register a system previously by the user and put it in the taskflow
+         *
+         * StandardSystem should be use to create the system beforehand as all the helper and requiered functions are properly built in
+         *
+         * @param sys The system to add to the ecs
+         * @return StandardSystemImpl The system given by the user
+         */
+        StandardSystemImpl* registerSystem(StandardSystemImpl* sys)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            // Todo: add support for system registration during runtime
+            if (running)
+            {
+                LOG_ERROR("ECS", "System registration during runtime is not supported");
+                return sys;
+            }
+
+            auto name = sys->getSystemName();
+
+            sys->_id = registry.getTypeId(name);
+
+            sys->ecsRef = this;
+
+            systems.emplace(sys->_id, sys);
+
+            sys->addToRegistry(&registry);
+
+            // Only add the system to the taskflow if the execution policy is set to sequential or independent !
+            if (sys->executionPolicy == ExecutionPolicy::Sequential)
+            {
+                auto task = taskflow.emplace([sys, name]()
+                {
+#ifdef PROFILE
+                    // Todo time the whole exec of a run of the taskflow
+                    auto start = std::chrono::steady_clock::now();
+#endif
+
+                    try
+                    {
+                        sys->_execute();
+                    }
+                    catch (const std::exception& e)
+                    {
+                        LOG_ERROR("ECS", "Exception thrown while execution of sys: " << name << ", error: " << e.what());
+                    }
+
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
+                    auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << name << " execution time: " << duration << " ns" << std::endl;
+
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        _systemExecutionTimes[name] += duration;
+                        _systemExecutionCounts[name]++;
+
+                        // std::cout << "Updated " << systemName
+                        // << " total time = " << _systemExecutionTimes[systemName]
+                        // << ", count = " << _systemExecutionCounts[systemName] << std::endl;
+                    }
+#endif
+                }).name(name);
+
+                // Put the task after every other basic task
+                task.succeed(basicTask);
+
+                // Register the task in case we need to call precede and succeed
+                tasks[sys->_id] = task;
+            }
+            else if (sys->executionPolicy == ExecutionPolicy::Independent)
+            {
+                auto task = taskflow.emplace([sys, name]()
+                {
+#ifdef PROFILE
+                    // Todo time the whole exec of a run of the taskflow
+                    auto start = std::chrono::steady_clock::now();
+#endif
+
+                    sys->_execute();
+
+#ifdef PROFILE
+                    // Record end time and compute elapsed time in nanoseconds.
+                    auto end = std::chrono::steady_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+                    // Log if the duration exceeds a threshold
+                    if (duration >= 3000000)
+                        std::cout << "System " << name << " execution time: " << duration << " ns" << std::endl;
+
+                    // Update profiling data in a thread-safe manner.
+                    {
+                        std::lock_guard<std::mutex> lock(profileMutex);
+                        _systemExecutionTimes[name] += duration;
+                        _systemExecutionCounts[name]++;
+                    }
+#endif
+                }).name(name);
+
+                // Register the task in case we need to call precede and succeed
+                tasks[sys->_id] = task;
+            }
+
+            return sys;
+        }
+
         template <class Sys>
         void deleteSystem()
         {
