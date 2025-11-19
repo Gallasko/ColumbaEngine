@@ -139,18 +139,6 @@ namespace pg
         data.systemName = systemName;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::listenToEvents(const std::vector<std::string>& eventNames)
-    {
-        data.eventNames = eventNames;
-        return *this;
-    }
-
-    StandardSystemBuilder& StandardSystemBuilder::listenToEvent(const std::string& eventName)
-    {
-        data.eventNames.push_back(eventName);
-        return *this;
-    }
-
     StandardSystemBuilder& StandardSystemBuilder::ownComponents(const std::vector<std::string>& componentNames)
     {
         data.componentNames = componentNames;
@@ -199,9 +187,9 @@ namespace pg
         return *this;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onEvent(EventCallback callback)
+    StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& eventName, EventCallback callback)
     {
-        data.eventCallback = callback;
+        data.eventCallbackList[eventName] = callback;
         return *this;
     }
 
@@ -262,34 +250,36 @@ namespace pg
         return false;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& scriptName)
+    StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& eventName, const std::string& scriptName)
     {
-        data.eventCallback = [scriptName](StandardSystemHandle* sys, const StandardEvent& event) -> void {
-            auto ecsRef = sys->getWorld();
+        // data.eventCallback = [scriptName](StandardSystemHandle* sys, const StandardEvent& event) -> void {
+        //     auto ecsRef = sys->getWorld();
 
-            VM vm;
+        //     VM vm;
 
-            ecsRef->setupVm(vm);
+        //     ecsRef->setupVm(vm);
 
-            auto sName = scriptName;
+        //     auto sName = scriptName;
 
-            if (not checkCompiledScript(ecsRef, sName))
-            {
-                return;
-            }
+        //     if (not checkCompiledScript(ecsRef, sName))
+        //     {
+        //         return;
+        //     }
 
-            auto value = serializeToTable(&vm, event);
+        //     auto value = serializeToTable(&vm, event);
 
-            vm.globals["event"] = value;
+        //     vm.globals["event"] = value;
 
-            // Compile the script once
-            auto result = vm.interpretFromBytecodeFile(sName);
+        //     // Compile the script once
+        //     auto result = vm.interpretFromBytecodeFile(sName);
 
-            if (result != InterpretResult::OK)
-            {
-                LOG_ERROR("StandardSystem", "Event script handler error.");
-            }
-        };
+        //     if (result != InterpretResult::OK)
+        //     {
+        //         LOG_ERROR("StandardSystem", "Event script handler error.");
+        //     }
+        // };
+
+        data.scriptEventCallbackList[eventName] = scriptName;
 
         return *this;
     }
@@ -299,11 +289,11 @@ namespace pg
         // Create a single StandardSystemImpl with all features
         auto* system = new StandardSystemImpl(
             data.systemName,
-            data.eventNames,
             data.componentNames,
             data.saveLoadEnabled,
             data.initCallback,
-            data.eventCallback,
+            data.eventCallbackList,
+            data.scriptEventCallbackList,
             data.executeCallback,
             data.saveCallback,
             data.loadCallback,

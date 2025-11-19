@@ -115,26 +115,29 @@ namespace pg
     {
     public:
         StandardSystemImpl(const std::string& name,
-                          const std::vector<std::string>& eventNames,
                           const std::vector<std::string>& componentNames,
                           bool saveLoadEnabled,
                           StandardSystemBuilder::InitCallback initCb,
-                          StandardSystemBuilder::EventCallback eventCb,
+                          StandardSystemBuilder::EventMap eventMap,
+                          StandardSystemBuilder::EventScriptMap eventScriptMap,
                           StandardSystemBuilder::ExecuteCallback executeCb,
                           StandardSystemBuilder::SaveCallback saveCb,
                           StandardSystemBuilder::LoadCallback loadCb,
-                          StandardSystemBuilder::InitCallback firstLoadCb)
-            : systemName(name)
-            , listenedEvents(eventNames)
-            , ownedComponents(componentNames)
-            , saveLoadEnabled(saveLoadEnabled)
-            , initCallback(initCb)
-            , eventCallback(eventCb)
-            , executeCallback(executeCb)
-            , saveCallback(saveCb)
-            , loadCallback(loadCb)
-            , firstLoadCallback(firstLoadCb)
+                          StandardSystemBuilder::InitCallback firstLoadCb) :
+                          systemName(name), ownedComponents(componentNames), saveLoadEnabled(saveLoadEnabled), initCallback(initCb),
+                          eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap), executeCallback(executeCb),
+                          saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb)
         {
+            for (auto [key, _] : eventMap)
+            {
+                listenedEvents.push_back(key);
+            }
+
+            for (auto [key, _] : eventScriptMap)
+            {
+                listenedEvents.push_back(key);
+            }
+
             handle._internalSystemPtr = this;
             if (saveLoadEnabled)
             {
@@ -199,9 +202,18 @@ namespace pg
             LOG_THIS_MEMBER("StandardSystemImpl");
 
             // Call user event callback
-            if (eventCallback)
+            auto it = eventCallbackList.find(event.name);
+
+            if (it != eventCallbackList.end())
             {
-                eventCallback(&handle, event);
+                it->second(&handle, event);
+            }
+
+            auto it2 = eventScriptCallbackList.find(event.name);
+
+            if (it2 != eventScriptCallbackList.end())
+            {
+                LOG_ERROR("StandardSystemImpl", "Not supported Yet !");
             }
         }
 
@@ -311,7 +323,10 @@ namespace pg
         bool saveLoadEnabled;
 
         StandardSystemBuilder::InitCallback initCallback;
-        StandardSystemBuilder::EventCallback eventCallback;
+
+        StandardSystemBuilder::EventMap eventCallbackList;
+        StandardSystemBuilder::EventScriptMap eventScriptCallbackList;
+
         StandardSystemBuilder::ExecuteCallback executeCallback;
         StandardSystemBuilder::SaveCallback saveCallback;
         StandardSystemBuilder::LoadCallback loadCallback;

@@ -90,10 +90,6 @@ namespace pg
     public:
         StandardSystemBuilder(const std::string& systemName);
 
-        // Configure which events to listen to
-        StandardSystemBuilder& listenToEvents(const std::vector<std::string>& eventNames);
-        StandardSystemBuilder& listenToEvent(const std::string& eventName);
-
         // Configure which components this system owns
         StandardSystemBuilder& ownComponents(const std::vector<std::string>& componentNames);
         StandardSystemBuilder& ownComponent(const std::string& componentName);
@@ -114,16 +110,18 @@ namespace pg
         using SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
         using LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
 
+        using EventMap = std::unordered_map<std::string, EventCallback>;
+        using EventScriptMap = std::unordered_map<std::string, std::string>;
 
         StandardSystemBuilder& onInit(InitCallback callback);
-        StandardSystemBuilder& onEvent(EventCallback callback);
+        StandardSystemBuilder& onEvent(const std::string& eventName, EventCallback callback);
         StandardSystemBuilder& onExecute(ExecuteCallback callback);
         StandardSystemBuilder& onSave(SaveCallback callback);
         StandardSystemBuilder& onLoad(LoadCallback callback);
         StandardSystemBuilder& onFirstLoad(InitCallback callback);
 
         // Scripts overload
-        StandardSystemBuilder& onEvent(const std::string& scriptName);
+        StandardSystemBuilder& onEvent(const std::string& eventName, const std::string& scriptName);
 
         // Build and return the system (returns StandardSystemImpl* that can be registered)
         StandardSystemImpl* build();
@@ -132,13 +130,15 @@ namespace pg
         struct BuilderData
         {
             std::string systemName;
-            std::vector<std::string> eventNames;
             std::vector<std::string> componentNames;
             std::string executionPolicy = "sequential"; // sequential, storage, manual, parallel
             bool saveLoadEnabled = false;
 
             InitCallback initCallback;
-            EventCallback eventCallback;
+
+            EventMap eventCallbackList;
+            EventScriptMap scriptEventCallbackList;
+
             ExecuteCallback executeCallback;
             SaveCallback saveCallback;
             LoadCallback loadCallback;
