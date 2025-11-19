@@ -17,43 +17,43 @@ namespace
     static const char *const DOM = "App";
 }
 
+int test = 0;
+
 StandardSystemImpl* createEventNotificationSystem()
 {
     return createStandardSystem("EventNotification")
-        .listenToEvents({"BasicEvent"})
         .onInit([](StandardSystemHandle* sys) {
             // Initialize system
             LOG_INFO("EventNotification", "System initialized");
         })
-        .onEvent([](StandardSystemHandle* sys, const StandardEvent& event) {
-            if (event.name == "BasicEvent")
-            {
-                bool verbose = true;
+        .onEvent("BasicEvent", [](StandardSystemHandle* sys, const StandardEvent& event) {
+            bool verbose = true;
 
-                if (event.has("verbose"))
-                    verbose = event.get<bool>("verbose");
+            test++;
+
+            if (event.has("verbose"))
+                verbose = event.get<bool>("verbose");
+
+            if (verbose)
+            {
+                LOG_INFO("EventNotification", "Event received");
+            }
+
+            // Access event data
+            if (event.has("CustomValue"))
+            {
+                auto value = event.getElement("CustomValue").toString();
 
                 if (verbose)
                 {
-                    LOG_INFO("EventNotification", "Event received");
+                    LOG_INFO("EventNotification", "Custom Value: " << value);
                 }
-
-                // Access event data
-                if (event.has("CustomValue"))
+            }
+            else
+            {
+                if (verbose)
                 {
-                    auto value = event.getElement("CustomValue").toString();
-
-                    if (verbose)
-                    {
-                        LOG_INFO("EventNotification", "Custom Value: " << value);
-                    }
-                }
-                else
-                {
-                    if (verbose)
-                    {
-                        LOG_INFO("EventNotification", "No Custom Value !");
-                    }
+                    LOG_INFO("EventNotification", "No Custom Value !");
                 }
             }
         })
@@ -64,12 +64,11 @@ StandardSystemImpl* createEventNotificationSystem()
 StandardSystemImpl* createScriptEventNotificationSystem()
 {
     return createStandardSystem("ScriptEventNotification")
-        .listenToEvents({"BasicScriptEvent"})
         .onInit([](StandardSystemHandle* sys) {
             // Initialize system
             LOG_INFO("ScriptEventNotification", "System initialized");
         })
-        .onEvent("scripthandler.pg")
+        .onEvent("BasicScriptEvent", "scripthandler.pg")
         .useStoragePolicy() // Only react to events, no execute() needed
         .build();
 }
@@ -96,6 +95,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         auto end = std::chrono::high_resolution_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+
+        LOG_INFO(DOM, "i: " << test);
 
         LOG_INFO(DOM, "Event loop took " << duration.count() << " microseconds ("
                  << duration.count() / 1000.0 << " ms, "
