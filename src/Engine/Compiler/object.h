@@ -27,7 +27,7 @@
 // #define DEBUG_PRINT_TOKENS
 
 // Flag to print compiled bytecode
-#define DEBUG_PRINT_CODE
+// #define DEBUG_PRINT_CODE
 #endif
 
 namespace pg

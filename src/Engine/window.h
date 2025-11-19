@@ -51,6 +51,8 @@ namespace pg
 
         virtual void render();
 
+        inline void receivedQuitRequest() { needToQuit = true; }
+
         inline bool requestQuit() const { return needToQuit; }
 
         const Input * getInputHandler() const { return inputHandler; }

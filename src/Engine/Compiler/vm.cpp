@@ -219,7 +219,7 @@ namespace pg
             std::ofstream outFile(dumpByteCode, std::ios::binary);
             if (outFile.is_open())
             {
-                LOG_INFO("VM", "Dumping bytecode to file: " << dumpByteCode);
+                LOG_MILE("VM", "Dumping bytecode to file: " << dumpByteCode);
 
                 ChunkSerializer serializer;
                 if (not serializer.serialize(asFunction(function)->chunk, outFile, this))

@@ -12,7 +12,7 @@ namespace pg {
     {
         rewriter = std::make_unique<BytecodeRewriter>();
 
-        LOG_INFO("PassManager", "Initialized with shared BytecodeRewriter");
+        LOG_MILE("PassManager", "Initialized with shared BytecodeRewriter");
     }
 
     void PassManager::addPass(std::unique_ptr<BytecodePass> pass)

@@ -1,7 +1,13 @@
+#include "stdafx.h"
+
 #include "standardsystem.h"
 #include "system.h"
 #include "entitysystem.h"
 #include "componentregistry.h"
+
+#include "Compiler/vm.h"
+
+#include "Compiler/ecsserialization.h"
 
 namespace pg
 {
@@ -220,6 +226,71 @@ namespace pg
     StandardSystemBuilder& StandardSystemBuilder::onFirstLoad(InitCallback callback)
     {
         data.firstLoadCallback = callback;
+        return *this;
+    }
+
+    bool checkCompiledScript(EntitySystem* ecsRef, std::string& scriptName)
+    {
+        if (scriptName.size() >= 3 && scriptName.substr(scriptName.size() - 3) == ".pg")
+        {
+            // Compile .pg script and cache to .pgc
+            VM compiler;
+            ecsRef->setupVm(compiler);
+
+            auto result = compiler.interpretFromFile(scriptName, true, scriptName + "c");
+
+            if (result != InterpretResult::OK)
+            {
+                LOG_ERROR("CollisionHandleScript", "Failed to compile script: " << scriptName);
+            }
+
+            scriptName += "c";
+
+            return true;
+        }
+        else if (scriptName.size() >= 4 && scriptName.substr(scriptName.size() - 4) == ".pgc")
+        {
+            LOG_MILE("CollisionHandleScript", "Loading precompiled script: " << scriptName);
+
+            return true;
+        }
+        else
+        {
+            LOG_ERROR("CollisionHandleScript", "Invalid script file extension. Must be .pg or .pgc: " << scriptName);
+        }
+
+        return false;
+    }
+
+    StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& scriptName)
+    {
+        data.eventCallback = [scriptName](StandardSystemHandle* sys, const StandardEvent& event) -> void {
+            auto ecsRef = sys->getWorld();
+
+            VM vm;
+
+            ecsRef->setupVm(vm);
+
+            auto sName = scriptName;
+
+            if (not checkCompiledScript(ecsRef, sName))
+            {
+                return;
+            }
+
+            auto value = serializeToTable(&vm, event);
+
+            vm.globals["event"] = value;
+
+            // Compile the script once
+            auto result = vm.interpretFromBytecodeFile(sName);
+
+            if (result != InterpretResult::OK)
+            {
+                LOG_ERROR("StandardSystem", "Event script handler error.");
+            }
+        };
+
         return *this;
     }
 

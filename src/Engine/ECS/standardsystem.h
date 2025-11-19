@@ -114,12 +114,16 @@ namespace pg
         using SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
         using LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
 
+
         StandardSystemBuilder& onInit(InitCallback callback);
         StandardSystemBuilder& onEvent(EventCallback callback);
         StandardSystemBuilder& onExecute(ExecuteCallback callback);
         StandardSystemBuilder& onSave(SaveCallback callback);
         StandardSystemBuilder& onLoad(LoadCallback callback);
         StandardSystemBuilder& onFirstLoad(InitCallback callback);
+
+        // Scripts overload
+        StandardSystemBuilder& onEvent(const std::string& scriptName);
 
         // Build and return the system (returns StandardSystemImpl* that can be registered)
         StandardSystemImpl* build();
