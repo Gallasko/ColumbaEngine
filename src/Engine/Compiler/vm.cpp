@@ -267,6 +267,7 @@ namespace pg
 
     }
 
+    // Todo factorize common code from all the different interpret code
     InterpretResult VM::interpretFromBytecodeFile(const std::string& filename)
     {
         currentFileName = filename;
@@ -344,6 +345,86 @@ namespace pg
 
         return result;
     }
+
+    // InterpretResult VM::interpretFromBytecodeStream(const std::string& filename, const std::istream& in)
+    // {
+    //     currentFileName = filename;
+
+    //     std::istream copy = in;
+
+    //     Chunk chunk;
+
+    //     ChunkSerializer serializer;
+    //     if (not serializer.deserialize(chunk, filename, this))
+    //     {
+    //         LOG_ERROR("VM", "Failed to load bytecode from file: " << filename);
+    //         return InterpretResult::COMPILE_ERROR;
+    //     }
+
+    //     auto function = createFunction();  // Already tracked in createFunction
+    //     ObjFunction* funcObj = asFunction(function);
+    //     funcObj->chunk = chunk;
+
+    //     // disassembleChunk(this, chunk, "<compiled chunk>");
+
+
+    //     // Retain the function to prevent it from being freed when popped
+    //     // The closure needs the function to stay alive
+    //     // retainValue(function);
+
+    //     // push(function);  // function is already tracked from createFunction
+
+    //     auto closureValue = createClosure(funcObj);
+    //     Closure *closure = asClosure(closureValue);
+    //     // pop();  // Pop function
+    //     push(closureValue);  // closureValue is already tracked in createClosure
+
+    //     call(closure, 0);
+
+    //     InterpretResult result;
+    //     try
+    //     {
+    //         // Freeze constant indices - all pool allocations up to this point are constants
+    //         // Runtime allocations will have indices above these max values
+    //         pools.freezeConstantIndices();
+
+    //         result = run();
+    //     }
+    //     catch(const std::exception& e)
+    //     {
+    //         LOG_ERROR("VM", e.what());
+    //         result = InterpretResult::RUNTIME_ERROR;
+    //     }
+
+    //     // Clean up: release the chunk constants before destroying the function
+    //     // The constants array contains Values that point to heap objects (strings, etc.)
+    //     // NOTE: We need to bypass the isConstant() check in releaseValue() because these
+    //     // bytecode constants should be released when the function is destroyed
+    //     for (const auto& constant : funcObj->chunk.constants)
+    //     {
+    //         if (requiresRefCount(constant))
+    //         {
+    //             // Manually decrement refcount and delete, bypassing isConstant() check
+    //             uint32_t index = GET_INDEX(constant);
+    //             auto& refCounts = pools.getRefCountVector(constant);
+
+    //             if (index < refCounts.size() && refCounts[index] > 0)
+    //             {
+    //                 refCounts[index]--;
+    //                 if (refCounts[index] == 0)
+    //                 {
+    //                     deleteValue(constant);
+    //                 }
+    //             }
+    //         }
+    //     }
+
+    //     // Clean up: release the function to free the chunk's vectors
+    //     // The function was allocated but never tracked, so we need to manually release it
+    //     pools.functionPool.release(funcObj);
+
+    //     return result;
+    // }
 
     InterpretResult VM::run()
     {
