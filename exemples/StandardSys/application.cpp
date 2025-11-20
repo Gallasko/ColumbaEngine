@@ -141,9 +141,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto ent = ecs.createEntity();
 
         // auto simplePos = ent.attach("SimplePosition");
-        auto simplePos = ecs.attach(ent, "SimplePosition");
+        auto simplePos = ecs.attach(ent, "SimplePosition", "x", 5, "y", 10);
 
         LOG_INFO("SimplePos", simplePos->typeName);
+        LOG_INFO("SimplePos", simplePos->get<int>("x"));
 
         window.receivedQuitRequest();
 

@@ -934,17 +934,7 @@ namespace pg
         {
             LOG_THIS_MEMBER("Own<StandardComponent>");
 
-            auto comp = components.addComponent(entity, std::forward<Args>(args)...);
-
-            if (!typeName.empty())
-            {
-                comp->typeName = typeName;
-            }
-            else
-            {
-                LOG_ERROR("Own<StandardComponent>", "Cannot get an unnamed component");
-                return nullptr;
-            }
+            auto comp = components.addComponent(entity, typeName, std::forward<Args>(args)...);
 
             entity->componentList.emplace(_componentId);
 

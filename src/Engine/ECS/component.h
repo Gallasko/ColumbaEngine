@@ -117,6 +117,18 @@ namespace pg
             this->typeName = typeName;
         }
 
+        template <typename T>
+        StandardComponent(const std::string& typeName, const std::string& key, const T& value) : typeName(typeName)
+        {
+            set(key, value);
+        }
+
+        template <typename T, typename... Args>
+        StandardComponent(const std::string& typeName, const std::string& key, const T& value, Args... args) : StandardComponent(typeName, args...)
+        {
+            set(key, value);
+        }
+
         DEFAULT_COMPONENT_MEMBERS(StandardComponent)
 
         std::string typeName;
