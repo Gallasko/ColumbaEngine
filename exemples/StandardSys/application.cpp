@@ -105,7 +105,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.registerSystem(createScriptEventNotificationSystem());
 
         ecs.sendEvent(StandardEvent{"BasicScriptEvent"});
-        ecs.sendEvent(StandardEvent{"BasicScriptEvent", "verbose", true});
+        ecs.sendEvent(StandardEvent{"BasicScriptEvent", "verbose", true, "test1", 15});
         ecs.sendEvent(StandardEvent{"BasicScriptEvent", "verbose", false});
 
         start = std::chrono::high_resolution_clock::now();
