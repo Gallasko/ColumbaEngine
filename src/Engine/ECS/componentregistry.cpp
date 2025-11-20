@@ -281,7 +281,7 @@ namespace pg
             comp.ecsRef = entity.ecsRef;
             comp.typeName = typeName;
 
-            ecsRef->_attach<StandardComponent>(entity, typeName, comp);
+            ecsRef->_attach(entity, typeName, std::move(comp));
         });
 
         // Register detach callback using the typeName
@@ -347,20 +347,32 @@ namespace pg
     Own<StandardComponent>* ComponentRegistry::retrieveStandardComponent(const std::string& typeName) const
     {
         LOG_THIS_MEMBER("Component Registry");
+        LOG_INFO("Component Registry", "retrieveStandardComponent called for: " << typeName);
+        LOG_INFO("Component Registry", "standardComponentStorageMap size: " << standardComponentStorageMap.size());
+
+        // Debug: print all registered types
+        LOG_INFO("Component Registry", "Registered StandardComponent types:");
+        for (const auto& [name, owner] : standardComponentStorageMap)
+        {
+            LOG_INFO("Component Registry", "  - '" << name << "' -> owner: " << owner->getTypeName());
+        }
 
         auto it = standardComponentStorageMap.find(typeName);
         if (it != standardComponentStorageMap.end())
         {
+            LOG_INFO("Component Registry", "Found StandardComponent type '" << typeName << "', returning owner: " << it->second->getTypeName());
             return it->second;
         }
 
-        LOG_WARNING("Component Registry", "StandardComponent type '" << typeName << "' not registered");
+        LOG_WARNING("Component Registry", "StandardComponent type '" << typeName << "' NOT FOUND in registry");
         return nullptr;
     }
 
     bool ComponentRegistry::hasStandardComponent(const std::string& typeName) const
     {
-        return standardComponentStorageMap.find(typeName) != standardComponentStorageMap.end();
+        bool has = standardComponentStorageMap.find(typeName) != standardComponentStorageMap.end();
+        LOG_INFO("Component Registry", "hasStandardComponent('" << typeName << "'): " << (has ? "TRUE" : "FALSE"));
+        return has;
     }
 
     std::vector<std::string> ComponentRegistry::getStandardComponentTypes() const
