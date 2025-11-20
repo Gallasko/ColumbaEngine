@@ -249,20 +249,12 @@ namespace pg
     void ComponentRegistry::storeStandardComponent(const std::string& typeName, Own<StandardComponent>* owner)
     {
         LOG_THIS_MEMBER("Component Registry");
-        LOG_INFO("Component Registry", "Registering StandardComponent type: " << typeName);
 
         // Generate a unique ID for this specific StandardComponent type name
         const auto id = idGenerator.generateId();
 
-        LOG_INFO("Component Registry", "Generated ID " << id << " for StandardComponent typeName: " << typeName);
-
         // Register delete callback
         componentDeleteMap.emplace(id, [owner](Entity* entity) {
-            // auto res = owner->getComponent(entity->id);
-            // if (res)
-            // {
-            //     res->onDeletion(entity);
-            // }
             owner->internalRemoveComponent(entity);
         });
 
@@ -300,7 +292,6 @@ namespace pg
     void ComponentRegistry::unstoreStandardComponent(const std::string& typeName)
     {
         LOG_THIS_MEMBER("Component Registry");
-        LOG_INFO("Component Registry", "Unregistering StandardComponent type: " << typeName);
 
         // Find the owner to get its ID
         auto ownerIt = standardComponentStorageMap.find(typeName);
@@ -311,8 +302,6 @@ namespace pg
         }
 
         const auto id = ownerIt->second->_componentId;
-
-        LOG_INFO("Component Registry", "Unregistering ID " << id << " for StandardComponent typeName: " << typeName);
 
         // Remove from all maps
         if (const auto& it = componentDeleteMap.find(id); it != componentDeleteMap.end())
@@ -347,20 +336,10 @@ namespace pg
     Own<StandardComponent>* ComponentRegistry::retrieveStandardComponent(const std::string& typeName) const
     {
         LOG_THIS_MEMBER("Component Registry");
-        LOG_INFO("Component Registry", "retrieveStandardComponent called for: " << typeName);
-        LOG_INFO("Component Registry", "standardComponentStorageMap size: " << standardComponentStorageMap.size());
-
-        // Debug: print all registered types
-        LOG_INFO("Component Registry", "Registered StandardComponent types:");
-        for (const auto& [name, owner] : standardComponentStorageMap)
-        {
-            LOG_INFO("Component Registry", "  - '" << name << "' -> owner: " << owner->getTypeName());
-        }
 
         auto it = standardComponentStorageMap.find(typeName);
         if (it != standardComponentStorageMap.end())
         {
-            LOG_INFO("Component Registry", "Found StandardComponent type '" << typeName << "', returning owner: " << it->second->getTypeName());
             return it->second;
         }
 
@@ -370,9 +349,7 @@ namespace pg
 
     bool ComponentRegistry::hasStandardComponent(const std::string& typeName) const
     {
-        bool has = standardComponentStorageMap.find(typeName) != standardComponentStorageMap.end();
-        LOG_INFO("Component Registry", "hasStandardComponent('" << typeName << "'): " << (has ? "TRUE" : "FALSE"));
-        return has;
+        return standardComponentStorageMap.find(typeName) != standardComponentStorageMap.end();
     }
 
     std::vector<std::string> ComponentRegistry::getStandardComponentTypes() const

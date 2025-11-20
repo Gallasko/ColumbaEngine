@@ -148,9 +148,6 @@ namespace pg
         {
             LOG_THIS_MEMBER("ECS");
 
-            // if (not running)
-            //     return;
-
             stopRequested = true;
             running = false;
 
@@ -657,8 +654,6 @@ namespace pg
         template <typename Type, typename... Args>
         CompRef<Type> attach(EntityRef entity, Args&&... args)
         {
-            LOG_THIS_MEMBER("ECS");
-
             // As component deriving from Ctor, check for Ctor presence is enough
             if constexpr(not std::is_base_of_v<Ctor, Type>)
             {
@@ -673,8 +668,6 @@ namespace pg
         template <typename... Args>
         CompRef<StandardComponent> attach(EntityRef entity, const std::string& componentName, Args&&... args)
         {
-            LOG_THIS_MEMBER("ECS");
-            LOG_INFO("ECS", "Using non-template attach overload for StandardComponent with name: " << componentName);
             return attachGeneric(entity, componentName, std::forward<Args>(args)...);
         }
 
@@ -704,16 +697,9 @@ namespace pg
         template <typename... Args>
         CompRef<StandardComponent> attachGeneric(EntityRef entity, const std::string& name, Args&&... args) noexcept
         {
-            LOG_INFO("ECS", "attachGeneric(EntityRef, string) called for StandardComponent: " << name);
-            LOG_INFO("ECS", "Checking if StandardComponent '" << name << "' is registered...");
-
             if (not registry.hasStandardComponent(name))
             {
                 LOG_ERROR("ECS", "Trying to attach a non registered standard component: " << name);
-            }
-            else
-            {
-                LOG_INFO("ECS", "StandardComponent '" << name << "' is registered, proceeding with _attach");
             }
 
             return _attach(entity, name, std::forward<Args>(args)...);
@@ -723,8 +709,6 @@ namespace pg
                   typename = std::enable_if_t<!std::is_same_v<Type, StandardComponent> || !first_arg_is_string<Args...>::value>>
         CompRef<Type> _attach(EntityRef entity, Args&&... args) noexcept
         {
-            LOG_INFO("ECS", "_attach TEMPLATE version called for type: " << typeid(Type).name());
-
             try
             {
                 Type* component;
@@ -759,8 +743,6 @@ namespace pg
         template <typename... Args>
         CompRef<StandardComponent> _attach(EntityRef entity, const std::string& compName, Args&&... args) noexcept
         {
-            LOG_INFO("ECS", "_attach(EntityRef, string) called for StandardComponent: " << compName);
-
             try
             {
                 StandardComponent* component;
@@ -768,26 +750,11 @@ namespace pg
                 // Todo add lock a mutex for running to protect for race conditions or only build component with the cmdDispatcher
                 if (running)
                 {
-                    LOG_INFO("ECS", "ECS is running, using cmdDispatcher");
                     component = cmdDispatcher.attachComp<StandardComponent>(entity, compName, std::forward<Args>(args)...);
                 }
                 else
                 {
-                    LOG_INFO("ECS", "ECS not running, calling registry.retrieveStandardComponent('" << compName << "')");
-                    auto* owner = registry.retrieveStandardComponent(compName);
-                    LOG_INFO("ECS", "Retrieved owner for '" << compName << "': " << (owner ? "SUCCESS" : "NULL"));
-
-                    if (owner)
-                    {
-                        LOG_INFO("ECS", "Calling internalCreateComponent on owner");
-                        component = owner->internalCreateComponent(entity, std::forward<Args>(args)...);
-                        LOG_INFO("ECS", "Created component instance successfully");
-                    }
-                    else
-                    {
-                        LOG_ERROR("ECS", "Owner is NULL for component: " << compName);
-                        return CompRef<StandardComponent>();
-                    }
+                    component = registry.retrieveStandardComponent(compName)->internalCreateComponent(entity, std::forward<Args>(args)...);
                 }
 
                 auto res = CompRef<StandardComponent>(component, entity.id, this, not running, compName);
@@ -799,7 +766,7 @@ namespace pg
             }
             catch (const std::exception& e)
             {
-                LOG_ERROR("ECS", "EXCEPTION in _attach for [" << compName << "]: " << e.what());
+                LOG_ERROR("ECS", "Can't attach component [" << compName << "]: " << e.what() << " (No system own this component ?)");
             }
 
             return CompRef<StandardComponent>();
