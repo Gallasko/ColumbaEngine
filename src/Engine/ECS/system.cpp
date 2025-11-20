@@ -1,7 +1,6 @@
 #include "system.h"
 
 #include "Compiler/vm.h"
-#include "Compiler/chunk_serializer.h"
 #include "Compiler/ecsserialization.h"
 #include <sstream>
 
@@ -61,7 +60,7 @@ namespace pg
         {
             if (not checkCompiledScript(ecsRef, scriptName))
             {
-                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the script: " << eventName);
+                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the script: " << scriptName);
                 continue;
             }
 
@@ -96,44 +95,12 @@ namespace pg
                 VM vm;
                 ecsRef->setupVm(vm);
 
-                // Todo add a interpret method in vm that does just that
-
-                // Deserialize from cached memory (NO FILE I/O!)
-                std::istringstream bytecodeStream(std::string(cachedBytecode.begin(), cachedBytecode.end()), std::ios::binary);
-
-                Chunk chunk;
-                if (!ChunkSerializer::deserialize(chunk, bytecodeStream, &vm))
-                {
-                    LOG_ERROR("StandardSystemImpl", "Failed to deserialize cached bytecode: " << scriptName);
-                    return;
-                }
-
-                // Create function from deserialized chunk
-                auto function = vm.createFunction();
-                ObjFunction* funcObj = vm.asFunction(function);
-                funcObj->chunk = chunk;
-
-                auto closureValue = vm.createClosure(funcObj);
-                Closure* closure = vm.asClosure(closureValue);
-                vm.push(closureValue);
-
-                // Set up event data
+                // Set up event data before interpreting
                 auto value = serializeToTable(&vm, event);
                 vm.globals["event"] = value;
 
-                vm.call(closure, 0);
-
-                InterpretResult result;
-                try
-                {
-                    vm.pools.freezeConstantIndices();
-                    result = vm.run();
-                }
-                catch(const std::exception& e)
-                {
-                    LOG_ERROR("StandardSystemImpl", "Event script handler error: " << e.what());
-                    result = InterpretResult::RUNTIME_ERROR;
-                }
+                // Interpret cached bytecode
+                InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
 
                 if (result != InterpretResult::OK)
                 {
@@ -141,33 +108,6 @@ namespace pg
                 }
             });
         }
-
-        // data.eventCallback = [scriptName](StandardSystemHandle* sys, const StandardEvent& event) -> void {
-        //     auto ecsRef = sys->getWorld();
-
-        //     VM vm;
-
-        //     ecsRef->setupVm(vm);
-
-        //     auto sName = scriptName;
-
-        //     if (not checkCompiledScript(ecsRef, sName))
-        //     {
-        //         return;
-        //     }
-
-        //     auto value = serializeToTable(&vm, event);
-
-        //     vm.globals["event"] = value;
-
-        //     // Compile the script once
-        //     auto result = vm.interpretFromBytecodeFile(sName);
-
-        //     if (result != InterpretResult::OK)
-        //     {
-        //         LOG_ERROR("StandardSystem", "Event script handler error.");
-        //     }
-        // };
 
         // Register event listeners
         for (const auto& eventName : listenedEvents)

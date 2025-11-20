@@ -227,6 +227,8 @@ namespace pg
 
         InterpretResult interpretFromBytecodeFile(const std::string& filename);
 
+        InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0);
+
         InterpretResult run();
 
         // Core Value operations for performance
@@ -546,6 +548,10 @@ namespace pg
             frames[0].slots = stack.data();  // For tests, start at beginning
             currentFrame = &frames[0];
         }
+
+        // Helper methods for interpreting bytecode
+        InterpretResult executeChunk(ObjFunction* funcObj, int argCount);
+        void cleanupFunction(ObjFunction* funcObj);
 
         // Function pointer dispatch methods
         void vm_return(InterpretResult result);

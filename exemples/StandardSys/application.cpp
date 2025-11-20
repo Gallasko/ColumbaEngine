@@ -110,11 +110,11 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         start = std::chrono::high_resolution_clock::now();
 
-        // for (int i = 0; i < 10000; i++)
-        // {
-        //     // Basic Event with a custom value
-        //     ecs.sendEvent(StandardEvent{"BasicScriptEvent", "CustomValue", "Hello World!", "verbose", false});
-        // }
+        for (int i = 0; i < 10000; i++)
+        {
+            // Basic Event with a custom value
+            ecs.sendEvent(StandardEvent{"BasicScriptEvent", "CustomValue", "Hello World!", "verbose", false});
+        }
 
         end = std::chrono::high_resolution_clock::now();
         duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
