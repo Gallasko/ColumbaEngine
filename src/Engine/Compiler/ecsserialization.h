@@ -353,8 +353,10 @@ namespace pg
             auto& compNode = archive.mainNode.children[0];
 
             // Add the class name (component type)
+            std::string componentTypeName;
             if (!compNode.className.empty())
             {
+                componentTypeName = compNode.className;
                 Value classNameValue = vm->createString(compNode.className);
 
                 if (table->fields.find("__className") != table->fields.end())
@@ -367,6 +369,106 @@ namespace pg
 
             // Process all component properties using the shared helper
             detail::processNodeToTable(vm, tableClass, compNode, table, false);
+
+            // Add setter methods for StandardComponent properties
+            // This enables: pos.setX(value), health.setHealth(value), etc.
+            if (componentTypeName == "StandardComponent")
+            {
+                // Get all property names from the table (excluding special fields)
+                std::vector<std::string> propertyNames;
+                for (const auto& [key, value] : table->fields)
+                {
+                    if (key != "__className" && key != "typeName" && !key.empty())
+                    {
+                        propertyNames.push_back(key);
+                    }
+                }
+
+                // Store entity ID, component typeName, and ECS ref for the setter closures
+                _unique_id capturedEntityId = entity->id;
+
+                // Get the component typeName from the "typeName" field if it exists
+                std::string compTypeName;
+                auto typeNameIt = table->fields.find("typeName");
+                if (typeNameIt != table->fields.end() && IS_STRING(typeNameIt->second))
+                {
+                    compTypeName = vm->asString(typeNameIt->second)->toString();
+                }
+
+                // Create setter methods for each property
+                for (const std::string& propName : propertyNames)
+                {
+                    // Create method name: "set" + capitalize(propName)
+                    // e.g., "x" -> "setX", "health" -> "setHealth"
+                    std::string methodName = "set";
+                    if (!propName.empty())
+                    {
+                        methodName += static_cast<char>(std::toupper(propName[0]));
+                        if (propName.size() > 1)
+                        {
+                            methodName += propName.substr(1);
+                        }
+                    }
+
+                    // Register the setter as a global function with a unique name
+                    // Name format: "__setter_<entityId>_<compTypeName>_<propName>"
+                    std::string globalSetterName = "__setter_" + std::to_string(capturedEntityId) + "_" + compTypeName + "_" + propName;
+
+                    vm->registerNative(globalSetterName, [ecsRef, capturedEntityId, compTypeName, propName](VM* vm, int argCount, Value* args) -> Value {
+                        if (argCount != 1)
+                        {
+                            LOG_ERROR("StandardComponent Setter", "Expected 1 argument for setter, got " << argCount);
+                            return INT_VAL(0);
+                        }
+
+                        // Get the entity
+                        Entity* entity = ecsRef->getEntity(capturedEntityId);
+                        if (!entity)
+                        {
+                            LOG_ERROR("StandardComponent Setter", "Entity not found: " << capturedEntityId);
+                            return INT_VAL(0);
+                        }
+
+                        // Get the StandardComponent by searching through the registry
+                        auto* registry = ecsRef->getComponentRegistry();
+                        if (!registry)
+                        {
+                            LOG_ERROR("StandardComponent Setter", "Component registry not found");
+                            return INT_VAL(0);
+                        }
+
+                        auto* owner = registry->retrieveStandardComponent(compTypeName);
+                        if (!owner)
+                        {
+                            LOG_ERROR("StandardComponent Setter", "Component type '" << compTypeName << "' not found in registry");
+                            return INT_VAL(0);
+                        }
+
+                        StandardComponent* comp = owner->getComponent(capturedEntityId);
+                        if (!comp)
+                        {
+                            LOG_ERROR("StandardComponent Setter", "StandardComponent '" << compTypeName << "' not found on entity " << capturedEntityId);
+                            return INT_VAL(0);
+                        }
+
+                        // Convert VM value to ElementType
+                        ElementType newValue = vm->valueToElement(args[0]);
+
+                        // Use setWithEvent to set the property and trigger change event
+                        comp->setWithEvent(propName, newValue);
+
+                        return INT_VAL(0); // Return nil/0
+                    });
+
+                    // Store reference to the global function in the table
+                    // The table field will contain the function name as a string that can be called
+                    auto globalIt = vm->globals.find(globalSetterName);
+                    if (globalIt != vm->globals.end())
+                    {
+                        table->fields[methodName] = globalIt->second;
+                    }
+                }
+            }
         }
 
         return tableValue;

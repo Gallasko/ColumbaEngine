@@ -1,6 +1,7 @@
 #pragma once
 
 #include "entityref.h"
+#include "standardevent.h"
 
 /**
  * Macro that add all default members to a component
@@ -111,6 +112,11 @@ namespace pg
     {
         StandardComponent(const std::string& typeName) : typeName(typeName) {}
 
+        StandardComponent(const std::string& typeName, const StandardComponent& other) : StandardComponent(other)
+        {
+            this->typeName = typeName;
+        }
+
         DEFAULT_COMPONENT_MEMBERS(StandardComponent)
 
         std::string typeName;
@@ -122,6 +128,50 @@ namespace pg
         {
             properties[key] = ElementType{value};
         }
+
+        // Set property and send a change event
+        // Sends a StandardEvent with name "Changed<ComponentTypeName>"
+        // Event contains: "propertyName" -> name of the changed property
+        //                 "oldValue" -> previous value (if it existed)
+        //                 "newValue" -> new value
+        //                 "entityId" -> ID of the entity owning this component
+        template<typename T>
+        void setWithEvent(const std::string& key, const T& value)
+        {
+            // Check if property exists and save old value
+            bool hadOldValue = has(key);
+            ElementType oldValue;
+            if (hadOldValue)
+            {
+                oldValue = properties[key];
+            }
+
+            // Set the new value
+            ElementType newValue{value};
+            properties[key] = newValue;
+
+            // Send change event if we have access to the ECS
+            if (ecsRef)
+            {
+                // Create event name: "Changed" + typeName (e.g., "ChangedPosition", "ChangedHealth")
+                std::string eventName = "Changed" + typeName;
+
+                // Build the event with all relevant information
+                StandardEvent changeEvent(eventName);
+                changeEvent.values["propertyName"] = ElementType{key};
+                changeEvent.values["newValue"] = newValue;
+                changeEvent.values["entityId"] = ElementType{entityId};
+
+                if (hadOldValue)
+                {
+                    changeEvent.values["oldValue"] = oldValue;
+                }
+
+                sendStandardEvent(changeEvent);
+            }
+        }
+
+        void sendStandardEvent(const StandardEvent& event);
 
         template<typename T>
         T get(const std::string& key) const
@@ -140,5 +190,4 @@ namespace pg
         // Get type name for this component
         static std::string getType() { return "StandardComponent"; }
     };
-
 }

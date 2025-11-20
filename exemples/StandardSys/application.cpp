@@ -73,6 +73,19 @@ StandardSystemImpl* createScriptEventNotificationSystem()
         .build();
 }
 
+StandardSystemImpl* createSimplePositionSystem()
+{
+    return createStandardSystem("SimplePosition")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            LOG_INFO("SimplePosition", "System initialized");
+        })
+        .ownComponent("SimplePosition")
+        // .onEvent("BasicScriptEvent", "scripthandler.pg")
+        .useStoragePolicy() // Only react to events, no execute() needed
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -122,6 +135,15 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         LOG_INFO(DOM, "Script Event loop took " << duration.count() << " microseconds ("
                  << duration.count() / 1000.0 << " ms, "
                  << duration.count() / 1000000.0 << " s)");
+
+        ecs.registerSystem(createSimplePositionSystem());
+
+        auto ent = ecs.createEntity();
+
+        // auto simplePos = ent.attach("SimplePosition");
+        auto simplePos = ecs.attach(ent, "SimplePosition");
+
+        LOG_INFO("SimplePos", simplePos->typeName);
 
         window.receivedQuitRequest();
 
