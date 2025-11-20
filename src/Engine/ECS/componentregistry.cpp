@@ -54,6 +54,11 @@ namespace pg
         return StandardEvent{};
     }
 
+    void StandardComponent::sendStandardEvent(const StandardEvent& event)
+    {
+        ecsRef->sendEvent(event);
+    }
+
     template <>
     void serialize(Archive& archive, const StandardComponent& value)
     {
@@ -154,6 +159,89 @@ namespace pg
         }
     }
 
+    void CompRef<StandardComponent>::operator=(const CompRef& rhs)
+    {
+        LOG_THIS_MEMBER("Comp ref");
+
+        compName    = rhs.compName;
+        ecsRef      = rhs.ecsRef;
+        entityId    = rhs.entityId;
+        initialized = rhs.initialized;
+        component   = rhs.component;
+
+        if (not initialized)
+        {
+            if (entityId != 0)
+            {
+                auto fetchComponent = rhs.ecsRef->getComponent(compName, entityId);
+
+                if (fetchComponent)
+                {
+                    component   = fetchComponent;
+                    initialized = true;
+                }
+                // Todo see if we propagate back the finding of the entity to the base ref !
+                // rhs.entity = entity
+                // rhs.initialized = true
+                // Note that it needs to make the rhs not const or we need to make the member entity mutable !
+            }
+            else
+            {
+                LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity");
+            }
+        }
+    }
+
+    StandardComponent* CompRef<StandardComponent>::operator->()
+    {
+        if (initialized)
+            return component;
+        else
+        {
+            // Try to find the component in the ecs to update this ref
+            auto comp = ecsRef->getComponent(compName, entityId);
+
+            // Component found, updating this entity ref
+            if (entityId != 0 and comp)
+            {
+                component = comp;
+                initialized = true;
+            }
+
+           return component;
+        }
+    }
+
+    CompRef<StandardComponent>::operator StandardComponent*()
+    {
+        if (initialized)
+            return component;
+        else
+        {
+            // Try to find the component in the ecs to update this ref
+            auto comp = ecsRef->getComponent(compName, entityId);
+
+            // Component found, updating this entity ref
+            if (entityId != 0 and comp)
+            {
+                component = comp;
+                initialized = true;
+            }
+
+           return component;
+        }
+    }
+
+    Entity* CompRef<StandardComponent>::getEntity() const
+    {
+        if (entityId != 0)
+        {
+            return ecsRef->getEntity(entityId);
+        }
+
+        return nullptr;
+    }
+
     // ============================================================================
     // StandardComponent Management Implementation
     // ============================================================================
@@ -193,7 +281,7 @@ namespace pg
             comp.ecsRef = entity.ecsRef;
             comp.typeName = typeName;
 
-            ecsRef->attach<StandardComponent>(entity, comp);
+            ecsRef->_attach<StandardComponent>(entity, typeName, comp);
         });
 
         // Register detach callback using the typeName

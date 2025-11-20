@@ -662,9 +662,26 @@ namespace pg
             return attachGeneric<Type>(entity, std::forward<Args>(args)...);
         }
 
+        // Overload for StandardComponent - takes component name as first argument after entity
+        template <typename... Args>
+        CompRef<StandardComponent> attach(EntityRef entity, const std::string& componentName, Args&&... args)
+        {
+            LOG_THIS_MEMBER("ECS");
+            return attachGeneric(entity, componentName, std::forward<Args>(args)...);
+        }
+
         template <typename Type, typename... Args>
         CompRef<Type> attachGeneric(EntityRef entity, Args&&... args) noexcept
         {
+            // Check if trying to attach StandardComponent without a name
+            if constexpr (std::is_same_v<Type, StandardComponent>)
+            {
+                // return _attach<Type>(entity, std::forward<Args>(args)...);
+                static_assert(always_false<Type>,
+                    "Cannot attach StandardComponent without specifying component name! "
+                    "Use: ecs.attachGeneric(entity, \"ComponentName\") instead of ecs.attachGeneric<StandardComponent>(entity)");
+            }
+
             if (not registry.hasTypeId<Type>())
             {
                 LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
@@ -674,6 +691,17 @@ namespace pg
             }
 
             return _attach<Type>(entity, std::forward<Args>(args)...);
+        }
+
+        template <typename... Args>
+        CompRef<StandardComponent> attachGeneric(EntityRef entity, const std::string& name, Args&&... args) noexcept
+        {
+            if (not registry.hasStandardComponent(name))
+            {
+                LOG_ERROR("ECS", "Trying to attach a non registered standard component: " << name);
+            }
+
+            return _attach<StandardComponent>(entity, name, std::forward<Args>(args)...);
         }
 
         template <typename Type, typename... Args>
@@ -708,6 +736,38 @@ namespace pg
             }
 
             return CompRef<Type>();
+        }
+
+        template <typename... Args>
+        CompRef<StandardComponent> _attach(EntityRef entity, const std::string& compName, Args&&... args) noexcept
+        {
+            try
+            {
+                StandardComponent* component;
+
+                // Todo add lock a mutex for running to protect for race conditions or only build component with the cmdDispatcher
+                if (running)
+                {
+                    component = cmdDispatcher.attachComp<StandardComponent>(entity, compName, std::forward<Args>(args)...);
+                }
+                else
+                {
+                    component = registry.retrieveStandardComponent(compName)->internalCreateComponent(entity, std::forward<Args>(args)...);
+                }
+
+                auto res = CompRef<StandardComponent>(component, entity.id, this, not running, compName);
+
+                res->onCreation(entity);
+
+                // Todo make the systems capable of triggering on a component creation
+                return res;
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("ECS", "Can't attach component [" << compName << "]: " << e.what() << " (No system own this component ?)");
+            }
+
+            return CompRef<StandardComponent>();
         }
 
         // template <typename Type, typename EntityHolderType, typename... Args>
@@ -801,6 +861,20 @@ namespace pg
             }
         }
 
+        inline StandardComponent* getComponent(const std::string& compName, _unique_id id) const
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            try
+            {
+                return registry.retrieveStandardComponent(compName)->getComponent(id);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_WARNING("ECS", "Can't get component [" << compName << "] from entity [" << id << "]: " << e.what());
+                return nullptr;
+            }
+        }
 
         inline ComponentSet<Entity>::ComponentSetList view() const
         {
@@ -905,6 +979,27 @@ namespace pg
                 catch (const std::exception& e)
                 {
                     LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
+                }
+            }
+        }
+
+        void addComponentToPool(EntityRef entity, StandardComponent* component)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            if (component)
+            {
+                LOG_MILE("ECS", "addComponentToPool");
+
+                // Todo add a mechanism to avoid creating a component that is already attached to the entity
+
+                try
+                {
+                    registry.retrieveStandardComponent(component->typeName)->internalCreateComponent(entity, *component);
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("ECS", "Can't attach standard component [" << component->typeName << "]: " << e.what() << " (No system own this component ?)");
                 }
             }
         }
@@ -1105,6 +1200,22 @@ namespace pg
         return ecsRef->template attach<Comp>(EntityRef(this, false), std::forward<Args>(args)...);
     }
 
+    // Non-template overload for StandardComponent
+    template <typename... Args>
+    CompRef<StandardComponent> Entity::attach(const std::string& componentName, Args&&... args)
+    {
+        LOG_THIS_MEMBER("Entity");
+
+        if (not ecsRef)
+        {
+            LOG_ERROR("Entity", "Entity is not referenced in any ECS");
+
+            return CompRef<StandardComponent>();
+        }
+
+        return ecsRef->attach(EntityRef(this, false), componentName, std::forward<Args>(args)...);
+    }
+
     template <typename Comp, typename... Args>
     CompRef<Comp> Entity::attachGeneric(Args&&... args)
     {
@@ -1222,6 +1333,17 @@ namespace pg
         struct DummyFlagSys : public System<Own<Type>, StoragePolicy> {};
 
         return ecsRef->createSystem<DummyFlagSys, true>();
+    }
+
+    // Specialization for StandardComponent - does not create a dummy system
+    template <>
+    inline auto ComponentRegistry::registerFlagComponent<StandardComponent>()
+    {
+        LOG_ERROR("Component Registry", "Should never have to register a standard component flag ! Are you trying to attach a standard component without specifying the component name ?");
+
+        // For StandardComponent, do nothing and return nullptr
+        // StandardComponents are managed differently through the registry
+        return static_cast<AbstractSystem*>(nullptr);
     }
 
     template <typename Comp>

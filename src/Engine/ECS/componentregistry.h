@@ -742,6 +742,37 @@ namespace pg
         const EntitySystem* ecsRef;
     };
 
+    template <>
+    struct CompRef<StandardComponent>
+    {
+        CompRef() : compName(""), initialized(false), component(nullptr), entityId(0), ecsRef(nullptr) {}
+
+        CompRef(StandardComponent* component, _unique_id id, const EntitySystem* ecs, bool initialized = true, const std::string& compName = "") :
+            compName(compName), initialized(initialized), component(component), entityId(id), ecsRef(ecs) {}
+
+        CompRef(const CompRef& rhs)
+        {
+            (*this) = rhs;
+        }
+
+        void operator=(const CompRef& rhs);
+
+        // Todo always check if the component was not initialized in between calls to make sure to update the correct one
+        StandardComponent* operator->();
+
+        operator StandardComponent*();
+
+        inline bool empty() const { return component == nullptr; }
+
+        Entity* getEntity() const;
+
+        std::string compName;
+        bool initialized;
+        StandardComponent* component;
+        _unique_id entityId;
+        const EntitySystem* ecsRef;
+    };
+
     // ============================================================================
     // Template Specializations for StandardComponent
     // ============================================================================
@@ -839,10 +870,10 @@ namespace pg
     template <>
     struct Own<StandardComponent> : public Ref<StandardComponent>
     {
-        Own() : Ref<StandardComponent>(this)
-        {
-            LOG_THIS_MEMBER("Own<StandardComponent>");
-        }
+        // Own() : Ref<StandardComponent>(this)
+        // {
+        //     LOG_THIS_MEMBER("Own<StandardComponent>");
+        // }
 
         Own(const std::string& typeName) : Ref<StandardComponent>(this, typeName), typeName(typeName)
         {

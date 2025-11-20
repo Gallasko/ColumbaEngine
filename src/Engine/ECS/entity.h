@@ -22,6 +22,8 @@ namespace pg
     template <typename Type>
     struct CompRef;
 
+    struct StandardComponent;
+
     struct EntityChangedEvent { _unique_id id; };
 
     class Entity
@@ -123,6 +125,10 @@ namespace pg
 
         template <typename Comp, typename... Args>
         CompRef<Comp> attach(Args&&... args);
+
+        // Non-template overload for StandardComponent
+        template <typename... Args>
+        CompRef<StandardComponent> attach(const std::string& componentName, Args&&... args);
 
         template <typename Comp, typename... Args>
         CompRef<Comp> attachGeneric(Args&&... args);
