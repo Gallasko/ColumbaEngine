@@ -17,6 +17,294 @@
 
 namespace pg
 {
+    // ============================================================================
+    // Internal helper functions for ECS serialization
+    // ============================================================================
+
+    namespace detail
+    {
+        /**
+         * @brief Check if a SerializedInfoHolder node represents an ElementType
+         */
+        inline bool isElementType(const SerializedInfoHolder& node)
+        {
+            if (node.className != "ElementType") return false;
+            bool hasType = false;
+            bool hasData = false;
+            for (const auto& child : node.children)
+            {
+                if (child.name == "type") hasType = true;
+                if (child.name == "data") hasData = true;
+            }
+            return hasType && hasData;
+        }
+
+        /**
+         * @brief Extract the data value from an ElementType node and convert to VM Value
+         */
+        inline Value extractElementTypeValue(VM* vm, const SerializedInfoHolder& node)
+        {
+            for (const auto& child : node.children)
+            {
+                if (child.name == "data" && !child.value.empty())
+                {
+                    if (child.type == "int")
+                        return makeIntValue(std::stoi(child.value));
+                    else if (child.type == "bool")
+                        return makeBoolValue(child.value == "true");
+                    else if (child.type == "float" || child.type == "double")
+                        return makeDoubleValue(std::stod(child.value));
+                    else if (child.type == "size_t" || child.type == "unsigned int")
+                        return makeIntValue(std::stoull(child.value));
+                    else if (child.type == "string")
+                        return vm->createString(child.value);
+                    else
+                        return vm->createString(child.value);
+                }
+            }
+            return makeIntValue(0); // Default
+        }
+
+        /**
+         * @brief Convert a primitive value node to VM Value
+         */
+        inline Value convertPrimitiveToValue(VM* vm, const SerializedInfoHolder& node)
+        {
+            if (node.type == "int")
+                return makeIntValue(std::stoi(node.value));
+            else if (node.type == "bool")
+                return makeBoolValue(node.value == "true");
+            else if (node.type == "float" || node.type == "double")
+                return makeDoubleValue(std::stod(node.value));
+            else if (node.type == "size_t" || node.type == "unsigned int")
+                return makeIntValue(std::stoull(node.value));
+            else if (node.type == "string")
+                return vm->createString(node.value);
+            else
+                return vm->createString(node.value);
+        }
+
+        /**
+         * @brief Process a SerializedInfoHolder node and populate a VM table
+         * This is the core recursive function that handles all serialization cases
+         */
+        inline void processNodeToTable(VM* vm,
+                                       Klass* tableClass,
+                                       const SerializedInfoHolder& node,
+                                       ObjInstance* currentTable,
+                                       bool retainValues = false)
+        {
+            // Check if this is an ElementType - flatten it to just the data value
+            if (detail::isElementType(node) && !node.name.empty())
+            {
+                Value value = detail::extractElementTypeValue(vm, node);
+                if (retainValues)
+                {
+                    currentTable->fields[node.name] = vm->retainValue(value);
+                    if (IS_STRING(value))
+                        vm->releaseAndDelete(value);
+                }
+                else
+                {
+                    currentTable->fields[node.name] = value;
+                }
+                return;
+            }
+
+            // If this node has a value (it's a leaf property), add it
+            if (!node.value.empty() && !node.name.empty())
+            {
+                Value value = detail::convertPrimitiveToValue(vm, node);
+
+                if (retainValues)
+                {
+                    currentTable->fields[node.name] = vm->retainValue(value);
+                    if (IS_STRING(value))
+                        vm->releaseAndDelete(value);
+                }
+                else
+                {
+                    currentTable->fields[node.name] = value;
+                }
+            }
+
+            // If this node has children, process them
+            if (node.children.size() > 0)
+            {
+                // Check if this is a Vector (array-like structure)
+                if (node.className == "Vector" && !node.name.empty())
+                {
+                    Value nestedTableValue = vm->createInstance(tableClass);
+                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
+
+                    // Add elements with numeric indices [0], [1], etc.
+                    for (size_t i = 0; i < node.children.size(); i++)
+                    {
+                        const auto& child = node.children[i];
+                        Value elementValue;
+
+                        if (detail::isElementType(child))
+                        {
+                            elementValue = detail::extractElementTypeValue(vm, child);
+                        }
+                        else if (!child.value.empty())
+                        {
+                            elementValue = detail::convertPrimitiveToValue(vm, child);
+                        }
+                        else if (child.children.size() > 0)
+                        {
+                            // Complex element - create nested table
+                            Value childTableValue = vm->createInstance(tableClass);
+                            ObjInstance* childTable = vm->asInstance(childTableValue);
+                            detail::processNodeToTable(vm, tableClass, child, childTable, retainValues);
+                            elementValue = childTableValue;
+                        }
+
+                        if (retainValues)
+                        {
+                            nestedTable->fields[std::to_string(i)] = vm->retainValue(elementValue);
+                            if (IS_STRING(elementValue))
+                                vm->releaseAndDelete(elementValue);
+                        }
+                        else
+                        {
+                            nestedTable->fields[std::to_string(i)] = elementValue;
+                        }
+                    }
+
+                    if (retainValues)
+                    {
+                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        vm->releaseAndDelete(nestedTableValue);
+                    }
+                    else
+                    {
+                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
+                            vm->releaseAndDelete(currentTable->fields[node.name]);
+                        currentTable->fields[node.name] = nestedTableValue;
+                    }
+                }
+                // Check if this is an UnorderedMap
+                else if (node.className == "UnorderedMap" && !node.name.empty())
+                {
+                    Value nestedTableValue = vm->createInstance(tableClass);
+                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
+
+                    // Find nbElements to determine how many key-value pairs
+                    size_t nbElements = 0;
+                    for (const auto& child : node.children)
+                    {
+                        if (child.name == "nbElements" && !child.value.empty())
+                        {
+                            nbElements = std::stoull(child.value);
+                            break;
+                        }
+                    }
+
+                    // Extract key-value pairs and use actual keys as indices
+                    for (size_t i = 0; i < nbElements; i++)
+                    {
+                        std::string keyName = "key" + std::to_string(i);
+                        std::string valueName = "value" + std::to_string(i);
+
+                        std::string actualKey;
+                        Value actualValue;
+
+                        // Find the key and value in children
+                        for (const auto& child : node.children)
+                        {
+                            if (child.name == keyName && !child.value.empty())
+                            {
+                                actualKey = child.value;
+                            }
+                            else if (child.name == valueName)
+                            {
+                                // Check if value is an ElementType - flatten it
+                                if (detail::isElementType(child))
+                                {
+                                    actualValue = detail::extractElementTypeValue(vm, child);
+                                }
+                                else if (!child.value.empty())
+                                {
+                                    actualValue = detail::convertPrimitiveToValue(vm, child);
+                                }
+                                else if (child.children.size() > 0)
+                                {
+                                    // Complex value - create nested table
+                                    Value childTableValue = vm->createInstance(tableClass);
+                                    ObjInstance* childTable = vm->asInstance(childTableValue);
+                                    detail::processNodeToTable(vm, tableClass, child, childTable, retainValues);
+                                    actualValue = childTableValue;
+                                }
+                            }
+                        }
+
+                        if (!actualKey.empty())
+                        {
+                            if (retainValues)
+                            {
+                                nestedTable->fields[actualKey] = vm->retainValue(actualValue);
+                                if (IS_STRING(actualValue))
+                                    vm->releaseAndDelete(actualValue);
+                            }
+                            else
+                            {
+                                nestedTable->fields[actualKey] = actualValue;
+                            }
+                        }
+                    }
+
+                    if (retainValues)
+                    {
+                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        vm->releaseAndDelete(nestedTableValue);
+                    }
+                    else
+                    {
+                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
+                            vm->releaseAndDelete(currentTable->fields[node.name]);
+                        currentTable->fields[node.name] = nestedTableValue;
+                    }
+                }
+                // If the node has a name, create a nested table for the children
+                else if (!node.name.empty())
+                {
+                    Value nestedTableValue = vm->createInstance(tableClass);
+                    ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
+
+                    for (const auto& child : node.children)
+                    {
+                        detail::processNodeToTable(vm, tableClass, child, nestedTable, retainValues);
+                    }
+
+                    if (retainValues)
+                    {
+                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        vm->releaseAndDelete(nestedTableValue);
+                    }
+                    else
+                    {
+                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
+                            vm->releaseAndDelete(currentTable->fields[node.name]);
+                        currentTable->fields[node.name] = nestedTableValue;
+                    }
+                }
+                else
+                {
+                    // Node has no name, so add children directly to current table
+                    for (const auto& child : node.children)
+                    {
+                        detail::processNodeToTable(vm, tableClass, child, currentTable, retainValues);
+                    }
+                }
+            }
+        }
+    } // namespace detail
+
+    // ============================================================================
+    // Public API functions
+    // ============================================================================
+
     /**
      * @brief Serialize a single component to a VM table (ObjInstance)
      *
@@ -77,274 +365,8 @@ namespace pg
                 table->fields["__className"] = classNameValue;
             }
 
-            // Helper to check if a node is an ElementType (has "type" and "data" children)
-            auto isElementType = [](const SerializedInfoHolder& node) -> bool {
-                if (node.className != "ElementType") return false;
-                bool hasType = false;
-                bool hasData = false;
-                for (const auto& child : node.children)
-                {
-                    if (child.name == "type") hasType = true;
-                    if (child.name == "data") hasData = true;
-                }
-                return hasType && hasData;
-            };
-
-            // Helper to extract the data value from an ElementType node
-            auto extractElementTypeValue = [&](const SerializedInfoHolder& node) -> Value {
-                for (const auto& child : node.children)
-                {
-                    if (child.name == "data" && !child.value.empty())
-                    {
-                        if (child.type == "int")
-                            return makeIntValue(std::stoi(child.value));
-                        else if (child.type == "bool")
-                            return makeBoolValue(child.value == "true");
-                        else if (child.type == "float" || child.type == "double")
-                            return makeDoubleValue(std::stod(child.value));
-                        else if (child.type == "size_t" || child.type == "unsigned int")
-                            return makeIntValue(std::stoull(child.value));
-                        else if (child.type == "string")
-                            return vm->createString(child.value);
-                        else
-                            return vm->createString(child.value);
-                    }
-                }
-                return makeIntValue(0); // Default
-            };
-
-            // Recursively add all children (component properties)
-            std::function<void(const SerializedInfoHolder&, ObjInstance*)> processNode;
-            processNode = [&](const SerializedInfoHolder& node, ObjInstance* currentTable) {
-                // Check if this is an ElementType - flatten it to just the data value
-                if (isElementType(node) && !node.name.empty())
-                {
-                    Value value = extractElementTypeValue(node);
-                    currentTable->fields[node.name] = value;
-                    return;
-                }
-
-                // If this node has a value (it's a leaf property), add it
-                if (!node.value.empty() && !node.name.empty())
-                {
-                    Value value;
-
-                    // Convert the string value to appropriate VM type
-                    if (node.type == "int")
-                    {
-                        value = makeIntValue(std::stoi(node.value));
-                    }
-                    else if (node.type == "bool")
-                    {
-                        value = makeBoolValue(node.value == "true");
-                    }
-                    else if (node.type == "float" or node.type == "double")
-                    {
-                        value = makeDoubleValue(std::stod(node.value));
-                    }
-                    else if (node.type == "size_t" or node.type == "unsigned int")
-                    {
-                        value = makeIntValue(std::stoull(node.value));
-                    }
-                    else if (node.type == "string")
-                    {
-                        value = vm->createString(node.value);
-                    }
-                    else
-                    {
-                        // Default to string representation
-                        value = vm->createString(node.value);
-                    }
-
-                    currentTable->fields[node.name] = value;
-                }
-
-                // If this node has children, process them
-                if (node.children.size() > 0)
-                {
-                    // Check if this is a Vector (array-like structure)
-                    if (node.className == "Vector" && !node.name.empty())
-                    {
-                        Value nestedTableValue = vm->createInstance(tableClass);
-                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                        // Add elements with numeric indices [0], [1], etc.
-                        for (size_t i = 0; i < node.children.size(); i++)
-                        {
-                            const auto& child = node.children[i];
-
-                            // Create a temporary table for this element
-                            Value elementValue;
-                            if (!child.value.empty())
-                            {
-                                // Leaf element - convert directly
-                                if (child.type == "int")
-                                {
-                                    elementValue = makeIntValue(std::stoi(child.value));
-                                }
-                                else if (child.type == "bool")
-                                {
-                                    elementValue = makeBoolValue(child.value == "true");
-                                }
-                                else if (child.type == "float" || child.type == "double")
-                                {
-                                    elementValue = makeDoubleValue(std::stod(child.value));
-                                }
-                                else if (child.type == "size_t" || child.type == "unsigned int")
-                                {
-                                    elementValue = makeIntValue(std::stoull(child.value));
-                                }
-                                else if (child.type == "string")
-                                {
-                                    elementValue = vm->createString(child.value);
-                                }
-                                else
-                                {
-                                    elementValue = vm->createString(child.value);
-                                }
-                            }
-                            else if (child.children.size() > 0)
-                            {
-                                // Complex element - create nested table
-                                Value childTableValue = vm->createInstance(tableClass);
-                                ObjInstance* childTable = vm->asInstance(childTableValue);
-                                processNode(child, childTable);
-                                elementValue = childTableValue;
-                            }
-
-                            nestedTable->fields[std::to_string(i)] = elementValue;
-                        }
-
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                        {
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        }
-
-                        currentTable->fields[node.name] = nestedTableValue;
-                    }
-                    // Check if this is an UnorderedMap
-                    else if (node.className == "UnorderedMap" && !node.name.empty())
-                    {
-                        Value nestedTableValue = vm->createInstance(tableClass);
-                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                        // Find nbElements to determine how many key-value pairs
-                        size_t nbElements = 0;
-                        for (const auto& child : node.children)
-                        {
-                            if (child.name == "nbElements" && !child.value.empty())
-                            {
-                                nbElements = std::stoull(child.value);
-                                break;
-                            }
-                        }
-
-                        // Extract key-value pairs and use actual keys as indices
-                        for (size_t i = 0; i < nbElements; i++)
-                        {
-                            std::string keyName = "key" + std::to_string(i);
-                            std::string valueName = "value" + std::to_string(i);
-
-                            std::string actualKey;
-                            Value actualValue;
-
-                            // Find the key and value in children
-                            for (const auto& child : node.children)
-                            {
-                                if (child.name == keyName && !child.value.empty())
-                                {
-                                    actualKey = child.value;
-                                }
-                                else if (child.name == valueName)
-                                {
-                                    // Check if value is an ElementType - flatten it
-                                    if (isElementType(child))
-                                    {
-                                        actualValue = extractElementTypeValue(child);
-                                    }
-                                    else if (!child.value.empty())
-                                    {
-                                        // Leaf value
-                                        if (child.type == "int")
-                                        {
-                                            actualValue = makeIntValue(std::stoi(child.value));
-                                        }
-                                        else if (child.type == "bool")
-                                        {
-                                            actualValue = makeBoolValue(child.value == "true");
-                                        }
-                                        else if (child.type == "float" || child.type == "double")
-                                        {
-                                            actualValue = makeDoubleValue(std::stod(child.value));
-                                        }
-                                        else if (child.type == "size_t" || child.type == "unsigned int")
-                                        {
-                                            actualValue = makeIntValue(std::stoull(child.value));
-                                        }
-                                        else if (child.type == "string")
-                                        {
-                                            actualValue = vm->createString(child.value);
-                                        }
-                                        else
-                                        {
-                                            actualValue = vm->createString(child.value);
-                                        }
-                                    }
-                                    else if (child.children.size() > 0)
-                                    {
-                                        // Complex value - create nested table
-                                        Value childTableValue = vm->createInstance(tableClass);
-                                        ObjInstance* childTable = vm->asInstance(childTableValue);
-                                        processNode(child, childTable);
-                                        actualValue = childTableValue;
-                                    }
-                                }
-                            }
-
-                            if (!actualKey.empty())
-                            {
-                                nestedTable->fields[actualKey] = actualValue;
-                            }
-                        }
-
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                        {
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        }
-
-                        currentTable->fields[node.name] = nestedTableValue;
-                    }
-                    // If the node has a name, create a nested table for the children
-                    // Otherwise, add children directly to the current table
-                    else if (!node.name.empty())
-                    {
-                        Value nestedTableValue = vm->createInstance(tableClass);
-                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                        for (const auto& child : node.children)
-                        {
-                            processNode(child, nestedTable);
-                        }
-
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                        {
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        }
-
-                        currentTable->fields[node.name] = nestedTableValue;
-                    }
-                    else
-                    {
-                        // Node has no name, so add children directly to current table
-                        for (const auto& child : node.children)
-                        {
-                            processNode(child, currentTable);
-                        }
-                    }
-                }
-            };
-
-            processNode(compNode, table);
+            // Process all component properties using the shared helper
+            detail::processNodeToTable(vm, tableClass, compNode, table, false);
         }
 
         return tableValue;
@@ -888,288 +910,8 @@ namespace pg
                 vm->releaseAndDelete(classNameValue);  // Release initial reference
             }
 
-            // Helper to check if a node is an ElementType (has "type" and "data" children)
-            auto isElementType = [](const SerializedInfoHolder& node) -> bool {
-                if (node.className != "ElementType") return false;
-                bool hasType = false;
-                bool hasData = false;
-                for (const auto& child : node.children)
-                {
-                    if (child.name == "type") hasType = true;
-                    if (child.name == "data") hasData = true;
-                }
-                return hasType && hasData;
-            };
-
-            // Helper to extract the data value from an ElementType node
-            auto extractElementTypeValue = [&](const SerializedInfoHolder& node) -> Value {
-                for (const auto& child : node.children)
-                {
-                    if (child.name == "data" && !child.value.empty())
-                    {
-                        if (child.type == "int")
-                            return makeIntValue(std::stoi(child.value));
-                        else if (child.type == "bool")
-                            return makeBoolValue(child.value == "true");
-                        else if (child.type == "float" || child.type == "double")
-                            return makeDoubleValue(std::stod(child.value));
-                        else if (child.type == "size_t" || child.type == "unsigned int")
-                            return makeIntValue(std::stoull(child.value));
-                        else if (child.type == "string")
-                            return vm->createString(child.value);
-                        else
-                            return vm->createString(child.value);
-                    }
-                }
-                return makeIntValue(0); // Default
-            };
-
-            // Recursively add all children (component properties)
-            std::function<void(const SerializedInfoHolder&, ObjInstance*)> processNode;
-            processNode = [&](const SerializedInfoHolder& node, ObjInstance* currentTable) {
-                // Check if this is an ElementType - flatten it to just the data value
-                if (isElementType(node) && !node.name.empty())
-                {
-                    Value key = vm->createString(node.name);
-                    Value value = extractElementTypeValue(node);
-                    currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(value);
-                    vm->releaseAndDelete(key);
-                    if (IS_STRING(value))
-                    {
-                        vm->releaseAndDelete(value);
-                    }
-                    return;
-                }
-
-                // If this node has a value (it's a leaf property), add it
-                if (!node.value.empty() && !node.name.empty())
-                {
-                    Value key = vm->createString(node.name);
-                    Value value;
-
-                    // Convert the string value to appropriate VM type
-                    if (node.type == "int")
-                    {
-                        value = makeIntValue(std::stoi(node.value));
-                    }
-                    else if (node.type == "bool")
-                    {
-                        value = makeBoolValue(node.value == "true");
-                    }
-                    else if (node.type == "float" || node.type == "double")
-                    {
-                        value = makeDoubleValue(std::stod(node.value));
-                    }
-                    else if (node.type == "size_t" || node.type == "unsigned int")
-                    {
-                        value = makeIntValue(std::stoull(node.value));
-                    }
-                    else if (node.type == "string")
-                    {
-                        value = vm->createString(node.value);
-                    }
-                    else
-                    {
-                        // Default to string representation
-                        value = vm->createString(node.value);
-                    }
-
-                    currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(value);
-                    vm->releaseAndDelete(key);
-                    // Only release strings (heap objects), not primitives (int, bool, double)
-                    if (IS_STRING(value))
-                    {
-                        vm->releaseAndDelete(value);
-                    }
-                }
-
-                // If this node has children, process them
-                if (node.children.size() > 0)
-                {
-                    // Check if this is a Vector (array-like structure)
-                    if (node.className == "Vector" && !node.name.empty())
-                    {
-                        Value nestedTableValue = vm->createInstance(tableClass);
-                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                        // Add elements with numeric indices [0], [1], etc.
-                        for (size_t i = 0; i < node.children.size(); i++)
-                        {
-                            const auto& child = node.children[i];
-
-                            Value elementValue;
-                            if (!child.value.empty())
-                            {
-                                // Leaf element - convert directly
-                                if (child.type == "int")
-                                {
-                                    elementValue = makeIntValue(std::stoi(child.value));
-                                }
-                                else if (child.type == "bool")
-                                {
-                                    elementValue = makeBoolValue(child.value == "true");
-                                }
-                                else if (child.type == "float" || child.type == "double")
-                                {
-                                    elementValue = makeDoubleValue(std::stod(child.value));
-                                }
-                                else if (child.type == "size_t" || child.type == "unsigned int")
-                                {
-                                    elementValue = makeIntValue(std::stoull(child.value));
-                                }
-                                else if (child.type == "string")
-                                {
-                                    elementValue = vm->createString(child.value);
-                                }
-                                else
-                                {
-                                    elementValue = vm->createString(child.value);
-                                }
-                            }
-                            else if (child.children.size() > 0)
-                            {
-                                // Complex element - create nested table
-                                Value childTableValue = vm->createInstance(tableClass);
-                                ObjInstance* childTable = vm->asInstance(childTableValue);
-                                processNode(child, childTable);
-                                elementValue = childTableValue;
-                            }
-
-                            nestedTable->fields[std::to_string(i)] = vm->retainValue(elementValue);
-                            if (IS_STRING(elementValue))
-                            {
-                                vm->releaseAndDelete(elementValue);
-                            }
-                        }
-
-                        Value key = vm->createString(node.name);
-                        currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(nestedTableValue);
-                        vm->releaseAndDelete(key);
-                        vm->releaseAndDelete(nestedTableValue);
-                    }
-                    // Check if this is an UnorderedMap
-                    else if (node.className == "UnorderedMap" && !node.name.empty())
-                    {
-                        Value nestedTableValue = vm->createInstance(tableClass);
-                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                        // Find nbElements to determine how many key-value pairs
-                        size_t nbElements = 0;
-                        for (const auto& child : node.children)
-                        {
-                            if (child.name == "nbElements" && !child.value.empty())
-                            {
-                                nbElements = std::stoull(child.value);
-                                break;
-                            }
-                        }
-
-                        // Extract key-value pairs and use actual keys as indices
-                        for (size_t i = 0; i < nbElements; i++)
-                        {
-                            std::string keyName = "key" + std::to_string(i);
-                            std::string valueName = "value" + std::to_string(i);
-
-                            std::string actualKey;
-                            Value actualValue;
-
-                            // Find the key and value in children
-                            for (const auto& child : node.children)
-                            {
-                                if (child.name == keyName && !child.value.empty())
-                                {
-                                    actualKey = child.value;
-                                }
-                                else if (child.name == valueName)
-                                {
-                                    // Check if value is an ElementType - flatten it
-                                    if (isElementType(child))
-                                    {
-                                        actualValue = extractElementTypeValue(child);
-                                    }
-                                    else if (!child.value.empty())
-                                    {
-                                        // Leaf value
-                                        if (child.type == "int")
-                                        {
-                                            actualValue = makeIntValue(std::stoi(child.value));
-                                        }
-                                        else if (child.type == "bool")
-                                        {
-                                            actualValue = makeBoolValue(child.value == "true");
-                                        }
-                                        else if (child.type == "float" || child.type == "double")
-                                        {
-                                            actualValue = makeDoubleValue(std::stod(child.value));
-                                        }
-                                        else if (child.type == "size_t" || child.type == "unsigned int")
-                                        {
-                                            actualValue = makeIntValue(std::stoull(child.value));
-                                        }
-                                        else if (child.type == "string")
-                                        {
-                                            actualValue = vm->createString(child.value);
-                                        }
-                                        else
-                                        {
-                                            actualValue = vm->createString(child.value);
-                                        }
-                                    }
-                                    else if (child.children.size() > 0)
-                                    {
-                                        // Complex value - create nested table
-                                        Value childTableValue = vm->createInstance(tableClass);
-                                        ObjInstance* childTable = vm->asInstance(childTableValue);
-                                        processNode(child, childTable);
-                                        actualValue = childTableValue;
-                                    }
-                                }
-                            }
-
-                            if (!actualKey.empty())
-                            {
-                                nestedTable->fields[actualKey] = vm->retainValue(actualValue);
-                                if (IS_STRING(actualValue))
-                                {
-                                    vm->releaseAndDelete(actualValue);
-                                }
-                            }
-                        }
-
-                        Value key = vm->createString(node.name);
-                        currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(nestedTableValue);
-                        vm->releaseAndDelete(key);
-                        vm->releaseAndDelete(nestedTableValue);
-                    }
-                    // If the node has a name, create a nested table for the children
-                    // Otherwise, add children directly to the current table
-                    else if (!node.name.empty())
-                    {
-                        Value nestedTableValue = vm->createInstance(tableClass);
-                        ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
-
-                        for (const auto& child : node.children)
-                        {
-                            processNode(child, nestedTable);
-                        }
-
-                        Value key = vm->createString(node.name);
-                        currentTable->fields[vm->asString(key)->toString()] = vm->retainValue(nestedTableValue);
-                        vm->releaseAndDelete(key);
-                        vm->releaseAndDelete(nestedTableValue);
-                    }
-                    else
-                    {
-                        // Node has no name, so add children directly to current table
-                        for (const auto& child : node.children)
-                        {
-                            processNode(child, currentTable);
-                        }
-                    }
-                }
-            };
-
-            processNode(compNode, table);
+            // Process all component properties using the shared helper (with retain mode)
+            detail::processNodeToTable(vm, tableClass, compNode, table, true);
         }
 
         return tableValue;
