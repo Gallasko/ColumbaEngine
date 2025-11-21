@@ -10,8 +10,6 @@
 
 #include "logger.h"
 
-#include "standardsystem.h"
-
 namespace tf
 {
     // Forward declaration
@@ -109,6 +107,43 @@ namespace pg
         // Todo make function onAdd and onDelete of a component that default to nothing if not used
     };
 
+    /**
+     * @brief Handle for accessing standard system functionality
+     */
+    class StandardSystemHandle
+    {
+    public:
+        StandardSystemHandle() = default;
+        virtual ~StandardSystemHandle() = default;
+
+        // Access to the ECS world
+        EntitySystem* getWorld() const;
+
+        // Send events
+        void sendEvent(const StandardEvent& event);
+        void sendEvent(const std::string& eventName);
+        void sendEvent(const std::string& eventName, const std::string& key, const ElementType& value);
+
+        // Component creation/removal (to be implemented based on your needs)
+        // These will work with entities that have StandardComponent attached
+        StandardComponent* createComponent(size_t entityId, const std::string& componentType);
+        void removeComponent(size_t entityId, const std::string& componentType);
+        StandardComponent* getComponent(size_t entityId, const std::string& componentType);
+
+        // Internal use only - stores the actual ECS system pointer
+        void* _internalSystemPtr = nullptr;
+    };
+
+    // Set callbacks
+    using _S_InitCallback = std::function<void(StandardSystemHandle*)>;
+    using _S_EventCallback = std::function<void(StandardSystemHandle*, const StandardEvent&)>;
+    using _S_ExecuteCallback = std::function<void(StandardSystemHandle*)>;
+    using _S_SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
+    using _S_LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
+
+    using _S_EventMap = std::unordered_map<std::string, _S_EventCallback>;
+    using _S_EventScriptMap = std::unordered_map<std::string, std::string>;
+
     // Simple base system - no templates, everything added manually
     // This system supports all features based on configuration
     class StandardSystemImpl : public AbstractSystem
@@ -116,15 +151,17 @@ namespace pg
     public:
         StandardSystemImpl(const std::string& name,
                           const std::vector<std::string>& componentNames,
+                          const std::unordered_map<std::string, ElementMap>& defaultComponentValues,
                           bool saveLoadEnabled,
-                          StandardSystemBuilder::InitCallback initCb,
-                          StandardSystemBuilder::EventMap eventMap,
-                          StandardSystemBuilder::EventScriptMap eventScriptMap,
-                          StandardSystemBuilder::ExecuteCallback executeCb,
-                          StandardSystemBuilder::SaveCallback saveCb,
-                          StandardSystemBuilder::LoadCallback loadCb,
-                          StandardSystemBuilder::InitCallback firstLoadCb) :
-                          systemName(name), ownedComponents(componentNames), saveLoadEnabled(saveLoadEnabled), initCallback(initCb),
+                          _S_InitCallback initCb,
+                          _S_EventMap eventMap,
+                          _S_EventScriptMap eventScriptMap,
+                          _S_ExecuteCallback executeCb,
+                          _S_SaveCallback saveCb,
+                          _S_LoadCallback loadCb,
+                          _S_InitCallback firstLoadCb) :
+                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues),
+                          saveLoadEnabled(saveLoadEnabled), initCallback(initCb),
                           eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap), executeCallback(executeCb),
                           saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb)
         {
@@ -223,6 +260,8 @@ namespace pg
 
         StandardSystemHandle& getHandle() { return handle; }
 
+        const std::unordered_map<std::string, ElementMap>& getDefaultCompValues() { return defaultComponentValues; }
+
         Own<StandardComponent>* getComponentOwner(const std::string& typeName)
         {
             auto it = componentOwners.find(typeName);
@@ -294,21 +333,22 @@ namespace pg
         std::string systemName;
         std::set<std::string> listenedEvents;
         std::vector<std::string> ownedComponents;
+        std::unordered_map<std::string, ElementMap> defaultComponentValues;
         std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
         StandardSystemHandle handle;
 
         bool saveLoadEnabled;
 
-        StandardSystemBuilder::InitCallback initCallback;
+        _S_InitCallback initCallback;
 
-        StandardSystemBuilder::EventMap eventCallbackList;
-        StandardSystemBuilder::EventScriptMap eventScriptCallbackList;
-        StandardSystemBuilder::EventMap eventCompiledScriptCallbackList;
+        _S_EventMap eventCallbackList;
+        _S_EventScriptMap eventScriptCallbackList;
+        _S_EventMap eventCompiledScriptCallbackList;
 
-        StandardSystemBuilder::ExecuteCallback executeCallback;
-        StandardSystemBuilder::SaveCallback saveCallback;
-        StandardSystemBuilder::LoadCallback loadCallback;
-        StandardSystemBuilder::InitCallback firstLoadCallback;
+        _S_ExecuteCallback executeCallback;
+        _S_SaveCallback saveCallback;
+        _S_LoadCallback loadCallback;
+        _S_InitCallback firstLoadCallback;
     };
 
     template <typename... Comps>

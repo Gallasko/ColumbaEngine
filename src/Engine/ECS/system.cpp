@@ -51,6 +51,12 @@ namespace pg
         {
             auto* owner = new Own<StandardComponent>(componentName);
             owner->setRegistry(registry);
+
+            // Trying to push the default values of the component
+            auto it = defaultComponentValues.find(componentName);
+            if (it != defaultComponentValues.end())
+                owner->setDefaultValue(it->second);
+
             componentOwners[componentName] = owner;
 
             LOG_INFO("StandardSystemImpl", "Registered component owner for: " << componentName);
