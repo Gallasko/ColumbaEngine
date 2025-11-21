@@ -105,8 +105,74 @@ namespace pg
                 auto value = serializeToTable(&vm, event);
                 vm.globals["event"] = value;
 
+                // ========================================================================
+                // System Data Setup - Expose system's persistent data storage to scripts
+                // ========================================================================
+                // The system data (ElementMap) is serialized to a VM table called "sysData"
+                // Scripts can read/write to this table using standard field access:
+                //   sysData.myCounter = sysData.myCounter + 1
+                //   local x = sysData.someValue
+                //
+                // After script execution, changes are copied back to C++ ElementMap
+                // This allows systems to maintain state between script invocations
+                //
+                // TODO: If immediate synchronization is needed during script execution,
+                //       consider implementing setter methods (see StandardComponent setters)
+                // ========================================================================
+                if (sys->_internalSystemPtr)
+                {
+                    StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
+                    ElementMap& sysData = sysImpl->getSystemData();
+
+                    // Create a VM table to hold system data
+                    auto it = vm.globals.find("__Table");
+                    if (it != vm.globals.end())
+                    {
+                        Klass* tableClass = vm.asClass(it->second);
+                        Value dataTableValue = vm.createInstance(tableClass);
+                        ObjInstance* dataTable = vm.asInstance(dataTableValue);
+
+                        // Copy all C++ ElementMap entries to VM table
+                        for (const auto& [key, elemValue] : sysData)
+                        {
+                            dataTable->fields[key] = vm.retainValue(vm.elementToValue(elemValue));
+                        }
+
+                        vm.globals["sysData"] = dataTableValue;
+                    }
+                }
+
                 // Interpret cached bytecode
                 InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
+
+                // ========================================================================
+                // System Data Synchronization - Copy script changes back to C++
+                // ========================================================================
+                // After script execution, any changes made to sysData table are copied
+                // back to the C++ ElementMap so they persist across script invocations
+                // ========================================================================
+                if (sys->_internalSystemPtr && result == InterpretResult::OK)
+                {
+                    StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
+                    ElementMap& sysData = sysImpl->getSystemData();
+
+                    auto it = vm.globals.find("sysData");
+                    if (it != vm.globals.end() && IS_INSTANCE(it->second))
+                    {
+                        ObjInstance* dataTable = vm.asInstance(it->second);
+
+                        // Copy all fields from VM table back to C++ ElementMap
+                        // This overwrites existing keys and adds new ones
+                        for (const auto& [key, vmValue] : dataTable->fields)
+                        {
+                            // Skip internal VM fields
+                            if (key != "__className" && !key.empty())
+                            {
+                                sysData[key] = vm.valueToElement(vmValue);
+                            }
+                        }
+                    }
+                }
 
                 if (result != InterpretResult::OK)
                 {
@@ -174,8 +240,74 @@ namespace pg
                                 }
                             }
 
+                            // ========================================================================
+                            // System Data Setup - Expose system's persistent data storage to scripts
+                            // ========================================================================
+                            // The system data (ElementMap) is serialized to a VM table called "sysData"
+                            // Scripts can read/write to this table using standard field access:
+                            //   sysData.myCounter = sysData.myCounter + 1
+                            //   local x = sysData.someValue
+                            //
+                            // After script execution, changes are copied back to C++ ElementMap
+                            // This allows systems to maintain state between script invocations
+                            //
+                            // TODO: If immediate synchronization is needed during script execution,
+                            //       consider implementing setter methods (see StandardComponent setters)
+                            // ========================================================================
+                            if (sys->_internalSystemPtr)
+                            {
+                                StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
+                                ElementMap& sysData = sysImpl->getSystemData();
+
+                                // Create a VM table to hold system data
+                                auto it = vm.globals.find("__Table");
+                                if (it != vm.globals.end())
+                                {
+                                    Klass* tableClass = vm.asClass(it->second);
+                                    Value dataTableValue = vm.createInstance(tableClass);
+                                    ObjInstance* dataTable = vm.asInstance(dataTableValue);
+
+                                    // Copy all C++ ElementMap entries to VM table
+                                    for (const auto& [key, elemValue] : sysData)
+                                    {
+                                        dataTable->fields[key] = vm.retainValue(vm.elementToValue(elemValue));
+                                    }
+
+                                    vm.globals["sysData"] = dataTableValue;
+                                }
+                            }
+
                             // Interpret cached bytecode
                             InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
+
+                            // ========================================================================
+                            // System Data Synchronization - Copy script changes back to C++
+                            // ========================================================================
+                            // After script execution, any changes made to sysData table are copied
+                            // back to the C++ ElementMap so they persist across script invocations
+                            // ========================================================================
+                            if (sys->_internalSystemPtr && result == InterpretResult::OK)
+                            {
+                                StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
+                                ElementMap& sysData = sysImpl->getSystemData();
+
+                                auto it = vm.globals.find("sysData");
+                                if (it != vm.globals.end() && IS_INSTANCE(it->second))
+                                {
+                                    ObjInstance* dataTable = vm.asInstance(it->second);
+
+                                    // Copy all fields from VM table back to C++ ElementMap
+                                    // This overwrites existing keys and adds new ones
+                                    for (const auto& [key, vmValue] : dataTable->fields)
+                                    {
+                                        // Skip internal VM fields
+                                        if (key != "__className" && !key.empty())
+                                        {
+                                            sysData[key] = vm.valueToElement(vmValue);
+                                        }
+                                    }
+                                }
+                            }
 
                             if (result != InterpretResult::OK)
                             {

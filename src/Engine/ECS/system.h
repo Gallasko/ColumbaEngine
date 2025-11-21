@@ -130,6 +130,9 @@ namespace pg
         void removeComponent(size_t entityId, const std::string& componentType);
         StandardComponent* getComponent(size_t entityId, const std::string& componentType);
 
+        // Access to system data storage
+        ElementMap* getData();
+
         // Internal use only - stores the actual ECS system pointer
         void* _internalSystemPtr = nullptr;
     };
@@ -276,6 +279,9 @@ namespace pg
             return (it != componentOwners.end()) ? it->second : nullptr;
         }
 
+        // Access to system data storage
+        ElementMap& getSystemData() { return systemData; }
+
         // Save/load methods (called when saveLoadEnabled is true)
         void save(Archive& archive)
         {
@@ -344,6 +350,9 @@ namespace pg
         std::unordered_map<std::string, ElementMap> defaultComponentValues;
         std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
         StandardSystemHandle handle;
+
+        // System data storage - allows system to store arbitrary key-value data
+        ElementMap systemData;
 
         bool saveLoadEnabled;
 
