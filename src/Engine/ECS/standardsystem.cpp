@@ -130,6 +130,15 @@ namespace pg
         return comp;
     }
 
+    ElementMap* StandardSystemHandle::getData()
+    {
+        if (!_internalSystemPtr)
+            return nullptr;
+
+        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
+        return &sys->getSystemData();
+    }
+
     // ============================================================================
     // StandardSystemBuilder implementation
     // ============================================================================
