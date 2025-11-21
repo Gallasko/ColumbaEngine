@@ -1113,6 +1113,55 @@ namespace pg
     }
 
     /**
+     * @brief Helper to serialize StandardComponent without setters (internal use)
+     */
+    inline Value serializeToTableBasic(VM* vm, const StandardComponent& component)
+    {
+        // Get the Table class
+        auto it = vm->globals.find("__Table");
+        if (it == vm->globals.end())
+        {
+            throw std::runtime_error("Table class not found in VM globals");
+        }
+
+        Klass* tableClass = vm->asClass(it->second);
+
+        // Create an Archive and serialize the component
+        InspectorArchive archive;
+        serialize(archive, component);
+
+        // Create the table instance
+        Value tableValue = vm->createInstance(tableClass);
+        ObjInstance* table = vm->asInstance(tableValue);
+
+        // Helper function to add field to table
+        auto addField = [&](const std::string& key, Value value) {
+            table->fields[key] = vm->retainValue(value);
+        };
+
+        // Parse the archive and populate the table
+        if (archive.mainNode.children.size() > 0)
+        {
+            auto& compNode = archive.mainNode.children[0];
+
+            // Add the class name (component type)
+            if (!compNode.className.empty())
+            {
+                Value classNameKey = vm->createString("__className");
+                Value classNameValue = vm->createString(compNode.className);
+                addField(vm->asString(classNameKey)->toString(), classNameValue);
+                vm->releaseAndDelete(classNameKey);
+                vm->releaseAndDelete(classNameValue);  // Release initial reference
+            }
+
+            // Process all component properties using the shared helper (with retain mode)
+            detail::processNodeToTable(vm, tableClass, compNode, table, true);
+        }
+
+        return tableValue;
+    }
+
+    /**
      * @brief Specialized serializeToTable for StandardComponent with setter generation
      *
      * This overload generates dynamic setter methods for StandardComponent properties
@@ -1125,8 +1174,8 @@ namespace pg
      */
     inline Value serializeToTable(VM* vm, const StandardComponent& component)
     {
-        // First, use the generic template version to create the basic table
-        Value tableValue = serializeToTable<StandardComponent>(vm, component);
+        // First, use the basic serialization helper to create the table
+        Value tableValue = serializeToTableBasic(vm, component);
         ObjInstance* table = vm->asInstance(tableValue);
 
         // Get component context from the component itself
@@ -1178,9 +1227,10 @@ namespace pg
             }
 
             // Register a global VM function with a unique name
+            // Capture the table and propertiesTable to update VM values as well
             std::string globalSetterName = "__setter_" + std::to_string(entityId) + "_" + compTypeName + "_" + propName;
 
-            vm->registerNative(globalSetterName, [ecsRef, entityId, compTypeName, propName](VM* vm, int argCount, Value* args) -> Value {
+            vm->registerNative(globalSetterName, [ecsRef, entityId, compTypeName, propName, table, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
                 if (argCount != 1)
                 {
                     LOG_ERROR("StandardComponent Setter", "Expected 1 argument for setter, got " << argCount);
@@ -1225,6 +1275,15 @@ namespace pg
                 // setWithEvent updates the property and fires Changed<ComponentType> event
                 comp->setWithEvent(propName, newValue);
 
+                // Also update the VM table so the script sees the change immediately
+                if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+                {
+                    // Release old value if it exists
+                    vm->releaseAndDelete(propertiesTable->fields[propName]);
+                    // Set new value (retain it)
+                    propertiesTable->fields[propName] = vm->retainValue(args[0]);
+                }
+
                 return INT_VAL(0);
             });
 
@@ -1240,7 +1299,7 @@ namespace pg
         // Add generic set(propertyName, value) method
         std::string genericSetterName = "__genericSetter_" + std::to_string(entityId) + "_" + compTypeName;
 
-        vm->registerNative(genericSetterName, [ecsRef, entityId, compTypeName](VM* vm, int argCount, Value* args) -> Value {
+        vm->registerNative(genericSetterName, [ecsRef, entityId, compTypeName, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
             if (argCount != 2)
             {
                 LOG_ERROR("StandardComponent Generic Setter", "Expected 2 arguments (propertyName, value), got " << argCount);
@@ -1292,6 +1351,20 @@ namespace pg
 
             // setWithEvent updates the property and fires Changed<ComponentType> event
             comp->setWithEvent(propName, newValue);
+
+            // Also update the VM table so the script sees the change immediately
+            if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+            {
+                // Release old value if it exists
+                vm->releaseAndDelete(propertiesTable->fields[propName]);
+                // Set new value (retain it)
+                propertiesTable->fields[propName] = vm->retainValue(args[1]);
+            }
+            else
+            {
+                // Property doesn't exist yet, add it
+                propertiesTable->fields[propName] = vm->retainValue(args[1]);
+            }
 
             return INT_VAL(0);
         });
