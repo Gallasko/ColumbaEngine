@@ -174,11 +174,8 @@ namespace pg
                 defineNative(name, fun);
             }
 
-            // Re-load all native modules that were registered
-            for (const auto& [moduleName, moduleData] : nativeModules)
-            {
-                loadNativeModule(moduleName);
-            }
+            // Note: Native modules are registered but not auto-loaded into global scope
+            // They will be loaded when explicitly imported via: import moduleName
         }
 
         InterpretResult interpretFromText(const std::string& source, bool compileOnly = false, const std::string& dumpByteCode = "")
@@ -498,7 +495,8 @@ namespace pg
             data.variables = moduleData.exportedVariables;
             nativeModules[moduleName] = data;
 
-            loadNativeModule(moduleName);
+            // Note: Module is registered but not loaded into global scope
+            // It will be loaded when explicitly imported via: import moduleName
         }
 
         bool loadNativeModule(const std::string& moduleName)
