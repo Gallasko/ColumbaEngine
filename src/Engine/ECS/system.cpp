@@ -149,11 +149,28 @@ namespace pg
                         LOG_MILE("StandardSystemImpl", "Cached bytecode for execute script: " << executeScript << " (" << fileSize << " bytes)");
 
                         // Register the execute handler with cached bytecode (captured by value)
-                        compiledExecuteScriptCallback = [cachedBytecode, scriptName = executeScript](StandardSystemHandle* sys) {
+                        compiledExecuteScriptCallback = [this, cachedBytecode, scriptName = executeScript](StandardSystemHandle* sys) {
                             auto ecsRef = sys->getWorld();
 
                             VM vm;
                             ecsRef->setupVm(vm);
+
+                            for (auto [compName, owner] : componentOwners)
+                            {
+                                auto v = owner->view();
+
+                                int i = 0;
+
+                                for (auto val : v)
+                                {
+                                    // Use specialized overload for StandardComponent that generates setters
+                                    // The component already has ecsRef and entityId set
+                                    auto value = serializeToTable(&vm, *val);
+                                    vm.globals[compName + "_" + std::to_string(i)] = value;
+
+                                    i++;
+                                }
+                            }
 
                             // Interpret cached bytecode
                             InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
