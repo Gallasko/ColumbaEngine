@@ -181,37 +181,37 @@ namespace pg
         return *this;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onInit(InitCallback callback)
+    StandardSystemBuilder& StandardSystemBuilder::onInit(_S_InitCallback callback)
     {
         data.initCallback = callback;
         return *this;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& eventName, EventCallback callback)
+    StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& eventName, _S_EventCallback callback)
     {
         data.eventCallbackList[eventName] = callback;
         return *this;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onExecute(ExecuteCallback callback)
+    StandardSystemBuilder& StandardSystemBuilder::onExecute(_S_ExecuteCallback callback)
     {
         data.executeCallback = callback;
         return *this;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onSave(SaveCallback callback)
+    StandardSystemBuilder& StandardSystemBuilder::onSave(_S_SaveCallback callback)
     {
         data.saveCallback = callback;
         return *this;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onLoad(LoadCallback callback)
+    StandardSystemBuilder& StandardSystemBuilder::onLoad(_S_LoadCallback callback)
     {
         data.loadCallback = callback;
         return *this;
     }
 
-    StandardSystemBuilder& StandardSystemBuilder::onFirstLoad(InitCallback callback)
+    StandardSystemBuilder& StandardSystemBuilder::onFirstLoad(_S_InitCallback callback)
     {
         data.firstLoadCallback = callback;
         return *this;
@@ -230,6 +230,7 @@ namespace pg
         auto* system = new StandardSystemImpl(
             data.systemName,
             data.componentNames,
+            data.componentDefaultValues,
             data.saveLoadEnabled,
             data.initCallback,
             data.eventCallbackList,

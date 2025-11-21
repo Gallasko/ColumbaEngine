@@ -20,6 +20,7 @@ namespace pg
     struct AbstractSystem;
     struct StandardEvent;
     struct StandardComponent;
+    class StandardSystemHandle;
     class StandardSystemImpl;
 
     /**
@@ -55,32 +56,15 @@ namespace pg
      * @endcode
      */
 
-    /**
-     * @brief Handle for accessing standard system functionality
-     */
-    class StandardSystemHandle
-    {
-    public:
-        StandardSystemHandle() = default;
-        virtual ~StandardSystemHandle() = default;
+    // Set callbacks
+    using _S_InitCallback = std::function<void(StandardSystemHandle*)>;
+    using _S_EventCallback = std::function<void(StandardSystemHandle*, const StandardEvent&)>;
+    using _S_ExecuteCallback = std::function<void(StandardSystemHandle*)>;
+    using _S_SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
+    using _S_LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
 
-        // Access to the ECS world
-        EntitySystem* getWorld() const;
-
-        // Send events
-        void sendEvent(const StandardEvent& event);
-        void sendEvent(const std::string& eventName);
-        void sendEvent(const std::string& eventName, const std::string& key, const ElementType& value);
-
-        // Component creation/removal (to be implemented based on your needs)
-        // These will work with entities that have StandardComponent attached
-        StandardComponent* createComponent(size_t entityId, const std::string& componentType);
-        void removeComponent(size_t entityId, const std::string& componentType);
-        StandardComponent* getComponent(size_t entityId, const std::string& componentType);
-
-        // Internal use only - stores the actual ECS system pointer
-        void* _internalSystemPtr = nullptr;
-    };
+    using _S_EventMap = std::unordered_map<std::string, _S_EventCallback>;
+    using _S_EventScriptMap = std::unordered_map<std::string, std::string>;
 
     /**
      * @brief Builder for creating standard systems
@@ -94,6 +78,19 @@ namespace pg
         StandardSystemBuilder& ownComponents(const std::vector<std::string>& componentNames);
         StandardSystemBuilder& ownComponent(const std::string& componentName);
 
+        StandardSystemBuilder& ownComponent(const std::string& componentName, const std::string& key, const ElementType& value)
+        {
+            data.componentDefaultValues[componentName][key] = value;
+            return ownComponent(componentName);
+        }
+
+        template <typename... Args>
+        StandardSystemBuilder& ownComponent(const std::string& componentName, const std::string& key, const ElementType& value, Args... args)
+        {
+            data.componentDefaultValues[componentName][key] = value;
+            return ownComponent(componentName, args...);
+        }
+
         // Set execution policy
         StandardSystemBuilder& useStoragePolicy(); // No automatic execute()
         StandardSystemBuilder& useManualPolicy();   // Manual execution only
@@ -103,22 +100,12 @@ namespace pg
         // Enable save/load
         StandardSystemBuilder& enableSaveLoad();
 
-        // Set callbacks
-        using InitCallback = std::function<void(StandardSystemHandle*)>;
-        using EventCallback = std::function<void(StandardSystemHandle*, const StandardEvent&)>;
-        using ExecuteCallback = std::function<void(StandardSystemHandle*)>;
-        using SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
-        using LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
-
-        using EventMap = std::unordered_map<std::string, EventCallback>;
-        using EventScriptMap = std::unordered_map<std::string, std::string>;
-
-        StandardSystemBuilder& onInit(InitCallback callback);
-        StandardSystemBuilder& onEvent(const std::string& eventName, EventCallback callback);
-        StandardSystemBuilder& onExecute(ExecuteCallback callback);
-        StandardSystemBuilder& onSave(SaveCallback callback);
-        StandardSystemBuilder& onLoad(LoadCallback callback);
-        StandardSystemBuilder& onFirstLoad(InitCallback callback);
+        StandardSystemBuilder& onInit(_S_InitCallback callback);
+        StandardSystemBuilder& onEvent(const std::string& eventName, _S_EventCallback callback);
+        StandardSystemBuilder& onExecute(_S_ExecuteCallback callback);
+        StandardSystemBuilder& onSave(_S_SaveCallback callback);
+        StandardSystemBuilder& onLoad(_S_LoadCallback callback);
+        StandardSystemBuilder& onFirstLoad(_S_InitCallback callback);
 
         // Scripts overload
         StandardSystemBuilder& onEvent(const std::string& eventName, const std::string& scriptName);
@@ -131,18 +118,19 @@ namespace pg
         {
             std::string systemName;
             std::vector<std::string> componentNames;
+            std::unordered_map<std::string, ElementMap> componentDefaultValues;
             std::string executionPolicy = "sequential"; // sequential, storage, manual, parallel
             bool saveLoadEnabled = false;
 
-            InitCallback initCallback;
+            _S_InitCallback initCallback;
 
-            EventMap eventCallbackList;
-            EventScriptMap scriptEventCallbackList;
+            _S_EventMap eventCallbackList;
+            _S_EventScriptMap scriptEventCallbackList;
 
-            ExecuteCallback executeCallback;
-            SaveCallback saveCallback;
-            LoadCallback loadCallback;
-            InitCallback firstLoadCallback;
+            _S_ExecuteCallback executeCallback;
+            _S_SaveCallback saveCallback;
+            _S_LoadCallback loadCallback;
+            _S_InitCallback firstLoadCallback;
         };
 
         BuilderData data;

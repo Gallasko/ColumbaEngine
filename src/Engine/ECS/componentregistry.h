@@ -888,10 +888,9 @@ namespace pg
         /**
          * @brief Set the type name for this StandardComponent owner
          */
-        void setTypeName(const std::string& name)
-        {
-            typeName = name;
-        }
+        inline void setTypeName(const std::string& name) { typeName = name; }
+
+        inline void setDefaultValue(const ElementMap& map) { defaultValues = map; }
 
         /**
          * @brief Register this owner in the registry with string-based storage
@@ -935,6 +934,11 @@ namespace pg
             LOG_THIS_MEMBER("Own<StandardComponent>");
 
             auto comp = components.addComponent(entity, typeName, std::forward<Args>(args)...);
+
+            for (const auto& [key, value] : defaultValues)
+            {
+                comp->set(key, value);
+            }
 
             entity->componentList.emplace(_componentId);
 
@@ -982,6 +986,8 @@ namespace pg
         }
 
         ComponentSet<StandardComponent> components;
+
+        ElementMap defaultValues;
 
         std::map<_unique_id, void(*)(EntityRef)> onComponentCreation;
         std::map<_unique_id, void(*)(EntityRef)> onComponentDeletion;

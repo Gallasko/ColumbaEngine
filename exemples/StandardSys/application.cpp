@@ -81,6 +81,7 @@ StandardSystemImpl* createSimplePositionSystem()
             LOG_INFO("SimplePosition", "System initialized");
         })
         .ownComponent("SimplePosition")
+        .ownComponent("SimpleObj", "name", "obj", "value", 5)
         // .onEvent("BasicScriptEvent", "scripthandler.pg")
         .useStoragePolicy() // Only react to events, no execute() needed
         .build();
@@ -138,13 +139,26 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.registerSystem(createSimplePositionSystem());
 
-        auto ent = ecs.createEntity();
+        {
+            auto ent = ecs.createEntity();
 
-        // auto simplePos = ent.attach("SimplePosition");
-        auto simplePos = ecs.attach(ent, "SimplePosition", "x", 5, "y", 10);
+            // auto simplePos = ent.attach("SimplePosition");
+            auto simplePos = ecs.attach(ent, "SimplePosition", "x", 5, "y", 10);
 
-        LOG_INFO("SimplePos", simplePos->typeName);
-        LOG_INFO("SimplePos", simplePos->get<int>("x"));
+            LOG_INFO("SimplePos", simplePos->typeName);
+            LOG_INFO("SimplePos", simplePos->get<int>("x"));
+        }
+
+        {
+            auto ent = ecs.createEntity();
+
+            // auto simpleObj = ent.attach<StandardComponent>("SimpleObj");
+            auto simpleObj = ecs.attach(ent, "SimpleObj");
+
+            LOG_INFO("SimpleObj", simpleObj->typeName);
+            LOG_INFO("SimpleObj", simpleObj->get<std::string>("name"));
+        }
+
 
         window.receivedQuitRequest();
 
