@@ -109,6 +109,7 @@ namespace pg
 
         // Scripts overload
         StandardSystemBuilder& onEvent(const std::string& eventName, const std::string& scriptName);
+        StandardSystemBuilder& onExecute(const std::string& scriptName);
 
         // Build and return the system (returns StandardSystemImpl* that can be registered)
         StandardSystemImpl* build();
@@ -128,6 +129,7 @@ namespace pg
             _S_EventScriptMap scriptEventCallbackList;
 
             _S_ExecuteCallback executeCallback;
+            std::string executeScript;
             _S_SaveCallback saveCallback;
             _S_LoadCallback loadCallback;
             _S_InitCallback firstLoadCallback;

@@ -157,12 +157,14 @@ namespace pg
                           _S_EventMap eventMap,
                           _S_EventScriptMap eventScriptMap,
                           _S_ExecuteCallback executeCb,
+                          const std::string& executeScriptPath,
                           _S_SaveCallback saveCb,
                           _S_LoadCallback loadCb,
                           _S_InitCallback firstLoadCb) :
                           systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues),
                           saveLoadEnabled(saveLoadEnabled), initCallback(initCb),
-                          eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap), executeCallback(executeCb),
+                          eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap),
+                          executeCallback(executeCb), executeScript(executeScriptPath),
                           saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb)
         {
             for (auto [key, _] : eventMap)
@@ -250,6 +252,12 @@ namespace pg
             if (executeCallback)
             {
                 executeCallback(&handle);
+            }
+
+            // Call compiled execute script callback
+            if (compiledExecuteScriptCallback)
+            {
+                compiledExecuteScriptCallback(&handle);
             }
         }
 
@@ -346,6 +354,8 @@ namespace pg
         _S_EventMap eventCompiledScriptCallbackList;
 
         _S_ExecuteCallback executeCallback;
+        std::string executeScript;
+        _S_ExecuteCallback compiledExecuteScriptCallback;
         _S_SaveCallback saveCallback;
         _S_LoadCallback loadCallback;
         _S_InitCallback firstLoadCallback;
