@@ -111,6 +111,8 @@ namespace pg
                 if (result != InterpretResult::OK)
                 {
                     LOG_ERROR("StandardSystemImpl", "Event script handler error for: " << scriptName);
+                    LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                    LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
                 }
             });
         }
@@ -178,6 +180,8 @@ namespace pg
                             if (result != InterpretResult::OK)
                             {
                                 LOG_ERROR("StandardSystemImpl", "Execute script handler error for: " << scriptName);
+                                LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                                LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
                             }
                         };
                     }

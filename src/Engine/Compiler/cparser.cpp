@@ -1115,6 +1115,11 @@ namespace pg
             {
                 error("Failed to import module '" + moduleName + "': not found as file or native module");
             }
+            else
+            {
+                // Track that this native module was imported (for bytecode caching)
+                Compiler::current->getCurrentChunk().importedModules.push_back(moduleName);
+            }
         }
 
         // Check for multiple imports: import "mod1", "mod2", "mod3"
@@ -1130,6 +1135,11 @@ namespace pg
                 if (not vm->loadNativeModule(moduleName))
                 {
                     error("Failed to import module '" + moduleName + "': not found as file or native module");
+                }
+                else
+                {
+                    // Track that this native module was imported (for bytecode caching)
+                    Compiler::current->getCurrentChunk().importedModules.push_back(moduleName);
                 }
             }
         }

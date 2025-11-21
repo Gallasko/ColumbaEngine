@@ -104,6 +104,11 @@ namespace pg
 
         std::vector<int> lines;
 
+        // Track which native modules were imported during compilation
+        // These need to be loaded when executing cached bytecode
+        // Note: Imports are always global (added to VM globals), even if written in local scopes
+        std::vector<std::string> importedModules;
+
         // Note: With NaN-boxing and pool-based memory, constants don't need cleanup in destructor
         // The VM's pools handle all memory management via reference counting
 

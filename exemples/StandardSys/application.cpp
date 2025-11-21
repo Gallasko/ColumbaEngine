@@ -110,6 +110,17 @@ StandardSystemImpl* createCompExecSystem()
         .build();
 }
 
+StandardSystemImpl* createCompExecReactorSystem()
+{
+    return createStandardSystem("CompExecReactor")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            LOG_INFO("CompExec", "System initialized");
+        })
+        .onEvent("ChangedExecComp", "simpleExecReact.pg")
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -185,6 +196,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
 
         ecs.executeOnce();
+
+        ecs.registerSystem(createCompExecReactorSystem());
 
         auto compSys = ecs.registerSystem(createCompExecSystem());
 
