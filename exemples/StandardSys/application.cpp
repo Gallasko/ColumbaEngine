@@ -98,6 +98,17 @@ StandardSystemImpl* createSimpleExecSystem()
         .build();
 }
 
+StandardSystemImpl* createCompExecSystem()
+{
+    return createStandardSystem("CompExec")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            LOG_INFO("CompExec", "System initialized");
+        })
+        .ownComponent("ExecComp", "name", "exec", "value", 0)
+        .onExecute("simpleExecComp.pg")
+        .build();
+}
 
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
@@ -172,6 +183,16 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         }
 
         auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
+
+        ecs.executeOnce();
+
+        auto compSys = ecs.registerSystem(createCompExecSystem());
+
+        {
+            auto ent = ecs.createEntity();
+
+            auto execComp = ecs.attach(ent, "ExecComp");
+        }
 
         ecs.executeOnce();
 
