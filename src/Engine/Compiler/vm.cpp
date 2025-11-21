@@ -366,6 +366,15 @@ namespace pg
             return InterpretResult::COMPILE_ERROR;
         }
 
+        // Load all native modules that were imported during compilation
+        for (const std::string& moduleName : chunk.importedModules)
+        {
+            if (!loadNativeModule(moduleName))
+            {
+                LOG_WARNING("VM", "Failed to load imported module '" << moduleName << "' from cached bytecode");
+            }
+        }
+
         // Create function from deserialized chunk
         auto function = createFunction();
         ObjFunction* funcObj = asFunction(function);

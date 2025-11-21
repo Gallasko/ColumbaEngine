@@ -1269,17 +1269,35 @@ namespace pg
                     return INT_VAL(0);
                 }
 
-                // Convert the VM value to ElementType and update the property
+                // Convert the VM value to ElementType
                 ElementType newValue = vm->valueToElement(args[0]);
 
-                // setWithEvent updates the property and fires Changed<ComponentType> event
-                comp->setWithEvent(propName, newValue);
-
-                // Also update the VM table so the script sees the change immediately
-                if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+                // Check if the value actually changed
+                bool valueChanged = false;
+                if (comp->has(propName))
                 {
-                    // Release old value if it exists
-                    vm->releaseAndDelete(propertiesTable->fields[propName]);
+                    ElementType oldValue = comp->properties[propName];
+                    // Compare values to see if they're different
+                    valueChanged = !(oldValue == newValue);
+                }
+                else
+                {
+                    // Property doesn't exist yet, so it's definitely a change
+                    valueChanged = true;
+                }
+
+                // Only update and fire event if value actually changed
+                if (valueChanged)
+                {
+                    // setWithEvent updates the property and fires Changed<ComponentType> event
+                    comp->setWithEvent(propName, newValue);
+
+                    // Also update the VM table so the script sees the change immediately
+                    if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+                    {
+                        // Release old value if it exists
+                        vm->releaseAndDelete(propertiesTable->fields[propName]);
+                    }
                     // Set new value (retain it)
                     propertiesTable->fields[propName] = vm->retainValue(args[0]);
                 }
@@ -1346,23 +1364,36 @@ namespace pg
                 return INT_VAL(0);
             }
 
-            // Convert the VM value to ElementType and update the property
+            // Convert the VM value to ElementType
             ElementType newValue = vm->valueToElement(args[1]);
 
-            // setWithEvent updates the property and fires Changed<ComponentType> event
-            comp->setWithEvent(propName, newValue);
-
-            // Also update the VM table so the script sees the change immediately
-            if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+            // Check if the value actually changed
+            bool valueChanged = false;
+            if (comp->has(propName))
             {
-                // Release old value if it exists
-                vm->releaseAndDelete(propertiesTable->fields[propName]);
-                // Set new value (retain it)
-                propertiesTable->fields[propName] = vm->retainValue(args[1]);
+                ElementType oldValue = comp->properties[propName];
+                // Compare values to see if they're different
+                valueChanged = !(oldValue == newValue);
             }
             else
             {
-                // Property doesn't exist yet, add it
+                // Property doesn't exist yet, so it's definitely a change
+                valueChanged = true;
+            }
+
+            // Only update and fire event if value actually changed
+            if (valueChanged)
+            {
+                // setWithEvent updates the property and fires Changed<ComponentType> event
+                comp->setWithEvent(propName, newValue);
+
+                // Also update the VM table so the script sees the change immediately
+                if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+                {
+                    // Release old value if it exists
+                    vm->releaseAndDelete(propertiesTable->fields[propName]);
+                }
+                // Set new value (retain it)
                 propertiesTable->fields[propName] = vm->retainValue(args[1]);
             }
 

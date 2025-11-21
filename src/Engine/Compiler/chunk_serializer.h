@@ -65,6 +65,13 @@ namespace pg
                     return false;
             }
 
+            // Write imported modules section
+            writeUint32(out, static_cast<uint32_t>(chunk.importedModules.size()));
+            for (const std::string& moduleName : chunk.importedModules)
+            {
+                writeString(out, moduleName);
+            }
+
             return out.good();
         }
 
@@ -105,6 +112,17 @@ namespace pg
                 if (!deserializeValueImpl(in, value, vm))
                     return false;
                 chunk.constants.push_back(value);
+            }
+
+            // Read imported modules section (may not exist in older bytecode)
+            if (in.good() && in.peek() != EOF)
+            {
+                uint32_t modulesCount = readUint32(in);
+                chunk.importedModules.reserve(modulesCount);
+                for (uint32_t i = 0; i < modulesCount; i++)
+                {
+                    chunk.importedModules.push_back(readString(in));
+                }
             }
 
             return in.good();
