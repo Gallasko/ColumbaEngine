@@ -224,6 +224,13 @@ namespace pg
         return *this;
     }
 
+    StandardSystemBuilder& StandardSystemBuilder::onExecute(const std::string& scriptName)
+    {
+        data.executeScript = scriptName;
+
+        return *this;
+    }
+
     StandardSystemImpl* StandardSystemBuilder::build()
     {
         // Create a single StandardSystemImpl with all features
@@ -236,6 +243,7 @@ namespace pg
             data.eventCallbackList,
             data.scriptEventCallbackList,
             data.executeCallback,
+            data.executeScript,
             data.saveCallback,
             data.loadCallback,
             data.firstLoadCallback

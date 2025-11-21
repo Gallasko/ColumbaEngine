@@ -115,6 +115,59 @@ namespace pg
             });
         }
 
+        // Compile and cache execute script if provided
+        if (!executeScript.empty())
+        {
+            if (not checkCompiledScript(ecsRef, executeScript))
+            {
+                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the execute script: " << executeScript);
+            }
+            else
+            {
+                // Read the bytecode file once into memory
+                std::ifstream file(executeScript, std::ios::binary);
+                if (!file)
+                {
+                    LOG_ERROR("StandardSystemImpl", "Failed to open execute bytecode file: " << executeScript);
+                }
+                else
+                {
+                    // Get file size and read entire file
+                    file.seekg(0, std::ios::end);
+                    size_t fileSize = file.tellg();
+                    file.seekg(0, std::ios::beg);
+
+                    std::vector<char> cachedBytecode(fileSize);
+                    file.read(cachedBytecode.data(), fileSize);
+
+                    if (!file)
+                    {
+                        LOG_ERROR("StandardSystemImpl", "Failed to read execute bytecode file: " << executeScript);
+                    }
+                    else
+                    {
+                        LOG_MILE("StandardSystemImpl", "Cached bytecode for execute script: " << executeScript << " (" << fileSize << " bytes)");
+
+                        // Register the execute handler with cached bytecode (captured by value)
+                        compiledExecuteScriptCallback = [cachedBytecode, scriptName = executeScript](StandardSystemHandle* sys) {
+                            auto ecsRef = sys->getWorld();
+
+                            VM vm;
+                            ecsRef->setupVm(vm);
+
+                            // Interpret cached bytecode
+                            InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
+
+                            if (result != InterpretResult::OK)
+                            {
+                                LOG_ERROR("StandardSystemImpl", "Execute script handler error for: " << scriptName);
+                            }
+                        };
+                    }
+                }
+            }
+        }
+
         // Register event listeners
         for (const auto& eventName : listenedEvents)
         {

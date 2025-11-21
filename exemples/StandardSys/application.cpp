@@ -87,6 +87,18 @@ StandardSystemImpl* createSimplePositionSystem()
         .build();
 }
 
+StandardSystemImpl* createSimpleExecSystem()
+{
+    return createStandardSystem("SimpleExec")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            LOG_INFO("SimpleExec", "System initialized");
+        })
+        .onExecute("simpleExec.pg")
+        .build();
+}
+
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -159,6 +171,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             LOG_INFO("SimpleObj", simpleObj->get<std::string>("name"));
         }
 
+        auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
+
+        ecs.executeOnce();
 
         window.receivedQuitRequest();
 
