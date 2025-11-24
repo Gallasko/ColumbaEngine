@@ -10,7 +10,7 @@ namespace pg
     Profiler::Profiler()
         : currentFrame(0)
         , frameStartTime(0.0)
-        , maxEvents(100000)
+        , maxEvents(500000)  // Increased to 500k for fast frames
         , enabled(true)
     {
         sessionStart = std::chrono::steady_clock::now();
@@ -29,19 +29,17 @@ namespace pg
 
         currentFrame++;
         frameStartTime = getCurrentTimeMs();
-
-        std::lock_guard<std::mutex> lock(eventMutex);
-        events.emplace_back("Frame", currentFrame, frameStartTime, true, "Frame", getCurrentThreadId());
+        recordBegin("Frame", "Frame");
     }
 
     void Profiler::endFrame()
     {
         if (!enabled) return;
 
-        std::lock_guard<std::mutex> lock(eventMutex);
-        events.emplace_back("Frame", currentFrame, getCurrentTimeMs(), false, "Frame", getCurrentThreadId());
+        recordEnd("Frame", "Frame");
 
         // Limit buffer size (keep only recent events)
+        std::lock_guard<std::mutex> lock(eventMutex);
         if (events.size() > maxEvents)
         {
             // Remove oldest 20% when we hit the limit
@@ -55,15 +53,41 @@ namespace pg
         if (!enabled) return;
 
         std::lock_guard<std::mutex> lock(eventMutex);
-        events.emplace_back(name, currentFrame, getCurrentTimeMs(), true, category, getCurrentThreadId());
+        uint32_t tid = getCurrentThreadId();
+        pendingEvents[tid].push_back({name, category, getCurrentTimeMs(), currentFrame});
     }
 
     void Profiler::recordEnd(const std::string& name, const std::string& category)
     {
         if (!enabled) return;
 
+        double endTime = getCurrentTimeMs();
+        uint32_t tid = getCurrentThreadId();
+
         std::lock_guard<std::mutex> lock(eventMutex);
-        events.emplace_back(name, currentFrame, getCurrentTimeMs(), false, category, getCurrentThreadId());
+
+        auto& pending = pendingEvents[tid];
+        if (pending.empty()) return;
+
+        // Find matching begin event (search backwards for nested scopes)
+        for (auto it = pending.rbegin(); it != pending.rend(); ++it)
+        {
+            if (it->name == name && it->category == category)
+            {
+                double duration = endTime - it->startMs;
+
+                // Todo make the cut off parametrable
+                // Only store if duration is meaningful (>= 0.002ms = 2us)
+                if (duration >= 0.002)
+                {
+                    events.emplace_back(name, it->frameNumber, it->startMs, duration, category, tid);
+                }
+
+                // Remove the pending event
+                pending.erase(std::next(it).base());
+                break;
+            }
+        }
     }
 
     std::vector<ProfileInterval> Profiler::computeIntervals(uint64_t startFrame, uint64_t endFrame) const
@@ -72,42 +96,19 @@ namespace pg
 
         std::vector<ProfileInterval> intervals;
 
-        // Stack to handle nested scopes per thread
-        std::map<uint32_t, std::stack<const ProfileEvent*>> threadStacks;
-
+        // Events are already completed intervals, just filter by frame range
         for (const auto& event : events)
         {
-            if (event.frameNumber < startFrame || event.frameNumber > endFrame)
-                continue;
-
-            if (event.isBegin)
+            if (event.frameNumber >= startFrame && event.frameNumber <= endFrame)
             {
-                // Push begin event
-                threadStacks[event.threadId].push(&event);
-            }
-            else
-            {
-                // Pop and match with begin event
-                auto& stack = threadStacks[event.threadId];
-                if (!stack.empty())
-                {
-                    const ProfileEvent* beginEvent = stack.top();
-
-                    // Match by name (simple approach)
-                    if (beginEvent->name == event.name)
-                    {
-                        double duration = event.timestampMs - beginEvent->timestampMs;
-                        intervals.emplace_back(
-                            event.name,
-                            event.frameNumber,
-                            beginEvent->timestampMs,
-                            duration,
-                            event.category,
-                            event.threadId
-                        );
-                        stack.pop();
-                    }
-                }
+                intervals.emplace_back(
+                    event.name,
+                    event.frameNumber,
+                    event.startMs,
+                    event.durationMs,
+                    event.category,
+                    event.threadId
+                );
             }
         }
 
@@ -160,8 +161,63 @@ namespace pg
         file.close();
 
         std::cout << "Profile data exported to: " << filename << std::endl;
-        std::cout << "Frames: " << startFrame << " to " << currentFrame << std::endl;
-        std::cout << "Total intervals: " << intervals.size() << std::endl;
+        std::cout << "Frames: " << startFrame << " to " << currentFrame
+                  << " (" << intervals.size() << " intervals)" << std::endl;
+    }
+
+    void Profiler::exportAllToCSV(const std::string& filename)
+    {
+        if (!enabled)
+        {
+            std::cout << "Profiler is disabled, skipping CSV export" << std::endl;
+            return;
+        }
+
+        std::ofstream file(filename);
+        if (!file.is_open())
+        {
+            std::cerr << "Failed to open file for profiler export: " << filename << std::endl;
+            return;
+        }
+
+        // Get all frames
+        std::lock_guard<std::mutex> lock(eventMutex);
+
+        uint64_t minFrame = UINT64_MAX;
+        uint64_t maxFrame = 0;
+
+        for (const auto& event : events)
+        {
+            if (event.frameNumber < minFrame) minFrame = event.frameNumber;
+            if (event.frameNumber > maxFrame) maxFrame = event.frameNumber;
+        }
+
+        // Release lock and compute intervals
+        eventMutex.unlock();
+        auto intervals = computeIntervals(minFrame, maxFrame);
+        eventMutex.lock();
+
+        // Write header
+        file << "frame,name,category,start_ms,duration_ms,thread_id\n";
+
+        // Write data
+        file << std::fixed << std::setprecision(6);
+        for (const auto& interval : intervals)
+        {
+            file << interval.frameNumber << ","
+                 << "\"" << interval.name << "\","
+                 << "\"" << interval.category << "\","
+                 << interval.startMs << ","
+                 << interval.durationMs << ","
+                 << interval.threadId << "\n";
+        }
+
+        file.close();
+
+        std::cout << "Profile data exported to: " << filename << std::endl;
+        std::cout << "All frames: " << minFrame << " to " << maxFrame
+                  << " (total " << (maxFrame - minFrame + 1) << " frames, "
+                  << intervals.size() << " intervals)" << std::endl;
     }
 
     void Profiler::clear()

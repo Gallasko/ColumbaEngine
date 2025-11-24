@@ -25,6 +25,8 @@ extern std::mutex profileMutex;
 
 extern std::unordered_map<std::string, long long> _systemExecutionTimes;
 extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
+
+#include "Profiler/profiler.h"
 #endif
 
 namespace pg
@@ -253,6 +255,8 @@ namespace pg
 #ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
+
+                    PROFILE_SCOPE(system->getSystemName(), "System");
 #endif
 
                     try
@@ -305,6 +309,8 @@ namespace pg
 #ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
+
+                    PROFILE_SCOPE(system->getSystemName(), "System");
 #endif
 
                     system->_execute();
@@ -372,6 +378,8 @@ namespace pg
 #ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
+
+                    PROFILE_SCOPE(sys->getSystemName(), "System");
 #endif
 
                     try
@@ -418,6 +426,8 @@ namespace pg
 #ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
+
+                    PROFILE_SCOPE(sys->getSystemName(), "System");
 #endif
 
                     sys->_execute();
@@ -526,6 +536,8 @@ namespace pg
 #ifdef PROFILE
                     // Todo time the whole exec of a run of the taskflow
                     auto start = std::chrono::steady_clock::now();
+
+                    PROFILE_SCOPE(system->getSystemName(), "System");
 #endif
 
                     system->_execute();

@@ -7,21 +7,22 @@
 #include <cstdint>
 #include <fstream>
 #include <algorithm>
+#include <map>
 
 namespace pg
 {
-    // Single profiling event (begin or end)
+    // Completed profiling interval (already computed)
     struct ProfileEvent
     {
         std::string name;
         uint64_t frameNumber;
-        double timestampMs;
-        bool isBegin;
+        double startMs;
+        double durationMs;
         std::string category;
         uint32_t threadId;
 
-        ProfileEvent(const std::string& n, uint64_t frame, double ts, bool begin, const std::string& cat, uint32_t tid)
-            : name(n), frameNumber(frame), timestampMs(ts), isBegin(begin), category(cat), threadId(tid)
+        ProfileEvent(const std::string& n, uint64_t frame, double start, double dur, const std::string& cat, uint32_t tid)
+            : name(n), frameNumber(frame), startMs(start), durationMs(dur), category(cat), threadId(tid)
         {}
     };
 
@@ -44,7 +45,17 @@ namespace pg
     class Profiler
     {
     private:
+        // Pending begin events (per thread)
+        struct PendingEvent {
+            std::string name;
+            std::string category;
+            double startMs;
+            uint64_t frameNumber;
+        };
+
+        // Completed intervals (already filtered for zero-duration)
         std::vector<ProfileEvent> events;
+        std::map<uint32_t, std::vector<PendingEvent>> pendingEvents;
         mutable std::mutex eventMutex;
 
         uint64_t currentFrame;
@@ -74,6 +85,7 @@ namespace pg
 
         // Export
         void exportToCSV(const std::string& filename, size_t numFrames = 300);
+        void exportAllToCSV(const std::string& filename);  // Export all captured frames
 
         // Control
         void setEnabled(bool enable) { enabled = enable; }
