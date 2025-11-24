@@ -19,8 +19,7 @@ namespace pg
     {
         if (_internalSystemPtr)
         {
-            AbstractSystem* sys = static_cast<AbstractSystem*>(_internalSystemPtr);
-            return sys->world();
+            return _internalSystemPtr->world();
         }
         return nullptr;
     }
@@ -29,10 +28,9 @@ namespace pg
     {
         if (_internalSystemPtr)
         {
-            AbstractSystem* sys = static_cast<AbstractSystem*>(_internalSystemPtr);
-            if (sys->registry)
+            if (_internalSystemPtr->registry)
             {
-                sys->registry->processEvent(event);
+                _internalSystemPtr->registry->processEvent(event);
             }
         }
     }
@@ -54,10 +52,8 @@ namespace pg
         if (!_internalSystemPtr)
             return nullptr;
 
-        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
-
         // Get the component owner for this type
-        auto* owner = sys->getComponentOwner(componentType);
+        auto* owner = _internalSystemPtr->getComponentOwner(componentType);
         if (!owner)
         {
             LOG_WARNING("StandardSystemHandle", "Component type '" << componentType << "' is not owned by this system");
@@ -65,7 +61,7 @@ namespace pg
         }
 
         // Get the entity
-        auto* entity = sys->world()->getEntity(entityId);
+        auto* entity = _internalSystemPtr->world()->getEntity(entityId);
         if (!entity)
         {
             LOG_ERROR("StandardSystemHandle", "Entity " << entityId << " does not exist");
@@ -85,10 +81,8 @@ namespace pg
         if (!_internalSystemPtr)
             return;
 
-        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
-
         // Get the component owner for this type
-        auto* owner = sys->getComponentOwner(componentType);
+        auto* owner = _internalSystemPtr->getComponentOwner(componentType);
         if (!owner)
         {
             LOG_WARNING("StandardSystemHandle", "Component type '" << componentType << "' is not owned by this system");
@@ -96,7 +90,7 @@ namespace pg
         }
 
         // Get the entity
-        auto* entity = sys->world()->getEntity(entityId);
+        auto* entity = _internalSystemPtr->world()->getEntity(entityId);
         if (!entity)
         {
             LOG_ERROR("StandardSystemHandle", "Entity " << entityId << " does not exist");
@@ -114,10 +108,8 @@ namespace pg
         if (!_internalSystemPtr)
             return nullptr;
 
-        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
-
         // Get the component owner for this type
-        auto* owner = sys->getComponentOwner(componentType);
+        auto* owner = _internalSystemPtr->getComponentOwner(componentType);
         if (!owner)
         {
             LOG_WARNING("StandardSystemHandle", "Component type '" << componentType << "' is not owned by this system");
@@ -135,8 +127,7 @@ namespace pg
         if (!_internalSystemPtr)
             return nullptr;
 
-        StandardSystemImpl* sys = static_cast<StandardSystemImpl*>(_internalSystemPtr);
-        return &sys->getSystemData();
+        return &_internalSystemPtr->getSystemData();
     }
 
     // ============================================================================

@@ -107,6 +107,9 @@ namespace pg
         // Todo make function onAdd and onDelete of a component that default to nothing if not used
     };
 
+    // Forward declaration for StandardSystemImpl
+    class StandardSystemImpl;
+
     /**
      * @brief Handle for accessing standard system functionality
      */
@@ -133,8 +136,8 @@ namespace pg
         // Access to system data storage
         ElementMap* getData();
 
-        // Internal use only - stores the actual ECS system pointer
-        void* _internalSystemPtr = nullptr;
+        // Internal use only - stores the actual StandardSystemImpl pointer
+        StandardSystemImpl* _internalSystemPtr = nullptr;
     };
 
     // Set callbacks

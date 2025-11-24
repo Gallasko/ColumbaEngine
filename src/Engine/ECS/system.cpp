@@ -124,8 +124,7 @@ namespace pg
                 // ========================================================================
                 if (sys->_internalSystemPtr)
                 {
-                    StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
-                    ElementMap& sysData = sysImpl->getSystemData();
+                    ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
                     // Create a VM table to hold system data
                     auto it = vm.globals.find("__Table");
@@ -156,8 +155,7 @@ namespace pg
                 // ========================================================================
                 if (sys->_internalSystemPtr && result == InterpretResult::OK)
                 {
-                    StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
-                    ElementMap& sysData = sysImpl->getSystemData();
+                    ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
                     auto it = vm.globals.find("sysData");
                     if (it != vm.globals.end() && IS_INSTANCE(it->second))
@@ -259,8 +257,7 @@ namespace pg
                             // ========================================================================
                             if (sys->_internalSystemPtr)
                             {
-                                StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
-                                ElementMap& sysData = sysImpl->getSystemData();
+                                ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
                                 // Create a VM table to hold system data
                                 auto it = vm.globals.find("__Table");
@@ -291,8 +288,7 @@ namespace pg
                             // ========================================================================
                             if (sys->_internalSystemPtr && result == InterpretResult::OK)
                             {
-                                StandardSystemImpl* sysImpl = static_cast<StandardSystemImpl*>(sys->_internalSystemPtr);
-                                ElementMap& sysData = sysImpl->getSystemData();
+                                ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
                                 auto it = vm.globals.find("sysData");
                                 if (it != vm.globals.end() && IS_INSTANCE(it->second))
