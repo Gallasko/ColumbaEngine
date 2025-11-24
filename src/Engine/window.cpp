@@ -23,6 +23,10 @@
 #include "UI/progressbar.h"
 #include "UI/textinput.h"
 #include "UI/sentencesystem.h"
+
+#ifdef PROFILE
+#include "Profiler/profiler.h"
+#endif
 #include "UI/listview.h"
 #include "UI/prefab.h"
 #include "UI/sizer.h"
@@ -182,6 +186,16 @@ namespace pg
         LOG_INFO(DOM, "Window destruction...");
 
         ecs->stop();
+
+#ifdef PROFILE
+        // Export profiling data before deleting ECS
+        try {
+            Profiler::instance().exportToCSV("profile_data.csv", 30000);
+        } catch (...) {
+            std::cerr << "Failed to export profiler data" << std::endl;
+        }
+#endif
+
         delete ecs;
 
         delete screenEntity;
@@ -201,8 +215,8 @@ namespace pg
         if (audioSystem != nullptr)
             audioSystem->closeSDLMixer();
 
-        LOG_INFO(DOM, "Shutting down network backend...");
-        SDLNet_Quit();
+        // LOG_INFO(DOM, "Shutting down network backend...");
+        // SDLNet_Quit();
 
         SDL_GL_DeleteContext(context);
         SDL_DestroyWindow(window);
@@ -359,11 +373,11 @@ namespace pg
 #endif
 
         // Todo add a flag to enable/disable this
-        if (SDLNet_Init() < 0)
-        {
-            LOG_ERROR(DOM, "SDLNet_Init failed: " << SDLNet_GetError());
-            return false;
-        }
+        // if (SDLNet_Init() < 0)
+        // {
+        //     LOG_ERROR(DOM, "SDLNet_Init failed: " << SDLNet_GetError());
+        //     return false;
+        // }
 
         return true;
     }
@@ -638,6 +652,10 @@ namespace pg
 
     void Window::render()
     {
+#ifdef PROFILE
+        PROFILE_FRAME_BEGIN();
+#endif
+
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
@@ -652,15 +670,36 @@ namespace pg
 
         masterRenderer->setWindowSize(this->width, this->height);
 
-        masterRenderer->renderAll();
+#ifdef PROFILE
+        {
+            PROFILE_SCOPE("Render", "Render");
+#endif
+            masterRenderer->renderAll();
+#ifdef PROFILE
+        }
 
-        inputHandler->updateInput(float(currentTime - lastTime) / 1000);
+        {
+            PROFILE_SCOPE("Input", "Input");
+#endif
+            inputHandler->updateInput(float(currentTime - lastTime) / 1000);
+#ifdef PROFILE
+        }
+#endif
 
         lastTime = currentTime;
 
         nbFrame++;
 
-        swapBuffer();
+#ifdef PROFILE
+        {
+            PROFILE_SCOPE("SwapBuffer", "Render");
+#endif
+            swapBuffer();
+#ifdef PROFILE
+        }
+
+        PROFILE_FRAME_END();
+#endif
     }
 
     void Window::swapBuffer()
