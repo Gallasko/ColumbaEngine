@@ -40,6 +40,113 @@ namespace pg
         return false;
     }
 
+    std::vector<char> getCachedScript(EntitySystem* ecsRef, std::string& scriptName)
+    {
+        if (not checkCompiledScript(ecsRef, scriptName))
+        {
+            LOG_ERROR("StandardSystemImpl", "Cannot compile or open the script: " << scriptName);
+            return {};
+        }
+
+        // Read the bytecode file once into memory
+        std::ifstream file(scriptName, std::ios::binary);
+        if (not file)
+        {
+            LOG_ERROR("StandardSystemImpl", "Failed to open bytecode file: " << scriptName);
+            return {};
+        }
+
+        // Get file size and read entire file
+        file.seekg(0, std::ios::end);
+        size_t fileSize = file.tellg();
+        file.seekg(0, std::ios::beg);
+
+        std::vector<char> cachedBytecode(fileSize);
+        file.read(cachedBytecode.data(), fileSize);
+
+        if (not file)
+        {
+            LOG_ERROR("StandardSystemImpl", "Failed to read bytecode file: " << scriptName);
+            return {};
+        }
+
+        LOG_MILE("StandardSystemImpl", "Cached bytecode " << scriptName << " (" << fileSize << " bytes)");
+
+        return cachedBytecode;
+    }
+
+    InterpretResult interpretWithSysData(StandardSystemHandle* sys, VM& vm, const std::vector<char>& cachedBytecode)
+    {
+        // ========================================================================
+        // System Data Setup - Expose system's persistent data storage to scripts
+        // ========================================================================
+        // The system data (ElementMap) is serialized to a VM table called "sysData"
+        // Scripts can read/write to this table using standard field access:
+        //   sysData.myCounter = sysData.myCounter + 1
+        //   var x = sysData.someValue
+        //
+        // After script execution, changes are copied back to C++ ElementMap
+        // This allows systems to maintain state between script invocations
+        //
+        // TODO: If immediate synchronization is needed during script execution,
+        //       consider implementing setter methods (see StandardComponent setters)
+        // ========================================================================
+        if (sys->_internalSystemPtr)
+        {
+            ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
+
+            // Create a VM table to hold system data
+            auto it = vm.globals.find("__Table");
+            if (it != vm.globals.end())
+            {
+                Klass* tableClass = vm.asClass(it->second);
+                Value dataTableValue = vm.createInstance(tableClass);
+                ObjInstance* dataTable = vm.asInstance(dataTableValue);
+
+                // Copy all C++ ElementMap entries to VM table
+                for (const auto& [key, elemValue] : sysData)
+                {
+                    dataTable->fields[key] = vm.retainValue(vm.elementToValue(elemValue));
+                }
+
+                vm.globals["sysData"] = dataTableValue;
+            }
+        }
+
+        // Interpret cached bytecode
+        InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
+
+        // ========================================================================
+        // System Data Synchronization - Copy script changes back to C++
+        // ========================================================================
+        // After script execution, any changes made to sysData table are copied
+        // back to the C++ ElementMap so they persist across script invocations
+        // ========================================================================
+        if (sys->_internalSystemPtr && result == InterpretResult::OK)
+        {
+            ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
+
+            auto it = vm.globals.find("sysData");
+            if (it != vm.globals.end() && IS_INSTANCE(it->second))
+            {
+                ObjInstance* dataTable = vm.asInstance(it->second);
+
+                // Copy all fields from VM table back to C++ ElementMap
+                // This overwrites existing keys and adds new ones
+                for (const auto& [key, vmValue] : dataTable->fields)
+                {
+                    // Skip internal VM fields
+                    if (key != "__className" && !key.empty())
+                    {
+                        sysData[key] = vm.valueToElement(vmValue);
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
     void StandardSystemImpl::addToRegistry(ComponentRegistry *registry)
     {
         LOG_THIS_MEMBER("StandardSystemImpl");
@@ -64,35 +171,10 @@ namespace pg
 
         for (auto [eventName, scriptName] : eventScriptCallbackList)
         {
-            if (not checkCompiledScript(ecsRef, scriptName))
-            {
-                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the script: " << scriptName);
+            auto cachedBytecode = getCachedScript(ecsRef, scriptName);
+
+            if (cachedBytecode.empty())
                 continue;
-            }
-
-            // Read the bytecode file once into memory
-            std::ifstream file(scriptName, std::ios::binary);
-            if (!file)
-            {
-                LOG_ERROR("StandardSystemImpl", "Failed to open bytecode file: " << scriptName);
-                continue;
-            }
-
-            // Get file size and read entire file
-            file.seekg(0, std::ios::end);
-            size_t fileSize = file.tellg();
-            file.seekg(0, std::ios::beg);
-
-            std::vector<char> cachedBytecode(fileSize);
-            file.read(cachedBytecode.data(), fileSize);
-
-            if (!file)
-            {
-                LOG_ERROR("StandardSystemImpl", "Failed to read bytecode file: " << scriptName);
-                continue;
-            }
-
-            LOG_MILE("StandardSystemImpl", "Cached bytecode for event '" << eventName << "': " << scriptName << " (" << fileSize << " bytes)");
 
             // Create a copy of scriptName for lambda capture (structured bindings can't be captured)
             std::string capturedScriptName = scriptName;
@@ -108,72 +190,7 @@ namespace pg
                 auto value = serializeToTable(&vm, event);
                 vm.globals["event"] = value;
 
-                // ========================================================================
-                // System Data Setup - Expose system's persistent data storage to scripts
-                // ========================================================================
-                // The system data (ElementMap) is serialized to a VM table called "sysData"
-                // Scripts can read/write to this table using standard field access:
-                //   sysData.myCounter = sysData.myCounter + 1
-                //   local x = sysData.someValue
-                //
-                // After script execution, changes are copied back to C++ ElementMap
-                // This allows systems to maintain state between script invocations
-                //
-                // TODO: If immediate synchronization is needed during script execution,
-                //       consider implementing setter methods (see StandardComponent setters)
-                // ========================================================================
-                if (sys->_internalSystemPtr)
-                {
-                    ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
-
-                    // Create a VM table to hold system data
-                    auto it = vm.globals.find("__Table");
-                    if (it != vm.globals.end())
-                    {
-                        Klass* tableClass = vm.asClass(it->second);
-                        Value dataTableValue = vm.createInstance(tableClass);
-                        ObjInstance* dataTable = vm.asInstance(dataTableValue);
-
-                        // Copy all C++ ElementMap entries to VM table
-                        for (const auto& [key, elemValue] : sysData)
-                        {
-                            dataTable->fields[key] = vm.retainValue(vm.elementToValue(elemValue));
-                        }
-
-                        vm.globals["sysData"] = dataTableValue;
-                    }
-                }
-
-                // Interpret cached bytecode
-                InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
-
-                // ========================================================================
-                // System Data Synchronization - Copy script changes back to C++
-                // ========================================================================
-                // After script execution, any changes made to sysData table are copied
-                // back to the C++ ElementMap so they persist across script invocations
-                // ========================================================================
-                if (sys->_internalSystemPtr && result == InterpretResult::OK)
-                {
-                    ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
-
-                    auto it = vm.globals.find("sysData");
-                    if (it != vm.globals.end() && IS_INSTANCE(it->second))
-                    {
-                        ObjInstance* dataTable = vm.asInstance(it->second);
-
-                        // Copy all fields from VM table back to C++ ElementMap
-                        // This overwrites existing keys and adds new ones
-                        for (const auto& [key, vmValue] : dataTable->fields)
-                        {
-                            // Skip internal VM fields
-                            if (key != "__className" && !key.empty())
-                            {
-                                sysData[key] = vm.valueToElement(vmValue);
-                            }
-                        }
-                    }
-                }
+                auto result = interpretWithSysData(sys, vm, cachedBytecode);
 
                 if (result != InterpretResult::OK)
                 {
@@ -185,138 +202,50 @@ namespace pg
         }
 
         // Compile and cache execute script if provided
-        if (!executeScript.empty())
+        if (not executeScript.empty())
         {
-            if (not checkCompiledScript(ecsRef, executeScript))
+            auto cachedBytecode = getCachedScript(ecsRef, executeScript);
+
+            if (cachedBytecode.empty())
             {
                 LOG_ERROR("StandardSystemImpl", "Cannot compile or open the execute script: " << executeScript);
             }
             else
             {
-                // Read the bytecode file once into memory
-                std::ifstream file(executeScript, std::ios::binary);
-                if (!file)
-                {
-                    LOG_ERROR("StandardSystemImpl", "Failed to open execute bytecode file: " << executeScript);
-                }
-                else
-                {
-                    // Get file size and read entire file
-                    file.seekg(0, std::ios::end);
-                    size_t fileSize = file.tellg();
-                    file.seekg(0, std::ios::beg);
+                // Register the execute handler with cached bytecode (captured by value)
+                compiledExecuteScriptCallback = [this, cachedBytecode, scriptName = executeScript](StandardSystemHandle* sys) {
+                    auto ecsRef = sys->getWorld();
 
-                    std::vector<char> cachedBytecode(fileSize);
-                    file.read(cachedBytecode.data(), fileSize);
+                    VM vm;
+                    ecsRef->setupVm(vm);
 
-                    if (!file)
+                    // Todo change this so that it lives inside a sys module + the table are more friendly
+                    for (auto [compName, owner] : componentOwners)
                     {
-                        LOG_ERROR("StandardSystemImpl", "Failed to read execute bytecode file: " << executeScript);
+                        auto v = owner->view();
+
+                        int i = 0;
+
+                        for (auto val : v)
+                        {
+                            // Use specialized overload for StandardComponent that generates setters
+                            // The component already has ecsRef and entityId set
+                            auto value = serializeToTable(&vm, *val);
+                            vm.globals[compName + "_" + std::to_string(i)] = value;
+
+                            i++;
+                        }
                     }
-                    else
+
+                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+
+                    if (result != InterpretResult::OK)
                     {
-                        LOG_MILE("StandardSystemImpl", "Cached bytecode for execute script: " << executeScript << " (" << fileSize << " bytes)");
-
-                        // Register the execute handler with cached bytecode (captured by value)
-                        compiledExecuteScriptCallback = [this, cachedBytecode, scriptName = executeScript](StandardSystemHandle* sys) {
-                            auto ecsRef = sys->getWorld();
-
-                            VM vm;
-                            ecsRef->setupVm(vm);
-
-                            for (auto [compName, owner] : componentOwners)
-                            {
-                                auto v = owner->view();
-
-                                int i = 0;
-
-                                for (auto val : v)
-                                {
-                                    // Use specialized overload for StandardComponent that generates setters
-                                    // The component already has ecsRef and entityId set
-                                    auto value = serializeToTable(&vm, *val);
-                                    vm.globals[compName + "_" + std::to_string(i)] = value;
-
-                                    i++;
-                                }
-                            }
-
-                            // ========================================================================
-                            // System Data Setup - Expose system's persistent data storage to scripts
-                            // ========================================================================
-                            // The system data (ElementMap) is serialized to a VM table called "sysData"
-                            // Scripts can read/write to this table using standard field access:
-                            //   sysData.myCounter = sysData.myCounter + 1
-                            //   local x = sysData.someValue
-                            //
-                            // After script execution, changes are copied back to C++ ElementMap
-                            // This allows systems to maintain state between script invocations
-                            //
-                            // TODO: If immediate synchronization is needed during script execution,
-                            //       consider implementing setter methods (see StandardComponent setters)
-                            // ========================================================================
-                            if (sys->_internalSystemPtr)
-                            {
-                                ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
-
-                                // Create a VM table to hold system data
-                                auto it = vm.globals.find("__Table");
-                                if (it != vm.globals.end())
-                                {
-                                    Klass* tableClass = vm.asClass(it->second);
-                                    Value dataTableValue = vm.createInstance(tableClass);
-                                    ObjInstance* dataTable = vm.asInstance(dataTableValue);
-
-                                    // Copy all C++ ElementMap entries to VM table
-                                    for (const auto& [key, elemValue] : sysData)
-                                    {
-                                        dataTable->fields[key] = vm.retainValue(vm.elementToValue(elemValue));
-                                    }
-
-                                    vm.globals["sysData"] = dataTableValue;
-                                }
-                            }
-
-                            // Interpret cached bytecode
-                            InterpretResult result = vm.interpretFromCachedBytecode(cachedBytecode, 0);
-
-                            // ========================================================================
-                            // System Data Synchronization - Copy script changes back to C++
-                            // ========================================================================
-                            // After script execution, any changes made to sysData table are copied
-                            // back to the C++ ElementMap so they persist across script invocations
-                            // ========================================================================
-                            if (sys->_internalSystemPtr && result == InterpretResult::OK)
-                            {
-                                ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
-
-                                auto it = vm.globals.find("sysData");
-                                if (it != vm.globals.end() && IS_INSTANCE(it->second))
-                                {
-                                    ObjInstance* dataTable = vm.asInstance(it->second);
-
-                                    // Copy all fields from VM table back to C++ ElementMap
-                                    // This overwrites existing keys and adds new ones
-                                    for (const auto& [key, vmValue] : dataTable->fields)
-                                    {
-                                        // Skip internal VM fields
-                                        if (key != "__className" && !key.empty())
-                                        {
-                                            sysData[key] = vm.valueToElement(vmValue);
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (result != InterpretResult::OK)
-                            {
-                                LOG_ERROR("StandardSystemImpl", "Execute script handler error for: " << scriptName);
-                                LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
-                                LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
-                            }
-                        };
+                        LOG_ERROR("StandardSystemImpl", "Execute script handler error for: " << scriptName);
+                        LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                        LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
                     }
-                }
+                };
             }
         }
 
