@@ -153,14 +153,21 @@ def plot_frame_time_history(df, num_frames=None, output_file=None):
     )
 
     if not pivot_data.empty:
-        pivot_data = pivot_data.loc[frame_times['frame']]  # Match frame range
-        ax2.stackplot(pivot_data.index, *[pivot_data[col] for col in pivot_data.columns],
-                     labels=pivot_data.columns, alpha=0.8)
-        ax2.set_xlabel('Frame Number', fontsize=12)
-        ax2.set_ylabel('System Time (ms)', fontsize=12)
-        ax2.set_title('System Execution Times (Stacked)', fontsize=14, fontweight='bold')
-        ax2.legend(loc='upper left', fontsize=9, ncol=2)
-        ax2.grid(True, alpha=0.3)
+        # Only use frames that exist in both datasets
+        common_frames = pivot_data.index.intersection(frame_times['frame'])
+        if len(common_frames) > 0:
+            pivot_data_filtered = pivot_data.loc[common_frames]
+            ax2.stackplot(pivot_data_filtered.index, *[pivot_data_filtered[col] for col in pivot_data_filtered.columns],
+                         labels=pivot_data_filtered.columns, alpha=0.8)
+            ax2.set_xlabel('Frame Number', fontsize=12)
+            ax2.set_ylabel('System Time (ms)', fontsize=12)
+            ax2.set_title('System Execution Times (Stacked)', fontsize=14, fontweight='bold')
+            ax2.legend(loc='upper left', fontsize=9, ncol=2)
+            ax2.grid(True, alpha=0.3)
+        else:
+            ax2.text(0.5, 0.5, 'No system data available', ha='center', va='center',
+                    transform=ax2.transAxes, fontsize=12)
+            ax2.axis('off')
 
     plt.tight_layout()
 
@@ -330,6 +337,12 @@ Examples:
   # Show specific frame timeline
   python visualize_profile.py --frame 100
 
+  # Show last 1000 frames
+  python visualize_profile.py --num-frames 1000
+
+  # Show frames from a specific range
+  python visualize_profile.py --start-frame 1000 --end-frame 2000
+
   # Save plots to files instead of displaying
   python visualize_profile.py --output
 
@@ -344,13 +357,39 @@ Examples:
                        help='Show timeline for specific frame number')
     parser.add_argument('--output', '-o', action='store_true',
                        help='Save plots to files instead of showing')
-    parser.add_argument('--num-frames', '-n', type=int,
-                       help='Number of frames to show in history plots')
+    parser.add_argument('--num-frames', '-n', type=int, default=1000,
+                       help='Number of frames to show in history plots (default: 1000)')
+    parser.add_argument('--start-frame', type=int,
+                       help='Start frame for analysis range')
+    parser.add_argument('--end-frame', type=int,
+                       help='End frame for analysis range')
 
     args = parser.parse_args()
 
     # Load data
     df = load_profile_data(args.input)
+
+    # Apply frame range filtering if specified
+    if args.start_frame is not None or args.end_frame is not None:
+        start = args.start_frame if args.start_frame is not None else df['frame'].min()
+        end = args.end_frame if args.end_frame is not None else df['frame'].max()
+        df = df[(df['frame'] >= start) & (df['frame'] <= end)]
+        print(f"\nFiltered to frame range: {start} - {end}")
+        print(f"Remaining data: {len(df)} intervals")
+
+    # If dataset is too large, warn and suggest using frame range
+    total_frames = df['frame'].max() - df['frame'].min() + 1
+    if total_frames > 5000 and args.start_frame is None and args.end_frame is None:
+        print(f"\n⚠ Warning: Dataset contains {total_frames} frames!")
+        print(f"  For better visualization, consider using --start-frame and --end-frame")
+        print(f"  Example: --start-frame {df['frame'].max() - 1000} --end-frame {df['frame'].max()}")
+
+        # Auto-limit to last frames if not specified
+        if not args.frame:
+            max_frame = df['frame'].max()
+            min_frame = max(df['frame'].min(), max_frame - args.num_frames)
+            df = df[df['frame'] >= min_frame]
+            print(f"\n  Auto-limiting to last {args.num_frames} frames ({min_frame} - {max_frame})")
 
     # Print summary
     print_summary(df)

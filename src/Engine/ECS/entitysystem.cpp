@@ -25,8 +25,6 @@ std::mutex profileMutex;
 
 std::unordered_map<std::string, long long> _systemExecutionTimes;
 std::unordered_map<std::string, size_t> _systemExecutionCounts;
-
-#include "Profiler/profiler.h"
 #endif
 
 namespace

@@ -190,7 +190,7 @@ namespace pg
 #ifdef PROFILE
         // Export profiling data before deleting ECS
         try {
-            Profiler::instance().exportToCSV("profile_data.csv", 30000);
+            Profiler::instance().exportAllToCSV("profile_data.csv");
         } catch (...) {
             std::cerr << "Failed to export profiler data" << std::endl;
         }
