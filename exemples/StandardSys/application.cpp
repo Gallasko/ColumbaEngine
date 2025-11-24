@@ -197,7 +197,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.executeOnce();
 
-        ecs.registerSystem(createCompExecReactorSystem());
+        auto reactorSys = ecs.registerSystem(createCompExecReactorSystem());
 
         auto compSys = ecs.registerSystem(createCompExecSystem());
 
@@ -207,7 +207,36 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             auto execComp = ecs.attach(ent, "ExecComp");
         }
 
+        {
+            auto& reactorSysData = compSys->getSystemData();
+
+            auto it = reactorSysData.find("i");
+
+            if (it == reactorSysData.end())
+            {
+                LOG_INFO("ReactorSys", "Correctly not found i in properties");
+            }
+        }
+
         ecs.executeOnce();
+
+        LOG_INFO("React", "Hello");
+
+        {
+            auto& reactorSysData = compSys->getSystemData();
+
+            for (const auto& elem : reactorSysData)
+            {
+                LOG_INFO("Sss", elem.first);
+            }
+
+            auto it = reactorSysData.find("i");
+
+            if (it != reactorSysData.end())
+            {
+                LOG_INFO("ReactorSys", "Correctly found i in properties: " << it->second);
+            }
+        }
 
         window.receivedQuitRequest();
 
