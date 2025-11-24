@@ -71,7 +71,7 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
-    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+    auto ttfSys = mainWindow->ecs->createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
 #ifdef __EMSCRIPTEN__
     // Need to fix this
@@ -85,37 +85,37 @@ void initGame() {
 #endif
     // mainWindow->masterRenderer->processTextureRegister();
 
-    mainWindow->ecs.createSystem<TweenSystem>();
+    mainWindow->ecs->createSystem<TweenSystem>();
 
-    mainWindow->ecs.createSystem<FpsSystem>();
+    // mainWindow->ecs->createSystem<FpsSystem>();
 
-    mainWindow->ecs.createSystem<BackgroundScrollerSystem>();
+    mainWindow->ecs->createSystem<BackgroundScrollerSystem>();
 
-    mainWindow->ecs.createSystem<MainCameraShake>(mainWindow->masterRenderer);
+    mainWindow->ecs->createSystem<MainCameraShake>(mainWindow->masterRenderer);
 
-    mainWindow->ecs.createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
-    mainWindow->ecs.createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
+    mainWindow->ecs->createSystem<TexturedRibbonComponentSystem>(mainWindow->masterRenderer);
+    mainWindow->ecs->createSystem<PolygonComponentSystem>(mainWindow->masterRenderer);
 
-    mainWindow->ecs.createSystem<EnemySpawnerSystem>();
+    mainWindow->ecs->createSystem<EnemySpawnerSystem>();
 
-    mainWindow->ecs.succeed<MasterRenderer, MainCameraShake>();
-    mainWindow->ecs.succeed<MasterRenderer, TexturedRibbonComponentSystem>();
-    mainWindow->ecs.succeed<MasterRenderer, PolygonComponentSystem>();
+    mainWindow->ecs->succeed<MasterRenderer, MainCameraShake>();
+    mainWindow->ecs->succeed<MasterRenderer, TexturedRibbonComponentSystem>();
+    mainWindow->ecs->succeed<MasterRenderer, PolygonComponentSystem>();
 
-    mainWindow->ecs.createSystem<PointAggregator>();
+    mainWindow->ecs->createSystem<PointAggregator>();
 
-    mainWindow->ecs.succeed<PointAggregator, TexturedRibbonComponentSystem>();
+    mainWindow->ecs->succeed<PointAggregator, TexturedRibbonComponentSystem>();
 
-    mainWindow->ecs.succeed<PointAggregator, PolygonComponentSystem>();
-    mainWindow->ecs.succeed<MasterRenderer, PointAggregator>();
+    mainWindow->ecs->succeed<PointAggregator, PolygonComponentSystem>();
+    mainWindow->ecs->succeed<MasterRenderer, PointAggregator>();
 
-    mainWindow->ecs.dumbTaskflow();
+    mainWindow->ecs->dumbTaskflow();
 
     mainWindow->render();
 
     mainWindow->resize(820, 640);
 
-    mainWindow->ecs.start();
+    mainWindow->ecs->start();
 
     printf("Engine initialized\n");
 }
