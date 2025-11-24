@@ -18,3 +18,4 @@ CMakeCache.txt
 /clang*
 save/*
 /res/*.pgc
+profile_data.csv

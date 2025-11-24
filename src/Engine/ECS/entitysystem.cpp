@@ -25,6 +25,8 @@ std::mutex profileMutex;
 
 std::unordered_map<std::string, long long> _systemExecutionTimes;
 std::unordered_map<std::string, size_t> _systemExecutionCounts;
+
+#include "Profiler/profiler.h"
 #endif
 
 namespace
@@ -80,17 +82,33 @@ namespace pg
 
 #ifdef PROFILE
             auto startTask = std::chrono::steady_clock::now();
+
+            PROFILE_BEGIN("EventDispatch", "Event");
 #endif
             eventDispatcher.process();
 
+#ifdef PROFILE
+            PROFILE_END("EventDispatch", "Event");
+
+            PROFILE_BEGIN("CommandDispatch", "Command");
+#endif
             cmdDispatcher.process();
+
+#ifdef PROFILE
+            PROFILE_END("CommandDispatch", "Command");
+#endif
 
             if (not stopRequested)
                 running = true;
 
+#ifdef PROFILE
+            PROFILE_BEGIN("SaveManager", "System");
+#endif
             saveManager._execute();
 
 #ifdef PROFILE
+            PROFILE_END("SaveManager", "System");
+
             // Record end time and compute elapsed time in nanoseconds.
             auto endTask = std::chrono::steady_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTask - startTask).count();
@@ -221,6 +239,8 @@ namespace pg
 #ifdef PROFILE
                 // Todo time the whole exec of a run of the taskflow
                 auto start = std::chrono::steady_clock::now();
+
+                PROFILE_SCOPE(system->getSystemName(), "System");
 #endif
                 system->_execute();
 
