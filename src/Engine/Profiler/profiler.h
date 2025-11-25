@@ -65,7 +65,6 @@ namespace pg
 
         size_t maxEvents;
         bool enabled;
-        bool recordFrameEvents;  // Whether to record Frame timing events
 
         Profiler();
 
@@ -91,7 +90,6 @@ namespace pg
         // Control
         void setEnabled(bool enable) { enabled = enable; }
         bool isEnabled() const { return enabled; }
-        void setRecordFrameEvents(bool record) { recordFrameEvents = record; }
         void clear();
 
         uint64_t getCurrentFrame() const { return currentFrame; }

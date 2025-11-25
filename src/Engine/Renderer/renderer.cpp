@@ -346,6 +346,8 @@ namespace pg
         }
 
         inSwap = true;
+
+        needNewRender = true;
     }
 
     void MasterRenderer::registerTexture(const std::string& name, const std::function<OpenGLTexture(size_t)>& callback)
@@ -435,6 +437,11 @@ namespace pg
         }
 
         nbRenderedFrames++;
+    }
+
+    void MasterRenderer::endRender()
+    {
+        needNewRender = false;
 
         if (inSwap)
         {

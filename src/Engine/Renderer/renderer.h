@@ -495,7 +495,11 @@ namespace pg
 
         void processTextureRegister();
 
+        bool needRedraw() { return needNewRender; }
+
         void renderAll();
+
+        void endRender();
 
         void registerShader(const std::string& name, OpenGLShaderProgram *shaderProgram);
         void registerShader(const std::string& name, const std::string& vsPath, const std::string& fsPath);
@@ -731,6 +735,7 @@ namespace pg
     private:
         std::atomic<bool> inSwap {false};
         std::atomic<bool> newMaterialRegistered {false};
+        std::atomic<bool> needNewRender {true};
         // std::atomic<bool> inBetweenRender {true};
 
         // std::condition_variable execCv;

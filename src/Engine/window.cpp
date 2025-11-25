@@ -659,42 +659,46 @@ namespace pg
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-        // std::lock_guard<std::mutex> lock(renderMutex);
-
-        // SDL_GL_MakeCurrent(window, context);
-
-        glClearColor(0.0513f, 0.0501f, 0.123f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         masterRenderer->setCurrentTime(currentTime);
 
         masterRenderer->setWindowSize(this->width, this->height);
 
-#ifdef PROFILE
+        if (masterRenderer->needRedraw())
         {
-            PROFILE_SCOPE("Render", "Render");
-#endif
-            masterRenderer->renderAll();
+            glClearColor(0.0513f, 0.0501f, 0.123f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
 #ifdef PROFILE
+            {
+                PROFILE_SCOPE("Render", "Render");
+#endif
+                masterRenderer->renderAll();
+#ifdef PROFILE
+            }
+#endif
+
+#ifdef PROFILE
+            {
+                PROFILE_SCOPE("SwapBuffer", "Render");
+#endif
+                swapBuffer();
+#ifdef PROFILE
+            }
+#endif
+
+            masterRenderer->endRender();
         }
 
+        nbFrame++;
+
+        lastTime = currentTime;
+
+#ifdef PROFILE
         {
             PROFILE_SCOPE("Input", "Input");
 #endif
             inputHandler->updateInput(float(currentTime - lastTime) / 1000);
-#ifdef PROFILE
-        }
-#endif
-
-        lastTime = currentTime;
-
-        nbFrame++;
-
-#ifdef PROFILE
-        {
-            PROFILE_SCOPE("SwapBuffer", "Render");
-#endif
-            swapBuffer();
 #ifdef PROFILE
         }
 
