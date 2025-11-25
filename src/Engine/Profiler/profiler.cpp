@@ -12,6 +12,7 @@ namespace pg
         , frameStartTime(0.0)
         , maxEvents(500000)  // Increased to 500k for fast frames
         , enabled(true)
+        , recordFrameEvents(false)  // Disabled by default to save buffer space
     {
         sessionStart = std::chrono::steady_clock::now();
         events.reserve(maxEvents);
@@ -77,8 +78,21 @@ namespace pg
                 double duration = endTime - it->startMs;
 
                 // Todo make the cut off parametrable
-                // Only store if duration is meaningful (>= 0.002ms = 2us)
-                if (duration >= 0.002)
+                // Store events based on settings and thresholds
+                bool shouldStore = false;
+
+                if (category == "Frame")
+                {
+                    // Only store Frame events if explicitly enabled
+                    shouldStore = recordFrameEvents;
+                }
+                else
+                {
+                    // For other events, only store if duration is meaningful (>= 0.002ms = 2us)
+                    shouldStore = (duration >= 0.002);
+                }
+
+                if (shouldStore)
                 {
                     events.emplace_back(name, it->frameNumber, it->startMs, duration, category, tid);
                 }
