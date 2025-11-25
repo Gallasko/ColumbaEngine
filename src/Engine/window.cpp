@@ -680,7 +680,7 @@ namespace pg
 
 #ifdef PROFILE
             {
-                PROFILE_SCOPE("SwapBuffer", "Render");
+                PROFILE_SCOPE("SwapBuffer", "Swap");
 #endif
                 swapBuffer();
 #ifdef PROFILE
