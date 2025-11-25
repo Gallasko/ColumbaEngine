@@ -44,7 +44,9 @@ def load_profile_data(csv_path):
 
 def plot_frame_timeline(df, frame_number, output_file=None):
     """
-    Plot a horizontal bar chart showing execution timeline for a single frame
+    Plot a horizontal bar chart showing execution timeline for a single frame.
+    Multiple instances of the same system on different threads are packed on the same row
+    when their timeslots don't overlap.
     """
     frame_data = df[df['frame'] == frame_number].copy()
 
@@ -68,29 +70,82 @@ def plot_frame_timeline(df, frame_number, output_file=None):
         frame_end = (frame_data['start_ms'] + frame_data['duration_ms']).max()
         frame_duration = frame_end - frame_start
 
+    # Adjust start times relative to frame start
+    frame_data['relative_start'] = frame_data['start_ms'] - frame_start
+    frame_data['relative_end'] = frame_data['relative_start'] + frame_data['duration_ms']
+
+    # Pack intervals: group by name and assign rows such that non-overlapping intervals share rows
+    row_assignments = []
+    row_labels = []
+    row_map = {}  # Maps (name, row_index) to the last end time on that row
+
+    for idx, row_data in frame_data.iterrows():
+        name = row_data['name']
+        start = row_data['relative_start']
+        end = row_data['relative_end']
+
+        # Find or create a row for this name where the interval fits
+        assigned_row = None
+        if name not in row_map:
+            row_map[name] = {}
+
+        # Try to fit in an existing row for this name
+        for sub_row_idx in sorted(row_map[name].keys()):
+            last_end = row_map[name][sub_row_idx]
+            if start >= last_end:  # No overlap, can use this row
+                assigned_row = sub_row_idx
+                row_map[name][sub_row_idx] = end
+                break
+
+        # If no suitable row found, create a new one
+        if assigned_row is None:
+            assigned_row = len(row_map[name])
+            row_map[name][assigned_row] = end
+
+        row_assignments.append((name, assigned_row))
+
+    # Create a global row ordering
+    unique_name_rows = []
+    for name in frame_data['name'].unique():
+        if name in row_map:
+            for sub_row_idx in sorted(row_map[name].keys()):
+                unique_name_rows.append((name, sub_row_idx))
+
+    # Map (name, sub_row) to global y position
+    global_row_map = {name_row: i for i, name_row in enumerate(unique_name_rows)}
+
+    # Assign global y positions
+    frame_data['y_pos'] = [global_row_map[row_assign] for row_assign in row_assignments]
+
+    # Create labels for rows (show name only for first sub-row)
+    row_labels = []
+    for name, sub_row_idx in unique_name_rows:
+        if sub_row_idx == 0:
+            row_labels.append(name)
+        else:
+            row_labels.append(f"  └─ {name} (thread {sub_row_idx + 1})")
+
     # Create figure
-    fig, ax = plt.subplots(figsize=(14, max(8, len(frame_data) * 0.4)))
+    fig, ax = plt.subplots(figsize=(14, max(8, len(unique_name_rows) * 0.4)))
 
     # Plot bars
-    y_pos = np.arange(len(frame_data))
     colors = [CATEGORY_COLORS.get(cat, '#888888') for cat in frame_data['category']]
 
-    # Adjust start times relative to frame start
-    relative_starts = frame_data['start_ms'] - frame_start
-
-    bars = ax.barh(y_pos, frame_data['duration_ms'], left=relative_starts,
+    bars = ax.barh(frame_data['y_pos'], frame_data['duration_ms'],
+                   left=frame_data['relative_start'],
                    color=colors, edgecolor='black', linewidth=0.5)
 
     # Add duration labels on bars
-    for i, (idx, row) in enumerate(frame_data.iterrows()):
-        duration = row['duration_ms']
+    for idx, row_data in frame_data.iterrows():
+        duration = row_data['duration_ms']
         if duration > frame_duration * 0.05:  # Only show label if bar is wide enough
-            ax.text(relative_starts.iloc[i] + duration/2, i, f'{duration:.2f}ms',
+            ax.text(row_data['relative_start'] + duration/2, row_data['y_pos'],
+                   f'{duration:.2f}ms',
                    ha='center', va='center', fontsize=8, fontweight='bold')
 
     # Customize plot
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(frame_data['name'])
+    ax.set_yticks(range(len(unique_name_rows)))
+    ax.set_yticklabels(row_labels)
     ax.set_xlabel('Time (ms)', fontsize=12)
     ax.set_title(f'Frame {frame_number} Execution Timeline\nTotal Frame Time: {frame_duration:.2f}ms ({1000/frame_duration:.1f} FPS)',
                  fontsize=14, fontweight='bold')
