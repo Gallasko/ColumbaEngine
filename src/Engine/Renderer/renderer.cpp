@@ -195,6 +195,8 @@ namespace pg
 
             materialRegisterQueue.clear();
 
+            needNewRender = true;
+
             return;
         }
 
