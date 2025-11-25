@@ -524,11 +524,20 @@ Examples:
                        help='End frame for analysis range')
     parser.add_argument('--top-systems', '-t', type=int, default=5,
                        help='Number of top systems to show in stacked area chart (default: 5)')
+    parser.add_argument('--exclude-swap', action='store_true',
+                       help='Exclude SwapBuffer from statistics and breakdown (useful since it\'s mostly vsync wait)')
 
     args = parser.parse_args()
 
     # Load data
     df_full = load_profile_data(args.input)
+
+    # Exclude Swap category if requested (SwapBuffer events - mostly vsync wait)
+    if args.exclude_swap:
+        swap_count = len(df_full[df_full['category'] == 'Swap'])
+        df_full = df_full[df_full['category'] != 'Swap']
+        print(f"\nExcluded {swap_count} 'Swap' category events from analysis")
+
     df = df_full.copy()
 
     # Apply frame range filtering if specified

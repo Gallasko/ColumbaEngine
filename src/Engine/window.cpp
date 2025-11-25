@@ -370,6 +370,10 @@ namespace pg
             GLuint unusedIds = 0;
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, &unusedIds, GL_TRUE);
         }
+
+        // Set swap interval once during initialization (VSync: 0 = disabled, 1 = enabled)
+        SDL_GL_SetSwapInterval(0);
+        LOG_INFO(DOM, "VSync disabled (swap interval set to 0)");
 #endif
 
         // Todo add a flag to enable/disable this
@@ -677,15 +681,7 @@ namespace pg
 #ifdef PROFILE
             }
 #endif
-
-#ifdef PROFILE
-            {
-                PROFILE_SCOPE("SwapBuffer", "Swap");
-#endif
-                swapBuffer();
-#ifdef PROFILE
-            }
-#endif
+            swapBuffer();
 
             masterRenderer->endRender();
         }
@@ -709,17 +705,24 @@ namespace pg
     void Window::swapBuffer()
     {
         // Check OpenGL error
-        GLenum err;
-        while ((err = glGetError()) != GL_NO_ERROR)
+#ifdef PROFILE
         {
-            LOG_ERROR(DOM, "OpenGL error: " << err);
+            PROFILE_SCOPE("SwapBuffer", "GL Error Checking");
+#endif
+            GLenum err;
+            while ((err = glGetError()) != GL_NO_ERROR)
+            {
+                LOG_ERROR(DOM, "OpenGL error: " << err);
+            }
+#ifdef PROFILE
         }
 
-        // VSync 0 to disable 1 to activate
-#ifndef __EMSCRIPTEN__
-        SDL_GL_SetSwapInterval(0);
+        {
+            PROFILE_SCOPE("SwapBuffer", "Swap");
 #endif
-
-        SDL_GL_SwapWindow(window);
+            SDL_GL_SwapWindow(window);
+#ifdef PROFILE
+        }
+#endif
     }
 }
