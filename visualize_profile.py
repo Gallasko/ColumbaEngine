@@ -185,10 +185,13 @@ def plot_frame_time_history(df, num_frames=None, top_n_systems=5, output_file=No
     frame_times_df = df[df['name'] == 'Frame'].copy()
 
     if len(frame_times_df) == 0:
-        # Reconstruct from system events
+        # Reconstruct from system events (only for frames with recorded events)
         frame_times_grouped = df.groupby('frame')['duration_ms'].sum().reset_index()
         frame_times_grouped.columns = ['frame', 'duration_ms']
         frame_times = frame_times_grouped.copy()
+
+        print(f"Note: Showing only {len(frame_times)} frames with recorded events out of {df['frame'].max()} total frames")
+        print(f"      Most frames filtered out (< 0.002ms threshold)")
     else:
         frame_times = frame_times_df.sort_values('frame').copy()
 
@@ -429,11 +432,18 @@ def print_summary(df):
         frame_times_reconstructed = df.groupby('frame')['duration_ms'].sum()
         frame_times = frame_times_reconstructed
         total_frames = len(frame_times)
+
+        # Calculate how many frames were skipped
+        total_possible_frames = df['frame'].max() - df['frame'].min() + 1
+        frames_without_data = total_possible_frames - total_frames
+        if frames_without_data > 0:
+            print(f"      {frames_without_data} frames had no events (all < 0.002ms)")
     else:
         total_frames = len(frame_times)
 
-    print(f"\nTotal Frames Captured: {total_frames}")
-    print(f"Frame Range: {df['frame'].min()} - {df['frame'].max()}")
+    print(f"\nFrames with Recorded Events: {total_frames}")
+    print(f"Frame Range: {df['frame'].min()} - {df['frame'].max()} (Total: {df['frame'].max() - df['frame'].min() + 1} frames)")
+    print(f"Recording Rate: {total_frames / (df['frame'].max() - df['frame'].min() + 1) * 100:.1f}% of frames have events")
     print(f"\nFrame Time Statistics:")
 
     if len(frame_times) > 0:
@@ -518,7 +528,8 @@ Examples:
     args = parser.parse_args()
 
     # Load data
-    df = load_profile_data(args.input)
+    df_full = load_profile_data(args.input)
+    df = df_full.copy()
 
     # Apply frame range filtering if specified
     if args.start_frame is not None or args.end_frame is not None:
@@ -535,15 +546,16 @@ Examples:
         print(f"  For better visualization, consider using --start-frame and --end-frame")
         print(f"  Example: --start-frame {df['frame'].max() - 1000} --end-frame {df['frame'].max()}")
 
-        # Auto-limit to last frames if not specified
+        # Auto-limit to last frames if not specified for plots
         if not args.frame:
             max_frame = df['frame'].max()
             min_frame = max(df['frame'].min(), max_frame - args.num_frames)
             df = df[df['frame'] >= min_frame]
-            print(f"\n  Auto-limiting to last {args.num_frames} frames ({min_frame} - {max_frame})")
+            print(f"\n  Auto-limiting plot data to last {args.num_frames} frames ({min_frame} - {max_frame})")
+            print(f"  (Summary statistics still calculated from all {len(df_full)} events)")
 
-    # Print summary
-    print_summary(df)
+    # Print summary using full dataset for accurate statistics
+    print_summary(df_full)
 
     if args.frame:
         # Show specific frame
@@ -568,7 +580,7 @@ Examples:
 
             plot_frame_timeline(df, median_frame, 'frame_timeline.png')
             plot_frame_time_history(df, args.num_frames, args.top_systems, 'frame_history.png')
-            plot_category_breakdown(df, 'category_breakdown.png')
+            plot_category_breakdown(df_full, 'category_breakdown.png')  # Use full dataset for stats
             plot_all_frames_timeline(df, max_frames=100, output_file='timeline_heatmap.png')
 
             print("\n✓ All plots saved!")
@@ -598,8 +610,8 @@ Examples:
             print("2/4: Showing frame time history and FPS...")
             plot_frame_time_history(df, args.num_frames, args.top_systems)
 
-            print("3/4: Showing category breakdown...")
-            plot_category_breakdown(df)
+            print("3/4: Showing category breakdown (all events)...")
+            plot_category_breakdown(df_full)  # Use full dataset for stats
 
             print("4/4: Showing timeline heatmap...")
             plot_all_frames_timeline(df, max_frames=100)
