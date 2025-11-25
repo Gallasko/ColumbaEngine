@@ -15,7 +15,6 @@ namespace pg
     {
         sessionStart = std::chrono::steady_clock::now();
         events.reserve(maxEvents);
-        recordFrameEvents = false;  // Disabled by default to save buffer space
     }
 
     Profiler& Profiler::instance()
@@ -78,21 +77,8 @@ namespace pg
                 double duration = endTime - it->startMs;
 
                 // Todo make the cut off parametrable
-                // Store events based on settings and thresholds
-                bool shouldStore = false;
-
-                if (category == "Frame")
-                {
-                    // Only store Frame events if explicitly enabled
-                    shouldStore = recordFrameEvents;
-                }
-                else
-                {
-                    // For other events, only store if duration is meaningful (>= 0.002ms = 2us)
-                    shouldStore = (duration >= 0.002);
-                }
-
-                if (shouldStore)
+                // Only store if duration is meaningful (>= 0.002ms = 2us)
+                if (duration >= 0.002)
                 {
                     events.emplace_back(name, it->frameNumber, it->startMs, duration, category, tid);
                 }
