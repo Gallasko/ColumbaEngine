@@ -566,7 +566,7 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<ConfiguredKeySystem<EditorKeyConfig>>(scancodeMap);
 
-        ecs.createSystem<FpsSystem>();
+        // ecs.createSystem<FpsSystem>();
 
         ecs.createSystem<MoveToSystem>();
         ecs.createSystem<ContextMenu>();
