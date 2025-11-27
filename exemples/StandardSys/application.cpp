@@ -12,6 +12,10 @@
 
 using namespace pg;
 
+#ifdef PG_AUTO_CONVERT_EVENTS_TO_STANDARD
+       #pragma message("Auto-conversion enabled")
+   #endif
+
 namespace
 {
     static const char *const DOM = "App";
@@ -121,6 +125,17 @@ StandardSystemImpl* createCompExecReactorSystem()
         .build();
 }
 
+StandardSystemImpl* createMouseClickHandlerSystem()
+{
+    return createStandardSystem("MouseClickHandler")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            LOG_INFO("CompExec", "System initialized");
+        })
+        .onEvent("OnMouseClick", "onMouseClick.pg")
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -193,52 +208,54 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             LOG_INFO("SimpleObj", simpleObj->get<std::string>("name"));
         }
 
-        auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
+        // auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
 
-        ecs.executeOnce();
+        // ecs.executeOnce();
 
-        auto reactorSys = ecs.registerSystem(createCompExecReactorSystem());
+        // auto reactorSys = ecs.registerSystem(createCompExecReactorSystem());
 
-        auto compSys = ecs.registerSystem(createCompExecSystem());
+        // auto compSys = ecs.registerSystem(createCompExecSystem());
 
-        {
-            auto ent = ecs.createEntity();
+        // {
+        //     auto ent = ecs.createEntity();
 
-            auto execComp = ecs.attach(ent, "ExecComp");
-        }
+        //     auto execComp = ecs.attach(ent, "ExecComp");
+        // }
 
-        {
-            auto& reactorSysData = compSys->getSystemData();
+        // {
+        //     auto& reactorSysData = compSys->getSystemData();
 
-            auto it = reactorSysData.find("i");
+        //     auto it = reactorSysData.find("i");
 
-            if (it == reactorSysData.end())
-            {
-                LOG_INFO("ReactorSys", "Correctly not found i in properties");
-            }
-        }
+        //     if (it == reactorSysData.end())
+        //     {
+        //         LOG_INFO("ReactorSys", "Correctly not found i in properties");
+        //     }
+        // }
 
-        ecs.executeOnce();
+        // ecs.executeOnce();
 
-        LOG_INFO("React", "Hello");
+        // LOG_INFO("React", "Hello");
 
-        {
-            auto& reactorSysData = compSys->getSystemData();
+        // {
+        //     auto& reactorSysData = compSys->getSystemData();
 
-            for (const auto& elem : reactorSysData)
-            {
-                LOG_INFO("Sss", elem.first);
-            }
+        //     for (const auto& elem : reactorSysData)
+        //     {
+        //         LOG_INFO("Sss", elem.first);
+        //     }
 
-            auto it = reactorSysData.find("i");
+        //     auto it = reactorSysData.find("i");
 
-            if (it != reactorSysData.end())
-            {
-                LOG_INFO("ReactorSys", "Correctly found i in properties: " << it->second);
-            }
-        }
+        //     if (it != reactorSysData.end())
+        //     {
+        //         LOG_INFO("ReactorSys", "Correctly found i in properties: " << it->second);
+        //     }
+        // }
 
-        window.receivedQuitRequest();
+        ecs.registerSystem(createMouseClickHandlerSystem());
+
+        // window.receivedQuitRequest();
 
     });
 }

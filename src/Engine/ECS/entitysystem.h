@@ -833,6 +833,7 @@ namespace pg
         {
             LOG_THIS_MEMBER("ECS");
 
+            // Dispatch the typed C++ event
             if (running)
             {
                 eventDispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
@@ -841,6 +842,26 @@ namespace pg
             {
                 registry.processEvent(event);
             }
+
+#ifdef PG_AUTO_CONVERT_EVENTS_TO_STANDARD
+            // Auto-convert to StandardEvent if the event type supports it
+            if constexpr (has_to_standard_event_v<Event>)
+            {
+                StandardEvent stdEvent = event.toStandardEvent();
+
+                if (running)
+                {
+                    eventDispatcher.enqueueEvent([stdEvent, this](){
+                        LOG_THIS("ECS");
+                        registry.processEvent(stdEvent);
+                    });
+                }
+                else
+                {
+                    registry.processEvent(stdEvent);
+                }
+            }
+#endif
         }
 
         template <typename Comp>
