@@ -1,0 +1,5 @@
+// Simple for-in loop over a table
+var table = [a: 1, b: 2, c: 3];
+for (var key : table) {
+    __dprint(key);
+}

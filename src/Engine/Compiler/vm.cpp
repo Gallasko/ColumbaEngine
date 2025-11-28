@@ -131,6 +131,8 @@ namespace pg
     // Iterator operations
     void op_get_iterator(VM* vm);
     void op_iterator_next(VM* vm);
+    void op_table_size(VM* vm);
+    void op_table_at(VM* vm);
 
     void op_define_global_non_popping(VM *vm);
 
@@ -1044,6 +1046,8 @@ namespace pg
         // Iterator operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Iterator), op_get_iterator);
         register_operation(static_cast<uint8_t>(OpCode::OP_Iterator_Next), op_iterator_next);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Table_Size), op_table_size);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Table_At), op_table_at);
 
         // Module operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import);
@@ -1683,7 +1687,7 @@ namespace pg
 
         Value condition = vm->peek();
 
-        if (not isValueTrue(condition))
+        if (not isValueTrue(condition, vm))  // Pass VM for proper string evaluation
         {
             vm->currentFrame->ip += offset;
         }
@@ -2700,12 +2704,17 @@ namespace pg
     void op_iterator_next(VM* vm)
     {
         // Stack layout: [table, iterator_state]
-        Value iteratorState = vm->pop();
-        Value tableVal = vm->peek(0);  // Keep table on stack
+        // We need to:
+        // 1. Check if iterator is past the end
+        // 2. If not, push the current key
+        // 3. Increment the iterator
+        // Final stack: [table, iterator_state+1, key] or [table, iterator_state, false]
+
+        Value iteratorState = vm->peek(0);  // Peek, don't pop yet
+        Value tableVal = vm->peek(1);        // Table is one below
 
         if (!IS_INT(iteratorState))
         {
-            vm->releaseAndDelete(iteratorState);
             vm->runtimeError("Invalid iterator state");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -2713,7 +2722,6 @@ namespace pg
 
         if (!IS_INSTANCE(tableVal))
         {
-            vm->releaseAndDelete(iteratorState);
             vm->runtimeError("Can only iterate over tables");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -2725,10 +2733,9 @@ namespace pg
         // Check if we've reached the end
         if (static_cast<size_t>(index) >= table->fields.size())
         {
-            // End of iteration - push nil and update iterator
-            vm->push(makeIntValue(index));  // Push updated iterator state
-            vm->push(makeBoolValue(false)); // Push false to indicate end
-            vm->releaseAndDelete(iteratorState);
+            // End of iteration - push false to indicate done
+            // Stack remains: [table, iterator_state, false]
+            vm->push(makeBoolValue(false));
             return;
         }
 
@@ -2737,14 +2744,90 @@ namespace pg
         std::advance(it, index);
         std::string key = it->first;
 
-        // Update iterator state (increment index)
+        // Pop old iterator state
+        vm->pop();  // Remove old iterator state
+        vm->releaseAndDelete(iteratorState);
+
+        // Push incremented iterator state
         vm->push(makeIntValue(index + 1));
 
         // Push the key as a string
         Value keyVal = vm->createString(key);
         vm->push(keyVal);
 
-        vm->releaseAndDelete(iteratorState);
+        // Final stack: [table, iterator_state+1, key]
+    }
+
+    void op_table_size(VM* vm)
+    {
+        // Stack: [table]
+        Value tableVal = vm->peek(0);
+
+        if (!IS_INSTANCE(tableVal))
+        {
+            vm->runtimeError("Can only get size of tables");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjInstance* table = vm->asInstance(tableVal);
+
+        // Pop the table
+        vm->pop();
+        vm->releaseAndDelete(tableVal);
+
+        // Push the size as an integer
+        vm->push(makeIntValue(static_cast<int64_t>(table->fields.size())));
+    }
+
+    void op_table_at(VM* vm)
+    {
+        // Stack: [table, index]
+        Value indexVal = vm->pop();
+        Value tableVal = vm->pop();
+
+        if (!IS_INSTANCE(tableVal))
+        {
+            vm->releaseAndDelete(indexVal);
+            vm->releaseAndDelete(tableVal);
+            vm->runtimeError("Can only get keys from tables");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        if (!IS_INT(indexVal))
+        {
+            vm->releaseAndDelete(indexVal);
+            vm->releaseAndDelete(tableVal);
+            vm->runtimeError("Table index must be an integer");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        ObjInstance* table = vm->asInstance(tableVal);
+        int64_t index = AS_INT(indexVal);
+
+        // Check bounds
+        if (index < 0 || static_cast<size_t>(index) >= table->fields.size())
+        {
+            vm->releaseAndDelete(indexVal);
+            vm->releaseAndDelete(tableVal);
+            vm->runtimeError("Table index out of bounds");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        // Get the key at the specified index
+        auto it = table->fields.begin();
+        std::advance(it, index);
+        std::string key = it->first;
+
+        vm->releaseAndDelete(indexVal);
+        vm->releaseAndDelete(tableVal);
+
+        // Push the key as a string
+        Value keyVal = vm->createString(key);
+        vm->push(keyVal);
     }
 
     // ========================================================================

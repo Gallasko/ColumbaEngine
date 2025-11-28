@@ -1,0 +1,6 @@
+// For-in loop that uses table values
+var table = [name: "Alice", age: 30, city: "Paris"];
+for (var key : table) {
+    __dprint(key);
+    __dprint(table[key]);
+}

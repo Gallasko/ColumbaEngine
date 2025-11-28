@@ -459,6 +459,12 @@ namespace pg
             case OpCode::OP_Iterator_Next:
                 return simpleInstruction("OP_Iterator_Next", offset);
 
+            case OpCode::OP_Table_Size:
+                return simpleInstruction("OP_Table_Size", offset);
+
+            case OpCode::OP_Table_At:
+                return simpleInstruction("OP_Table_At", offset);
+
             case OpCode::OP_Import:
                 return simpleInstruction("OP_Import", offset);
 

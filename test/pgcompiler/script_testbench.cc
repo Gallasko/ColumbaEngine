@@ -396,6 +396,35 @@ TEST_F(ScriptTestBench, ForLoopIncrement)
 }
 
 // ============================================================================
+// For-In Loops
+// ============================================================================
+
+TEST_F(ScriptTestBench, ForInSimple)
+{
+    testScript("for_in_simple");
+}
+
+TEST_F(ScriptTestBench, ForInNested)
+{
+    testScript("for_in_nested");
+}
+
+TEST_F(ScriptTestBench, ForInEmpty)
+{
+    testScript("for_in_empty");
+}
+
+TEST_F(ScriptTestBench, ForInWithValues)
+{
+    testScript("for_in_with_values");
+}
+
+TEST_F(ScriptTestBench, ForInNumericKeys)
+{
+    testScript("for_in_numeric_keys");
+}
+
+// ============================================================================
 // Strings
 // ============================================================================
 

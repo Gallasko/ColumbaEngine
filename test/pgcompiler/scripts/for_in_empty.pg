@@ -1,0 +1,6 @@
+// For-in loop over empty table
+var empty = [];
+for (var key : empty) {
+    __dprint(key);
+}
+__dprint("done");
