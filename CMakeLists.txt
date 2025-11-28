@@ -810,7 +810,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         # Add DEBUG_CHECK_STACK define for test_compiler target
         # target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
-        target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD)
+        target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD SDL_MAIN_HANDLED)
 
         # Copy test script files to build directory
         add_custom_command(TARGET test_compiler POST_BUILD
