@@ -136,6 +136,17 @@ StandardSystemImpl* createMouseClickHandlerSystem()
         .build();
 }
 
+StandardSystemImpl* createKeyHandlerSystem()
+{
+    return createStandardSystem("MouseClickHandler")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            LOG_INFO("CompExec", "System initialized");
+        })
+        .onEvent("OnSDLScanCode", "test_key.pg")
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -208,52 +219,63 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             LOG_INFO("SimpleObj", simpleObj->get<std::string>("name"));
         }
 
-        // auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
+        auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
 
-        // ecs.executeOnce();
+        ecs.executeOnce();
 
-        // auto reactorSys = ecs.registerSystem(createCompExecReactorSystem());
+        ecs.deleteSystem(simpleSys->_id);
 
-        // auto compSys = ecs.registerSystem(createCompExecSystem());
+        auto reactorSys = ecs.registerSystem(createCompExecReactorSystem());
 
-        // {
-        //     auto ent = ecs.createEntity();
+        auto compSys = ecs.registerSystem(createCompExecSystem());
 
-        //     auto execComp = ecs.attach(ent, "ExecComp");
-        // }
+        {
+            auto ent = ecs.createEntity();
 
-        // {
-        //     auto& reactorSysData = compSys->getSystemData();
+            auto execComp = ecs.attach(ent, "ExecComp");
+        }
 
-        //     auto it = reactorSysData.find("i");
+        {
+            auto& reactorSysData = compSys->getSystemData();
 
-        //     if (it == reactorSysData.end())
-        //     {
-        //         LOG_INFO("ReactorSys", "Correctly not found i in properties");
-        //     }
-        // }
+            auto it = reactorSysData.find("i");
 
-        // ecs.executeOnce();
+            if (it == reactorSysData.end())
+            {
+                LOG_INFO("ReactorSys", "Correctly not found i in properties");
+            }
+        }
 
-        // LOG_INFO("React", "Hello");
+        ecs.executeOnce();
 
-        // {
-        //     auto& reactorSysData = compSys->getSystemData();
+        LOG_INFO("React", "Hello");
 
-        //     for (const auto& elem : reactorSysData)
-        //     {
-        //         LOG_INFO("Sss", elem.first);
-        //     }
+        {
+            auto& reactorSysData = compSys->getSystemData();
 
-        //     auto it = reactorSysData.find("i");
+            for (const auto& elem : reactorSysData)
+            {
+                LOG_INFO("Sss", elem.first);
+            }
 
-        //     if (it != reactorSysData.end())
-        //     {
-        //         LOG_INFO("ReactorSys", "Correctly found i in properties: " << it->second);
-        //     }
-        // }
+            auto it = reactorSysData.find("i");
+
+            if (it != reactorSysData.end())
+            {
+                LOG_INFO("ReactorSys", "Correctly found i in properties: " << it->second);
+            }
+
+            reactorSysData["stop"] = true;
+        }
+
+        ecs.executeOnce();
+
+        ecs.deleteSystem(compSys->_id);
+        reactorSys->getSystemData()["stop"] = true;
 
         ecs.registerSystem(createMouseClickHandlerSystem());
+
+        ecs.registerSystem(createKeyHandlerSystem());
 
         // window.receivedQuitRequest();
 
