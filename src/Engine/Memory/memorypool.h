@@ -17,6 +17,7 @@
 #include <mutex>
 #include <cmath>
 #include <atomic>
+#include <set>
 
 #include "logger.h"
 namespace pg
@@ -79,13 +80,16 @@ namespace pg
          * Delete all the object given back to the pool.
          *
          * @warning If the user forget to release memory, memory leaks can occur !
+         * @note User can use destroyAll to avoid any memory leaks
          *
          * @see release
+         * @see destroyAll
          */
         ~AllocatorPool()
         {
             LOG_THIS_MEMBER("Memory Pool");
 
+            // Free the raw memory chunks
             for (PGMemChunk<T>* chunk : chunkList)
                 delete[] chunk;  // Use delete[] to match new[]
         }
@@ -201,6 +205,10 @@ namespace pg
 
             if (index >= size) reserve(index);
 
+            // Track high-water mark for destructor cleanup
+            if (index > maxAllocatedIndex)
+                maxAllocatedIndex = index;
+
             PGMemChunk<T>* chunk = getChunk(index);
             T* ptr = ::new(&(chunk->element)) T(std::forward<Args>(args)...);
 
@@ -246,6 +254,38 @@ namespace pg
          * @return constexpr size_t The size of the pool
          */
         inline constexpr size_t getSize() const { return size; }
+
+        /**
+         * @brief Destroy all remaining allocated objects
+         *
+         * This should be called before the pool is destroyed to properly
+         * clean up objects with complex destructors (like ElementType with std::string)
+         *
+         * It will iterate on all chunk ever created to release all the memory held
+         */
+        void destroyAll()
+        {
+            // Build a set of free list pointers for fast lookup
+            std::set<PGMemChunk<T>*> freeSet;
+            PGMemChunk<T>* current = freeList;
+            while (current != nullptr)
+            {
+                freeSet.insert(current);
+                current = current->next;
+            }
+
+            // Iterate through all allocated indices and destroy objects not in free list
+            for (size_t i = 0; i <= maxAllocatedIndex && i < size; ++i)
+            {
+                PGMemChunk<T>* chunk = getChunk(i);
+                if (freeSet.find(chunk) == freeSet.end())
+                {
+                    // This object is still allocated, destroy it
+                    T* obj = reinterpret_cast<T*>(chunk);
+                    obj->~T();
+                }
+            }
+        }
 
         /**
          * @brief Get a specific element in the pool by his index
@@ -296,6 +336,9 @@ namespace pg
 
         /** Current number of elements allocated in the memory pool */
         size_t nbElements = 0;
+
+        /** High-water mark - highest index ever allocated */
+        size_t maxAllocatedIndex = 0;
 
         /** Pointer to the next free object in the pool */
         PGMemChunk<T>* freeList = nullptr;

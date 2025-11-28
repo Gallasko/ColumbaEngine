@@ -27,7 +27,7 @@ namespace pg
     // Forward declarations
     class EntitySystem;
     class Input;
-    class UiComponent;
+    // class UiComponent;
     class PgInterpreter;
     class MasterRenderer;
     struct AudioSystem;
@@ -50,6 +50,8 @@ namespace pg
         void resize(int width, int height);
 
         virtual void render();
+
+        inline void receivedQuitRequest() { needToQuit = true; }
 
         inline bool requestQuit() const { return needToQuit; }
 
@@ -82,7 +84,7 @@ namespace pg
         AudioSystem *audioSystem = nullptr;
 
         EntityRef* screenEntity;
-        CompRef<UiComponent>* screenUi;
+        // CompRef<UiComponent>* screenUi;
 
         Point2D* mousePos;
 

@@ -168,7 +168,7 @@ void Engine::initializeECS()
             printf("No post-init provided, nothing to be done...\n");
         }
 
-        mainWindow->ecs->dumbTaskflow();
+        // mainWindow->ecs->dumbTaskflow();
         printf("Engine initialized successfully\n");
     }
     catch (const std::exception& e)

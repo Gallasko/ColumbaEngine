@@ -1,0 +1,9 @@
+// Nested for-in loops
+var outer = [x: 1, y: 2];
+for (var k1 : outer) {
+    var inner = [a: 10, b: 20];
+    for (var k2 : inner) {
+        __dprint(k1);
+        __dprint(k2);
+    }
+}

@@ -229,7 +229,7 @@ namespace editor
             case UiComponentType::TEXTINPUT:
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
-                    auto newElement = makeTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
+                    auto newElement = makeTTFTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
 
                     return newElement;
                 }});

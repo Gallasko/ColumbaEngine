@@ -5,6 +5,9 @@
 #include "Interpreter/pginterpreter.h"
 #include "Interpreter/interpretersystem.h"
 
+#include "Compiler/native_module.h"
+#include "Compiler/vm.h"
+
 namespace pg
 {
     class GetAllSystemFunction : public Function
@@ -31,7 +34,7 @@ namespace pg
                 addToList(systemList, this->token, {std::to_string(sys.first), sys.second->getSystemName()});
             }
 
-            return systemList; 
+            return systemList;
         }
 
         EntitySystem *ecsRef;
@@ -59,7 +62,7 @@ namespace pg
             for (auto entity : ecsRef->view())
             {
                 auto compList = makeList(this, {});
-                
+
                 size_t j = 0;
                 for (const auto& compId : entity->componentList)
                 {
@@ -70,7 +73,7 @@ namespace pg
                 addToList(entityList, this->token, {std::to_string(entity->id), compList});
             }
 
-            return entityList; 
+            return entityList;
         }
 
         EntitySystem *ecsRef;
@@ -146,7 +149,7 @@ namespace pg
                 }
             }
 
-            return nullptr; 
+            return nullptr;
         }
 
         EntitySystem *ecsRef;
@@ -258,7 +261,96 @@ namespace pg
             addSystemFunction<RegisterNewSystem>("registerSystem", ecsRef);
             addSystemFunction<NewUniqueId>("generateNewId", ecsRef);
             addSystemFunction<NewUniqueIdFromString>("getIdFrom", ecsRef);
-            addSystemFunction<DeleteEntityFromId>("deleteEntityFromId", ecsRef);            
+            addSystemFunction<DeleteEntityFromId>("deleteEntityFromId", ecsRef);
+        }
+    };
+
+    struct EcsCompiledModule : public NativeModule
+    {
+        EntitySystem *ecsRef = nullptr;
+
+        EcsCompiledModule(EntitySystem *ecsRef) : ecsRef(ecsRef)
+        {
+            LOG_THIS_MEMBER("Ecs Compiled Module");
+
+            // Capture ecsRef by value instead of capturing 'this' to avoid dangling pointer
+            auto ecsRefCopy = ecsRef;
+            addNativeFunction("removeEntity", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount != 1)
+                {
+                    throw std::runtime_error("removeEntity expects exactly 1 argument");
+                }
+
+                if (IS_INT(args[0]))
+                {
+                    ecsRefCopy->removeEntity(AS_INT(args[0]));
+                    return args[0];
+                }
+                else if (IS_INSTANCE(args[0]))
+                {
+                    auto instance = vm->asInstance(args[0]);
+
+                    if (instance->fields.find("__entityId") == instance->fields.end())
+                    {
+                        throw std::runtime_error("removeEntity expects an entity with an __entityId field");
+                    }
+
+                    auto idValue = instance->fields.at("__entityId");
+
+                    if (not IS_INT(idValue))
+                    {
+                        throw std::runtime_error("removeEntity expects an entity with an integer __entityId field");
+                    }
+
+                    auto entityId = AS_INT(idValue);
+
+                    LOG_INFO("Ecs Compiled Module", "Removing entity with id " << entityId);
+
+                    ecsRefCopy->removeEntity(entityId);
+                    return args[0];
+                }
+
+                throw std::runtime_error("removeEntity expects an integer id or an entity instance");
+            });
+        }
+
+        Value removeEntity(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("removeEntity expects exactly 1 argument");
+            }
+
+            if (IS_INT(args[0]))
+            {
+                ecsRef->removeEntity(AS_INT(args[0]));
+                return args[0]; // Already an integer
+            }
+            else if (IS_INSTANCE(args[0]))
+            {
+                auto instance = vm->asInstance(args[0]);
+
+                if (instance->fields.find("__entityId") == instance->fields.end())
+                {
+                    throw std::runtime_error("removeEntity expects an entity with an __entityId field");
+                }
+
+                auto idValue = instance->fields.at("__entityId");
+
+                if (not IS_INT(idValue))
+                {
+                    throw std::runtime_error("removeEntity expects an entity with an integer __entityId field");
+                }
+
+                auto entityId = AS_INT(idValue);
+
+                LOG_INFO("Ecs Compiled Module", "Removing entity with id " << entityId);
+
+                ecsRef->removeEntity(entityId);
+                return args[0];
+            }
+
+            throw std::runtime_error("removeEntity expects an integer id or an entity instance");
         }
     };
 
