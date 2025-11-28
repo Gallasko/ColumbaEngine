@@ -588,7 +588,7 @@ namespace pg
             // Capture the table and propertiesTable to update VM values as well
             std::string globalSetterName = "__setter_" + std::to_string(entityId) + "_" + compTypeName + "_" + propName;
 
-            vm->registerNative(globalSetterName, [ecsRef, entityId, compTypeName, propName, table, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
+            vm->registerNative(globalSetterName, [ecsRef, entityId, compTypeName, propName, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
                 if (argCount != 1)
                 {
                     LOG_ERROR("StandardComponent Setter", "Expected 1 argument for setter, got " << argCount);

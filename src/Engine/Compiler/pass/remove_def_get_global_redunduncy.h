@@ -14,7 +14,7 @@ namespace pg
     public:
         std::string getName() const override { return "RemoveDefGetGlobalRedunduncy"; }
 
-        bool runPass(Chunk& chunk, BytecodeRewriter* rewriter = nullptr)
+        bool runPass(Chunk& chunk, BytecodeRewriter* rewriter = nullptr) override
         {
             if (not rewriter)
             {
