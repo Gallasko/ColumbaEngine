@@ -35,25 +35,38 @@ namespace pg
                 throw std::runtime_error("contain expects exactly 2 arguments (table, key)");
             }
 
-            // First argument must be an instance (table)
-            if (!IS_INSTANCE(args[0]))
-            {
-                throw std::runtime_error("contain expects first argument to be a table instance");
-            }
-
             // Second argument must be a string (key name)
-            if (!IS_STRING(args[1]))
+            if (not IS_STRING(args[1]))
             {
                 throw std::runtime_error("contain expects second argument to be a string key");
             }
 
-            ObjInstance* instance = vm->asInstance(args[0]);
-            std::string key = vm->asString(args[1])->toString();
+            // First argument must be an instance (table)
+            if (IS_INSTANCE(args[0]))
+            {
+                ObjInstance* instance = vm->asInstance(args[0]);
+                std::string key = vm->asString(args[1])->toString();
 
-            // Check if the key exists in the instance's fields
-            bool exists = instance->fields.find(key) != instance->fields.end();
+                // Check if the key exists in the instance's fields
+                bool exists = instance->fields.find(key) != instance->fields.end();
 
-            return makeBoolValue(exists);
+                return makeBoolValue(exists);
+            }
+            else if (IS_STRING(args[0]))
+            {
+                std::string value = vm->asString(args[0])->toString();
+                std::string key = vm->asString(args[1])->toString();
+
+                // Check if the key exists in the instance's fields
+                bool exists = value.find(key) != value.npos;
+
+                return makeBoolValue(exists);
+
+            }
+            else
+            {
+                throw std::runtime_error("contain expects first argument to be a table instance or a string");
+            }
         }
     };
 }
