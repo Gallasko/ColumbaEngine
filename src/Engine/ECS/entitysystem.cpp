@@ -38,6 +38,12 @@ namespace
 #endif
 }
 
+// Include for the vm setup
+#include "Compiler/vm.h"
+#include "ecsmodule.h"
+#include "Helpers/mathmodule.h"
+#include "Helpers/algorithmmodule.h"
+
 namespace pg
 {
     // Todo maybe
@@ -74,17 +80,33 @@ namespace pg
 
 #ifdef PROFILE
             auto startTask = std::chrono::steady_clock::now();
+
+            PROFILE_BEGIN("EventDispatch", "Event");
 #endif
             eventDispatcher.process();
 
+#ifdef PROFILE
+            PROFILE_END("EventDispatch", "Event");
+
+            PROFILE_BEGIN("CommandDispatch", "Command");
+#endif
             cmdDispatcher.process();
+
+#ifdef PROFILE
+            PROFILE_END("CommandDispatch", "Command");
+#endif
 
             if (not stopRequested)
                 running = true;
 
+#ifdef PROFILE
+            PROFILE_BEGIN("SaveManager", "System");
+#endif
             saveManager._execute();
 
 #ifdef PROFILE
+            PROFILE_END("SaveManager", "System");
+
             // Record end time and compute elapsed time in nanoseconds.
             auto endTask = std::chrono::steady_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTask - startTask).count();
@@ -215,6 +237,8 @@ namespace pg
 #ifdef PROFILE
                 // Todo time the whole exec of a run of the taskflow
                 auto start = std::chrono::steady_clock::now();
+
+                PROFILE_SCOPE(system->getSystemName(), "System");
 #endif
                 system->_execute();
 
@@ -367,5 +391,99 @@ namespace pg
         _systemExecutionTimes.clear();
         _systemExecutionCounts.clear();
 #endif
+    }
+
+    void EntitySystem::setupVm(VM& vm)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        vm.addNativeModule("math", MathModule{});
+        vm.addNativeModule("algorithm", AlgorithmModule{});
+        vm.addNativeModule("ecs", EcsCompiledModule{this});
+
+        vm.registerNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {
+            if (argCount != 1) return makeBoolValue(false);
+
+            if (IS_INSTANCE(args[0]))
+            {
+                ObjInstance* table = vm->asInstance(args[0]);
+                LOG_INFO("Script", "Table contents:");
+                for (const auto& [key, value] : table->fields)
+                {
+                    std::string valStr;
+                    if (IS_STRING(value))
+                        valStr = vm->asString(value)->toString();
+                    else if (IS_INT(value))
+                        valStr = std::to_string(AS_INT(value));
+                    else if (IS_DOUBLE(value))
+                        valStr = std::to_string(AS_DOUBLE(value));
+                    else if (IS_BOOL(value))
+                        valStr = AS_BOOL(value) ? "true" : "false";
+                    else
+                        valStr = "<complex type>";
+
+                    LOG_INFO("Script", "  " << key << " : " << valStr);
+                }
+            }
+            else
+            {
+                LOG_INFO("Script", "Value is not a table instance");
+            }
+
+            return makeBoolValue(true);
+        });
+
+        vm.registerNative("debugGlobal", [](VM *vm, int argCount, Value*) -> Value {
+            if (argCount != 0) return makeBoolValue(false);
+
+            for (const auto& [key, value] : vm->globals)
+            {
+                std::string valStr;
+                if (IS_STRING(value))
+                    valStr = vm->asString(value)->toString();
+                else if (IS_INT(value))
+                    valStr = std::to_string(AS_INT(value));
+                else if (IS_DOUBLE(value))
+                    valStr = std::to_string(AS_DOUBLE(value));
+                else if (IS_BOOL(value))
+                    valStr = AS_BOOL(value) ? "true" : "false";
+                else
+                    valStr = "<complex type>";
+
+                LOG_INFO("Script", "Global " << key << " : " << valStr);
+            }
+
+            return makeBoolValue(true);
+        });
+
+        vm.registerNative("logInfo", [](VM *vm, int argCount, Value* args) -> Value {
+            if (argCount != 1) return makeBoolValue(false);
+
+            auto value = args[0];
+
+            std::string valStr;
+            if (IS_STRING(value))
+                valStr = vm->asString(value)->toString();
+            else if (IS_INT(value))
+                valStr = std::to_string(AS_INT(value));
+            else if (IS_DOUBLE(value))
+                valStr = std::to_string(AS_DOUBLE(value));
+            else if (IS_BOOL(value))
+                valStr = AS_BOOL(value) ? "true" : "false";
+            else
+                valStr = "<complex type>";
+
+            LOG_INFO("Script", "Logged value: " << valStr);
+
+            return makeBoolValue(true);
+        });
+
+        // Setup the VM with necessary bindings and references
+        // For example, bind the ECS reference to the VM for script access
+        // This is a placeholder implementation; actual implementation may vary
+        // depending on the VM and its API
+
+        // Example:
+        // vm.bindECS(this);
     }
 }

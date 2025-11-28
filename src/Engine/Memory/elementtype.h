@@ -2,10 +2,14 @@
 
 #include <string>
 
-#include "serialization.h"
+// #include "serialization.h"
 
 namespace pg
 {
+    class Archive;
+
+    template<typename T>
+    void serialize(Archive& archive, const T& element);
 
     // Todo add a none type
 
@@ -361,4 +365,6 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const ElementType& element);
+
+    typedef std::unordered_map<std::string, ElementType> ElementMap;
 }

@@ -23,8 +23,6 @@
 #include "UI/prefab.h"
 
 #include "config.h"
-#include "Aseprite_Lib/AsepriteFileAtlasLoader.h"
-#include "Aseprite_Lib/AsepriteLoader.h"
 
 #include "Characters/player.h"
 #include "Characters/enemy.h"
@@ -37,6 +35,8 @@
 #include "Room/room.h"
 
 #include "Audio/audiosystem.h"
+
+#include "Loaders/Aseprite/asepritefileatlasloader.h"
 
 using namespace pg;
 
@@ -106,13 +106,11 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
     int testVar = 0;
     MapData mapData;
 
-    std::unordered_map<std::string, AsepriteFile> anims;
-
     EntityRef endText;
     EntityRef obscureScreen;
     EntityRef pressAnyKeyText;
 
-    TestSystem(const MapData &mapData, const std::unordered_map<std::string, AsepriteFile>& anims) : mapData(mapData), anims(anims) {
+    TestSystem(const MapData &mapData) : mapData(mapData) {
     }
 
     virtual void init() override {
@@ -162,17 +160,13 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
             ecsRef->sendEvent(EnterRoomEvent{room->roomIndex});
         });
 
-        makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, WallFlag *) {
-            LOG_INFO(DOM, "Bullet hit a wall! ");
+        makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
+            [](Entity* ent) { return ent->has<AllyBulletFlag>(); },
+            [](Entity* ent) { return ent->has<WallFlag>(); });
 
-            ecsRef->removeEntity(bullet->entityId);
-        });
-
-        makeCollisionHandlePair(ecsRef, [&](EnemyBulletFlag *bullet, WallFlag *) {
-            LOG_INFO(DOM, "Bullet hit a wall! ");
-
-            ecsRef->removeEntity(bullet->entityId);
-        });
+        makeCollisionHandleScript(ecsRef, "res/bullet_wall_collision.pg",
+            [](Entity* ent) { return ent->has<EnemyBulletFlag>(); },
+            [](Entity* ent) { return ent->has<WallFlag>(); });
 
         makeCollisionHandlePair(ecsRef, [&](AllyBulletFlag *bullet, EnemyFlag *enemy) {
             LOG_INFO(DOM, "Bullet hit an enemy! ");
@@ -196,6 +190,8 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                 auto weapon = ecsRef->getComponent<WeaponComponent>(enemy->entityId);
                 auto pos = ecsRef->getComponent<PositionComponent>(enemy->entityId);
 
+                auto sys = ecsRef->getSystem<AsepriteLoader>();
+
                 if (weapon and pos and (not (weapon->weapon.ammo == 0)))
                 {
                     std::string textureName = "";
@@ -203,16 +199,16 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
                     switch (weapon->weapon.pattern)
                     {
                         case BulletPattern::Radial:
-                            textureName = anims["pistol"].frames[0].textureName;
+                            textureName = sys->getFirstFrame("pistol");
                             break;
 
                         case BulletPattern::Cone:
-                            textureName = anims["shotgun"].frames[0].textureName;
+                            textureName = sys->getFirstFrame("shotgun");
                             break;
 
                         case BulletPattern::AtPlayer:
                         default:
-                            textureName = anims["sniper"].frames[0].textureName;
+                            textureName = sys->getFirstFrame("sniper");
                             break;
                     }
 
@@ -239,37 +235,41 @@ struct TestSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listene
 
         // Todo make a macro for LOG_INFO and LOG_ERROR with a single argument that use a default DOM
 
+        makeCollisionHandleScript(ecsRef, "res/player_wall_collision.pg",
+            [](Entity* ent) { return ent->has<PlayerFlag>(); },
+            [](Entity* ent) { return ent->has<WallFlag>(); });
+
         // Todo we need this because sweep move is bugged
-        makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall) {
-            // get both entities’ positions
-            auto wallEnt  = wall->ecsRef->getEntity(wall->entityId);
-            auto playerEnt = player->ecsRef->getEntity(player->entityId);
-            auto wpos     = wallEnt->get<PositionComponent>();
-            auto epos     = playerEnt->get<PositionComponent>();
+        // makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, WallFlag* wall) {
+        //     // get both entities’ positions
+        //     auto wallEnt   = wall->ecsRef->getEntity(wall->entityId);
+        //     auto playerEnt = player->ecsRef->getEntity(player->entityId);
+        //     auto wpos      = wallEnt->get<PositionComponent>();
+        //     auto epos      = playerEnt->get<PositionComponent>();
 
-            // compute normalized vector from wall→enemy
+        //     // compute normalized vector from wall→enemy
 
-            float x = epos->x;
-            float y = epos->y;
+        //     float x = epos->x;
+        //     float y = epos->y;
 
-            float wx = wpos->x;
-            float wy = wpos->y;
+        //     float wx = wpos->x;
+        //     float wy = wpos->y;
 
-            LOG_INFO(DOM, "Player hit wall: " << wall->entityId << " at " << wx << ", " << wy << " and player at " << x << ", " << y);
+        //     LOG_INFO(DOM, "Player hit wall: " << wall->entityId << " at " << wx << ", " << wy << " and player at " << x << ", " << y);
 
-            float dx = x - wx;
-            float dy = y - wy;
-            float len = std::sqrt(dx * dx + dy * dy);
+        //     float dx = x - wx;
+        //     float dy = y - wy;
+        //     float len = std::sqrt(dx * dx + dy * dy);
 
-            if (len > 1e-5f)
-            {
-                dx /= len;
-                dy /= len;
-                // shove enemy out
-                epos->setX(x + dx * repulsionStrength);
-                epos->setY(y + dy * repulsionStrength);
-            }
-        });
+        //     if (len > 1e-5f)
+        //     {
+        //         dx /= len;
+        //         dy /= len;
+        //         // shove enemy out
+        //         epos->setX(x + dx * repulsionStrength);
+        //         epos->setY(y + dy * repulsionStrength);
+        //     }
+        // });
 
         makeCollisionHandlePair(ecsRef, [&](PlayerFlag* player, HoleFlag* hole){
             // get both entities’ positions
@@ -628,7 +628,7 @@ void initGame() {
     // mainWindow->ecs->registerFlagComponent<PlayerFlag>();
     // mainWindow->ecs->registerFlagComponent<HoleFlag>();
 
-    mainWindow->ecs->createSystem<FpsSystem>();
+    // mainWindow->ecs->createSystem<FpsSystem>();
 
     mainWindow->ecs->createSystem<MoveToSystem>();
 
@@ -664,28 +664,22 @@ void initGame() {
 
     mainWindow->ecs->createSystem<SceneLoader>();
 
-    AsepriteLoader aseprite_loader;
+    auto aseprite_loader = mainWindow->ecs->createSystem<AsepriteLoader>();
 
     // Todo : Move to aseprite loader
     std::vector<std::string> animToLoad = {"main-char", "pistol", "shotgun", "bazooka", "sniper", "raider", "raider-variant-001", "raider-variant-002", "bullet_hit", "Gold_Pile"};
 
-    std::unordered_map<std::string, AsepriteFile> anims;
-
     for (const auto &animName : animToLoad)
     {
-        const auto anim = aseprite_loader.loadAnim("res/sprites/" + animName + ".json");
+        const auto anim = aseprite_loader->loadAnim("res/sprites/" + animName + ".json", animName);
 
         mainWindow->masterRenderer->registerAtlasTexture(anim.filename, anim.metadata.imagePath.c_str(), "", std::make_unique<AsepriteFileAtlasLoader>(anim));
-
-        anims[animName] = anim;
     }
 
-
-
-    mainWindow->ecs->createSystem<PlayerSystem>(anims["main-char"]);
+    mainWindow->ecs->createSystem<PlayerSystem>();
 
     mainWindow->ecs->createSystem<EnemyAISystem>();
-    mainWindow->ecs->createSystem<EnemySpawnSystem>(anims);
+    mainWindow->ecs->createSystem<EnemySpawnSystem>();
 
     // auto worldFacts = mainWindow->ecs->createSystem<WorldFacts>();
 
@@ -770,7 +764,7 @@ void initGame() {
 
     roomSystem->startLevel();
 
-    mainWindow->ecs->createSystem<TestSystem>(map, anims);
+    mainWindow->ecs->createSystem<TestSystem>(map);
 
     mainWindow->ecs->start();
 

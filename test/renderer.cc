@@ -114,6 +114,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             EXPECT_EQ(masterRenderer.getNbMaterials(), 1ull);
 
@@ -128,6 +129,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -164,6 +166,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -202,6 +205,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -229,6 +233,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -254,6 +259,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -274,6 +280,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -297,6 +304,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -326,6 +334,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -365,6 +374,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -391,6 +401,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 
@@ -416,6 +427,7 @@ namespace pg
             // Need to execute and render to finalize the material registration
             masterRenderer.execute();
             masterRenderer.renderAll();
+            masterRenderer.endRender();
 
             MockRenderer renderer(&masterRenderer, RenderStage::Render);
 

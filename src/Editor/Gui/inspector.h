@@ -328,8 +328,6 @@ namespace pg
 
             CompRef<VerticalLayout> view;
 
-            CompRef<UiComponent> tabUi;
-
             InspectEvent event;
 
             bool eventRequested = false;

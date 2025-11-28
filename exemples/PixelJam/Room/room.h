@@ -636,7 +636,7 @@ namespace pg
 
         void addGold(Gold gold) {
             AsepriteLoader aseprite_loader;
-            const auto anim = aseprite_loader.loadAnim("res/sprites/Gold_Pile.json");
+            const auto anim = aseprite_loader.loadAnim("res/sprites/Gold_Pile.json", "Gold_Pile");
             auto tex = makeUiTexture(ecsRef, anim.frames[0].widthInSPixels * 3, anim.frames[0].heightInSPixels * 3, anim.frames[0].textureName);
             auto texComp = tex.get<Texture2DComponent>();
             texComp->setViewport(1);

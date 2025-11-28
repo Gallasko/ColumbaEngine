@@ -17,3 +17,5 @@ CMakeCache.txt
 .idea*
 /clang*
 save/*
+/res/*.pgc
+profile_data.csv

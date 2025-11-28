@@ -3,14 +3,29 @@ cmake_minimum_required(VERSION 3.18)
 project(ColumbaEngine VERSION 1.0)
 
 # Options remain the same
-option(UseGDB "UseGDB" OFF)
+option(USE_GDB "Add -ggdb to the build" OFF)
+option(AUTO_CONVERT_EVENT "Auto convert event to standard event" ON)
 option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds" OFF)
 option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
+option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+# Enable ccache if available and requested
+if(USE_CCACHE)
+    find_program(CCACHE_PROGRAM ccache)
+    if(CCACHE_PROGRAM)
+        message(STATUS "Found ccache: ${CCACHE_PROGRAM}")
+        message(STATUS "Enabling ccache to speed up rebuilds")
+        set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+        set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+    else()
+        message(WARNING "ccache requested but not found - install with: sudo apt install ccache")
+    endif()
+endif()
 
 # Dependency settings
 set(TF_BUILD_EXAMPLES OFF)
@@ -71,7 +86,7 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_compile_options(-DGLEW_STATIC)
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Linux")
-        set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O0 -ggdb -DDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread")
         # set(CMAKE_CXX_FLAGS "-Wall -Wextra -Wnon-virtual-dtor -Woverloaded-virtual -Wfloat-equal -pedantic -pthread -O3")
 
         if (${ENABLE_TIME_TRACE} AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
@@ -80,27 +95,37 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     endif()
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")
-        set(CMAKE_CXX_FLAGS " -Wall -Wextra -pthread -Wa,-mbig-obj -s -O2 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pthread -Wa,-mbig-obj -s")
     endif()
 endif()
 
-if(${UseGDB} EQUAL ON)
+if(USE_GDB)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+    message(STATUS, "GDB symbols enabled")
+endif()
+
+if(AUTO_CONVERT_EVENT)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DPG_AUTO_CONVERT_EVENTS_TO_STANDARD")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DPG_AUTO_CONVERT_EVENTS_TO_STANDARD")
+    message(STATUS "Auto-conversion of C++ events to StandardEvents is ENABLED")
 endif()
 
 # Debug Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -ggdb -O0 -DDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -O0 -DDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -O0 -DDEBUG")
 else()
-    set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+    # set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 -DDEBUG")
 endif()
 
 # Release Flags
 if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
-    set(CMAKE_CXX_FLAGS_RELEASE "-Wall -Wextra -pthread -O3 -DNDEBUG -sUSE_SDL=2 -sUSE_SDL_MIXER=2 -sUSE_SDL_NET=2 -sUSE_FREETYPE=1 -fwasm-exceptions -sUSE_PTHREADS=1")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
 else()
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
+
 # Release flags for native builds can be set here if needed
 endif()
 
@@ -113,12 +138,23 @@ set(ENGINESOURCE
     src/Engine/configuration.cpp
     src/Engine/logger.cpp
     src/Engine/serialization.cpp
+    src/Engine/2D/animator2d.cpp
     src/Engine/2D/camera2d.cpp
     src/Engine/2D/collisionsystem.cpp
     src/Engine/2D/position.cpp
     src/Engine/2D/simple2dobject.cpp
     src/Engine/2D/texture.cpp
     src/Engine/Audio/audiosystem.cpp
+    src/Engine/Compiler/compiler_debug.cpp
+    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/object.cpp
+    src/Engine/Compiler/cparser.cpp
+    src/Engine/Compiler/bytecode_pass.cpp
+    src/Engine/Compiler/bytecode_rewriter.cpp
+    src/Engine/Compiler/chunk_serializer.cpp
+    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -126,11 +162,13 @@ set(ENGINESOURCE
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
     src/Engine/ECS/sparseset.cpp
+    src/Engine/ECS/standardsystem.cpp
     src/Engine/ECS/system.cpp
     src/Engine/ECS/uniqueid.cpp
     src/Engine/Event/eventloop.cpp
     src/Engine/Files/filemanager.cpp
     src/Engine/Files/fileparser.cpp
+    src/Engine/Profiler/profiler.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp
     src/Engine/Input/input.cpp
@@ -148,6 +186,9 @@ set(ENGINESOURCE
     src/Engine/Interpreter/token.cpp
     src/Engine/Interpreter/valuable.cpp
     src/Engine/Loaders/atlasloader.cpp
+    src/Engine/Loaders/Aseprite/asepritefile.cpp
+    src/Engine/Loaders/Aseprite/asepritefileatlasloader.cpp
+    src/Engine/Loaders/Aseprite/asepriteloader.cpp
     src/Engine/Maths/noise.cpp
     src/Engine/Maths/randomnumbergenerator.cpp
     src/Engine/Memory/elementtype.cpp
@@ -551,8 +592,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             exemples/PixelJam/Characters/enemy.cpp
             exemples/PixelJam/Characters/player.cpp
             exemples/PixelJam/config.cpp
-            exemples/PixelJam/Aseprite_Lib/AsepriteLoader.cpp
-            exemples/PixelJam/Aseprite_Lib/AsepriteFileAtlasLoader.cpp
             exemples/PixelJam/Tiled_Lib/TiledLoader.cpp
             exemples/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
             exemples/PixelJam/Room/room.cpp
@@ -644,6 +683,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(StandardSys exemples/StandardSys/main.cpp)
+
+        target_include_directories(StandardSys PUBLIC exemples/StandardSys)
+
+        target_sources(StandardSys PRIVATE
+            exemples/StandardSys/application.cpp
+        )
+
+        target_link_libraries(StandardSys PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(PgInterpreter exemples/PgInterpreter/main.cpp)
 
         target_include_directories(PgInterpreter PUBLIC exemples/PgInterpreter)
@@ -662,20 +713,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(PgCompiler PRIVATE
             exemples/PgCompiler/application.cpp
-            exemples/PgCompiler/compiler_debug.cpp
-            exemples/PgCompiler/vm.cpp
-            exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/object.cpp
-            exemples/PgCompiler/cparser.cpp
-            exemples/PgCompiler/bytecode_pass.cpp
-            exemples/PgCompiler/bytecode_rewriter.cpp
-
-            exemples/PgCompiler/long_jump_optimization_pass.cpp
             exemples/PgCompiler/constant_uniformity_pass.cpp
-
-            exemples/PgCompiler/chunk_serializer.cpp
-
-            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
@@ -687,20 +725,6 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_include_directories(EcsSerializationExample PUBLIC exemples/PgCompiler)
 
         target_sources(EcsSerializationExample PRIVATE
-            exemples/PgCompiler/compiler_debug.cpp
-            exemples/PgCompiler/vm.cpp
-            exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/object.cpp
-            exemples/PgCompiler/cparser.cpp
-            exemples/PgCompiler/bytecode_pass.cpp
-            exemples/PgCompiler/bytecode_rewriter.cpp
-
-            exemples/PgCompiler/long_jump_optimization_pass.cpp
-            exemples/PgCompiler/constant_uniformity_pass.cpp
-
-            exemples/PgCompiler/chunk_serializer.cpp
-
-            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
         )
 
         target_link_libraries(EcsSerializationExample PRIVATE ColumbaEngine)
@@ -765,22 +789,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # ===============================================
 
         # PgCompiler source files (needed for testing)
-        set(PGCOMPILER_SOURCES
-            exemples/PgCompiler/vm.cpp
-            exemples/PgCompiler/compiler.cpp
-            exemples/PgCompiler/cparser.cpp
-            exemples/PgCompiler/compiler_debug.cpp
-            exemples/PgCompiler/bytecode_pass.cpp
-            exemples/PgCompiler/bytecode_rewriter.cpp
-            exemples/PgCompiler/object.cpp
-
-            exemples/PgCompiler/long_jump_optimization_pass.cpp
-            exemples/PgCompiler/constant_uniformity_pass.cpp
-
-            exemples/PgCompiler/chunk_serializer.cpp
-
-            exemples/PgCompiler/pass/basic_operator_local_indexing.cpp
-        )
+        set(PGCOMPILER_SOURCES)
 
         # Create the compiler test executable with simple script testbench
         add_executable(test_compiler test/pgcompiler/script_testbench.cc)
@@ -801,7 +810,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         # Add DEBUG_CHECK_STACK define for test_compiler target
         # target_compile_definitions(test_compiler PRIVATE DEBUG_CHECK_STACK)
-        target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD)
+        target_compile_definitions(test_compiler PRIVATE IN_PGCOMPILER_TESTS_BUILD SDL_MAIN_HANDLED)
 
         # Copy test script files to build directory
         add_custom_command(TARGET test_compiler POST_BUILD

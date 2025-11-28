@@ -1,7 +1,7 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#include "chunk.h"
+#include "Compiler/chunk.h"
 
 #include "ECS/entitysystem.h"
 #include "ECS/loggersystem.h"
