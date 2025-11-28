@@ -153,6 +153,12 @@ namespace pg
 
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
+        if (tokens.empty())
+        {
+            LOG_WARNING("VM", "Empty tokens provided, nothing to execute !");
+            return InterpretResult::OK;
+        }
+
         // Todo change this
         // Reset the compiler state before compiling a new chunk
         Compiler compiler(this);
@@ -333,6 +339,12 @@ namespace pg
 
     InterpretResult VM::interpretFromBytecodeFile(const std::string& filename)
     {
+        if (filename.empty())
+        {
+            LOG_WARNING("VM", "No file specified, nothing to execute !");
+            return InterpretResult::OK;
+        }
+
         currentFileName = filename;
 
         Chunk chunk;
@@ -358,6 +370,12 @@ namespace pg
 
     InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount)
     {
+        if (cachedBytecode.empty())
+        {
+            LOG_WARNING("VM", "Bytecode is empty, nothing to execute !");
+            return InterpretResult::OK;
+        }
+
         // Deserialize from cached memory (NO FILE I/O!)
         std::istringstream bytecodeStream(std::string(cachedBytecode.begin(), cachedBytecode.end()), std::ios::binary);
 
