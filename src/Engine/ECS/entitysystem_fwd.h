@@ -23,12 +23,12 @@ namespace pg
     class Environment;
     class ClassInstance;
     class StandardSystemImpl;
-    class StandardComponent;
+    struct StandardComponent;
     struct VM;
 
     // Component reference template
     template <typename Comp>
-    class CompRef;
+    struct CompRef;
 
     // Events
     struct ResizeEvent { float width, height; };

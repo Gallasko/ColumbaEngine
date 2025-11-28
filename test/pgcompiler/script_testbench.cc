@@ -696,3 +696,13 @@ TEST_F(ScriptTestBench, RuntimeError)
 
 } // namespace test
 } // namespace pg
+
+/**
+ * Entry point for the test
+ */
+int main(int argc, char **argv)
+{
+   std::cout << "Start all the tests" << std::endl;
+   ::testing::InitGoogleTest( &argc, argv );
+   return RUN_ALL_TESTS();
+}
