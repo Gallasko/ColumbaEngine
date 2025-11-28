@@ -1,3 +1,13 @@
+#ifdef __EMSCRIPTEN__
+    #include <SDL2/SDL.h>
+#else
+    #ifdef __linux__
+        #include <SDL2/SDL.h>
+    #elif _WIN32
+        #include <SDL.h>
+    #endif
+#endif
+
 #include "gtest/gtest.h"
 #include "Compiler/vm.h"
 #include "math_module.h"
