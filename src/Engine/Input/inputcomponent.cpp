@@ -27,6 +27,57 @@
 
 namespace pg
 {
+    // Helper function to convert SDL_Scancode to friendly string
+    std::string scancodeToString(SDL_Scancode key)
+    {
+        const char* name = SDL_GetScancodeName(key);
+        if (name && name[0] != '\0')
+        {
+            return std::string(name);
+        }
+        return "Unknown";
+    }
+
+    // Helper function to convert SDL modifier flags to friendly string
+    std::string modifierToString(Uint16 mod)
+    {
+        if (mod == KMOD_NONE)
+            return "None";
+
+        std::string result;
+
+        // Check for left/right specific modifiers first
+        if (mod & KMOD_LCTRL)  result += "LCtrl+";
+        if (mod & KMOD_RCTRL)  result += "RCtrl+";
+        if (mod & KMOD_LSHIFT) result += "LShift+";
+        if (mod & KMOD_RSHIFT) result += "RShift+";
+        if (mod & KMOD_LALT)   result += "LAlt+";
+        if (mod & KMOD_RALT)   result += "RAlt+";
+        if (mod & KMOD_LGUI)   result += "LGui+";
+        if (mod & KMOD_RGUI)   result += "RGui+";
+
+        // Check for generic modifiers if specific ones weren't set
+        // (KMOD_CTRL = LCTRL | RCTRL, etc.)
+        if ((mod & KMOD_CTRL) && !(mod & (KMOD_LCTRL | KMOD_RCTRL)))
+            result += "Ctrl+";
+        if ((mod & KMOD_SHIFT) && !(mod & (KMOD_LSHIFT | KMOD_RSHIFT)))
+            result += "Shift+";
+        if ((mod & KMOD_ALT) && !(mod & (KMOD_LALT | KMOD_RALT)))
+            result += "Alt+";
+        if ((mod & KMOD_GUI) && !(mod & (KMOD_LGUI | KMOD_RGUI)))
+            result += "Gui+";
+
+        if (mod & KMOD_NUM)    result += "Num+";
+        if (mod & KMOD_CAPS)   result += "Caps+";
+        if (mod & KMOD_MODE)   result += "AltGr+";
+
+        // Remove trailing '+'
+        if (!result.empty() && result.back() == '+')
+            result.pop_back();
+
+        return result;
+    }
+
     namespace
     {
     }
@@ -283,57 +334,93 @@ namespace pg
     STANDARD_EVENT_CONVERSION_IMPL(OnMouseClick)
     {
         StandardEvent event("OnMouseClick");
+
         event.values["x"] = ElementType{pos.x};
         event.values["y"] = ElementType{pos.y};
-        event.values["button"] = ElementType{static_cast<int>(button)};
+
+        if (button == SDL_BUTTON_LEFT)
+            event.values["button"] = ElementType{"left"};
+        else if (button == SDL_BUTTON_MIDDLE)
+            event.values["button"] = ElementType{"middle"};
+        else if (button == SDL_BUTTON_RIGHT)
+            event.values["button"] = ElementType{"right"};
+
+        event.values["buttonValue"] = ElementType{static_cast<int>(button)};
+
         return event;
     }
 
     STANDARD_EVENT_CONVERSION_IMPL(OnMouseRelease)
     {
         StandardEvent event("OnMouseRelease");
+
         event.values["x"] = ElementType{pos.x};
         event.values["y"] = ElementType{pos.y};
-        event.values["button"] = ElementType{static_cast<int>(button)};
+
+        if (button == SDL_BUTTON_LEFT)
+            event.values["button"] = ElementType{"left"};
+        else if (button == SDL_BUTTON_MIDDLE)
+            event.values["button"] = ElementType{"middle"};
+        else if (button == SDL_BUTTON_RIGHT)
+            event.values["button"] = ElementType{"right"};
+
+        event.values["buttonValue"] = ElementType{static_cast<int>(button)};
+
         return event;
     }
 
     STANDARD_EVENT_CONVERSION_IMPL(OnMouseMove)
     {
         StandardEvent event("OnMouseMove");
+
         event.values["x"] = ElementType{pos.x};
         event.values["y"] = ElementType{pos.y};
+
         return event;
     }
 
     STANDARD_EVENT_CONVERSION_IMPL(OnSDLTextInput)
     {
         StandardEvent event("OnSDLTextInput");
+
         event.values["text"] = ElementType{text};
+
         return event;
     }
 
     STANDARD_EVENT_CONVERSION_IMPL(OnSDLScanCode)
     {
         StandardEvent event("OnSDLScanCode");
-        event.values["key"] = ElementType{static_cast<int>(key)};
-        event.values["mod"] = ElementType{static_cast<int>(mod)};
+
+        event.values["keyValue"] = ElementType{static_cast<int>(key)};
+        event.values["modValue"] = ElementType{static_cast<int>(mod)};
+
+        event.values["key"] = ElementType{scancodeToString(key)};
+        event.values["mod"] = ElementType{modifierToString(mod)};
+
         return event;
     }
 
     STANDARD_EVENT_CONVERSION_IMPL(OnSDLScanCodeReleased)
     {
         StandardEvent event("OnSDLScanCodeReleased");
-        event.values["key"] = ElementType{static_cast<int>(key)};
-        event.values["mod"] = ElementType{static_cast<int>(mod)};
+
+        event.values["keyValue"] = ElementType{static_cast<int>(key)};
+        event.values["modValue"] = ElementType{static_cast<int>(mod)};
+
+        event.values["key"] = ElementType{scancodeToString(key)};
+        event.values["mod"] = ElementType{modifierToString(mod)};
+
         return event;
     }
 
     STANDARD_EVENT_CONVERSION_IMPL(OnSDLMouseWheel)
     {
         StandardEvent event("OnSDLMouseWheel");
+
         event.values["x"] = ElementType{static_cast<int>(x)};
         event.values["y"] = ElementType{static_cast<int>(y)};
+
         return event;
     }
 }

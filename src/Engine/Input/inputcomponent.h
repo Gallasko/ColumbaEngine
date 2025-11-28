@@ -369,4 +369,8 @@ namespace pg
     bool operator<(MouseAreaZ lhs, MouseAreaZ rhs);
     bool operator>(MouseAreaZ lhs, MouseAreaZ rhs);
 
+    // Helper functions to convert SDL input codes to friendly strings
+    std::string scancodeToString(SDL_Scancode key);
+    std::string modifierToString(Uint16 mod);
+
 }
