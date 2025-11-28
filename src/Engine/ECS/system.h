@@ -168,8 +168,7 @@ namespace pg
                           _S_SaveCallback saveCb,
                           _S_LoadCallback loadCb,
                           _S_InitCallback firstLoadCb) :
-                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues),
-                          saveLoadEnabled(saveLoadEnabled), initCallback(initCb),
+                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues), initCallback(initCb),
                           eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap),
                           executeCallback(executeCb), executeScript(executeScriptPath),
                           saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb)
@@ -357,8 +356,6 @@ namespace pg
 
         // System data storage - allows system to store arbitrary key-value data
         ElementMap systemData;
-
-        bool saveLoadEnabled;
 
         _S_InitCallback initCallback;
 

@@ -14,6 +14,7 @@ namespace
 {
     static const char* const DOM = "Opengl Objects";
 
+#ifdef DEBUG
     GLenum glCheckError_(const char *file, int line)
     {
         GLenum errorCode;
@@ -35,6 +36,8 @@ namespace
         }
         return errorCode;
     }
+#endif
+
 }
 
 #ifdef DEBUG

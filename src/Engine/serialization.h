@@ -224,9 +224,9 @@ namespace pg
     void serialize(Archive&, const Type&) { LOG_ERROR("Serializer", "No serialize function exist for " << typeid(Type).name()); }
 
     // Forward declarations for first-class engine types serialization
-    class StandardEvent;
-    class StandardComponent;
-    class ElementType;
+    struct StandardEvent;
+    struct StandardComponent;
+    struct ElementType;
 
     template <>
     void serialize(Archive& archive, const StandardEvent& event);

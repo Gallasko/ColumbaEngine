@@ -4,6 +4,8 @@
 
 #include "Memory/concurrentqueue.h"
 
+#include "component.h"
+
 #include "logger.h"
 
 namespace pg
