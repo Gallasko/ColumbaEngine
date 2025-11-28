@@ -1,7 +1,10 @@
 #include "system.h"
 
+#include "entitysystem.h"
+
 #include "Compiler/vm.h"
 #include "Compiler/ecsserialization.h"
+
 #include <sstream>
 
 namespace pg

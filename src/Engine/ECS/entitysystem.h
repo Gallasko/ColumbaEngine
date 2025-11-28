@@ -44,10 +44,6 @@ namespace pg
 
     struct VM;
 
-    // Todo add this in a window dependancy
-    // This event is fired when the window is resized
-    struct ResizeEvent { float width, height; };
-
     // Todo add batching for entity and component creation/deletion
 
     template <class T>

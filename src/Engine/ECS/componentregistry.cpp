@@ -4,6 +4,8 @@
 
 #include "Interpreter/interpretersystem.h"
 
+#include "entitysystem.h"
+
 namespace pg
 {
     UniqueIdGenerator ComponentRegistry::globalIdGenerator;

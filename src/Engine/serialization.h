@@ -223,6 +223,20 @@ namespace pg
     template <typename Type>
     void serialize(Archive&, const Type&) { LOG_ERROR("Serializer", "No serialize function exist for " << typeid(Type).name()); }
 
+    // Forward declarations for first-class engine types serialization
+    class StandardEvent;
+    class StandardComponent;
+    class ElementType;
+
+    template <>
+    void serialize(Archive& archive, const StandardEvent& event);
+
+    template <>
+    void serialize(Archive& archive, const StandardComponent& component);
+
+    template <>
+    void serialize(Archive& archive, const ElementType& element);
+
     // Todo make a static_assert to check if ": " is present in the name and reject it at compile time
     template <typename Type>
     void serialize(Archive& archive, const std::string& name, const Type& value)

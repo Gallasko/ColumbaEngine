@@ -363,8 +363,5 @@ namespace pg
         bool emptyFlag = false;
     };
 
-    template <>
-    void serialize(Archive& archive, const ElementType& element);
-
     typedef std::unordered_map<std::string, ElementType> ElementMap;
 }
