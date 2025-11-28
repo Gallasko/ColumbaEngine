@@ -366,8 +366,5 @@ namespace pg
     template <>
     void serialize(Archive& archive, const ElementType& element);
 
-    template <>
-    ElementType deserialize(const UnserializedObject& serializedString);
-
     typedef std::unordered_map<std::string, ElementType> ElementMap;
 }

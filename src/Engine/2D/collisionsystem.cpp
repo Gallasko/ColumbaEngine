@@ -2,6 +2,8 @@
 
 #include "collisionsystem.h"
 
+#include <unordered_set>
+
 namespace pg
 {
     namespace

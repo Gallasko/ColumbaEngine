@@ -4,18 +4,17 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include "taskflow/taskflow.hpp"
-
 #include "componentregistry.h"
 #include "entity.h"
 #include "system.h"
-#include "commanddispatcher.h"
-#include "savemanager.h"
 
 #include "serialization.h"
 
 #include "logger.h"
 #include "Memory/memorypool.h"
+
+#include "commanddispatcher.h"
+#include "savemanager.h"
 
 #ifdef PROFILE
 #include <atomic>
@@ -146,18 +145,7 @@ namespace pg
         /**
          * @brief Stop the running thread of the ECS
          */
-        inline void stop()
-        {
-            LOG_THIS_MEMBER("ECS");
-
-            stopRequested = true;
-            running = false;
-
-            executor.wait_for_all();
-
-            if (runningThread.joinable())
-                runningThread.join();
-        }
+        void stop();
 
         /**
          * @brief Save the underlaying registry to file
@@ -242,101 +230,7 @@ namespace pg
 
             system->addToRegistry(&registry);
 
-            // Only add the system to the taskflow if the execution policy is set to sequential or independent !
-            if (system->executionPolicy == ExecutionPolicy::Sequential)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-
-                    PROFILE_SCOPE(system->getSystemName(), "System");
-#endif
-
-                    try
-                    {
-                        system->_execute();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        LOG_ERROR("ECS", "Exception thrown whhile execution sys: " << typeid(Sys).name() << ", error: " << e.what());
-                    }
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        std::string systemName = system->getSystemName();
-                        _systemExecutionTimes[systemName] += duration;
-                        _systemExecutionCounts[systemName]++;
-
-                        // std::cout << "Updated " << systemName
-                        // << " total time = " << _systemExecutionTimes[systemName]
-                        // << ", count = " << _systemExecutionCounts[systemName] << std::endl;
-                    }
-#endif
-                }).name(name);
-
-                // Put the task after every other basic task
-                task.succeed(basicTask);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
-            else if (system->executionPolicy == ExecutionPolicy::Independent)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-
-                    PROFILE_SCOPE(system->getSystemName(), "System");
-#endif
-
-                    system->_execute();
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        std::string systemName = system->getSystemName();
-                        _systemExecutionTimes[systemName] += duration;
-                        _systemExecutionCounts[systemName]++;
-                    }
-#endif
-                }).name(name);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
+            internalCreateSystem(system);
 
             return system;
         }
@@ -370,89 +264,7 @@ namespace pg
 
             sys->addToRegistry(&registry);
 
-            // Only add the system to the taskflow if the execution policy is set to sequential or independent !
-            if (sys->executionPolicy == ExecutionPolicy::Sequential)
-            {
-                auto task = taskflow.emplace([sys, name]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-
-                    PROFILE_SCOPE(sys->getSystemName(), "System");
-#endif
-
-                    try
-                    {
-                        sys->_execute();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        LOG_ERROR("ECS", "Exception thrown while execution of sys: " << name << ", error: " << e.what());
-                    }
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << name << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        _systemExecutionTimes[name] += duration;
-                        _systemExecutionCounts[name]++;
-
-                        // std::cout << "Updated " << systemName
-                        // << " total time = " << _systemExecutionTimes[systemName]
-                        // << ", count = " << _systemExecutionCounts[systemName] << std::endl;
-                    }
-#endif
-                }).name(name);
-
-                // Put the task after every other basic task
-                task.succeed(basicTask);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[sys->_id] = task;
-            }
-            else if (sys->executionPolicy == ExecutionPolicy::Independent)
-            {
-                auto task = taskflow.emplace([sys, name]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-
-                    PROFILE_SCOPE(sys->getSystemName(), "System");
-#endif
-
-                    sys->_execute();
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << name << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        _systemExecutionTimes[name] += duration;
-                        _systemExecutionCounts[name]++;
-                    }
-#endif
-                }).name(name);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[sys->_id] = task;
-            }
+            internalCreateSystem(sys);
 
             return sys;
         }
@@ -471,39 +283,7 @@ namespace pg
 
             auto id = registry.getTypeId<Sys>();
 
-            if (auto it = systems.find(id); it == systems.end())
-            {
-                LOG_ERROR("ECS", "System [" << id << "] is not registered so it cannot be deleted");
-                return;
-            }
-            else
-            {
-                auto system = it->second;
-
-                if (not system)
-                {
-                    LOG_ERROR("ECS", "System [" << id << "] is already deleted");
-                    systems.erase(it);
-                    return;
-                }
-
-                // Remove the system task from the taskflow
-                if (system->executionPolicy == ExecutionPolicy::Sequential or system->executionPolicy == ExecutionPolicy::Independent)
-                {
-                    // Try to find the task in the task list
-                    if (auto itTask = tasks.find(id); itTask != tasks.end())
-                    {
-                        // Remove the task from the taskflow
-                        const auto& task = itTask->second;
-                        taskflow.erase(task);
-                        tasks.erase(itTask);
-                    }
-                }
-
-                // Delete the system
-                delete system;
-                systems.erase(it);
-            }
+            _deleteSystem(id);
         }
 
         template <class Sys, class DerivedSys, typename... Args>
@@ -523,62 +303,7 @@ namespace pg
 
             system->addToRegistry(&registry);
 
-            // Only add the system to the taskflow if the execution policy is set to sequential or independent !
-            if (system->executionPolicy == ExecutionPolicy::Sequential)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-
-                    PROFILE_SCOPE(system->getSystemName(), "System");
-#endif
-
-                    system->_execute();
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        std::string systemName = system->getSystemName();
-                        _systemExecutionTimes[systemName] += duration;
-                        _systemExecutionCounts[systemName]++;
-                    }
-#endif
-                }).name(name);
-
-                // Put the task after every other basic task
-                task.succeed(basicTask);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
-            else if (system->executionPolicy == ExecutionPolicy::Independent)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system](){system->_execute();}).name(name);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
+            internalCreateSystem(system);
 
             return sys;
         }
@@ -598,37 +323,13 @@ namespace pg
         {
             LOG_THIS_MEMBER("ECS");
 
-            auto sys1Id = registry.getTypeId<SysAfter>();
-            auto sys2Id = registry.getTypeId<SysBefore>();
+            _unique_id sys1Id = registry.getTypeId<SysAfter>();
+            _unique_id sys2Id = registry.getTypeId<SysBefore>();
 
-            auto it1 = tasks.find(sys1Id);
-            auto it2 = tasks.find(sys2Id);
-
-            if (it1 != tasks.end() and it2 != tasks.end())
-            {
-                it1->second.succeed(it2->second);
-                LOG_INFO("ECS", "System " << sys1Id << " will run after system " << sys2Id << " !");
-            }
-            else if (it1 == tasks.end() and it2 != tasks.end())
-            {
-                LOG_ERROR("ECS", "Systems " << sys1Id << " is not a registered task in ecs can't reorder task !");
-            }
-            else if (it1 != tasks.end() and it2 == tasks.end())
-            {
-                LOG_ERROR("ECS", "Systems " << sys2Id << " is not a registered task in ecs can't reorder task !");
-            }
-            else
-            {
-                LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
-            }
+            _succeed(sys1Id, sys2Id);
         }
 
-        inline void dumbTaskflow() const
-        {
-            LOG_THIS_MEMBER("ECS");
-
-            taskflow.dump(std::cout);
-        }
+        void dumbTaskflow() const;
 
         //TODO make a template specialization capable of attaching an entity to an entity
 
@@ -934,7 +635,7 @@ namespace pg
 
         inline size_t getNbSystems() const { return systems.size(); }
 
-        inline size_t getNbTasks() const { return tasks.size(); }
+        size_t getNbTasks() const;
 
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
         inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
@@ -946,6 +647,12 @@ namespace pg
     private:
         // Todo maybe
         // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
+
+        void internalCreateSystem(AbstractSystem* system);
+
+        void _deleteSystem(_unique_id id);
+
+        void _succeed(_unique_id id1, _unique_id id2);
 
         void addEntityToPool(Entity* entity)
         {
@@ -1085,17 +792,9 @@ namespace pg
         /** Running thread of the ECS */
         std::thread runningThread;
 
-        /** Taskflow of all the system of the ecs */
-        tf::Taskflow taskflow;
-
-        /** Main executor of the ecs */
-        tf::Executor executor;
-
-        /** Map of all the task associated to systems */
-        std::unordered_map<_unique_id, tf::Task> tasks;
-
-        /** Last task of the mandatory ecs base systems */
-        tf::Task basicTask;
+        /** Pimpl for taskflow types to reduce header compilation time */
+        struct TaskflowImpl;
+        std::unique_ptr<TaskflowImpl> taskflowImpl;
     };
 
     template <typename Comp>

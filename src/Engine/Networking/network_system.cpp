@@ -2,6 +2,8 @@
 
 #include "network_system.h"
 
+#include <random>
+
 namespace pg
 {
     NetworkSystem::~NetworkSystem()
