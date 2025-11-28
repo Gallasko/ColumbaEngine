@@ -91,6 +91,8 @@ namespace pg
         // Iterator operations
         OP_Get_Iterator,  // Get iterator for a table (pushes iterator state)
         OP_Iterator_Next, // Advance iterator and push key (or nil if done), updates iterator state
+        OP_Table_Size,    // Get the size of a table (number of fields)
+        OP_Table_At,      // Get key at specific index (expects table and index on stack)
 
         // Module operations
         OP_Import,        // Import a module (expects module name string on stack)
@@ -330,6 +332,12 @@ namespace pg
 
             case OpCode::OP_Get_Index:
             case OpCode::OP_Set_Index:
+                return 1; // opcode only
+
+            case OpCode::OP_Get_Iterator:
+            case OpCode::OP_Iterator_Next:
+            case OpCode::OP_Table_Size:
+            case OpCode::OP_Table_At:
                 return 1; // opcode only
 
             case OpCode::OP_Import:

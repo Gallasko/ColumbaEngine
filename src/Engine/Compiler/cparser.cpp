@@ -944,57 +944,105 @@ namespace pg
                 consume("Expect ')' after for-in expression.", TokenType::PCLOSE);
                 skipEOL();
 
-                // Emit code for for-in loop
+                // Desugar for-in loop to:
+                // {
+                //     var __table = table;
+                //     var __size = __table.size();
+                //     for (var __i = 0; __i < __size; __i++) {
+                //         var key = __table.at(__i);
+                //         body;
+                //     }
+                // }
+
                 // Stack at this point: [table]
 
-                // Get iterator for the table
-                writeByte(OpCode::OP_Get_Iterator);
-                // Stack now: [table, iterator_state]
-
-                // Store iterator state in a local variable (hidden from user)
-                int iteratorSlot = Compiler::current->locals.size();
-                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__iterator", currentToken().line, 0));
+                // 1. Store table as hidden local __table
+                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__table", currentToken().line, 0));
                 Compiler::current->markInitialized();
+                // Stack: [__table]
 
-                // Loop start
+                // 2. Get size of table and store as hidden local __size
+                writeByte(OpCode::OP_Get_Local);
+                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __table slot
+                writeByte(OpCode::OP_Table_Size);
+                // Stack: [__table, size]
+
+                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__size", currentToken().line, 0));
+                Compiler::current->markInitialized();
+                // Stack: [__table, __size]
+
+                // 3. Initialize loop counter __i = 0
+                writeByte(OpCode::OP_Constant);
+                writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(0)));
+                // Stack: [__table, __size, 0]
+
+                Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__i", currentToken().line, 0));
+                Compiler::current->markInitialized();
+                // Stack: [__table, __size, __i]
+
+                // 4. Loop condition: __i < __size
                 int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
-                // Get next key from iterator
-                // Push the iterator state and table
+                // Get __i
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(iteratorSlot));
-
-                // Advance iterator and get next key
-                writeByte(OpCode::OP_Iterator_Next);
-                // Stack now: [table, iterator_state, key_or_nil]
-
-                // Duplicate the key to check if it's nil
+                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                // Get __size
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->locals.size()));
+                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 2)); // __size slot
+                // Compare: __i < __size
+                writeByte(OpCode::OP_Less);
+                // Stack: [__table, __size, __i, bool]
 
-                // Jump if nil (end of iteration)
                 int exitJump = emitJump(OpCode::OP_Long_Jump_If_False);
-                writeByte(OpCode::OP_Pop); // Pop the duplicate key check
+                writeByte(OpCode::OP_Pop); // Pop the condition result
+                // Stack: [__table, __size, __i]
 
-                // Declare the loop variable and assign the key to it
+                // 5. Begin iteration scope for the key variable
+                Compiler::current->beginScope();
+
+                // Get key at current index: var key = __table.at(__i)
+                // Get __table
+                writeByte(OpCode::OP_Get_Local);
+                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 3)); // __table slot
+                // Get __i
+                writeByte(OpCode::OP_Get_Local);
+                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                // Call __table.at(__i)
+                writeByte(OpCode::OP_Table_At);
+                // Stack: [__table, __size, __i, key]
+
+                // Declare the loop variable with the key
                 Compiler::current->addLocal(varToken);
                 Compiler::current->markInitialized();
+                // Stack: [__table, __size, __i, key]
 
-                // Body of loop
+                // 6. Execute loop body
                 statement();
 
-                // Pop the loop variable
-                writeByte(OpCode::OP_Pop);
+                // 7. End iteration scope - this pops the key variable
+                Compiler::current->endScope();
+                // Stack: [__table, __size, __i]
 
-                // Jump back to loop start
+                // 8. Increment __i: __i++
+                writeByte(OpCode::OP_Get_Local);
+                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                writeByte(OpCode::OP_Constant);
+                writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
+                writeByte(OpCode::OP_Add);
+                writeByte(OpCode::OP_Set_Local);
+                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                writeByte(OpCode::OP_Pop); // Pop the assignment result
+                // Stack: [__table, __size, __i]
+
+                // 9. Loop back to condition check
                 emitLoop(loopStart);
 
-                // Exit point
+                // 10. Exit point
                 patchJump(exitJump);
-                writeByte(OpCode::OP_Pop); // Pop the nil/false value
-                writeByte(OpCode::OP_Pop); // Pop iterator state
-                writeByte(OpCode::OP_Pop); // Pop table
+                writeByte(OpCode::OP_Pop); // Pop the condition result
+                // Stack: [__table, __size, __i]
 
+                // 11. End scope - pops __i, __size, __table (and key if it's still around)
                 Compiler::current->endScope();
                 return;
             }

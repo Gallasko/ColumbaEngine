@@ -139,7 +139,11 @@ void CompilerApp::runFile(bool needCompile)
 {
     LOG_THIS_MEMBER(DOM);
 
+    EntitySystem ecs;
+
     VM vm;
+    ecs.setupVm(vm);
+
     InterpretResult result;
 
     if (needCompile)
@@ -157,10 +161,10 @@ void CompilerApp::runFile(bool needCompile)
         std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
         // Register individual native functions
-        vm.defineNative("logInfo", nativeLogInfo);
+        vm.defineNative("log", nativeLogInfo);
 
         // Register native modules
-        vm.addNativeModule("math", MathModule());
+        // vm.addNativeModule("math", MathModule());
 
         Lexer lexer;
 

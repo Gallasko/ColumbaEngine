@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <map>
 #include <cstdint>
 #include <functional>
 
@@ -111,7 +112,7 @@ namespace pg
         ObjInstance(Klass* klass) : klass(klass) {}
 
         Klass* klass;
-        std::unordered_map<std::string, Value> fields;
+        std::map<std::string, Value> fields;
     };
 
     struct ObjBoundMethod
