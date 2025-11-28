@@ -11,6 +11,8 @@
 
 #include <string>
 
+#include "Compiler/ecsserialization.h"
+#include "Compiler/vm.h"
 
 namespace pg
 {
@@ -270,7 +272,7 @@ namespace pg
     struct CollisionHandleBase
     {
         virtual ~CollisionHandleBase() = default;
-        virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) const = 0;
+        virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) = 0;
         virtual std::unique_ptr<CollisionHandleBase> clone() const = 0;
     };
 
@@ -288,7 +290,7 @@ namespace pg
             return *this;
         }
 
-        virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) const override
+        virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) override
         {
             auto ent1 = ecs->getEntity(id1);
             auto ent2 = ecs->getEntity(id2);
@@ -342,7 +344,7 @@ namespace pg
             return *this;
         }
 
-        virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) const override
+        virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) override
         {
             auto* ent1 = ecs->getEntity(id1);
             auto* ent2 = ecs->getEntity(id2);
@@ -365,6 +367,129 @@ namespace pg
         }
 
         std::function<void(Entity*, Entity*)> fn;
+        std::function<bool(Entity*)> filterEnt1;
+        std::function<bool(Entity*)> filterEnt2;
+    };
+
+    struct CollisionHandleScript : public CollisionHandleBase
+    {
+        CollisionHandleScript(EntitySystem *ecsRef, const std::string& fnName,
+            std::function<bool(Entity*)> filterEnt1 = [](Entity*) { return true; },
+            std::function<bool(Entity*)> filterEnt2 = [](Entity*) { return true; }) : ecsRef(ecsRef), fnName(fnName), filterEnt1(filterEnt1), filterEnt2(filterEnt2)
+        {
+            ecsRef->setupVm(vm);
+
+            // Check file extension and compile/load accordingly
+            if (fnName.size() >= 3 && fnName.substr(fnName.size() - 3) == ".pg")
+            {
+                // Compile .pg script and cache to .pgc
+                VM compiler;
+                ecsRef->setupVm(compiler);
+
+                auto result = compiler.interpretFromFile(fnName, true, fnName + "c");
+
+                if (result != InterpretResult::OK)
+                {
+                    LOG_ERROR("CollisionHandleScript", "Failed to compile script: " << fnName);
+                }
+
+                this->fnName += "c";
+            }
+            else if (fnName.size() >= 4 && fnName.substr(fnName.size() - 4) == ".pgc")
+            {
+                LOG_MILE("CollisionHandleScript", "Loading precompiled script: " << fnName);
+            }
+            else
+            {
+                LOG_ERROR("CollisionHandleScript", "Invalid script file extension. Must be .pg or .pgc: " << fnName);
+            }
+        }
+
+        CollisionHandleScript(const CollisionHandleScript& other) : fnName(other.fnName) {}
+
+        virtual void tryInvoke(EntitySystem* ecs, _unique_id id1, _unique_id id2) override
+        {
+            auto* ent1 = ecs->getEntity(id1);
+            auto* ent2 = ecs->getEntity(id2);
+
+            if (not ent1 or not ent2)
+            {
+                LOG_ERROR("CollisionHandleScript", "Entity not found: " << id1 << ", " << id2);
+                return;
+            }
+
+            if (filterEnt1(ent1) and filterEnt2(ent2))
+            {
+                // vm.reset();
+                VM testVm;
+                ecsRef->setupVm(testVm);
+
+                Value entity1Table = serializeEntityToTable(&testVm, ecsRef, ent1);
+                Value entity2Table = serializeEntityToTable(&testVm, ecsRef, ent2);
+
+                // Pass entity table as a global to the script (like a system module)
+                testVm.globals["ent1"] = entity1Table;
+                testVm.globals["ent2"] = entity2Table;
+
+                // Compile the script once
+                auto result = testVm.interpretFromBytecodeFile(fnName);
+
+                if (result == InterpretResult::OK)
+                {
+                    LOG_INFO("Example", "Script executed successfully! Results: " << testVm.testOutput);
+
+                    // Read the modified values back from the table
+                    if (IS_INSTANCE(entity1Table) and IS_INSTANCE(entity2Table))
+                    {
+                        LOG_INFO("Example", "Deserializing modified entities from script");
+                        deserializeEntityFromTable(&testVm, ecsRef, entity1Table, false);
+                        deserializeEntityFromTable(&testVm, ecsRef, entity2Table, false);
+                    }
+                }
+
+            }
+            // and swap:
+            else if (filterEnt1(ent2) and filterEnt2(ent1))
+            {
+                VM testVm;
+                ecsRef->setupVm(testVm);
+                // vm.reset();
+
+                Value entity1Table = serializeEntityToTable(&testVm, ecsRef, ent2);
+                Value entity2Table = serializeEntityToTable(&testVm, ecsRef, ent1);
+
+                // Pass entity table as a global to the script (like a system module)
+                testVm.globals["ent1"] = entity1Table;
+                testVm.globals["ent2"] = entity2Table;
+
+                // Compile the script once
+                auto result = testVm.interpretFromBytecodeFile(fnName);
+
+                if (result == InterpretResult::OK)
+                {
+                    LOG_INFO("Example", "Script executed successfully! Results: " << testVm.testOutput);
+
+                    // Read the modified values back from the table
+                    if (IS_INSTANCE(entity1Table) and IS_INSTANCE(entity2Table))
+                    {
+                        LOG_INFO("Example", "Deserializing modified entities from script");
+                        deserializeEntityFromTable(&testVm, ecsRef, entity1Table, false);
+                        deserializeEntityFromTable(&testVm, ecsRef, entity2Table, false);
+                    }
+                }
+
+            }            
+        }
+
+        std::unique_ptr<CollisionHandleBase> clone() const override
+        {
+            return std::make_unique<CollisionHandleScript>(*this);
+        }
+
+        EntitySystem* ecsRef;
+        std::string fnName;
+        VM vm;
+
         std::function<bool(Entity*)> filterEnt1;
         std::function<bool(Entity*)> filterEnt2;
     };
@@ -400,6 +525,12 @@ namespace pg
                 if (not comp->handler)
                 {
                     LOG_ERROR("CollisionHandlerSystem", "Collision handler is null");
+                    continue;
+                }
+
+                if (event.id1 == 0 or event.id2 == 0)
+                {
+                    LOG_WARNING("CollisionHandlerSystem", "Ignoring collision event with null entity id");
                     continue;
                 }
 
@@ -454,7 +585,21 @@ namespace pg
 
         auto handle = std::make_unique<CollisionHandleExpert>(fn, filterEnt1, filterEnt2);
 
-        ecsRef->template attach<CollisionHandleComponent>(ent, std::move(handle));
+        ecsRef->template _attach<CollisionHandleComponent>(ent, std::move(handle));
+
+        return ent;
+    }
+
+    template <typename Type>
+    EntityRef makeCollisionHandleScript(Type* ecsRef, const std::string& fnName,
+        std::function<bool(Entity*)> filterEnt1 = [](Entity*) { return true; },
+        std::function<bool(Entity*)> filterEnt2 = [](Entity*) { return true; })
+    {
+        auto ent = ecsRef->createEntity();
+
+        auto handle = std::make_unique<CollisionHandleScript>(ecsRef, fnName, filterEnt1, filterEnt2);
+
+        ecsRef->template _attach<CollisionHandleComponent>(ent, std::move(handle));
 
         return ent;
     }

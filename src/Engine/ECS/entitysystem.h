@@ -4,18 +4,17 @@
 #include <unordered_map>
 #include <algorithm>
 
-#include "taskflow/taskflow.hpp"
-
 #include "componentregistry.h"
 #include "entity.h"
 #include "system.h"
-#include "commanddispatcher.h"
-#include "savemanager.h"
 
 #include "serialization.h"
 
 #include "logger.h"
 #include "Memory/memorypool.h"
+
+#include "commanddispatcher.h"
+#include "savemanager.h"
 
 #ifdef PROFILE
 #include <atomic>
@@ -25,6 +24,8 @@ extern std::mutex profileMutex;
 
 extern std::unordered_map<std::string, long long> _systemExecutionTimes;
 extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
+
+#include "Profiler/profiler.h"
 #endif
 
 namespace pg
@@ -39,10 +40,9 @@ namespace pg
     class InterpreterSystem;
     class Environment;
     class ClassInstance;
+    class StandardSystemImpl;
 
-    // Todo add this in a window dependancy
-    // This event is fired when the window is resized
-    struct ResizeEvent { float width, height; };
+    struct VM;
 
     // Todo add batching for entity and component creation/deletion
 
@@ -60,6 +60,13 @@ namespace pg
 
     template<typename> inline constexpr bool always_false = false;
 
+    // Helper to check if first argument is convertible to string (only if Args is non-empty)
+    template<typename... Args>
+    struct first_arg_is_string : std::false_type {};
+
+    template<typename First, typename... Rest>
+    struct first_arg_is_string<First, Rest...> : std::is_convertible<First, std::string> {};
+
     class EntitySystem
     {
     friend class Entity;
@@ -68,6 +75,7 @@ namespace pg
     friend struct InputModule;
     friend struct OnEventComponent;
     friend struct OnStandardEventComponent;
+    friend class StandardSystemImpl;
 
     private:
         class EventDispatcher
@@ -133,21 +141,7 @@ namespace pg
         /**
          * @brief Stop the running thread of the ECS
          */
-        inline void stop()
-        {
-            LOG_THIS_MEMBER("ECS");
-
-            // if (not running)
-            //     return;
-
-            stopRequested = true;
-            running = false;
-
-            executor.wait_for_all();
-
-            if (runningThread.joinable())
-                runningThread.join();
-        }
+        void stop();
 
         /**
          * @brief Save the underlaying registry to file
@@ -232,99 +226,43 @@ namespace pg
 
             system->addToRegistry(&registry);
 
-            // Only add the system to the taskflow if the execution policy is set to sequential or independent !
-            if (system->executionPolicy == ExecutionPolicy::Sequential)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-#endif
-
-                    try
-                    {
-                        system->_execute();
-                    }
-                    catch (const std::exception& e)
-                    {
-                        LOG_ERROR("ECS", "Exception thrown whhile execution sys: " << typeid(Sys).name() << ", error: " << e.what());
-                    }
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        std::string systemName = system->getSystemName();
-                        _systemExecutionTimes[systemName] += duration;
-                        _systemExecutionCounts[systemName]++;
-
-                        // std::cout << "Updated " << systemName
-                        // << " total time = " << _systemExecutionTimes[systemName]
-                        // << ", count = " << _systemExecutionCounts[systemName] << std::endl;
-                    }
-#endif
-                }).name(name);
-
-                // Put the task after every other basic task
-                task.succeed(basicTask);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
-            else if (system->executionPolicy == ExecutionPolicy::Independent)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-#endif
-
-                    system->_execute();
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        std::string systemName = system->getSystemName();
-                        _systemExecutionTimes[systemName] += duration;
-                        _systemExecutionCounts[systemName]++;
-                    }
-#endif
-                }).name(name);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
+            internalCreateSystem(system);
 
             return system;
+        }
+
+        /**
+         * @brief Register a system previously by the user and put it in the taskflow
+         *
+         * StandardSystem should be use to create the system beforehand as all the helper and requiered functions are properly built in
+         *
+         * @param sys The system to add to the ecs
+         * @return StandardSystemImpl The system given by the user
+         */
+        StandardSystemImpl* registerSystem(StandardSystemImpl* sys)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            // Todo: add support for system registration during runtime
+            if (running)
+            {
+                LOG_ERROR("ECS", "System registration during runtime is not supported");
+                return sys;
+            }
+
+            auto name = sys->getSystemName();
+
+            sys->_id = registry.getTypeId(name);
+
+            sys->ecsRef = this;
+
+            systems.emplace(sys->_id, sys);
+
+            sys->addToRegistry(&registry);
+
+            internalCreateSystem(sys);
+
+            return sys;
         }
 
         template <class Sys>
@@ -341,39 +279,7 @@ namespace pg
 
             auto id = registry.getTypeId<Sys>();
 
-            if (auto it = systems.find(id); it == systems.end())
-            {
-                LOG_ERROR("ECS", "System [" << id << "] is not registered so it cannot be deleted");
-                return;
-            }
-            else
-            {
-                auto system = it->second;
-
-                if (not system)
-                {
-                    LOG_ERROR("ECS", "System [" << id << "] is already deleted");
-                    systems.erase(it);
-                    return;
-                }
-
-                // Remove the system task from the taskflow
-                if (system->executionPolicy == ExecutionPolicy::Sequential or system->executionPolicy == ExecutionPolicy::Independent)
-                {
-                    // Try to find the task in the task list
-                    if (auto itTask = tasks.find(id); itTask != tasks.end())
-                    {
-                        // Remove the task from the taskflow
-                        const auto& task = itTask->second;
-                        taskflow.erase(task);
-                        tasks.erase(itTask);
-                    }
-                }
-
-                // Delete the system
-                delete system;
-                systems.erase(it);
-            }
+            _deleteSystem(id);
         }
 
         template <class Sys, class DerivedSys, typename... Args>
@@ -393,60 +299,7 @@ namespace pg
 
             system->addToRegistry(&registry);
 
-            // Only add the system to the taskflow if the execution policy is set to sequential or independent !
-            if (system->executionPolicy == ExecutionPolicy::Sequential)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system]()
-                {
-#ifdef PROFILE
-                    // Todo time the whole exec of a run of the taskflow
-                    auto start = std::chrono::steady_clock::now();
-#endif
-
-                    system->_execute();
-
-#ifdef PROFILE
-                    // Record end time and compute elapsed time in nanoseconds.
-                    auto end = std::chrono::steady_clock::now();
-                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                    // Log if the duration exceeds a threshold
-                    if (duration >= 3000000)
-                        std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
-
-                    // Update profiling data in a thread-safe manner.
-                    {
-                        std::lock_guard<std::mutex> lock(profileMutex);
-                        std::string systemName = system->getSystemName();
-                        _systemExecutionTimes[systemName] += duration;
-                        _systemExecutionCounts[systemName]++;
-                    }
-#endif
-                }).name(name);
-
-                // Put the task after every other basic task
-                task.succeed(basicTask);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
-            else if (system->executionPolicy == ExecutionPolicy::Independent)
-            {
-                auto name = system->getSystemName();
-
-                if (name == "UnNamed")
-                    name = std::to_string(system->_id);
-
-                auto task = taskflow.emplace([system](){system->_execute();}).name(name);
-
-                // Register the task in case we need to call precede and succeed
-                tasks[system->_id] = task;
-            }
+            internalCreateSystem(system);
 
             return sys;
         }
@@ -466,37 +319,13 @@ namespace pg
         {
             LOG_THIS_MEMBER("ECS");
 
-            auto sys1Id = registry.getTypeId<SysAfter>();
-            auto sys2Id = registry.getTypeId<SysBefore>();
+            _unique_id sys1Id = registry.getTypeId<SysAfter>();
+            _unique_id sys2Id = registry.getTypeId<SysBefore>();
 
-            auto it1 = tasks.find(sys1Id);
-            auto it2 = tasks.find(sys2Id);
-
-            if (it1 != tasks.end() and it2 != tasks.end())
-            {
-                it1->second.succeed(it2->second);
-                LOG_INFO("ECS", "System " << sys1Id << " will run after system " << sys2Id << " !");
-            }
-            else if (it1 == tasks.end() and it2 != tasks.end())
-            {
-                LOG_ERROR("ECS", "Systems " << sys1Id << " is not a registered task in ecs can't reorder task !");
-            }
-            else if (it1 != tasks.end() and it2 == tasks.end())
-            {
-                LOG_ERROR("ECS", "Systems " << sys2Id << " is not a registered task in ecs can't reorder task !");
-            }
-            else
-            {
-                LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
-            }
+            _succeed(sys1Id, sys2Id);
         }
 
-        inline void dumbTaskflow() const
-        {
-            LOG_THIS_MEMBER("ECS");
-
-            taskflow.dump(std::cout);
-        }
+        void dumbTaskflow() const;
 
         //TODO make a template specialization capable of attaching an entity to an entity
 
@@ -534,8 +363,6 @@ namespace pg
         template <typename Type, typename... Args>
         CompRef<Type> attach(EntityRef entity, Args&&... args)
         {
-            LOG_THIS_MEMBER("ECS");
-
             // As component deriving from Ctor, check for Ctor presence is enough
             if constexpr(not std::is_base_of_v<Ctor, Type>)
             {
@@ -546,9 +373,25 @@ namespace pg
             return attachGeneric<Type>(entity, std::forward<Args>(args)...);
         }
 
+        // Overload for StandardComponent - takes component name as first argument after entity
+        template <typename... Args>
+        CompRef<StandardComponent> attach(EntityRef entity, const std::string& componentName, Args&&... args)
+        {
+            return attachGeneric(entity, componentName, std::forward<Args>(args)...);
+        }
+
         template <typename Type, typename... Args>
         CompRef<Type> attachGeneric(EntityRef entity, Args&&... args) noexcept
         {
+            // Check if trying to attach StandardComponent without a name
+            if constexpr (std::is_same_v<Type, StandardComponent>)
+            {
+                // return _attach<Type>(entity, std::forward<Args>(args)...);
+                static_assert(always_false<Type>,
+                    "Cannot attach StandardComponent without specifying component name! "
+                    "Use: ecs.attachGeneric(entity, \"ComponentName\") instead of ecs.attachGeneric<StandardComponent>(entity)");
+            }
+
             if (not registry.hasTypeId<Type>())
             {
                 LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
@@ -560,7 +403,19 @@ namespace pg
             return _attach<Type>(entity, std::forward<Args>(args)...);
         }
 
-        template <typename Type, typename... Args>
+        template <typename... Args>
+        CompRef<StandardComponent> attachGeneric(EntityRef entity, const std::string& name, Args&&... args) noexcept
+        {
+            if (not registry.hasStandardComponent(name))
+            {
+                LOG_ERROR("ECS", "Trying to attach a non registered standard component: " << name);
+            }
+
+            return _attach(entity, name, std::forward<Args>(args)...);
+        }
+
+        template <typename Type, typename... Args,
+                  typename = std::enable_if_t<!std::is_same_v<Type, StandardComponent> || !first_arg_is_string<Args...>::value>>
         CompRef<Type> _attach(EntityRef entity, Args&&... args) noexcept
         {
             try
@@ -592,6 +447,38 @@ namespace pg
             }
 
             return CompRef<Type>();
+        }
+
+        template <typename... Args>
+        CompRef<StandardComponent> _attach(EntityRef entity, const std::string& compName, Args&&... args) noexcept
+        {
+            try
+            {
+                StandardComponent* component;
+
+                // Todo add lock a mutex for running to protect for race conditions or only build component with the cmdDispatcher
+                if (running)
+                {
+                    component = cmdDispatcher.attachComp<StandardComponent>(entity, compName, std::forward<Args>(args)...);
+                }
+                else
+                {
+                    component = registry.retrieveStandardComponent(compName)->internalCreateComponent(entity, std::forward<Args>(args)...);
+                }
+
+                auto res = CompRef<StandardComponent>(component, entity.id, this, not running, compName);
+
+                res->onCreation(entity);
+
+                // Todo make the systems capable of triggering on a component creation
+                return res;
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("ECS", "Can't attach component [" << compName << "]: " << e.what() << " (No system own this component ?)");
+            }
+
+            return CompRef<StandardComponent>();
         }
 
         // template <typename Type, typename EntityHolderType, typename... Args>
@@ -643,6 +530,7 @@ namespace pg
         {
             LOG_THIS_MEMBER("ECS");
 
+            // Dispatch the typed C++ event
             if (running)
             {
                 eventDispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
@@ -651,6 +539,26 @@ namespace pg
             {
                 registry.processEvent(event);
             }
+
+#ifdef PG_AUTO_CONVERT_EVENTS_TO_STANDARD
+            // Auto-convert to StandardEvent if the event type supports it
+            if constexpr (has_to_standard_event_v<Event>)
+            {
+                StandardEvent stdEvent = event.toStandardEvent();
+
+                if (running)
+                {
+                    eventDispatcher.enqueueEvent([stdEvent, this](){
+                        LOG_THIS("ECS");
+                        registry.processEvent(stdEvent);
+                    });
+                }
+                else
+                {
+                    registry.processEvent(stdEvent);
+                }
+            }
+#endif
         }
 
         template <typename Comp>
@@ -685,6 +593,20 @@ namespace pg
             }
         }
 
+        inline StandardComponent* getComponent(const std::string& compName, _unique_id id) const
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            try
+            {
+                return registry.retrieveStandardComponent(compName)->getComponent(id);
+            }
+            catch (const std::exception& e)
+            {
+                LOG_WARNING("ECS", "Can't get component [" << compName << "] from entity [" << id << "]: " << e.what());
+                return nullptr;
+            }
+        }
 
         inline ComponentSet<Entity>::ComponentSetList view() const
         {
@@ -709,16 +631,24 @@ namespace pg
 
         inline size_t getNbSystems() const { return systems.size(); }
 
-        inline size_t getNbTasks() const { return tasks.size(); }
+        size_t getNbTasks() const;
 
         inline size_t getCurrentNbOfExecution() const { return currentNbOfExecution; }
         inline size_t getTotalNbOfExecution() const { return totalNbOfExecution; }
 
         void reportSystemProfiles();
 
+        void setupVm(VM& vm);
+
     private:
         // Todo maybe
         // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
+
+        void internalCreateSystem(AbstractSystem* system);
+
+        void _deleteSystem(_unique_id id);
+
+        void _succeed(_unique_id id1, _unique_id id2);
 
         void addEntityToPool(Entity* entity)
         {
@@ -791,6 +721,27 @@ namespace pg
             }
         }
 
+        void addComponentToPool(EntityRef entity, StandardComponent* component)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            if (component)
+            {
+                LOG_MILE("ECS", "addComponentToPool");
+
+                // Todo add a mechanism to avoid creating a component that is already attached to the entity
+
+                try
+                {
+                    registry.retrieveStandardComponent(component->typeName)->internalCreateComponent(entity, *component);
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("ECS", "Can't attach standard component [" << component->typeName << "]: " << e.what() << " (No system own this component ?)");
+                }
+            }
+        }
+
         template <typename Type>
         void detachComponentFromPool(Entity* entity)
         {
@@ -837,17 +788,9 @@ namespace pg
         /** Running thread of the ECS */
         std::thread runningThread;
 
-        /** Taskflow of all the system of the ecs */
-        tf::Taskflow taskflow;
-
-        /** Main executor of the ecs */
-        tf::Executor executor;
-
-        /** Map of all the task associated to systems */
-        std::unordered_map<_unique_id, tf::Task> tasks;
-
-        /** Last task of the mandatory ecs base systems */
-        tf::Task basicTask;
+        /** Pimpl for taskflow types to reduce header compilation time */
+        struct TaskflowImpl;
+        std::unique_ptr<TaskflowImpl> taskflowImpl;
     };
 
     template <typename Comp>
@@ -987,6 +930,22 @@ namespace pg
         return ecsRef->template attach<Comp>(EntityRef(this, false), std::forward<Args>(args)...);
     }
 
+    // Non-template overload for StandardComponent
+    template <typename... Args>
+    CompRef<StandardComponent> Entity::attach(const std::string& componentName, Args&&... args)
+    {
+        LOG_THIS_MEMBER("Entity");
+
+        if (not ecsRef)
+        {
+            LOG_ERROR("Entity", "Entity is not referenced in any ECS");
+
+            return CompRef<StandardComponent>();
+        }
+
+        return ecsRef->attach(EntityRef(this, false), componentName, std::forward<Args>(args)...);
+    }
+
     template <typename Comp, typename... Args>
     CompRef<Comp> Entity::attachGeneric(Args&&... args)
     {
@@ -1104,6 +1063,17 @@ namespace pg
         struct DummyFlagSys : public System<Own<Type>, StoragePolicy> {};
 
         return ecsRef->createSystem<DummyFlagSys, true>();
+    }
+
+    // Specialization for StandardComponent - does not create a dummy system
+    template <>
+    inline auto ComponentRegistry::registerFlagComponent<StandardComponent>()
+    {
+        LOG_ERROR("Component Registry", "Should never have to register a standard component flag ! Are you trying to attach a standard component without specifying the component name ?");
+
+        // For StandardComponent, do nothing and return nullptr
+        // StandardComponents are managed differently through the registry
+        return static_cast<AbstractSystem*>(nullptr);
     }
 
     template <typename Comp>

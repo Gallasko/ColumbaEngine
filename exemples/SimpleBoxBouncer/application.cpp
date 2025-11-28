@@ -14,7 +14,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
-        ecs.createSystem<FpsSystem>();
+        // ecs.createSystem<FpsSystem>();
 
         auto config = engine.getConfig();
         ecs.createSystem<BoxBouncerSystem>(config.width, config.height);

@@ -13,6 +13,9 @@
 
 #include "entitysystem.h"
 
+// Include taskflow here instead of in header for compilation time optimization
+#include "taskflow/taskflow.hpp"
+
 #include "system.h"
 
 #include "Systems/coresystems.h"
@@ -38,8 +41,32 @@ namespace
 #endif
 }
 
+// Include for the vm setup
+#include "Compiler/vm.h"
+#include "ecsmodule.h"
+#include "Helpers/mathmodule.h"
+#include "Helpers/algorithmmodule.h"
+
 namespace pg
 {
+    // Pimpl implementation for taskflow to reduce header compilation time
+    struct EntitySystem::TaskflowImpl
+    {
+        /** Taskflow of all the system of the ecs */
+        tf::Taskflow taskflow;
+
+        /** Main executor of the ecs */
+        tf::Executor executor;
+
+        /** Map of all the task associated to systems */
+        std::unordered_map<_unique_id, tf::Task> tasks;
+
+        /** Last task of the mandatory ecs base systems */
+        tf::Task basicTask;
+
+        TaskflowImpl() : executor(NBEXECUTORTHREADS) {}
+    };
+
     // Todo maybe
     // template <>
     // void serialize(Archive& archive, const EntitySystem& ecs)
@@ -50,7 +77,8 @@ namespace pg
     // Todo set executor depending on the configuration / env !
     // Todo better save system init
     // Maybe put the number of executors in the save file
-    EntitySystem::EntitySystem(const std::string& savePath) : registry(this), cmdDispatcher(this), saveManager(savePath), executor(NBEXECUTORTHREADS)
+    EntitySystem::EntitySystem(const std::string& savePath) : registry(this), cmdDispatcher(this),
+        saveManager(savePath), taskflowImpl(std::make_unique<TaskflowImpl>())
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -61,7 +89,7 @@ namespace pg
         LOG_INFO(DOM, "Added save manager in ecs");
 
         // Add the event and command dispatcher as the first element of the task flow
-        basicTask = taskflow.emplace([this]() {
+        taskflowImpl->basicTask = taskflowImpl->taskflow.emplace([this]() {
             static auto start = std::chrono::steady_clock::now();
             static auto end = std::chrono::steady_clock::now();
             static size_t nbExecution = 0;
@@ -74,17 +102,33 @@ namespace pg
 
 #ifdef PROFILE
             auto startTask = std::chrono::steady_clock::now();
+
+            PROFILE_BEGIN("EventDispatch", "Event");
 #endif
             eventDispatcher.process();
 
+#ifdef PROFILE
+            PROFILE_END("EventDispatch", "Event");
+
+            PROFILE_BEGIN("CommandDispatch", "Command");
+#endif
             cmdDispatcher.process();
+
+#ifdef PROFILE
+            PROFILE_END("CommandDispatch", "Command");
+#endif
 
             if (not stopRequested)
                 running = true;
 
+#ifdef PROFILE
+            PROFILE_BEGIN("SaveManager", "System");
+#endif
             saveManager._execute();
 
 #ifdef PROFILE
+            PROFILE_END("SaveManager", "System");
+
             // Record end time and compute elapsed time in nanoseconds.
             auto endTask = std::chrono::steady_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTask - startTask).count();
@@ -138,6 +182,31 @@ namespace pg
         LOG_INFO(DOM, "Ecs correctly deleted !");
     }
 
+    void EntitySystem::stop()
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        stopRequested = true;
+        running = false;
+
+        taskflowImpl->executor.wait_for_all();
+
+        if (runningThread.joinable())
+            runningThread.join();
+    }
+
+    void EntitySystem::dumbTaskflow() const
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        taskflowImpl->taskflow.dump(std::cout);
+    }
+
+    size_t EntitySystem::getNbTasks() const
+    {
+        return taskflowImpl->tasks.size();
+    }
+
     EntityRef EntitySystem::createEntity()
     {
         LOG_THIS_MEMBER("ECS");
@@ -187,6 +256,105 @@ namespace pg
             deleteEntityFromPool(entity);
     }
 
+    void EntitySystem::internalCreateSystem(AbstractSystem* system)
+    {
+        // Only add the system to the taskflow if the execution policy is set to sequential or independent !
+        if (system->executionPolicy == ExecutionPolicy::Sequential)
+        {
+            auto name = system->getSystemName();
+
+            if (name == "UnNamed")
+                name = std::to_string(system->_id);
+
+            auto task = taskflowImpl->taskflow.emplace([system, name]()
+            {
+#ifdef PROFILE
+                // Todo time the whole exec of a run of the taskflow
+                auto start = std::chrono::steady_clock::now();
+
+                PROFILE_SCOPE(system->getSystemName(), "System");
+#endif
+
+                try
+                {
+                    system->_execute();
+                }
+                catch (const std::exception& e)
+                {
+                    LOG_ERROR("ECS", "Exception thrown whhile execution sys: " << name << ", error: " << e.what());
+                }
+
+#ifdef PROFILE
+                // Record end time and compute elapsed time in nanoseconds.
+                auto end = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+                // Log if the duration exceeds a threshold
+                if (duration >= 3000000)
+                    std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
+
+                // Update profiling data in a thread-safe manner.
+                {
+                    std::lock_guard<std::mutex> lock(profileMutex);
+                    std::string systemName = system->getSystemName();
+                    _systemExecutionTimes[systemName] += duration;
+                    _systemExecutionCounts[systemName]++;
+
+                    // std::cout << "Updated " << systemName
+                    // << " total time = " << _systemExecutionTimes[systemName]
+                    // << ", count = " << _systemExecutionCounts[systemName] << std::endl;
+                }
+#endif
+            }).name(name);
+
+            // Put the task after every other basic task
+            task.succeed(taskflowImpl->basicTask);
+
+            // Register the task in case we need to call precede and succeed
+            taskflowImpl->tasks[system->_id] = task;
+        }
+        else if (system->executionPolicy == ExecutionPolicy::Independent)
+        {
+            auto name = system->getSystemName();
+
+            if (name == "UnNamed")
+                name = std::to_string(system->_id);
+
+            auto task = taskflowImpl->taskflow.emplace([system]()
+            {
+#ifdef PROFILE
+                // Todo time the whole exec of a run of the taskflow
+                auto start = std::chrono::steady_clock::now();
+
+                PROFILE_SCOPE(system->getSystemName(), "System");
+#endif
+
+                system->_execute();
+
+#ifdef PROFILE
+                // Record end time and compute elapsed time in nanoseconds.
+                auto end = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
+
+                // Log if the duration exceeds a threshold
+                if (duration >= 3000000)
+                    std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
+
+                // Update profiling data in a thread-safe manner.
+                {
+                    std::lock_guard<std::mutex> lock(profileMutex);
+                    std::string systemName = system->getSystemName();
+                    _systemExecutionTimes[systemName] += duration;
+                    _systemExecutionCounts[systemName]++;
+                }
+#endif
+            }).name(name);
+
+            // Register the task in case we need to call precede and succeed
+            taskflowImpl->tasks[system->_id] = task;
+        }
+    }
+
     InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance)
     {
         LOG_THIS_MEMBER("ECS");
@@ -207,49 +375,7 @@ namespace pg
 
         system->addToRegistry(&registry);
 
-        // Only add the system to the taskflow if the execution policy is set to sequential or independent !
-        if (system->executionPolicy == ExecutionPolicy::Sequential)
-        {
-            auto task = taskflow.emplace([system]()
-            {
-#ifdef PROFILE
-                // Todo time the whole exec of a run of the taskflow
-                auto start = std::chrono::steady_clock::now();
-#endif
-                system->_execute();
-
-#ifdef PROFILE
-                // Record end time and compute elapsed time in nanoseconds.
-                auto end = std::chrono::steady_clock::now();
-                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count();
-
-                // Log if the duration exceeds a threshold
-                if (duration >= 3000000)
-                    std::cout << "System " << system->getSystemName() << " execution time: " << duration << " ns" << std::endl;
-
-                // Update profiling data in a thread-safe manner.
-                {
-                    std::lock_guard<std::mutex> lock(profileMutex);
-                    std::string systemName = system->getSystemName();
-                    _systemExecutionTimes[systemName] += duration;
-                    _systemExecutionCounts[systemName]++;
-                }
-#endif
-            }).name(std::to_string(system->_id));
-
-            // Put the task after every other basic task
-            task.succeed(basicTask);
-
-            // Register the task in case we need to call precede and succeed
-            tasks[system->_id] = task;
-        }
-        else if (system->executionPolicy == ExecutionPolicy::Independent)
-        {
-            auto task = taskflow.emplace([system](){system->_execute();}).name(std::to_string(system->_id));
-
-            // Register the task in case we need to call precede and succeed
-            tasks[system->_id] = task;
-        }
+        internalCreateSystem(system);
 
         return system;
     }
@@ -285,12 +411,12 @@ namespace pg
             if (system->executionPolicy == ExecutionPolicy::Sequential or system->executionPolicy == ExecutionPolicy::Independent)
             {
                 // Try to find the task in the task list
-                if (auto itTask = tasks.find(id); itTask != tasks.end())
+                if (auto itTask = taskflowImpl->tasks.find(id); itTask != taskflowImpl->tasks.end())
                 {
                     // Remove the task from the taskflow
                     const auto& task = itTask->second;
-                    taskflow.erase(task);
-                    tasks.erase(itTask);
+                    taskflowImpl->taskflow.erase(task);
+                    taskflowImpl->tasks.erase(itTask);
                 }
             }
 
@@ -308,7 +434,7 @@ namespace pg
 
         running = true;
 
-        executor.run(taskflow).wait();
+        taskflowImpl->executor.run(taskflowImpl->taskflow).wait();
 
         running = keepRunning;
     }
@@ -318,7 +444,7 @@ namespace pg
         LOG_THIS_MEMBER(DOM);
 
         // runs the taskflow until we stop the system
-        executor.run_until(taskflow, [&running = running](){ return not running; });
+        taskflowImpl->executor.run_until(taskflowImpl->taskflow, [&running = running](){ return not running; });
     }
 
     Entity* EntitySystem::getEntity(const std::string& name) const
@@ -367,5 +493,160 @@ namespace pg
         _systemExecutionTimes.clear();
         _systemExecutionCounts.clear();
 #endif
+    }
+
+    void EntitySystem::setupVm(VM& vm)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        vm.addNativeModule("math", MathModule{});
+        vm.addNativeModule("algorithm", AlgorithmModule{});
+        vm.addNativeModule("ecs", EcsCompiledModule{this});
+
+        vm.registerNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {
+            if (argCount != 1) return makeBoolValue(false);
+
+            if (IS_INSTANCE(args[0]))
+            {
+                ObjInstance* table = vm->asInstance(args[0]);
+                LOG_INFO("Script", "Table contents:");
+                for (const auto& [key, value] : table->fields)
+                {
+                    std::string valStr;
+                    if (IS_STRING(value))
+                        valStr = vm->asString(value)->toString();
+                    else if (IS_INT(value))
+                        valStr = std::to_string(AS_INT(value));
+                    else if (IS_DOUBLE(value))
+                        valStr = std::to_string(AS_DOUBLE(value));
+                    else if (IS_BOOL(value))
+                        valStr = AS_BOOL(value) ? "true" : "false";
+                    else
+                        valStr = "<complex type>";
+
+                    LOG_INFO("Script", "  " << key << " : " << valStr);
+                }
+            }
+            else
+            {
+                LOG_INFO("Script", "Value is not a table instance");
+            }
+
+            return makeBoolValue(true);
+        });
+
+        vm.registerNative("debugGlobal", [](VM *vm, int argCount, Value*) -> Value {
+            if (argCount != 0) return makeBoolValue(false);
+
+            for (const auto& [key, value] : vm->globals)
+            {
+                std::string valStr;
+                if (IS_STRING(value))
+                    valStr = vm->asString(value)->toString();
+                else if (IS_INT(value))
+                    valStr = std::to_string(AS_INT(value));
+                else if (IS_DOUBLE(value))
+                    valStr = std::to_string(AS_DOUBLE(value));
+                else if (IS_BOOL(value))
+                    valStr = AS_BOOL(value) ? "true" : "false";
+                else
+                    valStr = "<complex type>";
+
+                LOG_INFO("Script", "Global " << key << " : " << valStr);
+            }
+
+            return makeBoolValue(true);
+        });
+
+        vm.registerNative("logInfo", [](VM *vm, int argCount, Value* args) -> Value {
+            if (argCount != 1) return makeBoolValue(false);
+
+            auto value = args[0];
+
+            std::string valStr;
+            if (IS_STRING(value))
+                valStr = vm->asString(value)->toString();
+            else if (IS_INT(value))
+                valStr = std::to_string(AS_INT(value));
+            else if (IS_DOUBLE(value))
+                valStr = std::to_string(AS_DOUBLE(value));
+            else if (IS_BOOL(value))
+                valStr = AS_BOOL(value) ? "true" : "false";
+            else
+                valStr = "<complex type>";
+
+            LOG_INFO("Script", "Logged value: " << valStr);
+
+            return makeBoolValue(true);
+        });
+
+        // Setup the VM with necessary bindings and references
+        // For example, bind the ECS reference to the VM for script access
+        // This is a placeholder implementation; actual implementation may vary
+        // depending on the VM and its API
+
+        // Example:
+        // vm.bindECS(this);
+    }
+
+    void EntitySystem::_deleteSystem(_unique_id id)
+    {
+        if (auto it = systems.find(id); it == systems.end())
+        {
+            LOG_ERROR("ECS", "System [" << id << "] is not registered so it cannot be deleted");
+            return;
+        }
+        else
+        {
+            auto system = it->second;
+
+            if (not system)
+            {
+                LOG_ERROR("ECS", "System [" << id << "] is already deleted");
+                systems.erase(it);
+                return;
+            }
+
+            // Remove the system task from the taskflow
+            if (system->executionPolicy == ExecutionPolicy::Sequential or system->executionPolicy == ExecutionPolicy::Independent)
+            {
+                // Try to find the task in the task list
+                if (auto itTask = taskflowImpl->tasks.find(id); itTask != taskflowImpl->tasks.end())
+                {
+                    // Remove the task from the taskflow
+                    const auto& task = itTask->second;
+                    taskflowImpl->taskflow.erase(task);
+                    taskflowImpl->tasks.erase(itTask);
+                }
+            }
+
+            // Delete the system
+            delete system;
+            systems.erase(it);
+        }
+    }
+
+    void EntitySystem::_succeed(_unique_id sys1Id, _unique_id sys2Id)
+    {
+        auto it1 = taskflowImpl->tasks.find(sys1Id);
+        auto it2 = taskflowImpl->tasks.find(sys2Id);
+
+        if (it1 != taskflowImpl->tasks.end() and it2 != taskflowImpl->tasks.end())
+        {
+            it1->second.succeed(it2->second);
+            LOG_INFO("ECS", "System " << sys1Id << " will run after system " << sys2Id << " !");
+        }
+        else if (it1 == taskflowImpl->tasks.end() and it2 != taskflowImpl->tasks.end())
+        {
+            LOG_ERROR("ECS", "Systems " << sys1Id << " is not a registered task in ecs can't reorder task !");
+        }
+        else if (it1 != taskflowImpl->tasks.end() and it2 == taskflowImpl->tasks.end())
+        {
+            LOG_ERROR("ECS", "Systems " << sys2Id << " is not a registered task in ecs can't reorder task !");
+        }
+        else
+        {
+            LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
+        }
     }
 }

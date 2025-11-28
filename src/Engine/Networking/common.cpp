@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <algorithm>
+#include <cstring>
 
 namespace pg
 {

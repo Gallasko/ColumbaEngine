@@ -274,4 +274,66 @@ namespace pg
         else
             return z > rhsZ;
     }
+
+    // ============================================================================
+    // StandardEvent Conversion Implementations
+    // ============================================================================
+    // These implementations are only used when PG_AUTO_CONVERT_EVENTS_TO_STANDARD is defined
+
+    STANDARD_EVENT_CONVERSION_IMPL(OnMouseClick)
+    {
+        StandardEvent event("OnMouseClick");
+        event.values["x"] = ElementType{pos.x};
+        event.values["y"] = ElementType{pos.y};
+        event.values["button"] = ElementType{static_cast<int>(button)};
+        return event;
+    }
+
+    STANDARD_EVENT_CONVERSION_IMPL(OnMouseRelease)
+    {
+        StandardEvent event("OnMouseRelease");
+        event.values["x"] = ElementType{pos.x};
+        event.values["y"] = ElementType{pos.y};
+        event.values["button"] = ElementType{static_cast<int>(button)};
+        return event;
+    }
+
+    STANDARD_EVENT_CONVERSION_IMPL(OnMouseMove)
+    {
+        StandardEvent event("OnMouseMove");
+        event.values["x"] = ElementType{pos.x};
+        event.values["y"] = ElementType{pos.y};
+        return event;
+    }
+
+    STANDARD_EVENT_CONVERSION_IMPL(OnSDLTextInput)
+    {
+        StandardEvent event("OnSDLTextInput");
+        event.values["text"] = ElementType{text};
+        return event;
+    }
+
+    STANDARD_EVENT_CONVERSION_IMPL(OnSDLScanCode)
+    {
+        StandardEvent event("OnSDLScanCode");
+        event.values["key"] = ElementType{static_cast<int>(key)};
+        event.values["mod"] = ElementType{static_cast<int>(mod)};
+        return event;
+    }
+
+    STANDARD_EVENT_CONVERSION_IMPL(OnSDLScanCodeReleased)
+    {
+        StandardEvent event("OnSDLScanCodeReleased");
+        event.values["key"] = ElementType{static_cast<int>(key)};
+        event.values["mod"] = ElementType{static_cast<int>(mod)};
+        return event;
+    }
+
+    STANDARD_EVENT_CONVERSION_IMPL(OnSDLMouseWheel)
+    {
+        StandardEvent event("OnSDLMouseWheel");
+        event.values["x"] = ElementType{static_cast<int>(x)};
+        event.values["y"] = ElementType{static_cast<int>(y)};
+        return event;
+    }
 }

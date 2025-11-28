@@ -2,18 +2,20 @@
 
 #include "logger.h"
 
-#include "chunk.h"
-#include "compiler_debug.h"
+#include "Compiler/chunk.h"
+#include "Compiler/compiler_debug.h"
 
-#include "vm.h"
-#include "compiler.h"
+#include "Compiler/vm.h"
+#include "Compiler/compiler.h"
 
-#include "long_jump_optimization_pass.h"
+#include "Compiler/pass/long_jump_optimization_pass.h"
 #include "constant_uniformity_pass.h"
 #include "Interpreter/lexer.h"
 
-#include "pass/basic_operator_local_indexing.h"
+#include "Compiler/pass/basic_operator_local_indexing.h"
 #include "example_math_module.h"
+
+#include "Compiler/pass/remove_def_get_global_redunduncy.h"
 
 using namespace pg;
 
@@ -96,6 +98,7 @@ void CompilerApp::runREPL()
     VM vm;
     vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
     vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
     vm.enableBytecodeOptimization();
     vm.enableOptimizationDebugging();
@@ -136,7 +139,11 @@ void CompilerApp::runFile(bool needCompile)
 {
     LOG_THIS_MEMBER(DOM);
 
+    EntitySystem ecs;
+
     VM vm;
+    ecs.setupVm(vm);
+
     InterpretResult result;
 
     if (needCompile)
@@ -144,19 +151,20 @@ void CompilerApp::runFile(bool needCompile)
         // vm.addOptimizationPass(std::make_uniqueh
         vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
         vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+        vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
-        // vm.enableBytecodeOptimization();
-        // vm.enableOptimizationDebugging();
+        vm.enableBytecodeOptimization();
+        vm.enableOptimizationDebugging();
 
-        vm.disableBytecodeOptimization();
+        // vm.disableBytecodeOptimization();
 
         std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
         // Register individual native functions
-        vm.defineNative("logInfo", nativeLogInfo);
+        vm.defineNative("log", nativeLogInfo);
 
         // Register native modules
-        vm.addNativeModule("math", MathModule());
+        // vm.addNativeModule("math", MathModule());
 
         Lexer lexer;
 

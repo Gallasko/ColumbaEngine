@@ -18,6 +18,7 @@ namespace tf
 
 namespace pg
 {
+
     enum class ExecutionPolicy : uint8_t
     {
         Manual      = 0,
@@ -105,6 +106,269 @@ namespace pg
         std::string __name = "UnNamed";
 
         // Todo make function onAdd and onDelete of a component that default to nothing if not used
+    };
+
+    // Forward declaration for StandardSystemImpl
+    class StandardSystemImpl;
+
+    /**
+     * @brief Handle for accessing standard system functionality
+     */
+    class StandardSystemHandle
+    {
+    public:
+        StandardSystemHandle() = default;
+        virtual ~StandardSystemHandle() = default;
+
+        // Access to the ECS world
+        EntitySystem* getWorld() const;
+
+        // Send events
+        void sendEvent(const StandardEvent& event);
+        void sendEvent(const std::string& eventName);
+        void sendEvent(const std::string& eventName, const std::string& key, const ElementType& value);
+
+        // Component creation/removal (to be implemented based on your needs)
+        // These will work with entities that have StandardComponent attached
+        StandardComponent* createComponent(size_t entityId, const std::string& componentType);
+        void removeComponent(size_t entityId, const std::string& componentType);
+        StandardComponent* getComponent(size_t entityId, const std::string& componentType);
+
+        // Access to system data storage
+        ElementMap* getData();
+
+        // Internal use only - stores the actual StandardSystemImpl pointer
+        StandardSystemImpl* _internalSystemPtr = nullptr;
+    };
+
+    // Set callbacks
+    using _S_InitCallback = std::function<void(StandardSystemHandle*)>;
+    using _S_EventCallback = std::function<void(StandardSystemHandle*, const StandardEvent&)>;
+    using _S_ExecuteCallback = std::function<void(StandardSystemHandle*)>;
+    using _S_SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
+    using _S_LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
+
+    using _S_EventMap = std::unordered_map<std::string, _S_EventCallback>;
+    using _S_EventScriptMap = std::unordered_map<std::string, std::string>;
+
+    // Simple base system - no templates, everything added manually
+    // This system supports all features based on configuration
+    class StandardSystemImpl : public AbstractSystem
+    {
+    public:
+        StandardSystemImpl(const std::string& name,
+                          const std::vector<std::string>& componentNames,
+                          const std::unordered_map<std::string, ElementMap>& defaultComponentValues,
+                          bool saveLoadEnabled,
+                          _S_InitCallback initCb,
+                          _S_EventMap eventMap,
+                          _S_EventScriptMap eventScriptMap,
+                          _S_ExecuteCallback executeCb,
+                          const std::string& executeScriptPath,
+                          _S_SaveCallback saveCb,
+                          _S_LoadCallback loadCb,
+                          _S_InitCallback firstLoadCb) :
+                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues), initCallback(initCb),
+                          eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap),
+                          executeCallback(executeCb), executeScript(executeScriptPath),
+                          saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb)
+        {
+            for (auto [key, _] : eventMap)
+            {
+                listenedEvents.insert(key);
+            }
+
+            for (auto [key, _] : eventScriptMap)
+            {
+                listenedEvents.insert(key);
+            }
+
+            handle._internalSystemPtr = this;
+            if (saveLoadEnabled)
+            {
+                saveable = true;
+            }
+        }
+
+        virtual ~StandardSystemImpl() override
+        {
+            removeFromRegistry();
+        }
+
+        void addToRegistry(ComponentRegistry *registry);
+
+        virtual void removeFromRegistry() override
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            // Unregister all components
+            if (registry)
+            {
+                for (auto& [typeName, owner] : componentOwners)
+                {
+                    owner->unsetRegistry(registry);
+                    delete owner;
+                }
+                componentOwners.clear();
+
+                // Unregister event listeners
+                for (const auto& eventName : listenedEvents)
+                {
+                    registry->removeStandardEventListener(eventName, this);
+                }
+            }
+        }
+
+        void onEvent(const StandardEvent& event)
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            // Call user event callback
+            auto it = eventCallbackList.find(event.name);
+
+            if (it != eventCallbackList.end())
+            {
+                it->second(&handle, event);
+            }
+
+            auto it2 = eventCompiledScriptCallbackList.find(event.name);
+
+            if (it2 != eventCompiledScriptCallbackList.end())
+            {
+                it2->second(&handle, event);
+            }
+        }
+
+        virtual void onRegisterFinished() override
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            // Call user init callback
+            if (initCallback)
+            {
+                initCallback(&handle);
+            }
+        }
+
+        virtual void execute() override
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            // Call user execute callback
+            if (executeCallback)
+            {
+                executeCallback(&handle);
+            }
+
+            // Call compiled execute script callback
+            if (compiledExecuteScriptCallback)
+            {
+                compiledExecuteScriptCallback(&handle);
+            }
+        }
+
+        virtual std::string getSystemName() const override
+        {
+            return systemName;
+        }
+
+        StandardSystemHandle& getHandle() { return handle; }
+
+        const std::unordered_map<std::string, ElementMap>& getDefaultCompValues() { return defaultComponentValues; }
+
+        Own<StandardComponent>* getComponentOwner(const std::string& typeName)
+        {
+            auto it = componentOwners.find(typeName);
+            return (it != componentOwners.end()) ? it->second : nullptr;
+        }
+
+        // Access to system data storage
+        ElementMap& getSystemData() { return systemData; }
+
+        // Save/load methods (called when saveLoadEnabled is true)
+        void save(Archive& archive)
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            if (saveCallback)
+            {
+                ElementMap saveData;
+                saveCallback(&handle, saveData);
+
+                // Serialize the save data
+                for (const auto& [key, value] : saveData)
+                {
+                    serialize(archive, key, value);
+                }
+            }
+        }
+
+        void load(const UnserializedObject& serializedData)
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            if (serializedData.isNull())
+            {
+                LOG_ERROR("StandardSystemImpl", "Serialized data is null");
+                return;
+            }
+
+            if (loadCallback)
+            {
+                ElementMap loadData;
+
+                // Iterate through all children in the serialized object
+                // Each child is a key-value pair that was saved
+                for (const auto& child : serializedData.children)
+                {
+                    const std::string& key = child.getObjectName();
+
+                    // Deserialize the ElementType value
+                    ElementType value;
+                    defaultDeserialize(serializedData, key, value);
+
+                    loadData[key] = value;
+                }
+
+                LOG_INFO("StandardSystemImpl", "Loaded " << loadData.size() << " values from save data");
+
+                loadCallback(&handle, loadData);
+            }
+        }
+
+        void firstLoad()
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            if (firstLoadCallback)
+            {
+                firstLoadCallback(&handle);
+            }
+        }
+
+    private:
+        std::string systemName;
+        std::set<std::string> listenedEvents;
+        std::vector<std::string> ownedComponents;
+        std::unordered_map<std::string, ElementMap> defaultComponentValues;
+        std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
+        StandardSystemHandle handle;
+
+        // System data storage - allows system to store arbitrary key-value data
+        ElementMap systemData;
+
+        _S_InitCallback initCallback;
+
+        _S_EventMap eventCallbackList;
+        _S_EventScriptMap eventScriptCallbackList;
+        _S_EventMap eventCompiledScriptCallbackList;
+
+        _S_ExecuteCallback executeCallback;
+        std::string executeScript;
+        _S_ExecuteCallback compiledExecuteScriptCallback;
+        _S_SaveCallback saveCallback;
+        _S_LoadCallback loadCallback;
+        _S_InitCallback firstLoadCallback;
     };
 
     template <typename... Comps>

@@ -4,9 +4,20 @@
 
 #include "Interpreter/interpretersystem.h"
 
+#include "entitysystem.h"
+
 namespace pg
 {
     UniqueIdGenerator ComponentRegistry::globalIdGenerator;
+    std::unordered_map<std::string, _unique_id> ComponentRegistry::globalStringIdGenerator;
+
+    void Component::onCreation(EntityRef entity)
+    {
+        LOG_THIS_MEMBER("Component");
+
+        ecsRef = entity->world();
+        entityId = entity->id;
+    }
 
     template <>
     void serialize(Archive& archive, const StandardEvent& value)
@@ -22,17 +33,17 @@ namespace pg
     template <>
     StandardEvent deserialize(const UnserializedObject& serializedString)
     {
-        LOG_THIS("IncreaseFact");
+        LOG_THIS("Standard");
 
         std::string type = "";
 
         if (serializedString.isNull())
         {
-            LOG_ERROR("AddFact", "Element is null");
+            LOG_ERROR("Standard", "Element is null");
         }
         else
         {
-            LOG_INFO("AddFact", "Deserializing IncreaseFact");
+            LOG_INFO("Standard", "Deserializing StandardEvent");
 
             StandardEvent data;
 
@@ -43,6 +54,49 @@ namespace pg
         }
 
         return StandardEvent{};
+    }
+
+    void StandardComponent::sendStandardEvent(const StandardEvent& event)
+    {
+        ecsRef->sendEvent(event);
+    }
+
+    template <>
+    void serialize(Archive& archive, const StandardComponent& value)
+    {
+        archive.startSerialization(StandardComponent::getType());
+
+        serialize(archive, "typeName", value.typeName);
+        serialize(archive, "properties", value.properties);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    StandardComponent deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS("Standard");
+
+        std::string type = "";
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR("Standard", "Element is null");
+        }
+        else
+        {
+            LOG_INFO("Standard", "Deserializing StandardComponent");
+
+            std::string typeName;
+            defaultDeserialize(serializedString, "typeName", typeName);
+
+            StandardComponent data(typeName);
+            defaultDeserialize(serializedString, "properties", data.properties);
+
+            return data;
+        }
+
+        return StandardComponent("");
     }
 
     ComponentRegistry::ComponentRegistry(EntitySystem *ecs) : ecsRef(ecs)
@@ -105,6 +159,210 @@ namespace pg
         {
             eventListener.second(event);
         }
+    }
+
+    void CompRef<StandardComponent>::operator=(const CompRef& rhs)
+    {
+        LOG_THIS_MEMBER("Comp ref");
+
+        compName    = rhs.compName;
+        ecsRef      = rhs.ecsRef;
+        entityId    = rhs.entityId;
+        initialized = rhs.initialized;
+        component   = rhs.component;
+
+        if (not initialized)
+        {
+            if (entityId != 0)
+            {
+                auto fetchComponent = rhs.ecsRef->getComponent(compName, entityId);
+
+                if (fetchComponent)
+                {
+                    component   = fetchComponent;
+                    initialized = true;
+                }
+                // Todo see if we propagate back the finding of the entity to the base ref !
+                // rhs.entity = entity
+                // rhs.initialized = true
+                // Note that it needs to make the rhs not const or we need to make the member entity mutable !
+            }
+            else
+            {
+                LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity");
+            }
+        }
+    }
+
+    StandardComponent* CompRef<StandardComponent>::operator->()
+    {
+        if (initialized)
+            return component;
+        else
+        {
+            // Try to find the component in the ecs to update this ref
+            auto comp = ecsRef->getComponent(compName, entityId);
+
+            // Component found, updating this entity ref
+            if (entityId != 0 and comp)
+            {
+                component = comp;
+                initialized = true;
+            }
+
+           return component;
+        }
+    }
+
+    CompRef<StandardComponent>::operator StandardComponent*()
+    {
+        if (initialized)
+            return component;
+        else
+        {
+            // Try to find the component in the ecs to update this ref
+            auto comp = ecsRef->getComponent(compName, entityId);
+
+            // Component found, updating this entity ref
+            if (entityId != 0 and comp)
+            {
+                component = comp;
+                initialized = true;
+            }
+
+           return component;
+        }
+    }
+
+    Entity* CompRef<StandardComponent>::getEntity() const
+    {
+        if (entityId != 0)
+        {
+            return ecsRef->getEntity(entityId);
+        }
+
+        return nullptr;
+    }
+
+    // ============================================================================
+    // StandardComponent Management Implementation
+    // ============================================================================
+
+    void ComponentRegistry::storeStandardComponent(const std::string& typeName, Own<StandardComponent>* owner)
+    {
+        LOG_THIS_MEMBER("Component Registry");
+
+        // Generate a unique ID for this specific StandardComponent type name
+        const auto id = idGenerator.generateId();
+
+        // Register delete callback
+        componentDeleteMap.emplace(id, [owner](Entity* entity) {
+            owner->internalRemoveComponent(entity);
+        });
+
+        // Register serialize callback
+        componentSerializeMap.emplace(id, [owner](Archive& archive, const Entity* entity) {
+            serialize(archive, *(owner->getComponent(entity->id)));
+        });
+
+        // Register deserialize callback using the typeName
+        componentDeserializeMap.emplace(typeName, [this, typeName](const UnserializedObject& serializedStr, EntityRef entity) {
+            if (serializedStr.isNull())
+                return;
+
+            auto comp = deserialize<StandardComponent>(serializedStr);
+            comp.entityId = entity.id;
+            comp.ecsRef = entity.ecsRef;
+            comp.typeName = typeName;
+
+            ecsRef->_attach(entity, typeName, std::move(comp));
+        });
+
+        // Register detach callback using the typeName
+        componentDetachMap.emplace(typeName, [this](EntityRef entity) {
+            ecsRef->detach<StandardComponent>(entity);
+        });
+
+        // Store in both maps
+        componentStorageMap.emplace(id, owner);
+        standardComponentStorageMap[typeName] = owner;
+
+        // Set the component ID on the owner
+        owner->_componentId = id;
+    }
+
+    void ComponentRegistry::unstoreStandardComponent(const std::string& typeName)
+    {
+        LOG_THIS_MEMBER("Component Registry");
+
+        // Find the owner to get its ID
+        auto ownerIt = standardComponentStorageMap.find(typeName);
+        if (ownerIt == standardComponentStorageMap.end())
+        {
+            LOG_WARNING("Component Registry", "Cannot unstore StandardComponent '" << typeName << "' - not found");
+            return;
+        }
+
+        const auto id = ownerIt->second->_componentId;
+
+        // Remove from all maps
+        if (const auto& it = componentDeleteMap.find(id); it != componentDeleteMap.end())
+        {
+            componentDeleteMap.erase(it);
+        }
+
+        if (const auto& it = componentSerializeMap.find(id); it != componentSerializeMap.end())
+        {
+            componentSerializeMap.erase(it);
+        }
+
+        if (const auto& it = componentDeserializeMap.find(typeName); it != componentDeserializeMap.end())
+        {
+            componentDeserializeMap.erase(it);
+        }
+
+        if (const auto& it = componentDetachMap.find(typeName); it != componentDetachMap.end())
+        {
+            componentDetachMap.erase(it);
+        }
+
+        if (const auto& it = componentStorageMap.find(id); it != componentStorageMap.end())
+        {
+            componentStorageMap.erase(it);
+        }
+
+        // Remove from string-based map
+        standardComponentStorageMap.erase(ownerIt);
+    }
+
+    Own<StandardComponent>* ComponentRegistry::retrieveStandardComponent(const std::string& typeName) const
+    {
+        LOG_THIS_MEMBER("Component Registry");
+
+        auto it = standardComponentStorageMap.find(typeName);
+        if (it != standardComponentStorageMap.end())
+        {
+            return it->second;
+        }
+
+        LOG_WARNING("Component Registry", "StandardComponent type '" << typeName << "' NOT FOUND in registry");
+        return nullptr;
+    }
+
+    bool ComponentRegistry::hasStandardComponent(const std::string& typeName) const
+    {
+        return standardComponentStorageMap.find(typeName) != standardComponentStorageMap.end();
+    }
+
+    std::vector<std::string> ComponentRegistry::getStandardComponentTypes() const
+    {
+        std::vector<std::string> types;
+        types.reserve(standardComponentStorageMap.size());
+        for (const auto& [typeName, _] : standardComponentStorageMap)
+        {
+            types.push_back(typeName);
+        }
+        return types;
     }
 
 }

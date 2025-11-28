@@ -8,7 +8,7 @@
 #include <chrono>
 
 #include "ECS/entitysystem.h"
-#include "ECS/loggersystem.h" 
+#include "ECS/loggersystem.h"
 #include "ECS/ecsmodule.h"
 #include "Input/inputcomponent.h"
 
@@ -23,6 +23,10 @@
 #include "UI/progressbar.h"
 #include "UI/textinput.h"
 #include "UI/sentencesystem.h"
+
+#ifdef PROFILE
+#include "Profiler/profiler.h"
+#endif
 #include "UI/listview.h"
 #include "UI/prefab.h"
 #include "UI/sizer.h"
@@ -137,7 +141,7 @@ namespace pg
     {
         ecs = new EntitySystem(savePath);
         screenEntity = nullptr;
-        screenUi = nullptr;
+        // screenUi = nullptr;
         mousePos = new Point2D();
         terminalSink = new std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
 
@@ -157,14 +161,14 @@ namespace pg
         interpreter->addSystemFunction<ToString>("toString");
 
         interpreter->addSystemModule("log", LogModule{*static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink)});
-        interpreter->addSystemModule("ui", UiModule{ecs});
+        // interpreter->addSystemModule("ui", UiModule{ecs});
         interpreter->addSystemModule("2Dshapes", Shape2DModule{ecs});
         interpreter->addSystemModule("2Dtexture", Texture2DModule{ecs});
         interpreter->addSystemModule("time", TimeModule{ecs});
         interpreter->addSystemModule("ecs", EcsModule{ecs});
         interpreter->addSystemModule("core", CoreModule{ecs});
         interpreter->addSystemModule("input", InputModule{ecs});
-        interpreter->addSystemModule("uitext", SentenceModule{ecs});
+        // interpreter->addSystemModule("uitext", SentenceModule{ecs});
         interpreter->addSystemModule("scene", SceneModule{ecs});
         interpreter->addSystemModule("audio", AudioModule{ecs});
 
@@ -182,10 +186,20 @@ namespace pg
         LOG_INFO(DOM, "Window destruction...");
 
         ecs->stop();
+
+#ifdef PROFILE
+        // Export profiling data before deleting ECS
+        try {
+            Profiler::instance().exportAllToCSV("profile_data.csv");
+        } catch (...) {
+            std::cerr << "Failed to export profiler data" << std::endl;
+        }
+#endif
+
         delete ecs;
-        
+
         delete screenEntity;
-        delete screenUi;
+        // delete screenUi;
         delete mousePos;
         delete static_cast<std::shared_ptr<pg::Logger::LogSink>*>(terminalSink);
 
@@ -201,8 +215,8 @@ namespace pg
         if (audioSystem != nullptr)
             audioSystem->closeSDLMixer();
 
-        LOG_INFO(DOM, "Shutting down network backend...");
-        SDLNet_Quit();
+        // LOG_INFO(DOM, "Shutting down network backend...");
+        // SDLNet_Quit();
 
         SDL_GL_DeleteContext(context);
         SDL_DestroyWindow(window);
@@ -356,14 +370,18 @@ namespace pg
             GLuint unusedIds = 0;
             glDebugMessageControl(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, &unusedIds, GL_TRUE);
         }
+
+        // Set swap interval once during initialization (VSync: 0 = disabled, 1 = enabled)
+        SDL_GL_SetSwapInterval(0);
+        LOG_INFO(DOM, "VSync disabled (swap interval set to 0)");
 #endif
 
         // Todo add a flag to enable/disable this
-        if (SDLNet_Init() < 0)
-        {
-            LOG_ERROR(DOM, "SDLNet_Init failed: " << SDLNet_GetError());
-            return false;
-        }
+        // if (SDLNet_Init() < 0)
+        // {
+        //     LOG_ERROR(DOM, "SDLNet_Init failed: " << SDLNet_GetError());
+        //     return false;
+        // }
 
         return true;
     }
@@ -398,7 +416,7 @@ namespace pg
 
         ecs->createSystem<OnEventComponentSystem>();
 
-        ecs->createSystem<UiComponentSystem>();
+        // ecs->createSystem<UiComponentSystem>();
 
         ecs->createSystem<PositionComponentSystem>();
         ecs->createSystem<NamedUiAnchorSystem>();
@@ -409,7 +427,7 @@ namespace pg
 
         ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);
 
-        ecs->createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
+        // ecs->createSystem<SentenceSystem>(masterRenderer, "res/font/fontmap.ft");
 
         ecs->createSystem<AnimationPositionSystem>();
 
@@ -446,8 +464,8 @@ namespace pg
 
         ecs->succeed<MouseClickSystem, TickingSystem>();
 
-        ecs->succeed<UiComponentSystem, PrefabSystem>();
-        ecs->succeed<UiComponentSystem, MouseClickSystem>();
+        // ecs->succeed<UiComponentSystem, PrefabSystem>();
+        // ecs->succeed<UiComponentSystem, MouseClickSystem>();
 
         ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();
         ecs->succeed<PositionComponentSystem, ProgressBarComponentSystem>();
@@ -460,11 +478,11 @@ namespace pg
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs->succeed<MasterRenderer, Simple2DObjectSystem>();
         ecs->succeed<MasterRenderer, Texture2DComponentSystem>();
-        ecs->succeed<MasterRenderer, SentenceSystem>();
+        // ecs->succeed<MasterRenderer, SentenceSystem>();
         ecs->succeed<MasterRenderer, ProgressBarComponentSystem>();
         ecs->succeed<MasterRenderer, PrefabSystem>();
 
-        ecs->succeed<MasterRenderer, UiComponentSystem>();
+        // ecs->succeed<MasterRenderer, UiComponentSystem>();
         ecs->succeed<MasterRenderer, PositionComponentSystem>();
 
         ecs->succeed<SceneElementSystem, MasterRenderer>();
@@ -478,11 +496,11 @@ namespace pg
         delete screenEntity;
         screenEntity = new EntityRef(ecs->createEntity());
         // Todo remove this
-        delete screenUi;
-        screenUi = new CompRef<UiComponent>(ecs->attach<UiComponent>(*screenEntity));
-        (*screenUi)->width = width;
-        (*screenUi)->height = height;
-        (*screenUi)->setZ(-1);
+        // delete screenUi;
+        // screenUi = new CompRef<UiComponent>(ecs->attach<UiComponent>(*screenEntity));
+        // (*screenUi)->width = width;
+        // (*screenUi)->height = height;
+        // (*screenUi)->setZ(-1);
 
         auto screenPos = ecs->attach<PositionComponent>(*screenEntity);
         screenPos->setWidth(width);
@@ -495,7 +513,7 @@ namespace pg
 
         ecs->attach<MouseLeftClickComponent>(*screenEntity, makeCallable<OnFocus>(screenEntity->id));
 
-        (*screenUi)->update();
+        // (*screenUi)->update();
 
         ecs->attach<EntityName>(*screenEntity, "__MainWindow");
 
@@ -623,60 +641,88 @@ namespace pg
             pos->setHeight(height);
         }
 
-        if (areNotAlmostEqual((*screenUi)->width, width))
-        {
-            (*screenUi)->setWidth(width);
-        }
+        // if (areNotAlmostEqual((*screenUi)->width, width))
+        // {
+        //     (*screenUi)->setWidth(width);
+        // }
 
-        if (areNotAlmostEqual((*screenUi)->height, height))
-        {
-            (*screenUi)->setHeight(height);
-        }
+        // if (areNotAlmostEqual((*screenUi)->height, height))
+        // {
+        //     (*screenUi)->setHeight(height);
+        // }
 
         ecs->sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});
     }
 
     void Window::render()
     {
+#ifdef PROFILE
+        PROFILE_FRAME_BEGIN();
+#endif
+
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-        // std::lock_guard<std::mutex> lock(renderMutex);
-
-        // SDL_GL_MakeCurrent(window, context);
-
-        glClearColor(0.0513f, 0.0501f, 0.123f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         masterRenderer->setCurrentTime(currentTime);
 
         masterRenderer->setWindowSize(this->width, this->height);
 
-        masterRenderer->renderAll();
+        if (masterRenderer->needRedraw())
+        {
+            glClearColor(0.0513f, 0.0501f, 0.123f, 1.0f);
+            glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        inputHandler->updateInput(float(currentTime - lastTime) / 1000);
+#ifdef PROFILE
+            {
+                PROFILE_SCOPE("Render", "Render");
+#endif
+                masterRenderer->renderAll();
+#ifdef PROFILE
+            }
+#endif
+            swapBuffer();
 
-        lastTime = currentTime;
+            masterRenderer->endRender();
+        }
 
         nbFrame++;
 
-        swapBuffer();
+        lastTime = currentTime;
+
+#ifdef PROFILE
+        {
+            PROFILE_SCOPE("Input", "Input");
+#endif
+            inputHandler->updateInput(float(currentTime - lastTime) / 1000);
+#ifdef PROFILE
+        }
+
+        PROFILE_FRAME_END();
+#endif
     }
 
     void Window::swapBuffer()
     {
         // Check OpenGL error
-        GLenum err;
-        while ((err = glGetError()) != GL_NO_ERROR)
+#ifdef PROFILE
         {
-            LOG_ERROR(DOM, "OpenGL error: " << err);
+            PROFILE_SCOPE("SwapBuffer", "GL Error Checking");
+#endif
+            GLenum err;
+            while ((err = glGetError()) != GL_NO_ERROR)
+            {
+                LOG_ERROR(DOM, "OpenGL error: " << err);
+            }
+#ifdef PROFILE
         }
 
-        // VSync 0 to disable 1 to activate
-#ifndef __EMSCRIPTEN__
-        SDL_GL_SetSwapInterval(0);
+        {
+            PROFILE_SCOPE("SwapBuffer", "Swap");
 #endif
-
-        SDL_GL_SwapWindow(window);
+            SDL_GL_SwapWindow(window);
+#ifdef PROFILE
+        }
+#endif
     }
 }

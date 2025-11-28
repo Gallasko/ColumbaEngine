@@ -28,9 +28,11 @@
 // #include <algorithm>
 
 // If issues happens while working on system.h, comment this line !
-#include "ECS/system.h"
-#include "ECS/entitysystem.h"
-#include "Renderer/renderer.h"
+// #include "ECS/system.h"
+// #include "ECS/entitysystem.h"
+// #include "Renderer/renderer.h"
+
+#include "ECS/entitysystem_fwd.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
