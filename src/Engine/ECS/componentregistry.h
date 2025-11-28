@@ -42,14 +42,10 @@ namespace pg
     template <typename Type, typename... Types>
     struct Group;
 
-    template <>
-    void serialize(Archive& archive, const StandardEvent& event);
-
-    template<>
-    void serialize(Archive& archive, const StandardComponent& event);
 
     // Forward of the standard component owner
     template <>
+    // Note: serialize specializations for StandardEvent and StandardComponent are in serialization.h
     struct Own<StandardComponent>;
 
     class ComponentRegistry

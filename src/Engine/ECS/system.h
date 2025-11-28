@@ -18,6 +18,7 @@ namespace tf
 
 namespace pg
 {
+
     enum class ExecutionPolicy : uint8_t
     {
         Manual      = 0,

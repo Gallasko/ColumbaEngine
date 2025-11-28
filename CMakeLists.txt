@@ -148,6 +148,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/compiler_debug.cpp
     src/Engine/Compiler/vm.cpp
     src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/ecsserialization.cpp
     src/Engine/Compiler/object.cpp
     src/Engine/Compiler/cparser.cpp
     src/Engine/Compiler/bytecode_pass.cpp
