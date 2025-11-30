@@ -6,6 +6,8 @@
 
 #include "logger.h"
 
+#include "2D/texture.h"
+
 using namespace pg;
 
 namespace
@@ -16,9 +18,9 @@ namespace
 StandardSystemImpl* createPlayerSystem()
 {
     return createStandardSystem("PositionSystem")
-        .onInit("init_player.pg")
+        .onInit("res/asteroid/init_player.pg")
         .ownComponent("Player")
-        .onEvent("OnSDLScanCode", "move_player.pg")
+        .onEvent("OnSDLScanCode", "res/asteroid/move_player.pg")
         .useStoragePolicy() // Only react to events, no execute() needed
         .build();
 }

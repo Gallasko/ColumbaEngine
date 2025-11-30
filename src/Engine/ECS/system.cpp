@@ -289,5 +289,8 @@ namespace pg
         }
 
         LOG_INFO("StandardSystemImpl", "System fully registered with " << componentOwners.size() << " components and " << listenedEvents.size() << " events");
+
+        // Call onRegisterFinished to trigger init callbacks and scripts
+        onRegisterFinished();
     }
 }

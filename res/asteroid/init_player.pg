@@ -1,0 +1,10 @@
+import "texture"
+
+logInfo("Here")
+
+var player = createTexture("Ghost", 100, 100)
+
+debugTable(player)
+debugTable(player["PositionComponent"])
+
+logInfo("There")
