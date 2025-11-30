@@ -42,16 +42,19 @@ namespace pg
      *     .listenToEvents({"PlayerJump", "PlayerDamage", "GameStart"})
      *     .ownComponents({"Health", "Position"})
      *     .onInit([](StandardSystemHandle* sys) {
-     *         // Initialize system
+     *         // Initialize system (C++ callback)
      *     })
+     *     .onInit("scripts/init.pgs")  // Or use a script
      *     .onEvent([](StandardSystemHandle* sys, const StandardEvent& event) {
      *         if (event.name == "PlayerJump") {
-     *             // Handle jump
+     *             // Handle jump (C++ callback)
      *         }
      *     })
+     *     .onEvent("PlayerDamage", "scripts/damage.pgs")  // Or use a script for events
      *     .onExecute([](StandardSystemHandle* sys) {
-     *         // Called every frame
+     *         // Called every frame (C++ callback)
      *     })
+     *     .onExecute("scripts/update.pgs")  // Or use a script
      *     .build();
      * @endcode
      */
@@ -108,6 +111,7 @@ namespace pg
         StandardSystemBuilder& onFirstLoad(_S_InitCallback callback);
 
         // Scripts overload
+        StandardSystemBuilder& onInit(const std::string& scriptName);
         StandardSystemBuilder& onEvent(const std::string& eventName, const std::string& scriptName);
         StandardSystemBuilder& onExecute(const std::string& scriptName);
 
@@ -124,6 +128,7 @@ namespace pg
             bool saveLoadEnabled = false;
 
             _S_InitCallback initCallback;
+            std::string initScript;
 
             _S_EventMap eventCallbackList;
             _S_EventScriptMap scriptEventCallbackList;
