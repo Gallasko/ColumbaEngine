@@ -7,4 +7,6 @@ var player = createTexture("Ghost", 100, 100)
 debugTable(player)
 debugTable(player["PositionComponent"])
 
+sysData["playerId"] = player.__entityId
+
 logInfo("There")

@@ -1,1 +1,7 @@
+import "ecs"
+
 logInfo("Moving")
+
+var player = getEntity(sysData["playerId"])
+
+debugTable(player)

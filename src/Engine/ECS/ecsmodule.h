@@ -7,6 +7,7 @@
 
 #include "Compiler/native_module.h"
 #include "Compiler/vm.h"
+#include "Compiler/ecsserialization.h"
 
 namespace pg
 {
@@ -312,45 +313,29 @@ namespace pg
 
                 throw std::runtime_error("removeEntity expects an integer id or an entity instance");
             });
-        }
 
-        Value removeEntity(VM* vm, int argCount, Value* args)
-        {
-            if (argCount != 1)
-            {
-                throw std::runtime_error("removeEntity expects exactly 1 argument");
-            }
-
-            if (IS_INT(args[0]))
-            {
-                ecsRef->removeEntity(AS_INT(args[0]));
-                return args[0]; // Already an integer
-            }
-            else if (IS_INSTANCE(args[0]))
-            {
-                auto instance = vm->asInstance(args[0]);
-
-                if (instance->fields.find("__entityId") == instance->fields.end())
+            addNativeFunction("getEntity", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount != 1)
                 {
-                    throw std::runtime_error("removeEntity expects an entity with an __entityId field");
+                    throw std::runtime_error("getEntity expects exactly 1 argument");
                 }
 
-                auto idValue = instance->fields.at("__entityId");
-
-                if (not IS_INT(idValue))
+                if (!IS_INT(args[0]))
                 {
-                    throw std::runtime_error("removeEntity expects an entity with an integer __entityId field");
+                    throw std::runtime_error("getEntity expects an integer id");
                 }
 
-                auto entityId = AS_INT(idValue);
+                auto entityId = AS_INT(args[0]);
+                auto entity = ecsRefCopy->getEntity(entityId);
 
-                LOG_INFO("Ecs Compiled Module", "Removing entity with id " << entityId);
+                if (!entity)
+                {
+                    throw std::runtime_error("Entity with id " + std::to_string(entityId) + " not found");
+                }
 
-                ecsRef->removeEntity(entityId);
-                return args[0];
-            }
+                return serializeEntityToTable(vm, ecsRefCopy, entity);
+            });
 
-            throw std::runtime_error("removeEntity expects an integer id or an entity instance");
         }
     };
 
