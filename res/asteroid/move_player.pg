@@ -3,5 +3,34 @@ import "ecs"
 logInfo("Moving")
 
 var player = getEntity(sysData["playerId"])
-
+var pos = player["PositionComponent"];
 debugTable(player)
+
+debugTable(player["PositionComponent"])
+logInfo("Debugging pos")
+debugTable(pos)
+
+if (event.values.key == "D")
+{
+    var x = pos.x
+
+    pos.setX(x + 10)
+}
+else if (event.values.key == "A")
+{
+    var x = pos.x
+
+    pos.setX(x - 10)
+}
+else if (event.values.key == "W")
+{
+    var y = pos.y
+
+    pos.setY(y - 10)
+}
+else if (event.values.key == "S")
+{
+    var y = pos.y
+
+    pos.setY(y + 10)
+}
