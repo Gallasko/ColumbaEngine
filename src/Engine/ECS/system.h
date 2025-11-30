@@ -161,6 +161,7 @@ namespace pg
                           const std::unordered_map<std::string, ElementMap>& defaultComponentValues,
                           bool saveLoadEnabled,
                           _S_InitCallback initCb,
+                          const std::string& initScriptPath,
                           _S_EventMap eventMap,
                           _S_EventScriptMap eventScriptMap,
                           _S_ExecuteCallback executeCb,
@@ -168,7 +169,8 @@ namespace pg
                           _S_SaveCallback saveCb,
                           _S_LoadCallback loadCb,
                           _S_InitCallback firstLoadCb) :
-                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues), initCallback(initCb),
+                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues),
+                          initCallback(initCb), initScript(initScriptPath),
                           eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap),
                           executeCallback(executeCb), executeScript(executeScriptPath),
                           saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb)
@@ -247,6 +249,13 @@ namespace pg
             if (initCallback)
             {
                 initCallback(&handle);
+            }
+
+            // Call compiled init script callback
+            if (compiledInitScriptCallback)
+            {
+                LOG_INFO("StandardSystemImpl", "Calling compiled init script for system: " << systemName);
+                compiledInitScriptCallback(&handle);
             }
         }
 
@@ -358,6 +367,8 @@ namespace pg
         ElementMap systemData;
 
         _S_InitCallback initCallback;
+        std::string initScript;
+        _S_InitCallback compiledInitScriptCallback;
 
         _S_EventMap eventCallbackList;
         _S_EventScriptMap eventScriptCallbackList;

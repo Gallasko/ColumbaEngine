@@ -204,6 +204,36 @@ namespace pg
             });
         }
 
+        // Compile and cache init script if provided
+        if (not initScript.empty())
+        {
+            auto cachedBytecode = getCachedScript(ecsRef, initScript);
+
+            if (cachedBytecode.empty())
+            {
+                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the init script: " << initScript);
+            }
+            else
+            {
+                // Register the init handler with cached bytecode (captured by value)
+                compiledInitScriptCallback = [cachedBytecode, scriptName = initScript](StandardSystemHandle* sys) {
+                    auto ecsRef = sys->getWorld();
+
+                    VM vm;
+                    ecsRef->setupVm(vm);
+
+                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+
+                    if (result != InterpretResult::OK)
+                    {
+                        LOG_ERROR("StandardSystemImpl", "Init script handler error for: " << scriptName);
+                        LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                        LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
+                    }
+                };
+            }
+        }
+
         // Compile and cache execute script if provided
         if (not executeScript.empty())
         {

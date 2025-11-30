@@ -217,6 +217,13 @@ namespace pg
         return *this;
     }
 
+    StandardSystemBuilder& StandardSystemBuilder::onInit(const std::string& scriptName)
+    {
+        data.initScript = scriptName;
+
+        return *this;
+    }
+
     StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& eventName, const std::string& scriptName)
     {
         data.scriptEventCallbackList[eventName] = scriptName;
@@ -240,6 +247,7 @@ namespace pg
             data.componentDefaultValues,
             data.saveLoadEnabled,
             data.initCallback,
+            data.initScript,
             data.eventCallbackList,
             data.scriptEventCallbackList,
             data.executeCallback,
