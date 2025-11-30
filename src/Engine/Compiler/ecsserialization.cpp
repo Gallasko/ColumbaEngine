@@ -1,6 +1,7 @@
 #include "ecsserialization.h"
 
 #include "ECS/entitysystem.h"
+#include "2D/position.h"
 
 namespace pg
 {
@@ -46,10 +47,155 @@ namespace pg
             // Process all component properties using the shared helper
             detail::processNodeToTable(vm, tableClass, compNode, table, false);
 
+            // Add dynamic setter methods for PositionComponent
+            if (componentTypeName == "PositionComponent")
+            {
+                LOG_INFO("ECS Serialization", "Generating setters for PositionComponent");
+
+                _unique_id entityId = entity->id;
+
+                // Define the properties that have setters in PositionComponent
+                struct PropertySetter {
+                    std::string propName;
+                    std::string methodName;
+                };
+
+                std::vector<PropertySetter> propertiesWithSetters = {
+                    {"x", "setX"},
+                    {"y", "setY"},
+                    {"z", "setZ"},
+                    {"width", "setWidth"},
+                    {"height", "setHeight"},
+                    {"rotation", "setRotation"},
+                    {"visible", "setVisibility"},
+                    {"observable", "setObservable"}
+                };
+
+                // Generate setter methods for each property
+                for (const auto& prop : propertiesWithSetters)
+                {
+                    const std::string& propName = prop.propName;
+                    const std::string& setterMethodName = prop.methodName;
+
+                    // Register a global VM function with a unique name
+                    std::string globalSetterName = "__positionsetter_" + std::to_string(entityId) + "_" + propName;
+
+                    // Lambda that implements the setter functionality
+                    // Each lambda calls the corresponding C++ setter method
+                    if (propName == "x")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_DOUBLE(args[0]))
+                                posComp->setX(static_cast<float>(AS_DOUBLE(args[0])));
+                            else if (IS_INT(args[0]))
+                                posComp->setX(static_cast<float>(AS_INT(args[0])));
+                            return INT_VAL(0);
+                        });
+                    }
+                    else if (propName == "y")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_DOUBLE(args[0]))
+                                posComp->setY(static_cast<float>(AS_DOUBLE(args[0])));
+                            else if (IS_INT(args[0]))
+                                posComp->setY(static_cast<float>(AS_INT(args[0])));
+                            return INT_VAL(0);
+                        });
+                    }
+                    else if (propName == "z")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_DOUBLE(args[0]))
+                                posComp->setZ(static_cast<float>(AS_DOUBLE(args[0])));
+                            else if (IS_INT(args[0]))
+                                posComp->setZ(static_cast<float>(AS_INT(args[0])));
+                            return INT_VAL(0);
+                        });
+                    }
+                    else if (propName == "width")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_DOUBLE(args[0]))
+                                posComp->setWidth(static_cast<float>(AS_DOUBLE(args[0])));
+                            else if (IS_INT(args[0]))
+                                posComp->setWidth(static_cast<float>(AS_INT(args[0])));
+                            return INT_VAL(0);
+                        });
+                    }
+                    else if (propName == "height")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_DOUBLE(args[0]))
+                                posComp->setHeight(static_cast<float>(AS_DOUBLE(args[0])));
+                            else if (IS_INT(args[0]))
+                                posComp->setHeight(static_cast<float>(AS_INT(args[0])));
+                            return INT_VAL(0);
+                        });
+                    }
+                    else if (propName == "rotation")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_DOUBLE(args[0]))
+                                posComp->setRotation(static_cast<float>(AS_DOUBLE(args[0])));
+                            else if (IS_INT(args[0]))
+                                posComp->setRotation(static_cast<float>(AS_INT(args[0])));
+                            return INT_VAL(0);
+                        });
+                    }
+                    else if (propName == "visible")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_BOOL(args[0]))
+                                posComp->setVisibility(AS_BOOL(args[0]));
+                            return INT_VAL(0);
+                        });
+                    }
+                    else if (propName == "observable")
+                    {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                            if (argCount != 1) return INT_VAL(0);
+                            PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
+                            if (!posComp) return INT_VAL(0);
+                            if (IS_BOOL(args[0]))
+                                posComp->setObservable(AS_BOOL(args[0]));
+                            return INT_VAL(0);
+                        });
+                    }
+
+                    // Add the setter to the component table
+                    auto globalIt = vm->globals.find(globalSetterName);
+                    if (globalIt != vm->globals.end())
+                    {
+                        table->fields[setterMethodName] = globalIt->second;
+                        LOG_INFO("ECS Serialization", "Added PositionComponent setter method: " << setterMethodName);
+                    }
+                }
+            }
             // Add dynamic setter methods for StandardComponent properties
             // This enables calling methods like: component.setX(value), component.setHealth(value)
             // Each setter automatically triggers a Changed<ComponentType> event via setWithEvent()
-            if (componentTypeName == "StandardComponent")
+            else if (componentTypeName == "StandardComponent")
             {
                 LOG_INFO("ECS Serialization", "Generating setters for StandardComponent");
 
@@ -764,6 +910,253 @@ namespace pg
         {
             table->fields["set"] = genericIt->second;
             LOG_INFO("ECS Serialization", "Added generic set() method");
+        }
+
+        return tableValue;
+    }
+
+    Value serializeToTable(VM* vm, const PositionComponent& component)
+    {
+        // First, use the generic serialization to create the basic table
+        // We need to call the template version explicitly
+        auto it = vm->globals.find("__Table");
+        if (it == vm->globals.end())
+        {
+            throw std::runtime_error("Table class not found in VM globals");
+        }
+
+        Klass* tableClass = vm->asClass(it->second);
+
+        // Create an Archive and serialize the component
+        InspectorArchive archive;
+        serialize(archive, component);
+
+        // Create the table instance
+        Value tableValue = vm->createInstance(tableClass);
+        ObjInstance* table = vm->asInstance(tableValue);
+
+        // Helper function to add field to table
+        auto addField = [&](const std::string& key, Value value) {
+            table->fields[key] = vm->retainValue(value);
+        };
+
+        // Parse the archive and populate the table
+        if (archive.mainNode.children.size() > 0)
+        {
+            auto& compNode = archive.mainNode.children[0];
+
+            // Add the class name (component type)
+            if (!compNode.className.empty())
+            {
+                Value classNameKey = vm->createString("__className");
+                Value classNameValue = vm->createString(compNode.className);
+                addField(vm->asString(classNameKey)->toString(), classNameValue);
+                vm->releaseAndDelete(classNameKey);
+                vm->releaseAndDelete(classNameValue);
+            }
+
+            // Process all component properties using the shared helper (with retain mode)
+            detail::processNodeToTable(vm, tableClass, compNode, table, true);
+        }
+
+        // Get component context from the component itself
+        EntitySystem* ecsRef = component.ecsRef;
+        _unique_id entityId = component.id;
+
+        // If component doesn't have ECS context, skip setter generation
+        if (!ecsRef || entityId == 0)
+        {
+            LOG_WARNING("ECS Serialization", "PositionComponent has no ecsRef or entityId, skipping setter generation");
+            return tableValue;
+        }
+
+        LOG_INFO("ECS Serialization", "Generating setters for PositionComponent on entity " << entityId);
+
+        // Define the properties that have setters in PositionComponent
+        // Based on position.h lines 303-313
+        struct PropertySetter {
+            std::string propName;
+            std::string methodName;
+        };
+
+        std::vector<PropertySetter> propertiesWithSetters = {
+            {"x", "setX"},
+            {"y", "setY"},
+            {"z", "setZ"},
+            {"width", "setWidth"},
+            {"height", "setHeight"},
+            {"rotation", "setRotation"},
+            {"visible", "setVisibility"},
+            {"observable", "setObservable"}
+        };
+
+        // Generate setter methods for each property
+        for (const auto& prop : propertiesWithSetters)
+        {
+            const std::string& propName = prop.propName;
+            const std::string& setterMethodName = prop.methodName;
+
+            // Register a global VM function with a unique name
+            std::string globalSetterName = "__positionsetter_" + std::to_string(entityId) + "_" + propName;
+
+            // Lambda that implements the setter functionality
+            // Each lambda calls the corresponding C++ setter method
+            if (propName == "x")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_DOUBLE(args[0]))
+                        posComp->setX(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        posComp->setX(static_cast<float>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                });
+            }
+            else if (propName == "y")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_DOUBLE(args[0]))
+                        posComp->setY(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        posComp->setY(static_cast<float>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                });
+            }
+            else if (propName == "z")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_DOUBLE(args[0]))
+                        posComp->setZ(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        posComp->setZ(static_cast<float>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                });
+            }
+            else if (propName == "width")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_DOUBLE(args[0]))
+                        posComp->setWidth(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        posComp->setWidth(static_cast<float>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                });
+            }
+            else if (propName == "height")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_DOUBLE(args[0]))
+                        posComp->setHeight(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        posComp->setHeight(static_cast<float>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                });
+            }
+            else if (propName == "rotation")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_DOUBLE(args[0]))
+                        posComp->setRotation(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        posComp->setRotation(static_cast<float>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                });
+            }
+            else if (propName == "visible")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_BOOL(args[0]))
+                        posComp->setVisibility(AS_BOOL(args[0]));
+
+                    return INT_VAL(0);
+                });
+            }
+            else if (propName == "observable")
+            {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    Entity* entity = ecsRef->getEntity(entityId);
+                    if (!entity) return INT_VAL(0);
+
+                    auto posComp = entity->get<PositionComponent>();
+                    if (!posComp) return INT_VAL(0);
+
+                    if (IS_BOOL(args[0]))
+                        posComp->setObservable(AS_BOOL(args[0]));
+
+                    return INT_VAL(0);
+                });
+            }
+
+            // Add the setter to the component table
+            auto globalIt = vm->globals.find(globalSetterName);
+            if (globalIt != vm->globals.end())
+            {
+                table->fields[setterMethodName] = globalIt->second;
+                LOG_INFO("ECS Serialization", "Added PositionComponent setter method: " << setterMethodName);
+            }
         }
 
         return tableValue;

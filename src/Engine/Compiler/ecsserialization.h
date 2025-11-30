@@ -18,6 +18,12 @@
 
 #include <fstream>
 
+// Forward declarations
+namespace pg
+{
+    struct PositionComponent;
+}
+
 namespace pg
 {
     // ============================================================================
@@ -644,6 +650,19 @@ namespace pg
      * @return Value VM Value containing the table with setter methods
      */
     extern Value serializeToTable(VM* vm, const StandardComponent& component);
+
+    /**
+     * @brief Specialized serializeToTable for PositionComponent with setter generation
+     *
+     * This overload generates dynamic setter methods for PositionComponent properties
+     * that call the component's existing setter methods (setX, setY, etc.) which
+     * automatically trigger PositionComponentChangedEvent when called.
+     *
+     * @param vm Pointer to the VM
+     * @param component The PositionComponent to serialize
+     * @return Value VM Value containing the table with setter methods
+     */
+    extern Value serializeToTable(VM* vm, const PositionComponent& component);
 
 
 } // namespace pg
