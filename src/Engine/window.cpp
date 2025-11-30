@@ -663,12 +663,13 @@ namespace pg
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-
         masterRenderer->setCurrentTime(currentTime);
 
         masterRenderer->setWindowSize(this->width, this->height);
 
-        if (masterRenderer->needRedraw())
+        bool shouldRedraw = masterRenderer->needRedraw();
+
+        if (shouldRedraw)
         {
             glClearColor(0.0513f, 0.0501f, 0.123f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -684,6 +685,10 @@ namespace pg
             swapBuffer();
 
             masterRenderer->endRender();
+        }
+        else
+        {
+            LOG_INFO("Window", "    SKIPPING render (needRedraw=false)");
         }
 
         nbFrame++;
