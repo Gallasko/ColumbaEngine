@@ -7,6 +7,8 @@
 
 #include <sstream>
 
+#include "Systems/coresystems.h"
+
 namespace pg
 {
     // Todo move this in a vm helper header
@@ -282,6 +284,42 @@ namespace pg
             }
         }
 
+        if (not deltaScript.empty())
+        {
+            auto cachedBytecode = getCachedScript(ecsRef, deltaScript);
+
+            if (cachedBytecode.empty())
+            {
+                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the execute script: " << deltaScript);
+            }
+            else
+            {
+                // Register the deltaTime handler with cached bytecode (captured by value)
+                compiledDeltaScriptCallback = [this, cachedBytecode, scriptName = deltaScript](StandardSystemHandle* sys, float deltaTime) {
+                    auto ecsRef = sys->getWorld();
+
+                    VM vm;
+                    ecsRef->setupVm(vm);
+
+                    vm.globals["deltaTime"] = vm.elementToValue(deltaTime);
+
+                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+
+                    if (result != InterpretResult::OK)
+                    {
+                        LOG_ERROR("StandardSystemImpl", "Delta script handler error for: " << scriptName);
+                        LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                        LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
+                    }
+                };
+            }
+        }
+
+        if (needDelta)
+        {
+            registry->addEventListener<TickEvent>(this);
+        }
+
         // Register event listeners
         for (const auto& eventName : listenedEvents)
         {
@@ -292,5 +330,38 @@ namespace pg
 
         // Call onRegisterFinished to trigger init callbacks and scripts
         onRegisterFinished();
+    }
+
+    void StandardSystemImpl::removeFromRegistry()
+    {
+        LOG_THIS_MEMBER("StandardSystemImpl");
+
+        // Unregister all components
+        if (registry)
+        {
+            for (auto& [typeName, owner] : componentOwners)
+            {
+                owner->unsetRegistry(registry);
+                delete owner;
+            }
+
+            componentOwners.clear();
+
+            // Unregister event listeners
+            for (const auto& eventName : listenedEvents)
+            {
+                registry->removeStandardEventListener(eventName, this);
+            }
+
+            if (needDelta)
+            {
+                registry->removeEventListener<TickEvent>(this);
+            }
+        }
+    }
+
+    void StandardSystemImpl::onEvent(const TickEvent& event)
+    {
+        deltaTime += event.tick;
     }
 }

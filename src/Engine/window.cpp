@@ -686,10 +686,6 @@ namespace pg
 
             masterRenderer->endRender();
         }
-        else
-        {
-            LOG_INFO("Window", "    SKIPPING render (needRedraw=false)");
-        }
 
         nbFrame++;
 

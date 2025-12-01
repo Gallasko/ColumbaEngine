@@ -65,6 +65,7 @@ namespace pg
     using _S_ExecuteCallback = std::function<void(StandardSystemHandle*)>;
     using _S_SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
     using _S_LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
+    using _S_DeltaCallback = std::function<void(StandardSystemHandle*, float)>;
 
     using _S_EventMap = std::unordered_map<std::string, _S_EventCallback>;
     using _S_EventScriptMap = std::unordered_map<std::string, std::string>;
@@ -109,11 +110,13 @@ namespace pg
         StandardSystemBuilder& onSave(_S_SaveCallback callback);
         StandardSystemBuilder& onLoad(_S_LoadCallback callback);
         StandardSystemBuilder& onFirstLoad(_S_InitCallback callback);
+        StandardSystemBuilder& onDelta(_S_DeltaCallback callback);
 
         // Scripts overload
         StandardSystemBuilder& onInit(const std::string& scriptName);
         StandardSystemBuilder& onEvent(const std::string& eventName, const std::string& scriptName);
         StandardSystemBuilder& onExecute(const std::string& scriptName);
+        StandardSystemBuilder& onDelta(const std::string& scriptName);
 
         // Build and return the system (returns StandardSystemImpl* that can be registered)
         StandardSystemImpl* build();
@@ -138,6 +141,9 @@ namespace pg
             _S_SaveCallback saveCallback;
             _S_LoadCallback loadCallback;
             _S_InitCallback firstLoadCallback;
+
+            _S_DeltaCallback deltaCallback;
+            std::string deltaScript;
         };
 
         BuilderData data;
