@@ -10,6 +10,8 @@ debugTable(player["PositionComponent"])
 logInfo("Debugging pos")
 debugTable(pos)
 
+debugTable(player["Texture2DComponent"])
+
 if (event.values.key == "D")
 {
     var x = pos.x
@@ -33,4 +35,12 @@ else if (event.values.key == "S")
     var y = pos.y
 
     pos.setY(y + 10)
+}
+else if (event.values.key == "Q")
+{
+    player["Texture2DComponent"].setTexture("NoneIcon")
+}
+else if (event.values.key == "E")
+{
+    player["Texture2DComponent"].setTexture("Ghost")
 }
