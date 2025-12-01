@@ -2,6 +2,7 @@
 
 #include "ECS/entitysystem.h"
 #include "2D/position.h"
+#include "2D/texture.h"
 
 namespace pg
 {
@@ -476,7 +477,7 @@ namespace pg
 
                 // Create a temporary component object from the archive data to pass to the serializer
                 // The serializer needs the component's ecsRef and entity ID for generating setters
-                // For now, we'll handle the two known types explicitly
+                // For now, we'll handle the known types explicitly
                 // TODO: Make this more generic with a component factory in the registry
                 if (componentTypeName == "PositionComponent")
                 {
@@ -485,6 +486,15 @@ namespace pg
                     {
                         auto serializerFunc = registry.getSerializer(componentTypeName);
                         serializerFunc(vm, table, (void*)posComp);
+                    }
+                }
+                else if (componentTypeName == "Texture2DComponent")
+                {
+                    Texture2DComponent* texComp = ecsRef->getComponent<Texture2DComponent>(entity->id);
+                    if (texComp)
+                    {
+                        auto serializerFunc = registry.getSerializer(componentTypeName);
+                        serializerFunc(vm, table, (void*)texComp);
                     }
                 }
                 else if (componentTypeName == "StandardComponent")
