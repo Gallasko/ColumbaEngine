@@ -47,6 +47,7 @@ namespace pg
             // Process all component properties using the shared helper
             detail::processNodeToTable(vm, tableClass, compNode, table, false);
 
+            // Todo make this simpler to add new type and new dynamic setter for engine comp
             // Add dynamic setter methods for PositionComponent
             if (componentTypeName == "PositionComponent")
             {
@@ -84,7 +85,7 @@ namespace pg
                     // Each lambda calls the corresponding C++ setter method
                     if (propName == "x")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -97,7 +98,7 @@ namespace pg
                     }
                     else if (propName == "y")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -110,7 +111,7 @@ namespace pg
                     }
                     else if (propName == "z")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -123,7 +124,7 @@ namespace pg
                     }
                     else if (propName == "width")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -136,7 +137,7 @@ namespace pg
                     }
                     else if (propName == "height")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -149,7 +150,7 @@ namespace pg
                     }
                     else if (propName == "rotation")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -162,7 +163,7 @@ namespace pg
                     }
                     else if (propName == "visible")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -173,7 +174,7 @@ namespace pg
                     }
                     else if (propName == "observable")
                     {
-                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                        vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                             if (argCount != 1) return INT_VAL(0);
                             PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entityId);
                             if (!posComp) return INT_VAL(0);
@@ -1003,7 +1004,7 @@ namespace pg
             // Each lambda calls the corresponding C++ setter method
             if (propName == "x")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);
@@ -1022,7 +1023,7 @@ namespace pg
             }
             else if (propName == "y")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);
@@ -1041,7 +1042,7 @@ namespace pg
             }
             else if (propName == "z")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);
@@ -1060,7 +1061,7 @@ namespace pg
             }
             else if (propName == "width")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);
@@ -1079,7 +1080,7 @@ namespace pg
             }
             else if (propName == "height")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);
@@ -1098,7 +1099,7 @@ namespace pg
             }
             else if (propName == "rotation")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);
@@ -1117,7 +1118,7 @@ namespace pg
             }
             else if (propName == "visible")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);
@@ -1134,7 +1135,7 @@ namespace pg
             }
             else if (propName == "observable")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
 
                     Entity* entity = ecsRef->getEntity(entityId);

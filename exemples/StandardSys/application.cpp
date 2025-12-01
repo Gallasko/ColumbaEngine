@@ -147,6 +147,13 @@ StandardSystemImpl* createKeyHandlerSystem()
         .build();
 }
 
+StandardSystemImpl* createDeltaSystem()
+{
+    return createStandardSystem("Delta")
+        .onDelta("test_delta.pg")
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -276,6 +283,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.registerSystem(createMouseClickHandlerSystem());
 
         ecs.registerSystem(createKeyHandlerSystem());
+
+        ecs.registerSystem(createDeltaSystem());
 
         // window.receivedQuitRequest();
 
