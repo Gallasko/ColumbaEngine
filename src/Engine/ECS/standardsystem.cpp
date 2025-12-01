@@ -130,6 +130,22 @@ namespace pg
         return &_internalSystemPtr->getSystemData();
     }
 
+    ElementType StandardSystemHandle::getData(const std::string& name)
+    {
+        if (!_internalSystemPtr)
+            return ElementType{0};
+
+        return _internalSystemPtr->getSystemData()[name];
+    }
+
+    void StandardSystemHandle::setData(const std::string& name, const ElementType& value)
+    {
+        if (!_internalSystemPtr)
+            return;
+
+        _internalSystemPtr->getSystemData()[name] = value;
+    }
+
     // ============================================================================
     // StandardSystemBuilder implementation
     // ============================================================================
