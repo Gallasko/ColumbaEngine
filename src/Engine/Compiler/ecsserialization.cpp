@@ -2,7 +2,6 @@
 
 #include "ECS/entitysystem.h"
 #include "2D/position.h"
-#include "2D/texture.h"
 
 namespace pg
 {
@@ -475,31 +474,12 @@ namespace pg
             {
                 LOG_INFO("ECS Serialization", "Using registered serializer for " << componentTypeName);
 
-                // Create a temporary component object from the archive data to pass to the serializer
-                // The serializer needs the component's ecsRef and entity ID for generating setters
-                // For now, we'll handle the known types explicitly
-                // TODO: Make this more generic with a component factory in the registry
-                if (componentTypeName == "PositionComponent")
+                // Get the component pointer using the registered retriever function
+                void* componentPtr = nullptr;
+
+                if (componentTypeName == "StandardComponent")
                 {
-                    PositionComponent* posComp = ecsRef->getComponent<PositionComponent>(entity->id);
-                    if (posComp)
-                    {
-                        auto serializerFunc = registry.getSerializer(componentTypeName);
-                        serializerFunc(vm, table, (void*)posComp);
-                    }
-                }
-                else if (componentTypeName == "Texture2DComponent")
-                {
-                    Texture2DComponent* texComp = ecsRef->getComponent<Texture2DComponent>(entity->id);
-                    if (texComp)
-                    {
-                        auto serializerFunc = registry.getSerializer(componentTypeName);
-                        serializerFunc(vm, table, (void*)texComp);
-                    }
-                }
-                else if (componentTypeName == "StandardComponent")
-                {
-                    // For StandardComponent, we need to get it through the component registry
+                    // StandardComponent requires special handling due to its dynamic nature
                     // Extract the type name from the table
                     std::string compTypeName;
                     auto typeNameIt = table->fields.find("typeName");
@@ -509,14 +489,28 @@ namespace pg
                         auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
                         if (owner)
                         {
-                            StandardComponent* stdComp = owner->getComponent(entity->id);
-                            if (stdComp)
-                            {
-                                auto serializerFunc = registry.getSerializer(componentTypeName);
-                                serializerFunc(vm, table, (void*)stdComp);
-                            }
+                            componentPtr = owner->getComponent(entity->id);
                         }
                     }
+                }
+                else
+                {
+                    // For all other components, use the registered retriever
+                    auto retrieverFunc = registry.getRetriever(componentTypeName);
+                    if (retrieverFunc)
+                    {
+                        componentPtr = retrieverFunc(ecsRef, entity->id);
+                    }
+                }
+
+                if (componentPtr)
+                {
+                    auto serializerFunc = registry.getSerializer(componentTypeName);
+                    serializerFunc(vm, table, componentPtr);
+                }
+                else
+                {
+                    LOG_WARNING("ECS Serialization", "Could not retrieve component pointer for " << componentTypeName);
                 }
             }
         }
