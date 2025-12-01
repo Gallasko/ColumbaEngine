@@ -7,6 +7,7 @@ namespace pg
 {
     namespace detail
     {
+        // Todo maybe even make this whole registrar thing constexpr
         bool registryHasComponent(const std::string& name)
         {
             auto& registry = ComponentSerializerRegistry::instance();
