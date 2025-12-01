@@ -137,6 +137,8 @@ namespace pg
 
         // Access to system data storage
         ElementMap* getData();
+        ElementType getData(const std::string& name);
+        void setData(const std::string& name, const ElementType& value);
 
         // Internal use only - stores the actual StandardSystemImpl pointer
         StandardSystemImpl* _internalSystemPtr = nullptr;
