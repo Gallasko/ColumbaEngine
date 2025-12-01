@@ -64,9 +64,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         --preload-file res \
         --preload-file scripts \
         --preload-file shader \
-        --preload-file setupRenderer.pg \
-        --preload-file sysRegister.pg \
-        --preload-file logManager.pg")
+        --preload-file res/setupRenderer.pg \
+        --preload-file res/sysRegister.pg \
+        --preload-file res/logManager.pg")
 
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 else()

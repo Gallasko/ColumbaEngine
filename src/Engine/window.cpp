@@ -173,7 +173,7 @@ namespace pg
         interpreter->addSystemModule("audio", AudioModule{ecs});
 
         // Script to configure the logger
-        interpreter->interpretFromFile("logManager.pg");
+        interpreter->interpretFromFile("res/logManager.pg");
         // [End] Interpreter definition
 
         LOG_INFO(DOM, "Window creation done");
@@ -408,7 +408,7 @@ namespace pg
         interpreter->addSystemModule("renderer", RendererModule{masterRenderer});
 
         // Configure the master renderer system
-        interpreter->interpretFromFile("setupRenderer.pg");
+        interpreter->interpretFromFile("res/setupRenderer.pg");
 
         masterRenderer->setWindowSize(width, height);
 
@@ -488,7 +488,7 @@ namespace pg
         ecs->succeed<SceneElementSystem, MasterRenderer>();
 
         // Script to configure all the users systems
-        interpreter->interpretFromFile("sysRegister.pg");
+        interpreter->interpretFromFile("res/sysRegister.pg");
 
         // // Log taskflow for this window
         // ecs->dumbTaskflow();
