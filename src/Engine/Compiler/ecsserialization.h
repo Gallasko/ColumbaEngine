@@ -18,20 +18,21 @@
 
 #include <fstream>
 
-// Forward declarations
-namespace pg
-{
-    struct PositionComponent;
-}
-
 namespace pg
 {
     // ============================================================================
     // Internal helper functions for ECS serialization
     // ============================================================================
 
+    using ComponentSerializerFunc = std::function<void(VM*, ObjInstance*, void*)>;
+    using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
+
     namespace detail
     {
+        bool registryHasComponent(const std::string& name);
+
+        ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name);
+
         /**
          * @brief Check if a SerializedInfoHolder node represents an ElementType
          */
@@ -527,7 +528,8 @@ namespace pg
      * Serialize a component of a known type directly to a VM table.
      * This is useful when you have a component object and want to convert it to a table.
      *
-     * Note: StandardComponent has a specialized overload that generates setter methods.
+     * This function automatically checks the ComponentSerializerRegistry and adds
+     * dynamic setter methods if a serializer is registered for this component type.
      *
      * Example usage:
      * ```cpp
@@ -568,6 +570,7 @@ namespace pg
         };
 
         // Parse the archive and populate the table
+        std::string componentTypeName;
         if (archive.mainNode.children.size() > 0)
         {
             auto& compNode = archive.mainNode.children[0];
@@ -575,6 +578,7 @@ namespace pg
             // Add the class name (component type)
             if (!compNode.className.empty())
             {
+                componentTypeName = compNode.className;
                 Value classNameKey = vm->createString("__className");
                 Value classNameValue = vm->createString(compNode.className);
                 addField(vm->asString(classNameKey)->toString(), classNameValue);
@@ -584,6 +588,13 @@ namespace pg
 
             // Process all component properties using the shared helper (with retain mode)
             detail::processNodeToTable(vm, tableClass, compNode, table, true);
+        }
+
+        // Check if there's a registered serializer to add dynamic setters
+        if (detail::registryHasComponent(componentTypeName))
+        {
+            auto serializerFunc = detail::getSerializerFuncFromRegistry(componentTypeName);
+            serializerFunc(vm, table, (void*)&component);
         }
 
         return tableValue;
@@ -650,19 +661,5 @@ namespace pg
      * @return Value VM Value containing the table with setter methods
      */
     extern Value serializeToTable(VM* vm, const StandardComponent& component);
-
-    /**
-     * @brief Specialized serializeToTable for PositionComponent with setter generation
-     *
-     * This overload generates dynamic setter methods for PositionComponent properties
-     * that call the component's existing setter methods (setX, setY, etc.) which
-     * automatically trigger PositionComponentChangedEvent when called.
-     *
-     * @param vm Pointer to the VM
-     * @param component The PositionComponent to serialize
-     * @return Value VM Value containing the table with setter methods
-     */
-    extern Value serializeToTable(VM* vm, const PositionComponent& component);
-
 
 } // namespace pg

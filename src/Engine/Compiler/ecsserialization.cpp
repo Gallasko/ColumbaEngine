@@ -5,6 +5,21 @@
 
 namespace pg
 {
+    namespace detail
+    {
+        bool registryHasComponent(const std::string& name)
+        {
+            auto& registry = ComponentSerializerRegistry::instance();
+            return not name.empty() && registry.hasSerializer(name);
+        }
+
+        ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name)
+        {
+            auto& registry = ComponentSerializerRegistry::instance();
+            return registry.getSerializer(name);
+        }
+    }
+
     // ============================================================================
     // Registered Component Serializers
     // ============================================================================
@@ -809,7 +824,8 @@ namespace pg
 
     Value serializeToTable(VM* vm, const StandardComponent& component)
     {
-        // First, use the basic serialization helper to create the table
+        // StandardComponent still needs a specialized overload because it uses
+        // serializeToTableBasic instead of the generic serialization
         Value tableValue = serializeToTableBasic(vm, component);
         ObjInstance* table = vm->asInstance(tableValue);
 
@@ -818,24 +834,6 @@ namespace pg
         if (registry.hasSerializer("StandardComponent"))
         {
             auto serializerFunc = registry.getSerializer("StandardComponent");
-            serializerFunc(vm, table, (void*)&component);
-        }
-
-        return tableValue;
-    }
-
-    Value serializeToTable(VM* vm, const PositionComponent& component)
-    {
-        // Use the template version to create the basic table
-        // This calls the generic template that handles serialization
-        Value tableValue = serializeToTable<PositionComponent>(vm, component);
-        ObjInstance* table = vm->asInstance(tableValue);
-
-        // Use the registered serializer to add setters
-        auto& registry = ComponentSerializerRegistry::instance();
-        if (registry.hasSerializer("PositionComponent"))
-        {
-            auto serializerFunc = registry.getSerializer("PositionComponent");
             serializerFunc(vm, table, (void*)&component);
         }
 
