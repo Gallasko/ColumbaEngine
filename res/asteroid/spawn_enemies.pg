@@ -1,0 +1,24 @@
+import "texture"
+
+sysData["spawnTimer"] = sysData["spawnTimer"] + deltaTime
+
+if (sysData["spawnTimer"] > 1.0)
+{
+    logInfo("Here")
+
+    sysData["spawnTimer"] = sysData["spawnTimer"] - 1.0
+
+    var enemy = createTexture("Ghost", 30, 30)
+
+    debugTable(enemy)
+
+    enemy["PositionComponent"].setX(300)
+
+    enemy["PositionComponent"].setX(sysData["x"]);
+
+    logInfo(sysData["x"])
+
+    debugTable(enemy["PositionComponent"]);
+
+    sysData["x"] = sysData["x"] + 50 
+}

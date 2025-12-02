@@ -44,3 +44,16 @@ else if (event.values.key == "E")
 {
     player["Texture2DComponent"].setTexture("Ghost")
 }
+
+
+import "texture"
+
+if (event.values.key == "K")
+{
+    var enemy = createTexture("Ghost", 100, 100)
+
+    enemy["PositionComponent"].setX(300)
+    enemy["PositionComponent"].setY(300)
+
+    debugTable(enemy["PositionComponent"])
+}

@@ -16,6 +16,8 @@
 #include "vm.h"
 #include "serialization.h"
 
+#include "ECS/entity.h"
+
 #include <fstream>
 
 namespace pg
@@ -661,5 +663,84 @@ namespace pg
      * @return Value VM Value containing the table with setter methods
      */
     extern Value serializeToTable(VM* vm, const StandardComponent& component);
+
+    // ============================================================================
+    // Helper functions for CompList serialization
+    // ============================================================================
+
+    namespace detail
+    {
+        /**
+         * @brief Helper function to serialize a single component from CompList to entity table
+         */
+        template <typename Comp, typename... Comps>
+        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList)
+        {
+            // Get the component from the CompList
+            CompRef<Comp> comp = compList.template get<Comp>();
+
+            if (comp)
+            {
+                // Serialize the component to a table
+                Value componentTableValue = serializeToTable(vm, *comp);
+
+                // Get the component type name
+                std::string componentTypeName = Comp::getType();
+
+                // Add to entity table
+                entityTable->fields[componentTypeName] = componentTableValue;
+
+                LOG_INFO("ECS Serialization", "Serialized component: " << componentTypeName);
+            }
+        }
+    } // namespace detail
+
+    /**
+     * @brief Serialize an entity with specific components to a VM table (templated version)
+     *
+     * Takes a CompList (e.g., CompList<PositionComponent, UiAnchor, Texture2DComponent>)
+     * and serializes all the components in the list to a VM table. This is useful when
+     * you have a CompList from helper functions like makeUiTexture and want to serialize
+     * only those specific components.
+     *
+     * Example usage:
+     * ```cpp
+     * auto compList = makeUiTexture(ecs, 100, 100, "texture.png");
+     * Value table = serializeEntityToTable<PositionComponent, UiAnchor, Texture2DComponent>(vm, ecs, compList);
+     * ```
+     *
+     * @tparam Comps The component types in the CompList
+     * @param vm Pointer to the VM
+     * @param ecsRef Pointer to the entity system
+     * @param compList The CompList containing the entity and component references
+     * @return Value VM Value containing the entity table with specified components
+     */
+    template <typename... Comps>
+    Value serializeEntityToTable(VM* vm, EntitySystem*, const CompList<Comps...>& compList)
+    {
+        // Get the Table class
+        auto it = vm->globals.find("__Table");
+        if (it == vm->globals.end())
+        {
+            throw std::runtime_error("Table class not found in VM globals");
+        }
+
+        Klass* tableClass = vm->asClass(it->second);
+
+        // Create the entity table
+        Value entityTableValue = vm->createInstance(tableClass);
+        ObjInstance* entityTable = vm->asInstance(entityTableValue);
+
+        LOG_INFO("ECS Serialization", "Serializing entity ID " << compList.id << " with CompList");
+
+        // Add the entity ID
+        Value idValue = makeIntValue(static_cast<int64_t>(compList.id));
+        entityTable->fields["__entityId"] = idValue;
+
+        // Serialize each component in the CompList using fold expression
+        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);
+
+        return entityTableValue;
+    }
 
 } // namespace pg

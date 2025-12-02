@@ -25,11 +25,28 @@ StandardSystemImpl* createPlayerSystem()
         .build();
 }
 
+StandardSystemImpl* createEnemySpawnSystem()
+{
+    return createStandardSystem("EnemySpawnSystem")
+        .onInit([](StandardSystemHandle* sys)
+        {
+            LOG_MILE(DOM, "EnemySpawnSystem initialized");
+
+            sys->setData("spawnTimer", 0.0f);
+            sys->setData("x", 0);
+        })
+        .ownComponent("Enemy")
+        .onDelta("res/asteroid/spawn_enemies.pg")
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
         ecs.registerSystem(createPlayerSystem());
+
+        ecs.registerSystem(createEnemySpawnSystem());
     });
 }
 
