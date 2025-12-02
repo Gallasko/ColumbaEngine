@@ -3,6 +3,8 @@
 #include "ECS/entitysystem.h"
 #include "2D/position.h"
 
+#include <iostream>
+
 namespace pg
 {
     namespace detail
@@ -62,118 +64,115 @@ namespace pg
             const std::string& propName = prop.propName;
             const std::string& setterMethodName = prop.methodName;
 
-            // Register a global VM function with a unique name
-            std::string globalSetterName = "__positionsetter_" + std::to_string(entityId) + "_" + propName;
+            std::cout << "Creating setter " << propName << " for entity " << entityId << " component ptr: " << (void*)component << std::endl;
 
+            // Create native function directly without polluting globals
             // Lambda that implements the setter functionality
+            NativeFn setterFunc;
+
             if (propName == "x")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER X CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_DOUBLE(args[0]))
                         component->setX(static_cast<float>(AS_DOUBLE(args[0])));
                     else if (IS_INT(args[0]))
                         component->setX(static_cast<float>(AS_INT(args[0])));
-
                     return INT_VAL(0);
-                });
+                };
             }
             else if (propName == "y")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER Y CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_DOUBLE(args[0]))
                         component->setY(static_cast<float>(AS_DOUBLE(args[0])));
                     else if (IS_INT(args[0]))
                         component->setY(static_cast<float>(AS_INT(args[0])));
-                    
                     return INT_VAL(0);
-                });
+                };
             }
             else if (propName == "z")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER Z CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_DOUBLE(args[0]))
                         component->setZ(static_cast<float>(AS_DOUBLE(args[0])));
                     else if (IS_INT(args[0]))
                         component->setZ(static_cast<float>(AS_INT(args[0])));
-
                     return INT_VAL(0);
-                });
+                };
             }
             else if (propName == "width")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER WIDTH CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_DOUBLE(args[0]))
                         component->setWidth(static_cast<float>(AS_DOUBLE(args[0])));
                     else if (IS_INT(args[0]))
                         component->setWidth(static_cast<float>(AS_INT(args[0])));
-
                     return INT_VAL(0);
-                });
+                };
             }
             else if (propName == "height")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER HEIGHT CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_DOUBLE(args[0]))
                         component->setHeight(static_cast<float>(AS_DOUBLE(args[0])));
                     else if (IS_INT(args[0]))
                         component->setHeight(static_cast<float>(AS_INT(args[0])));
-
                     return INT_VAL(0);
-                });
+                };
             }
             else if (propName == "rotation")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER ROTATION CALLED: component ptr = " << (void*)component << " rotation=" << component->rotation << " arg=" << (IS_DOUBLE(args[0]) ? AS_DOUBLE(args[0]) : AS_INT(args[0])) << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_DOUBLE(args[0]))
                         component->setRotation(static_cast<float>(AS_DOUBLE(args[0])));
                     else if (IS_INT(args[0]))
                         component->setRotation(static_cast<float>(AS_INT(args[0])));
-
                     return INT_VAL(0);
-                });
+                };
             }
             else if (propName == "visible")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER VISIBLE CALLED: component ptr = " << (void*)component << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_BOOL(args[0]))
                         component->setVisibility(AS_BOOL(args[0]));
-
                     return INT_VAL(0);
-                });
+                };
             }
             else if (propName == "observable")
             {
-                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    std::cout << "SETTER OBSERVABLE CALLED: component ptr = " << (void*)component << std::endl;
                     if (argCount != 1) return INT_VAL(0);
-
                     if (IS_BOOL(args[0]))
                         component->setObservable(AS_BOOL(args[0]));
-
                     return INT_VAL(0);
-                });
+                };
             }
 
-            // Add the setter to the component table
-            auto globalIt = vm->globals.find(globalSetterName);
-            if (globalIt != vm->globals.end())
-            {
-                table->fields[setterMethodName] = globalIt->second;
-                LOG_INFO("ECS Serialization", "Added PositionComponent setter method: " << setterMethodName);
-            }
+            // Allocate native function from pool and create Value directly
+            auto [nativeFunc, funcIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
+            nativeFunc->function = setterFunc;
+
+            Value setterValue = makeNativeFuncValue(static_cast<uint32_t>(funcIndex));
+
+            // Add directly to table without going through globals
+            table->fields[setterMethodName] = vm->trackNewValue(setterValue);
+
+            LOG_INFO("ECS Serialization", "Added PositionComponent setter method: " << setterMethodName);
         }
     }
 
@@ -228,10 +227,8 @@ namespace pg
                 }
             }
 
-            // Register a global VM function with a unique name
-            std::string globalSetterName = "__setter_" + std::to_string(entityId) + "_" + compTypeName + "_" + propName;
-
-            vm->registerNative(globalSetterName, [component, propName, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
+            // Create native function directly without polluting globals
+            NativeFn setterFunc = [component, propName, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
                 if (argCount != 1)
                 {
                     LOG_ERROR("StandardComponent Setter", "Expected 1 argument for setter, got " << argCount);
@@ -268,21 +265,23 @@ namespace pg
                 }
 
                 return INT_VAL(0);
-            });
+            };
 
-            // Add the setter to the component table
-            auto globalIt = vm->globals.find(globalSetterName);
-            if (globalIt != vm->globals.end())
-            {
-                table->fields[methodName] = globalIt->second;
-                LOG_INFO("ECS Serialization", "Added setter method: " << methodName);
-            }
+            // Allocate native function from pool and create Value directly
+            auto [nativeFunc, funcIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
+            nativeFunc->function = setterFunc;
+
+            Value setterValue = makeNativeFuncValue(static_cast<uint32_t>(funcIndex));
+
+            // Add directly to table without going through globals
+            table->fields[methodName] = vm->trackNewValue(setterValue);
+
+            LOG_INFO("ECS Serialization", "Added setter method: " << methodName);
         }
 
         // Add generic set(propertyName, value) method
-        std::string genericSetterName = "__genericSetter_" + std::to_string(entityId) + "_" + compTypeName;
-
-        vm->registerNative(genericSetterName, [component, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
+        // Create native function directly without polluting globals
+        NativeFn genericSetterFunc = [component, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
             if (argCount != 2)
             {
                 LOG_ERROR("StandardComponent Generic Setter", "Expected 2 arguments (propertyName, value), got " << argCount);
@@ -327,15 +326,18 @@ namespace pg
             }
 
             return INT_VAL(0);
-        });
+        };
 
-        // Add the generic setter to the component table
-        auto genericIt = vm->globals.find(genericSetterName);
-        if (genericIt != vm->globals.end())
-        {
-            table->fields["set"] = genericIt->second;
-            LOG_INFO("ECS Serialization", "Added generic set() method");
-        }
+        // Allocate native function from pool and create Value directly
+        auto [genericNativeFunc, genericFuncIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
+        genericNativeFunc->function = genericSetterFunc;
+
+        Value genericSetterValue = makeNativeFuncValue(static_cast<uint32_t>(genericFuncIndex));
+
+        // Add directly to table without going through globals
+        table->fields["set"] = vm->trackNewValue(genericSetterValue);
+
+        LOG_INFO("ECS Serialization", "Added generic set() method");
     }
 
     // Register StandardComponent serializer at static initialization time

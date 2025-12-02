@@ -46,6 +46,7 @@ namespace
 #include "ecsmodule.h"
 #include "Helpers/mathmodule.h"
 #include "Helpers/algorithmmodule.h"
+#include "Helpers/stringmodule.h"
 #include "2D/texturemodule.h"
 
 namespace pg
@@ -502,6 +503,7 @@ namespace pg
 
         vm.addNativeModule("math", MathModule{});
         vm.addNativeModule("algorithm", AlgorithmModule{});
+        vm.addNativeModule("string", StringModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
         vm.addNativeModule("texture", TextureModule{this});
 

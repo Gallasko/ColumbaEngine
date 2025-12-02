@@ -1,6 +1,36 @@
 import "texture"
 
+import "string"
+
+import "ecs"
+
 sysData["spawnTimer"] = sysData["spawnTimer"] + deltaTime
+
+sysData["moveTime"] = sysData["moveTime"] + deltaTime
+
+if (sysData["moveTime"] > 0.25)
+{
+    logInfo("Hello")
+
+    sysData["moveTime"] = sysData["moveTime"] - 0.25
+
+    for (var i = 0; i < sysData["i"]; i++)
+    {
+        logInfo("enemy" + toString(i))
+        logInfo(sysData["enemy" + toString(i)])
+        var enemy = getEntity(sysData["enemy" + toString(i)]);
+
+        debugTable(enemy)
+        debugTable(enemy["PositionComponent"])
+
+        var pos = enemy["PositionComponent"];
+        enemy["PositionComponent"].setY(pos.y + 10);
+    }
+
+    debugGlobal()
+
+    logInfo("World")
+}
 
 if (sysData["spawnTimer"] > 1.0)
 {
@@ -10,15 +40,27 @@ if (sysData["spawnTimer"] > 1.0)
 
     var enemy = createTexture("Ghost", 30, 30)
 
-    debugTable(enemy)
+    //debugTable(enemy)
 
     enemy["PositionComponent"].setX(300)
 
-    enemy["PositionComponent"].setX(sysData["x"]);
+    var x = sysData["i"] * 50;
 
-    logInfo(sysData["x"])
+    enemy["PositionComponent"].setX(x);
 
-    debugTable(enemy["PositionComponent"]);
+    //logInfo(sysData["i"])
+    //logInfo("enemy" + toString(sysData["i"]))
 
-    sysData["x"] = sysData["x"] + 50 
+    //debugTable(enemy["PositionComponent"]);
+
+    // Todo fix this
+    //sysData["enemy" + toString(sysData["i"])] = enemy.__entityId
+    
+    var enemyName = "enemy" + toString(sysData["i"]) 
+    logInfo(enemyName)
+    sysData[enemyName] = enemy.__entityId
+
+    sysData["i"] = sysData["i"] + 1
+
+    logInfo("There")
 }
