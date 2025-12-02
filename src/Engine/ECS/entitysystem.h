@@ -1315,17 +1315,17 @@ namespace pg
         ComponentSerializerRegistration() : serializer(nullptr), retriever(nullptr) {}
 
         template <typename ComponentType>
-        ComponentSerializerRegistration(void(*func)(VM*, ObjInstance*, const ComponentType&))
+        ComponentSerializerRegistration(void(*func)(VM*, ObjInstance*, ComponentType*))
         {
             setupFunction<ComponentType>(func);
         }
 
         template <typename ComponentType>
-        void setupFunction(void(*func)(VM*, ObjInstance*, const ComponentType&))
+        void setupFunction(void(*func)(VM*, ObjInstance*, ComponentType*))
         {
             // Wrap the typed function pointer in a lambda that handles the void* cast
             serializer = [func](VM* vm, ObjInstance* table, void* component) {
-                func(vm, table, *static_cast<const ComponentType*>(component));
+                func(vm, table, static_cast<ComponentType*>(component));
             };
 
             // Create a retriever lambda that knows how to get this component type from an entity
@@ -1379,7 +1379,7 @@ namespace pg
          */
         template <typename ComponentType>
         void registerSerializer(const std::string& componentName,
-                               void(*func)(VM*, ObjInstance*, const ComponentType&))
+                               void(*func)(VM*, ObjInstance*, ComponentType*))
         {
             ComponentSerializerRegistration reg;
             reg.setupFunction<ComponentType>(func);
@@ -1454,7 +1454,7 @@ namespace pg
      */
     #define REGISTER_COMPONENT_SERIALIZER(ComponentType, FunctionName) \
         template void ComponentSerializerRegistration::setupFunction<ComponentType>( \
-            void(*)(VM*, ObjInstance*, const ComponentType&)); \
+            void(*)(VM*, ObjInstance*, ComponentType*)); \
         namespace { \
             struct ComponentType##SerializerRegistrar { \
                 ComponentType##SerializerRegistrar() { \

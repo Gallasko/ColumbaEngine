@@ -67,7 +67,7 @@ namespace pg
 
                 auto tex = makeUiTexture(ecsRefCopy, width, height, filePath);
 
-                return serializeEntityToTable(vm, ecsRefCopy, tex.entity);
+                return serializeEntityToTable(vm, ecsRefCopy, tex);
             });
         }
     };

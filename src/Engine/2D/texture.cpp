@@ -314,18 +314,10 @@ namespace pg
      * This function adds dynamic setter methods to a Texture2DComponent table that
      * call the component's C++ setter methods which automatically trigger EntityChangedEvent.
      */
-    void serializeTexture2DComponentWithSetters(VM* vm, ObjInstance* table, const Texture2DComponent& component)
+    void serializeTexture2DComponentWithSetters(VM* vm, ObjInstance* table, Texture2DComponent* component)
     {
         // Get component context
-        EntitySystem* ecsRef = component.ecsRef;
-        _unique_id entityId = component.entityId;
-
-        // If component doesn't have ECS context, skip setter generation
-        if (!ecsRef || entityId == 0)
-        {
-            LOG_WARNING("ECS Serialization", "Texture2DComponent has no ecsRef or entityId, skipping setter generation");
-            return;
-        }
+        _unique_id entityId = component->entityId;
 
         LOG_INFO("ECS Serialization", "Generating setters for Texture2DComponent on entity " << entityId);
 
@@ -354,42 +346,36 @@ namespace pg
             // Lambda that implements the setter functionality
             if (propName == "textureName")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM* vm, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [component](VM* vm, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
-                    Entity* entity = ecsRef->getEntity(entityId);
-                    if (!entity) return INT_VAL(0);
-                    auto texComp = entity->get<Texture2DComponent>();
-                    if (!texComp) return INT_VAL(0);
+
                     if (IS_STRING(args[0]))
-                        texComp->setTexture(vm->asString(args[0])->toString());
+                        component->setTexture(vm->asString(args[0])->toString());
+
                     return INT_VAL(0);
                 });
             }
             else if (propName == "opacity")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
-                    Entity* entity = ecsRef->getEntity(entityId);
-                    if (!entity) return INT_VAL(0);
-                    auto texComp = entity->get<Texture2DComponent>();
-                    if (!texComp) return INT_VAL(0);
+
                     if (IS_DOUBLE(args[0]))
-                        texComp->setOpacity(static_cast<float>(AS_DOUBLE(args[0])));
+                        component->setOpacity(static_cast<float>(AS_DOUBLE(args[0])));
                     else if (IS_INT(args[0]))
-                        texComp->setOpacity(static_cast<float>(AS_INT(args[0])));
+                        component->setOpacity(static_cast<float>(AS_INT(args[0])));
+
                     return INT_VAL(0);
                 });
             }
             else if (propName == "viewport")
             {
-                vm->registerNative(globalSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
+                vm->registerNative(globalSetterName, [component](VM*, int argCount, Value* args) -> Value {
                     if (argCount != 1) return INT_VAL(0);
-                    Entity* entity = ecsRef->getEntity(entityId);
-                    if (!entity) return INT_VAL(0);
-                    auto texComp = entity->get<Texture2DComponent>();
-                    if (!texComp) return INT_VAL(0);
+
                     if (IS_INT(args[0]))
-                        texComp->setViewport(static_cast<size_t>(AS_INT(args[0])));
+                        component->setViewport(static_cast<size_t>(AS_INT(args[0])));
+                    
                     return INT_VAL(0);
                 });
             }
@@ -405,12 +391,8 @@ namespace pg
 
         // Add special setter for overlappingColor (takes 4 args: r, g, b, ratio)
         std::string overlappingColorSetterName = "__texture2dsetter_" + std::to_string(entityId) + "_overlappingColor";
-        vm->registerNative(overlappingColorSetterName, [ecsRef, entityId](VM*, int argCount, Value* args) -> Value {
+        vm->registerNative(overlappingColorSetterName, [component](VM*, int argCount, Value* args) -> Value {
             if (argCount != 4) return INT_VAL(0); // Expecting r, g, b, ratio
-            Entity* entity = ecsRef->getEntity(entityId);
-            if (!entity) return INT_VAL(0);
-            auto texComp = entity->get<Texture2DComponent>();
-            if (!texComp) return INT_VAL(0);
 
             float r = 0.0f, g = 0.0f, b = 0.0f, ratio = 0.0f;
 
@@ -426,7 +408,7 @@ namespace pg
             if (IS_DOUBLE(args[3])) ratio = static_cast<float>(AS_DOUBLE(args[3]));
             else if (IS_INT(args[3])) ratio = static_cast<float>(AS_INT(args[3]));
 
-            texComp->setOverlappingColor(constant::Vector3D{r, g, b}, ratio);
+            component->setOverlappingColor(constant::Vector3D{r, g, b}, ratio);
             return INT_VAL(0);
         });
 
