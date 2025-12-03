@@ -470,6 +470,36 @@ namespace pg
             defineNative(name, function);
         }
 
+        /**
+         * @brief Create a native function Value from a lambda without registering it globally
+         *
+         * This is a helper function that encapsulates the boilerplate of:
+         * 1. Allocating from the native function pool with correct index
+         * 2. Setting the function pointer
+         * 3. Creating the NaN-boxed Value
+         * 4. Tracking the value for reference counting
+         *
+         * Use this when you want to add native functions directly to table fields
+         * without polluting the global namespace.
+         *
+         * @param function The native function lambda
+         * @return Value The tracked native function Value ready to be added to a table
+         *
+         * @example
+         * NativeFn myLambda = [component](VM*, int argCount, Value* args) -> Value { ... };
+         * Value funcValue = vm->createNativeFunction(myLambda);
+         * table->fields["myMethod"] = funcValue;
+         */
+        Value createNativeFunction(NativeFn function)
+        {
+            auto [nativeFunc, index] = pools.nativeFuncPool.allocateWithIndex();
+            nativeFunc->function = function;
+
+            Value val = makeNativeFuncValue(static_cast<uint32_t>(index));
+
+            return trackNewValue(val);
+        }
+
         void defineNative(const std::string& name, NativeFn function)
         {
             // Skip if already defined in globals
@@ -478,13 +508,7 @@ namespace pg
                 return;
             }
 
-            uint32_t index = pools.nativeFuncPool.getNbElements();
-            NativeFunction* nativeFunc = pools.nativeFuncPool.allocate();
-            nativeFunc->function = function;
-
-            Value val = makeNativeFuncValue(index);
-
-            globals[name] = trackNewValue(val);
+            globals[name] = createNativeFunction(function);
         }
 
         // Native module system - per VM instance
