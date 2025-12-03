@@ -163,14 +163,8 @@ namespace pg
                 };
             }
 
-            // Allocate native function from pool and create Value directly
-            auto [nativeFunc, funcIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
-            nativeFunc->function = setterFunc;
-
-            Value setterValue = makeNativeFuncValue(static_cast<uint32_t>(funcIndex));
-
-            // Add directly to table without going through globals
-            table->fields[setterMethodName] = vm->trackNewValue(setterValue);
+            // Create native function and add directly to table without going through globals
+            table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
 
             LOG_INFO("ECS Serialization", "Added PositionComponent setter method: " << setterMethodName);
         }
@@ -328,14 +322,8 @@ namespace pg
             return INT_VAL(0);
         };
 
-        // Allocate native function from pool and create Value directly
-        auto [genericNativeFunc, genericFuncIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
-        genericNativeFunc->function = genericSetterFunc;
-
-        Value genericSetterValue = makeNativeFuncValue(static_cast<uint32_t>(genericFuncIndex));
-
-        // Add directly to table without going through globals
-        table->fields["set"] = vm->trackNewValue(genericSetterValue);
+        // Create native function and add directly to table without going through globals
+        table->fields["set"] = vm->createNativeFunction(genericSetterFunc);
 
         LOG_INFO("ECS Serialization", "Added generic set() method");
     }

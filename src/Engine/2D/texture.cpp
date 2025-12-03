@@ -380,14 +380,8 @@ namespace pg
                 };
             }
 
-            // Allocate native function from pool and create Value directly
-            auto [nativeFunc, funcIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
-            nativeFunc->function = setterFunc;
-
-            Value setterValue = makeNativeFuncValue(static_cast<uint32_t>(funcIndex));
-
-            // Add directly to table without going through globals
-            table->fields[setterMethodName] = vm->trackNewValue(setterValue);
+            // Create native function and add directly to table without going through globals
+            table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
 
             LOG_INFO("ECS Serialization", "Added Texture2DComponent setter method: " << setterMethodName);
         }
@@ -415,14 +409,8 @@ namespace pg
             return INT_VAL(0);
         };
 
-        // Allocate native function from pool and create Value directly
-        auto [overlappingColorNativeFunc, overlappingColorFuncIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
-        overlappingColorNativeFunc->function = overlappingColorSetterFunc;
-
-        Value overlappingColorSetterValue = makeNativeFuncValue(static_cast<uint32_t>(overlappingColorFuncIndex));
-
-        // Add directly to table without going through globals
-        table->fields["setOverlappingColor"] = vm->trackNewValue(overlappingColorSetterValue);
+        // Create native function and add directly to table without going through globals
+        table->fields["setOverlappingColor"] = vm->createNativeFunction(overlappingColorSetterFunc);
 
         LOG_INFO("ECS Serialization", "Added Texture2DComponent setter method: setOverlappingColor");
     }
