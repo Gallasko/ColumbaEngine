@@ -48,6 +48,7 @@ namespace
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
 #include "2D/texturemodule.h"
+#include "Files/filemodule.h"
 
 namespace pg
 {
@@ -504,6 +505,7 @@ namespace pg
         vm.addNativeModule("math", MathModule{});
         vm.addNativeModule("algorithm", AlgorithmModule{});
         vm.addNativeModule("string", StringModule{});
+        vm.addNativeModule("file", FileModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
         vm.addNativeModule("texture", TextureModule{this});
 
