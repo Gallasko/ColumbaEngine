@@ -2602,18 +2602,59 @@ namespace pg
     void op_get_index(VM* vm)
     {
         Value index = vm->pop();
-        Value instance = vm->pop();
+        Value target = vm->pop();
 
-        if (!IS_INSTANCE(instance))
+        // Handle string indexing
+        if (IS_STRING(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(target);
+                vm->runtimeError("String index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ElementType* strObj = vm->asString(target);
+            std::string str = strObj->toString();
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(str.length()) + idx;
+            }
+
+            if (idx < 0 || idx >= static_cast<int>(str.length()))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(target);
+                vm->runtimeError("String index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            vm->releaseAndDelete(index);
+            vm->releaseAndDelete(target);
+
+            // Return single character as a string
+            std::string charStr(1, str[idx]);
+            vm->push(vm->createString(charStr));
+            return;
+        }
+
+        // Handle table/instance indexing
+        if (!IS_INSTANCE(target))
         {
             vm->releaseAndDelete(index);
-            vm->releaseAndDelete(instance);
-            vm->runtimeError("Can only index tables/instances");
+            vm->releaseAndDelete(target);
+            vm->runtimeError("Can only index strings or tables/instances");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        ObjInstance* inst = vm->asInstance(instance);
+        ObjInstance* inst = vm->asInstance(target);
 
         // Convert index to string key
         std::string key;
@@ -2628,14 +2669,14 @@ namespace pg
         else
         {
             vm->releaseAndDelete(index);
-            vm->releaseAndDelete(instance);
+            vm->releaseAndDelete(target);
             vm->runtimeError("Index must be integer or string");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
         vm->releaseAndDelete(index);
-        vm->releaseAndDelete(instance);
+        vm->releaseAndDelete(target);
 
         // Look up in fields map
         auto it = inst->fields.find(key);
@@ -2653,50 +2694,129 @@ namespace pg
     {
         Value value = vm->pop();
         Value index = vm->pop();
-        Value instance = vm->peek(0); // Keep instance on stack
+        Value target = vm->peek(0); // Keep target on stack
 
-        if (!IS_INSTANCE(instance))
+        if (!IS_INSTANCE(target) && !IS_STRING(target))
         {
             vm->releaseAndDelete(value);
             vm->releaseAndDelete(index);
-            vm->runtimeError("Can only index tables/instances");
+            vm->runtimeError("Can only index tables/instances/strings");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        ObjInstance* inst = vm->asInstance(instance);
+        // Handle instance/table indexing (most common case)
+        if (IS_INSTANCE(target))
+        {
+            ObjInstance* inst = vm->asInstance(target);
 
-        // Convert index to string key
-        std::string key;
-        if (IS_INT(index))
-        {
-            key = std::to_string(AS_INT(index));
-        }
-        else if (IS_STRING(index))
-        {
-            key = vm->asString(index)->toString();
-        }
-        else
-        {
-            vm->releaseAndDelete(value);
+            // Convert index to string key
+            std::string key;
+            if (IS_INT(index))
+            {
+                key = std::to_string(AS_INT(index));
+            }
+            else if (IS_STRING(index))
+            {
+                key = vm->asString(index)->toString();
+            }
+            else
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Index must be integer or string");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
             vm->releaseAndDelete(index);
-            vm->runtimeError("Index must be integer or string");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            // Release old value if it exists
+            auto it = inst->fields.find(key);
+            if (it != inst->fields.end())
+            {
+                vm->releaseAndDelete(it->second);
+            }
+
+            // Store in fields map
+            inst->fields[key] = vm->retainValue(value);
+            vm->releaseAndDelete(value);  // Release our reference (field now owns it)
             return;
         }
 
-        vm->releaseAndDelete(index);
-
-        // Release old value if it exists
-        auto it = inst->fields.find(key);
-        if (it != inst->fields.end())
+        // Handle string indexing
+        if (IS_STRING(target))
         {
-            vm->releaseAndDelete(it->second);
-        }
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("String index must be integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
 
-        // Store in fields map
-        inst->fields[key] = vm->retainValue(value);
-        vm->releaseAndDelete(value);  // Release our reference (field now owns it)
+            if (!IS_STRING(value))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Can only assign string to string index");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ElementType* strObj = vm->asString(target);
+            std::string str = strObj->toString();
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(str.length()) + idx;
+            }
+
+            // Allow appending at the end (idx == str.length())
+            if (idx < 0 || idx > static_cast<int>(str.length()))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("String index out of range");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ElementType* valueStr = vm->asString(value);
+            std::string valueString = valueStr->toString();
+
+            // Can only set a single character
+            if (valueString.length() != 1)
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Can only assign single character to string index");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            // If appending at the end, append the character
+            if (idx == static_cast<int>(str.length()))
+            {
+                str += valueString[0];
+            }
+            else
+            {
+                // Modify the string at the index
+                str[idx] = valueString[0];
+            }
+
+            // Create a new string with the modified content and replace on stack
+            vm->pop(); // Remove old string
+            vm->push(vm->createString(str));
+
+            vm->releaseAndDelete(value);
+            vm->releaseAndDelete(index);
+            return;
+        }
     }
 
     // ========================================================================
