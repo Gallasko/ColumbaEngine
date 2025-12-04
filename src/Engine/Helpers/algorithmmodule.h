@@ -15,6 +15,7 @@ namespace pg
         {
             // Add utility functions
             addNativeFunction("contain", nativeContain);
+            addNativeFunction("toInt", nativeToInt);
         }
 
     private:
@@ -67,6 +68,28 @@ namespace pg
             {
                 throw std::runtime_error("contain expects first argument to be a table instance or a string");
             }
+        }
+
+        static Value nativeToInt(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("toInt expects exactly 1 arguments (value)");
+            }
+
+            // Convert string to int
+            if (IS_STRING(args[0]))
+            {
+                auto str = vm->asString(args[0])->toString();
+
+                return vm->elementToValue(std::stoi(str));
+            }
+
+            // Default conversion
+            auto value = vm->valueToElement(args[0]);
+            auto intValue = value.get<int>();
+
+            return vm->elementToValue(intValue);
         }
     };
 }
