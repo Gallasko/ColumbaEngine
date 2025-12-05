@@ -556,6 +556,25 @@ TEST_F(ScriptTestBench, TestOops)
 }
 
 // ============================================================================
+// Function and Method Calls with Locals Tests
+// ============================================================================
+
+TEST_F(ScriptTestBench, TestFunctionWithLocals)
+{
+    testScript("testFunctionWithLocals");
+}
+
+TEST_F(ScriptTestBench, TestBoundMethodWithLocals)
+{
+    testScript("testBoundMethodWithLocals");
+}
+
+TEST_F(ScriptTestBench, TestMixedCallsWithLocals)
+{
+    testScript("testMixedCallsWithLocals");
+}
+
+// ============================================================================
 // Loop Tests
 // ============================================================================
 

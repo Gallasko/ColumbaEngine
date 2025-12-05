@@ -1,0 +1,47 @@
+// Test bound method calls with local variables
+// Called from both global and local scopes
+
+class Calculator {
+    init() {
+        this.base = 100;
+    }
+
+    // Method with multiple locals
+    addThree(a, b, c) {
+        var sum = a + b;
+        var result = sum + c;
+        return result + this.base;
+    }
+
+    // Method that calls another method
+    nested(x) {
+        var local1 = 10;
+        var local2 = 20;
+        var result = this.addThree(local1, local2, x);
+        return result + 5;
+    }
+}
+
+// Create instance
+var calc = Calculator();
+
+// Test from global scope
+__dprint(calc.addThree(1, 2, 3));
+__dprint(calc.nested(5));
+
+// Test from local scope (inside a function)
+fun testFromLocal() {
+    var a = 10;
+    var b = 20;
+    var result = calc.addThree(a, b, 5);
+    __dprint(result);
+
+    var nested_result = calc.nested(10);
+    __dprint(nested_result);
+}
+
+testFromLocal();
+
+// Test bound method stored in variable
+var boundMethod = calc.addThree;
+__dprint(boundMethod(7, 8, 9));
