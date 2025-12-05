@@ -47,7 +47,7 @@ namespace pg
 
             auto str = vm->asString(args[0])->toString();
 
-            return vm->elementToValue(str.size());
+            return makeIntValue(str.size());
         }
 
         static Value nativeSplitLines(VM* vm, int argCount, Value* args)

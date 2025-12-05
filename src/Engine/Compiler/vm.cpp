@@ -610,18 +610,12 @@ namespace pg
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
         frame->slots = stack.data() + stack.size() - argCount;
-        // frame->slots = stack.data() + stack.size() - argCount - 1;
 
-        // Point to first argument (skipping the function object at -argCount-1)
-
-        // if (closure->function == FunctionType::TYPE_FUNCTION)
-        // {
-        //     frame->slots = stack.data() + stack.size() - argCount;
-        // }
-        // else
-        // {
-        //     frame->slots = stack.data() + stack.size() - argCount - 1;
-        // }
+        // For regular function calls, the stack layout is:
+        // [...caller...] [function] [arg1] [arg2] ...
+        // slots points to arg1, and the function is at slots-1
+        // When returning, we want to truncate to the function's position (remove function + args + locals)
+        frame->stackBase = frame->slots - 1;
 
         return true;
     }
@@ -646,8 +640,13 @@ namespace pg
 
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
-        // Point to first argument (skipping the function object at -argCount-1)
         frame->slots = stack.data() + stack.size() - argCount - 1;
+
+        // For bound method calls, the stack layout is:
+        // [...caller...] [receiver] ...
+        // slots points to receiver
+        // When returning, we want to truncate to the receiver's position (remove receiver + args + locals)
+        frame->stackBase = frame->slots;
 
         return true;
     }
@@ -1211,12 +1210,28 @@ namespace pg
             return;
         }
 
+        Value newValue = vm->peek(0);
         Value oldValue = vm->currentFrame->slots[slot];
-        // Escape analysis: Only release old value if it's a heap object
+
+        // Retain the new value if it's a heap object (slot now owns a reference)
+        if (requiresRefCount(newValue)) {
+            vm->currentFrame->slots[slot] = vm->retainValue(newValue);
+        } else {
+            vm->currentFrame->slots[slot] = newValue;
+        }
+
+        // Release old value if it's a heap object (after assignment to avoid use-after-free if old == new)
         if (requiresRefCount(oldValue)) {
             vm->releaseAndDelete(oldValue);
         }
-        vm->currentFrame->slots[slot] = vm->peek(0);
+
+        // Value oldValue = vm->currentFrame->slots[slot];
+        // // Escape analysis: Only release old value if it's a heap object
+        // if (requiresRefCount(oldValue)) {
+        //     vm->releaseAndDelete(oldValue);
+        // }
+
+        // vm->currentFrame->slots[slot] = vm->peek(0);
     }
 
     void op_long_jump_if_false(VM* vm)
@@ -1256,6 +1271,10 @@ namespace pg
         }
 #endif
         auto value = vm->pop();
+
+        // Save callee's stackBase (where caller's stack ended) before we dec frame count
+        Value* calleeStackBase = vm->currentFrame->stackBase;
+
         vm->closeUpvalues(vm->currentFrame->slots);
         vm->frameCount--;
 
@@ -1271,23 +1290,19 @@ namespace pg
             return;
         }
 
-        // Pop arguments based on function arity, then pop the callee
-        int arity = vm->currentFrame->closure->function->arity;
-
         // Restore previous frame
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache();
 
-        // Pop the arguments
-        for (int i = 0; i < arity; i++)
+        // Truncate stack to the callee's stackBase position
+        // This removes the function/receiver + args + locals
+        size_t stackTruncatePosition = calleeStackBase - vm->stack.data();
+
+        while (vm->stack.size() > stackTruncatePosition)
         {
             auto v = vm->pop();
             vm->releaseAndDelete(v);
         }
-
-        // Pop the callee (closure for regular calls, instance for bound methods)
-        auto callee = vm->pop();
-        vm->releaseAndDelete(callee);
 
         vm->push(value);
     }
@@ -1455,17 +1470,7 @@ namespace pg
             return;
         }
 
-        // // Remove the function object from the stack by shifting arguments up
-        // for (int i = argCount - 1; i >= 0; i--)
-        // {
-        //     vm->stack[vm->stack.size() - argCount - 1 + i] = vm->stack[vm->stack.size() - argCount + i];
-        // }
-
-        // vm->stack.pop(); // Remove the duplicate top element
-
-        // // Update the frame slots to point to the shifted arguments
-        // vm->frames[vm->frameCount - 1].slots = vm->stack.data() + vm->stack.size() - argCount;
-
+        // Function has been called, frame is set up with stackBase pointing to where to truncate on return
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache(); // Update cached chunk data for new frame
     }
@@ -2400,7 +2405,9 @@ namespace pg
         }
 
         // String doesn't exist, create new one
-        auto [ptr, index] = pools.stringPool.allocateWithIndex(element);
+        // IMPORTANT: Always store as STRING type, not whatever type the input ElementType had
+        ElementType stringElement(stringContent);
+        auto [ptr, index] = pools.stringPool.allocateWithIndex(stringElement);
         Value val = makeStringValue(static_cast<uint32_t>(index));
 
         // Add to intern map for future reuse

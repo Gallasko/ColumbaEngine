@@ -81,6 +81,7 @@ namespace pg
         Closure *closure;
         uint8_t *ip;
         Value *slots;
+        Value *stackBase;  // Where the caller's stack ends (position to truncate to on return)
     };
 
     // Value creation functions are now in value_nanbox.h

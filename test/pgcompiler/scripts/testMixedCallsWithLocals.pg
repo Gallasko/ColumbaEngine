@@ -1,0 +1,50 @@
+// Test mixing regular function and bound method calls with locals
+
+// Regular function
+fun add(a, b) {
+    var sum = a + b;
+    return sum;
+}
+
+// Class with methods
+class Counter {
+    init(start) {
+        this.value = start;
+    }
+
+    increment(amount) {
+        var oldValue = this.value;
+        this.value = this.value + amount;
+        return oldValue;
+    }
+
+    getSum(x, y) {
+        var localSum = add(x, y);
+        return localSum + this.value;
+    }
+}
+
+// Create instance
+var counter = Counter(50);
+
+// Test mixing calls from global scope
+__dprint(add(10, 20));
+__dprint(counter.increment(5));
+__dprint(counter.getSum(10, 15));
+
+// Test from local scope (nested function)
+fun testNested() {
+    var local1 = 100;
+    var local2 = 200;
+
+    var sum = add(local1, local2);
+    __dprint(sum);
+
+    var oldVal = counter.increment(10);
+    __dprint(oldVal);
+
+    var total = counter.getSum(local1, local2);
+    __dprint(total);
+}
+
+testNested();
