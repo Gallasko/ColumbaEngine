@@ -82,7 +82,17 @@ namespace pg
             {
                 auto str = vm->asString(args[0])->toString();
 
-                return vm->elementToValue(std::stoi(str));
+                int res = 0;
+                try
+                {
+                    res = std::stoi(str);
+                }
+                catch (const std::exception&)
+                {
+                    throw std::runtime_error("toInt could convert the string " + str + "to an integer");
+                }
+
+                return vm->elementToValue(res);
             }
 
             // Default conversion
