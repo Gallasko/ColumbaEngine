@@ -81,7 +81,7 @@ namespace pg
     enum ValueTagExt : uint8_t {
         TAG_INSTANCE      = 0,  // Index into instance pool
         TAG_BOUND_METHOD  = 1,  // Index into bound method pool
-        TAG_RESERVED_2    = 2,  // Reserved for future use
+        TAG_VECTOR        = 2,  // Index into vector pool
         TAG_RESERVED_3    = 3,  // Reserved for future use
         TAG_RESERVED_4    = 4,  // Reserved for future use
         TAG_RESERVED_5    = 5,  // Reserved for future use
@@ -181,6 +181,10 @@ namespace pg
 
     inline bool IS_BOUND_METHOD(Value v) {
         return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_BOUND_METHOD;
+    }
+
+    inline bool IS_VECTOR(Value v) {
+        return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_VECTOR;
     }
 
     // Legacy compatibility (for transition period)
@@ -287,6 +291,14 @@ namespace pg
                static_cast<uint64_t>(index);
     }
 
+    /**
+     * Create a vector value (pool index) - uses negative tag
+     */
+    inline Value makeVectorValue(uint32_t index) {
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_VECTOR) << TAG_SHIFT) |
+               static_cast<uint64_t>(index);
+    }
+
     // Legacy compatibility
     inline Value makeObjValue(uint32_t index) {
         return makeStringValue(index);
@@ -385,6 +397,13 @@ namespace pg
      * Extract pool index for bound method
      */
     inline uint32_t AS_BOUND_METHOD_INDEX(Value v) {
+        return GET_INDEX(v);
+    }
+
+    /**
+     * Extract pool index for vector
+     */
+    inline uint32_t AS_VECTOR_INDEX(Value v) {
         return GET_INDEX(v);
     }
 

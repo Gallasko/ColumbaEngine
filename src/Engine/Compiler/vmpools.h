@@ -66,6 +66,9 @@ namespace pg
         /** Pool for bound method objects */
         AllocatorPool<ObjBoundMethod, 32> boundMethodPool;
 
+        /** Pool for vector objects */
+        AllocatorPool<ObjVector, 32> vectorPool;
+
         // ====================================================================
         // Reference Count Vectors
         // ====================================================================
@@ -93,6 +96,9 @@ namespace pg
 
         /** Reference counts for bound method pool */
         std::vector<uint32_t> boundMethodRefCounts;
+
+        /** Reference counts for vector pool */
+        std::vector<uint32_t> vectorRefCounts;
 
         // ====================================================================
         // Max Constant Indices - values at or below these indices are constants
@@ -122,6 +128,9 @@ namespace pg
 
         /** Max constant index for bound method pool */
         uint32_t maxConstantBoundMethodIndex = 0;
+
+        /** Max constant index for vector pool */
+        uint32_t maxConstantVectorIndex = 0;
 
         // ====================================================================
         // Public API
@@ -155,6 +164,7 @@ namespace pg
             nativeFuncPool.reserve(functionCount);
             instancePool.reserve(instanceCount);
             boundMethodPool.reserve(instanceCount);
+            vectorPool.reserve(instanceCount);
 
             // Reserve refcount vectors
             stringRefCounts.reserve(stringCount);
@@ -165,6 +175,7 @@ namespace pg
             nativeFuncRefCounts.reserve(functionCount);
             instanceRefCounts.reserve(instanceCount);
             boundMethodRefCounts.reserve(instanceCount);
+            vectorRefCounts.reserve(instanceCount);
         }
 
         /**
@@ -186,6 +197,7 @@ namespace pg
             maxConstantNativeFuncIndex = nativeFuncPool.getNbElements() > 0 ? nativeFuncPool.getNbElements() - 1 : 0;
             maxConstantInstanceIndex = instancePool.getNbElements() > 0 ? instancePool.getNbElements() - 1 : 0;
             maxConstantBoundMethodIndex = boundMethodPool.getNbElements() > 0 ? boundMethodPool.getNbElements() - 1 : 0;
+            maxConstantVectorIndex = vectorPool.getNbElements() > 0 ? vectorPool.getNbElements() - 1 : 0;
         }
 
         /**
@@ -212,6 +224,8 @@ namespace pg
                 return AS_INSTANCE_INDEX(v) <= maxConstantInstanceIndex;
             } else if (IS_BOUND_METHOD(v)) {
                 return AS_BOUND_METHOD_INDEX(v) <= maxConstantBoundMethodIndex;
+            } else if (IS_VECTOR(v)) {
+                return AS_VECTOR_INDEX(v) <= maxConstantVectorIndex;
             }
             return false;
         }
@@ -232,6 +246,7 @@ namespace pg
             if (IS_NAT_FUNC(v)) return nativeFuncRefCounts;
             if (IS_INSTANCE(v)) return instanceRefCounts;
             if (IS_BOUND_METHOD(v)) return boundMethodRefCounts;
+            if (IS_VECTOR(v)) return vectorRefCounts;
 
             throw std::runtime_error("Invalid value type for refcount");
         }
@@ -318,6 +333,14 @@ namespace pg
             return boundMethodPool.getElement(AS_BOUND_METHOD_INDEX(v));
         }
 
+        /**
+         * @brief Get vector object from pool
+         */
+        inline ObjVector* getVector(Value v)
+        {
+            return vectorPool.getElement(AS_VECTOR_INDEX(v));
+        }
+
         // ====================================================================
         // Generic Template Access (for advanced usage)
         // ====================================================================
@@ -353,6 +376,8 @@ namespace pg
                 instancePool.release(getInstance(v));
             } else if (IS_BOUND_METHOD(v)) {
                 boundMethodPool.release(getBoundMethod(v));
+            } else if (IS_VECTOR(v)) {
+                vectorPool.release(getVector(v));
             }
         }
 
@@ -374,6 +399,7 @@ namespace pg
             LOG_INFO("VMPools", "NativeFuncs:  " << nativeFuncPool.getNbElements() << " / " << nativeFuncPool.getSize());
             LOG_INFO("VMPools", "Instances:    " << instancePool.getNbElements() << " / " << instancePool.getSize());
             LOG_INFO("VMPools", "BoundMethods: " << boundMethodPool.getNbElements() << " / " << boundMethodPool.getSize());
+            LOG_INFO("VMPools", "Vectors:      " << vectorPool.getNbElements() << " / " << vectorPool.getSize());
         }
     };
 
@@ -427,5 +453,11 @@ namespace pg
     inline ObjBoundMethod* VMPools::getPoolObject<ObjBoundMethod>(Value v)
     {
         return getBoundMethod(v);
+    }
+
+    template<>
+    inline ObjVector* VMPools::getPoolObject<ObjVector>(Value v)
+    {
+        return getVector(v);
     }
 }

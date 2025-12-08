@@ -84,6 +84,7 @@ namespace pg
         OP_SubtractCL, // SUBTRACT optimized for constant and local
 
         // Table operations
+        OP_Build_Vector,  // Create vector instance from stack key-value pairs
         OP_Build_Table,   // Create table instance from stack key-value pairs
         OP_Get_Index,     // table[index] - get field by computed key
         OP_Set_Index,     // table[index] = val - set field by computed key
@@ -327,6 +328,7 @@ namespace pg
             case OpCode::OP_Class:
                 return 2; // opcode + 1 byte operand (constant index for class name)
 
+            case OpCode::OP_Build_Vector:
             case OpCode::OP_Build_Table:
                 return 2; // opcode + 1 byte operand (pair count)
 
