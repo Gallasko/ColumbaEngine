@@ -357,6 +357,7 @@ namespace pg
         inline NativeFunction* asNativeFunc(Value v)  { return pools.getNativeFunc(v); }
         inline ObjInstance* asInstance(Value v)       { return pools.getInstance(v); }
         inline ObjBoundMethod* asBoundMethod(Value v) { return pools.getBoundMethod(v); }
+        inline ObjVector* asVector(Value v)           { return pools.getVector(v); }
 
         // Create new heap objects and return tracked Values
         Value createString(const ElementType& element);
@@ -366,6 +367,7 @@ namespace pg
         Value createClass(const std::string& name);
         Value createInstance(Klass* klass);
         Value createBoundMethod(const Value& receiver, Closure* method);
+        Value createVector();
 
         // Convert between Value and ElementType
         Value elementToValue(const ElementType& element);

@@ -1,0 +1,72 @@
+import "file"
+import "string"
+import "algorithm"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day1/"
+
+var files = ["part1Small", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "loopAtZero", "full"]
+
+var res = 0
+
+fun getLineValue(line)
+{
+  var size = strlen(line)
+
+  var val = "0"
+
+  if (size > 2)
+  {
+    // We only need the last two values to avoid a modulo
+    val = line[-2] + line[-1]
+  }
+  else if (size == 2)
+  {
+    val = line[-1]
+  }
+
+  return toInt(val)
+}
+
+for (var file : files)
+{
+  // Todo make the readFile function also look up the script dir
+  var data = readFile(path + file)
+
+  var lines = splitLines(data)
+
+  var clockHand = 50
+
+  res = 0
+
+  for (var line : lines)
+  {
+    var dir = line[0]
+
+    var v = getLineValue(line)
+
+    if (dir == "L")
+    {
+      clockHand -= v
+    }
+    else
+    {
+      clockHand += v
+    }
+
+    if (clockHand < 0)
+    {
+      clockHand = 100 + clockHand
+    }
+    else if (clockHand > 99)
+    {
+      clockHand -= 100
+    }
+
+    if (clockHand == 0 and v != 0)
+    {
+      res++;
+    }
+  }
+
+  __dprint(res)
+}

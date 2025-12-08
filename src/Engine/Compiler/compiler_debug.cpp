@@ -444,6 +444,9 @@ namespace pg
             case OpCode::OP_SubtractCL:
                 return twoBytesInstruction("OP_SubtractCL", chunk, offset);
 
+            case OpCode::OP_Build_Vector:
+                return byteInstruction("OP_Build_Vector", chunk, offset);
+
             case OpCode::OP_Build_Table:
                 return byteInstruction("OP_Build_Table", chunk, offset);
 
