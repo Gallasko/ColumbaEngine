@@ -124,6 +124,7 @@ namespace pg
     void op_subtract_cl(VM* vm);
 
     // Table operations
+    void op_build_vector(VM* vm);
     void op_build_table(VM* vm);
     void op_get_index(VM* vm);
     void op_set_index(VM* vm);

@@ -28,7 +28,7 @@
 // #define DEBUG_PRINT_TOKENS
 
 // Flag to print compiled bytecode
-// #define DEBUG_PRINT_CODE
+#define DEBUG_PRINT_CODE
 #endif
 
 namespace pg
@@ -122,6 +122,13 @@ namespace pg
 
         Value receiver;
         Closure* method;
+    };
+
+    struct ObjVector
+    {
+        ObjVector() {}
+
+        std::vector<Value> fields;
     };
 
     // Note: elementToValue, valueToElement, copyValue, getValueAsInt are now VM member functions

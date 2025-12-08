@@ -89,9 +89,7 @@ namespace pg
                 if (c == '\n')
                 {
                     // Store the current line
-                    Value lineValue = vm->createString(line);
-                    table->fields[std::to_string(lineIndex)] = vm->retainValue(lineValue);
-                    vm->releaseAndDelete(lineValue);
+                    table->fields[std::to_string(lineIndex)] = vm->createString(line);
                     lineIndex++;
                     line.clear();
                 }
@@ -104,9 +102,7 @@ namespace pg
                         i++;
                     }
                     // Store the current line
-                    Value lineValue = vm->createString(line);
-                    table->fields[std::to_string(lineIndex)] = vm->retainValue(lineValue);
-                    vm->releaseAndDelete(lineValue);
+                    table->fields[std::to_string(lineIndex)] = vm->createString(line);
                     lineIndex++;
                     line.clear();
                 }
@@ -119,9 +115,7 @@ namespace pg
             // Don't forget the last line if the string doesn't end with a newline
             if (!line.empty() || (str.length() > 0 && (str.back() == '\n' || str.back() == '\r')))
             {
-                Value lineValue = vm->createString(line);
-                table->fields[std::to_string(lineIndex)] = vm->retainValue(lineValue);
-                vm->releaseAndDelete(lineValue);
+                table->fields[std::to_string(lineIndex)] = vm->createString(line);
             }
 
             return tableValue;
