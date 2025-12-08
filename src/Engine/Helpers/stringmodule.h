@@ -17,6 +17,7 @@ namespace pg
             // Add utility functions
             addNativeFunction("toString", nativeToString);
             addNativeFunction("strlen", nativeStrlen);
+            addNativeFunction("split", nativeSplit);
             addNativeFunction("splitLines", nativeSplitLines);
         }
 
@@ -50,6 +51,53 @@ namespace pg
             return makeIntValue(str.size());
         }
 
+        static Value nativeSplit(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 2)
+            {
+                throw std::runtime_error("split expects exactly 2 arguments (string, delimiter)");
+            }
+
+            if (not IS_STRING(args[0]))
+            {
+                throw std::runtime_error("split expects a string as the first argument");
+            }
+
+            if (not IS_STRING(args[1]))
+            {
+                throw std::runtime_error("split expects a string as the second argument");
+            }
+
+            auto str = vm->asString(args[0])->toString();
+            auto delim = vm->asString(args[1])->toString();
+
+            // Create a vector to hold the parts
+            Value vectorValue = vm->createVector();
+            ObjVector* vector = vm->asVector(vectorValue);
+
+            // Handle empty delimiter case
+            if (delim.empty())
+            {
+                throw std::runtime_error("split delimiter cannot be empty");
+            }
+
+            // Split the string by delimiter
+            size_t start = 0;
+            size_t end = str.find(delim);
+
+            while (end != std::string::npos)
+            {
+                vector->fields.push_back(vm->retainValue(vm->createString(str.substr(start, end - start))));
+                start = end + delim.length();
+                end = str.find(delim, start);
+            }
+
+            // Add the last part (or the whole string if delimiter not found)
+            vector->fields.push_back(vm->retainValue(vm->createString(str.substr(start))));
+
+            return vectorValue;
+        }
+
         static Value nativeSplitLines(VM* vm, int argCount, Value* args)
         {
             if (argCount != 1)
@@ -57,7 +105,7 @@ namespace pg
                 throw std::runtime_error("splitLines expects exactly 1 argument (string)");
             }
 
-            if (!IS_STRING(args[0]))
+            if (not IS_STRING(args[0]))
             {
                 throw std::runtime_error("splitLines expects a string as the argument");
             }
