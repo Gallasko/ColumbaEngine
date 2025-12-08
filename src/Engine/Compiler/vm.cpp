@@ -2717,6 +2717,44 @@ namespace pg
         Value index = vm->pop();
         Value target = vm->pop();
 
+        // Handle vector indexing
+        if (IS_VECTOR(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(target);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ObjVector* vec = vm->asVector(target);
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(vec->fields.size()) + idx;
+            }
+
+            if (idx < 0 || idx >= static_cast<int>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(target);
+                vm->runtimeError("Vector index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            vm->releaseAndDelete(index);
+            vm->releaseAndDelete(target);
+
+            // Return the value at the index
+            vm->push(vm->retainValue(vec->fields[idx]));
+            return;
+        }
+
         // Handle string indexing
         if (IS_STRING(target))
         {
@@ -2762,7 +2800,7 @@ namespace pg
         {
             vm->releaseAndDelete(index);
             vm->releaseAndDelete(target);
-            vm->runtimeError("Can only index strings or tables/instances");
+            vm->runtimeError("Can only index vectors, strings, or tables/instances");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
@@ -2809,12 +2847,62 @@ namespace pg
         Value index = vm->pop();
         Value target = vm->peek(0); // Keep target on stack
 
-        if (!IS_INSTANCE(target) && !IS_STRING(target))
+        if (!IS_INSTANCE(target) && !IS_STRING(target) && !IS_VECTOR(target))
         {
             vm->releaseAndDelete(value);
             vm->releaseAndDelete(index);
-            vm->runtimeError("Can only index tables/instances/strings");
+            vm->runtimeError("Can only index vectors, tables/instances, or strings");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        // Handle vector indexing
+        if (IS_VECTOR(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ObjVector* vec = vm->asVector(target);
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(vec->fields.size()) + idx;
+            }
+
+            // Allow setting at the very end to push back
+            if (idx == static_cast<int>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(index);
+                vec->fields.push_back(vm->retainValue(value));
+                vm->releaseAndDelete(value);
+                return;
+            }
+
+            if (idx < 0 || idx > static_cast<int>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Vector index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            vm->releaseAndDelete(index);
+
+            // Release old value at this index
+            vm->releaseAndDelete(vec->fields[idx]);
+
+            // Store new value
+            vec->fields[idx] = vm->retainValue(value);
+            vm->releaseAndDelete(value);  // Release our reference (vector now owns it)
             return;
         }
 
