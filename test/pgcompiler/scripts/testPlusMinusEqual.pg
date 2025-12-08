@@ -1,0 +1,39 @@
+// Test += and -= operators
+
+// Test with global variables
+var globalVar = 10;
+__dprint(globalVar);          // 10
+
+globalVar += 5;
+__dprint(globalVar);          // 15
+
+globalVar -= 3;
+__dprint(globalVar);          // 12
+
+// Test with local variables
+fun testLocal() {
+    var localVar = 100;
+    __dprint(localVar);       // 100
+
+    localVar += 25;
+    __dprint(localVar);       // 125
+
+    localVar -= 50;
+    __dprint(localVar);       // 75
+}
+
+testLocal();
+
+// Test with expressions
+var x = 5;
+x += 2 * 3;
+__dprint(x);                  // 11
+
+x -= 1 + 1;
+__dprint(x);                  // 9
+
+// Test chaining (result of += is the new value)
+var y = 20;
+y += 10;
+y -= 5;
+__dprint(y);                  // 25
