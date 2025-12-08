@@ -366,6 +366,11 @@ TEST_F(ScriptTestBench, PostfixDecrement)
     testScript("postfix_decrement");
 }
 
+TEST_F(ScriptTestBench, PlusMinusEqual)
+{
+    testScript("testPlusMinusEqual");
+}
+
 // ============================================================================
 // Control Flow
 // ============================================================================

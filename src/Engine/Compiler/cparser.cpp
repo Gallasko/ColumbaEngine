@@ -151,6 +151,26 @@ namespace pg
                 parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Set_Global);
             }
+            else if (canAssign and parser.match(TokenType::PLUSEQUAL))
+            {
+                // var += expr => var = var + expr
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Get_Global);  // Get current value
+                parser.expression();                       // Evaluate right side
+                parser.writeByte(OpCode::OP_Add);          // Add them
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Set_Global);  // Store result
+            }
+            else if (canAssign and parser.match(TokenType::MINUSEQUAL))
+            {
+                // var -= expr => var = var - expr
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Get_Global);  // Get current value
+                parser.expression();                       // Evaluate right side
+                parser.writeByte(OpCode::OP_Subtract);     // Subtract
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Set_Global);  // Store result
+            }
             else if (parser.match(TokenType::INCREMENT))
             {
                 // Postfix increment: var++
@@ -182,6 +202,26 @@ namespace pg
             parser.expression();
             parser.writeByte(setOp);
             parser.writeByte(static_cast<uint8_t>(arg));
+        }
+        else if (canAssign and parser.match(TokenType::PLUSEQUAL))
+        {
+            // var += expr => var = var + expr
+            parser.writeByte(getOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Get current value
+            parser.expression();                           // Evaluate right side
+            parser.writeByte(OpCode::OP_Add);              // Add them
+            parser.writeByte(setOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Store result
+        }
+        else if (canAssign and parser.match(TokenType::MINUSEQUAL))
+        {
+            // var -= expr => var = var - expr
+            parser.writeByte(getOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Get current value
+            parser.expression();                           // Evaluate right side
+            parser.writeByte(OpCode::OP_Subtract);         // Subtract
+            parser.writeByte(setOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Store result
         }
         else if (parser.match(TokenType::INCREMENT))
         {
@@ -479,6 +519,8 @@ namespace pg
             parser.writeByte(OpCode::OP_Get_Property);
             parser.writeByte(constantIndex);
         }
+        // TODO: Add support for obj.prop += expr and obj.prop -= expr
+        // This requires either a DUP opcode or re-evaluating the left side
     }
 
     void this_(CParser& parser, bool)
