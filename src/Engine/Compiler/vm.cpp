@@ -54,7 +54,7 @@ namespace pg
         }
 
         if (IS_CLOSURE(val) || IS_FUNC(val) || IS_NAT_FUNC(val) ||
-            IS_CLASS(val) || IS_INSTANCE(val) || IS_BOUND_METHOD(val))
+            IS_CLASS(val) || IS_INSTANCE(val) || IS_BOUND_METHOD(val) || IS_VECTOR(val))
         {
             return true; // Non-null objects are true
         }
@@ -355,6 +355,15 @@ namespace pg
         {
             LOG_ERROR("VM", "Failed to load bytecode from file: " << filename);
             return InterpretResult::COMPILE_ERROR;
+        }
+
+        // Load all native modules that were imported during compilation
+        for (const std::string& moduleName : chunk.importedModules)
+        {
+            if (!loadNativeModule(moduleName))
+            {
+                LOG_WARNING("VM", "Failed to load imported module '" << moduleName << "' from bytecode file");
+            }
         }
 
         // Create function from deserialized chunk
@@ -708,6 +717,18 @@ namespace pg
 
             pools.boundMethodPool.release(boundMethod);
         }
+        else if (IS_VECTOR(value))
+        {
+            auto *vector = asVector(value);
+
+            // Release all elements in the vector
+            for (auto& element : vector->fields)
+            {
+                releaseAndDelete(element);
+            }
+
+            pools.vectorPool.release(vector);
+        }
     }
 
     void VM::releaseAndDelete(const Value& value)
@@ -1056,8 +1077,9 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl);
 
-        // Table operations
+        // Table and vector operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Vector), op_build_vector);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index);
 
@@ -1652,6 +1674,23 @@ namespace pg
             else
             {
                 vm->testOutput += "<null closure>\n";
+            }
+
+            vm->releaseAndDelete(value);
+            return;
+        }
+
+        if (IS_VECTOR(value))
+        {
+            ObjVector* vector = vm->asVector(value);
+
+            if (vector != nullptr)
+            {
+                vm->testOutput += "<vector size=" + std::to_string(vector->fields.size()) + ">\n";
+            }
+            else
+            {
+                vm->testOutput += "<null vector>\n";
             }
 
             vm->releaseAndDelete(value);
@@ -2459,6 +2498,13 @@ namespace pg
         return trackNewValue(val);
     }
 
+    Value VM::createVector()
+    {
+        auto [ptr, index] = pools.vectorPool.allocateWithIndex();
+        Value val = makeVectorValue(static_cast<uint32_t>(index));
+        return trackNewValue(val);
+    }
+
     Value VM::elementToValue(const ElementType& element)
     {
         if (element.isBool())
@@ -2605,6 +2651,65 @@ namespace pg
 
         // Push the table instance we created
         vm->push(instanceVal);
+    }
+
+    void op_build_vector(VM* vm)
+    {
+        uint8_t pairCount = *vm->currentFrame->ip++;
+
+        // Create new vector
+        Value vectorVal = vm->createVector();
+        ObjVector* vector = vm->asVector(vectorVal);
+
+        // Pop pairCount key-value pairs from stack (in reverse order)
+        // Stack layout: [value, index, value, index, ...]
+        std::vector<std::pair<int64_t, Value>> pairs;
+        pairs.reserve(pairCount);
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            Value index = vm->pop();
+            Value value = vm->pop();
+
+            // Index must be an integer
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(value);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            int64_t indexInt = AS_INT(index);
+            vm->releaseAndDelete(index);  // We've extracted the int, release the value
+            pairs.push_back({indexInt, value});
+        }
+
+        // Sort pairs by index to ensure correct order
+        std::sort(pairs.begin(), pairs.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        // Insert values in sorted order
+        for (const auto& pair : pairs)
+        {
+            // Ensure vector is large enough
+            while (vector->fields.size() <= static_cast<size_t>(pair.first))
+            {
+                vector->fields.push_back(makeIntValue(0));  // Fill with zeros
+            }
+
+            // Set the element (release old value if overwriting)
+            if (vector->fields[pair.first] != makeIntValue(0))
+            {
+                vm->releaseAndDelete(vector->fields[pair.first]);
+            }
+            vector->fields[pair.first] = vm->retainValue(pair.second);
+            vm->releaseAndDelete(pair.second);  // Release our temporary reference
+        }
+
+        // Push the vector we created
+        vm->push(vectorVal);
     }
 
     void op_get_index(VM* vm)
@@ -2906,12 +3011,25 @@ namespace pg
 
     void op_table_size(VM* vm)
     {
-        // Stack: [table]
+        // Stack: [table or vector]
         Value tableVal = vm->peek(0);
+
+        if (IS_VECTOR(tableVal))
+        {
+            ObjVector* vector = vm->asVector(tableVal);
+
+            // Pop the vector
+            vm->pop();
+            vm->releaseAndDelete(tableVal);
+
+            // Push the size as an integer
+            vm->push(makeIntValue(static_cast<int64_t>(vector->fields.size())));
+            return;
+        }
 
         if (!IS_INSTANCE(tableVal))
         {
-            vm->runtimeError("Can only get size of tables");
+            vm->runtimeError("Can only get size of tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
@@ -2928,15 +3046,53 @@ namespace pg
 
     void op_table_at(VM* vm)
     {
-        // Stack: [table, index]
+        // Stack: [table or vector, index]
         Value indexVal = vm->pop();
         Value tableVal = vm->pop();
 
+        // Handle vector access (direct indexed access, returns value at index)
+        if (IS_VECTOR(tableVal))
+        {
+            if (!IS_INT(indexVal))
+            {
+                vm->releaseAndDelete(indexVal);
+                vm->releaseAndDelete(tableVal);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ObjVector* vector = vm->asVector(tableVal);
+            int64_t index = AS_INT(indexVal);
+
+            // Check bounds
+            if (index < 0 || static_cast<size_t>(index) >= vector->fields.size())
+            {
+                vm->releaseAndDelete(indexVal);
+                vm->releaseAndDelete(tableVal);
+                vm->runtimeError("Vector index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            // Get the value directly
+            Value value = vector->fields[index];
+
+            vm->releaseAndDelete(indexVal);
+            vm->releaseAndDelete(tableVal);
+
+            // For vectors, return the value directly (not the index)
+            // This is different from tables where we return the key
+            vm->push(vm->retainValue(value));
+            return;
+        }
+
+        // Handle table access (returns key at index position in map)
         if (!IS_INSTANCE(tableVal))
         {
             vm->releaseAndDelete(indexVal);
             vm->releaseAndDelete(tableVal);
-            vm->runtimeError("Can only get keys from tables");
+            vm->runtimeError("Can only get keys from tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }

@@ -859,6 +859,10 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                     ${CMAKE_SOURCE_DIR}/test/pgcompiler/scripts $<TARGET_FILE_DIR:test_compiler>/test/pgcompiler/scripts)
 
+        add_custom_command(TARGET test_compiler POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/examples $<TARGET_FILE_DIR:test_compiler>/test/pgcompiler/examples)
+
         # Register compiler tests with CTest
         gtest_discover_tests(test_compiler
             WORKING_DIRECTORY $<TARGET_FILE_DIR:test_compiler>

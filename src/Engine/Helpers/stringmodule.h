@@ -64,22 +64,12 @@ namespace pg
 
             auto str = vm->asString(args[0])->toString();
 
-            // Get the Table class from VM globals
-            auto it = vm->globals.find("__Table");
-            if (it == vm->globals.end())
-            {
-                throw std::runtime_error("Table class not found in VM globals");
-            }
-
-            Klass* tableClass = vm->asClass(it->second);
-
-            // Create a table to hold the lines
-            Value tableValue = vm->createInstance(tableClass);
-            ObjInstance* table = vm->asInstance(tableValue);
+            // Create a vector to hold the lines (preserves order)
+            Value vectorValue = vm->createVector();
+            ObjVector* vector = vm->asVector(vectorValue);
 
             // Split the string by newlines
             std::string line;
-            int lineIndex = 0;
 
             for (size_t i = 0; i < str.length(); ++i)
             {
@@ -89,8 +79,7 @@ namespace pg
                 if (c == '\n')
                 {
                     // Store the current line
-                    table->fields[std::to_string(lineIndex)] = vm->createString(line);
-                    lineIndex++;
+                    vector->fields.push_back(vm->retainValue(vm->createString(line)));
                     line.clear();
                 }
                 else if (c == '\r')
@@ -102,8 +91,7 @@ namespace pg
                         i++;
                     }
                     // Store the current line
-                    table->fields[std::to_string(lineIndex)] = vm->createString(line);
-                    lineIndex++;
+                    vector->fields.push_back(vm->retainValue(vm->createString(line)));
                     line.clear();
                 }
                 else
@@ -115,10 +103,10 @@ namespace pg
             // Don't forget the last line if the string doesn't end with a newline
             if (!line.empty() || (str.length() > 0 && (str.back() == '\n' || str.back() == '\r')))
             {
-                table->fields[std::to_string(lineIndex)] = vm->createString(line);
+                vector->fields.push_back(vm->retainValue(vm->createString(line)));
             }
 
-            return tableValue;
+            return vectorValue;
         }
 
     };
