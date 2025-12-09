@@ -91,7 +91,14 @@ if (keySpace == 1)
         var bulletVelY = -cos(rotation) * bulletSpeed
 
         // Send SpawnBullet event to bullet system
-        sendEvent("SpawnBullet", "x", pos.x, "y", pos.y, "vx", bulletVelX, "vy", bulletVelY, "lifetime", sysData["bulletLifetime"])
+        sendEvent("SpawnBullet",
+            "x", pos.x,
+            "y", pos.y,
+            "playerWidth", pos.width,
+            "playerHeight", pos.height,
+            "vx", bulletVelX,
+            "vy", bulletVelY,
+            "lifetime", sysData["bulletLifetime"])
 
         // Reset fire timer
         sysData["bulletFireTimer"] = sysData["bulletFireRate"]
