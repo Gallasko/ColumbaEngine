@@ -13,9 +13,12 @@
 #include "Interpreter/lexer.h"
 
 #include "Compiler/pass/basic_operator_local_indexing.h"
-#include "example_math_module.h"
 
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
+
+#include "Helpers/mathmodule.h"
+#include "Helpers/randommodule.h"
+#include "Helpers/stringmodule.h"
 
 using namespace pg;
 
@@ -164,7 +167,9 @@ void CompilerApp::runFile(bool needCompile)
         vm.defineNative("log", nativeLogInfo);
 
         // Register native modules
-        // vm.addNativeModule("math", MathModule());
+        vm.addNativeModule("math", MathModule());
+        vm.addNativeModule("random", RandomModule());
+        vm.addNativeModule("string", StringModule());
 
         Lexer lexer;
 
