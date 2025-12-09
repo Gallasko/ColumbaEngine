@@ -11,7 +11,7 @@ var screenHeight = 600
 
 player["PositionComponent"].setX(screenWidth / 2)
 player["PositionComponent"].setY(screenHeight / 2)
-player["PositionComponent"].setRotation(0)  // Facing up
+player["PositionComponent"].setRotation(0.0)  // Visual rotation in degrees, 0 = up
 
 // Store player data in sysData
 sysData["playerId"] = player.__entityId
@@ -19,7 +19,7 @@ sysData["playerId"] = player.__entityId
 // Initialize player physics
 sysData["playerVelX"] = 0.0
 sysData["playerVelY"] = 0.0
-sysData["playerRotation"] = 0.0  // Radians, 0 = up, increases clockwise
+sysData["playerRotation"] = 0.0  // Internal rotation in radians (0 = up, increases clockwise)
 
 // Player physics constants
 sysData["playerRotationSpeed"] = 3.0  // Radians per second
