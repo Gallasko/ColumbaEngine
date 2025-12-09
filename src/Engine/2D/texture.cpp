@@ -319,7 +319,7 @@ namespace pg
         // Get component context
         _unique_id entityId = component->entityId;
 
-        LOG_INFO("ECS Serialization", "Generating setters for Texture2DComponent on entity " << entityId);
+        LOG_MILE("ECS Serialization", "Generating setters for Texture2DComponent on entity " << entityId);
 
         // Define the properties that have setters in Texture2DComponent
         struct PropertySetter {
@@ -382,8 +382,6 @@ namespace pg
 
             // Create native function and add directly to table without going through globals
             table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
-
-            LOG_INFO("ECS Serialization", "Added Texture2DComponent setter method: " << setterMethodName);
         }
 
         // Add special setter for overlappingColor (takes 4 args: r, g, b, ratio)
@@ -411,8 +409,6 @@ namespace pg
 
         // Create native function and add directly to table without going through globals
         table->fields["setOverlappingColor"] = vm->createNativeFunction(overlappingColorSetterFunc);
-
-        LOG_INFO("ECS Serialization", "Added Texture2DComponent setter method: setOverlappingColor");
     }
 
     // Register Texture2DComponent serializer at static initialization time

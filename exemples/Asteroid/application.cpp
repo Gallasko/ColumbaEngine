@@ -27,16 +27,15 @@ StandardSystemImpl* createPlayerSystem()
 
 StandardSystemImpl* createEnemySpawnSystem()
 {
-    return createStandardSystem("EnemySpawnSystem")
+    return createStandardSystem("AsteroidSpawnSystem")
         .onInit([](StandardSystemHandle* sys)
         {
-            LOG_MILE(DOM, "EnemySpawnSystem initialized");
+            LOG_MILE(DOM, "AsteroidSpawnSystem initialized");
 
             sys->setData("spawnTimer", 0.0f);
-            sys->setData("i", 0);
-            sys->setData("moveTime", 0.0f);
+            sys->setData("asteroidCount", 0);
         })
-        .ownComponent("Enemy")
+        .ownComponent("Asteroid")
         .onDelta("res/asteroid/spawn_enemies.pg")
         .build();
 }
