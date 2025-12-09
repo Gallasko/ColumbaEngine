@@ -6,11 +6,12 @@ This directory contains the scripts for the Asteroid game demo.
 
 ### Scripts
 
-1. **init_player.pg** - Initializes the player ship with physics variables and key state tracking
+1. **init_player.pg** - Initializes the player ship with physics variables, key state tracking, and bullet system
 2. **move_player.pg** - Handles key press events (sets key states to 1)
 3. **release_player.pg** - Handles key release events (sets key states to 0)
-4. **update_player.pg** - Updates player physics every frame based on key states (supports multiple simultaneous keys!)
-5. **spawn_enemies.pg** - Spawns and updates asteroids with physics
+4. **update_player.pg** - Updates player physics every frame based on key states and handles bullet firing
+5. **update_bullets.pg** - Manages bullet spawning, movement, and lifetime
+6. **spawn_enemies.pg** - Spawns and updates asteroids with physics
 
 ### spawn_enemies.pg Features
 
@@ -71,7 +72,7 @@ var speed = randomRange(50, 150)
 - **Right Arrow** - Rotate ship clockwise
 - **Up Arrow** - Apply thrust in direction ship is facing
 - **Down Arrow** - Brake (reduce velocity quickly)
-- **Space** - Fire bullet (TODO: not yet implemented)
+- **Space** - Fire bullet (fully implemented!)
 
 **🎮 Multi-Key Support**: You can now hold multiple keys at once! For example:
 - Hold **Left + Up** to rotate left while thrusting
@@ -88,13 +89,41 @@ The player ship uses realistic momentum-based physics:
 
 All player data stored in `sysData`:
 - `playerId` - Entity ID
-- `playerVelX`, `playerVelY` - Current velocity
-- `playerRotation` - Current rotation angle (radians, 0 = up)
-- `playerRotationSpeed` - How fast ship rotates
-- `playerThrustAccel` - Thrust acceleration
-- `playerMaxSpeed` - Speed cap
-- `playerDrag` - Friction coefficient
+- `playerVelX`, `playerVelY` - Current velocity (pixels/second)
+- `playerRotation` - Current rotation angle (radians internally, converted to degrees for display)
+- `playerRotationSpeed` - How fast ship rotates (3.0 radians/second ≈ 172°/second)
+- `playerThrustAccel` - Thrust acceleration (200 pixels/second²)
+- `playerMaxSpeed` - Speed cap (300 pixels/second)
+- `playerDrag` - Friction coefficient (0.99)
 - `keyLeft`, `keyRight`, `keyUp`, `keyDown`, `keySpace` - Key states (0 or 1)
+
+**Note on Rotation**:
+- Physics calculations use **radians** (for sin/cos in thrust direction)
+- Visual display uses **degrees** (converted automatically in update_player.pg)
+
+## Bullet System
+
+### Bullet Properties:
+- **Fire Rate**: 0.15 seconds between shots (prevents bullet spam)
+- **Speed**: 400 pixels/second (faster than player max speed)
+- **Lifetime**: 1.5 seconds before auto-removal
+- **Size**: 5x5 pixels (small projectile)
+- **Behavior**: Travels in straight line, no screen wrapping
+
+### How It Works:
+1. Player presses Space → Fire cooldown checked
+2. If cooldown ready → Bullet spawn data stored in sysData
+3. Bullet system spawns entity and applies velocity
+4. Bullet moves each frame until lifetime expires or goes off-screen
+5. Bullet automatically removed to prevent memory leaks
+
+All bullet data stored in `sysData`:
+- `bulletCount` - Total bullets fired (index counter)
+- `bullet[N]` - Entity ID of active bullet
+- `bullet[N]_x`, `bullet[N]_y` - Spawn position
+- `bullet[N]_vx`, `bullet[N]_vy` - Velocity
+- `bullet[N]_lifetime` - Remaining lifetime
+- `bullet[N]_spawn` - Flag to trigger spawning (1 = spawn, 0 = spawned)
 
 ## Next Steps for Full Game
 
@@ -105,7 +134,7 @@ All player data stored in `sysData`:
 4. ✅ Player ship rotation (left/right arrows)
 5. ✅ Player ship thrust (up arrow)
 6. ✅ Player velocity/momentum
-7. ⬜ Shooting bullets (spacebar)
+7. ✅ Shooting bullets (spacebar with fire rate limiting)
 8. ⬜ Collision detection (bullets vs asteroids, player vs asteroids)
 9. ⬜ Asteroid splitting (large → 2 medium → 2 small)
 10. ⬜ Score tracking

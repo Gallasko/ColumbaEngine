@@ -34,4 +34,11 @@ sysData["keyUp"] = 0
 sysData["keyDown"] = 0
 sysData["keySpace"] = 0
 
+// Bullet system
+sysData["bulletCount"] = 0
+sysData["bulletFireRate"] = 0.15      // Seconds between shots
+sysData["bulletFireTimer"] = 0.0      // Cooldown timer
+sysData["bulletSpeed"] = 400.0        // Pixels per second
+sysData["bulletLifetime"] = 1.5       // Seconds before bullet disappears
+
 logInfo("Player ship initialized at center")

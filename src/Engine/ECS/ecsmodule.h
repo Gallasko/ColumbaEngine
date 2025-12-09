@@ -336,6 +336,65 @@ namespace pg
                 return serializeEntityToTable(vm, ecsRefCopy, entity);
             });
 
+            addNativeFunction("sendEvent", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount < 1)
+                {
+                    throw std::runtime_error("sendEvent expects at least 1 argument (event name)");
+                }
+
+                if (!IS_STRING(args[0]))
+                {
+                    throw std::runtime_error("sendEvent expects first argument to be a string (event name)");
+                }
+
+                auto eventName = vm->asString(args[0])->toString();
+                StandardEvent event(eventName);
+
+                // Process remaining arguments as key-value pairs
+                for (int i = 1; i < argCount; i += 2)
+                {
+                    if (i + 1 >= argCount)
+                    {
+                        throw std::runtime_error("sendEvent expects key-value pairs after event name");
+                    }
+
+                    if (!IS_STRING(args[i]))
+                    {
+                        throw std::runtime_error("sendEvent expects string keys");
+                    }
+
+                    auto key = vm->asString(args[i])->toString();
+                    auto value = args[i + 1];
+
+                    // Convert Value to ElementType
+                    if (IS_INT(value))
+                    {
+                        event.values[key] = ElementType{static_cast<int>(AS_INT(value))};
+                    }
+                    else if (IS_DOUBLE(value))
+                    {
+                        event.values[key] = ElementType{AS_DOUBLE(value)};
+                    }
+                    else if (IS_STRING(value))
+                    {
+                        event.values[key] = ElementType{vm->asString(value)->toString()};
+                    }
+                    else if (IS_BOOL(value))
+                    {
+                        event.values[key] = ElementType{AS_BOOL(value)};
+                    }
+                    else
+                    {
+                        throw std::runtime_error("sendEvent: unsupported value type for key " + key);
+                    }
+                }
+
+                LOG_INFO("Ecs Compiled Module", "Sending event: " << eventName);
+                ecsRefCopy->sendEvent(event);
+
+                return makeIntValue(0);
+            });
+
         }
     };
 

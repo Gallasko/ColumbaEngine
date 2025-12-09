@@ -41,6 +41,21 @@ StandardSystemImpl* createEnemySpawnSystem()
         .build();
 }
 
+StandardSystemImpl* createBulletSystem()
+{
+    return createStandardSystem("BulletSystem")
+        .onInit([](StandardSystemHandle* sys)
+        {
+            LOG_MILE(DOM, "BulletSystem initialized");
+
+            sys->setData("bulletCount", 0);
+        })
+        .ownComponent("Bullet")
+        .onEvent("SpawnBullet", "res/asteroid/spawn_bullet.pg")
+        .onDelta("res/asteroid/update_bullets.pg")
+        .build();
+}
+
 StandardSystemImpl* createFPSSystem()
 {
     return createStandardSystem("FPS")
@@ -97,6 +112,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.registerSystem(createPlayerSystem());
 
         ecs.registerSystem(createEnemySpawnSystem());
+
+        ecs.registerSystem(createBulletSystem());
 
         ecs.registerSystem(createFPSSystem());
     });

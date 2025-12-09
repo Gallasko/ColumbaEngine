@@ -1,0 +1,56 @@
+import "ecs"
+import "string"
+
+// Screen dimensions
+var screenWidth = 800
+var screenHeight = 600
+
+// Update all bullets
+for (var i = 0; i < sysData["bulletCount"]; i++)
+{
+    var bulletKey = "bullet" + toString(i)
+    var bulletId = sysData[bulletKey]
+
+    // Only process if bullet exists
+    if (bulletId)
+    {
+        var bullet = getEntity(bulletId)
+        var pos = bullet["PositionComponent"]
+
+        // Get bullet velocity and lifetime
+        var vx = sysData[bulletKey + "_vx"]
+        var vy = sysData[bulletKey + "_vy"]
+        var lifetime = sysData[bulletKey + "_lifetime"]
+
+        // Update lifetime
+        lifetime = lifetime - deltaTime
+        sysData[bulletKey + "_lifetime"] = lifetime
+
+        // Remove bullet if lifetime expired
+        if (lifetime <= 0)
+        {
+            removeEntity(bulletId)
+            sysData[bulletKey] = 0
+            logInfo("Bullet expired and removed")
+        }
+        else
+        {
+            // Update position
+            var newX = pos.x + vx * deltaTime
+            var newY = pos.y + vy * deltaTime
+
+            // Remove bullet if it goes off screen (no wrapping for bullets)
+            if (newX < -10 or newX > screenWidth + 10 or newY < -10 or newY > screenHeight + 10)
+            {
+                removeEntity(bulletId)
+                sysData[bulletKey] = 0
+                logInfo("Bullet went off screen and removed")
+            }
+            else
+            {
+                pos.setX(newX)
+                pos.setY(newY)
+            }
+        }
+    }
+}

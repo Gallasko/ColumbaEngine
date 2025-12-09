@@ -1,5 +1,7 @@
 import "ecs"
 import "math"
+import "string"
+import "texture"
 
 // Screen dimensions
 var screenWidth = 800
@@ -67,12 +69,36 @@ if (keyDown == 1)
     velY = velY * 0.9
 }
 
+// Update fire cooldown timer
+var fireTimer = sysData["bulletFireTimer"]
+if (fireTimer > 0)
+{
+    fireTimer = fireTimer - deltaTime
+    sysData["bulletFireTimer"] = fireTimer
+}
+
 // Handle fire bullet
-// Todo empty if make the app crashes
-//if (keySpace == 1)
-//{
-//    // TODO: Fire bullet logic
-//}
+if (keySpace == 1)
+{
+    // Check if cooldown is ready
+    if (fireTimer <= 0)
+    {
+        // Fire bullet in direction ship is facing
+        var bulletSpeed = sysData["bulletSpeed"]
+
+        // Calculate bullet velocity based on ship rotation
+        var bulletVelX = sin(rotation) * bulletSpeed
+        var bulletVelY = -cos(rotation) * bulletSpeed
+
+        // Send SpawnBullet event to bullet system
+        sendEvent("SpawnBullet", "x", pos.x, "y", pos.y, "vx", bulletVelX, "vy", bulletVelY, "lifetime", sysData["bulletLifetime"])
+
+        // Reset fire timer
+        sysData["bulletFireTimer"] = sysData["bulletFireRate"]
+
+        logInfo("Bullet fire event sent!")
+    }
+}
 
 // Apply drag (friction) when not thrusting
 if (keyUp != 1)
