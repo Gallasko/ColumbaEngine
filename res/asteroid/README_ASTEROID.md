@@ -73,6 +73,11 @@ var speed = randomRange(50, 150)
 - **Down Arrow** - Brake (reduce velocity quickly)
 - **Space** - Fire bullet (TODO: not yet implemented)
 
+**🎮 Multi-Key Support**: You can now hold multiple keys at once! For example:
+- Hold **Left + Up** to rotate left while thrusting
+- Hold **Right + Up** to rotate right while thrusting
+- Hold **Down + Left/Right** to brake while rotating
+
 ### Player Physics:
 The player ship uses realistic momentum-based physics:
 - **Rotation**: 3.0 radians per second
@@ -89,6 +94,7 @@ All player data stored in `sysData`:
 - `playerThrustAccel` - Thrust acceleration
 - `playerMaxSpeed` - Speed cap
 - `playerDrag` - Friction coefficient
+- `keyLeft`, `keyRight`, `keyUp`, `keyDown`, `keySpace` - Key states (0 or 1)
 
 ## Next Steps for Full Game
 
