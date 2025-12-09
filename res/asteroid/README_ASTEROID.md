@@ -6,9 +6,11 @@ This directory contains the scripts for the Asteroid game demo.
 
 ### Scripts
 
-1. **init_player.pg** - Initializes the player ship
-2. **move_player.pg** - Handles player input and movement
-3. **spawn_enemies.pg** - Spawns and updates asteroids with physics
+1. **init_player.pg** - Initializes the player ship with physics variables and key state tracking
+2. **move_player.pg** - Handles key press events (sets key states to 1)
+3. **release_player.pg** - Handles key release events (sets key states to 0)
+4. **update_player.pg** - Updates player physics every frame based on key states (supports multiple simultaneous keys!)
+5. **spawn_enemies.pg** - Spawns and updates asteroids with physics
 
 ### spawn_enemies.pg Features
 
@@ -62,15 +64,41 @@ To change, modify:
 var speed = randomRange(50, 150)
 ```
 
+## Player Controls
+
+### Keyboard Controls:
+- **Left Arrow** - Rotate ship counter-clockwise
+- **Right Arrow** - Rotate ship clockwise
+- **Up Arrow** - Apply thrust in direction ship is facing
+- **Down Arrow** - Brake (reduce velocity quickly)
+- **Space** - Fire bullet (TODO: not yet implemented)
+
+### Player Physics:
+The player ship uses realistic momentum-based physics:
+- **Rotation**: 3.0 radians per second
+- **Thrust Acceleration**: 200 pixels per second²
+- **Max Speed**: 300 pixels per second
+- **Drag**: 0.99 (slight friction)
+- **Screen Wrapping**: Player wraps to opposite edge when leaving screen
+
+All player data stored in `sysData`:
+- `playerId` - Entity ID
+- `playerVelX`, `playerVelY` - Current velocity
+- `playerRotation` - Current rotation angle (radians, 0 = up)
+- `playerRotationSpeed` - How fast ship rotates
+- `playerThrustAccel` - Thrust acceleration
+- `playerMaxSpeed` - Speed cap
+- `playerDrag` - Friction coefficient
+
 ## Next Steps for Full Game
 
 ### TODO:
 1. ✅ Random asteroid spawning with velocity
-2. ✅ Screen wrapping
-3. ✅ Rotation animation
-4. ⬜ Player ship rotation (left/right arrows)
-5. ⬜ Player ship thrust (up arrow)
-6. ⬜ Player velocity/momentum
+2. ✅ Screen wrapping (asteroids and player)
+3. ✅ Rotation animation (asteroids)
+4. ✅ Player ship rotation (left/right arrows)
+5. ✅ Player ship thrust (up arrow)
+6. ✅ Player velocity/momentum
 7. ⬜ Shooting bullets (spacebar)
 8. ⬜ Collision detection (bullets vs asteroids, player vs asteroids)
 9. ⬜ Asteroid splitting (large → 2 medium → 2 small)

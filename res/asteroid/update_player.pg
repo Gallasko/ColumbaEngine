@@ -1,0 +1,115 @@
+import "ecs"
+import "math"
+
+// Screen dimensions
+var screenWidth = 800
+var screenHeight = 600
+
+// Get player entity
+var player = getEntity(sysData["playerId"])
+var pos = player["PositionComponent"]
+
+// Get velocity and rotation from sysData
+var velX = sysData["playerVelX"]
+var velY = sysData["playerVelY"]
+var rotation = sysData["playerRotation"]
+
+// Get physics constants
+var rotSpeed = sysData["playerRotationSpeed"]
+var thrustAccel = sysData["playerThrustAccel"]
+var maxSpeed = sysData["playerMaxSpeed"]
+var drag = sysData["playerDrag"]
+
+// Get key states
+var keyLeft = sysData["keyLeft"]
+var keyRight = sysData["keyRight"]
+var keyUp = sysData["keyUp"]
+var keyDown = sysData["keyDown"]
+var keySpace = sysData["keySpace"]
+
+// Handle rotation (can rotate while thrusting!)
+if (keyLeft == 1)
+{
+    rotation = rotation - rotSpeed * deltaTime
+}
+
+if (keyRight == 1)
+{
+    rotation = rotation + rotSpeed * deltaTime
+}
+
+// Handle thrust
+if (keyUp == 1)
+{
+    // Apply thrust in direction of rotation
+    // Rotation 0 = up = negative Y (screen coordinates)
+    var thrustX = sin(rotation) * thrustAccel * deltaTime
+    var thrustY = -cos(rotation) * thrustAccel * deltaTime
+
+    velX = velX + thrustX
+    velY = velY + thrustY
+
+    // Limit to max speed
+    var speed = sqrt(velX * velX + velY * velY)
+
+    if (speed > maxSpeed)
+    {
+        var scale = maxSpeed / speed
+        velX = velX * scale
+        velY = velY * scale
+    }
+}
+
+// Handle brake
+if (keyDown == 1)
+{
+    velX = velX * 0.9
+    velY = velY * 0.9
+}
+
+// Handle fire bullet
+// Todo empty if make the app crashes
+//if (keySpace == 1)
+//{
+//    // TODO: Fire bullet logic
+//}
+
+// Apply drag (friction) when not thrusting
+if (keyUp != 1)
+{
+    velX = velX * drag
+    velY = velY * drag
+}
+
+// Update position based on velocity
+var newX = pos.x + velX * deltaTime
+var newY = pos.y + velY * deltaTime
+
+// Screen wrapping
+if (newX < 0)
+{
+    newX = screenWidth
+}
+else if (newX > screenWidth)
+{
+    newX = 0
+}
+
+if (newY < 0)
+{
+    newY = screenHeight
+}
+else if (newY > screenHeight)
+{
+    newY = 0
+}
+
+// Update position and rotation
+pos.setX(newX)
+pos.setY(newY)
+pos.setRotation(rotation)
+
+// Store updated values back to sysData
+sysData["playerVelX"] = velX
+sysData["playerVelY"] = velY
+sysData["playerRotation"] = rotation

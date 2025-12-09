@@ -17,11 +17,12 @@ namespace
 
 StandardSystemImpl* createPlayerSystem()
 {
-    return createStandardSystem("PositionSystem")
+    return createStandardSystem("PlayerSystem")
         .onInit("res/asteroid/init_player.pg")
         .ownComponent("Player")
         .onEvent("OnSDLScanCode", "res/asteroid/move_player.pg")
-        .useStoragePolicy() // Only react to events, no execute() needed
+        .onEvent("OnSDLScanCodeReleased", "res/asteroid/release_player.pg")
+        .onDelta("res/asteroid/update_player.pg")  // Update physics every frame
         .build();
 }
 

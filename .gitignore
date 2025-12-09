@@ -19,3 +19,4 @@ CMakeCache.txt
 save/*
 res/**/*.pgc
 profile_data.csv
+global.sz
