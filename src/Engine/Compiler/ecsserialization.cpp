@@ -39,7 +39,7 @@ namespace pg
         // Get component context
         _unique_id entityId = component->id;
 
-        LOG_INFO("ECS Serialization", "Generating setters for PositionComponent on entity " << entityId);
+        LOG_MILE("ECS Serialization", "Generating setters for PositionComponent on entity " << entityId);
 
         // Define the properties that have setters in PositionComponent
         struct PropertySetter {
@@ -64,8 +64,6 @@ namespace pg
             const std::string& propName = prop.propName;
             const std::string& setterMethodName = prop.methodName;
 
-            std::cout << "Creating setter " << propName << " for entity " << entityId << " component ptr: " << (void*)component << std::endl;
-
             // Create native function directly without polluting globals
             // Lambda that implements the setter functionality
             NativeFn setterFunc;
@@ -73,7 +71,6 @@ namespace pg
             if (propName == "x")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER X CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_DOUBLE(args[0]))
                         component->setX(static_cast<float>(AS_DOUBLE(args[0])));
@@ -85,7 +82,6 @@ namespace pg
             else if (propName == "y")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER Y CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_DOUBLE(args[0]))
                         component->setY(static_cast<float>(AS_DOUBLE(args[0])));
@@ -97,7 +93,6 @@ namespace pg
             else if (propName == "z")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER Z CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_DOUBLE(args[0]))
                         component->setZ(static_cast<float>(AS_DOUBLE(args[0])));
@@ -109,7 +104,6 @@ namespace pg
             else if (propName == "width")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER WIDTH CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_DOUBLE(args[0]))
                         component->setWidth(static_cast<float>(AS_DOUBLE(args[0])));
@@ -121,7 +115,6 @@ namespace pg
             else if (propName == "height")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER HEIGHT CALLED: component ptr = " << (void*)component << " x=" << component->x << " y=" << component->y << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_DOUBLE(args[0]))
                         component->setHeight(static_cast<float>(AS_DOUBLE(args[0])));
@@ -133,7 +126,6 @@ namespace pg
             else if (propName == "rotation")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER ROTATION CALLED: component ptr = " << (void*)component << " rotation=" << component->rotation << " arg=" << (IS_DOUBLE(args[0]) ? AS_DOUBLE(args[0]) : AS_INT(args[0])) << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_DOUBLE(args[0]))
                         component->setRotation(static_cast<float>(AS_DOUBLE(args[0])));
@@ -145,7 +137,6 @@ namespace pg
             else if (propName == "visible")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER VISIBLE CALLED: component ptr = " << (void*)component << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_BOOL(args[0]))
                         component->setVisibility(AS_BOOL(args[0]));
@@ -155,7 +146,6 @@ namespace pg
             else if (propName == "observable")
             {
                 setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    std::cout << "SETTER OBSERVABLE CALLED: component ptr = " << (void*)component << std::endl;
                     if (argCount != 1) return INT_VAL(0);
                     if (IS_BOOL(args[0]))
                         component->setObservable(AS_BOOL(args[0]));
@@ -165,8 +155,6 @@ namespace pg
 
             // Create native function and add directly to table without going through globals
             table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
-
-            LOG_INFO("ECS Serialization", "Added PositionComponent setter method: " << setterMethodName);
         }
     }
 
@@ -205,7 +193,7 @@ namespace pg
             }
         }
 
-        LOG_INFO("ECS Serialization", "Generating " << propertyNames.size() << " setters for StandardComponent '" << compTypeName << "'");
+        LOG_MILE("ECS Serialization", "Generating " << propertyNames.size() << " setters for StandardComponent '" << compTypeName << "'");
 
         // Generate specific setters (setX, setY, setValue, etc.)
         for (const std::string& propName : propertyNames)
@@ -270,7 +258,7 @@ namespace pg
             // Add directly to table without going through globals
             table->fields[methodName] = vm->trackNewValue(setterValue);
 
-            LOG_INFO("ECS Serialization", "Added setter method: " << methodName);
+            LOG_MILE("ECS Serialization", "Added setter method: " << methodName);
         }
 
         // Add generic set(propertyName, value) method
@@ -325,7 +313,7 @@ namespace pg
         // Create native function and add directly to table without going through globals
         table->fields["set"] = vm->createNativeFunction(genericSetterFunc);
 
-        LOG_INFO("ECS Serialization", "Added generic set() method");
+        LOG_MILE("ECS Serialization", "Added generic set() method");
     }
 
     // Register StandardComponent serializer at static initialization time
@@ -382,7 +370,7 @@ namespace pg
             auto& registry = ComponentSerializerRegistry::instance();
             if (registry.hasSerializer(componentTypeName))
             {
-                LOG_INFO("ECS Serialization", "Using registered serializer for " << componentTypeName);
+                LOG_MILE("ECS Serialization", "Using registered serializer for " << componentTypeName);
 
                 // Get the component pointer using the registered retriever function
                 void* componentPtr = nullptr;
@@ -443,7 +431,7 @@ namespace pg
         Value entityTableValue = vm->createInstance(tableClass);
         ObjInstance* entityTable = vm->asInstance(entityTableValue);
 
-        LOG_INFO("ECS Serialization", "Serializing entity ID " << entity->id);
+        LOG_MILE("ECS Serialization", "Serializing entity ID " << entity->id);
 
         // Add the entity ID
         Value idValue = makeIntValue(static_cast<int64_t>(entity->id));
@@ -488,9 +476,6 @@ namespace pg
 
         ObjInstance* table = vm->asInstance(componentTable);
 
-        LOG_INFO("ECS Serialization", "=== deserializeComponentFromTable START ===");
-        LOG_INFO("ECS Serialization", "Table has " << table->fields.size() << " fields");
-
         // Determine the component type name
         std::string typeName = componentTypeName;
 
@@ -511,19 +496,17 @@ namespace pg
             }
         }
 
-        LOG_INFO("ECS Serialization", "Component type name: " << typeName);
+        LOG_MILE("ECS Serialization", "Component type name: " << typeName);
 
         // Convert the table to UnserializedObject
         // Create a dummy serialized string that parseString() can parse correctly
         // Format: "TypeName: TypeName {"
         std::string dummySerializedString = typeName + ": " + typeName + " {";
         UnserializedObject obj(typeName, typeName, dummySerializedString);
-        LOG_INFO("ECS Serialization", "Created UnserializedObject - objectName=" << obj.getObjectName() << ", objectType=" << obj.getObjectType());
 
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
         processTable = [&](ObjInstance* currentTable, UnserializedObject& currentObj) {
-            LOG_INFO("ECS Serialization", "Processing table with " << currentTable->fields.size() << " fields");
             for (const auto& [key, value] : currentTable->fields)
             {
                 // Skip special fields
@@ -532,7 +515,6 @@ namespace pg
 
                 if (IS_INSTANCE(value))
                 {
-                    LOG_INFO("ECS Serialization", "  Field '" << key << "' is a nested table");
                     // Nested table - create child object
                     UnserializedObject child(key, "", "");
                     processTable(vm->asInstance(value), child);
@@ -567,7 +549,6 @@ namespace pg
 
                     // Format as: __PGSA type {value}
                     std::string serializedStr = "__PGSA " + typeStr + " {" + valueStr + "}";
-                    LOG_INFO("ECS Serialization", "  Field '" << key << "' = " << serializedStr);
                     UnserializedObject attr(serializedStr, key, false);
                     currentObj.children.push_back(std::move(attr));
                 }
@@ -575,7 +556,6 @@ namespace pg
         };
 
         processTable(table, obj);
-        LOG_INFO("ECS Serialization", "After processTable, obj has " << obj.children.size() << " children");
 
         // Use the component registry to deserialize and attach
         ecsRef->getComponentRegistry()->deserializeComponentToEntity(obj, entity);
@@ -620,7 +600,7 @@ namespace pg
             else
             {
                 entity = ecsRef->createEntity();
-                LOG_INFO("ECS Serialization", "Entity with ID " << specifiedId << " not found, created new entity with ID " << entity.id);
+                LOG_MILE("ECS Serialization", "Entity with ID " << specifiedId << " not found, created new entity with ID " << entity.id);
             }
         }
 
