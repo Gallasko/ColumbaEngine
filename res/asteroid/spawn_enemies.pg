@@ -126,7 +126,7 @@ if (sysData["spawnTimer"] > 2.0)
     var vx = finalDirX * speed
     var vy = finalDirY * speed
 
-    // Random rotation speed
+    // Random rotation speed (in degrees per second for visual rotation)
     var rotSpeed = randomRange(-2, 2)
 
     // Store asteroid data
