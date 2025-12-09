@@ -45,6 +45,7 @@ namespace
 #include "Compiler/vm.h"
 #include "ecsmodule.h"
 #include "Helpers/mathmodule.h"
+#include "Helpers/randommodule.h"
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
 #include "2D/texturemodule.h"
@@ -503,6 +504,7 @@ namespace pg
         LOG_THIS_MEMBER("ECS");
 
         vm.addNativeModule("math", MathModule{});
+        vm.addNativeModule("random", RandomModule{});
         vm.addNativeModule("algorithm", AlgorithmModule{});
         vm.addNativeModule("string", StringModule{});
         vm.addNativeModule("file", FileModule{});
