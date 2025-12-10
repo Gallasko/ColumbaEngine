@@ -75,6 +75,8 @@ namespace pg
 
         // Optimized opcodes can be added here
 
+        OP_Define_Constant_Global,    // Define global variable with constant operand
+
         OP_Define_Global_Non_Popping,
 
         OP_AddLL,      // ADD optimized for two local variables
@@ -145,7 +147,8 @@ namespace pg
             if (!strA || !strB)
                 return false;
 
-            return strA->toString() == strB->toString();        }
+            return strA->toString() == strB->toString();
+        }
 
         AllocatorPool<ElementType, 64>* stringPool = nullptr;  // Set by compiler/VM for string comparison
 
@@ -324,6 +327,9 @@ namespace pg
             case OpCode::OP_SubtractLC:
             case OpCode::OP_SubtractCL:
                 return 3; // opcode + 2 byte operands (local variable indices)
+
+            case OpCode::OP_Define_Constant_Global:
+                return 3; // opcode + 2 byte operand (constant index)
 
             case OpCode::OP_Class:
                 return 2; // opcode + 1 byte operand (constant index for class name)
