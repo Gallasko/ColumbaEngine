@@ -5,9 +5,10 @@
 #include <functional>
 #include <optional>
 #include <algorithm>
+#include <set>
 
-namespace pg {
-
+namespace pg
+{
     // Represents a captured instruction with its operands
     struct CapturedInstruction
     {
@@ -20,8 +21,8 @@ namespace pg {
         {
             if (operands.size() >= 4)
             {
-                return static_cast<uint32_t>(operands[0]) |
-                       (static_cast<uint32_t>(operands[1]) << 8) |
+                return static_cast<uint32_t>(operands[0])         |
+                       (static_cast<uint32_t>(operands[1]) << 8)  |
                        (static_cast<uint32_t>(operands[2]) << 16) |
                        (static_cast<uint32_t>(operands[3]) << 24);
             }
@@ -143,6 +144,8 @@ namespace pg {
         std::vector<RewriteRule> rules;
         std::vector<AdvancedRewriteRule> advancedRules;
 
+        std::set<size_t> jumpTargets;
+
     public:
         void addRule(const std::vector<OpCode>& pattern, const std::vector<OpCode>& replacement);
 
@@ -166,6 +169,8 @@ namespace pg {
         size_t getRuleCount() const { return rules.size(); }
 
     private:
+        void collectJumpTargets(const Chunk& chunk);
+
         bool findAndApplyRewrites(Chunk& chunk);
 
         bool findAndApplyAdvancedRewrites(Chunk& chunk);
