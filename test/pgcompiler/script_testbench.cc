@@ -510,6 +510,16 @@ TEST_F(ScriptTestBench, ForInNumericKeys)
     testScript("for_in_numeric_keys");
 }
 
+TEST_F(ScriptTestBench, ForInNestedLocal)
+{
+    testScript("for_in_nested_local");
+}
+
+TEST_F(ScriptTestBench, ForInWithOuterLocal)
+{
+    testScript("for_in_with_outer_local");
+}
+
 // ============================================================================
 // Strings
 // ============================================================================
