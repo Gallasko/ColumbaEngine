@@ -183,17 +183,19 @@ namespace pg
 
         ObjInstance* propertiesTable = vm->asInstance(propertiesIt->second);
 
-        // Collect all property names
+        // Flatten properties to the top level of the table
         std::vector<std::string> propertyNames;
         for (const auto& [key, value] : propertiesTable->fields)
         {
             if (key != "__className" && !key.empty())
             {
                 propertyNames.push_back(key);
+                // Copy property to top level
+                table->fields[key] = vm->retainValue(value);
             }
         }
 
-        LOG_MILE("ECS Serialization", "Generating " << propertyNames.size() << " setters for StandardComponent '" << compTypeName << "'");
+        LOG_MILE("ECS Serialization", "Flattened " << propertyNames.size() << " properties and generating setters for StandardComponent '" << compTypeName << "'");
 
         // Generate specific setters (setX, setY, setValue, etc.)
         for (const std::string& propName : propertyNames)
@@ -455,6 +457,16 @@ namespace pg
                 if (classNameIt != compTable->fields.end() && IS_STRING(classNameIt->second))
                 {
                     componentTypeName = vm->asString(classNameIt->second)->toString();
+
+                    // For StandardComponent, use the actual typeName instead of "StandardComponent"
+                    if (componentTypeName == "StandardComponent")
+                    {
+                        auto typeNameIt = compTable->fields.find("typeName");
+                        if (typeNameIt != compTable->fields.end() && IS_STRING(typeNameIt->second))
+                        {
+                            componentTypeName = vm->asString(typeNameIt->second)->toString();
+                        }
+                    }
                 }
 
                 // Add to entity table

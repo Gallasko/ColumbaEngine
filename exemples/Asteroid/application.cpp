@@ -111,7 +111,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
     {
         ecs.registerSystem(createPlayerSystem());
 
-        ecs.registerSystem(createEnemySpawnSystem());
+        // ecs.registerSystem(createEnemySpawnSystem());
 
         ecs.registerSystem(createBulletSystem());
 
