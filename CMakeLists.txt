@@ -123,27 +123,28 @@ else()
     message(STATUS "Profiling of systems is DISABLED")
 endif()
 
-# Debug Flags
-if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -O0 -DDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -O0 -DDEBUG")
-else()
-    # set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 -DDEBUG")
+# Apply build-type specific flags directly to CMAKE_CXX_FLAGS
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -DDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -DDEBUG")
+    else()
+        # set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -DDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -DDEBUG")
+    endif()
+elseif(CMAKE_BUILD_TYPE MATCHES Release)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
+    endif()
 endif()
 
-# Release Flags
-if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
-else()
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
-
-# Release flags for native builds can be set here if needed
-endif()
-
-message("Current c++ debug flags used: '${CMAKE_CXX_FLAGS_DEBUG}'")
-message("Current c++ release flags used: '${CMAKE_CXX_FLAGS_RELEASE}'")
+message("Current c++ debug flags used: '${CMAKE_C_FLAGS}'")
+message("Current c++ release flags used: '${CMAKE_CXX_FLAGS}'")
 
 set(ENGINESOURCE
     src/Engine/engine.cpp
