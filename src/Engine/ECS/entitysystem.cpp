@@ -535,9 +535,31 @@ namespace pg
                     LOG_INFO("Script", "  " << key << " : " << valStr);
                 }
             }
+            else if (IS_VECTOR(args[0]))
+            {
+                ObjVector* vector = vm->asVector(args[0]);
+                LOG_INFO("Script", "Vector contents:");
+                for (size_t i = 0; i < vector->fields.size(); i++)
+                {
+                    Value value = vector->fields[i];
+                    std::string valStr;
+                    if (IS_STRING(value))
+                        valStr = vm->asString(value)->toString();
+                    else if (IS_INT(value))
+                        valStr = std::to_string(AS_INT(value));
+                    else if (IS_DOUBLE(value))
+                        valStr = std::to_string(AS_DOUBLE(value));
+                    else if (IS_BOOL(value))
+                        valStr = AS_BOOL(value) ? "true" : "false";
+                    else
+                        valStr = "<complex type>";
+
+                    LOG_INFO("Script", "  [" << i << "] : " << valStr);
+                }
+            }
             else
             {
-                LOG_INFO("Script", "Value is not a table instance");
+                LOG_INFO("Script", "Value is not a table or a vector instance");
             }
 
             return makeBoolValue(true);
