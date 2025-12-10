@@ -17,6 +17,7 @@
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 
 #include "Compiler/pass/constant_var_access.h"
+#include "Compiler/pass/fuse_op_pop.h"
 
 #include "Helpers/mathmodule.h"
 #include "Helpers/randommodule.h"
@@ -149,6 +150,13 @@ void CompilerApp::runFile(bool needCompile)
     VM vm;
     ecs.setupVm(vm);
 
+    vm.defineNative("log", nativeLogInfo);
+
+    // Register native modules
+    vm.addNativeModule("math", MathModule());
+    vm.addNativeModule("random", RandomModule());
+    vm.addNativeModule("string", StringModule());
+
     InterpretResult result;
 
     if (needCompile)
@@ -158,6 +166,7 @@ void CompilerApp::runFile(bool needCompile)
         vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
         vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
         vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
+        vm.addOptimizationPass(std::make_unique<FuseOpPop>());
 
         vm.enableBytecodeOptimization();
         vm.enableOptimizationDebugging();
@@ -167,12 +176,6 @@ void CompilerApp::runFile(bool needCompile)
         std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
         // Register individual native functions
-        vm.defineNative("log", nativeLogInfo);
-
-        // Register native modules
-        vm.addNativeModule("math", MathModule());
-        vm.addNativeModule("random", RandomModule());
-        vm.addNativeModule("string", StringModule());
 
         Lexer lexer;
 
@@ -189,7 +192,6 @@ void CompilerApp::runFile(bool needCompile)
         auto tokens = lexer.getTokens();
 
         vm.listOptimizationPasses();
-
 
         vm.currentFileName = fileName;
         result = vm.interpret(tokens, false, "temp.pgc");

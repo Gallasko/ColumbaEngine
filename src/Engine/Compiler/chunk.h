@@ -75,6 +75,8 @@ namespace pg
 
         // Optimized opcodes can be added here
 
+        OP_PopN,               // Pop N values from the stack (operand is number of values to pop)
+
         OP_Define_Constant_Global,    // Define global variable with constant operand
         OP_Get_Constant_Global,       // Get global variable with constant operand
         OP_Set_Constant_Global,       // Set global variable with constant operand
@@ -323,6 +325,9 @@ namespace pg
 
             case OpCode::OP_Invoke:
                 return 3;
+
+            case OpCode::OP_PopN:
+                return 2; // opcode + 1 byte operand (number of values to pop)
 
             case OpCode::OP_AddLL:
             case OpCode::OP_SubtractLL:

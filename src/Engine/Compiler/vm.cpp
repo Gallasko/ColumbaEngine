@@ -117,6 +117,8 @@ namespace pg
     void op_set_property(VM* vm);
     void op_method(VM* vm);
 
+    void op_pop_n(VM* vm);
+
     void op_define_constant_global(VM* vm);
     void op_get_constant_global(VM* vm);
     void op_set_constant_global(VM* vm);
@@ -1074,6 +1076,8 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
+
+        register_operation(static_cast<uint8_t>(OpCode::OP_PopN), op_pop_n);
 
         register_operation(static_cast<uint8_t>(OpCode::OP_Define_Constant_Global), op_define_constant_global);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Constant_Global), op_get_constant_global);
@@ -2375,6 +2379,20 @@ namespace pg
         klass->methods[methodName] = methodClosureValue;
     }
 
+    void op_pop_n(VM* vm)
+    {
+        uint8_t count = *vm->currentFrame->ip++;
+
+        for (int i = 0; i < count; i++)
+        {
+            auto value = vm->pop();
+
+            if (requiresRefCount(value)) {
+                vm->releaseAndDelete(value);
+            }
+        }
+    }
+
     void op_define_constant_global(VM* vm)
     {
         uint8_t constant1 = *vm->currentFrame->ip++;
@@ -2760,6 +2778,8 @@ namespace pg
             {
                 vm->releaseAndDelete(index);
                 vm->releaseAndDelete(value);
+                // Clean up the vector we created before returning
+                vm->releaseAndDelete(vectorVal);
                 vm->runtimeError("Vector index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
                 return;
@@ -2783,11 +2803,6 @@ namespace pg
                 vector->fields.push_back(makeIntValue(0));  // Fill with zeros
             }
 
-            // Set the element (release old value if overwriting)
-            if (vector->fields[pair.first] != makeIntValue(0))
-            {
-                vm->releaseAndDelete(vector->fields[pair.first]);
-            }
             vector->fields[pair.first] = vm->retainValue(pair.second);
             vm->releaseAndDelete(pair.second);  // Release our temporary reference
         }

@@ -231,6 +231,9 @@ namespace pg {
     {
         bool anyChanges = false;
 
+        jumpTargets.clear();
+        collectJumpTargets(chunk);
+
         for (size_t i = 0; i < chunk.code.size();)
         {
             bool foundMatch = false;
@@ -289,14 +292,38 @@ namespace pg {
         return anyChanges;
     }
 
-    bool BytecodeRewriter::findAndApplyRewrites(Chunk& chunk) {
+    void BytecodeRewriter::collectJumpTargets(const Chunk& chunk)
+    {
+        for (size_t i = 0; i < chunk.code.size();)
+        {
+            OpCode opcode = static_cast<OpCode>(chunk.code[i]);
+
+            if (isJumpInstruction(opcode))
+            {
+                auto target = calculateJumpTarget(chunk, i, opcode);
+
+                jumpTargets.insert(target);
+            }
+
+            i += pg::getInstructionSize(opcode);
+        }
+    }
+
+    bool BytecodeRewriter::findAndApplyRewrites(Chunk& chunk)
+    {
         bool anyChanges = false;
 
-        for (size_t i = 0; i < chunk.code.size();) {
+        jumpTargets.clear();
+        collectJumpTargets(chunk);
+
+        for (size_t i = 0; i < chunk.code.size();)
+        {
             bool foundMatch = false;
 
-            for (const auto& rule : rules) {
-                if (matchesPattern(chunk, i, rule.pattern)) {
+            for (const auto& rule : rules)
+            {
+                if (matchesPattern(chunk, i, rule.pattern))
+                {
                     size_t patternSize = getPatternByteSize(rule.pattern);
                     size_t replacementSize = getReplacementByteSize(rule.replacement);
                     int sizeDelta = static_cast<int>(replacementSize) - static_cast<int>(patternSize);
@@ -307,7 +334,8 @@ namespace pg {
                              " (size change: " << sizeDelta << ")");
 
                     // Adjust jump offsets immediately if size changed
-                    if (sizeDelta != 0) {
+                    if (sizeDelta != 0)
+                    {
                         LOG_INFO("BytecodeRewriter", "Adjusting jump offsets after size change");
                         adjustJumpOffsetsAfterRewrite(chunk, i, sizeDelta);
                     }
@@ -343,6 +371,10 @@ namespace pg {
 
         for (const auto& element : pattern) {
             if (currentOffset >= chunk.code.size()) {
+                return std::nullopt;
+            }
+
+            if (jumpTargets.find(currentOffset) != jumpTargets.end()) {
                 return std::nullopt;
             }
 
@@ -388,6 +420,10 @@ namespace pg {
 
         for (OpCode expectedOpcode : pattern) {
             if (currentOffset >= chunk.code.size()) {
+                return false;
+            }
+
+            if (jumpTargets.find(currentOffset) != jumpTargets.end()) {
                 return false;
             }
 
@@ -544,34 +580,40 @@ namespace pg {
         }
     }
 
-    void BytecodeRewriter::adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta) {
+    void BytecodeRewriter::adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta)
+    {
         LOG_INFO("BytecodeRewriter", "Adjusting jump offsets: rewrite at " << rewriteIndex << ", delta=" << sizeDelta);
 
-        for (size_t i = 0; i < chunk.code.size();) {
+        for (size_t i = 0; i < chunk.code.size();)
+        {
             OpCode opcode = static_cast<OpCode>(chunk.code[i]);
 
-            if (isJumpInstruction(opcode)) {
+            if (isJumpInstruction(opcode))
+            {
                 size_t currentTarget = calculateJumpTarget(chunk, i, opcode);
                 bool needsAdjustment = false;
 
-                if (opcode == OpCode::OP_Loop || opcode == OpCode::OP_Long_Loop) {
+                if (opcode == OpCode::OP_Loop or opcode == OpCode::OP_Long_Loop)
+                {
                     // Backward jump: adjust if the jump instruction is after the rewrite point
                     // AND the target is before the rewrite point (target didn't move, but jump moved)
                     needsAdjustment = (i > rewriteIndex && currentTarget < rewriteIndex);
-                } else {
+                }
+                else
+                {
                     // Forward jump: adjust if the target is after the rewrite point
                     // AND the jump instruction is before or at the rewrite point (jump didn't move, but target moved)
                     needsAdjustment = (currentTarget > rewriteIndex && i <= rewriteIndex);
                 }
 
-                if (needsAdjustment) {
+                if (needsAdjustment)
+                {
                     // Get current index and adjust it
                     uint32_t currentIndex;
-                    if (isLongJumpInstruction(opcode)) {
+                    if (isLongJumpInstruction(opcode))
                         currentIndex = extractLongJumpOffset(chunk, i);
-                    } else {
+                    else
                         currentIndex = extractShortJumpOffset(chunk, i);
-                    }
 
                     LOG_INFO("BytecodeRewriter", "Adjusting jump at " << i << " (opcode=" << static_cast<int>(opcode)
                              << ", currentTarget=" << currentTarget << ", currentIndex=" << currentIndex
@@ -579,11 +621,14 @@ namespace pg {
 
                     // Calculate new index based on direction
                     int newIndex;
-                    if (opcode == OpCode::OP_Loop || opcode == OpCode::OP_Long_Loop) {
+                    if (opcode == OpCode::OP_Loop or opcode == OpCode::OP_Long_Loop)
+                    {
                         // Backward jump: jump instruction moved by sizeDelta, target stayed same
                         // If sizeDelta = -2 (chunk shrank), jump moved 2 bytes closer to target, so index decreases by 2
                         newIndex = static_cast<int>(currentIndex) + sizeDelta;
-                    } else {
+                    }
+                    else
+                    {
                         // Forward jump: target moved by sizeDelta, jump instruction stayed same
                         // If sizeDelta = -2 (chunk shrank), target moved 2 bytes closer, so index decreases by 2
                         newIndex = static_cast<int>(currentIndex) + sizeDelta;
@@ -591,20 +636,27 @@ namespace pg {
 
                     LOG_INFO("BytecodeRewriter", "Index adjusted from " << currentIndex << " to " << newIndex);
 
-                    if (newIndex < 0) {
+                    if (newIndex < 0)
+                    {
                         LOG_WARNING("BytecodeRewriter", "Jump index became negative, setting to 0");
                         newIndex = 0;
                     }
 
                     // Write adjusted index - PRESERVE INSTRUCTION TYPE
-                    if (isLongJumpInstruction(opcode)) {
+                    if (isLongJumpInstruction(opcode))
+                    {
                         writeLongJumpOffset(chunk, i, static_cast<uint32_t>(newIndex));
                         LOG_INFO("BytecodeRewriter", "Adjusted long jump at " << i << " from " << currentIndex << " to " << newIndex);
-                    } else {
-                        if (newIndex <= 65535) {
+                    }
+                    else
+                    {
+                        if (newIndex <= 65535)
+                        {
                             writeShortJumpOffset(chunk, i, static_cast<uint16_t>(newIndex));
                             LOG_INFO("BytecodeRewriter", "Adjusted short jump at " << i << " from " << currentIndex << " to " << newIndex);
-                        } else {
+                        }
+                        else
+                        {
                             LOG_WARNING("BytecodeRewriter", "Short jump index overflow: " << newIndex << " at position " << i << " - keeping original index");
                             // Keep original index rather than converting to long jump
                         }
@@ -614,6 +666,9 @@ namespace pg {
 
             i += pg::getInstructionSize(opcode);
         }
+
+        jumpTargets.clear();
+        collectJumpTargets(chunk);
 
         LOG_INFO("BytecodeRewriter", "Jump offset adjustment completed");
     }

@@ -25,7 +25,7 @@ namespace pg
 
     private:
         // Generate random float between 0.0 and 1.0
-        static Value nativeRandom(VM*, int argCount, Value* args)
+        static Value nativeRandom(VM*, int argCount, Value*)
         {
             if (argCount != 0)
             {
