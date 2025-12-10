@@ -76,6 +76,8 @@ namespace pg
         // Optimized opcodes can be added here
 
         OP_Define_Constant_Global,    // Define global variable with constant operand
+        OP_Get_Constant_Global,       // Get global variable with constant operand
+        OP_Set_Constant_Global,       // Set global variable with constant operand
 
         OP_Define_Global_Non_Popping,
 
@@ -329,7 +331,11 @@ namespace pg
                 return 3; // opcode + 2 byte operands (local variable indices)
 
             case OpCode::OP_Define_Constant_Global:
+            case OpCode::OP_Set_Constant_Global:
                 return 3; // opcode + 2 byte operand (constant index)
+
+            case OpCode::OP_Get_Constant_Global:
+                return 2; // opcode + 1 byte operand (constant index)
 
             case OpCode::OP_Class:
                 return 2; // opcode + 1 byte operand (constant index for class name)

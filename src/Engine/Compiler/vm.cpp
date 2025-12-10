@@ -118,6 +118,8 @@ namespace pg
     void op_method(VM* vm);
 
     void op_define_constant_global(VM* vm);
+    void op_get_constant_global(VM* vm);
+    void op_set_constant_global(VM* vm);
 
     void op_add_ll(VM* vm);
     void op_subtract_ll(VM* vm);
@@ -1074,6 +1076,8 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
 
         register_operation(static_cast<uint8_t>(OpCode::OP_Define_Constant_Global), op_define_constant_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Constant_Global), op_get_constant_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Constant_Global), op_set_constant_global);
 
         register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll);
@@ -2390,6 +2394,61 @@ namespace pg
         }
 
         vm->globals[name.toString()] = vm->retainValue(value1);
+    }
+
+    void op_get_constant_global(VM* vm)
+    {
+        uint8_t constant = *vm->currentFrame->ip++;
+        auto value = vm->currentFrame->closure->function->chunk.constants[constant];
+        auto name = vm->valueToElement(value);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->push(vm->retainValue(it->second)); // Retain because stack becomes an owner
+    }
+
+    void op_set_constant_global(VM* vm)
+    {
+        uint8_t constant1 = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
+
+        uint8_t constant2 = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
+        auto name = vm->valueToElement(value2);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->releaseAndDelete(it->second);
+        it->second = vm->retainValue(value1);
+        vm->push(vm->retainValue(value1));
     }
 
     void op_add_ll(VM* vm)

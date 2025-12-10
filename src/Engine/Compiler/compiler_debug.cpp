@@ -447,6 +447,12 @@ namespace pg
             case OpCode::OP_Define_Constant_Global:
                 return twoBytesInstruction("OP_Define_Constant_Global", chunk, offset);
 
+            case OpCode::OP_Set_Constant_Global:
+                return twoBytesInstruction("OP_Set_Constant_Global", chunk, offset);
+
+            case OpCode::OP_Get_Constant_Global:
+                return constantInstruction(vm, "OP_Get_Constant_Global", chunk, offset);
+
             case OpCode::OP_Build_Vector:
                 return byteInstruction("OP_Build_Vector", chunk, offset);
 
