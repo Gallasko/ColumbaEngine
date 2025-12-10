@@ -1,5 +1,6 @@
 import "texture"
 import "string"
+import "ecs"
 
 // Get bullet spawn parameters from event
 var spawnX = event.values.x
@@ -24,14 +25,7 @@ bullet["PositionComponent"].setX(bulletX)
 bullet["PositionComponent"].setY(bulletY)
 
 // Store bullet data in system storage
-var bulletIndex = sysData["bulletCount"]
-var bulletKey = "bullet" + toString(bulletIndex)
 
-sysData[bulletKey] = bullet.__entityId
-sysData[bulletKey + "_vx"] = vx
-sysData[bulletKey + "_vy"] = vy
-sysData[bulletKey + "_lifetime"] = lifetime
-
-sysData["bulletCount"] = sysData["bulletCount"] + 1
+attachComp(bullet, "Bullet", "vx", vx, "vy", vy, "lifetime", lifetime)
 
 logInfo("Bullet spawned at (" + toString(spawnX) + ", " + toString(spawnY) + ") with ID: " + toString(bullet.__entityId))

@@ -4,6 +4,7 @@
 
 #include "Compiler/vm.h"
 #include "Compiler/ecsserialization.h"
+#include "ECS/sysmodule.h"
 
 #include <sstream>
 
@@ -12,13 +13,19 @@
 namespace pg
 {
     // Todo move this in a vm helper header
-    bool checkCompiledScript(EntitySystem* ecsRef, std::string& scriptName)
+    bool checkCompiledScript(EntitySystem* ecsRef, std::string& scriptName, StandardSystemImpl* systemImpl = nullptr)
     {
         if (scriptName.size() >= 3 && scriptName.substr(scriptName.size() - 3) == ".pg")
         {
             // Compile .pg script and cache to .pgc
             VM compiler;
             ecsRef->setupVm(compiler);
+
+            // Add sys module if we have a system context
+            if (systemImpl)
+            {
+                compiler.addNativeModule("sys", SystemModule{systemImpl});
+            }
 
             auto result = compiler.interpretFromFile(scriptName, true, scriptName + "c");
 
@@ -45,9 +52,9 @@ namespace pg
         return false;
     }
 
-    std::vector<char> getCachedScript(EntitySystem* ecsRef, std::string& scriptName)
+    std::vector<char> getCachedScript(EntitySystem* ecsRef, std::string& scriptName, StandardSystemImpl* systemImpl = nullptr)
     {
-        if (not checkCompiledScript(ecsRef, scriptName))
+        if (not checkCompiledScript(ecsRef, scriptName, systemImpl))
         {
             LOG_ERROR("StandardSystemImpl", "Cannot compile or open the script: " << scriptName);
             return {};
@@ -176,7 +183,7 @@ namespace pg
 
         for (auto [eventName, scriptName] : eventScriptCallbackList)
         {
-            auto cachedBytecode = getCachedScript(ecsRef, scriptName);
+            auto cachedBytecode = getCachedScript(ecsRef, scriptName, this);
 
             if (cachedBytecode.empty())
                 continue;
@@ -185,11 +192,14 @@ namespace pg
             std::string capturedScriptName = scriptName;
 
             // Register the event handler with cached bytecode (captured by value)
-            eventCompiledScriptCallbackList.emplace(eventName, [cachedBytecode, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+            eventCompiledScriptCallbackList.emplace(eventName, [this, cachedBytecode, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
                 auto ecsRef = sys->getWorld();
 
                 VM vm;
                 ecsRef->setupVm(vm);
+
+                // Add sys module for accessing system's entities by component
+                vm.addNativeModule("sys", SystemModule{this});
 
                 // Set up event data before interpreting
                 auto value = serializeToTable(&vm, event);
@@ -239,7 +249,7 @@ namespace pg
         // Compile and cache execute script if provided
         if (not executeScript.empty())
         {
-            auto cachedBytecode = getCachedScript(ecsRef, executeScript);
+            auto cachedBytecode = getCachedScript(ecsRef, executeScript, this);
 
             if (cachedBytecode.empty())
             {
@@ -254,23 +264,8 @@ namespace pg
                     VM vm;
                     ecsRef->setupVm(vm);
 
-                    // Todo change this so that it lives inside a sys module + the table are more friendly
-                    for (auto [compName, owner] : componentOwners)
-                    {
-                        auto v = owner->view();
-
-                        int i = 0;
-
-                        for (auto val : v)
-                        {
-                            // Use specialized overload for StandardComponent that generates setters
-                            // The component already has ecsRef and entityId set
-                            auto value = serializeToTable(&vm, *val);
-                            vm.globals[compName + "_" + std::to_string(i)] = value;
-
-                            i++;
-                        }
-                    }
+                    // Add sys module for accessing system's entities by component
+                    vm.addNativeModule("sys", SystemModule{this});
 
                     auto result = interpretWithSysData(sys, vm, cachedBytecode);
 
@@ -286,7 +281,7 @@ namespace pg
 
         if (not deltaScript.empty())
         {
-            auto cachedBytecode = getCachedScript(ecsRef, deltaScript);
+            auto cachedBytecode = getCachedScript(ecsRef, deltaScript, this);
 
             if (cachedBytecode.empty())
             {
@@ -300,6 +295,9 @@ namespace pg
 
                     VM vm;
                     ecsRef->setupVm(vm);
+
+                    // Add sys module for accessing system's entities by component
+                    vm.addNativeModule("sys", SystemModule{this});
 
                     vm.globals["deltaTime"] = vm.elementToValue(deltaTime);
 

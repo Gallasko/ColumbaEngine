@@ -5,52 +5,53 @@ import "string"
 var screenWidth = 800
 var screenHeight = 600
 
+import "sys"
+
+var bullets = getEntities("Bullet")
+
+debugTable(bullets)
+
 // Update all bullets
-for (var i = 0; i < sysData["bulletCount"]; i++)
+for (var bullet : bullets)
 {
-    var bulletKey = "bullet" + toString(i)
-    var bulletId = sysData[bulletKey]
-
     // Only process if bullet exists
-    if (bulletId)
+    var pos = bullet["PositionComponent"]
+    var data = bullet["Bullet"]
+
+    // Get bullet velocity and lifetime
+    debugTable(bullet)
+    logInfo(data)
+    debugTable(data)
+    var vx = data.vx
+    var vy = data.vy
+    var lifetime = data.lifetime
+
+    // Update lifetime
+    lifetime = lifetime - deltaTime
+    data.setLifetime(lifetime)
+
+    // Remove bullet if lifetime expired
+    if (lifetime <= 0)
     {
-        var bullet = getEntity(bulletId)
-        var pos = bullet["PositionComponent"]
+        removeEntity(bullet.__entityId)
+        logInfo("Bullet expired and removed")
+    }
+    else
+    {
+        // Update position
+        var newX = pos.x + vx * deltaTime
+        var newY = pos.y + vy * deltaTime
 
-        // Get bullet velocity and lifetime
-        var vx = sysData[bulletKey + "_vx"]
-        var vy = sysData[bulletKey + "_vy"]
-        var lifetime = sysData[bulletKey + "_lifetime"]
-
-        // Update lifetime
-        lifetime = lifetime - deltaTime
-        sysData[bulletKey + "_lifetime"] = lifetime
-
-        // Remove bullet if lifetime expired
-        if (lifetime <= 0)
+        // Remove bullet if it goes off screen (no wrapping for bullets)
+        if (newX < -10 or newX > screenWidth + 10 or newY < -10 or newY > screenHeight + 10)
         {
-            removeEntity(bulletId)
-            sysData[bulletKey] = 0
-            logInfo("Bullet expired and removed")
+            removeEntity(bullet.__entityId)
+            logInfo("Bullet went off screen and removed")
         }
         else
         {
-            // Update position
-            var newX = pos.x + vx * deltaTime
-            var newY = pos.y + vy * deltaTime
-
-            // Remove bullet if it goes off screen (no wrapping for bullets)
-            if (newX < -10 or newX > screenWidth + 10 or newY < -10 or newY > screenHeight + 10)
-            {
-                removeEntity(bulletId)
-                sysData[bulletKey] = 0
-                logInfo("Bullet went off screen and removed")
-            }
-            else
-            {
-                pos.setX(newX)
-                pos.setY(newY)
-            }
+            pos.setX(newX)
+            pos.setY(newY)
         }
     }
 }
