@@ -152,6 +152,36 @@ void CompilerApp::runFile(bool needCompile)
 
     vm.defineNative("log", nativeLogInfo);
 
+    // Print function - outputs to stdout
+    vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
+        for (int i = 0; i < argCount; i++) {
+            if (i > 0) std::cout << " ";  // Space between arguments
+
+            Value value = args[i];
+            if (IS_STRING(value))
+                std::cout << vm->asString(value)->toString();
+            else if (IS_INT(value))
+                std::cout << AS_INT(value);
+            else if (IS_DOUBLE(value))
+                std::cout << AS_DOUBLE(value);
+            else if (IS_BOOL(value))
+                std::cout << (AS_BOOL(value) ? "true" : "false");
+            else if (IS_FUNC(value))
+                std::cout << "<function>";
+            else if (IS_CLASS(value))
+                std::cout << "<class " << vm->asClass(value)->name << ">";
+            else if (IS_INSTANCE(value))
+                std::cout << "<instance>";
+            else if (IS_VECTOR(value))
+                std::cout << "<vector>";
+            else
+                std::cout << "<value>";
+        }
+
+        std::cout << std::endl;
+        return makeIntValue(0);
+    });
+
     // Register native modules
     vm.addNativeModule("math", MathModule());
     vm.addNativeModule("random", RandomModule());
