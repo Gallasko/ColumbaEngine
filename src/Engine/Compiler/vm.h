@@ -137,6 +137,7 @@ namespace pg
             pools.nativeFuncPool.destroyAll();
             pools.instancePool.destroyAll();
             pools.boundMethodPool.destroyAll();
+            pools.vectorPool.destroyAll();
 
             // Clear the interned strings map
             pools.internedStrings.clear();
