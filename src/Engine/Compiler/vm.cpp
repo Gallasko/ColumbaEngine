@@ -117,6 +117,8 @@ namespace pg
     void op_set_property(VM* vm);
     void op_method(VM* vm);
 
+    void op_define_constant_global(VM* vm);
+
     void op_add_ll(VM* vm);
     void op_subtract_ll(VM* vm);
 
@@ -1070,6 +1072,8 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
+
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Constant_Global), op_define_constant_global);
 
         register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll);
@@ -2365,6 +2369,27 @@ namespace pg
         }
 
         klass->methods[methodName] = methodClosureValue;
+    }
+
+    void op_define_constant_global(VM* vm)
+    {
+        uint8_t constant1 = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
+
+        uint8_t constant2 = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
+        auto name = vm->valueToElement(value2);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->globals[name.toString()] = vm->retainValue(value1);
     }
 
     void op_add_ll(VM* vm)

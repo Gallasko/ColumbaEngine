@@ -16,6 +16,8 @@
 
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 
+#include "Compiler/pass/constant_var_access.h"
+
 #include "Helpers/mathmodule.h"
 #include "Helpers/randommodule.h"
 #include "Helpers/stringmodule.h"
@@ -155,6 +157,7 @@ void CompilerApp::runFile(bool needCompile)
         vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
         vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
         vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
+        vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
 
         vm.enableBytecodeOptimization();
         vm.enableOptimizationDebugging();

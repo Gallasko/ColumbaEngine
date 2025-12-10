@@ -266,6 +266,34 @@ namespace pg
         }
     };
 
+    /**
+     * @brief ECS Module for compiled scripts (VM-based)
+     *
+     * Provides native functions for working with the ECS from scripts:
+     *
+     * - removeEntity(entityId or entityInstance): Remove an entity from the ECS
+     * - getEntity(entityId): Get entity data as a table
+     * - sendEvent(eventName, key1, value1, key2, value2, ...): Send an event
+     * - attachComponent(entityId or entityInstance, componentName, prop1, value1, prop2, value2, ...):
+     *   Attach a StandardComponent to an entity with properties
+     *
+     * Example usage:
+     * @code
+     * import ecs
+     *
+     * // Get an entity
+     * var player = ecs.getEntity(playerId)
+     *
+     * // Attach a Health component with initial values
+     * ecs.attachComponent(player, "Health", "current", 100, "max", 100)
+     *
+     * // Attach a Position component
+     * ecs.attachComponent(playerId, "Position", "x", 10.0, "y", 20.0)
+     *
+     * // Send an event
+     * ecs.sendEvent("PlayerDamaged", "entityId", playerId, "damage", 25)
+     * @endcode
+     */
     struct EcsCompiledModule : public NativeModule
     {
         EntitySystem *ecsRef = nullptr;
@@ -393,6 +421,129 @@ namespace pg
                 ecsRefCopy->sendEvent(event);
 
                 return makeIntValue(0);
+            });
+
+            addNativeFunction("attachComp", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount < 2)
+                {
+                    throw std::runtime_error("attachComponent expects at least 2 arguments (entityId, componentName)");
+                }
+
+                // Get entity ID (can be either int or entity table)
+                _unique_id entityId;
+                if (IS_INT(args[0]))
+                {
+                    entityId = AS_INT(args[0]);
+                }
+                else if (IS_INSTANCE(args[0]))
+                {
+                    auto instance = vm->asInstance(args[0]);
+                    if (instance->fields.find("__entityId") == instance->fields.end())
+                    {
+                        throw std::runtime_error("attachComponent: entity instance must have __entityId field");
+                    }
+
+                    auto idValue = instance->fields.at("__entityId");
+                    if (!IS_INT(idValue))
+                    {
+                        throw std::runtime_error("attachComponent: __entityId must be an integer");
+                    }
+                    entityId = AS_INT(idValue);
+                }
+                else
+                {
+                    throw std::runtime_error("attachComponent expects first argument to be entity ID (int) or entity instance");
+                }
+
+                // Get component name
+                if (!IS_STRING(args[1]))
+                {
+                    throw std::runtime_error("attachComponent expects second argument to be component name (string)");
+                }
+                auto componentName = vm->asString(args[1])->toString();
+
+                // Get the entity
+                auto entity = ecsRefCopy->getEntity(entityId);
+                if (!entity)
+                {
+                    throw std::runtime_error("attachComponent: entity with ID " + std::to_string(entityId) + " not found");
+                }
+
+                // Build the properties for the StandardComponent from key-value pairs
+                std::vector<std::pair<std::string, ElementType>> properties;
+
+                // Process remaining arguments as key-value pairs for component properties
+                for (int i = 2; i < argCount; i += 2)
+                {
+                    if (i + 1 >= argCount)
+                    {
+                        throw std::runtime_error("attachComponent expects key-value pairs for component properties");
+                    }
+
+                    if (!IS_STRING(args[i]))
+                    {
+                        throw std::runtime_error("attachComponent expects string keys for properties");
+                    }
+
+                    auto key = vm->asString(args[i])->toString();
+                    auto value = args[i + 1];
+
+                    // Convert Value to ElementType
+                    ElementType elementValue;
+                    if (IS_INT(value))
+                    {
+                        elementValue = ElementType{static_cast<int>(AS_INT(value))};
+                    }
+                    else if (IS_DOUBLE(value))
+                    {
+                        elementValue = ElementType{AS_DOUBLE(value)};
+                    }
+                    else if (IS_STRING(value))
+                    {
+                        elementValue = ElementType{vm->asString(value)->toString()};
+                    }
+                    else if (IS_BOOL(value))
+                    {
+                        elementValue = ElementType{AS_BOOL(value)};
+                    }
+                    else
+                    {
+                        throw std::runtime_error("attachComponent: unsupported value type for property '" + key + "'");
+                    }
+
+                    properties.push_back({key, elementValue});
+                }
+
+                // Attach the StandardComponent with properties
+                try
+                {
+                    // Create the component with the first property if it exists
+                    CompRef<StandardComponent> component;
+                    if (properties.empty())
+                    {
+                        component = ecsRefCopy->attach(entity, componentName);
+                    }
+                    else
+                    {
+                        component = ecsRefCopy->attach(entity, componentName,
+                            properties[0].first, properties[0].second);
+
+                        // Add remaining properties
+                        for (size_t i = 1; i < properties.size(); i++)
+                        {
+                            component->properties[properties[i].first] = properties[i].second;
+                        }
+                    }
+
+                    LOG_INFO("Ecs Compiled Module", "Attached StandardComponent '" << componentName
+                             << "' to entity " << entityId << " with " << properties.size() << " properties");
+
+                    return makeBoolValue(true);
+                }
+                catch (const std::exception& e)
+                {
+                    throw std::runtime_error("attachComponent: failed to attach component '" + componentName + "': " + e.what());
+                }
             });
 
         }
