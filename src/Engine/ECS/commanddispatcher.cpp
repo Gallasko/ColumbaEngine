@@ -114,8 +114,11 @@ namespace pg
         // Finally try to create all the components requested
         while (found3)
         {
+            // We need to use the id of the entity here as the ref could hold an outdated pointer to the entity
             if (not item3.entity.empty())
-                item3.addInEcs(ecsRef, item3.entity, item3.component);
+                item3.addInEcs(ecsRef, ecsRef->getEntity(item3.entity.id), item3.component);
+
+            item3.clear();
 
             found3 = componentCQueue.try_dequeue(item3);
         }
