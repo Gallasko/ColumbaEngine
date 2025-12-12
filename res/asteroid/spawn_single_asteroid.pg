@@ -81,5 +81,7 @@ debugTable(asteroid)
 // Attach Asteroid component with all necessary data
 asteroid.attachComp("Asteroid", "size", size, "vx", vx, "vy", vy, "rotSpeed", rotSpeed)
 
+asteroid.attachComp("Collision")
+
 logInfo("Asteroid spawned at (" + toString(spawnX) + ", " + toString(spawnY) + ")")
 logInfo("Velocity: (" + toString(vx) + ", " + toString(vy) + ")")

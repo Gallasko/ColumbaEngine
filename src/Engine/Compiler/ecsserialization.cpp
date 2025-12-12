@@ -2,6 +2,7 @@
 
 #include "ECS/entitysystem.h"
 #include "2D/position.h"
+#include "2D/collisionsystem.h"
 
 #include <iostream>
 
@@ -37,6 +38,52 @@ namespace pg
                     throw std::runtime_error("attachComp expects first argument to be component name (string)");
                 }
                 auto componentName = vm->asString(args[0])->toString();
+
+                // Special case: if component name is "Collision", attach CollisionComponent instead
+                if (componentName == "Collision")
+                {
+                    // Parse arguments for CollisionComponent
+                    // Expected: attachComp("Collision", "layerId", layerId, "scale", scale, ...)
+                    size_t layerId = 0;
+                    float scale = 1.0f;
+                    bool checkSpecificLayer = false;
+                    std::vector<size_t> checkLayerId;
+
+                    // Process key-value pairs
+                    for (int i = 1; i < argCount; i += 2)
+                    {
+                        if (i + 1 >= argCount) break;
+
+                        if (!IS_STRING(args[i]))
+                        {
+                            throw std::runtime_error("attachComp expects string keys for properties");
+                        }
+
+                        auto key = vm->asString(args[i])->toString();
+                        auto value = args[i + 1];
+
+                        if (key == "layerId" && IS_INT(value))
+                        {
+                            layerId = static_cast<size_t>(AS_INT(value));
+                        }
+                        else if (key == "scale")
+                        {
+                            if (IS_DOUBLE(value))
+                                scale = static_cast<float>(AS_DOUBLE(value));
+                            else if (IS_INT(value))
+                                scale = static_cast<float>(AS_INT(value));
+                        }
+                        // Could add checkLayerId array parsing here if needed
+                    }
+
+                    // Attach CollisionComponent with parsed parameters
+                    ecsRef->_attach<CollisionComponent>(entityPtr, layerId, scale);
+
+                    LOG_INFO("ECS Serialization", "Attached native CollisionComponent to entity " << entityPtr->id
+                             << " (layerId=" << layerId << ", scale=" << scale << ")");
+
+                    return INT_VAL(0);
+                }
 
                 // Attach the StandardComponent (create empty first)
                 CompRef<StandardComponent> component = ecsRef->_attach(entityPtr, componentName);
