@@ -42,6 +42,8 @@ namespace pg {
 
         LOG_INFO("PassManager", "Running " << passes.size() << " passes");
 
+        rewriter->setVm(vm);
+
         for (auto& pass : passes)
         {
             if (enableDebugOutput)

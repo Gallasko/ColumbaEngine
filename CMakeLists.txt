@@ -170,6 +170,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/chunk_serializer.cpp
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
+    src/Engine/Compiler/pass/constant_folding.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp

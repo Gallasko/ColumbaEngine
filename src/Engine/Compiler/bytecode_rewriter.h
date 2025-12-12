@@ -9,6 +9,8 @@
 
 namespace pg
 {
+    struct VM;
+
     // Represents a captured instruction with its operands
     struct CapturedInstruction
     {
@@ -25,6 +27,11 @@ namespace pg
                        (static_cast<uint32_t>(operands[1]) << 8)  |
                        (static_cast<uint32_t>(operands[2]) << 16) |
                        (static_cast<uint32_t>(operands[3]) << 24);
+            }
+
+            if (operands.size() == 1)
+            {
+                return static_cast<uint32_t>(operands[0]);
             }
 
             return 0;
@@ -146,7 +153,12 @@ namespace pg
 
         std::set<size_t> jumpTargets;
 
+        VM *vm = nullptr;
+
     public:
+        void setVm(VM* vmInstance) { vm = vmInstance; }
+        VM* getVm() const { return vm; }
+
         void addRule(const std::vector<OpCode>& pattern, const std::vector<OpCode>& replacement);
 
         void addRule(OpCode pattern, OpCode replacement);
