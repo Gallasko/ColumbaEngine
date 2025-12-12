@@ -9,8 +9,6 @@ import "sys"
 
 var bullets = getEntities("Bullet")
 
-debugTable(bullets)
-
 // Update all bullets
 for (var bullet : bullets)
 {
@@ -19,9 +17,6 @@ for (var bullet : bullets)
     var data = bullet["Bullet"]
 
     // Get bullet velocity and lifetime
-    debugTable(bullet)
-    logInfo(data)
-    debugTable(data)
     var vx = data.vx
     var vy = data.vy
     var lifetime = data.lifetime

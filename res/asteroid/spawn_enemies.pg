@@ -96,6 +96,9 @@ if (sysData["spawnTimer"] > 2.0)
     asteroid["PositionComponent"].setX(spawnX)
     asteroid["PositionComponent"].setY(spawnY)
 
+    // Attach Asteroid component flag
+    attachComp(asteroid, "Asteroid", "size", size)
+
     // Random velocity toward center of screen
     var centerX = screenWidth / 2
     var centerY = screenHeight / 2

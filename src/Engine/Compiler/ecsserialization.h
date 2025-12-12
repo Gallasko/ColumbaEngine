@@ -36,6 +36,17 @@ namespace pg
         ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name);
 
         /**
+         * @brief Create a native attachComp function that holds entity pointer
+         *
+         * This allows scripts to attach components immediately without entity lookup.
+         *
+         * @param entityPtr Pointer to the entity
+         * @param ecsRef Pointer to the entity system
+         * @return NativeFn Lambda function that can be registered as a native function
+         */
+        NativeFn createAttachCompFunction(Entity* entityPtr, EntitySystem* ecsRef);
+
+        /**
          * @brief Check if a SerializedInfoHolder node represents an ElementType
          */
         inline bool isElementType(const SerializedInfoHolder& node)
@@ -736,6 +747,13 @@ namespace pg
         // Add the entity ID
         Value idValue = makeIntValue(static_cast<int64_t>(compList.id));
         entityTable->fields["__entityId"] = idValue;
+
+        // Add native attachComp function that holds the entity pointer
+        // This allows scripts to attach components immediately without entity lookup
+        Entity* entityPtr = compList.entity.entity;
+        EntitySystem* ecsRef = entityPtr->world();
+        Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entityPtr, ecsRef));
+        entityTable->fields["attachComp"] = attachCompFuncValue;
 
         // Serialize each component in the CompList using fold expression
         (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);

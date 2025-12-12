@@ -1,0 +1,85 @@
+import "texture"
+import "string"
+import "ecs"
+import "math"
+import "random"
+
+// Screen dimensions (these should match your window size)
+var screenWidth = 800
+var screenHeight = 600
+
+logInfo("Spawning new asteroid")
+
+// Create asteroid with random size
+var size = randomInt(30, 60)
+var asteroid = createTexture("Ghost", size, size)
+
+// Random spawn position on screen edges
+var spawnEdge = randomInt(0, 3)  // 0=top, 1=right, 2=bottom, 3=left
+var spawnX = 0
+var spawnY = 0
+
+if (spawnEdge == 0)  // Top edge
+{
+    spawnX = randomRange(0, screenWidth)
+    spawnY = -50
+}
+else if (spawnEdge == 1)  // Right edge
+{
+    spawnX = screenWidth + 50
+    spawnY = randomRange(0, screenHeight)
+}
+else if (spawnEdge == 2)  // Bottom edge
+{
+    spawnX = randomRange(0, screenWidth)
+    spawnY = screenHeight + 50
+}
+else  // Left edge
+{
+    spawnX = -50
+    spawnY = randomRange(0, screenHeight)
+}
+
+asteroid["PositionComponent"].setX(spawnX)
+asteroid["PositionComponent"].setY(spawnY)
+
+// Random velocity toward center of screen
+var centerX = screenWidth / 2
+var centerY = screenHeight / 2
+
+var dirX = centerX - spawnX
+var dirY = centerY - spawnY
+
+// Normalize direction
+var length = sqrt(dirX * dirX + dirY * dirY)
+
+if (length > 0)
+{
+    dirX = dirX / length
+    dirY = dirY / length
+}
+
+// Random speed between 50 and 150 pixels per second
+var speed = randomRange(50, 150)
+
+// Add some randomness to direction (not exactly toward center)
+var angleOffset = randomRange(-0.5, 0.5)
+var cosOffset = cos(angleOffset)
+var sinOffset = sin(angleOffset)
+
+var finalDirX = dirX * cosOffset - dirY * sinOffset
+var finalDirY = dirX * sinOffset + dirY * cosOffset
+
+var vx = finalDirX * speed
+var vy = finalDirY * speed
+
+// Random rotation speed (in degrees per second for visual rotation)
+var rotSpeed = randomRange(-2, 2)
+
+debugTable(asteroid)
+
+// Attach Asteroid component with all necessary data
+asteroid.attachComp("Asteroid", "size", size, "vx", vx, "vy", vy, "rotSpeed", rotSpeed)
+
+logInfo("Asteroid spawned at (" + toString(spawnX) + ", " + toString(spawnY) + ")")
+logInfo("Velocity: (" + toString(vx) + ", " + toString(vy) + ")")

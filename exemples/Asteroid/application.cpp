@@ -8,6 +8,8 @@
 
 #include "2D/texture.h"
 
+#include "2D/collisionsystem.h"
+
 using namespace pg;
 
 namespace
@@ -26,18 +28,40 @@ StandardSystemImpl* createPlayerSystem()
         .build();
 }
 
-StandardSystemImpl* createEnemySpawnSystem()
+StandardSystemImpl* createAsteroidSpawnTimerSystem()
 {
-    return createStandardSystem("AsteroidSpawnSystem")
+    return createStandardSystem("AsteroidSpawnTimer")
         .onInit([](StandardSystemHandle* sys)
         {
-            LOG_MILE(DOM, "AsteroidSpawnSystem initialized");
-
+            LOG_MILE(DOM, "AsteroidSpawnTimer initialized");
             sys->setData("spawnTimer", 0.0f);
-            sys->setData("asteroidCount", 0);
+        })
+        .onDelta([](StandardSystemHandle* sys, float deltaTime)
+        {
+            float timer = sys->getData("spawnTimer").get<float>();
+            timer += deltaTime;
+
+            if (timer > 2.0f)
+            {
+                timer -= 2.0f;
+                sys->sendEvent("SpawnAsteroid");
+            }
+
+            sys->setData("spawnTimer", timer);
+        })
+        .build();
+}
+
+StandardSystemImpl* createAsteroidSystem()
+{
+    return createStandardSystem("AsteroidSystem")
+        .onInit([](StandardSystemHandle* sys)
+        {
+            LOG_MILE(DOM, "AsteroidSystem initialized");
         })
         .ownComponent("Asteroid")
-        .onDelta("res/asteroid/spawn_enemies.pg")
+        .onEvent("SpawnAsteroid", "res/asteroid/spawn_single_asteroid.pg")
+        .onDelta("res/asteroid/update_asteroids.pg")
         .build();
 }
 
@@ -111,11 +135,17 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
     {
         ecs.registerSystem(createPlayerSystem());
 
-        // ecs.registerSystem(createEnemySpawnSystem());
+        ecs.registerSystem(createAsteroidSpawnTimerSystem());
+        ecs.registerSystem(createAsteroidSystem());
 
         ecs.registerSystem(createBulletSystem());
 
         ecs.registerSystem(createFPSSystem());
+
+        // Register collision handler for Bullet-Asteroid collisions
+        makeCollisionHandleScript(&ecs, "res/asteroid/bullet_asteroid_collision.pg",
+            [](Entity* ent) { return ent->has<StandardComponent>() && ent->get<StandardComponent>()->typeName == "Bullet"; },
+            [](Entity* ent) { return ent->has<StandardComponent>() && ent->get<StandardComponent>()->typeName == "Asteroid"; });
     });
 }
 
