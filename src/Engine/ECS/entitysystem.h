@@ -70,6 +70,7 @@ namespace pg
     class EntitySystem
     {
     friend class Entity;
+    friend struct EntityRef;
     friend class CommandDispatcher;
     friend struct CoreModule;
     friend struct InputModule;

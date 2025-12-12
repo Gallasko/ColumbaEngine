@@ -41,6 +41,34 @@ namespace pg
         archive.endSerialization();
     }
 
+    bool Entity::has(const std::string& compName) const noexcept
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        if (not ecsRef)
+        {
+            LOG_ERROR("Entity", "Entity is not referenced in any ECS");
+
+            return false;
+        }
+
+        return ecsRef->registry.retrieveStandardComponent(compName)->components.has(id);
+    }
+
+    bool EntityRef::has(const std::string& compName) const noexcept
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        if (not ecsRef)
+        {
+            LOG_ERROR("Entity", "Entity is not referenced in any ECS");
+
+            return false;
+        }
+
+        return ecsRef->registry.retrieveStandardComponent(compName)->components.has(id);
+    }
+
     EntityRef::EntityRef(Entity* ent, bool initialized) : initialized(initialized), entity(ent), id(ent->id), ecsRef(ent->world())
     {
     }

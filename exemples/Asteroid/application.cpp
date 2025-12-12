@@ -133,6 +133,12 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
+        ecs.createSystem<CollisionSystem>();
+
+        ecs.createSystem<CollisionHandlerSystem>();
+
+        ecs.succeed<CollisionHandlerSystem, CollisionSystem>();
+
         ecs.registerSystem(createPlayerSystem());
 
         ecs.registerSystem(createAsteroidSpawnTimerSystem());
@@ -144,8 +150,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // Register collision handler for Bullet-Asteroid collisions
         makeCollisionHandleScript(&ecs, "res/asteroid/bullet_asteroid_collision.pg",
-            [](Entity* ent) { return ent->has<StandardComponent>() && ent->get<StandardComponent>()->typeName == "Bullet"; },
-            [](Entity* ent) { return ent->has<StandardComponent>() && ent->get<StandardComponent>()->typeName == "Asteroid"; });
+            [](Entity* ent) { return ent->has("Bullet"); },
+            [](Entity* ent) { return ent->has("Asteroid"); });
     });
 }
 
