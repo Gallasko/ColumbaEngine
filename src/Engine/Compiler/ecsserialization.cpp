@@ -21,6 +21,71 @@ namespace pg
             auto& registry = ComponentSerializerRegistry::instance();
             return registry.getSerializer(name);
         }
+
+        // Shared implementation for attachComp native function
+        NativeFn createAttachCompFunction(Entity* entityPtr, EntitySystem* ecsRef)
+        {
+            return [entityPtr, ecsRef](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount < 1)
+                {
+                    throw std::runtime_error("attachComp expects at least 1 argument (componentName)");
+                }
+
+                // Get component name
+                if (!IS_STRING(args[0]))
+                {
+                    throw std::runtime_error("attachComp expects first argument to be component name (string)");
+                }
+                auto componentName = vm->asString(args[0])->toString();
+
+                // Attach the StandardComponent (create empty first)
+                CompRef<StandardComponent> component = ecsRef->attach(entityPtr, componentName);
+
+                // Process remaining arguments as key-value pairs and add them directly to the component
+                for (int i = 1; i < argCount; i += 2)
+                {
+                    if (i + 1 >= argCount)
+                    {
+                        throw std::runtime_error("attachComp expects key-value pairs for component properties");
+                    }
+
+                    if (!IS_STRING(args[i]))
+                    {
+                        throw std::runtime_error("attachComp expects string keys for properties");
+                    }
+
+                    auto key = vm->asString(args[i])->toString();
+                    auto value = args[i + 1];
+
+                    // Convert Value to ElementType and add directly to component
+                    if (IS_INT(value))
+                    {
+                        component->properties[key] = ElementType{static_cast<int>(AS_INT(value))};
+                    }
+                    else if (IS_DOUBLE(value))
+                    {
+                        component->properties[key] = ElementType{AS_DOUBLE(value)};
+                    }
+                    else if (IS_STRING(value))
+                    {
+                        component->properties[key] = ElementType{vm->asString(value)->toString()};
+                    }
+                    else if (IS_BOOL(value))
+                    {
+                        component->properties[key] = ElementType{AS_BOOL(value)};
+                    }
+                    else
+                    {
+                        throw std::runtime_error("attachComp: unsupported value type for property '" + key + "'");
+                    }
+                }
+
+                LOG_INFO("ECS Serialization", "Attached StandardComponent '" << componentName
+                         << "' to entity " << entityPtr->id);
+
+                return makeBoolValue(true);
+            };
+        }
     }
 
     // ============================================================================
@@ -438,6 +503,11 @@ namespace pg
         // Add the entity ID
         Value idValue = makeIntValue(static_cast<int64_t>(entity->id));
         entityTable->fields["__entityId"] = idValue;
+
+        // Add native attachComp function that holds the entity pointer
+        // This allows scripts to attach components immediately without entity lookup
+        Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entity, ecsRef));
+        entityTable->fields["attachComp"] = attachCompFuncValue;
 
         // Serialize each component
         for (const auto& compRef : entity->componentList)
