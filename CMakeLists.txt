@@ -102,6 +102,7 @@ endif()
 
 if(USE_GDB)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ggdb")
     message(STATUS, "GDB symbols ENABLED")
 else()
     message(STATUS, "GDB symbols DISABLED")

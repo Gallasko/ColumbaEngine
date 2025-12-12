@@ -93,6 +93,13 @@ namespace pg
                 addInEcs = other.addInEcs;
             }
 
+            void clear()
+            {
+                entity = nullptr;
+                component = nullptr;
+                addInEcs = nullptr;
+            }
+
             template <typename Type>
             void setupFunctions();
 
@@ -150,22 +157,6 @@ namespace pg
             if (not componentCQueue.enqueue(ComponentCreateCommand{entity, comp}))
             {
                 LOG_ERROR("Command Dispatcher", "Could not enqueue the creation of component " << typeid(Type).name());
-                return nullptr;
-            }
-
-            return comp;
-        }
-
-        template <typename... Args>
-        StandardComponent* attachComp(EntityRef entity, const std::string& compName, Args&&... args)
-        {
-            LOG_THIS_MEMBER("Command Dispatcher");
-
-            StandardComponent* comp = new StandardComponent(compName, std::forward<Args>(args)...);
-
-            if (not componentCQueue.enqueue(ComponentCreateCommand{entity, comp}))
-            {
-                LOG_ERROR("Command Dispatcher", "Could not enqueue the creation of the standard component " << compName);
                 return nullptr;
             }
 
