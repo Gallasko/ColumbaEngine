@@ -18,6 +18,7 @@
 
 #include "Compiler/pass/constant_var_access.h"
 #include "Compiler/pass/fuse_op_pop.h"
+#include "Compiler/pass/constant_folding.h"
 
 #include "Helpers/mathmodule.h"
 #include "Helpers/randommodule.h"
@@ -195,8 +196,11 @@ void CompilerApp::runFile(bool needCompile)
         vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
         vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
         vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
-        vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
         vm.addOptimizationPass(std::make_unique<FuseOpPop>());
+
+        vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
+
+        vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
 
         vm.enableBytecodeOptimization();
         vm.enableOptimizationDebugging();

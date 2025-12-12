@@ -6,17 +6,19 @@
 
 namespace pg {
 
-    void BytecodeRewriter::addRule(const std::vector<OpCode>& pattern, const std::vector<OpCode>& replacement) {
-        if (pattern.empty()) {
+    void BytecodeRewriter::addRule(const std::vector<OpCode>& pattern, const std::vector<OpCode>& replacement)
+    {
+        if (pattern.empty())
+        {
             LOG_WARNING("BytecodeRewriter", "Cannot add rule with empty pattern");
             return;
         }
 
         rules.emplace_back(pattern, replacement);
-        LOG_INFO("BytecodeRewriter", "Added rewrite rule: " << pattern.size() << " -> " << replacement.size() << " opcodes");
     }
 
-    void BytecodeRewriter::addRule(OpCode pattern, OpCode replacement) {
+    void BytecodeRewriter::addRule(OpCode pattern, OpCode replacement)
+    {
         addRule(std::vector<OpCode>{pattern}, std::vector<OpCode>{replacement});
     }
 
@@ -31,8 +33,6 @@ namespace pg {
         }
 
         advancedRules.emplace_back(pattern, transform, condition);
-
-        LOG_INFO("BytecodeRewriter", "Added advanced rewrite rule with " << pattern.size() << " pattern elements");
     }
 
     bool BytecodeRewriter::rewrite(Chunk& chunk)
@@ -68,18 +68,22 @@ namespace pg {
         return anyChanges;
     }
 
-    bool BytecodeRewriter::rewriteAt(Chunk& chunk, size_t index, size_t size, const std::vector<OpCode>& replacement) {
-        if (index >= chunk.code.size()) {
+    bool BytecodeRewriter::rewriteAt(Chunk& chunk, size_t index, size_t size, const std::vector<OpCode>& replacement)
+    {
+        if (index >= chunk.code.size())
+        {
             LOG_WARNING("BytecodeRewriter", "Rewrite index " << index << " is out of bounds (chunk size: " << chunk.code.size() << ")");
             return false;
         }
 
-        if (index + size > chunk.code.size()) {
+        if (index + size > chunk.code.size())
+        {
             LOG_WARNING("BytecodeRewriter", "Rewrite range [" << index << ", " << (index + size) << ") exceeds chunk bounds");
             return false;
         }
 
-        if (size == 0) {
+        if (size == 0)
+        {
             LOG_WARNING("BytecodeRewriter", "Cannot rewrite zero-sized region");
             return false;
         }
@@ -92,14 +96,16 @@ namespace pg {
 
         // Store original lines for replacement
         std::vector<int> originalLines;
-        if (index < chunk.lines.size()) {
+        if (index < chunk.lines.size())
+        {
             size_t linesToCopy = std::min(size, chunk.lines.size() - index);
             originalLines.assign(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToCopy);
         }
 
         // Remove original bytes and lines
         chunk.code.erase(chunk.code.begin() + index, chunk.code.begin() + index + size);
-        if (index < chunk.lines.size()) {
+        if (index < chunk.lines.size())
+        {
             size_t linesToRemove = std::min(size, chunk.lines.size() - index);
             chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
         }
@@ -107,7 +113,8 @@ namespace pg {
         // Insert replacement opcodes
         size_t insertPos = index;
         size_t lineIndex = 0;
-        for (OpCode opcode : replacement) {
+        for (OpCode opcode : replacement)
+        {
             int line = (lineIndex < originalLines.size()) ? originalLines[lineIndex % originalLines.size()] : 0;
 
             chunk.code.insert(chunk.code.begin() + insertPos, static_cast<uint8_t>(opcode));
@@ -116,7 +123,8 @@ namespace pg {
 
             // Add operand bytes for multi-byte instructions
             size_t instSize = pg::getInstructionSize(opcode);
-            for (size_t i = 1; i < instSize; ++i) {
+            for (size_t i = 1; i < instSize; ++i)
+            {
                 chunk.code.insert(chunk.code.begin() + insertPos, 0); // Placeholder for operand
                 chunk.lines.insert(chunk.lines.begin() + insertPos, line);
                 insertPos++;
@@ -126,7 +134,8 @@ namespace pg {
         }
 
         // Adjust jump offsets if size changed
-        if (sizeDelta != 0) {
+        if (sizeDelta != 0)
+        {
             LOG_INFO("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
             adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
         }
@@ -135,18 +144,22 @@ namespace pg {
         return true;
     }
 
-    bool BytecodeRewriter::rewriteAtRaw(Chunk& chunk, size_t index, size_t size, const std::vector<uint8_t>& replacement) {
-        if (index >= chunk.code.size()) {
+    bool BytecodeRewriter::rewriteAtRaw(Chunk& chunk, size_t index, size_t size, const std::vector<uint8_t>& replacement)
+    {
+        if (index >= chunk.code.size())
+        {
             LOG_WARNING("BytecodeRewriter", "Raw rewrite index " << index << " is out of bounds (chunk size: " << chunk.code.size() << ")");
             return false;
         }
 
-        if (index + size > chunk.code.size()) {
+        if (index + size > chunk.code.size())
+        {
             LOG_WARNING("BytecodeRewriter", "Raw rewrite range [" << index << ", " << (index + size) << ") exceeds chunk bounds");
             return false;
         }
 
-        if (size == 0) {
+        if (size == 0)
+        {
             LOG_WARNING("BytecodeRewriter", "Cannot rewrite zero-sized region");
             return false;
         }
@@ -157,14 +170,16 @@ namespace pg {
 
         // Store original lines for replacement
         std::vector<int> originalLines;
-        if (index < chunk.lines.size()) {
+        if (index < chunk.lines.size())
+        {
             size_t linesToCopy = std::min(size, chunk.lines.size() - index);
             originalLines.assign(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToCopy);
         }
 
         // Remove original bytes and lines
         chunk.code.erase(chunk.code.begin() + index, chunk.code.begin() + index + size);
-        if (index < chunk.lines.size()) {
+        if (index < chunk.lines.size())
+        {
             size_t linesToRemove = std::min(size, chunk.lines.size() - index);
             chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
         }
@@ -174,12 +189,14 @@ namespace pg {
 
         // Insert corresponding line numbers
         int line = originalLines.empty() ? 0 : originalLines[0];
-        for (size_t i = 0; i < replacement.size(); ++i) {
+        for (size_t i = 0; i < replacement.size(); ++i)
+        {
             chunk.lines.insert(chunk.lines.begin() + index + i, line);
         }
 
         // Adjust jump offsets if size changed
-        if (sizeDelta != 0) {
+        if (sizeDelta != 0)
+        {
             LOG_INFO("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
             adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
         }
@@ -188,18 +205,22 @@ namespace pg {
         return true;
     }
 
-    bool BytecodeRewriter::removeInstructions(Chunk& chunk, size_t index, size_t count) {
-        if (index >= chunk.code.size()) {
+    bool BytecodeRewriter::removeInstructions(Chunk& chunk, size_t index, size_t count)
+    {
+        if (index >= chunk.code.size())
+        {
             LOG_WARNING("BytecodeRewriter", "Remove index " << index << " is out of bounds (chunk size: " << chunk.code.size() << ")");
             return false;
         }
 
-        if (count == 0) {
+        if (count == 0)
+        {
             LOG_WARNING("BytecodeRewriter", "Cannot remove zero instructions");
             return false;
         }
 
-        if (index + count > chunk.code.size()) {
+        if (index + count > chunk.code.size())
+        {
             LOG_WARNING("BytecodeRewriter", "Remove range [" << index << ", " << (index + count) << ") exceeds chunk bounds");
             return false;
         }
@@ -207,7 +228,8 @@ namespace pg {
         LOG_INFO("BytecodeRewriter", "Removing " << count << " bytes starting at index " << index);
 
         // Remove bytes and corresponding lines
-        if (index < chunk.lines.size()) {
+        if (index < chunk.lines.size())
+        {
             size_t linesToRemove = std::min(count, chunk.lines.size() - index);
             chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
         }
@@ -221,10 +243,10 @@ namespace pg {
         return true;
     }
 
-    void BytecodeRewriter::clearRules() {
+    void BytecodeRewriter::clearRules()
+    {
         rules.clear();
         advancedRules.clear();
-        LOG_INFO("BytecodeRewriter", "Cleared all rewrite rules");
     }
 
     bool BytecodeRewriter::findAndApplyAdvancedRewrites(Chunk& chunk)
@@ -253,21 +275,19 @@ namespace pg {
                         continue;
                     }
 
-                    LOG_INFO("BytecodeRewriter", "Found advanced pattern match at offset " << i
+                    LOG_MILE("BytecodeRewriter", "Found advanced pattern match at offset " << i
                              << " with " << captured.size() << " captured instructions");
 
                     // Generate replacement using the transform lambda
                     std::vector<uint8_t> replacement = rule.transform(captured);
-
-                    LOG_INFO("BytecodeRewriter", "Generated " << replacement.size() << " replacement bytes");
 
                     int sizeDelta = static_cast<int>(replacement.size()) - static_cast<int>(patternByteSize);
 
                     applyAdvancedRewrite(chunk, i, patternByteSize, replacement);
 
                     // Adjust jump offsets immediately if size changed
-                    if (sizeDelta != 0) {
-                        LOG_INFO("BytecodeRewriter", "Adjusting jump offsets after size change of " << sizeDelta);
+                    if (sizeDelta != 0)
+                    {
                         adjustJumpOffsetsAfterRewrite(chunk, i, sizeDelta);
                     }
 
@@ -336,7 +356,6 @@ namespace pg {
                     // Adjust jump offsets immediately if size changed
                     if (sizeDelta != 0)
                     {
-                        LOG_INFO("BytecodeRewriter", "Adjusting jump offsets after size change");
                         adjustJumpOffsetsAfterRewrite(chunk, i, sizeDelta);
                     }
 
@@ -347,12 +366,14 @@ namespace pg {
                 }
             }
 
-            if (!foundMatch) {
+            if (not foundMatch)
+            {
                 i += pg::getInstructionSize(static_cast<OpCode>(chunk.code[i]));
             }
         }
 
-        if (anyChanges) {
+        if (anyChanges)
+        {
             LOG_INFO("BytecodeRewriter", "Pattern-based rewrite completed with changes");
         }
 
@@ -582,7 +603,7 @@ namespace pg {
 
     void BytecodeRewriter::adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta)
     {
-        LOG_INFO("BytecodeRewriter", "Adjusting jump offsets: rewrite at " << rewriteIndex << ", delta=" << sizeDelta);
+        LOG_MILE("BytecodeRewriter", "Adjusting jump offsets: rewrite at " << rewriteIndex << ", delta=" << sizeDelta);
 
         for (size_t i = 0; i < chunk.code.size();)
         {
@@ -615,7 +636,7 @@ namespace pg {
                     else
                         currentIndex = extractShortJumpOffset(chunk, i);
 
-                    LOG_INFO("BytecodeRewriter", "Adjusting jump at " << i << " (opcode=" << static_cast<int>(opcode)
+                    LOG_MILE("BytecodeRewriter", "Adjusting jump at " << i << " (opcode=" << static_cast<int>(opcode)
                              << ", currentTarget=" << currentTarget << ", currentIndex=" << currentIndex
                              << ", rewriteIndex=" << rewriteIndex << ", sizeDelta=" << sizeDelta << ")");
 
@@ -634,7 +655,7 @@ namespace pg {
                         newIndex = static_cast<int>(currentIndex) + sizeDelta;
                     }
 
-                    LOG_INFO("BytecodeRewriter", "Index adjusted from " << currentIndex << " to " << newIndex);
+                    LOG_MILE("BytecodeRewriter", "Index adjusted from " << currentIndex << " to " << newIndex);
 
                     if (newIndex < 0)
                     {
@@ -646,14 +667,12 @@ namespace pg {
                     if (isLongJumpInstruction(opcode))
                     {
                         writeLongJumpOffset(chunk, i, static_cast<uint32_t>(newIndex));
-                        LOG_INFO("BytecodeRewriter", "Adjusted long jump at " << i << " from " << currentIndex << " to " << newIndex);
                     }
                     else
                     {
                         if (newIndex <= 65535)
                         {
                             writeShortJumpOffset(chunk, i, static_cast<uint16_t>(newIndex));
-                            LOG_INFO("BytecodeRewriter", "Adjusted short jump at " << i << " from " << currentIndex << " to " << newIndex);
                         }
                         else
                         {
@@ -670,7 +689,7 @@ namespace pg {
         jumpTargets.clear();
         collectJumpTargets(chunk);
 
-        LOG_INFO("BytecodeRewriter", "Jump offset adjustment completed");
+        LOG_MILE("BytecodeRewriter", "Jump offset adjustment completed");
     }
 
 }
