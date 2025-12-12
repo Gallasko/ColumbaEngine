@@ -9,8 +9,6 @@ var screenHeight = 600
 // Get all entities with Asteroid component
 var asteroids = getEntities("Asteroid")
 
-debugTable(asteroids)
-
 // Update all existing asteroids
 for (var asteroid : asteroids)
 {

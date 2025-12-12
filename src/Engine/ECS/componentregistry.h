@@ -925,7 +925,7 @@ namespace pg
         }
 
         template <typename... Args>
-        inline StandardComponent* internalCreateComponent(Entity* entity, Args&&... args)
+        inline StandardComponent* \internalCreateComponent(Entity* entity, Args&&... args)
         {
             LOG_THIS_MEMBER("Own<StandardComponent>");
 

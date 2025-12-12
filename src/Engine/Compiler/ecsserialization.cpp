@@ -39,7 +39,7 @@ namespace pg
                 auto componentName = vm->asString(args[0])->toString();
 
                 // Attach the StandardComponent (create empty first)
-                CompRef<StandardComponent> component = ecsRef->attach(entityPtr, componentName);
+                CompRef<StandardComponent> component = ecsRef->_attach(entityPtr, componentName);
 
                 // Process remaining arguments as key-value pairs and add them directly to the component
                 for (int i = 1; i < argCount; i += 2)

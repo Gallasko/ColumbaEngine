@@ -85,7 +85,7 @@ namespace pg
     public:
         void setUp(std::shared_ptr<Logger::LogSink> sink)
         {
-            setArity(2, 2);
+            setArity(2, 3);
 
             this->sink = sink;
         }
@@ -104,8 +104,18 @@ namespace pg
                 return nullptr;
             }
 
+            bool bypassErrors = true;
+
+            if (not args.empty())
+            {
+                auto bypassArg = args.front()->getElement();
+                args.pop();
+
+                bypassErrors = bypassArg.get<bool>();
+            }
+
             if (sink)
-                sink->addFilter(name.toString(), new pg::Logger::LogSink::FilterScope(scope.toString()));
+                sink->addFilter(name.toString(), new pg::Logger::LogSink::FilterScope(scope.toString(), true, bypassErrors));
             else
             {
                 LOG_ERROR("AddFilterScopeFunction", "Trying to add a filter to a sinkless log module");

@@ -466,6 +466,8 @@ namespace pg
                     component = registry.retrieveStandardComponent(compName)->internalCreateComponent(entity, std::forward<Args>(args)...);
                 }
 
+                LOG_INFO("ECS", "Attached StandardComponent [" << compName << "] to entity [" << entity.id << "]");
+
                 auto res = CompRef<StandardComponent>(component, entity.id, this, not running, compName);
 
                 res->onCreation(entity);
