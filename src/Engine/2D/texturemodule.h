@@ -40,7 +40,7 @@ namespace pg
                     throw std::runtime_error("createTexture expects the first argument to be a string (file path)");
                 }
 
-                std::string filePath = vm->asString(args[0])->toString();
+                std::string filePath = vm->asString(args[0]);
 
                 int width = 0;
                 int height = 0;
@@ -51,7 +51,7 @@ namespace pg
                     {
                         throw std::runtime_error("createTexture expects the second argument to be an integer (width)");
                     }
-                
+
                     width = static_cast<int>(AS_INT(args[1]));
                 }
 
@@ -61,7 +61,7 @@ namespace pg
                     {
                         throw std::runtime_error("createTexture expects the third argument to be an integer (height)");
                     }
-                
+
                     height = static_cast<int>(AS_INT(args[2]));
                 }
 

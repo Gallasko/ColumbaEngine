@@ -35,7 +35,7 @@ namespace pg
 
             auto filename = vm->asString(args[0]);
 
-            auto file = UniversalFileAccessor::openTextFile(filename->toString());
+            auto file = UniversalFileAccessor::openTextFile(filename);
 
             return vm->createString(file.data);
         }

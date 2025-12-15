@@ -62,7 +62,7 @@ protected:
 
             if (IS_STRING(args[0]))
             {
-                str = vm->asString(args[0])->toString();
+                str = vm->asString(args[0]);
             }
             else if (IS_INT(args[0]))
             {

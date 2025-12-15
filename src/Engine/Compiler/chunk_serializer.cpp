@@ -33,8 +33,7 @@ namespace pg
             // Get the actual string content from the VM's string pool
             if (vm != nullptr)
             {
-                ElementType* str = vm->asString(value);
-                std::string strContent = str->toString();
+                std::string strContent = vm->asString(value);
                 writeString(out, strContent);
             }
             else

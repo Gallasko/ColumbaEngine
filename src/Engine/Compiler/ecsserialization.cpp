@@ -37,7 +37,7 @@ namespace pg
                 {
                     throw std::runtime_error("attachComp expects first argument to be component name (string)");
                 }
-                auto componentName = vm->asString(args[0])->toString();
+                auto componentName = vm->asString(args[0]);
 
                 // Special case: if component name is "Collision", attach CollisionComponent instead
                 if (componentName == "Collision")
@@ -59,7 +59,7 @@ namespace pg
                             throw std::runtime_error("attachComp expects string keys for properties");
                         }
 
-                        auto key = vm->asString(args[i])->toString();
+                        auto key = vm->asString(args[i]);
                         auto value = args[i + 1];
 
                         if (key == "layerId" && IS_INT(value))
@@ -101,7 +101,7 @@ namespace pg
                         throw std::runtime_error("attachComp expects string keys for properties");
                     }
 
-                    auto key = vm->asString(args[i])->toString();
+                    auto key = vm->asString(args[i]);
                     auto value = args[i + 1];
 
                     // Convert Value to ElementType and add directly to component
@@ -115,7 +115,7 @@ namespace pg
                     }
                     else if (IS_STRING(value))
                     {
-                        component->properties[key] = ElementType{vm->asString(value)->toString()};
+                        component->properties[key] = ElementType{vm->asString(value)};
                     }
                     else if (IS_BOOL(value))
                     {
@@ -390,7 +390,7 @@ namespace pg
                 return INT_VAL(0);
             }
 
-            std::string propName = vm->asString(args[0])->toString();
+            std::string propName = vm->asString(args[0]);
 
             // Convert the VM value to ElementType
             ElementType newValue = vm->valueToElement(args[1]);
@@ -497,8 +497,9 @@ namespace pg
                     auto typeNameIt = table->fields.find("typeName");
                     if (typeNameIt != table->fields.end() && IS_STRING(typeNameIt->second))
                     {
-                        compTypeName = vm->asString(typeNameIt->second)->toString();
+                        compTypeName = vm->asString(typeNameIt->second);
                         auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
+
                         if (owner)
                         {
                             componentPtr = owner->getComponent(entity->id);
@@ -573,7 +574,7 @@ namespace pg
                 auto classNameIt = compTable->fields.find("__className");
                 if (classNameIt != compTable->fields.end() && IS_STRING(classNameIt->second))
                 {
-                    componentTypeName = vm->asString(classNameIt->second)->toString();
+                    componentTypeName = vm->asString(classNameIt->second);
 
                     // For StandardComponent, use the actual typeName instead of "StandardComponent"
                     if (componentTypeName == "StandardComponent")
@@ -581,7 +582,7 @@ namespace pg
                         auto typeNameIt = compTable->fields.find("typeName");
                         if (typeNameIt != compTable->fields.end() && IS_STRING(typeNameIt->second))
                         {
-                            componentTypeName = vm->asString(typeNameIt->second)->toString();
+                            componentTypeName = vm->asString(typeNameIt->second);
                         }
                     }
                 }
@@ -615,7 +616,7 @@ namespace pg
             if (it != table->fields.end())
             {
                 if (IS_STRING(it->second))
-                    typeName = vm->asString(it->second)->toString();
+                    typeName = vm->asString(it->second);
             }
 
             if (typeName.empty())
@@ -672,7 +673,7 @@ namespace pg
                     }
                     else if (IS_STRING(value))
                     {
-                        valueStr = vm->asString(value)->toString();
+                        valueStr = vm->asString(value);
                         typeStr = "string";
                     }
 
@@ -772,7 +773,7 @@ namespace pg
             Value entityTableValue = serializeEntityToTable(vm, ecsRef, entity);
 
             Value indexKey = vm->createString(std::to_string(index));
-            entitiesTable->fields[vm->asString(indexKey)->toString()] = vm->retainValue(entityTableValue);
+            entitiesTable->fields[vm->asString(indexKey)] = vm->retainValue(entityTableValue);
             vm->releaseAndDelete(indexKey);
             vm->releaseAndDelete(entityTableValue);
 
@@ -782,7 +783,7 @@ namespace pg
         // Add count field
         Value countKey = vm->createString("count");
         Value countValue = makeIntValue(static_cast<int64_t>(entities.size()));
-        entitiesTable->fields[vm->asString(countKey)->toString()] = vm->retainValue(countValue);
+        entitiesTable->fields[vm->asString(countKey)] = vm->retainValue(countValue);
         vm->releaseAndDelete(countKey);
 
         return entitiesTableValue;

@@ -513,12 +513,13 @@ namespace pg
 
         // Print function - outputs to stdout
         vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
-            for (int i = 0; i < argCount; i++) {
+            for (int i = 0; i < argCount; i++)
+            {
                 if (i > 0) std::cout << " ";  // Space between arguments
 
                 Value value = args[i];
                 if (IS_STRING(value))
-                    std::cout << vm->asString(value)->toString();
+                    std::cout << vm->asString(value);
                 else if (IS_INT(value))
                     std::cout << AS_INT(value);
                 else if (IS_DOUBLE(value))
@@ -551,7 +552,7 @@ namespace pg
                 {
                     std::string valStr;
                     if (IS_STRING(value))
-                        valStr = vm->asString(value)->toString();
+                        valStr = vm->asString(value);
                     else if (IS_INT(value))
                         valStr = std::to_string(AS_INT(value));
                     else if (IS_DOUBLE(value))
@@ -573,7 +574,7 @@ namespace pg
                     Value value = vector->fields[i];
                     std::string valStr;
                     if (IS_STRING(value))
-                        valStr = vm->asString(value)->toString();
+                        valStr = vm->asString(value);
                     else if (IS_INT(value))
                         valStr = std::to_string(AS_INT(value));
                     else if (IS_DOUBLE(value))
@@ -601,7 +602,7 @@ namespace pg
             {
                 std::string valStr;
                 if (IS_STRING(value))
-                    valStr = vm->asString(value)->toString();
+                    valStr = vm->asString(value);
                 else if (IS_INT(value))
                     valStr = std::to_string(AS_INT(value));
                 else if (IS_DOUBLE(value))
@@ -624,7 +625,7 @@ namespace pg
 
             std::string valStr;
             if (IS_STRING(value))
-                valStr = vm->asString(value)->toString();
+                valStr = vm->asString(value);
             else if (IS_INT(value))
                 valStr = std::to_string(AS_INT(value));
             else if (IS_DOUBLE(value))

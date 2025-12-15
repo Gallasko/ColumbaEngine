@@ -470,7 +470,7 @@ namespace pg
         auto classNameIt = objTable->fields.find("__className");
         if (classNameIt != objTable->fields.end() && IS_STRING(classNameIt->second))
         {
-            typeName = vm->asString(classNameIt->second)->toString();
+            typeName = vm->asString(classNameIt->second);
         }
 
         // Create the root unserialized object
@@ -517,7 +517,7 @@ namespace pg
                     }
                     else if (IS_STRING(value))
                     {
-                        valueStr = vm->asString(value)->toString();
+                        valueStr = vm->asString(value);
                         typeStr = "string";
                     }
 
@@ -594,7 +594,7 @@ namespace pg
                 componentTypeName = compNode.className;
                 Value classNameKey = vm->createString("__className");
                 Value classNameValue = vm->createString(compNode.className);
-                addField(vm->asString(classNameKey)->toString(), classNameValue);
+                addField(vm->asString(classNameKey), classNameValue);
                 vm->releaseAndDelete(classNameKey);
                 vm->releaseAndDelete(classNameValue);  // Release initial reference
             }
@@ -650,7 +650,7 @@ namespace pg
             {
                 Value classNameKey = vm->createString("__className");
                 Value classNameValue = vm->createString(compNode.className);
-                addField(vm->asString(classNameKey)->toString(), classNameValue);
+                addField(vm->asString(classNameKey), classNameValue);
                 vm->releaseAndDelete(classNameKey);
                 vm->releaseAndDelete(classNameValue);  // Release initial reference
             }
