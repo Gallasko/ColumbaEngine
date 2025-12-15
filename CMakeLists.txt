@@ -162,6 +162,7 @@ set(ENGINESOURCE
     src/Engine/Audio/audiosystem.cpp
     src/Engine/Compiler/compiler_debug.cpp
     src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
     src/Engine/Compiler/ecsserialization.cpp
     src/Engine/Compiler/object.cpp
