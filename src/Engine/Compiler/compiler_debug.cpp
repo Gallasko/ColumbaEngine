@@ -432,6 +432,9 @@ namespace pg
             case OpCode::OP_Method:
                 return constantInstruction(vm, "OP_Method", chunk, offset);
 
+            case OpCode::OP_Short_Int:
+                return byteInstruction("OP_Short_Int", chunk, offset);
+
             case OpCode::OP_PopN:
                 return byteInstruction("OP_PopN", chunk, offset);
 

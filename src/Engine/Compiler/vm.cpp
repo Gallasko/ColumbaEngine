@@ -116,6 +116,7 @@ namespace pg
     void op_get_property(VM* vm);
     void op_set_property(VM* vm);
     void op_method(VM* vm);
+    void op_short_int(VM* vm);
 
     void op_pop_n(VM* vm);
 
@@ -1076,6 +1077,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Short_Int), op_short_int);
 
         register_operation(static_cast<uint8_t>(OpCode::OP_PopN), op_pop_n);
 
@@ -2377,6 +2379,13 @@ namespace pg
         }
 
         klass->methods[methodName] = methodClosureValue;
+    }
+
+    void op_short_int(VM* vm)
+    {
+        uint8_t value = *vm->currentFrame->ip++;
+
+        vm->push(makeIntValue(value));
     }
 
     void op_pop_n(VM* vm)

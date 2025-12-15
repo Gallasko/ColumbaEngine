@@ -73,6 +73,8 @@ namespace pg
 
         OP_Method,
 
+        OP_Short_Int,
+
         // Optimized opcodes can be added here
 
         OP_PopN,               // Pop N values from the stack (operand is number of values to pop)
@@ -270,6 +272,7 @@ namespace pg
             case OpCode::OP_Get_Local:
             case OpCode::OP_Set_Local:
             case OpCode::OP_Call:
+            case OpCode::OP_Short_Int:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
