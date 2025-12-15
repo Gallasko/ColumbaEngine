@@ -29,6 +29,15 @@ namespace pg
                 throw std::runtime_error("toString expects exactly 1 arguments (value)");
             }
 
+            // Handle integers directly to avoid 32-bit truncation in ElementType
+            if (IS_INT(args[0]))
+            {
+                int64_t val = AS_INT(args[0]);
+                std::string strRepr = std::to_string(val);
+                return vm->createString(strRepr);
+            }
+
+            // For other types, use ElementType conversion
             auto element = vm->valueToElement(args[0]);
             std::string strRepr = element.toString();
             return vm->createString(strRepr);

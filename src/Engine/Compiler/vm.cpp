@@ -1754,8 +1754,17 @@ namespace pg
         }
 
         // For testing: append to testOutput buffer instead of stdout
-        ElementType elem = vm->valueToElement(value);
-        vm->testOutput += elem.toString() + "\n";
+        // Handle integers directly to avoid 32-bit truncation in ElementType
+        if (IS_INT(value))
+        {
+            int64_t val = AS_INT(value);
+            vm->testOutput += std::to_string(val) + "\n";
+        }
+        else
+        {
+            ElementType elem = vm->valueToElement(value);
+            vm->testOutput += elem.toString() + "\n";
+        }
         vm->releaseAndDelete(value);
     }
 
