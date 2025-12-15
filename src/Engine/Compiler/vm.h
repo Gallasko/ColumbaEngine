@@ -81,6 +81,14 @@ namespace pg
             return stack_values[--stack_top];  // Single instruction!
         }
 
+        inline void changeTop(Value value)
+        {
+            if (stack_top == 0)
+                throw std::runtime_error("Trying to change top on an empty stack");
+
+            stack_values[stack_top - 1] = value;
+        }
+
         inline Value& operator[](size_t index) { return stack_values[index]; }
         inline const Value& operator[](size_t index) const { return stack_values[index]; }
 
@@ -246,12 +254,21 @@ namespace pg
             stack.push(val);
         }
 
+        inline void changeTop(Value value)
+        {
+            Value val = stack.top();
+
+            if (requiresRefCount(val))
+            {
+                // Release old top value
+                releaseAndDelete(val);
+            }
+
+            stack.changeTop(value);
+        }
+
         inline Value pop()
         {
-#ifdef DEBUG_CHECK_STACK
-            if (stack.empty())
-                throw std::runtime_error("Trying to pop on an empty stack");
-#endif
             return stack.pop();
         }
 
@@ -385,7 +402,7 @@ namespace pg
         int getValueAsInt(const Value& value);
 
         // Arithmetic operations with proper reference tracking
-        Value addValues(const Value& a, const Value& b);
+        Value addValues(const Value a, const Value b);
         Value subtractValues(const Value& a, const Value& b);
         Value multiplyValues(const Value& a, const Value& b);
         Value divideValues(const Value& a, const Value& b);

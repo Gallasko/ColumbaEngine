@@ -471,15 +471,14 @@ namespace pg
                 disassembleInstruction(this, currentFrame->closure->function->chunk, instructionOffset);
 #endif
 
-                // Start timing if profiling is enabled
-                auto startTime = std::chrono::high_resolution_clock::now();
-
-                // Dispatch to operation handler
-                operations[opcode].handler(this);
-
-                // Record profiling data if enabled
+                // Only measure timing if profiling is actually enabled
                 if (profiler.isEnabled())
                 {
+                    auto startTime = std::chrono::high_resolution_clock::now();
+
+                    // Dispatch to operation handler
+                    operations[opcode].handler(this);
+
                     auto endTime = std::chrono::high_resolution_clock::now();
                     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
 
@@ -491,6 +490,11 @@ namespace pg
                     const std::string& functionName = currentFrame->closure->function->name;
 
                     profiler.recordInstruction(chunkPtr, functionName, instructionOffset, opcode, opcodeName, duration);
+                }
+                else
+                {
+                    // Fast path: no profiling overhead
+                    operations[opcode].handler(this);
                 }
 
                 // Update frame IP for potential frame switches
@@ -775,7 +779,7 @@ namespace pg
         }
     }
 
-    Value VM::addValues(const Value& a, const Value& b)
+    Value VM::addValues(const Value a,const Value b)
     {
         // Fast path for integers
         if (IS_INT(a) and IS_INT(b))
@@ -1230,10 +1234,9 @@ namespace pg
     void op_name(VM* vm) \
     { \
         auto b = vm->pop(); \
-        auto a = vm->pop(); \
-        vm->push(vm->operation(a, b)); \
+        auto a = vm->peek(); \
+        vm->changeTop(vm->operation(a, b)); \
         /* Escape analysis: Only release heap objects, not primitives */ \
-        if (requiresRefCount(a)) vm->releaseAndDelete(a); \
         if (requiresRefCount(b)) vm->releaseAndDelete(b); \
     }
 

@@ -195,7 +195,7 @@ void CompilerApp::runFile(bool needCompile)
 
     if (needCompile)
     {
-        vm.enableProfiling();
+        // vm.enableProfiling();
 
         // vm.addOptimizationPass(std::make_uniqueh
         vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
@@ -244,8 +244,8 @@ void CompilerApp::runFile(bool needCompile)
         result = vm.interpretFromBytecodeFile(fileName);
     }
 
-    vm.printProfilingReport();
-    vm.printProfilingBytecodeReport();
+    // vm.printProfilingReport();
+    // vm.printProfilingBytecodeReport();
 
     switch (result)
     {
