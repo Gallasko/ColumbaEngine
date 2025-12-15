@@ -478,7 +478,11 @@ namespace pg
                     // Get opcode name for display
                     std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
 
-                    profiler.recordInstruction(instructionOffset, opcode, opcodeName, duration);
+                    // Get chunk pointer and function name
+                    const void* chunkPtr = &currentFrame->closure->function->chunk;
+                    const std::string& functionName = currentFrame->closure->function->name;
+
+                    profiler.recordInstruction(chunkPtr, functionName, instructionOffset, opcode, opcodeName, duration);
                 }
 
                 // Update frame IP for potential frame switches

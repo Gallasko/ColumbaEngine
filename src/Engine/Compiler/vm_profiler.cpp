@@ -24,6 +24,7 @@ namespace pg
         std::cout << "\nTop instructions by " << (sortByTime ? "total time" : "execution count") << ":\n" << std::endl;
 
         std::cout << std::left
+                  << std::setw(20) << "Function"
                   << std::setw(8) << "Offset"
                   << std::setw(25) << "Opcode"
                   << std::setw(12) << "Count"
@@ -32,13 +33,14 @@ namespace pg
                   << std::setw(10) << "% Time"
                   << std::endl;
 
-        std::cout << std::string(85, '-') << std::endl;
+        std::cout << std::string(105, '-') << std::endl;
 
         for (const auto& profile : results)
         {
             double percentage = totalTime > 0 ? (static_cast<double>(profile.totalNanoseconds) / totalTime * 100.0) : 0.0;
 
             std::cout << std::left
+                      << std::setw(20) << profile.functionName
                       << std::setw(8) << profile.instructionOffset
                       << std::setw(25) << profile.opcodeName
                       << std::setw(12) << profile.executionCount
@@ -69,6 +71,7 @@ namespace pg
         std::cout << "\nInstruction-by-instruction breakdown:\n" << std::endl;
 
         std::cout << std::left
+                  << std::setw(20) << "Function"
                   << std::setw(8) << "Offset"
                   << std::setw(30) << "Opcode"
                   << std::setw(15) << "Exec Count"
@@ -76,11 +79,12 @@ namespace pg
                   << std::setw(15) << "Avg (ns)"
                   << std::endl;
 
-        std::cout << std::string(83, '-') << std::endl;
+        std::cout << std::string(103, '-') << std::endl;
 
         for (const auto& profile : results)
         {
             std::cout << std::left
+                      << std::setw(20) << profile.functionName
                       << std::setw(8) << profile.instructionOffset
                       << std::setw(30) << profile.opcodeName
                       << std::setw(15) << profile.executionCount
