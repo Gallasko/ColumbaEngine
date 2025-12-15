@@ -494,4 +494,81 @@ namespace pg
                 return offset + 1;
         }
     }
+
+    std::string opcodeToString(OpCode opcode)
+    {
+        switch (opcode)
+        {
+            case OpCode::OP_Return: return "OP_Return";
+            case OpCode::OP_Constant: return "OP_Constant";
+            case OpCode::OP_LongConstant: return "OP_LongConstant";
+            case OpCode::OP_Negate: return "OP_Negate";
+            case OpCode::OP_Add: return "OP_Add";
+            case OpCode::OP_Subtract: return "OP_Subtract";
+            case OpCode::OP_Multiply: return "OP_Multiply";
+            case OpCode::OP_Divide: return "OP_Divide";
+            case OpCode::OP_True: return "OP_True";
+            case OpCode::OP_False: return "OP_False";
+            case OpCode::OP_Not: return "OP_Not";
+            case OpCode::OP_And: return "OP_And";
+            case OpCode::OP_Or: return "OP_Or";
+            case OpCode::OP_Equal: return "OP_Equal";
+            case OpCode::OP_NotEqual: return "OP_NotEqual";
+            case OpCode::OP_Greater: return "OP_Greater";
+            case OpCode::OP_GreaterEqual: return "OP_GreaterEqual";
+            case OpCode::OP_Less: return "OP_Less";
+            case OpCode::OP_LessEqual: return "OP_LessEqual";
+            case OpCode::OP_Pop: return "OP_Pop";
+            case OpCode::OP_Define_Global: return "OP_Define_Global";
+            case OpCode::OP_Get_Global: return "OP_Get_Global";
+            case OpCode::OP_Set_Global: return "OP_Set_Global";
+            case OpCode::OP_Get_Local: return "OP_Get_Local";
+            case OpCode::OP_Set_Local: return "OP_Set_Local";
+            case OpCode::OP_Jump_If_False: return "OP_Jump_If_False";
+            case OpCode::OP_Long_Jump_If_False: return "OP_Long_Jump_If_False";
+            case OpCode::OP_Jump: return "OP_Jump";
+            case OpCode::OP_Long_Jump: return "OP_Long_Jump";
+            case OpCode::OP_Loop: return "OP_Loop";
+            case OpCode::OP_Long_Loop: return "OP_Long_Loop";
+            case OpCode::OP_Debug_Print: return "OP_Debug_Print";
+            case OpCode::OP_Post_Incr_Global: return "OP_Post_Incr_Global";
+            case OpCode::OP_Incr_Global: return "OP_Incr_Global";
+            case OpCode::OP_Post_Incr_Local: return "OP_Post_Incr_Local";
+            case OpCode::OP_Incr_Local: return "OP_Incr_Local";
+            case OpCode::OP_Post_Decr_Global: return "OP_Post_Decr_Global";
+            case OpCode::OP_Decr_Global: return "OP_Decr_Global";
+            case OpCode::OP_Post_Decr_Local: return "OP_Post_Decr_Local";
+            case OpCode::OP_Decr_Local: return "OP_Decr_Local";
+            case OpCode::OP_Call: return "OP_Call";
+            case OpCode::OP_Invoke: return "OP_Invoke";
+            case OpCode::OP_Closure: return "OP_Closure";
+            case OpCode::OP_Get_Upvalue: return "OP_Get_Upvalue";
+            case OpCode::OP_Set_Upvalue: return "OP_Set_Upvalue";
+            case OpCode::OP_Close_Upvalue: return "OP_Close_Upvalue";
+            case OpCode::OP_Class: return "OP_Class";
+            case OpCode::OP_Set_Property: return "OP_Set_Property";
+            case OpCode::OP_Get_Property: return "OP_Get_Property";
+            case OpCode::OP_Method: return "OP_Method";
+            case OpCode::OP_Short_Int: return "OP_Short_Int";
+            case OpCode::OP_PopN: return "OP_PopN";
+            case OpCode::OP_Define_Constant_Global: return "OP_Define_Constant_Global";
+            case OpCode::OP_Get_Constant_Global: return "OP_Get_Constant_Global";
+            case OpCode::OP_Set_Constant_Global: return "OP_Set_Constant_Global";
+            case OpCode::OP_Define_Global_Non_Popping: return "OP_Define_Global_Non_Popping";
+            case OpCode::OP_AddLL: return "OP_AddLL";
+            case OpCode::OP_SubtractLL: return "OP_SubtractLL";
+            case OpCode::OP_SubtractLC: return "OP_SubtractLC";
+            case OpCode::OP_SubtractCL: return "OP_SubtractCL";
+            case OpCode::OP_Build_Vector: return "OP_Build_Vector";
+            case OpCode::OP_Build_Table: return "OP_Build_Table";
+            case OpCode::OP_Get_Index: return "OP_Get_Index";
+            case OpCode::OP_Set_Index: return "OP_Set_Index";
+            case OpCode::OP_Get_Iterator: return "OP_Get_Iterator";
+            case OpCode::OP_Iterator_Next: return "OP_Iterator_Next";
+            case OpCode::OP_Table_Size: return "OP_Table_Size";
+            case OpCode::OP_Table_At: return "OP_Table_At";
+            case OpCode::OP_Import: return "OP_Import";
+            default: return "OP_Unknown_" + std::to_string(static_cast<uint8_t>(opcode));
+        }
+    }
 }

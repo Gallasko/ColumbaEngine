@@ -444,6 +444,8 @@ namespace pg
                 //     return InterpretResult::OK;
                 // }
 
+                // Calculate instruction offset before incrementing IP
+                size_t instructionOffset = currentFrame->ip - chunkData;
                 uint8_t opcode = *currentFrame->ip++;
 
 #ifdef DEBUG_TRACE_EXECUTION
@@ -458,16 +460,26 @@ namespace pg
 
                 // Update frame IP for debug output
                 // currentFrame->ip = ip;
-                disassembleInstruction(this, currentFrame->closure->function->chunk, currentFrame->ip - chunkData - 1);
+                disassembleInstruction(this, currentFrame->closure->function->chunk, instructionOffset);
 #endif
-                // Todo add those behind a debug flag
-                // if (operations[opcode].handler) {
-                    // Dispatch to operation handler
-                    operations[opcode].handler(this);
-                // } else {
-                    // runtimeError("Unknown opcode");
-                    // return InterpretResult::RUNTIME_ERROR;
-                // }
+
+                // Start timing if profiling is enabled
+                auto startTime = std::chrono::high_resolution_clock::now();
+
+                // Dispatch to operation handler
+                operations[opcode].handler(this);
+
+                // Record profiling data if enabled
+                if (profiler.isEnabled())
+                {
+                    auto endTime = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+
+                    // Get opcode name for display
+                    std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
+
+                    profiler.recordInstruction(instructionOffset, opcode, opcodeName, duration);
+                }
 
                 // Update frame IP for potential frame switches
                 // currentFrame->ip = ip;

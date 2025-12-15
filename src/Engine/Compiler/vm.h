@@ -12,6 +12,7 @@
 #include "vmpools.h"       // Pool-based memory management
 #include "object.h"
 #include "native_module.h"
+#include "vm_profiler.h"   // Bytecode profiling
 
 #include <stack>
 #include <functional>
@@ -431,6 +432,9 @@ namespace pg
         PassManager passManager;
         bool enableOptimizations = true;
 
+        // Bytecode profiling
+        VMProfiler profiler;
+
         ObjUpvalue* openUpvalues = nullptr;
 
         // Optimization control methods
@@ -454,6 +458,35 @@ namespace pg
         void disableOptimizationDebugging()
         {
             passManager.setDebugOutput(false);
+        }
+
+        // Profiler control methods
+        void enableProfiling()
+        {
+            profiler.setEnabled(true);
+            profiler.reset();
+            LOG_INFO("VM", "Bytecode profiling enabled");
+        }
+
+        void disableProfiling()
+        {
+            profiler.setEnabled(false);
+            LOG_INFO("VM", "Bytecode profiling disabled");
+        }
+
+        void resetProfiling()
+        {
+            profiler.reset();
+        }
+
+        void printProfilingReport(bool sortByTime = true)
+        {
+            profiler.printReport(sortByTime);
+        }
+
+        void printProfilingBytecodeReport()
+        {
+            profiler.printBytecodeReport();
         }
 
         void listOptimizationPasses() const
