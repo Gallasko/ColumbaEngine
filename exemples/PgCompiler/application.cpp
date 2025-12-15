@@ -20,6 +20,7 @@
 #include "Compiler/pass/fuse_op_pop.h"
 #include "Compiler/pass/constant_folding.h"
 #include "Compiler/pass/increment_optimization_pass.h"
+#include "Compiler/pass/simplify_constant_pass.h"
 
 #include "Helpers/mathmodule.h"
 #include "Helpers/randommodule.h"
@@ -207,6 +208,8 @@ void CompilerApp::runFile(bool needCompile)
         vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
 
         vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
+
+        vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
 
         vm.enableBytecodeOptimization();
         vm.enableOptimizationDebugging();
