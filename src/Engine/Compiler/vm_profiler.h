@@ -12,7 +12,7 @@ namespace pg
     /**
      * @brief Profiler for VM bytecode execution
      *
-     * Tracks execution count and time spent for each instruction BY POSITION in bytecode
+     * Tracks execution count and time spent for each instruction BY POSITION in bytecode AND chunk
      */
     class VMProfiler
     {
@@ -23,6 +23,8 @@ namespace pg
             uint64_t totalNanoseconds = 0;
             uint8_t opcode = 0;
             size_t instructionOffset = 0;  // Position in bytecode stream
+            const void* chunkPtr = nullptr;  // Pointer to chunk (for uniqueness)
+            std::string functionName;        // Name of the function/chunk
             std::string opcodeName;
 
             double averageTimeNs() const
@@ -41,6 +43,30 @@ namespace pg
             }
         };
 
+        // Key for uniquely identifying an instruction: (chunk pointer, offset)
+        struct InstructionKey
+        {
+            const void* chunkPtr;
+            size_t offset;
+
+            bool operator==(const InstructionKey& other) const
+            {
+                return chunkPtr == other.chunkPtr && offset == other.offset;
+            }
+        };
+
+        // Hash function for InstructionKey
+        struct InstructionKeyHash
+        {
+            std::size_t operator()(const InstructionKey& key) const
+            {
+                // Combine hash of pointer and offset
+                std::size_t h1 = std::hash<const void*>{}(key.chunkPtr);
+                std::size_t h2 = std::hash<size_t>{}(key.offset);
+                return h1 ^ (h2 << 1);
+            }
+        };
+
         VMProfiler() : enabled(false), totalInstructions(0) {}
 
         /**
@@ -51,23 +77,29 @@ namespace pg
         bool isEnabled() const { return enabled; }
 
         /**
-         * @brief Record execution of an instruction at a specific bytecode position
+         * @brief Record execution of an instruction at a specific bytecode position in a specific chunk
+         * @param chunkPtr Pointer to the chunk (for uniqueness across functions)
+         * @param functionName Name of the function/chunk
          * @param instructionOffset The position/offset in the bytecode stream
          * @param opcode The opcode being executed
          * @param opcodeName The name of the opcode for display
          * @param nanoseconds Time spent executing this instruction
          */
-        inline void recordInstruction(size_t instructionOffset, uint8_t opcode, const std::string& opcodeName, uint64_t nanoseconds)
+        inline void recordInstruction(const void* chunkPtr, const std::string& functionName, size_t instructionOffset,
+                                      uint8_t opcode, const std::string& opcodeName, uint64_t nanoseconds)
         {
             if (!enabled) return;
 
-            auto& profile = profiles[instructionOffset];
+            InstructionKey key{chunkPtr, instructionOffset};
+            auto& profile = profiles[key];
 
             // Initialize on first recording
             if (profile.executionCount == 0)
             {
                 profile.opcode = opcode;
                 profile.instructionOffset = instructionOffset;
+                profile.chunkPtr = chunkPtr;
+                profile.functionName = functionName;
                 profile.opcodeName = opcodeName;
             }
 
@@ -128,7 +160,7 @@ namespace pg
         }
 
         /**
-         * @brief Get profiling results sorted by instruction offset (bytecode order)
+         * @brief Get profiling results sorted by function name, then by instruction offset (bytecode order)
          */
         std::vector<InstructionProfile> getResultsSortedByOffset() const
         {
@@ -142,6 +174,10 @@ namespace pg
 
             std::sort(results.begin(), results.end(),
                 [](const auto& a, const auto& b) {
+                    // First sort by function name
+                    if (a.functionName != b.functionName)
+                        return a.functionName < b.functionName;
+                    // Then by instruction offset within the same function
                     return a.instructionOffset < b.instructionOffset;
                 });
 
@@ -149,11 +185,12 @@ namespace pg
         }
 
         /**
-         * @brief Get profile for specific instruction offset
+         * @brief Get profile for specific instruction in a specific chunk
          */
-        const InstructionProfile* getProfile(size_t instructionOffset) const
+        const InstructionProfile* getProfile(const void* chunkPtr, size_t instructionOffset) const
         {
-            auto it = profiles.find(instructionOffset);
+            InstructionKey key{chunkPtr, instructionOffset};
+            auto it = profiles.find(key);
             return it != profiles.end() ? &it->second : nullptr;
         }
 
@@ -188,7 +225,7 @@ namespace pg
 
     private:
         bool enabled;
-        std::unordered_map<size_t, InstructionProfile> profiles;
+        std::unordered_map<InstructionKey, InstructionProfile, InstructionKeyHash> profiles;
         uint64_t totalInstructions;
     };
 }
