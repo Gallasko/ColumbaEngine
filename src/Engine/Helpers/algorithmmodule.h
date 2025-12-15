@@ -77,29 +77,38 @@ namespace pg
                 throw std::runtime_error("toInt expects exactly 1 arguments (value)");
             }
 
-            // Convert string to int
+            // Convert string to int (using 47-bit integer range)
             if (IS_STRING(args[0]))
             {
                 auto str = vm->asString(args[0]);
 
-                int res = 0;
+                int64_t res = 0;
                 try
                 {
-                    res = std::stoi(str);
+                    res = std::stoll(str);
                 }
                 catch (const std::exception&)
                 {
-                    throw std::runtime_error("toInt could convert the string " + str + "to an integer");
+                    throw std::runtime_error("toInt could not convert the string " + str + " to an integer");
                 }
 
-                return vm->elementToValue(res);
+                // Use makeIntValue directly to create a 47-bit integer Value
+                // This avoids ElementType conversion which would truncate to 32-bit int
+                return makeIntValue(res);
             }
 
-            // Default conversion
+            // Default conversion for numeric types
+            if (IS_INT(args[0]))
+                return args[0];  // Already an integer
+
+            if (IS_DOUBLE(args[0]))
+                return makeIntValue(static_cast<int64_t>(AS_DOUBLE(args[0])));
+
+            // Fallback to ElementType conversion
             auto value = vm->valueToElement(args[0]);
             auto intValue = value.get<int>();
 
-            return vm->elementToValue(intValue);
+            return makeIntValue(intValue);
         }
     };
 }
