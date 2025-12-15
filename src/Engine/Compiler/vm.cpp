@@ -157,6 +157,14 @@ namespace pg
 
         // Initialize built-in classes (like Table)
         initialize_builtin_classes();
+
+        // Initialize single-character string cache for performance
+        // Pre-allocate all 256 possible single-byte character strings
+        for (int i = 0; i < 256; i++)
+        {
+            std::string singleChar(1, static_cast<char>(i));
+            singleCharCache[i] = createString(singleChar);
+        }
     }
 
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
@@ -2563,7 +2571,7 @@ namespace pg
         // Convert ElementType to string for lookup (assuming ElementType has toString() or similar)
         std::string stringContent = element.toString();
 
-        // Check if string already exists in the intern map
+        // // Check if string already exists in the intern map
         auto it = pools.internedStrings.find(stringContent);
         if (it != pools.internedStrings.end())
         {
@@ -2864,14 +2872,12 @@ namespace pg
 
             if (idx < 0 || idx >= static_cast<int>(vec->fields.size()))
             {
-                vm->releaseAndDelete(index);
                 vm->releaseAndDelete(target);
                 vm->runtimeError("Vector index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
                 return;
             }
 
-            vm->releaseAndDelete(index);
             vm->releaseAndDelete(target);
 
             // Return the value at the index
@@ -2903,19 +2909,17 @@ namespace pg
 
             if (idx < 0 || idx >= static_cast<int>(str.length()))
             {
-                vm->releaseAndDelete(index);
                 vm->releaseAndDelete(target);
                 vm->runtimeError("String index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
                 return;
             }
 
-            vm->releaseAndDelete(index);
             vm->releaseAndDelete(target);
 
-            // Return single character as a string
-            std::string charStr(1, str[idx]);
-            vm->push(vm->createString(charStr));
+            // Return single character as a string using cached value
+            unsigned char ch = static_cast<unsigned char>(str[idx]);
+            vm->push(vm->retainValue(vm->singleCharCache[ch]));
             return;
         }
 
