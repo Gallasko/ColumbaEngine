@@ -375,7 +375,7 @@ namespace pg
                     throw std::runtime_error("sendEvent expects first argument to be a string (event name)");
                 }
 
-                auto eventName = vm->asString(args[0])->toString();
+                auto eventName = vm->asString(args[0]);
                 StandardEvent event(eventName);
 
                 // Process remaining arguments as key-value pairs
@@ -391,7 +391,7 @@ namespace pg
                         throw std::runtime_error("sendEvent expects string keys");
                     }
 
-                    auto key = vm->asString(args[i])->toString();
+                    auto key = vm->asString(args[i]);
                     auto value = args[i + 1];
 
                     // Convert Value to ElementType
@@ -405,7 +405,7 @@ namespace pg
                     }
                     else if (IS_STRING(value))
                     {
-                        event.values[key] = ElementType{vm->asString(value)->toString()};
+                        event.values[key] = ElementType{vm->asString(value)};
                     }
                     else if (IS_BOOL(value))
                     {
@@ -460,7 +460,7 @@ namespace pg
                 {
                     throw std::runtime_error("attachComponent expects second argument to be component name (string)");
                 }
-                auto componentName = vm->asString(args[1])->toString();
+                auto componentName = vm->asString(args[1]);
 
                 // Get the entity
                 auto entity = ecsRefCopy->getEntity(entityId);
@@ -485,7 +485,7 @@ namespace pg
                         throw std::runtime_error("attachComponent expects string keys for properties");
                     }
 
-                    auto key = vm->asString(args[i])->toString();
+                    auto key = vm->asString(args[i]);
                     auto value = args[i + 1];
 
                     // Convert Value to ElementType
@@ -500,7 +500,7 @@ namespace pg
                     }
                     else if (IS_STRING(value))
                     {
-                        elementValue = ElementType{vm->asString(value)->toString()};
+                        elementValue = ElementType{vm->asString(value)};
                     }
                     else if (IS_BOOL(value))
                     {

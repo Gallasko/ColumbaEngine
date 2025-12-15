@@ -695,13 +695,18 @@ namespace pg
     void VM::deleteValue(const Value& value)
     {
         // Perform type-specific deletion
-        if (IS_STRING(value))
+        if (IS_LONG_STRING(value))
         {
             // Remove from interned strings map before releasing
-            ElementType* str = asString(value);
+            ElementType* str = asStringPtr(value);
             std::string strContent = str->toString();
             pools.internedStrings.erase(strContent);
             pools.stringPool.release(str);
+        }
+        else if (IS_SMALL_STRING(value))
+        {
+            // Small strings are inline - no deletion needed
+            return;
         }
         else if (IS_FUNC(value))
         {
@@ -786,6 +791,16 @@ namespace pg
 
         if (IS_FLOAT(a) and IS_INT(b))
             return FLOAT_VAL(AS_FLOAT(a) + static_cast<double>(AS_INT(b)));
+
+        // Fast path for string concatenation
+        if (IS_STRING(a) && IS_STRING(b))
+        {
+            // Extract string content
+            std::string strA = asString(a);
+            std::string strB = asString(b);
+
+            return createString(strA + strB);
+        }
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -2571,6 +2586,12 @@ namespace pg
         // Convert ElementType to string for lookup (assuming ElementType has toString() or similar)
         std::string stringContent = element.toString();
 
+        // Small string optimization: inline strings with 5 or fewer characters
+        if (stringContent.length() <= 5)
+        {
+            return makeSmallStringValue(stringContent.c_str(), static_cast<uint8_t>(stringContent.length()));
+        }
+
         // // Check if string already exists in the intern map
         auto it = pools.internedStrings.find(stringContent);
         if (it != pools.internedStrings.end())
@@ -2674,8 +2695,10 @@ namespace pg
             return ElementType(static_cast<int>(AS_INT(value)));
         else if (IS_DOUBLE(value))
             return ElementType(AS_DOUBLE(value));
-        else if (IS_STRING(value))
-            return *asString(value);
+        else if (IS_SMALL_STRING(value))
+            return ElementType(AS_SMALL_STRING(value));
+        else if (IS_LONG_STRING(value))
+            return *asStringPtr(value);
         else
             throw std::runtime_error("Cannot convert Value to ElementType - unsupported type");
     }
@@ -2704,11 +2727,16 @@ namespace pg
             return static_cast<int>(AS_DOUBLE(value));
         else if (IS_BOOL(value))
             return AS_BOOL(value) ? 1 : 0;
-        else if (IS_STRING(value))
+        else if (IS_LONG_STRING(value))
         {
-            ElementType* obj = asString(value);
+            ElementType* obj = asStringPtr(value);
             if (obj->type == ElementType::UnionType::INT)
                 return obj->get<int>();
+        }
+        else if (IS_SMALL_STRING(value))
+        {
+            // Small strings don't have ElementType backing, can't extract int
+            // Fall through to error
         }
 
         throw std::runtime_error("Value is not an integer");
@@ -2758,7 +2786,7 @@ namespace pg
             std::string keyStr;
             if (IS_STRING(key))
             {
-                keyStr = vm->asString(key)->toString();
+                keyStr = vm->asString(key);
             }
             else if (IS_INT(key))
             {
@@ -2885,20 +2913,20 @@ namespace pg
             return;
         }
 
-        // Handle string indexing
+        // Handle string indexing (both long and small strings)
         if (IS_STRING(target))
         {
             if (!IS_INT(index))
             {
                 vm->releaseAndDelete(index);
-                vm->releaseAndDelete(target);
+                if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
                 vm->runtimeError("String index must be an integer");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
                 return;
             }
 
-            ElementType* strObj = vm->asString(target);
-            std::string str = strObj->toString();
+            std::string str = vm->asString(target);
+
             int idx = AS_INT(index);
 
             // Handle negative indices (Python-style)
@@ -2909,13 +2937,13 @@ namespace pg
 
             if (idx < 0 || idx >= static_cast<int>(str.length()))
             {
-                vm->releaseAndDelete(target);
+                if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
                 vm->runtimeError("String index out of bounds");
                 vm->vm_return(InterpretResult::RUNTIME_ERROR);
                 return;
             }
 
-            vm->releaseAndDelete(target);
+            if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
 
             // Return single character as a string using cached value
             unsigned char ch = static_cast<unsigned char>(str[idx]);
@@ -2943,7 +2971,7 @@ namespace pg
         }
         else if (IS_STRING(index))
         {
-            key = vm->asString(index)->toString();
+            key = vm->asString(index);
         }
         else
         {
@@ -3047,7 +3075,7 @@ namespace pg
             }
             else if (IS_STRING(index))
             {
-                key = vm->asString(index)->toString();
+                key = vm->asString(index);
             }
             else
             {
@@ -3094,8 +3122,7 @@ namespace pg
                 return;
             }
 
-            ElementType* strObj = vm->asString(target);
-            std::string str = strObj->toString();
+            std::string str = vm->asString(target);
             int idx = AS_INT(index);
 
             // Handle negative indices (Python-style)
@@ -3114,8 +3141,7 @@ namespace pg
                 return;
             }
 
-            ElementType* valueStr = vm->asString(value);
-            std::string valueString = valueStr->toString();
+            std::string valueString = vm->asString(value);
 
             // Can only set a single character
             if (valueString.length() != 1)
@@ -3374,7 +3400,7 @@ namespace pg
             return;
         }
 
-        std::string moduleName = vm->asString(moduleNameValue)->toString();
+        std::string moduleName = vm->asString(moduleNameValue);
         vm->releaseAndDelete(moduleNameValue);
 
         // TODO: Implement the full import logic:
@@ -3427,8 +3453,8 @@ namespace pg
             {
                 LOG_INFO("VM", "Importing string global: " << globalPair.first);
                 // Strings need to be recreated in the current VM
-                ElementType* strElem = importerVm.asString(globalPair.second);
-                Value newStrVal = vm->createString(*strElem);
+                std::string str = importerVm.asString(globalPair.second);
+                Value newStrVal = vm->createString(str);
                 vm->globals[globalPair.first] = newStrVal;
             }
             else

@@ -46,7 +46,7 @@ namespace pg
                 throw std::runtime_error("strlen expects a string as the argument");
             }
 
-            auto str = vm->asString(args[0])->toString();
+            auto str = vm->asString(args[0]);
 
             return makeIntValue(str.size());
         }
@@ -68,8 +68,8 @@ namespace pg
                 throw std::runtime_error("split expects a string as the second argument");
             }
 
-            auto str = vm->asString(args[0])->toString();
-            auto delim = vm->asString(args[1])->toString();
+            auto str = vm->asString(args[0]);
+            auto delim = vm->asString(args[1]);
 
             // Create a vector to hold the parts
             Value vectorValue = vm->createVector();
@@ -110,7 +110,7 @@ namespace pg
                 throw std::runtime_error("splitLines expects a string as the argument");
             }
 
-            auto str = vm->asString(args[0])->toString();
+            auto str = vm->asString(args[0]);
 
             // Create a vector to hold the lines (preserves order)
             Value vectorValue = vm->createVector();

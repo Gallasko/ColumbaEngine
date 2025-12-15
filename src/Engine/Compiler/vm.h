@@ -351,7 +351,7 @@ namespace pg
         // ====================================================================
 
         // Get heap objects from pools (returns pointer to actual object)
-        inline ElementType* asString(Value v)         { return pools.getString(v); }
+        inline ElementType* asStringPtr(Value v)      { return pools.getString(v); }
         inline Closure* asClosure(Value v)            { return pools.getClosure(v); }
         inline ObjFunction* asFunction(Value v)       { return pools.getFunction(v); }
         inline ObjUpvalue* asUpvalue(Value v)         { return pools.getUpvalue(v); }
@@ -360,6 +360,11 @@ namespace pg
         inline ObjInstance* asInstance(Value v)       { return pools.getInstance(v); }
         inline ObjBoundMethod* asBoundMethod(Value v) { return pools.getBoundMethod(v); }
         inline ObjVector* asVector(Value v)           { return pools.getVector(v); }
+
+        // Helper to get string content from either long or small strings
+        inline std::string asString(Value v) {
+            return IS_SMALL_STRING(v) ? AS_SMALL_STRING(v) : asStringPtr(v)->toString();
+        }
 
         // Create new heap objects and return tracked Values
         Value createString(const ElementType& element);

@@ -59,7 +59,7 @@ namespace pg
                     throw std::runtime_error("sys.getEntities expects a string component name");
                 }
 
-                auto componentName = vm->asString(args[0])->toString();
+                auto componentName = vm->asString(args[0]);
 
                 // Get the component owner for this component type
                 auto* owner = systemImplCopy->getComponentOwner(componentName);

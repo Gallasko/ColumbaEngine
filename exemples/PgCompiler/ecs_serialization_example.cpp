@@ -92,7 +92,7 @@ Value setupVm(VM& vm, EntitySystem* ecsRef, Entity* entity)
 
         if (IS_STRING(args[0]))
         {
-            LOG_INFO("Script", vm->asString(args[0])->toString());
+            LOG_INFO("Script", vm->asString(args[0]));
         }
         else if (IS_INT(args[0]))
         {
@@ -117,7 +117,7 @@ Value setupVm(VM& vm, EntitySystem* ecsRef, Entity* entity)
 
         if (IS_STRING(args[0]))
         {
-            str = vm->asString(args[0])->toString();
+            str = vm->asString(args[0]);
         }
         else if (IS_INT(args[0]))
         {
@@ -150,7 +150,7 @@ Value setupVm(VM& vm, EntitySystem* ecsRef, Entity* entity)
             {
                 std::string valStr;
                 if (IS_STRING(value))
-                    valStr = vm->asString(value)->toString();
+                    valStr = vm->asString(value);
                 else if (IS_INT(value))
                     valStr = std::to_string(AS_INT(value));
                 else if (IS_DOUBLE(value))
@@ -172,7 +172,7 @@ Value setupVm(VM& vm, EntitySystem* ecsRef, Entity* entity)
                 Value value = vector->fields[i];
                 std::string valStr;
                 if (IS_STRING(value))
-                    valStr = vm->asString(value)->toString();
+                    valStr = vm->asString(value);
                 else if (IS_INT(value))
                     valStr = std::to_string(AS_INT(value));
                 else if (IS_DOUBLE(value))

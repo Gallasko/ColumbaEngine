@@ -350,7 +350,7 @@ namespace pg
                     if (argCount != 1) return INT_VAL(0);
 
                     if (IS_STRING(args[0]))
-                        component->setTexture(vm->asString(args[0])->toString());
+                        component->setTexture(vm->asString(args[0]));
 
                     return INT_VAL(0);
                 };

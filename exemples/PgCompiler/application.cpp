@@ -31,14 +31,15 @@ namespace {
     static const char *const DOM = "App";
 }
 
-Value nativeLogInfo(VM* vm, int argCount, Value* args) {
+Value nativeLogInfo(VM* vm, int argCount, Value* args)
+{
     if (argCount != 1) {
         throw std::runtime_error("logInfo expects exactly one argument");
     }
 
     if (IS_STRING(args[0]))
     {
-        LOG_INFO("DOM", *vm->asString(args[0]));
+        LOG_INFO("DOM", vm->asString(args[0]));
     }
     else if (IS_INT(args[0]))
     {
@@ -161,7 +162,7 @@ void CompilerApp::runFile(bool needCompile)
 
             Value value = args[i];
             if (IS_STRING(value))
-                std::cout << vm->asString(value)->toString();
+                std::cout << vm->asString(value);
             else if (IS_INT(value))
                 std::cout << AS_INT(value);
             else if (IS_DOUBLE(value))

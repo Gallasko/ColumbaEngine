@@ -46,7 +46,7 @@ namespace pg
             if (IS_INSTANCE(args[0]))
             {
                 ObjInstance* instance = vm->asInstance(args[0]);
-                std::string key = vm->asString(args[1])->toString();
+                std::string key = vm->asString(args[1]);
 
                 // Check if the key exists in the instance's fields
                 bool exists = instance->fields.find(key) != instance->fields.end();
@@ -55,8 +55,8 @@ namespace pg
             }
             else if (IS_STRING(args[0]))
             {
-                std::string value = vm->asString(args[0])->toString();
-                std::string key = vm->asString(args[1])->toString();
+                std::string value = vm->asString(args[0]);
+                std::string key = vm->asString(args[1]);
 
                 // Check if the key exists in the instance's fields
                 bool exists = value.find(key) != value.npos;
@@ -80,7 +80,7 @@ namespace pg
             // Convert string to int
             if (IS_STRING(args[0]))
             {
-                auto str = vm->asString(args[0])->toString();
+                auto str = vm->asString(args[0]);
 
                 int res = 0;
                 try
