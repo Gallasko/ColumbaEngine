@@ -435,6 +435,9 @@ namespace pg
         // Bytecode profiling
         VMProfiler profiler;
 
+        // Single-character string cache (optimization for string indexing)
+        Value singleCharCache[256];
+
         ObjUpvalue* openUpvalues = nullptr;
 
         // Optimization control methods
