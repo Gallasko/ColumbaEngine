@@ -57,6 +57,7 @@ namespace pg
         }
         else
         {
+            LOG_ERROR("ChunkSerializer", "Unsupported value type for serialization: " << valueTypeName(value));
             // Unsupported type for serialization
             return false;
         }
