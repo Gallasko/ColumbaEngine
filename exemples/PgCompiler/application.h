@@ -10,7 +10,7 @@
 class CompilerApp
 {
 public:
-    CompilerApp(const std::string& fileName);
+    CompilerApp(const std::string& fileName, bool enableProfiling = false);
     ~CompilerApp();
 
     int exec();
@@ -20,6 +20,7 @@ public:
 
 private:
     std::string fileName;
+    bool profilingEnabled;
 };
 
 #endif

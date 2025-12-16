@@ -37,22 +37,32 @@ int main(int argc, char *argv[])
 #endif
 
     std::string fileName;
+    bool enableProfiling = false;
 
-    if (argc == 1)
+    // Parse command line arguments
+    for (int i = 1; i < argc; i++)
     {
-    }
-    else if (argc == 2)
-    {
-        fileName = std::string(argv[1]);
-    }
-    else
-    {
-        std::cout << "No script file provided." << std::endl;
-        std::cout << "Usage: " << argv[0] << " <script.pg>" << std::endl;
+        std::string arg = argv[i];
+
+        if (arg == "--profile" || arg == "-p")
+        {
+            enableProfiling = true;
+        }
+        else if (arg == "--help" || arg == "-h")
+        {
+            std::cout << "Usage: " << argv[0] << " [options] <script.pg>" << std::endl;
+            std::cout << "Options:" << std::endl;
+            std::cout << "  --profile, -p    Enable profiling" << std::endl;
+            std::cout << "  --help, -h       Show this help message" << std::endl;
+            return 0;
+        }
+        else if (fileName.empty())
+        {
+            fileName = arg;
+        }
     }
 
-
-    CompilerApp app(fileName);
+    CompilerApp app(fileName, enableProfiling);
 
     return app.exec();
 }

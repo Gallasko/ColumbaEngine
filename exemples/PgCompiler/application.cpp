@@ -62,7 +62,8 @@ Value nativeLogInfo(VM* vm, int argCount, Value* args)
     return makeBoolValue(true);
 }
 
-CompilerApp::CompilerApp(const std::string &fileName) : fileName(fileName) {
+CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling) : fileName(fileName), profilingEnabled(enableProfiling)
+{
     LOG_THIS_MEMBER(DOM);
 
     auto terminalSink = std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
@@ -193,7 +194,10 @@ void CompilerApp::runFile(bool needCompile)
 
     InterpretResult result;
 
-    vm.enableProfiling();
+    if (profilingEnabled)
+    {
+        vm.enableProfiling();
+    }
 
     if (needCompile)
     {
