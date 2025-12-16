@@ -1,0 +1,71 @@
+import "file"
+import "string"
+import "algorithm"
+import "math"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day3/"
+var files = ["aoc3small", "aoc3full"]
+
+// for aoc3full we should get 173,685,428,989,126 but as our int only support up to 47b this get overflow and wrap all the way around to 32,947,940,633,798 (max is: 140,737,488,355,328)
+
+fun findHighestNumber(startPos, endPos, str)
+{
+    var highest = toInt(str[startPos])
+    var pos = startPos
+
+    for (var i = startPos; i < endPos; i++)
+    {
+        var val = toInt(str[i])
+
+        // Fast track if val is the highest digit possible
+        if (val == 9)
+        {
+            return ["pos": i, "val": 9]
+        }
+
+        if (val > highest)
+        {
+            highest = val
+            pos = i
+        }
+    }
+
+    return ["pos": pos, "val": highest]
+}
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var res = 0
+
+    for (var line : lines)
+    {
+        var size = strlen(line)
+
+        var dTable = []
+
+        var lastHighestOccurance = 0
+
+        for (var i = 0; i < 12; i++)
+        {
+            var result = findHighestNumber(lastHighestOccurance, size - 11 + i, line)
+
+            dTable[i] = result["val"]
+            lastHighestOccurance = result["pos"] + 1
+        }
+
+        var current = 0
+
+        for (var j = 11; j >= 0; j--)
+        {
+            current += dTable[j] * toInt(pow(10, 11 - j));
+        }
+
+        res += current;
+    }
+
+    __dprint(res)
+}

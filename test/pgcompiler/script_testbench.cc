@@ -819,6 +819,16 @@ TEST_F(ScriptTestBench, AdventOfCode2025Day1Part2)
     testExample("adventofcode2025/day1", "part2");
 }
 
+TEST_F(ScriptTestBench, AdventOfCode2025Day3Part1)
+{
+    testExample("adventofcode2025/day3", "part1");
+}
+
+TEST_F(ScriptTestBench, AdventOfCode2025Day3Part2)
+{
+    testExample("adventofcode2025/day3", "part2");
+}
+
 // TEST_F(ScriptTestBench, TestFuncFailed)
 // {
 //     testScriptError("testFuncFailed", InterpretResult::RUNTIME_ERROR);
