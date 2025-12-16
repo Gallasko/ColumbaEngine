@@ -1,0 +1,50 @@
+import "file"
+import "string"
+import "algorithm"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day3/"
+var files = ["aoc3small", "aoc3full"]
+
+for (var file : files)
+{
+    var f = readFile(path + file)
+
+    var lines = splitLines(f)
+
+    var res = 0
+
+    for (var line : lines)
+    {
+        var size = strlen(line)
+
+        var left = toInt(line[0])
+        var right = toInt(line[1])
+
+        for (var i = 2; i < size; i++)
+        {
+            if (right > left)
+            {
+                left = right
+                right = 0
+            }
+
+            var c = line[i]
+
+            var val = toInt(c)
+
+            if (val > right)
+            {
+                if (right > left)
+                {
+                    left = right
+                }
+
+                right = val
+            }
+        }
+
+        res += left * 10 + right
+    }
+
+    __dprint(res)
+}

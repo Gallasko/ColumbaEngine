@@ -166,6 +166,7 @@ namespace pg
 
         if (inSwap)
         {
+            needNewRender = true;
             return;
         }
 
