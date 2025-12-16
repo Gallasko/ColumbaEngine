@@ -1410,27 +1410,30 @@ namespace pg
             return;
         }
 #endif
-        auto nameValue = vm->pop();  // variable name
-        auto name = vm->valueToElement(nameValue);
+        auto nameValue = vm->peek();  // variable name
 
-        if (not name.isLitteral())
+        if (not IS_STRING(nameValue))
         {
             vm->releaseAndDelete(nameValue);
+            vm->pop(); // Remove name from stack
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        auto it = vm->globals.find(name.toString());
+        auto name = vm->asString(nameValue);
+
+        auto it = vm->globals.find(name);
         if (it == vm->globals.end())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->pop(); // Remove name from stack
+            vm->runtimeError("Undefined global variable '" + name + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        vm->push(vm->retainValue(it->second)); // Retain because stack becomes an owner
+        vm->changeTop(vm->retainValue(it->second)); // Retain because stack becomes an owner
         vm->releaseAndDelete(nameValue);
     }
 
