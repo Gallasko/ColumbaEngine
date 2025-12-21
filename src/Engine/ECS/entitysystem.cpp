@@ -48,6 +48,8 @@ namespace
 #include "Helpers/randommodule.h"
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
+#include "Helpers/inputmodule_vm.h"
+#include "Input/inputcomponent.h"
 #include "2D/texturemodule.h"
 #include "Files/filemodule.h"
 
@@ -510,6 +512,21 @@ namespace pg
         vm.addNativeModule("file", FileModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
         vm.addNativeModule("texture", TextureModule{this});
+
+        // Todo change this
+        // Get the Input handler from the MouseClickSystem
+        Input* inputHandler = nullptr;
+        auto mouseClickSys = getSystem<MouseClickSystem>();
+        if (mouseClickSys)
+        {
+            inputHandler = mouseClickSys->inputHandler;
+        }
+
+        // Add input module if we have an input handler
+        if (inputHandler)
+        {
+            vm.addNativeModule("input", InputModuleVM{inputHandler});
+        }
 
         // Print function - outputs to stdout
         vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
