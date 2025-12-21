@@ -2,6 +2,7 @@ import "ecs"
 import "math"
 import "string"
 import "texture"
+import "input"
 
 // Screen dimensions
 var screenWidth = 800
@@ -30,18 +31,22 @@ var keyDown = sysData["keyDown"]
 var keySpace = sysData["keySpace"]
 
 // Handle rotation (can rotate while thrusting!)
-if (keyLeft == 1)
+
+// if (keyLeft == 1)
+if (isKeyPressed(KEY_A))
 {
     rotation = rotation - rotSpeed * deltaTime
 }
 
-if (keyRight == 1)
+// if (keyRight == 1)
+if (isKeyPressed(KEY_D))
 {
     rotation = rotation + rotSpeed * deltaTime
 }
 
 // Handle thrust
-if (keyUp == 1)
+// if (keyUp == 1)
+if (isKeyPressed(KEY_W))
 {
     // Apply thrust in direction of rotation
     // Rotation 0 = up = negative Y (screen coordinates)
@@ -63,7 +68,8 @@ if (keyUp == 1)
 }
 
 // Handle brake
-if (keyDown == 1)
+// if (keyDown == 1)
+if (isKeyPressed(KEY_S))
 {
     velX = velX * 0.9
     velY = velY * 0.9

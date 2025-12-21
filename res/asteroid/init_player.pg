@@ -3,7 +3,9 @@ import "texture"
 logInfo("Initializing player ship")
 
 // Create player ship
-var player = createTexture("Ghost", 40, 40)
+var player = createTexture("I", 40, 40)
+
+//player.attachComp("Player")
 
 // Set initial position (center of screen)
 var screenWidth = 800

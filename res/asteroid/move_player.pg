@@ -1,18 +1,18 @@
 // Handle key press events - set key states to 1
 
-if (event.values.key == "Left")
+if (event.values.key == "Left" or event.values.key == "A")
 {
     sysData["keyLeft"] = 1
 }
-else if (event.values.key == "Right")
+else if (event.values.key == "Right" or event.values.key == "D")
 {
     sysData["keyRight"] = 1
 }
-else if (event.values.key == "Up")
+else if (event.values.key == "Up" or event.values.key == "W")
 {
     sysData["keyUp"] = 1
 }
-else if (event.values.key == "Down")
+else if (event.values.key == "Down" or event.values.key == "S")
 {
     sysData["keyDown"] = 1
 }
