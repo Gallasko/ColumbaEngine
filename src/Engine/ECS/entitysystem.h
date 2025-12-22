@@ -30,6 +30,14 @@ extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
 
 namespace pg
 {
+    enum class VmOptimizationLevel
+    {
+        O0 = 0,
+        O1,
+        O2,
+        O3
+    };
+
     // Todo create a queue that hold all entity id that got deleted to reattribute them later on
 
     // Todo Create a different id gen for systems so that components id are smaller and more packed
@@ -641,11 +649,18 @@ namespace pg
 
         void reportSystemProfiles();
 
+        inline void setVMOptimizationLevel(const VmOptimizationLevel& level)
+        {
+            vmOptimizationLevel = level;
+        }
+
         void setupVm(VM& vm);
 
     private:
         // Todo maybe
         // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
+
+        void setOptimizationPasses(VM& vm);
 
         void internalCreateSystem(AbstractSystem* system);
 
@@ -769,6 +784,8 @@ namespace pg
 
         bool running = false;
         bool stopRequested = false;
+
+        VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
 
         /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;

@@ -53,6 +53,16 @@ namespace
 #include "2D/texturemodule.h"
 #include "Files/filemodule.h"
 
+// Include for vm optimization pass
+#include "Compiler/pass/long_jump_optimization_pass.h"
+#include "Compiler/pass/basic_operator_local_indexing.h"
+#include "Compiler/pass/remove_def_get_global_redunduncy.h"
+#include "Compiler/pass/constant_var_access.h"
+#include "Compiler/pass/fuse_op_pop.h"
+#include "Compiler/pass/constant_folding.h"
+#include "Compiler/pass/increment_optimization_pass.h"
+#include "Compiler/pass/simplify_constant_pass.h"
+
 namespace pg
 {
     // Pimpl implementation for taskflow to reduce header compilation time
@@ -657,6 +667,8 @@ namespace pg
             return makeBoolValue(true);
         });
 
+        setOptimizationPasses(vm);
+
         // Setup the VM with necessary bindings and references
         // For example, bind the ECS reference to the VM for script access
         // This is a placeholder implementation; actual implementation may vary
@@ -664,6 +676,25 @@ namespace pg
 
         // Example:
         // vm.bindECS(this);
+    }
+
+    void EntitySystem::setOptimizationPasses(VM &vm)
+    {
+        if (vmOptimizationLevel == VmOptimizationLevel::O3)
+        {
+            vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+            vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+            vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
+            vm.addOptimizationPass(std::make_unique<FuseOpPop>());
+
+            vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
+
+            vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
+
+            vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
+
+            vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+        }
     }
 
     void EntitySystem::_deleteSystem(_unique_id id)

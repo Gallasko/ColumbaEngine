@@ -8,10 +8,10 @@
 #include "Compiler/vm.h"
 #include "Compiler/compiler.h"
 
-#include "Compiler/pass/long_jump_optimization_pass.h"
 #include "constant_uniformity_pass.h"
 #include "Interpreter/lexer.h"
 
+#include "Compiler/pass/long_jump_optimization_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
 
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
@@ -167,18 +167,6 @@ void CompilerApp::runFile(bool needCompile)
     if (needCompile)
     {
         // vm.addOptimizationPass(std::make_uniqueh
-        vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
-        vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
-        vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
-        vm.addOptimizationPass(std::make_unique<FuseOpPop>());
-
-        vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
-
-        vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
-
-        vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
-
-        vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
 
         vm.enableBytecodeOptimization();
         vm.enableOptimizationDebugging();
