@@ -434,7 +434,7 @@ namespace pg
                 testVm.globals["ent2"] = entity2Table;
 
                 // Compile the script once
-                auto result = testVm.interpretFromBytecodeFile(fnName);
+                testVm.interpretFromBytecodeFile(fnName);
             }
         }
 

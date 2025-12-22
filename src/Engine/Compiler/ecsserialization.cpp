@@ -46,7 +46,7 @@ namespace pg
                     // Expected: attachComp("Collision", "layerId", layerId, "scale", scale, ...)
                     size_t layerId = 0;
                     float scale = 1.0f;
-                    bool checkSpecificLayer = false;
+                    // bool checkSpecificLayer = false;
                     std::vector<size_t> checkLayerId;
 
                     // Process key-value pairs
@@ -283,7 +283,7 @@ namespace pg
     {
         // Get component context
         std::string compTypeName = component->typeName;
-        _unique_id entityId = component->entityId;
+        // _unique_id entityId = component->entityId;
 
         // Get the properties table
         auto propertiesIt = table->fields.find("properties");
