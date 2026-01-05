@@ -12,6 +12,7 @@
 #include "vmpools.h"       // Pool-based memory management
 #include "object.h"
 #include "native_module.h"
+#include "vm_profiler.h"   // Bytecode profiling
 
 #include <stack>
 #include <functional>
@@ -80,6 +81,14 @@ namespace pg
             return stack_values[--stack_top];  // Single instruction!
         }
 
+        inline void changeTop(Value value)
+        {
+            if (stack_top == 0)
+                throw std::runtime_error("Trying to change top on an empty stack");
+
+            stack_values[stack_top - 1] = value;
+        }
+
         inline Value& operator[](size_t index) { return stack_values[index]; }
         inline const Value& operator[](size_t index) const { return stack_values[index]; }
 
@@ -137,6 +146,7 @@ namespace pg
             pools.nativeFuncPool.destroyAll();
             pools.instancePool.destroyAll();
             pools.boundMethodPool.destroyAll();
+            pools.vectorPool.destroyAll();
 
             // Clear the interned strings map
             pools.internedStrings.clear();
@@ -244,12 +254,21 @@ namespace pg
             stack.push(val);
         }
 
+        inline void changeTop(Value value)
+        {
+            Value val = stack.top();
+
+            if (requiresRefCount(val))
+            {
+                // Release old top value
+                releaseAndDelete(val);
+            }
+
+            stack.changeTop(value);
+        }
+
         inline Value pop()
         {
-#ifdef DEBUG_CHECK_STACK
-            if (stack.empty())
-                throw std::runtime_error("Trying to pop on an empty stack");
-#endif
             return stack.pop();
         }
 
@@ -349,7 +368,7 @@ namespace pg
         // ====================================================================
 
         // Get heap objects from pools (returns pointer to actual object)
-        inline ElementType* asString(Value v)         { return pools.getString(v); }
+        inline ElementType* asStringPtr(Value v)      { return pools.getString(v); }
         inline Closure* asClosure(Value v)            { return pools.getClosure(v); }
         inline ObjFunction* asFunction(Value v)       { return pools.getFunction(v); }
         inline ObjUpvalue* asUpvalue(Value v)         { return pools.getUpvalue(v); }
@@ -357,6 +376,12 @@ namespace pg
         inline NativeFunction* asNativeFunc(Value v)  { return pools.getNativeFunc(v); }
         inline ObjInstance* asInstance(Value v)       { return pools.getInstance(v); }
         inline ObjBoundMethod* asBoundMethod(Value v) { return pools.getBoundMethod(v); }
+        inline ObjVector* asVector(Value v)           { return pools.getVector(v); }
+
+        // Helper to get string content from either long or small strings
+        inline std::string asString(Value v) {
+            return IS_SMALL_STRING(v) ? AS_SMALL_STRING(v) : asStringPtr(v)->toString();
+        }
 
         // Create new heap objects and return tracked Values
         Value createString(const ElementType& element);
@@ -366,6 +391,7 @@ namespace pg
         Value createClass(const std::string& name);
         Value createInstance(Klass* klass);
         Value createBoundMethod(const Value& receiver, Closure* method);
+        Value createVector();
 
         // Convert between Value and ElementType
         Value elementToValue(const ElementType& element);
@@ -376,7 +402,7 @@ namespace pg
         int getValueAsInt(const Value& value);
 
         // Arithmetic operations with proper reference tracking
-        Value addValues(const Value& a, const Value& b);
+        Value addValues(const Value a, const Value b);
         Value subtractValues(const Value& a, const Value& b);
         Value multiplyValues(const Value& a, const Value& b);
         Value divideValues(const Value& a, const Value& b);
@@ -428,6 +454,12 @@ namespace pg
         PassManager passManager;
         bool enableOptimizations = true;
 
+        // Bytecode profiling
+        VMProfiler profiler;
+
+        // Single-character string cache (optimization for string indexing)
+        Value singleCharCache[256];
+
         ObjUpvalue* openUpvalues = nullptr;
 
         // Optimization control methods
@@ -453,6 +485,35 @@ namespace pg
             passManager.setDebugOutput(false);
         }
 
+        // Profiler control methods
+        void enableProfiling()
+        {
+            profiler.setEnabled(true);
+            profiler.reset();
+            LOG_INFO("VM", "Bytecode profiling enabled");
+        }
+
+        void disableProfiling()
+        {
+            profiler.setEnabled(false);
+            LOG_INFO("VM", "Bytecode profiling disabled");
+        }
+
+        void resetProfiling()
+        {
+            profiler.reset();
+        }
+
+        void printProfilingReport(bool sortByTime = true)
+        {
+            profiler.printReport(sortByTime);
+        }
+
+        void printProfilingBytecodeReport()
+        {
+            profiler.printBytecodeReport();
+        }
+
         void listOptimizationPasses() const
         {
             passManager.listPasses();
@@ -470,6 +531,36 @@ namespace pg
             defineNative(name, function);
         }
 
+        /**
+         * @brief Create a native function Value from a lambda without registering it globally
+         *
+         * This is a helper function that encapsulates the boilerplate of:
+         * 1. Allocating from the native function pool with correct index
+         * 2. Setting the function pointer
+         * 3. Creating the NaN-boxed Value
+         * 4. Tracking the value for reference counting
+         *
+         * Use this when you want to add native functions directly to table fields
+         * without polluting the global namespace.
+         *
+         * @param function The native function lambda
+         * @return Value The tracked native function Value ready to be added to a table
+         *
+         * @example
+         * NativeFn myLambda = [component](VM*, int argCount, Value* args) -> Value { ... };
+         * Value funcValue = vm->createNativeFunction(myLambda);
+         * table->fields["myMethod"] = funcValue;
+         */
+        Value createNativeFunction(NativeFn function)
+        {
+            auto [nativeFunc, index] = pools.nativeFuncPool.allocateWithIndex();
+            nativeFunc->function = function;
+
+            Value val = makeNativeFuncValue(static_cast<uint32_t>(index));
+
+            return trackNewValue(val);
+        }
+
         void defineNative(const std::string& name, NativeFn function)
         {
             // Skip if already defined in globals
@@ -478,13 +569,7 @@ namespace pg
                 return;
             }
 
-            uint32_t index = pools.nativeFuncPool.getNbElements();
-            NativeFunction* nativeFunc = pools.nativeFuncPool.allocate();
-            nativeFunc->function = function;
-
-            Value val = makeNativeFuncValue(index);
-
-            globals[name] = trackNewValue(val);
+            globals[name] = createNativeFunction(function);
         }
 
         // Native module system - per VM instance

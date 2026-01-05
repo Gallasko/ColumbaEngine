@@ -81,8 +81,8 @@ namespace pg
     enum ValueTagExt : uint8_t {
         TAG_INSTANCE      = 0,  // Index into instance pool
         TAG_BOUND_METHOD  = 1,  // Index into bound method pool
-        TAG_RESERVED_2    = 2,  // Reserved for future use
-        TAG_RESERVED_3    = 3,  // Reserved for future use
+        TAG_VECTOR        = 2,  // Index into vector pool
+        TAG_SMALL_STRING  = 3,  // Inline string (up to 5 chars)
         TAG_RESERVED_4    = 4,  // Reserved for future use
         TAG_RESERVED_5    = 5,  // Reserved for future use
         TAG_RESERVED_6    = 6,  // Reserved for future use
@@ -150,7 +150,7 @@ namespace pg
         return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_BOOL;
     }
 
-    inline bool IS_STRING(Value v) {
+    inline bool IS_LONG_STRING(Value v) {
         return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_STRING;
     }
 
@@ -181,6 +181,19 @@ namespace pg
 
     inline bool IS_BOUND_METHOD(Value v) {
         return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_BOUND_METHOD;
+    }
+
+    inline bool IS_VECTOR(Value v) {
+        return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_VECTOR;
+    }
+
+    inline bool IS_SMALL_STRING(Value v) {
+        return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_SMALL_STRING;
+    }
+
+    // Unified string check (both small and long strings)
+    inline bool IS_STRING(Value v) {
+        return IS_LONG_STRING(v) || IS_SMALL_STRING(v);
     }
 
     // Legacy compatibility (for transition period)
@@ -287,6 +300,32 @@ namespace pg
                static_cast<uint64_t>(index);
     }
 
+    /**
+     * Create a vector value (pool index) - uses negative tag
+     */
+    inline Value makeVectorValue(uint32_t index) {
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_VECTOR) << TAG_SHIFT) |
+               static_cast<uint64_t>(index);
+    }
+
+    /**
+     * Create a small string value (inline, up to 5 chars) - uses negative tag
+     * Format in 47-bit payload: [7-bit length][40-bit chars (5 bytes)]
+     * Bits [46:40] = length (0-127)
+     * Bits [39:0]  = 5 characters
+     */
+    inline Value makeSmallStringValue(const char* str, uint8_t length) {
+        // Pack length in upper 7 bits of the 47-bit payload
+        uint64_t payload = (static_cast<uint64_t>(length) << 40);
+
+        // Pack up to 5 characters into lower 40 bits
+        for (uint8_t i = 0; i < length && i < 5; ++i) {
+            payload |= (static_cast<uint64_t>(static_cast<unsigned char>(str[i])) << (8 * i));
+        }
+
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_SMALL_STRING) << TAG_SHIFT) | payload;
+    }
+
     // Legacy compatibility
     inline Value makeObjValue(uint32_t index) {
         return makeStringValue(index);
@@ -388,6 +427,53 @@ namespace pg
         return GET_INDEX(v);
     }
 
+    /**
+     * Extract pool index for vector
+     */
+    inline uint32_t AS_VECTOR_INDEX(Value v) {
+        return GET_INDEX(v);
+    }
+
+    /**
+     * Extract small string length from inline string value
+     */
+    inline uint8_t AS_SMALL_STRING_LENGTH(Value v) {
+        uint64_t payload = v & INDEX_MASK;
+        return static_cast<uint8_t>(payload >> 40);
+    }
+
+    /**
+     * Extract small string characters from inline string value
+     * Caller must provide a buffer of at least 6 bytes (5 chars + null terminator)
+     */
+    inline void AS_SMALL_STRING_CHARS(Value v, char* buffer) {
+        uint64_t payload = v & INDEX_MASK;
+        uint8_t length = static_cast<uint8_t>(payload >> 40);
+
+        // Extract up to 5 characters from lower 40 bits
+        for (uint8_t i = 0; i < length && i < 5; ++i) {
+            buffer[i] = static_cast<char>((payload >> (8 * i)) & 0xFF);
+        }
+        buffer[length] = '\0';  // Null terminate
+    }
+
+    /**
+     * Convert small string value to std::string
+     * Helper function that extracts the string content without null terminator issues
+     */
+    inline std::string AS_SMALL_STRING(Value v) {
+        uint64_t payload = v & INDEX_MASK;
+        uint8_t length = static_cast<uint8_t>(payload >> 40);
+
+        // Build string directly from the payload bytes
+        std::string result;
+        result.reserve(length);
+        for (uint8_t i = 0; i < length && i < 5; ++i) {
+            result += static_cast<char>((payload >> (8 * i)) & 0xFF);
+        }
+        return result;
+    }
+
     // Legacy compatibility - these will need to be updated to work with pools
     inline uint32_t AS_OBJ_INDEX(Value v) {
         return AS_STRING_INDEX(v);
@@ -407,6 +493,7 @@ namespace pg
     inline bool requiresRefCount(Value v) {
         if (!IS_TAGGED(v)) return false;  // Doubles don't need refcount
         if (IS_INT(v) || IS_BOOL(v)) return false;  // Primitives don't need refcount
+        if (IS_SMALL_STRING(v)) return false;  // Inline strings don't need refcount
         return true;  // All pool-based values need refcount
     }
 

@@ -130,6 +130,22 @@ namespace pg
         return &_internalSystemPtr->getSystemData();
     }
 
+    ElementType StandardSystemHandle::getData(const std::string& name)
+    {
+        if (!_internalSystemPtr)
+            return ElementType{0};
+
+        return _internalSystemPtr->getSystemData()[name];
+    }
+
+    void StandardSystemHandle::setData(const std::string& name, const ElementType& value)
+    {
+        if (!_internalSystemPtr)
+            return;
+
+        _internalSystemPtr->getSystemData()[name] = value;
+    }
+
     // ============================================================================
     // StandardSystemBuilder implementation
     // ============================================================================
@@ -217,6 +233,20 @@ namespace pg
         return *this;
     }
 
+    StandardSystemBuilder& StandardSystemBuilder::onDelta(_S_DeltaCallback callback)
+    {
+        data.deltaCallback = callback;
+        return *this;
+    }
+
+
+    StandardSystemBuilder& StandardSystemBuilder::onInit(const std::string& scriptName)
+    {
+        data.initScript = scriptName;
+
+        return *this;
+    }
+
     StandardSystemBuilder& StandardSystemBuilder::onEvent(const std::string& eventName, const std::string& scriptName)
     {
         data.scriptEventCallbackList[eventName] = scriptName;
@@ -231,6 +261,13 @@ namespace pg
         return *this;
     }
 
+    StandardSystemBuilder& StandardSystemBuilder::onDelta(const std::string& scriptName)
+    {
+        data.deltaScript = scriptName;
+
+        return *this;
+    }
+
     StandardSystemImpl* StandardSystemBuilder::build()
     {
         // Create a single StandardSystemImpl with all features
@@ -240,13 +277,16 @@ namespace pg
             data.componentDefaultValues,
             data.saveLoadEnabled,
             data.initCallback,
+            data.initScript,
             data.eventCallbackList,
             data.scriptEventCallbackList,
             data.executeCallback,
             data.executeScript,
             data.saveCallback,
             data.loadCallback,
-            data.firstLoadCallback
+            data.firstLoadCallback,
+            data.deltaCallback,
+            data.deltaScript
         );
 
         // Apply execution policy

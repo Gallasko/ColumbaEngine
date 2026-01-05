@@ -418,7 +418,9 @@ namespace pg
                 return;
             }
 
-            if (filterEnt1(ent1) and filterEnt2(ent2))
+            bool trigger = (filterEnt1(ent1) and filterEnt2(ent2)) or (filterEnt1(ent2) and filterEnt2(ent1));
+
+            if (trigger)
             {
                 // vm.reset();
                 VM testVm;
@@ -432,53 +434,8 @@ namespace pg
                 testVm.globals["ent2"] = entity2Table;
 
                 // Compile the script once
-                auto result = testVm.interpretFromBytecodeFile(fnName);
-
-                if (result == InterpretResult::OK)
-                {
-                    LOG_INFO("Example", "Script executed successfully! Results: " << testVm.testOutput);
-
-                    // Read the modified values back from the table
-                    if (IS_INSTANCE(entity1Table) and IS_INSTANCE(entity2Table))
-                    {
-                        LOG_INFO("Example", "Deserializing modified entities from script");
-                        deserializeEntityFromTable(&testVm, ecsRef, entity1Table, false);
-                        deserializeEntityFromTable(&testVm, ecsRef, entity2Table, false);
-                    }
-                }
-
+                testVm.interpretFromBytecodeFile(fnName);
             }
-            // and swap:
-            else if (filterEnt1(ent2) and filterEnt2(ent1))
-            {
-                VM testVm;
-                ecsRef->setupVm(testVm);
-                // vm.reset();
-
-                Value entity1Table = serializeEntityToTable(&testVm, ecsRef, ent2);
-                Value entity2Table = serializeEntityToTable(&testVm, ecsRef, ent1);
-
-                // Pass entity table as a global to the script (like a system module)
-                testVm.globals["ent1"] = entity1Table;
-                testVm.globals["ent2"] = entity2Table;
-
-                // Compile the script once
-                auto result = testVm.interpretFromBytecodeFile(fnName);
-
-                if (result == InterpretResult::OK)
-                {
-                    LOG_INFO("Example", "Script executed successfully! Results: " << testVm.testOutput);
-
-                    // Read the modified values back from the table
-                    if (IS_INSTANCE(entity1Table) and IS_INSTANCE(entity2Table))
-                    {
-                        LOG_INFO("Example", "Deserializing modified entities from script");
-                        deserializeEntityFromTable(&testVm, ecsRef, entity1Table, false);
-                        deserializeEntityFromTable(&testVm, ecsRef, entity2Table, false);
-                    }
-                }
-
-            }            
         }
 
         std::unique_ptr<CollisionHandleBase> clone() const override

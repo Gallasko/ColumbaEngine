@@ -173,7 +173,7 @@ namespace pg
         interpreter->addSystemModule("audio", AudioModule{ecs});
 
         // Script to configure the logger
-        interpreter->interpretFromFile("logManager.pg");
+        interpreter->interpretFromFile("res/logManager.pg");
         // [End] Interpreter definition
 
         LOG_INFO(DOM, "Window creation done");
@@ -408,7 +408,7 @@ namespace pg
         interpreter->addSystemModule("renderer", RendererModule{masterRenderer});
 
         // Configure the master renderer system
-        interpreter->interpretFromFile("setupRenderer.pg");
+        interpreter->interpretFromFile("res/setupRenderer.pg");
 
         masterRenderer->setWindowSize(width, height);
 
@@ -488,7 +488,7 @@ namespace pg
         ecs->succeed<SceneElementSystem, MasterRenderer>();
 
         // Script to configure all the users systems
-        interpreter->interpretFromFile("sysRegister.pg");
+        interpreter->interpretFromFile("res/sysRegister.pg");
 
         // // Log taskflow for this window
         // ecs->dumbTaskflow();
@@ -663,12 +663,13 @@ namespace pg
         currentTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
         static auto lastTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count();
 
-
         masterRenderer->setCurrentTime(currentTime);
 
         masterRenderer->setWindowSize(this->width, this->height);
 
-        if (masterRenderer->needRedraw())
+        bool shouldRedraw = masterRenderer->needRedraw();
+
+        if (shouldRedraw)
         {
             glClearColor(0.0513f, 0.0501f, 0.123f, 1.0f);
             glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

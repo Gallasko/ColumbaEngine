@@ -11,7 +11,8 @@
 
 namespace pg
 {
-    constexpr int TickRateMilliseconds = 16;
+    // Todo make it modifiable with scripts/param file
+    constexpr int TickRateMilliseconds = 8;
 
     // Todo add all the logger thing to all those systems and doc too
 

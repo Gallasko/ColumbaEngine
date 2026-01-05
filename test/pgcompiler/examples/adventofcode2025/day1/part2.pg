@@ -1,0 +1,107 @@
+import "file"
+import "string"
+import "algorithm"
+
+var path = "test/pgcompiler/examples/adventofcode2025/day1/"
+
+var files = ["part1Small", "t0", "t1", "t2", "t3", "t4", "t5", "t6", "t7", "loopAtZero", "part2Bigger", "full"]
+
+var res = 0
+
+fun getLineValue(line)
+{
+  var size = strlen(line)
+
+  var val = "0"
+
+  if (size > 2)
+  {
+    // We only need the last two values to avoid a modulo
+    val = line[-2] + line[-1]
+
+    if (size > 3)
+    {
+      size -= 3
+
+      var addToRes = ""
+
+      for (var i = 0; i < size; i++)
+      {
+        addToRes += line[1 + i]
+      }
+
+      res += toInt(addToRes)
+    }
+  }
+  else if (size == 2)
+  {
+    val = line[-1]
+  }
+
+  return toInt(val)
+}
+
+for (var file : files)
+{
+  var data = readFile(path + file)
+
+  var lines = splitLines(data)
+
+  var clockHand = 50
+
+  res = 0
+
+  var needIncrement = true
+  var wasZero = false
+
+  for (var line : lines)
+  {
+    var dir = line[0]
+
+    var v = getLineValue(line)
+
+    if (dir == "L")
+    {
+      clockHand -= v
+    }
+    else
+    {
+      clockHand += v
+    }
+
+    if (clockHand < 0)
+    {
+      clockHand = 100 + clockHand
+      if (not wasZero)
+      {
+        res++;
+        needIncrement = false
+      }
+    }
+    else if (clockHand > 99)
+    {
+      clockHand -= 100
+      if (not wasZero)
+      {
+        res++;
+        needIncrement = false
+      }
+    }
+
+    if (clockHand == 0 and not wasZero)
+    {
+      if (needIncrement)
+        res++;
+
+      wasZero = true
+    }
+    else
+    {
+      wasZero = false;
+    }
+
+    needIncrement = true
+  }
+
+  __dprint(res)
+}

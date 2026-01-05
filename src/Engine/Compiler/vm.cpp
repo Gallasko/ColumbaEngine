@@ -54,7 +54,7 @@ namespace pg
         }
 
         if (IS_CLOSURE(val) || IS_FUNC(val) || IS_NAT_FUNC(val) ||
-            IS_CLASS(val) || IS_INSTANCE(val) || IS_BOUND_METHOD(val))
+            IS_CLASS(val) || IS_INSTANCE(val) || IS_BOUND_METHOD(val) || IS_VECTOR(val))
         {
             return true; // Non-null objects are true
         }
@@ -116,6 +116,13 @@ namespace pg
     void op_get_property(VM* vm);
     void op_set_property(VM* vm);
     void op_method(VM* vm);
+    void op_short_int(VM* vm);
+
+    void op_pop_n(VM* vm);
+
+    void op_define_constant_global(VM* vm);
+    void op_get_constant_global(VM* vm);
+    void op_set_constant_global(VM* vm);
 
     void op_add_ll(VM* vm);
     void op_subtract_ll(VM* vm);
@@ -124,6 +131,7 @@ namespace pg
     void op_subtract_cl(VM* vm);
 
     // Table operations
+    void op_build_vector(VM* vm);
     void op_build_table(VM* vm);
     void op_get_index(VM* vm);
     void op_set_index(VM* vm);
@@ -149,10 +157,24 @@ namespace pg
 
         // Initialize built-in classes (like Table)
         initialize_builtin_classes();
+
+        // Initialize single-character string cache for performance
+        // Pre-allocate all 256 possible single-byte character strings
+        for (int i = 0; i < 256; i++)
+        {
+            std::string singleChar(1, static_cast<char>(i));
+            singleCharCache[i] = createString(singleChar);
+        }
     }
 
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
+        if (tokens.empty())
+        {
+            LOG_WARNING("VM", "Empty tokens provided, nothing to execute !");
+            return InterpretResult::OK;
+        }
+
         // Todo change this
         // Reset the compiler state before compiling a new chunk
         Compiler compiler(this);
@@ -333,6 +355,12 @@ namespace pg
 
     InterpretResult VM::interpretFromBytecodeFile(const std::string& filename)
     {
+        if (filename.empty())
+        {
+            LOG_WARNING("VM", "No file specified, nothing to execute !");
+            return InterpretResult::OK;
+        }
+
         currentFileName = filename;
 
         Chunk chunk;
@@ -342,6 +370,15 @@ namespace pg
         {
             LOG_ERROR("VM", "Failed to load bytecode from file: " << filename);
             return InterpretResult::COMPILE_ERROR;
+        }
+
+        // Load all native modules that were imported during compilation
+        for (const std::string& moduleName : chunk.importedModules)
+        {
+            if (!loadNativeModule(moduleName))
+            {
+                LOG_WARNING("VM", "Failed to load imported module '" << moduleName << "' from bytecode file");
+            }
         }
 
         // Create function from deserialized chunk
@@ -358,6 +395,12 @@ namespace pg
 
     InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount)
     {
+        if (cachedBytecode.empty())
+        {
+            LOG_WARNING("VM", "Bytecode is empty, nothing to execute !");
+            return InterpretResult::OK;
+        }
+
         // Deserialize from cached memory (NO FILE I/O!)
         std::istringstream bytecodeStream(std::string(cachedBytecode.begin(), cachedBytecode.end()), std::ios::binary);
 
@@ -409,6 +452,8 @@ namespace pg
                 //     return InterpretResult::OK;
                 // }
 
+                // Calculate instruction offset before incrementing IP
+                size_t instructionOffset = currentFrame->ip - chunkData;
                 uint8_t opcode = *currentFrame->ip++;
 
 #ifdef DEBUG_TRACE_EXECUTION
@@ -423,16 +468,34 @@ namespace pg
 
                 // Update frame IP for debug output
                 // currentFrame->ip = ip;
-                disassembleInstruction(this, currentFrame->closure->function->chunk, currentFrame->ip - chunkData - 1);
+                disassembleInstruction(this, currentFrame->closure->function->chunk, instructionOffset);
 #endif
-                // Todo add those behind a debug flag
-                // if (operations[opcode].handler) {
+
+                // Only measure timing if profiling is actually enabled
+                if (profiler.isEnabled())
+                {
+                    auto startTime = std::chrono::high_resolution_clock::now();
+
                     // Dispatch to operation handler
                     operations[opcode].handler(this);
-                // } else {
-                    // runtimeError("Unknown opcode");
-                    // return InterpretResult::RUNTIME_ERROR;
-                // }
+
+                    auto endTime = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+
+                    // Get opcode name for display
+                    std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
+
+                    // Get chunk pointer and function name
+                    const void* chunkPtr = &currentFrame->closure->function->chunk;
+                    const std::string& functionName = currentFrame->closure->function->name;
+
+                    profiler.recordInstruction(chunkPtr, functionName, instructionOffset, opcode, opcodeName, duration);
+                }
+                else
+                {
+                    // Fast path: no profiling overhead
+                    operations[opcode].handler(this);
+                }
 
                 // Update frame IP for potential frame switches
                 // currentFrame->ip = ip;
@@ -592,18 +655,12 @@ namespace pg
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
         frame->slots = stack.data() + stack.size() - argCount;
-        // frame->slots = stack.data() + stack.size() - argCount - 1;
 
-        // Point to first argument (skipping the function object at -argCount-1)
-
-        // if (closure->function == FunctionType::TYPE_FUNCTION)
-        // {
-        //     frame->slots = stack.data() + stack.size() - argCount;
-        // }
-        // else
-        // {
-        //     frame->slots = stack.data() + stack.size() - argCount - 1;
-        // }
+        // For regular function calls, the stack layout is:
+        // [...caller...] [function] [arg1] [arg2] ...
+        // slots points to arg1, and the function is at slots-1
+        // When returning, we want to truncate to the function's position (remove function + args + locals)
+        frame->stackBase = frame->slots - 1;
 
         return true;
     }
@@ -628,8 +685,13 @@ namespace pg
 
         frame->closure = closure;
         frame->ip = closure->function->chunk.code.data();
-        // Point to first argument (skipping the function object at -argCount-1)
         frame->slots = stack.data() + stack.size() - argCount - 1;
+
+        // For bound method calls, the stack layout is:
+        // [...caller...] [receiver] ...
+        // slots points to receiver
+        // When returning, we want to truncate to the receiver's position (remove receiver + args + locals)
+        frame->stackBase = frame->slots;
 
         return true;
     }
@@ -637,13 +699,18 @@ namespace pg
     void VM::deleteValue(const Value& value)
     {
         // Perform type-specific deletion
-        if (IS_STRING(value))
+        if (IS_LONG_STRING(value))
         {
             // Remove from interned strings map before releasing
-            ElementType* str = asString(value);
+            ElementType* str = asStringPtr(value);
             std::string strContent = str->toString();
             pools.internedStrings.erase(strContent);
             pools.stringPool.release(str);
+        }
+        else if (IS_SMALL_STRING(value))
+        {
+            // Small strings are inline - no deletion needed
+            return;
         }
         else if (IS_FUNC(value))
         {
@@ -690,6 +757,18 @@ namespace pg
 
             pools.boundMethodPool.release(boundMethod);
         }
+        else if (IS_VECTOR(value))
+        {
+            auto *vector = asVector(value);
+
+            // Release all elements in the vector
+            for (auto& element : vector->fields)
+            {
+                releaseAndDelete(element);
+            }
+
+            pools.vectorPool.release(vector);
+        }
     }
 
     void VM::releaseAndDelete(const Value& value)
@@ -700,7 +779,7 @@ namespace pg
         }
     }
 
-    Value VM::addValues(const Value& a, const Value& b)
+    Value VM::addValues(const Value a,const Value b)
     {
         // Fast path for integers
         if (IS_INT(a) and IS_INT(b))
@@ -716,6 +795,16 @@ namespace pg
 
         if (IS_FLOAT(a) and IS_INT(b))
             return FLOAT_VAL(AS_FLOAT(a) + static_cast<double>(AS_INT(b)));
+
+        // Fast path for string concatenation
+        if (IS_STRING(a) && IS_STRING(b))
+        {
+            // Extract string content
+            std::string strA = asString(a);
+            std::string strB = asString(b);
+
+            return createString(strA + strB);
+        }
 
         // Disallow functions
         if (IS_FUNC(a) or IS_FUNC(b))
@@ -1031,6 +1120,13 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Property), op_get_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Property), op_set_property);
         register_operation(static_cast<uint8_t>(OpCode::OP_Method), op_method);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Short_Int), op_short_int);
+
+        register_operation(static_cast<uint8_t>(OpCode::OP_PopN), op_pop_n);
+
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Constant_Global), op_define_constant_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Constant_Global), op_get_constant_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Constant_Global), op_set_constant_global);
 
         register_operation(static_cast<uint8_t>(OpCode::OP_AddLL), op_add_ll);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLL), op_subtract_ll);
@@ -1038,8 +1134,9 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractLC), op_subtract_lc);
         register_operation(static_cast<uint8_t>(OpCode::OP_SubtractCL), op_subtract_cl);
 
-        // Table operations
+        // Table and vector operations
         register_operation(static_cast<uint8_t>(OpCode::OP_Build_Table), op_build_table);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Build_Vector), op_build_vector);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Index), op_get_index);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Index), op_set_index);
 
@@ -1137,10 +1234,9 @@ namespace pg
     void op_name(VM* vm) \
     { \
         auto b = vm->pop(); \
-        auto a = vm->pop(); \
-        vm->push(vm->operation(a, b)); \
+        auto a = vm->peek(); \
+        vm->changeTop(vm->operation(a, b)); \
         /* Escape analysis: Only release heap objects, not primitives */ \
-        if (requiresRefCount(a)) vm->releaseAndDelete(a); \
         if (requiresRefCount(b)) vm->releaseAndDelete(b); \
     }
 
@@ -1193,12 +1289,28 @@ namespace pg
             return;
         }
 
+        Value newValue = vm->peek(0);
         Value oldValue = vm->currentFrame->slots[slot];
-        // Escape analysis: Only release old value if it's a heap object
+
+        // Retain the new value if it's a heap object (slot now owns a reference)
+        if (requiresRefCount(newValue)) {
+            vm->currentFrame->slots[slot] = vm->retainValue(newValue);
+        } else {
+            vm->currentFrame->slots[slot] = newValue;
+        }
+
+        // Release old value if it's a heap object (after assignment to avoid use-after-free if old == new)
         if (requiresRefCount(oldValue)) {
             vm->releaseAndDelete(oldValue);
         }
-        vm->currentFrame->slots[slot] = vm->peek(0);
+
+        // Value oldValue = vm->currentFrame->slots[slot];
+        // // Escape analysis: Only release old value if it's a heap object
+        // if (requiresRefCount(oldValue)) {
+        //     vm->releaseAndDelete(oldValue);
+        // }
+
+        // vm->currentFrame->slots[slot] = vm->peek(0);
     }
 
     void op_long_jump_if_false(VM* vm)
@@ -1238,6 +1350,10 @@ namespace pg
         }
 #endif
         auto value = vm->pop();
+
+        // Save callee's stackBase (where caller's stack ended) before we dec frame count
+        Value* calleeStackBase = vm->currentFrame->stackBase;
+
         vm->closeUpvalues(vm->currentFrame->slots);
         vm->frameCount--;
 
@@ -1253,23 +1369,19 @@ namespace pg
             return;
         }
 
-        // Pop arguments based on function arity, then pop the callee
-        int arity = vm->currentFrame->closure->function->arity;
-
         // Restore previous frame
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache();
 
-        // Pop the arguments
-        for (int i = 0; i < arity; i++)
+        // Truncate stack to the callee's stackBase position
+        // This removes the function/receiver + args + locals
+        size_t stackTruncatePosition = calleeStackBase - vm->stack.data();
+
+        while (vm->stack.size() > stackTruncatePosition)
         {
             auto v = vm->pop();
             vm->releaseAndDelete(v);
         }
-
-        // Pop the callee (closure for regular calls, instance for bound methods)
-        auto callee = vm->pop();
-        vm->releaseAndDelete(callee);
 
         vm->push(value);
     }
@@ -1298,27 +1410,30 @@ namespace pg
             return;
         }
 #endif
-        auto nameValue = vm->pop();  // variable name
-        auto name = vm->valueToElement(nameValue);
+        auto nameValue = vm->peek();  // variable name
 
-        if (not name.isLitteral())
+        if (not IS_STRING(nameValue))
         {
             vm->releaseAndDelete(nameValue);
+            vm->pop(); // Remove name from stack
             vm->runtimeError("Global variable name must be a litteral.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        auto it = vm->globals.find(name.toString());
+        auto name = vm->asString(nameValue);
+
+        auto it = vm->globals.find(name);
         if (it == vm->globals.end())
         {
             vm->releaseAndDelete(nameValue);
-            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->pop(); // Remove name from stack
+            vm->runtimeError("Undefined global variable '" + name + "'.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        vm->push(vm->retainValue(it->second)); // Retain because stack becomes an owner
+        vm->changeTop(vm->retainValue(it->second)); // Retain because stack becomes an owner
         vm->releaseAndDelete(nameValue);
     }
 
@@ -1437,17 +1552,7 @@ namespace pg
             return;
         }
 
-        // // Remove the function object from the stack by shifting arguments up
-        // for (int i = argCount - 1; i >= 0; i--)
-        // {
-        //     vm->stack[vm->stack.size() - argCount - 1 + i] = vm->stack[vm->stack.size() - argCount + i];
-        // }
-
-        // vm->stack.pop(); // Remove the duplicate top element
-
-        // // Update the frame slots to point to the shifted arguments
-        // vm->frames[vm->frameCount - 1].slots = vm->stack.data() + vm->stack.size() - argCount;
-
+        // Function has been called, frame is set up with stackBase pointing to where to truncate on return
         vm->currentFrame = &vm->frames[vm->frameCount - 1];
         vm->updateChunkCache(); // Update cached chunk data for new frame
     }
@@ -1634,9 +1739,35 @@ namespace pg
             return;
         }
 
+        if (IS_VECTOR(value))
+        {
+            ObjVector* vector = vm->asVector(value);
+
+            if (vector != nullptr)
+            {
+                vm->testOutput += "<vector size=" + std::to_string(vector->fields.size()) + ">\n";
+            }
+            else
+            {
+                vm->testOutput += "<null vector>\n";
+            }
+
+            vm->releaseAndDelete(value);
+            return;
+        }
+
         // For testing: append to testOutput buffer instead of stdout
-        ElementType elem = vm->valueToElement(value);
-        vm->testOutput += elem.toString() + "\n";
+        // Handle integers directly to avoid 32-bit truncation in ElementType
+        if (IS_INT(value))
+        {
+            int64_t val = AS_INT(value);
+            vm->testOutput += std::to_string(val) + "\n";
+        }
+        else
+        {
+            ElementType elem = vm->valueToElement(value);
+            vm->testOutput += elem.toString() + "\n";
+        }
         vm->releaseAndDelete(value);
     }
 
@@ -2304,6 +2435,103 @@ namespace pg
         klass->methods[methodName] = methodClosureValue;
     }
 
+    void op_short_int(VM* vm)
+    {
+        uint8_t value = *vm->currentFrame->ip++;
+
+        vm->push(makeIntValue(value));
+    }
+
+    void op_pop_n(VM* vm)
+    {
+        uint8_t count = *vm->currentFrame->ip++;
+
+        for (int i = 0; i < count; i++)
+        {
+            auto value = vm->pop();
+
+            if (requiresRefCount(value)) {
+                vm->releaseAndDelete(value);
+            }
+        }
+    }
+
+    void op_define_constant_global(VM* vm)
+    {
+        uint8_t constant1 = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
+
+        uint8_t constant2 = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
+        auto name = vm->valueToElement(value2);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->globals[name.toString()] = vm->retainValue(value1);
+    }
+
+    void op_get_constant_global(VM* vm)
+    {
+        uint8_t constant = *vm->currentFrame->ip++;
+        auto value = vm->currentFrame->closure->function->chunk.constants[constant];
+        auto name = vm->valueToElement(value);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->push(vm->retainValue(it->second)); // Retain because stack becomes an owner
+    }
+
+    void op_set_constant_global(VM* vm)
+    {
+        uint8_t constant1 = *vm->currentFrame->ip++;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
+
+        uint8_t constant2 = *vm->currentFrame->ip++;
+
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
+        auto name = vm->valueToElement(value2);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        auto it = vm->globals.find(name.toString());
+        if (it == vm->globals.end())
+        {
+            vm->runtimeError("Undefined global variable '" + name.toString() + "'.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->releaseAndDelete(it->second);
+        it->second = vm->retainValue(value1);
+        vm->push(vm->retainValue(value1));
+    }
+
     void op_add_ll(VM* vm)
     {
         uint8_t local1 = *vm->currentFrame->ip++;
@@ -2373,7 +2601,13 @@ namespace pg
         // Convert ElementType to string for lookup (assuming ElementType has toString() or similar)
         std::string stringContent = element.toString();
 
-        // Check if string already exists in the intern map
+        // Small string optimization: inline strings with 5 or fewer characters
+        if (stringContent.length() <= 5)
+        {
+            return makeSmallStringValue(stringContent.c_str(), static_cast<uint8_t>(stringContent.length()));
+        }
+
+        // // Check if string already exists in the intern map
         auto it = pools.internedStrings.find(stringContent);
         if (it != pools.internedStrings.end())
         {
@@ -2382,7 +2616,9 @@ namespace pg
         }
 
         // String doesn't exist, create new one
-        auto [ptr, index] = pools.stringPool.allocateWithIndex(element);
+        // IMPORTANT: Always store as STRING type, not whatever type the input ElementType had
+        ElementType stringElement(stringContent);
+        auto [ptr, index] = pools.stringPool.allocateWithIndex(stringElement);
         Value val = makeStringValue(static_cast<uint32_t>(index));
 
         // Add to intern map for future reuse
@@ -2433,6 +2669,13 @@ namespace pg
         return trackNewValue(val);
     }
 
+    Value VM::createVector()
+    {
+        auto [ptr, index] = pools.vectorPool.allocateWithIndex();
+        Value val = makeVectorValue(static_cast<uint32_t>(index));
+        return trackNewValue(val);
+    }
+
     Value VM::elementToValue(const ElementType& element)
     {
         if (element.isBool())
@@ -2467,8 +2710,10 @@ namespace pg
             return ElementType(static_cast<int>(AS_INT(value)));
         else if (IS_DOUBLE(value))
             return ElementType(AS_DOUBLE(value));
-        else if (IS_STRING(value))
-            return *asString(value);
+        else if (IS_SMALL_STRING(value))
+            return ElementType(AS_SMALL_STRING(value));
+        else if (IS_LONG_STRING(value))
+            return *asStringPtr(value);
         else
             throw std::runtime_error("Cannot convert Value to ElementType - unsupported type");
     }
@@ -2497,11 +2742,16 @@ namespace pg
             return static_cast<int>(AS_DOUBLE(value));
         else if (IS_BOOL(value))
             return AS_BOOL(value) ? 1 : 0;
-        else if (IS_STRING(value))
+        else if (IS_LONG_STRING(value))
         {
-            ElementType* obj = asString(value);
+            ElementType* obj = asStringPtr(value);
             if (obj->type == ElementType::UnionType::INT)
                 return obj->get<int>();
+        }
+        else if (IS_SMALL_STRING(value))
+        {
+            // Small strings don't have ElementType backing, can't extract int
+            // Fall through to error
         }
 
         throw std::runtime_error("Value is not an integer");
@@ -2551,7 +2801,7 @@ namespace pg
             std::string keyStr;
             if (IS_STRING(key))
             {
-                keyStr = vm->asString(key)->toString();
+                keyStr = vm->asString(key);
             }
             else if (IS_INT(key))
             {
@@ -2581,21 +2831,152 @@ namespace pg
         vm->push(instanceVal);
     }
 
+    void op_build_vector(VM* vm)
+    {
+        uint8_t pairCount = *vm->currentFrame->ip++;
+
+        // Create new vector
+        Value vectorVal = vm->createVector();
+        ObjVector* vector = vm->asVector(vectorVal);
+
+        // Pop pairCount key-value pairs from stack (in reverse order)
+        // Stack layout: [value, index, value, index, ...]
+        std::vector<std::pair<int64_t, Value>> pairs;
+        pairs.reserve(pairCount);
+
+        for (int i = 0; i < pairCount; i++)
+        {
+            Value index = vm->pop();
+            Value value = vm->pop();
+
+            // Index must be an integer
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(value);
+                // Clean up the vector we created before returning
+                vm->releaseAndDelete(vectorVal);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            int64_t indexInt = AS_INT(index);
+            vm->releaseAndDelete(index);  // We've extracted the int, release the value
+            pairs.push_back({indexInt, value});
+        }
+
+        // Sort pairs by index to ensure correct order
+        std::sort(pairs.begin(), pairs.end(),
+            [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        // Insert values in sorted order
+        for (const auto& pair : pairs)
+        {
+            // Ensure vector is large enough
+            while (vector->fields.size() <= static_cast<size_t>(pair.first))
+            {
+                vector->fields.push_back(makeIntValue(0));  // Fill with zeros
+            }
+
+            vector->fields[pair.first] = vm->retainValue(pair.second);
+            vm->releaseAndDelete(pair.second);  // Release our temporary reference
+        }
+
+        // Push the vector we created
+        vm->push(vectorVal);
+    }
+
     void op_get_index(VM* vm)
     {
         Value index = vm->pop();
-        Value instance = vm->pop();
+        Value target = vm->pop();
 
-        if (!IS_INSTANCE(instance))
+        // Handle vector indexing
+        if (IS_VECTOR(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                vm->releaseAndDelete(target);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ObjVector* vec = vm->asVector(target);
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(vec->fields.size()) + idx;
+            }
+
+            if (idx < 0 || idx >= static_cast<int>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(target);
+                vm->runtimeError("Vector index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            vm->releaseAndDelete(target);
+
+            // Return the value at the index
+            vm->push(vm->retainValue(vec->fields[idx]));
+            return;
+        }
+
+        // Handle string indexing (both long and small strings)
+        if (IS_STRING(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(index);
+                if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
+                vm->runtimeError("String index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            std::string str = vm->asString(target);
+
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(str.length()) + idx;
+            }
+
+            if (idx < 0 || idx >= static_cast<int>(str.length()))
+            {
+                if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
+                vm->runtimeError("String index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            if (IS_LONG_STRING(target)) vm->releaseAndDelete(target);
+
+            // Return single character as a string using cached value
+            unsigned char ch = static_cast<unsigned char>(str[idx]);
+            vm->push(vm->retainValue(vm->singleCharCache[ch]));
+            return;
+        }
+
+        // Handle table/instance indexing
+        if (!IS_INSTANCE(target))
         {
             vm->releaseAndDelete(index);
-            vm->releaseAndDelete(instance);
-            vm->runtimeError("Can only index tables/instances");
+            vm->releaseAndDelete(target);
+            vm->runtimeError("Can only index vectors, strings, or tables/instances");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        ObjInstance* inst = vm->asInstance(instance);
+        ObjInstance* inst = vm->asInstance(target);
 
         // Convert index to string key
         std::string key;
@@ -2605,19 +2986,19 @@ namespace pg
         }
         else if (IS_STRING(index))
         {
-            key = vm->asString(index)->toString();
+            key = vm->asString(index);
         }
         else
         {
             vm->releaseAndDelete(index);
-            vm->releaseAndDelete(instance);
+            vm->releaseAndDelete(target);
             vm->runtimeError("Index must be integer or string");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
         vm->releaseAndDelete(index);
-        vm->releaseAndDelete(instance);
+        vm->releaseAndDelete(target);
 
         // Look up in fields map
         auto it = inst->fields.find(key);
@@ -2635,50 +3016,177 @@ namespace pg
     {
         Value value = vm->pop();
         Value index = vm->pop();
-        Value instance = vm->peek(0); // Keep instance on stack
+        Value target = vm->peek(0); // Keep target on stack
 
-        if (!IS_INSTANCE(instance))
+        if (!IS_INSTANCE(target) && !IS_STRING(target) && !IS_VECTOR(target))
         {
             vm->releaseAndDelete(value);
             vm->releaseAndDelete(index);
-            vm->runtimeError("Can only index tables/instances");
+            vm->runtimeError("Can only index vectors, tables/instances, or strings");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
-        ObjInstance* inst = vm->asInstance(instance);
+        // Handle vector indexing
+        if (IS_VECTOR(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
 
-        // Convert index to string key
-        std::string key;
-        if (IS_INT(index))
-        {
-            key = std::to_string(AS_INT(index));
-        }
-        else if (IS_STRING(index))
-        {
-            key = vm->asString(index)->toString();
-        }
-        else
-        {
-            vm->releaseAndDelete(value);
+            ObjVector* vec = vm->asVector(target);
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(vec->fields.size()) + idx;
+            }
+
+            // Allow setting at the very end to push back
+            if (idx == static_cast<int>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(index);
+                vec->fields.push_back(vm->retainValue(value));
+                vm->releaseAndDelete(value);
+                return;
+            }
+
+            if (idx < 0 || idx > static_cast<int>(vec->fields.size()))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Vector index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
             vm->releaseAndDelete(index);
-            vm->runtimeError("Index must be integer or string");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            // Release old value at this index
+            vm->releaseAndDelete(vec->fields[idx]);
+
+            // Store new value
+            vec->fields[idx] = vm->retainValue(value);
+            vm->releaseAndDelete(value);  // Release our reference (vector now owns it)
             return;
         }
 
-        vm->releaseAndDelete(index);
-
-        // Release old value if it exists
-        auto it = inst->fields.find(key);
-        if (it != inst->fields.end())
+        // Handle instance/table indexing (most common case)
+        if (IS_INSTANCE(target))
         {
-            vm->releaseAndDelete(it->second);
+            ObjInstance* inst = vm->asInstance(target);
+
+            // Convert index to string key
+            std::string key;
+            if (IS_INT(index))
+            {
+                key = std::to_string(AS_INT(index));
+            }
+            else if (IS_STRING(index))
+            {
+                key = vm->asString(index);
+            }
+            else
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Index must be integer or string");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            vm->releaseAndDelete(index);
+
+            // Release old value if it exists
+            auto it = inst->fields.find(key);
+            if (it != inst->fields.end())
+            {
+                vm->releaseAndDelete(it->second);
+            }
+
+            // Store in fields map
+            inst->fields[key] = vm->retainValue(value);
+            vm->releaseAndDelete(value);  // Release our reference (field now owns it)
+            return;
         }
 
-        // Store in fields map
-        inst->fields[key] = vm->retainValue(value);
-        vm->releaseAndDelete(value);  // Release our reference (field now owns it)
+        // Handle string indexing
+        if (IS_STRING(target))
+        {
+            if (!IS_INT(index))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("String index must be integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            if (!IS_STRING(value))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Can only assign string to string index");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            std::string str = vm->asString(target);
+            int idx = AS_INT(index);
+
+            // Handle negative indices (Python-style)
+            if (idx < 0)
+            {
+                idx = static_cast<int>(str.length()) + idx;
+            }
+
+            // Allow appending at the end (idx == str.length())
+            if (idx < 0 || idx > static_cast<int>(str.length()))
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("String index out of range");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            std::string valueString = vm->asString(value);
+
+            // Can only set a single character
+            if (valueString.length() != 1)
+            {
+                vm->releaseAndDelete(value);
+                vm->releaseAndDelete(index);
+                vm->runtimeError("Can only assign single character to string index");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            // If appending at the end, append the character
+            if (idx == static_cast<int>(str.length()))
+            {
+                str += valueString[0];
+            }
+            else
+            {
+                // Modify the string at the index
+                str[idx] = valueString[0];
+            }
+
+            // Create a new string with the modified content and replace on stack
+            vm->pop(); // Remove old string
+            vm->push(vm->createString(str));
+
+            vm->releaseAndDelete(value);
+            vm->releaseAndDelete(index);
+            return;
+        }
     }
 
     // ========================================================================
@@ -2760,12 +3268,25 @@ namespace pg
 
     void op_table_size(VM* vm)
     {
-        // Stack: [table]
+        // Stack: [table or vector]
         Value tableVal = vm->peek(0);
+
+        if (IS_VECTOR(tableVal))
+        {
+            ObjVector* vector = vm->asVector(tableVal);
+
+            // Pop the vector
+            vm->pop();
+            vm->releaseAndDelete(tableVal);
+
+            // Push the size as an integer
+            vm->push(makeIntValue(static_cast<int64_t>(vector->fields.size())));
+            return;
+        }
 
         if (!IS_INSTANCE(tableVal))
         {
-            vm->runtimeError("Can only get size of tables");
+            vm->runtimeError("Can only get size of tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
@@ -2782,15 +3303,53 @@ namespace pg
 
     void op_table_at(VM* vm)
     {
-        // Stack: [table, index]
+        // Stack: [table or vector, index]
         Value indexVal = vm->pop();
         Value tableVal = vm->pop();
 
+        // Handle vector access (direct indexed access, returns value at index)
+        if (IS_VECTOR(tableVal))
+        {
+            if (!IS_INT(indexVal))
+            {
+                vm->releaseAndDelete(indexVal);
+                vm->releaseAndDelete(tableVal);
+                vm->runtimeError("Vector index must be an integer");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            ObjVector* vector = vm->asVector(tableVal);
+            int64_t index = AS_INT(indexVal);
+
+            // Check bounds
+            if (index < 0 || static_cast<size_t>(index) >= vector->fields.size())
+            {
+                vm->releaseAndDelete(indexVal);
+                vm->releaseAndDelete(tableVal);
+                vm->runtimeError("Vector index out of bounds");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            // Get the value directly
+            Value value = vector->fields[index];
+
+            vm->releaseAndDelete(indexVal);
+            vm->releaseAndDelete(tableVal);
+
+            // For vectors, return the value directly (not the index)
+            // This is different from tables where we return the key
+            vm->push(vm->retainValue(value));
+            return;
+        }
+
+        // Handle table access (returns key at index position in map)
         if (!IS_INSTANCE(tableVal))
         {
             vm->releaseAndDelete(indexVal);
             vm->releaseAndDelete(tableVal);
-            vm->runtimeError("Can only get keys from tables");
+            vm->runtimeError("Can only get keys from tables or vectors");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
@@ -2856,7 +3415,7 @@ namespace pg
             return;
         }
 
-        std::string moduleName = vm->asString(moduleNameValue)->toString();
+        std::string moduleName = vm->asString(moduleNameValue);
         vm->releaseAndDelete(moduleNameValue);
 
         // TODO: Implement the full import logic:
@@ -2909,8 +3468,8 @@ namespace pg
             {
                 LOG_INFO("VM", "Importing string global: " << globalPair.first);
                 // Strings need to be recreated in the current VM
-                ElementType* strElem = importerVm.asString(globalPair.second);
-                Value newStrVal = vm->createString(*strElem);
+                std::string str = importerVm.asString(globalPair.second);
+                Value newStrVal = vm->createString(str);
                 vm->globals[globalPair.first] = newStrVal;
             }
             else

@@ -10,6 +10,8 @@
 // Todo remove this when we can close a window with an event
 #include "window.h"
 
+#include "Renderer/renderer.h"
+
 using namespace pg;
 
 #ifdef PG_AUTO_CONVERT_EVENTS_TO_STANDARD
@@ -136,6 +138,77 @@ StandardSystemImpl* createMouseClickHandlerSystem()
         .build();
 }
 
+StandardSystemImpl* createKeyHandlerSystem()
+{
+    return createStandardSystem("MouseClickHandler")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            LOG_INFO("CompExec", "System initialized");
+        })
+        .onEvent("OnSDLScanCode", "test_key.pg")
+        .build();
+}
+
+StandardSystemImpl* createDeltaSystem()
+{
+    return createStandardSystem("Delta")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            sys->setData("currentDelta", 0);
+        })
+        .onDelta("test_delta.pg")
+        .build();
+}
+
+StandardSystemImpl* createFPSSystem()
+{
+    return createStandardSystem("FPS")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            sys->setData("currentDelta", 0.0f);
+            sys->setData("nbRenderedFrames", 0);
+            sys->setData("nbGeneratedFrames", 0);
+        })
+        .onDelta([](StandardSystemHandle* sys, float deltaTime) {
+            float delta = sys->getData("currentDelta").get<float>();
+
+            delta += deltaTime;
+
+            if (delta > 1.0f)
+            {
+                delta -= 1.0f;
+
+                auto rendererSys = sys->getWorld()->getSystem<MasterRenderer>();
+
+                auto currentNbOfFrames = rendererSys->getNbRenderedFrames();
+                auto currentNbOfGFrames = rendererSys->getNbGeneratedFrames();
+
+                auto lastNbOfFrames = sys->getData("nbRenderedFrames").get<size_t>();
+                auto lastNbOfGFrames = sys->getData("nbGeneratedFrames").get<size_t>();
+
+                if (currentNbOfFrames < lastNbOfFrames or currentNbOfGFrames < lastNbOfGFrames)
+                {
+                    sys->setData("nbRenderedFrames", currentNbOfFrames);
+                    sys->setData("nbGeneratedFrames", currentNbOfGFrames);
+                    sys->setData("currentDelta", delta);
+
+                    return;
+                }
+
+                auto res = currentNbOfFrames - lastNbOfFrames;
+                auto res2 = currentNbOfGFrames - lastNbOfGFrames;
+
+                LOG_INFO("Standard FPS Sys", "FPS: " << res << ", GFPS: " << res2);
+
+                sys->setData("nbRenderedFrames", currentNbOfFrames);
+                sys->setData("nbGeneratedFrames", currentNbOfGFrames);
+            }
+
+            sys->setData("currentDelta", delta);
+        })
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -208,52 +281,67 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             LOG_INFO("SimpleObj", simpleObj->get<std::string>("name"));
         }
 
-        // auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
+        auto simpleSys = ecs.registerSystem(createSimpleExecSystem());
 
-        // ecs.executeOnce();
+        ecs.executeOnce();
 
-        // auto reactorSys = ecs.registerSystem(createCompExecReactorSystem());
+        ecs.deleteSystem(simpleSys->_id);
 
-        // auto compSys = ecs.registerSystem(createCompExecSystem());
+        auto reactorSys = ecs.registerSystem(createCompExecReactorSystem());
 
-        // {
-        //     auto ent = ecs.createEntity();
+        auto compSys = ecs.registerSystem(createCompExecSystem());
 
-        //     auto execComp = ecs.attach(ent, "ExecComp");
-        // }
+        {
+            auto ent = ecs.createEntity();
 
-        // {
-        //     auto& reactorSysData = compSys->getSystemData();
+            auto execComp = ecs.attach(ent, "ExecComp");
+        }
 
-        //     auto it = reactorSysData.find("i");
+        {
+            auto& reactorSysData = compSys->getSystemData();
 
-        //     if (it == reactorSysData.end())
-        //     {
-        //         LOG_INFO("ReactorSys", "Correctly not found i in properties");
-        //     }
-        // }
+            auto it = reactorSysData.find("i");
 
-        // ecs.executeOnce();
+            if (it == reactorSysData.end())
+            {
+                LOG_INFO("ReactorSys", "Correctly not found i in properties");
+            }
+        }
 
-        // LOG_INFO("React", "Hello");
+        ecs.executeOnce();
 
-        // {
-        //     auto& reactorSysData = compSys->getSystemData();
+        LOG_INFO("React", "Hello");
 
-        //     for (const auto& elem : reactorSysData)
-        //     {
-        //         LOG_INFO("Sss", elem.first);
-        //     }
+        {
+            auto& reactorSysData = compSys->getSystemData();
 
-        //     auto it = reactorSysData.find("i");
+            for (const auto& elem : reactorSysData)
+            {
+                LOG_INFO("Sss", elem.first);
+            }
 
-        //     if (it != reactorSysData.end())
-        //     {
-        //         LOG_INFO("ReactorSys", "Correctly found i in properties: " << it->second);
-        //     }
-        // }
+            auto it = reactorSysData.find("i");
+
+            if (it != reactorSysData.end())
+            {
+                LOG_INFO("ReactorSys", "Correctly found i in properties: " << it->second);
+            }
+
+            reactorSysData["stop"] = true;
+        }
+
+        ecs.executeOnce();
+
+        ecs.deleteSystem(compSys->_id);
+        reactorSys->getSystemData()["stop"] = true;
 
         ecs.registerSystem(createMouseClickHandlerSystem());
+
+        ecs.registerSystem(createKeyHandlerSystem());
+
+        ecs.registerSystem(createDeltaSystem());
+
+        ecs.registerSystem(createFPSSystem());
 
         // window.receivedQuitRequest();
 

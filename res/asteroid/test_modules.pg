@@ -1,0 +1,36 @@
+// Test script for new math and random modules
+import "math"
+import "random"
+import "string"
+
+logInfo("=== Testing Math Module ===")
+
+// Test trig functions
+var angle = PI / 4  // 45 degrees in radians
+logInfo("Angle: " + toString(angle))
+logInfo("sin(PI/4): " + toString(sin(angle)))
+logInfo("cos(PI/4): " + toString(cos(angle)))
+logInfo("tan(PI/4): " + toString(tan(angle)))
+
+// Test atan2
+var testAngle = atan2(1, 1)  // Should be PI/4
+logInfo("atan2(1, 1): " + toString(testAngle))
+
+logInfo("=== Testing Random Module ===")
+
+// Test random()
+logInfo("random(): " + toString(random()))
+logInfo("random(): " + toString(random()))
+logInfo("random(): " + toString(random()))
+
+// Test randomRange()
+logInfo("randomRange(0, 100): " + toString(randomRange(0, 100)))
+logInfo("randomRange(0, 100): " + toString(randomRange(0, 100)))
+logInfo("randomRange(-50, 50): " + toString(randomRange(-50, 50)))
+
+// Test randomInt()
+logInfo("randomInt(1, 10): " + toString(randomInt(1, 10)))
+logInfo("randomInt(1, 10): " + toString(randomInt(1, 10)))
+logInfo("randomInt(1, 10): " + toString(randomInt(1, 10)))
+
+logInfo("=== All tests complete ===")

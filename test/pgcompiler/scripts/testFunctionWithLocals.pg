@@ -1,0 +1,34 @@
+// Test regular function calls with local variables
+// Called from both global and local scopes
+
+// Function with multiple locals
+fun addThree(a, b, c) {
+    var sum = a + b;
+    var result = sum + c;
+    return result;
+}
+
+// Function that calls another function
+fun nested(x) {
+    var local1 = 10;
+    var local2 = 20;
+    var result = addThree(local1, local2, x);
+    return result + 5;
+}
+
+// Test from global scope
+__dprint(addThree(1, 2, 3));
+__dprint(nested(5));
+
+// Test from local scope (inside a function)
+fun testFromLocal() {
+    var a = 100;
+    var b = 200;
+    var result = addThree(a, b, 50);
+    __dprint(result);
+
+    var nested_result = nested(10);
+    __dprint(nested_result);
+}
+
+testFromLocal();

@@ -8,14 +8,23 @@
 #include "Compiler/vm.h"
 #include "Compiler/compiler.h"
 
-#include "Compiler/pass/long_jump_optimization_pass.h"
 #include "constant_uniformity_pass.h"
 #include "Interpreter/lexer.h"
 
+#include "Compiler/pass/long_jump_optimization_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
-#include "example_math_module.h"
 
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
+
+#include "Compiler/pass/constant_var_access.h"
+#include "Compiler/pass/fuse_op_pop.h"
+#include "Compiler/pass/constant_folding.h"
+#include "Compiler/pass/increment_optimization_pass.h"
+#include "Compiler/pass/simplify_constant_pass.h"
+
+#include "Helpers/mathmodule.h"
+#include "Helpers/randommodule.h"
+#include "Helpers/stringmodule.h"
 
 using namespace pg;
 
@@ -23,14 +32,15 @@ namespace {
     static const char *const DOM = "App";
 }
 
-Value nativeLogInfo(VM* vm, int argCount, Value* args) {
+Value nativeLogInfo(VM* vm, int argCount, Value* args)
+{
     if (argCount != 1) {
         throw std::runtime_error("logInfo expects exactly one argument");
     }
 
     if (IS_STRING(args[0]))
     {
-        LOG_INFO("DOM", *vm->asString(args[0]));
+        LOG_INFO("DOM", vm->asString(args[0]));
     }
     else if (IS_INT(args[0]))
     {
@@ -52,7 +62,8 @@ Value nativeLogInfo(VM* vm, int argCount, Value* args) {
     return makeBoolValue(true);
 }
 
-CompilerApp::CompilerApp(const std::string &fileName) : fileName(fileName) {
+CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling) : fileName(fileName), profilingEnabled(enableProfiling)
+{
     LOG_THIS_MEMBER(DOM);
 
     auto terminalSink = std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
@@ -144,14 +155,18 @@ void CompilerApp::runFile(bool needCompile)
     VM vm;
     ecs.setupVm(vm);
 
+    vm.defineNative("log", nativeLogInfo);
+
     InterpretResult result;
+
+    if (profilingEnabled)
+    {
+        vm.enableProfiling();
+    }
 
     if (needCompile)
     {
         // vm.addOptimizationPass(std::make_uniqueh
-        vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
-        vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
-        vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
         vm.enableBytecodeOptimization();
         vm.enableOptimizationDebugging();
@@ -161,10 +176,6 @@ void CompilerApp::runFile(bool needCompile)
         std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
         // Register individual native functions
-        vm.defineNative("log", nativeLogInfo);
-
-        // Register native modules
-        // vm.addNativeModule("math", MathModule());
 
         Lexer lexer;
 
@@ -182,7 +193,6 @@ void CompilerApp::runFile(bool needCompile)
 
         vm.listOptimizationPasses();
 
-
         vm.currentFileName = fileName;
         result = vm.interpret(tokens, false, "temp.pgc");
     }
@@ -190,6 +200,9 @@ void CompilerApp::runFile(bool needCompile)
     {
         result = vm.interpretFromBytecodeFile(fileName);
     }
+
+    vm.printProfilingReport();
+    vm.printProfilingBytecodeReport();
 
     switch (result)
     {

@@ -69,7 +69,7 @@ namespace pg
 
         if (serializedString.isNull())
         {
-            LOG_ERROR(DOM, "Element is null");
+            LOG_INFO(DOM, "Element is null");
         }
         else
         {

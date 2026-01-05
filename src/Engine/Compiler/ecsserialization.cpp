@@ -1,9 +1,442 @@
 #include "ecsserialization.h"
 
 #include "ECS/entitysystem.h"
+#include "2D/position.h"
+#include "2D/collisionsystem.h"
+
+#include <iostream>
 
 namespace pg
 {
+    namespace detail
+    {
+        // Todo maybe even make this whole registrar thing constexpr
+        bool registryHasComponent(const std::string& name)
+        {
+            auto& registry = ComponentSerializerRegistry::instance();
+            return not name.empty() && registry.hasSerializer(name);
+        }
+
+        ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name)
+        {
+            auto& registry = ComponentSerializerRegistry::instance();
+            return registry.getSerializer(name);
+        }
+
+        // Shared implementation for attachComp native function
+        NativeFn createAttachCompFunction(Entity* entityPtr, EntitySystem* ecsRef)
+        {
+            return [entityPtr, ecsRef](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount < 1)
+                {
+                    throw std::runtime_error("attachComp expects at least 1 argument (componentName)");
+                }
+
+                // Get component name
+                if (!IS_STRING(args[0]))
+                {
+                    throw std::runtime_error("attachComp expects first argument to be component name (string)");
+                }
+                auto componentName = vm->asString(args[0]);
+
+                // Special case: if component name is "Collision", attach CollisionComponent instead
+                if (componentName == "Collision")
+                {
+                    // Parse arguments for CollisionComponent
+                    // Expected: attachComp("Collision", "layerId", layerId, "scale", scale, ...)
+                    size_t layerId = 0;
+                    float scale = 1.0f;
+                    // bool checkSpecificLayer = false;
+                    std::vector<size_t> checkLayerId;
+
+                    // Process key-value pairs
+                    for (int i = 1; i < argCount; i += 2)
+                    {
+                        if (i + 1 >= argCount) break;
+
+                        if (!IS_STRING(args[i]))
+                        {
+                            throw std::runtime_error("attachComp expects string keys for properties");
+                        }
+
+                        auto key = vm->asString(args[i]);
+                        auto value = args[i + 1];
+
+                        if (key == "layerId" && IS_INT(value))
+                        {
+                            layerId = static_cast<size_t>(AS_INT(value));
+                        }
+                        else if (key == "scale")
+                        {
+                            if (IS_DOUBLE(value))
+                                scale = static_cast<float>(AS_DOUBLE(value));
+                            else if (IS_INT(value))
+                                scale = static_cast<float>(AS_INT(value));
+                        }
+                        // Could add checkLayerId array parsing here if needed
+                    }
+
+                    // Attach CollisionComponent with parsed parameters
+                    ecsRef->_attach<CollisionComponent>(entityPtr, layerId, scale);
+
+                    LOG_INFO("ECS Serialization", "Attached native CollisionComponent to entity " << entityPtr->id
+                             << " (layerId=" << layerId << ", scale=" << scale << ")");
+
+                    return INT_VAL(0);
+                }
+
+                // Attach the StandardComponent (create empty first)
+                CompRef<StandardComponent> component = ecsRef->_attach(entityPtr, componentName);
+
+                // Process remaining arguments as key-value pairs and add them directly to the component
+                for (int i = 1; i < argCount; i += 2)
+                {
+                    if (i + 1 >= argCount)
+                    {
+                        throw std::runtime_error("attachComp expects key-value pairs for component properties");
+                    }
+
+                    if (!IS_STRING(args[i]))
+                    {
+                        throw std::runtime_error("attachComp expects string keys for properties");
+                    }
+
+                    auto key = vm->asString(args[i]);
+                    auto value = args[i + 1];
+
+                    // Convert Value to ElementType and add directly to component
+                    if (IS_INT(value))
+                    {
+                        component->properties[key] = ElementType{static_cast<int>(AS_INT(value))};
+                    }
+                    else if (IS_DOUBLE(value))
+                    {
+                        component->properties[key] = ElementType{AS_DOUBLE(value)};
+                    }
+                    else if (IS_STRING(value))
+                    {
+                        component->properties[key] = ElementType{vm->asString(value)};
+                    }
+                    else if (IS_BOOL(value))
+                    {
+                        component->properties[key] = ElementType{AS_BOOL(value)};
+                    }
+                    else
+                    {
+                        throw std::runtime_error("attachComp: unsupported value type for property '" + key + "'");
+                    }
+                }
+
+                LOG_INFO("ECS Serialization", "Attached StandardComponent '" << componentName
+                         << "' to entity " << entityPtr->id);
+
+                return makeBoolValue(true);
+            };
+        }
+    }
+
+    // ============================================================================
+    // Registered Component Serializers
+    // ============================================================================
+
+    /**
+     * @brief Generate setters for PositionComponent
+     *
+     * This function adds dynamic setter methods to a PositionComponent table that
+     * call the component's C++ setter methods (setX, setY, etc.) which automatically
+     * trigger PositionComponentChangedEvent.
+     */
+    void serializePositionComponentWithSetters(VM* vm, ObjInstance* table, PositionComponent* component)
+    {
+        // Get component context
+        _unique_id entityId = component->id;
+
+        LOG_MILE("ECS Serialization", "Generating setters for PositionComponent on entity " << entityId);
+
+        // Define the properties that have setters in PositionComponent
+        struct PropertySetter {
+            std::string propName;
+            std::string methodName;
+        };
+
+        std::vector<PropertySetter> propertiesWithSetters = {
+            {"x", "setX"},
+            {"y", "setY"},
+            {"z", "setZ"},
+            {"width", "setWidth"},
+            {"height", "setHeight"},
+            {"rotation", "setRotation"},
+            {"visible", "setVisibility"},
+            {"observable", "setObservable"}
+        };
+
+        // Generate setter methods for each property
+        for (const auto& prop : propertiesWithSetters)
+        {
+            const std::string& propName = prop.propName;
+            const std::string& setterMethodName = prop.methodName;
+
+            // Create native function directly without polluting globals
+            // Lambda that implements the setter functionality
+            NativeFn setterFunc;
+
+            if (propName == "x")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_DOUBLE(args[0]))
+                        component->setX(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        component->setX(static_cast<float>(AS_INT(args[0])));
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "y")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_DOUBLE(args[0]))
+                        component->setY(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        component->setY(static_cast<float>(AS_INT(args[0])));
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "z")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_DOUBLE(args[0]))
+                        component->setZ(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        component->setZ(static_cast<float>(AS_INT(args[0])));
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "width")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_DOUBLE(args[0]))
+                        component->setWidth(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        component->setWidth(static_cast<float>(AS_INT(args[0])));
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "height")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_DOUBLE(args[0]))
+                        component->setHeight(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        component->setHeight(static_cast<float>(AS_INT(args[0])));
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "rotation")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_DOUBLE(args[0]))
+                        component->setRotation(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        component->setRotation(static_cast<float>(AS_INT(args[0])));
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "visible")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_BOOL(args[0]))
+                        component->setVisibility(AS_BOOL(args[0]));
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "observable")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+                    if (IS_BOOL(args[0]))
+                        component->setObservable(AS_BOOL(args[0]));
+                    return INT_VAL(0);
+                };
+            }
+
+            // Create native function and add directly to table without going through globals
+            table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
+        }
+    }
+
+    // Register PositionComponent serializer at static initialization time
+    REGISTER_COMPONENT_SERIALIZER(PositionComponent, serializePositionComponentWithSetters);
+
+    /**
+     * @brief Generate setters for StandardComponent
+     *
+     * This function adds dynamic setter methods to a StandardComponent table that
+     * automatically trigger Changed<ComponentType> events when called.
+     */
+    void serializeStandardComponentWithSetters(VM* vm, ObjInstance* table, StandardComponent* component)
+    {
+        // Get component context
+        std::string compTypeName = component->typeName;
+        // _unique_id entityId = component->entityId;
+
+        // Get the properties table
+        auto propertiesIt = table->fields.find("properties");
+        if (propertiesIt == table->fields.end() || !IS_INSTANCE(propertiesIt->second))
+        {
+            LOG_WARNING("ECS Serialization", "No properties table found for StandardComponent, skipping setter generation");
+            return;
+        }
+
+        ObjInstance* propertiesTable = vm->asInstance(propertiesIt->second);
+
+        // Flatten properties to the top level of the table
+        std::vector<std::string> propertyNames;
+        for (const auto& [key, value] : propertiesTable->fields)
+        {
+            if (key != "__className" && !key.empty())
+            {
+                propertyNames.push_back(key);
+                // Copy property to top level
+                table->fields[key] = vm->retainValue(value);
+            }
+        }
+
+        LOG_MILE("ECS Serialization", "Flattened " << propertyNames.size() << " properties and generating setters for StandardComponent '" << compTypeName << "'");
+
+        // Generate specific setters (setX, setY, setValue, etc.)
+        for (const std::string& propName : propertyNames)
+        {
+            // Generate method name: "set" + Capitalized(propName)
+            std::string methodName = "set";
+            if (!propName.empty())
+            {
+                methodName += static_cast<char>(std::toupper(propName[0]));
+                if (propName.size() > 1)
+                {
+                    methodName += propName.substr(1);
+                }
+            }
+
+            // Create native function directly without polluting globals
+            NativeFn setterFunc = [component, propName, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount != 1)
+                {
+                    LOG_ERROR("StandardComponent Setter", "Expected 1 argument for setter, got " << argCount);
+                    return INT_VAL(0);
+                }
+
+                // Convert the VM value to ElementType
+                ElementType newValue = vm->valueToElement(args[0]);
+
+                // Check if the value actually changed
+                bool valueChanged = false;
+                if (component->has(propName))
+                {
+                    ElementType oldValue = component->properties[propName];
+                    valueChanged = !(oldValue == newValue);
+                }
+                else
+                {
+                    valueChanged = true;
+                }
+
+                // Only update and fire event if value actually changed
+                if (valueChanged)
+                {
+                    // setWithEvent updates the property and fires Changed<ComponentType> event
+                    component->setWithEvent(propName, newValue);
+
+                    // Also update the VM table so the script sees the change immediately
+                    if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+                    {
+                        vm->releaseAndDelete(propertiesTable->fields[propName]);
+                    }
+                    propertiesTable->fields[propName] = vm->retainValue(args[0]);
+                }
+
+                return INT_VAL(0);
+            };
+
+            // Allocate native function from pool and create Value directly
+            auto [nativeFunc, funcIndex] = vm->pools.nativeFuncPool.allocateWithIndex();
+            nativeFunc->function = setterFunc;
+
+            Value setterValue = makeNativeFuncValue(static_cast<uint32_t>(funcIndex));
+
+            // Add directly to table without going through globals
+            table->fields[methodName] = vm->trackNewValue(setterValue);
+
+            LOG_MILE("ECS Serialization", "Added setter method: " << methodName);
+        }
+
+        // Add generic set(propertyName, value) method
+        // Create native function directly without polluting globals
+        NativeFn genericSetterFunc = [component, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
+            if (argCount != 2)
+            {
+                LOG_ERROR("StandardComponent Generic Setter", "Expected 2 arguments (propertyName, value), got " << argCount);
+                return INT_VAL(0);
+            }
+
+            if (!IS_STRING(args[0]))
+            {
+                LOG_ERROR("StandardComponent Generic Setter", "First argument must be a string (property name)");
+                return INT_VAL(0);
+            }
+
+            std::string propName = vm->asString(args[0]);
+
+            // Convert the VM value to ElementType
+            ElementType newValue = vm->valueToElement(args[1]);
+
+            // Check if the value actually changed
+            bool valueChanged = false;
+            if (component->has(propName))
+            {
+                ElementType oldValue = component->properties[propName];
+                valueChanged = !(oldValue == newValue);
+            }
+            else
+            {
+                valueChanged = true;
+            }
+
+            // Only update and fire event if value actually changed
+            if (valueChanged)
+            {
+                // setWithEvent updates the property and fires Changed<ComponentType> event
+                component->setWithEvent(propName, newValue);
+
+                // Also update the VM table so the script sees the change immediately
+                if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
+                {
+                    vm->releaseAndDelete(propertiesTable->fields[propName]);
+                }
+                propertiesTable->fields[propName] = vm->retainValue(args[1]);
+            }
+
+            return INT_VAL(0);
+        };
+
+        // Create native function and add directly to table without going through globals
+        table->fields["set"] = vm->createNativeFunction(genericSetterFunc);
+
+        LOG_MILE("ECS Serialization", "Added generic set() method");
+    }
+
+    // Register StandardComponent serializer at static initialization time
+    REGISTER_COMPONENT_SERIALIZER(StandardComponent, serializeStandardComponentWithSetters);
+
+    // ============================================================================
+    // Public API Implementation
+    // ============================================================================
+
     Value serializeComponentToTable(VM* vm, EntitySystem* ecsRef, const Entity* entity, _unique_id componentId)
     {
         // Get the Table class
@@ -46,194 +479,51 @@ namespace pg
             // Process all component properties using the shared helper
             detail::processNodeToTable(vm, tableClass, compNode, table, false);
 
-            // Add dynamic setter methods for StandardComponent properties
-            // This enables calling methods like: component.setX(value), component.setHealth(value)
-            // Each setter automatically triggers a Changed<ComponentType> event via setWithEvent()
-            if (componentTypeName == "StandardComponent")
+            // Check if there's a registered serializer for this component type
+            // The serializer will add dynamic setters to the table
+            auto& registry = ComponentSerializerRegistry::instance();
+            if (registry.hasSerializer(componentTypeName))
             {
-                LOG_INFO("ECS Serialization", "Generating setters for StandardComponent");
+                LOG_MILE("ECS Serialization", "Using registered serializer for " << componentTypeName);
 
-                // Extract the StandardComponent type name (e.g., "Position", "Health", "ExecComp")
-                std::string compTypeName;
-                auto typeNameIt = table->fields.find("typeName");
-                if (typeNameIt != table->fields.end() && IS_STRING(typeNameIt->second))
+                // Get the component pointer using the registered retriever function
+                void* componentPtr = nullptr;
+
+                if (componentTypeName == "StandardComponent")
                 {
-                    compTypeName = vm->asString(typeNameIt->second)->toString();
-                    LOG_INFO("ECS Serialization", "Component type name: " << compTypeName);
-                }
-
-                // Get the properties table (which contains the actual property values)
-                auto propertiesIt = table->fields.find("properties");
-                if (propertiesIt == table->fields.end())
-                {
-                    LOG_WARNING("ECS Serialization", "No 'properties' field found in StandardComponent table");
-                    return tableValue;
-                }
-
-                if (!IS_INSTANCE(propertiesIt->second))
-                {
-                    LOG_WARNING("ECS Serialization", "properties field is not an instance");
-                    return tableValue;
-                }
-
-                ObjInstance* propertiesTable = vm->asInstance(propertiesIt->second);
-
-                // Collect all property names from the properties table (excluding internal fields)
-                std::vector<std::string> propertyNames;
-                for (const auto& [key, value] : propertiesTable->fields)
-                {
-                    if (key != "__className" && !key.empty())
+                    // StandardComponent requires special handling due to its dynamic nature
+                    // Extract the type name from the table
+                    std::string compTypeName;
+                    auto typeNameIt = table->fields.find("typeName");
+                    if (typeNameIt != table->fields.end() && IS_STRING(typeNameIt->second))
                     {
-                        propertyNames.push_back(key);
+                        compTypeName = vm->asString(typeNameIt->second);
+                        auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
+
+                        if (owner)
+                        {
+                            componentPtr = owner->getComponent(entity->id);
+                        }
+                    }
+                }
+                else
+                {
+                    // For all other components, use the registered retriever
+                    auto retrieverFunc = registry.getRetriever(componentTypeName);
+                    if (retrieverFunc)
+                    {
+                        componentPtr = retrieverFunc(ecsRef, entity->id);
                     }
                 }
 
-                // Capture context needed by setter closures
-                _unique_id capturedEntityId = entity->id;
-
-                // Generate a setter method for each property
-                for (const std::string& propName : propertyNames)
+                if (componentPtr)
                 {
-                    // Generate method name: "set" + Capitalized(propName)
-                    // Examples: "x" -> "setX", "health" -> "setHealth"
-                    std::string methodName = "set";
-                    if (!propName.empty())
-                    {
-                        methodName += static_cast<char>(std::toupper(propName[0]));
-                        if (propName.size() > 1)
-                        {
-                            methodName += propName.substr(1);
-                        }
-                    }
-
-                    // Register a global VM function with a unique name
-                    // Format: "__setter_<entityId>_<componentType>_<propertyName>"
-                    std::string globalSetterName = "__setter_" + std::to_string(capturedEntityId) + "_" + compTypeName + "_" + propName;
-
-                    // Lambda that implements the setter functionality
-                    vm->registerNative(globalSetterName, [ecsRef, capturedEntityId, compTypeName, propName](VM* vm, int argCount, Value* args) -> Value {
-                        if (argCount != 1)
-                        {
-                            LOG_ERROR("StandardComponent Setter", "Expected 1 argument for setter, got " << argCount);
-                            return INT_VAL(0);
-                        }
-
-                        // Retrieve the entity
-                        Entity* entity = ecsRef->getEntity(capturedEntityId);
-                        if (!entity)
-                        {
-                            LOG_ERROR("StandardComponent Setter", "Entity not found: " << capturedEntityId);
-                            return INT_VAL(0);
-                        }
-
-                        // Get the component registry
-                        auto* registry = ecsRef->getComponentRegistry();
-                        if (!registry)
-                        {
-                            LOG_ERROR("StandardComponent Setter", "Component registry not found");
-                            return INT_VAL(0);
-                        }
-
-                        // Retrieve the StandardComponent owner (system managing this component type)
-                        auto* owner = registry->retrieveStandardComponent(compTypeName);
-                        if (!owner)
-                        {
-                            LOG_ERROR("StandardComponent Setter", "Component type '" << compTypeName << "' not found in registry");
-                            return INT_VAL(0);
-                        }
-
-                        // Get the actual component instance
-                        StandardComponent* comp = owner->getComponent(capturedEntityId);
-                        if (!comp)
-                        {
-                            LOG_ERROR("StandardComponent Setter", "StandardComponent '" << compTypeName << "' not found on entity " << capturedEntityId);
-                            return INT_VAL(0);
-                        }
-
-                        // Convert the VM value to ElementType and update the property
-                        ElementType newValue = vm->valueToElement(args[0]);
-
-                        // setWithEvent updates the property and fires Changed<ComponentType> event
-                        comp->setWithEvent(propName, newValue);
-
-                        return INT_VAL(0);
-                    });
-
-                    // Add a reference to the global setter function in the component table
-                    // This allows calling: component.setX(value) from VM code
-                    auto globalIt = vm->globals.find(globalSetterName);
-                    if (globalIt != vm->globals.end())
-                    {
-                        table->fields[methodName] = globalIt->second;
-                    }
+                    auto serializerFunc = registry.getSerializer(componentTypeName);
+                    serializerFunc(vm, table, componentPtr);
                 }
-
-                // Add a generic "set" method that takes property name and value
-                // This enables: component.set("x", value) from VM code
-                std::string genericSetterName = "__genericSetter_" + std::to_string(capturedEntityId) + "_" + compTypeName;
-
-                vm->registerNative(genericSetterName, [ecsRef, capturedEntityId, compTypeName](VM* vm, int argCount, Value* args) -> Value {
-                    if (argCount != 2)
-                    {
-                        LOG_ERROR("StandardComponent Generic Setter", "Expected 2 arguments (propertyName, value), got " << argCount);
-                        return INT_VAL(0);
-                    }
-
-                    // First argument must be a string (property name)
-                    if (!IS_STRING(args[0]))
-                    {
-                        LOG_ERROR("StandardComponent Generic Setter", "First argument must be a string (property name)");
-                        return INT_VAL(0);
-                    }
-
-                    std::string propName = vm->asString(args[0])->toString();
-
-                    // Retrieve the entity
-                    Entity* entity = ecsRef->getEntity(capturedEntityId);
-                    if (!entity)
-                    {
-                        LOG_ERROR("StandardComponent Generic Setter", "Entity not found: " << capturedEntityId);
-                        return INT_VAL(0);
-                    }
-
-                    // Get the component registry
-                    auto* registry = ecsRef->getComponentRegistry();
-                    if (!registry)
-                    {
-                        LOG_ERROR("StandardComponent Generic Setter", "Component registry not found");
-                        return INT_VAL(0);
-                    }
-
-                    // Retrieve the StandardComponent owner
-                    auto* owner = registry->retrieveStandardComponent(compTypeName);
-                    if (!owner)
-                    {
-                        LOG_ERROR("StandardComponent Generic Setter", "Component type '" << compTypeName << "' not found in registry");
-                        return INT_VAL(0);
-                    }
-
-                    // Get the actual component instance
-                    StandardComponent* comp = owner->getComponent(capturedEntityId);
-                    if (!comp)
-                    {
-                        LOG_ERROR("StandardComponent Generic Setter", "StandardComponent '" << compTypeName << "' not found on entity " << capturedEntityId);
-                        return INT_VAL(0);
-                    }
-
-                    // Convert the VM value to ElementType and update the property
-                    ElementType newValue = vm->valueToElement(args[1]);
-
-                    // setWithEvent updates the property and fires Changed<ComponentType> event
-                    comp->setWithEvent(propName, newValue);
-
-                    return INT_VAL(0);
-                });
-
-                // Add the generic setter to the component table
-                auto genericIt = vm->globals.find(genericSetterName);
-                if (genericIt != vm->globals.end())
+                else
                 {
-                    table->fields["set"] = genericIt->second;
+                    LOG_WARNING("ECS Serialization", "Could not retrieve component pointer for " << componentTypeName);
                 }
             }
         }
@@ -256,11 +546,16 @@ namespace pg
         Value entityTableValue = vm->createInstance(tableClass);
         ObjInstance* entityTable = vm->asInstance(entityTableValue);
 
-        LOG_INFO("ECS Serialization", "Serializing entity ID " << entity->id);
+        LOG_MILE("ECS Serialization", "Serializing entity ID " << entity->id);
 
         // Add the entity ID
         Value idValue = makeIntValue(static_cast<int64_t>(entity->id));
         entityTable->fields["__entityId"] = idValue;
+
+        // Add native attachComp function that holds the entity pointer
+        // This allows scripts to attach components immediately without entity lookup
+        Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entity, ecsRef));
+        entityTable->fields["attachComp"] = attachCompFuncValue;
 
         // Serialize each component
         for (const auto& compRef : entity->componentList)
@@ -279,7 +574,17 @@ namespace pg
                 auto classNameIt = compTable->fields.find("__className");
                 if (classNameIt != compTable->fields.end() && IS_STRING(classNameIt->second))
                 {
-                    componentTypeName = vm->asString(classNameIt->second)->toString();
+                    componentTypeName = vm->asString(classNameIt->second);
+
+                    // For StandardComponent, use the actual typeName instead of "StandardComponent"
+                    if (componentTypeName == "StandardComponent")
+                    {
+                        auto typeNameIt = compTable->fields.find("typeName");
+                        if (typeNameIt != compTable->fields.end() && IS_STRING(typeNameIt->second))
+                        {
+                            componentTypeName = vm->asString(typeNameIt->second);
+                        }
+                    }
                 }
 
                 // Add to entity table
@@ -301,9 +606,6 @@ namespace pg
 
         ObjInstance* table = vm->asInstance(componentTable);
 
-        LOG_INFO("ECS Serialization", "=== deserializeComponentFromTable START ===");
-        LOG_INFO("ECS Serialization", "Table has " << table->fields.size() << " fields");
-
         // Determine the component type name
         std::string typeName = componentTypeName;
 
@@ -314,7 +616,7 @@ namespace pg
             if (it != table->fields.end())
             {
                 if (IS_STRING(it->second))
-                    typeName = vm->asString(it->second)->toString();
+                    typeName = vm->asString(it->second);
             }
 
             if (typeName.empty())
@@ -324,19 +626,17 @@ namespace pg
             }
         }
 
-        LOG_INFO("ECS Serialization", "Component type name: " << typeName);
+        LOG_MILE("ECS Serialization", "Component type name: " << typeName);
 
         // Convert the table to UnserializedObject
         // Create a dummy serialized string that parseString() can parse correctly
         // Format: "TypeName: TypeName {"
         std::string dummySerializedString = typeName + ": " + typeName + " {";
         UnserializedObject obj(typeName, typeName, dummySerializedString);
-        LOG_INFO("ECS Serialization", "Created UnserializedObject - objectName=" << obj.getObjectName() << ", objectType=" << obj.getObjectType());
 
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
         processTable = [&](ObjInstance* currentTable, UnserializedObject& currentObj) {
-            LOG_INFO("ECS Serialization", "Processing table with " << currentTable->fields.size() << " fields");
             for (const auto& [key, value] : currentTable->fields)
             {
                 // Skip special fields
@@ -345,7 +645,6 @@ namespace pg
 
                 if (IS_INSTANCE(value))
                 {
-                    LOG_INFO("ECS Serialization", "  Field '" << key << "' is a nested table");
                     // Nested table - create child object
                     UnserializedObject child(key, "", "");
                     processTable(vm->asInstance(value), child);
@@ -374,13 +673,12 @@ namespace pg
                     }
                     else if (IS_STRING(value))
                     {
-                        valueStr = vm->asString(value)->toString();
+                        valueStr = vm->asString(value);
                         typeStr = "string";
                     }
 
                     // Format as: __PGSA type {value}
                     std::string serializedStr = "__PGSA " + typeStr + " {" + valueStr + "}";
-                    LOG_INFO("ECS Serialization", "  Field '" << key << "' = " << serializedStr);
                     UnserializedObject attr(serializedStr, key, false);
                     currentObj.children.push_back(std::move(attr));
                 }
@@ -388,7 +686,6 @@ namespace pg
         };
 
         processTable(table, obj);
-        LOG_INFO("ECS Serialization", "After processTable, obj has " << obj.children.size() << " children");
 
         // Use the component registry to deserialize and attach
         ecsRef->getComponentRegistry()->deserializeComponentToEntity(obj, entity);
@@ -433,7 +730,7 @@ namespace pg
             else
             {
                 entity = ecsRef->createEntity();
-                LOG_INFO("ECS Serialization", "Entity with ID " << specifiedId << " not found, created new entity with ID " << entity.id);
+                LOG_MILE("ECS Serialization", "Entity with ID " << specifiedId << " not found, created new entity with ID " << entity.id);
             }
         }
 
@@ -476,7 +773,7 @@ namespace pg
             Value entityTableValue = serializeEntityToTable(vm, ecsRef, entity);
 
             Value indexKey = vm->createString(std::to_string(index));
-            entitiesTable->fields[vm->asString(indexKey)->toString()] = vm->retainValue(entityTableValue);
+            entitiesTable->fields[vm->asString(indexKey)] = vm->retainValue(entityTableValue);
             vm->releaseAndDelete(indexKey);
             vm->releaseAndDelete(entityTableValue);
 
@@ -486,7 +783,7 @@ namespace pg
         // Add count field
         Value countKey = vm->createString("count");
         Value countValue = makeIntValue(static_cast<int64_t>(entities.size()));
-        entitiesTable->fields[vm->asString(countKey)->toString()] = vm->retainValue(countValue);
+        entitiesTable->fields[vm->asString(countKey)] = vm->retainValue(countValue);
         vm->releaseAndDelete(countKey);
 
         return entitiesTableValue;
@@ -532,238 +829,17 @@ namespace pg
 
     Value serializeToTable(VM* vm, const StandardComponent& component)
     {
-        // First, use the basic serialization helper to create the table
+        // StandardComponent still needs a specialized overload because it uses
+        // serializeToTableBasic instead of the generic serialization
         Value tableValue = serializeToTableBasic(vm, component);
         ObjInstance* table = vm->asInstance(tableValue);
 
-        // Get component context from the component itself
-        std::string compTypeName = component.typeName;
-        EntitySystem* ecsRef = component.ecsRef;
-        _unique_id entityId = component.entityId;
-
-        // If component doesn't have ECS context, skip setter generation
-        if (!ecsRef)
+        // Use the registered serializer to add setters
+        auto& registry = ComponentSerializerRegistry::instance();
+        if (registry.hasSerializer("StandardComponent"))
         {
-            LOG_WARNING("ECS Serialization", "StandardComponent has no ecsRef, skipping setter generation");
-            return tableValue;
-        }
-
-        // Get the properties table
-        auto propertiesIt = table->fields.find("properties");
-        if (propertiesIt == table->fields.end() || !IS_INSTANCE(propertiesIt->second))
-        {
-            LOG_WARNING("ECS Serialization", "No properties table found for StandardComponent, skipping setter generation");
-            return tableValue;
-        }
-
-        ObjInstance* propertiesTable = vm->asInstance(propertiesIt->second);
-
-        // Collect all property names
-        std::vector<std::string> propertyNames;
-        for (const auto& [key, value] : propertiesTable->fields)
-        {
-            if (key != "__className" && !key.empty())
-            {
-                propertyNames.push_back(key);
-            }
-        }
-
-        LOG_INFO("ECS Serialization", "Generating " << propertyNames.size() << " setters for StandardComponent '" << compTypeName << "'");
-
-        // Generate specific setters (setX, setY, setValue, etc.)
-        for (const std::string& propName : propertyNames)
-        {
-            // Generate method name: "set" + Capitalized(propName)
-            std::string methodName = "set";
-            if (!propName.empty())
-            {
-                methodName += static_cast<char>(std::toupper(propName[0]));
-                if (propName.size() > 1)
-                {
-                    methodName += propName.substr(1);
-                }
-            }
-
-            // Register a global VM function with a unique name
-            // Capture the table and propertiesTable to update VM values as well
-            std::string globalSetterName = "__setter_" + std::to_string(entityId) + "_" + compTypeName + "_" + propName;
-
-            vm->registerNative(globalSetterName, [ecsRef, entityId, compTypeName, propName, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
-                if (argCount != 1)
-                {
-                    LOG_ERROR("StandardComponent Setter", "Expected 1 argument for setter, got " << argCount);
-                    return INT_VAL(0);
-                }
-
-                // Retrieve the entity
-                Entity* entity = ecsRef->getEntity(entityId);
-                if (!entity)
-                {
-                    LOG_ERROR("StandardComponent Setter", "Entity not found: " << entityId);
-                    return INT_VAL(0);
-                }
-
-                // Get the component registry
-                auto* registry = ecsRef->getComponentRegistry();
-                if (!registry)
-                {
-                    LOG_ERROR("StandardComponent Setter", "Component registry not found");
-                    return INT_VAL(0);
-                }
-
-                // Retrieve the StandardComponent owner
-                auto* owner = registry->retrieveStandardComponent(compTypeName);
-                if (!owner)
-                {
-                    LOG_ERROR("StandardComponent Setter", "Component type '" << compTypeName << "' not found in registry");
-                    return INT_VAL(0);
-                }
-
-                // Get the actual component instance
-                StandardComponent* comp = owner->getComponent(entityId);
-                if (!comp)
-                {
-                    LOG_ERROR("StandardComponent Setter", "StandardComponent '" << compTypeName << "' not found on entity " << entityId);
-                    return INT_VAL(0);
-                }
-
-                // Convert the VM value to ElementType
-                ElementType newValue = vm->valueToElement(args[0]);
-
-                // Check if the value actually changed
-                bool valueChanged = false;
-                if (comp->has(propName))
-                {
-                    ElementType oldValue = comp->properties[propName];
-                    // Compare values to see if they're different
-                    valueChanged = !(oldValue == newValue);
-                }
-                else
-                {
-                    // Property doesn't exist yet, so it's definitely a change
-                    valueChanged = true;
-                }
-
-                // Only update and fire event if value actually changed
-                if (valueChanged)
-                {
-                    // setWithEvent updates the property and fires Changed<ComponentType> event
-                    comp->setWithEvent(propName, newValue);
-
-                    // Also update the VM table so the script sees the change immediately
-                    if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
-                    {
-                        // Release old value if it exists
-                        vm->releaseAndDelete(propertiesTable->fields[propName]);
-                    }
-                    // Set new value (retain it)
-                    propertiesTable->fields[propName] = vm->retainValue(args[0]);
-                }
-
-                return INT_VAL(0);
-            });
-
-            // Add the setter to the component table
-            auto globalIt = vm->globals.find(globalSetterName);
-            if (globalIt != vm->globals.end())
-            {
-                table->fields[methodName] = globalIt->second;
-                LOG_INFO("ECS Serialization", "Added setter method: " << methodName);
-            }
-        }
-
-        // Add generic set(propertyName, value) method
-        std::string genericSetterName = "__genericSetter_" + std::to_string(entityId) + "_" + compTypeName;
-
-        vm->registerNative(genericSetterName, [ecsRef, entityId, compTypeName, propertiesTable](VM* vm, int argCount, Value* args) -> Value {
-            if (argCount != 2)
-            {
-                LOG_ERROR("StandardComponent Generic Setter", "Expected 2 arguments (propertyName, value), got " << argCount);
-                return INT_VAL(0);
-            }
-
-            if (!IS_STRING(args[0]))
-            {
-                LOG_ERROR("StandardComponent Generic Setter", "First argument must be a string (property name)");
-                return INT_VAL(0);
-            }
-
-            std::string propName = vm->asString(args[0])->toString();
-
-            // Retrieve the entity
-            Entity* entity = ecsRef->getEntity(entityId);
-            if (!entity)
-            {
-                LOG_ERROR("StandardComponent Generic Setter", "Entity not found: " << entityId);
-                return INT_VAL(0);
-            }
-
-            // Get the component registry
-            auto* registry = ecsRef->getComponentRegistry();
-            if (!registry)
-            {
-                LOG_ERROR("StandardComponent Generic Setter", "Component registry not found");
-                return INT_VAL(0);
-            }
-
-            // Retrieve the StandardComponent owner
-            auto* owner = registry->retrieveStandardComponent(compTypeName);
-            if (!owner)
-            {
-                LOG_ERROR("StandardComponent Generic Setter", "Component type '" << compTypeName << "' not found in registry");
-                return INT_VAL(0);
-            }
-
-            // Get the actual component instance
-            StandardComponent* comp = owner->getComponent(entityId);
-            if (!comp)
-            {
-                LOG_ERROR("StandardComponent Generic Setter", "StandardComponent '" << compTypeName << "' not found on entity " << entityId);
-                return INT_VAL(0);
-            }
-
-            // Convert the VM value to ElementType
-            ElementType newValue = vm->valueToElement(args[1]);
-
-            // Check if the value actually changed
-            bool valueChanged = false;
-            if (comp->has(propName))
-            {
-                ElementType oldValue = comp->properties[propName];
-                // Compare values to see if they're different
-                valueChanged = !(oldValue == newValue);
-            }
-            else
-            {
-                // Property doesn't exist yet, so it's definitely a change
-                valueChanged = true;
-            }
-
-            // Only update and fire event if value actually changed
-            if (valueChanged)
-            {
-                // setWithEvent updates the property and fires Changed<ComponentType> event
-                comp->setWithEvent(propName, newValue);
-
-                // Also update the VM table so the script sees the change immediately
-                if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
-                {
-                    // Release old value if it exists
-                    vm->releaseAndDelete(propertiesTable->fields[propName]);
-                }
-                // Set new value (retain it)
-                propertiesTable->fields[propName] = vm->retainValue(args[1]);
-            }
-
-            return INT_VAL(0);
-        });
-
-        // Add the generic setter to the component table
-        auto genericIt = vm->globals.find(genericSetterName);
-        if (genericIt != vm->globals.end())
-        {
-            table->fields["set"] = genericIt->second;
-            LOG_INFO("ECS Serialization", "Added generic set() method");
+            auto serializerFunc = registry.getSerializer("StandardComponent");
+            serializerFunc(vm, table, (void*)&component);
         }
 
         return tableValue;
