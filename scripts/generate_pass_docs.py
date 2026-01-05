@@ -123,22 +123,42 @@ class PassDocExtractor:
         # Parse example_before (multiline)
         before_match = re.search(r'@example_before:(.*?)(?=@example_after|@)', doc_block, re.DOTALL)
         if before_match:
-            doc.example_before = [line.strip() for line in before_match.group(1).strip().split('\n')
-                                 if line.strip() and not line.strip().startswith('*')]
+            lines = []
+            for line in before_match.group(1).strip().split('\n'):
+                # Strip whitespace and leading *
+                cleaned = line.strip()
+                if cleaned.startswith('*'):
+                    cleaned = cleaned[1:].strip()
+                if cleaned:  # Only add non-empty lines
+                    lines.append(cleaned)
+            doc.example_before = lines
 
         # Parse example_after (multiline)
         after_match = re.search(r'@example_after:(.*?)(?=@|\Z)', doc_block, re.DOTALL)
         if after_match:
-            doc.example_after = [line.strip() for line in after_match.group(1).strip().split('\n')
-                                if line.strip() and not line.strip().startswith('*')]
+            lines = []
+            for line in after_match.group(1).strip().split('\n'):
+                # Strip whitespace and leading *
+                cleaned = line.strip()
+                if cleaned.startswith('*'):
+                    cleaned = cleaned[1:].strip()
+                if cleaned:  # Only add non-empty lines
+                    lines.append(cleaned)
+            doc.example_after = lines
 
         # Parse benefits (multiline list)
         benefits_match = re.search(r'@benefits:(.*?)(?=@|\Z)', doc_block, re.DOTALL)
         if benefits_match:
-            benefits_text = benefits_match.group(1)
-            doc.benefits = [line.strip().lstrip('-').strip()
-                          for line in benefits_text.split('\n')
-                          if line.strip() and line.strip().startswith('-')]
+            benefits = []
+            for line in benefits_match.group(1).split('\n'):
+                # Strip whitespace and leading *
+                cleaned = line.strip()
+                if cleaned.startswith('*'):
+                    cleaned = cleaned[1:].strip()
+                # Look for lines starting with -
+                if cleaned.startswith('-'):
+                    benefits.append(cleaned[1:].strip())
+            doc.benefits = benefits
 
         return doc if doc.name else None
 
@@ -316,13 +336,15 @@ class RSTGenerator:
 
         # Example transformation
         if pass_doc.example_before and pass_doc.example_after:
-            rst.append("**Transformation Example**::")
+            rst.append("**Transformation Example**")
             rst.append("")
-            rst.append("    # Before")
+            rst.append("Before::")
+            rst.append("")
             for line in pass_doc.example_before:
                 rst.append(f"    {line}")
             rst.append("")
-            rst.append("    # After")
+            rst.append("After::")
+            rst.append("")
             for line in pass_doc.example_after:
                 rst.append(f"    {line}")
             rst.append("")
@@ -337,10 +359,26 @@ class RSTGenerator:
 
         # Additional notes
         if pass_doc.additional_notes:
-            rst.append("**Notes**:")
+            rst.append("**Notes**")
             rst.append("")
-            rst.append(pass_doc.additional_notes)
-            rst.append("")
+            # Process additional notes to handle multiline properly
+            # Remove leading asterisks and extra whitespace from comment blocks
+            notes = pass_doc.additional_notes.strip()
+            # Split into lines and clean each line
+            lines = notes.split('\n')
+            cleaned_lines = []
+            for line in lines:
+                # Remove leading * and whitespace
+                cleaned = line.strip()
+                if cleaned.startswith('*'):
+                    cleaned = cleaned[1:].strip()
+                if cleaned:
+                    cleaned_lines.append(cleaned)
+
+            # Join lines and add as paragraph
+            if cleaned_lines:
+                rst.append(' '.join(cleaned_lines))
+                rst.append("")
 
         # Source link
         source_url = f"{self.repo_url}/blob/main/{pass_doc.file_path}"
