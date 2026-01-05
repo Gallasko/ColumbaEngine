@@ -32,6 +32,7 @@ namespace pg
         std::string saveSystemFile = "system.sz";
         bool vsync = true;
         int targetFPS = 60;
+        bool autoStartECS = true;  // If false, ECS must be started manually via getECS()->start()
     };
 
     class Engine
@@ -39,6 +40,8 @@ namespace pg
     public:
         Engine(const std::string& appName, const EngineConfig& config = {});
         ~Engine();
+
+        void setConfig(const EngineConfig& config) { this->config = config; savePath = constructSavePath(); }
 
         Engine& setSetupFunction(std::function<void(EntitySystem&, Window&)> setup);
         Engine& setPostInitFunction(std::function<void(EntitySystem&, Window&)> postInit);
