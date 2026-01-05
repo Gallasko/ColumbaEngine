@@ -1,0 +1,52 @@
+import "ecs"
+import "sys"
+import "string"
+
+// Screen dimensions
+var screenWidth = 800
+var screenHeight = 600
+
+// Get all entities with Asteroid component
+var asteroids = getEntities("Asteroid")
+
+// Update all existing asteroids
+for (var asteroid : asteroids)
+{
+    var pos = asteroid["PositionComponent"]
+    var data = asteroid["Asteroid"]
+
+    // Get velocity and rotation speed from the Asteroid component
+    var vx = data.vx
+    var vy = data.vy
+    var rotSpeed = data.rotSpeed
+
+    // Update position
+    var newX = pos.x + vx * deltaTime
+    var newY = pos.y + vy * deltaTime
+
+    // Screen wrapping
+    if (newX < -50)
+    {
+        newX = screenWidth + 50
+    }
+    else if (newX > screenWidth + 50)
+    {
+        newX = -50
+    }
+
+    if (newY < -50)
+    {
+        newY = screenHeight + 50
+    }
+    else if (newY > screenHeight + 50)
+    {
+        newY = -50
+    }
+
+    // Update rotation
+    var newRot = pos.rotation + rotSpeed * deltaTime
+
+    pos.setX(newX)
+    pos.setY(newY)
+    pos.setRotation(newRot)
+}

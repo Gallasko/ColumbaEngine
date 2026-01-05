@@ -1,0 +1,12 @@
+// Test for-in loop with outer scope locals
+fun testLoop() {
+    var outerVar = 999;  // Outer local variable
+    var table = [10, 20]
+
+    for (var item : table) {
+        __dprint(item);
+        __dprint(outerVar);  // Access outer variable
+    }
+}
+
+testLoop();

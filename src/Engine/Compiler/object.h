@@ -28,7 +28,7 @@
 // #define DEBUG_PRINT_TOKENS
 
 // Flag to print compiled bytecode
-// #define DEBUG_PRINT_CODE
+#define DEBUG_PRINT_CODE
 #endif
 
 namespace pg
@@ -81,6 +81,7 @@ namespace pg
         Closure *closure;
         uint8_t *ip;
         Value *slots;
+        Value *stackBase;  // Where the caller's stack ends (position to truncate to on return)
     };
 
     // Value creation functions are now in value_nanbox.h
@@ -121,6 +122,13 @@ namespace pg
 
         Value receiver;
         Closure* method;
+    };
+
+    struct ObjVector
+    {
+        ObjVector() {}
+
+        std::vector<Value> fields;
     };
 
     // Note: elementToValue, valueToElement, copyValue, getValueAsInt are now VM member functions

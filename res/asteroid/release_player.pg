@@ -1,0 +1,22 @@
+// Handle key release events - set key states to 0
+
+if (event.values.key == "Left" or event.values.key == "A")
+{
+    sysData["keyLeft"] = 0
+}
+else if (event.values.key == "Right" or event.values.key == "D")
+{
+    sysData["keyRight"] = 0
+}
+else if (event.values.key == "Up" or event.values.key == "W")
+{
+    sysData["keyUp"] = 0
+}
+else if (event.values.key == "Down" or event.values.key == "S")
+{
+    sysData["keyDown"] = 0
+}
+else if (event.values.key == "Space")
+{
+    sysData["keySpace"] = 0
+}

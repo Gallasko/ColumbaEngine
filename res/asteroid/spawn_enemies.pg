@@ -1,0 +1,149 @@
+import "texture"
+import "string"
+import "ecs"
+import "math"
+import "random"
+
+// Screen dimensions (these should match your window size)
+var screenWidth = 800
+var screenHeight = 600
+
+// Update spawn timer
+sysData["spawnTimer"] = sysData["spawnTimer"] + deltaTime
+
+// Update all existing asteroids
+for (var i = 0; i < sysData["asteroidCount"]; i++)
+{
+    var asteroidKey = "asteroid" + toString(i)
+    var asteroidId = sysData[asteroidKey]
+
+    var asteroid = getEntity(asteroidId)
+    var pos = asteroid["PositionComponent"]
+
+    // Get velocity from sysData
+    var vx = sysData[asteroidKey + "_vx"]
+    var vy = sysData[asteroidKey + "_vy"]
+    var rotSpeed = sysData[asteroidKey + "_rotSpeed"]
+
+    // Update position
+    var newX = pos.x + vx * deltaTime
+    var newY = pos.y + vy * deltaTime
+
+    // Screen wrapping
+    if (newX < -50)
+    {
+        newX = screenWidth + 50
+    }
+    else if (newX > screenWidth + 50)
+    {
+        newX = -50
+    }
+
+    if (newY < -50)
+    {
+        newY = screenHeight + 50
+    }
+    else if (newY > screenHeight + 50)
+    {
+        newY = -50
+    }
+
+    // Update rotation
+    var newRot = pos.rotation + rotSpeed * deltaTime
+
+    pos.setX(newX)
+    pos.setY(newY)
+    pos.setRotation(newRot)
+}
+
+// Spawn new asteroids
+if (sysData["spawnTimer"] > 2.0)
+{
+    logInfo("Spawning new asteroid")
+
+    sysData["spawnTimer"] = sysData["spawnTimer"] - 2.0
+
+    // Create asteroid with random size
+    var size = randomInt(30, 60)
+    var asteroid = createTexture("Ghost", size, size)
+
+    // Random spawn position on screen edges
+    var spawnEdge = randomInt(0, 3)  // 0=top, 1=right, 2=bottom, 3=left
+    var spawnX = 0
+    var spawnY = 0
+
+    if (spawnEdge == 0)  // Top edge
+    {
+        spawnX = randomRange(0, screenWidth)
+        spawnY = -50
+    }
+    else if (spawnEdge == 1)  // Right edge
+    {
+        spawnX = screenWidth + 50
+        spawnY = randomRange(0, screenHeight)
+    }
+    else if (spawnEdge == 2)  // Bottom edge
+    {
+        spawnX = randomRange(0, screenWidth)
+        spawnY = screenHeight + 50
+    }
+    else  // Left edge
+    {
+        spawnX = -50
+        spawnY = randomRange(0, screenHeight)
+    }
+
+    asteroid["PositionComponent"].setX(spawnX)
+    asteroid["PositionComponent"].setY(spawnY)
+
+    // Attach Asteroid component flag
+    attachComp(asteroid, "Asteroid", "size", size)
+
+    // Random velocity toward center of screen
+    var centerX = screenWidth / 2
+    var centerY = screenHeight / 2
+
+    var dirX = centerX - spawnX
+    var dirY = centerY - spawnY
+
+    // Normalize direction
+    var length = sqrt(dirX * dirX + dirY * dirY)
+
+    if (length > 0)
+    {
+        dirX = dirX / length
+        dirY = dirY / length
+    }
+
+    // Random speed between 50 and 150 pixels per second
+    var speed = randomRange(50, 150)
+
+    // Add some randomness to direction (not exactly toward center)
+    var angleOffset = randomRange(-0.5, 0.5)
+    var cosOffset = cos(angleOffset)
+    var sinOffset = sin(angleOffset)
+
+    var finalDirX = dirX * cosOffset - dirY * sinOffset
+    var finalDirY = dirX * sinOffset + dirY * cosOffset
+
+    var vx = finalDirX * speed
+    var vy = finalDirY * speed
+
+    // Random rotation speed (in degrees per second for visual rotation)
+    var rotSpeed = randomRange(-2, 2)
+
+    // Store asteroid data
+    var asteroidIndex = sysData["asteroidCount"]
+    var asteroidKey = "asteroid" + toString(asteroidIndex)
+
+    sysData[asteroidKey] = asteroid.__entityId
+    sysData[asteroidKey + "_vx"] = vx
+    sysData[asteroidKey + "_vy"] = vy
+    sysData[asteroidKey + "_rotSpeed"] = rotSpeed
+    sysData[asteroidKey + "_size"] = size
+
+    sysData["asteroidCount"] = sysData["asteroidCount"] + 1
+
+    logInfo("Asteroid spawned at (" + toString(spawnX) + ", " + toString(spawnY) + ")")
+    logInfo("Velocity: (" + toString(vx) + ", " + toString(vy) + ")")
+}

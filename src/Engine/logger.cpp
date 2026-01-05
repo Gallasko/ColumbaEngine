@@ -100,8 +100,14 @@ namespace pg
         // Structure binding can t be done because filter is pointer
         //for (auto [filterName, filter] : filters)
         for (const auto& filter : filters)
+        {
+            // Check if this filter should bypass errors
+            if (log.level == Logger::InfoLevel::error && filter.second->shouldBypassErrors())
+                continue;  // Skip this filter for error logs
+
             if (filter.second->isFiltered(log))
                 accepted = false;
+        }
 
         if (accepted)
             processLog(log);

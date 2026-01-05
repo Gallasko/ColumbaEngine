@@ -1,0 +1,33 @@
+import "texture"
+import "string"
+import "ecs"
+
+// Get bullet spawn parameters from event
+var spawnX = event.values.x
+var spawnY = event.values.y
+var playerWidth = event.values.playerWidth
+var playerHeight = event.values.playerHeight
+var vx = event.values.vx
+var vy = event.values.vy
+var lifetime = event.values.lifetime
+
+// Create bullet entity
+var bulletSize = 5
+var bullet = createTexture("Ghost", bulletSize, bulletSize)
+
+// Offset to spawn from center of player (player pos is top-left)
+// Center of player = player.x + playerWidth/2, player.y + playerHeight/2
+// Then offset bullet by half its size to center it
+var bulletX = spawnX + playerWidth / 2 - bulletSize / 2
+var bulletY = spawnY + playerHeight / 2 - bulletSize / 2
+
+bullet["PositionComponent"].setX(bulletX)
+bullet["PositionComponent"].setY(bulletY)
+
+// Store bullet data in system storage
+
+attachComp(bullet, "Bullet", "vx", vx, "vy", vy, "lifetime", lifetime)
+
+bullet.attachComp("Collision")
+
+// logInfo("Bullet spawned at (" + toString(spawnX) + ", " + toString(spawnY) + ") with ID: " + toString(bullet.__entityId))

@@ -9,6 +9,8 @@
 
 #include "Helpers/openglobject.h"
 
+#include "Compiler/ecsserialization.h"
+
 namespace pg
 {
     namespace
@@ -301,4 +303,114 @@ namespace pg
 
         changed = true;
     }
+
+    // ============================================================================
+    // Texture2DComponent Serializer with Setter Generation
+    // ============================================================================
+
+    /**
+     * @brief Generate setters for Texture2DComponent
+     *
+     * This function adds dynamic setter methods to a Texture2DComponent table that
+     * call the component's C++ setter methods which automatically trigger EntityChangedEvent.
+     */
+    void serializeTexture2DComponentWithSetters(VM* vm, ObjInstance* table, Texture2DComponent* component)
+    {
+        // Get component context
+        _unique_id entityId = component->entityId;
+
+        LOG_MILE("ECS Serialization", "Generating setters for Texture2DComponent on entity " << entityId);
+
+        // Define the properties that have setters in Texture2DComponent
+        struct PropertySetter {
+            std::string propName;
+            std::string methodName;
+        };
+
+        std::vector<PropertySetter> propertiesWithSetters = {
+            {"textureName", "setTexture"},
+            {"opacity", "setOpacity"},
+            {"viewport", "setViewport"},
+            // Note: overlappingColor and overlappingColorRatio are set together via setOverlappingColor
+        };
+
+        // Generate setter methods for each property
+        for (const auto& prop : propertiesWithSetters)
+        {
+            const std::string& propName = prop.propName;
+            const std::string& setterMethodName = prop.methodName;
+
+            // Create native function directly without polluting globals
+            NativeFn setterFunc;
+
+            // Lambda that implements the setter functionality
+            if (propName == "textureName")
+            {
+                setterFunc = [component](VM* vm, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    if (IS_STRING(args[0]))
+                        component->setTexture(vm->asString(args[0]));
+
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "opacity")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    if (IS_DOUBLE(args[0]))
+                        component->setOpacity(static_cast<float>(AS_DOUBLE(args[0])));
+                    else if (IS_INT(args[0]))
+                        component->setOpacity(static_cast<float>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                };
+            }
+            else if (propName == "viewport")
+            {
+                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
+                    if (argCount != 1) return INT_VAL(0);
+
+                    if (IS_INT(args[0]))
+                        component->setViewport(static_cast<size_t>(AS_INT(args[0])));
+
+                    return INT_VAL(0);
+                };
+            }
+
+            // Create native function and add directly to table without going through globals
+            table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
+        }
+
+        // Add special setter for overlappingColor (takes 4 args: r, g, b, ratio)
+        // Create native function directly without polluting globals
+        NativeFn overlappingColorSetterFunc = [component](VM*, int argCount, Value* args) -> Value {
+            if (argCount != 4) return INT_VAL(0); // Expecting r, g, b, ratio
+
+            float r = 0.0f, g = 0.0f, b = 0.0f, ratio = 0.0f;
+
+            if (IS_DOUBLE(args[0])) r = static_cast<float>(AS_DOUBLE(args[0]));
+            else if (IS_INT(args[0])) r = static_cast<float>(AS_INT(args[0]));
+
+            if (IS_DOUBLE(args[1])) g = static_cast<float>(AS_DOUBLE(args[1]));
+            else if (IS_INT(args[1])) g = static_cast<float>(AS_INT(args[1]));
+
+            if (IS_DOUBLE(args[2])) b = static_cast<float>(AS_DOUBLE(args[2]));
+            else if (IS_INT(args[2])) b = static_cast<float>(AS_INT(args[2]));
+
+            if (IS_DOUBLE(args[3])) ratio = static_cast<float>(AS_DOUBLE(args[3]));
+            else if (IS_INT(args[3])) ratio = static_cast<float>(AS_INT(args[3]));
+
+            component->setOverlappingColor(constant::Vector3D{r, g, b}, ratio);
+            return INT_VAL(0);
+        };
+
+        // Create native function and add directly to table without going through globals
+        table->fields["setOverlappingColor"] = vm->createNativeFunction(overlappingColorSetterFunc);
+    }
+
+    // Register Texture2DComponent serializer at static initialization time
+    REGISTER_COMPONENT_SERIALIZER(Texture2DComponent, serializeTexture2DComponentWithSetters);
 }

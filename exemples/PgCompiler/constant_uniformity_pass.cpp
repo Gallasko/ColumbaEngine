@@ -75,7 +75,7 @@ namespace pg {
         std::unordered_map<std::string, size_t> seenConstants; // value string -> first index
 
         for (size_t i = 0; i < chunk.constants.size(); ++i) {
-            const auto& constant = chunk.constants[i];
+            // const auto& constant = chunk.constants[i];
             // std::string valueStr = constant.toString();
             auto valueStr = "";
 

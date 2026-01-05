@@ -4,19 +4,28 @@
 
 #include "Compiler/vm.h"
 #include "Compiler/ecsserialization.h"
+#include "ECS/sysmodule.h"
 
 #include <sstream>
+
+#include "Systems/coresystems.h"
 
 namespace pg
 {
     // Todo move this in a vm helper header
-    bool checkCompiledScript(EntitySystem* ecsRef, std::string& scriptName)
+    bool checkCompiledScript(EntitySystem* ecsRef, std::string& scriptName, StandardSystemImpl* systemImpl = nullptr)
     {
         if (scriptName.size() >= 3 && scriptName.substr(scriptName.size() - 3) == ".pg")
         {
             // Compile .pg script and cache to .pgc
             VM compiler;
             ecsRef->setupVm(compiler);
+
+            // Add sys module if we have a system context
+            if (systemImpl)
+            {
+                compiler.addNativeModule("sys", SystemModule{systemImpl});
+            }
 
             auto result = compiler.interpretFromFile(scriptName, true, scriptName + "c");
 
@@ -43,9 +52,9 @@ namespace pg
         return false;
     }
 
-    std::vector<char> getCachedScript(EntitySystem* ecsRef, std::string& scriptName)
+    std::vector<char> getCachedScript(EntitySystem* ecsRef, std::string& scriptName, StandardSystemImpl* systemImpl = nullptr)
     {
-        if (not checkCompiledScript(ecsRef, scriptName))
+        if (not checkCompiledScript(ecsRef, scriptName, systemImpl))
         {
             LOG_ERROR("StandardSystemImpl", "Cannot compile or open the script: " << scriptName);
             return {};
@@ -174,7 +183,7 @@ namespace pg
 
         for (auto [eventName, scriptName] : eventScriptCallbackList)
         {
-            auto cachedBytecode = getCachedScript(ecsRef, scriptName);
+            auto cachedBytecode = getCachedScript(ecsRef, scriptName, this);
 
             if (cachedBytecode.empty())
                 continue;
@@ -183,11 +192,14 @@ namespace pg
             std::string capturedScriptName = scriptName;
 
             // Register the event handler with cached bytecode (captured by value)
-            eventCompiledScriptCallbackList.emplace(eventName, [cachedBytecode, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+            eventCompiledScriptCallbackList.emplace(eventName, [this, cachedBytecode, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
                 auto ecsRef = sys->getWorld();
 
                 VM vm;
                 ecsRef->setupVm(vm);
+
+                // Add sys module for accessing system's entities by component
+                vm.addNativeModule("sys", SystemModule{this});
 
                 // Set up event data before interpreting
                 auto value = serializeToTable(&vm, event);
@@ -204,10 +216,40 @@ namespace pg
             });
         }
 
+        // Compile and cache init script if provided
+        if (not initScript.empty())
+        {
+            auto cachedBytecode = getCachedScript(ecsRef, initScript);
+
+            if (cachedBytecode.empty())
+            {
+                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the init script: " << initScript);
+            }
+            else
+            {
+                // Register the init handler with cached bytecode (captured by value)
+                compiledInitScriptCallback = [cachedBytecode, scriptName = initScript](StandardSystemHandle* sys) {
+                    auto ecsRef = sys->getWorld();
+
+                    VM vm;
+                    ecsRef->setupVm(vm);
+
+                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+
+                    if (result != InterpretResult::OK)
+                    {
+                        LOG_ERROR("StandardSystemImpl", "Init script handler error for: " << scriptName);
+                        LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                        LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
+                    }
+                };
+            }
+        }
+
         // Compile and cache execute script if provided
         if (not executeScript.empty())
         {
-            auto cachedBytecode = getCachedScript(ecsRef, executeScript);
+            auto cachedBytecode = getCachedScript(ecsRef, executeScript, this);
 
             if (cachedBytecode.empty())
             {
@@ -222,23 +264,8 @@ namespace pg
                     VM vm;
                     ecsRef->setupVm(vm);
 
-                    // Todo change this so that it lives inside a sys module + the table are more friendly
-                    for (auto [compName, owner] : componentOwners)
-                    {
-                        auto v = owner->view();
-
-                        int i = 0;
-
-                        for (auto val : v)
-                        {
-                            // Use specialized overload for StandardComponent that generates setters
-                            // The component already has ecsRef and entityId set
-                            auto value = serializeToTable(&vm, *val);
-                            vm.globals[compName + "_" + std::to_string(i)] = value;
-
-                            i++;
-                        }
-                    }
+                    // Add sys module for accessing system's entities by component
+                    vm.addNativeModule("sys", SystemModule{this});
 
                     auto result = interpretWithSysData(sys, vm, cachedBytecode);
 
@@ -252,6 +279,45 @@ namespace pg
             }
         }
 
+        if (not deltaScript.empty())
+        {
+            auto cachedBytecode = getCachedScript(ecsRef, deltaScript, this);
+
+            if (cachedBytecode.empty())
+            {
+                LOG_ERROR("StandardSystemImpl", "Cannot compile or open the execute script: " << deltaScript);
+            }
+            else
+            {
+                // Register the deltaTime handler with cached bytecode (captured by value)
+                compiledDeltaScriptCallback = [this, cachedBytecode, scriptName = deltaScript](StandardSystemHandle* sys, float deltaTime) {
+                    auto ecsRef = sys->getWorld();
+
+                    VM vm;
+                    ecsRef->setupVm(vm);
+
+                    // Add sys module for accessing system's entities by component
+                    vm.addNativeModule("sys", SystemModule{this});
+
+                    vm.globals["deltaTime"] = vm.elementToValue(deltaTime);
+
+                    auto result = interpretWithSysData(sys, vm, cachedBytecode);
+
+                    if (result != InterpretResult::OK)
+                    {
+                        LOG_ERROR("StandardSystemImpl", "Delta script handler error for: " << scriptName);
+                        LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                        LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
+                    }
+                };
+            }
+        }
+
+        if (needDelta)
+        {
+            registry->addEventListener<TickEvent>(this);
+        }
+
         // Register event listeners
         for (const auto& eventName : listenedEvents)
         {
@@ -259,5 +325,41 @@ namespace pg
         }
 
         LOG_INFO("StandardSystemImpl", "System fully registered with " << componentOwners.size() << " components and " << listenedEvents.size() << " events");
+
+        // Call onRegisterFinished to trigger init callbacks and scripts
+        onRegisterFinished();
+    }
+
+    void StandardSystemImpl::removeFromRegistry()
+    {
+        LOG_THIS_MEMBER("StandardSystemImpl");
+
+        // Unregister all components
+        if (registry)
+        {
+            for (auto& [typeName, owner] : componentOwners)
+            {
+                owner->unsetRegistry(registry);
+                delete owner;
+            }
+
+            componentOwners.clear();
+
+            // Unregister event listeners
+            for (const auto& eventName : listenedEvents)
+            {
+                registry->removeStandardEventListener(eventName, this);
+            }
+
+            if (needDelta)
+            {
+                registry->removeEventListener<TickEvent>(this);
+            }
+        }
+    }
+
+    void StandardSystemImpl::onEvent(const TickEvent& event)
+    {
+        deltaTime += event.tick;
     }
 }

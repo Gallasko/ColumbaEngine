@@ -498,6 +498,8 @@ namespace pg
 
         bool needRedraw() { return needNewRender; }
 
+        void requestRender() { needNewRender = true; }
+
         void renderAll();
 
         void endRender();

@@ -30,6 +30,14 @@ extern std::unordered_map<std::string, size_t> _systemExecutionCounts;
 
 namespace pg
 {
+    enum class VmOptimizationLevel
+    {
+        O0 = 0,
+        O1,
+        O2,
+        O3
+    };
+
     // Todo create a queue that hold all entity id that got deleted to reattribute them later on
 
     // Todo Create a different id gen for systems so that components id are smaller and more packed
@@ -70,6 +78,7 @@ namespace pg
     class EntitySystem
     {
     friend class Entity;
+    friend struct EntityRef;
     friend class CommandDispatcher;
     friend struct CoreModule;
     friend struct InputModule;
@@ -466,6 +475,8 @@ namespace pg
                     component = registry.retrieveStandardComponent(compName)->internalCreateComponent(entity, std::forward<Args>(args)...);
                 }
 
+                LOG_INFO("ECS", "Attached StandardComponent [" << compName << "] to entity [" << entity.id << "]");
+
                 auto res = CompRef<StandardComponent>(component, entity.id, this, not running, compName);
 
                 res->onCreation(entity);
@@ -638,11 +649,18 @@ namespace pg
 
         void reportSystemProfiles();
 
+        inline void setVMOptimizationLevel(const VmOptimizationLevel& level)
+        {
+            vmOptimizationLevel = level;
+        }
+
         void setupVm(VM& vm);
 
     private:
         // Todo maybe
         // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
+
+        void setOptimizationPasses(VM& vm);
 
         void internalCreateSystem(AbstractSystem* system);
 
@@ -766,6 +784,8 @@ namespace pg
 
         bool running = false;
         bool stopRequested = false;
+
+        VmOptimizationLevel vmOptimizationLevel = VmOptimizationLevel::O3;
 
         /** Track the number of executed taskflows (for debug purposes) */
         size_t currentNbOfExecution = 0;
@@ -1280,4 +1300,188 @@ namespace pg
             delete static_cast<Type*>(component);
         };
     }
+
+    // ============================================================================
+    // Component Serializer Registration System
+    // ============================================================================
+
+    struct ObjInstance;
+
+    /**
+     * @brief Type-erased function signature for component serializers
+     *
+     * The serializer receives a void* pointer which should be cast to the appropriate
+     * component type inside the implementation. The component should provide its own
+     * ecsRef and entityId/id members for generating setters.
+     */
+    using ComponentSerializerFunc = std::function<void(VM*, ObjInstance*, void*)>;
+
+    /**
+     * @brief Type-erased function signature for component retrieval
+     *
+     * This function retrieves a component from an entity given its ID.
+     * Returns void* pointer to the component or nullptr if not found.
+     */
+    using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
+
+    /**
+     * @brief Registration structure that handles type erasure for component serializers
+     *
+     * Similar to ComponentCreateCommand in the dispatcher, this structure stores
+     * a type-erased serializer function that can be called with void* pointers.
+     * It also stores a retriever function that knows how to get the component from an entity.
+     */
+    struct ComponentSerializerRegistration {
+        ComponentSerializerRegistration() : serializer(nullptr), retriever(nullptr) {}
+
+        template <typename ComponentType>
+        ComponentSerializerRegistration(void(*func)(VM*, ObjInstance*, ComponentType*))
+        {
+            setupFunction<ComponentType>(func);
+        }
+
+        template <typename ComponentType>
+        void setupFunction(void(*func)(VM*, ObjInstance*, ComponentType*))
+        {
+            // Wrap the typed function pointer in a lambda that handles the void* cast
+            serializer = [func](VM* vm, ObjInstance* table, void* component) {
+                func(vm, table, static_cast<ComponentType*>(component));
+            };
+
+            // Create a retriever lambda that knows how to get this component type from an entity
+            retriever = [](EntitySystem* ecsRef, _unique_id entityId) -> void* {
+                return ecsRef->getComponent<ComponentType>(entityId);
+            };
+        }
+
+        // Helper to setup retriever separately (defined in .cpp where EntitySystem is complete)
+        template <typename ComponentType>
+        void setupRetriever();
+
+        ComponentSerializerFunc serializer;
+        ComponentRetrieverFunc retriever;
+    };
+
+    /**
+     * @brief Registry for component serializers with setter generation
+     *
+     * This singleton registry allows registration of custom serializers that add
+     * dynamic setter methods to component tables. Expert users can register custom
+     * serializers for their components using the REGISTER_COMPONENT_SERIALIZER macro.
+     *
+     * Example:
+     * ```cpp
+     * void serializeMyComponentWithSetters(VM* vm, ObjInstance* table,
+     *                                      const MyComponent& component) {
+     *     // Generate setters using component.ecsRef and component.entityId
+     * }
+     *
+     * REGISTER_COMPONENT_SERIALIZER(MyComponent, serializeMyComponentWithSetters);
+     * ```
+     */
+    class ComponentSerializerRegistry {
+    public:
+        /**
+         * @brief Get the singleton instance of the registry
+         */
+        static ComponentSerializerRegistry& instance()
+        {
+            static ComponentSerializerRegistry registry;
+            return registry;
+        }
+
+        /**
+         * @brief Register a typed serializer function for a component
+         *
+         * @tparam ComponentType The type of component this serializer handles
+         * @param componentName The name of the component (usually the class name)
+         * @param func Function pointer to the serializer implementation
+         */
+        template <typename ComponentType>
+        void registerSerializer(const std::string& componentName,
+                               void(*func)(VM*, ObjInstance*, ComponentType*))
+        {
+            ComponentSerializerRegistration reg;
+            reg.setupFunction<ComponentType>(func);
+            serializers_[componentName] = reg;
+        }
+
+        /**
+         * @brief Check if a serializer is registered for a component
+         *
+         * @param componentName The name of the component to check
+         * @return true if a serializer is registered, false otherwise
+         */
+        bool hasSerializer(const std::string& componentName) const
+        {
+            return serializers_.find(componentName) != serializers_.end();
+        }
+
+        /**
+         * @brief Get the type-erased serializer function for a component
+         *
+         * @param componentName The name of the component
+         * @return ComponentSerializerFunc The type-erased serializer function
+         */
+        ComponentSerializerFunc getSerializer(const std::string& componentName) const
+        {
+            auto it = serializers_.find(componentName);
+            if (it != serializers_.end())
+            {
+                return it->second.serializer;
+            }
+            return nullptr;
+        }
+
+        /**
+         * @brief Get the type-erased retriever function for a component
+         *
+         * @param componentName The name of the component
+         * @return ComponentRetrieverFunc The type-erased retriever function
+         */
+        ComponentRetrieverFunc getRetriever(const std::string& componentName) const
+        {
+            auto it = serializers_.find(componentName);
+            if (it != serializers_.end())
+            {
+                return it->second.retriever;
+            }
+            return nullptr;
+        }
+
+    private:
+        ComponentSerializerRegistry() = default;
+        ComponentSerializerRegistry(const ComponentSerializerRegistry&) = delete;
+        ComponentSerializerRegistry& operator=(const ComponentSerializerRegistry&) = delete;
+
+        std::unordered_map<std::string, ComponentSerializerRegistration> serializers_;
+    };
+
+    /**
+     * @brief Macro to easily register a component serializer
+     *
+     * This macro creates a static initializer that registers the serializer function
+     * at program startup. Use this in any .cpp file to register a custom serializer.
+     *
+     * Example:
+     * ```cpp
+     * void serializeMyComponent(VM* vm, ObjInstance* table, const MyComponent& comp) {
+     *     // Implementation
+     * }
+     *
+     * REGISTER_COMPONENT_SERIALIZER(MyComponent, serializeMyComponent);
+     * ```
+     */
+    #define REGISTER_COMPONENT_SERIALIZER(ComponentType, FunctionName) \
+        template void ComponentSerializerRegistration::setupFunction<ComponentType>( \
+            void(*)(VM*, ObjInstance*, ComponentType*)); \
+        namespace { \
+            struct ComponentType##SerializerRegistrar { \
+                ComponentType##SerializerRegistrar() { \
+                    pg::ComponentSerializerRegistry::instance() \
+                        .registerSerializer<ComponentType>(#ComponentType, FunctionName); \
+                } \
+            }; \
+            static ComponentType##SerializerRegistrar ComponentType##_registrar_instance; \
+        }
 }

@@ -1,0 +1,16 @@
+print("Log manager file")
+
+import "log"
+
+addFilterLevel("Log Filter", "log");
+addFilterScope("GL Filter", "GL Debug")
+addFilterLevel("Mile Filter", "mile");
+//addFilterLevel("info Filter", "info");
+
+addFilterScope("Window", "Window")
+addFilterScope("System", "System")
+addFilterScope("ECS", "ECS")
+addFilterScope("Component Registry", "Component Registry")
+addFilterScope("Component Set", "Component Set")
+addFilterScope("Serializer", "Serializer", false)
+//addFilterScope("ECS Serialization", "ECS Serialization")

@@ -151,6 +151,26 @@ namespace pg
                 parser.writeConstant(varName);
                 parser.writeByte(OpCode::OP_Set_Global);
             }
+            else if (canAssign and parser.match(TokenType::PLUSEQUAL))
+            {
+                // var += expr => var = var + expr
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Get_Global);  // Get current value
+                parser.expression();                       // Evaluate right side
+                parser.writeByte(OpCode::OP_Add);          // Add them
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Set_Global);  // Store result
+            }
+            else if (canAssign and parser.match(TokenType::MINUSEQUAL))
+            {
+                // var -= expr => var = var - expr
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Get_Global);  // Get current value
+                parser.expression();                       // Evaluate right side
+                parser.writeByte(OpCode::OP_Subtract);     // Subtract
+                parser.writeConstant(varName);
+                parser.writeByte(OpCode::OP_Set_Global);  // Store result
+            }
             else if (parser.match(TokenType::INCREMENT))
             {
                 // Postfix increment: var++
@@ -182,6 +202,26 @@ namespace pg
             parser.expression();
             parser.writeByte(setOp);
             parser.writeByte(static_cast<uint8_t>(arg));
+        }
+        else if (canAssign and parser.match(TokenType::PLUSEQUAL))
+        {
+            // var += expr => var = var + expr
+            parser.writeByte(getOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Get current value
+            parser.expression();                           // Evaluate right side
+            parser.writeByte(OpCode::OP_Add);              // Add them
+            parser.writeByte(setOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Store result
+        }
+        else if (canAssign and parser.match(TokenType::MINUSEQUAL))
+        {
+            // var -= expr => var = var - expr
+            parser.writeByte(getOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Get current value
+            parser.expression();                           // Evaluate right side
+            parser.writeByte(OpCode::OP_Subtract);         // Subtract
+            parser.writeByte(setOp);
+            parser.writeByte(static_cast<uint8_t>(arg));  // Store result
         }
         else if (parser.match(TokenType::INCREMENT))
         {
@@ -479,6 +519,8 @@ namespace pg
             parser.writeByte(OpCode::OP_Get_Property);
             parser.writeByte(constantIndex);
         }
+        // TODO: Add support for obj.prop += expr and obj.prop -= expr
+        // This requires either a DUP opcode or re-evaluating the left side
     }
 
     void this_(CParser& parser, bool)
@@ -496,6 +538,8 @@ namespace pg
     {
         uint8_t autoIndex = 0;
 
+        bool buildTable = false;
+
         if (not parser.check(TokenType::CCLOSE))
         {
             do
@@ -512,6 +556,7 @@ namespace pg
                     // Parse the value expression normally
                     parser.expression(); // value
                     parser.writeConstant(first.text);
+                    buildTable = true;
                 }
                 else
                 {
@@ -528,7 +573,10 @@ namespace pg
         parser.skipEOL();
         parser.consume("Expect ']' after table values.", TokenType::CCLOSE);
 
-        parser.writeByte(OpCode::OP_Build_Table);
+        if (buildTable)
+            parser.writeByte(OpCode::OP_Build_Table);
+        else
+            parser.writeByte(OpCode::OP_Build_Vector);
         parser.writeByte(autoIndex);
     }
 
@@ -959,16 +1007,18 @@ namespace pg
                 // 1. Store table as hidden local __table
                 Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__table", currentToken().line, 0));
                 Compiler::current->markInitialized();
+                uint8_t tableSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
                 // Stack: [__table]
 
                 // 2. Get size of table and store as hidden local __size
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __table slot
+                writeByte(tableSlot);
                 writeByte(OpCode::OP_Table_Size);
                 // Stack: [__table, size]
 
                 Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__size", currentToken().line, 0));
                 Compiler::current->markInitialized();
+                uint8_t sizeSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
                 // Stack: [__table, __size]
 
                 // 3. Initialize loop counter __i = 0
@@ -978,6 +1028,7 @@ namespace pg
 
                 Compiler::current->addLocal(Token(TokenType::EXPRESSION, "__i", currentToken().line, 0));
                 Compiler::current->markInitialized();
+                uint8_t counterSlot = static_cast<uint8_t>(Compiler::current->localCount - 1);
                 // Stack: [__table, __size, __i]
 
                 // 4. Loop condition: __i < __size
@@ -985,10 +1036,10 @@ namespace pg
 
                 // Get __i
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                writeByte(counterSlot);
                 // Get __size
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 2)); // __size slot
+                writeByte(sizeSlot);
                 // Compare: __i < __size
                 writeByte(OpCode::OP_Less);
                 // Stack: [__table, __size, __i, bool]
@@ -1003,10 +1054,10 @@ namespace pg
                 // Get key at current index: var key = __table.at(__i)
                 // Get __table
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 3)); // __table slot
+                writeByte(tableSlot);
                 // Get __i
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                writeByte(counterSlot);
                 // Call __table.at(__i)
                 writeByte(OpCode::OP_Table_At);
                 // Stack: [__table, __size, __i, key]
@@ -1025,12 +1076,12 @@ namespace pg
 
                 // 8. Increment __i: __i++
                 writeByte(OpCode::OP_Get_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                writeByte(counterSlot);
                 writeByte(OpCode::OP_Constant);
                 writeByte(Compiler::current->getCurrentChunk().addConstantIndex(makeIntValue(1)));
                 writeByte(OpCode::OP_Add);
                 writeByte(OpCode::OP_Set_Local);
-                writeByte(static_cast<uint8_t>(Compiler::current->localCount - 1)); // __i slot
+                writeByte(counterSlot);
                 writeByte(OpCode::OP_Pop); // Pop the assignment result
                 // Stack: [__table, __size, __i]
 

@@ -10,6 +10,8 @@
 // Todo remove this when we can close a window with an event
 #include "window.h"
 
+#include "Renderer/renderer.h"
+
 using namespace pg;
 
 #ifdef PG_AUTO_CONVERT_EVENTS_TO_STANDARD
@@ -147,6 +149,66 @@ StandardSystemImpl* createKeyHandlerSystem()
         .build();
 }
 
+StandardSystemImpl* createDeltaSystem()
+{
+    return createStandardSystem("Delta")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            sys->setData("currentDelta", 0);
+        })
+        .onDelta("test_delta.pg")
+        .build();
+}
+
+StandardSystemImpl* createFPSSystem()
+{
+    return createStandardSystem("FPS")
+        .onInit([](StandardSystemHandle* sys) {
+            // Initialize system
+            sys->setData("currentDelta", 0.0f);
+            sys->setData("nbRenderedFrames", 0);
+            sys->setData("nbGeneratedFrames", 0);
+        })
+        .onDelta([](StandardSystemHandle* sys, float deltaTime) {
+            float delta = sys->getData("currentDelta").get<float>();
+
+            delta += deltaTime;
+
+            if (delta > 1.0f)
+            {
+                delta -= 1.0f;
+
+                auto rendererSys = sys->getWorld()->getSystem<MasterRenderer>();
+
+                auto currentNbOfFrames = rendererSys->getNbRenderedFrames();
+                auto currentNbOfGFrames = rendererSys->getNbGeneratedFrames();
+
+                auto lastNbOfFrames = sys->getData("nbRenderedFrames").get<size_t>();
+                auto lastNbOfGFrames = sys->getData("nbGeneratedFrames").get<size_t>();
+
+                if (currentNbOfFrames < lastNbOfFrames or currentNbOfGFrames < lastNbOfGFrames)
+                {
+                    sys->setData("nbRenderedFrames", currentNbOfFrames);
+                    sys->setData("nbGeneratedFrames", currentNbOfGFrames);
+                    sys->setData("currentDelta", delta);
+
+                    return;
+                }
+
+                auto res = currentNbOfFrames - lastNbOfFrames;
+                auto res2 = currentNbOfGFrames - lastNbOfGFrames;
+
+                LOG_INFO("Standard FPS Sys", "FPS: " << res << ", GFPS: " << res2);
+
+                sys->setData("nbRenderedFrames", currentNbOfFrames);
+                sys->setData("nbGeneratedFrames", currentNbOfGFrames);
+            }
+
+            sys->setData("currentDelta", delta);
+        })
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
@@ -276,6 +338,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.registerSystem(createMouseClickHandlerSystem());
 
         ecs.registerSystem(createKeyHandlerSystem());
+
+        ecs.registerSystem(createDeltaSystem());
+
+        ecs.registerSystem(createFPSSystem());
 
         // window.receivedQuitRequest();
 

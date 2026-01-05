@@ -1,0 +1,18 @@
+// Test case for vector memory leak
+// This should create and destroy vectors to test if memory is properly freed
+
+// Create a simple vector
+var v1 = [1, 2, 3, 4, 5]
+__dprint("Created v1")
+
+// Create a vector with gaps (exercises the fill-with-zeros logic)
+var v2 = [0: 10, 5: 20, 10: 30]
+__dprint("Created v2")
+
+// Create vector in a loop to increase allocation pressure
+for (var i = 0; i < 10; i = i + 1) {
+    var temp = [i, i * 2, i * 3, i * 4, i * 5]
+    __dprint(i)
+}
+
+__dprint("Done")

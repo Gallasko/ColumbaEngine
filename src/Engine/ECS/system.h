@@ -110,6 +110,7 @@ namespace pg
 
     // Forward declaration for StandardSystemImpl
     class StandardSystemImpl;
+    struct TickEvent;
 
     /**
      * @brief Handle for accessing standard system functionality
@@ -136,6 +137,8 @@ namespace pg
 
         // Access to system data storage
         ElementMap* getData();
+        ElementType getData(const std::string& name);
+        void setData(const std::string& name, const ElementType& value);
 
         // Internal use only - stores the actual StandardSystemImpl pointer
         StandardSystemImpl* _internalSystemPtr = nullptr;
@@ -147,6 +150,7 @@ namespace pg
     using _S_ExecuteCallback = std::function<void(StandardSystemHandle*)>;
     using _S_SaveCallback = std::function<void(StandardSystemHandle*, ElementMap&)>;
     using _S_LoadCallback = std::function<void(StandardSystemHandle*, const ElementMap&)>;
+    using _S_DeltaCallback = std::function<void(StandardSystemHandle*, float)>;
 
     using _S_EventMap = std::unordered_map<std::string, _S_EventCallback>;
     using _S_EventScriptMap = std::unordered_map<std::string, std::string>;
@@ -161,17 +165,22 @@ namespace pg
                           const std::unordered_map<std::string, ElementMap>& defaultComponentValues,
                           bool saveLoadEnabled,
                           _S_InitCallback initCb,
+                          const std::string& initScriptPath,
                           _S_EventMap eventMap,
                           _S_EventScriptMap eventScriptMap,
                           _S_ExecuteCallback executeCb,
                           const std::string& executeScriptPath,
                           _S_SaveCallback saveCb,
                           _S_LoadCallback loadCb,
-                          _S_InitCallback firstLoadCb) :
-                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues), initCallback(initCb),
+                          _S_InitCallback firstLoadCb,
+                          _S_DeltaCallback deltaCb,
+                          const std::string& deltaScriptPath) :
+                          systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues),
+                          initCallback(initCb), initScript(initScriptPath),
                           eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap),
                           executeCallback(executeCb), executeScript(executeScriptPath),
-                          saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb)
+                          saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb),
+                          deltaCallback(deltaCb), deltaScript(deltaScriptPath)
         {
             for (auto [key, _] : eventMap)
             {
@@ -188,6 +197,11 @@ namespace pg
             {
                 saveable = true;
             }
+
+            if (deltaCallback or not deltaScript.empty())
+            {
+                needDelta = true;
+            }
         }
 
         virtual ~StandardSystemImpl() override
@@ -197,27 +211,7 @@ namespace pg
 
         void addToRegistry(ComponentRegistry *registry);
 
-        virtual void removeFromRegistry() override
-        {
-            LOG_THIS_MEMBER("StandardSystemImpl");
-
-            // Unregister all components
-            if (registry)
-            {
-                for (auto& [typeName, owner] : componentOwners)
-                {
-                    owner->unsetRegistry(registry);
-                    delete owner;
-                }
-                componentOwners.clear();
-
-                // Unregister event listeners
-                for (const auto& eventName : listenedEvents)
-                {
-                    registry->removeStandardEventListener(eventName, this);
-                }
-            }
-        }
+        virtual void removeFromRegistry() override;
 
         void onEvent(const StandardEvent& event)
         {
@@ -239,6 +233,8 @@ namespace pg
             }
         }
 
+        void onEvent(const TickEvent& event);
+
         virtual void onRegisterFinished() override
         {
             LOG_THIS_MEMBER("StandardSystemImpl");
@@ -247,6 +243,13 @@ namespace pg
             if (initCallback)
             {
                 initCallback(&handle);
+            }
+
+            // Call compiled init script callback
+            if (compiledInitScriptCallback)
+            {
+                LOG_INFO("StandardSystemImpl", "Calling compiled init script for system: " << systemName);
+                compiledInitScriptCallback(&handle);
             }
         }
 
@@ -264,6 +267,21 @@ namespace pg
             if (compiledExecuteScriptCallback)
             {
                 compiledExecuteScriptCallback(&handle);
+            }
+
+            if (needDelta and deltaTime > 0.0f)
+            {
+                if (deltaCallback)
+                {
+                    deltaCallback(&handle, deltaTime / 1000.0f);
+                }
+
+                if (compiledDeltaScriptCallback)
+                {
+                    compiledDeltaScriptCallback(&handle, deltaTime / 1000.0f);
+                }
+
+                deltaTime = 0;
             }
         }
 
@@ -358,6 +376,8 @@ namespace pg
         ElementMap systemData;
 
         _S_InitCallback initCallback;
+        std::string initScript;
+        _S_InitCallback compiledInitScriptCallback;
 
         _S_EventMap eventCallbackList;
         _S_EventScriptMap eventScriptCallbackList;
@@ -369,6 +389,13 @@ namespace pg
         _S_SaveCallback saveCallback;
         _S_LoadCallback loadCallback;
         _S_InitCallback firstLoadCallback;
+
+        bool needDelta = false;
+        float deltaTime = 0.0f;
+
+        _S_DeltaCallback deltaCallback;
+        std::string deltaScript;
+        _S_DeltaCallback compiledDeltaScriptCallback;
     };
 
     template <typename... Comps>

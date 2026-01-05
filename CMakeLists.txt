@@ -64,9 +64,9 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
         --preload-file res \
         --preload-file scripts \
         --preload-file shader \
-        --preload-file setupRenderer.pg \
-        --preload-file sysRegister.pg \
-        --preload-file logManager.pg")
+        --preload-file res/setupRenderer.pg \
+        --preload-file res/sysRegister.pg \
+        --preload-file res/logManager.pg")
 
     set(CMAKE_EXECUTABLE_SUFFIX .html)
 else()
@@ -102,6 +102,7 @@ endif()
 
 if(USE_GDB)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -ggdb")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -ggdb")
     message(STATUS, "GDB symbols ENABLED")
 else()
     message(STATUS, "GDB symbols DISABLED")
@@ -123,27 +124,28 @@ else()
     message(STATUS "Profiling of systems is DISABLED")
 endif()
 
-# Debug Flags
-if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} -O0 -DDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -O0 -DDEBUG")
-else()
-    # set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -g -O0 -DDEBUG")
+# Apply build-type specific flags directly to CMAKE_CXX_FLAGS
+if(CMAKE_BUILD_TYPE MATCHES Debug)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0 -DDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -DDEBUG")
+    else()
+        # set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -DDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -DDEBUG")
+    endif()
+elseif(CMAKE_BUILD_TYPE MATCHES Release)
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
+    endif()
 endif()
 
-# Release Flags
-if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} -O3 -DNDEBUG")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
-else()
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -DNDEBUG")
-
-# Release flags for native builds can be set here if needed
-endif()
-
-message("Current c++ debug flags used: '${CMAKE_CXX_FLAGS_DEBUG}'")
-message("Current c++ release flags used: '${CMAKE_CXX_FLAGS_RELEASE}'")
+message("Current c++ debug flags used: '${CMAKE_C_FLAGS}'")
+message("Current c++ release flags used: '${CMAKE_CXX_FLAGS}'")
 
 set(ENGINESOURCE
     src/Engine/engine.cpp
@@ -160,6 +162,7 @@ set(ENGINESOURCE
     src/Engine/Audio/audiosystem.cpp
     src/Engine/Compiler/compiler_debug.cpp
     src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
     src/Engine/Compiler/ecsserialization.cpp
     src/Engine/Compiler/object.cpp
@@ -169,6 +172,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/chunk_serializer.cpp
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
+    src/Engine/Compiler/pass/constant_folding.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
@@ -535,6 +539,22 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(Asteroid exemples/Asteroid/main.cpp)
+
+        target_include_directories(Asteroid PUBLIC exemples/Asteroid)
+
+        target_sources(Asteroid PRIVATE
+            exemples/Asteroid/application.cpp
+        )
+
+        target_link_libraries(Asteroid PRIVATE ColumbaEngine)
+
+        set_target_properties(Asteroid
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
         add_executable(InvadersBreaker exemples/InvadersBreaker/main.cpp)
 
         target_include_directories(InvadersBreaker PUBLIC exemples/InvadersBreaker)
@@ -697,6 +717,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(Asteroid exemples/Asteroid/main.cpp)
+
+        target_include_directories(Asteroid PUBLIC exemples/Asteroid)
+
+        target_sources(Asteroid PRIVATE
+            exemples/Asteroid/application.cpp
+        )
+
+        target_link_libraries(Asteroid PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(StandardSys exemples/StandardSys/main.cpp)
 
         target_include_directories(StandardSys PUBLIC exemples/StandardSys)
@@ -830,6 +862,10 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         add_custom_command(TARGET test_compiler POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_directory
                     ${CMAKE_SOURCE_DIR}/test/pgcompiler/scripts $<TARGET_FILE_DIR:test_compiler>/test/pgcompiler/scripts)
+
+        add_custom_command(TARGET test_compiler POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                    ${CMAKE_SOURCE_DIR}/test/pgcompiler/examples $<TARGET_FILE_DIR:test_compiler>/test/pgcompiler/examples)
 
         # Register compiler tests with CTest
         gtest_discover_tests(test_compiler
