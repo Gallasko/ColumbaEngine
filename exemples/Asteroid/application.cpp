@@ -44,7 +44,8 @@ StandardSystemImpl* createAsteroidSpawnTimerSystem()
             if (timer > 2.0f)
             {
                 timer -= 2.0f;
-                sys->sendEvent("SpawnAsteroid");
+                // for (int i = 0; i < 10; i++)
+                    sys->sendEvent("SpawnAsteroid");
             }
 
             sys->setData("spawnTimer", timer);
@@ -131,6 +132,12 @@ StandardSystemImpl* createFPSSystem()
 
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
+    EngineConfig config;
+
+    // config.autoStartECS = false;
+
+    engine.setConfig(config);
+
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
         ecs.createSystem<CollisionSystem>();
@@ -153,6 +160,36 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             [](Entity* ent) { return ent->has("Bullet"); },
             [](Entity* ent) { return ent->has("Asteroid"); });
     });
+
+    // Post-init: manually control ECS execution
+//     engine.setPostInitFunction([](pg::EntitySystem& ecs, pg::Window& window) {
+//         printf("ECS initialized but NOT started - manual execution mode enabled\n");
+
+//         // Start a background thread that executes ECS once per second
+//         std::thread debugThread([&ecs]() {
+//             auto lastExecution = std::chrono::steady_clock::now();
+
+//             while (true) {
+//                 auto now = std::chrono::steady_clock::now();
+//                 auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastExecution);
+
+//                 // Execute once per second
+//                 if (elapsed.count() >= 1000) {
+//                     printf("--- Executing ECS frame (debug mode) ---\n");
+
+//                     // Execute one ECS update cycle
+//                     ecs.executeOnce();  // Simulate 60 FPS delta time
+
+//                     lastExecution = now;
+//                 }
+
+//                 // Sleep briefly to avoid busy-waiting
+//                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
+//             }
+//         });
+
+//         debugThread.detach();
+//     });
 }
 
 GameApp::~GameApp()
