@@ -366,19 +366,14 @@ class RSTGenerator:
             notes = pass_doc.additional_notes.strip()
             # Split into lines and clean each line
             lines = notes.split('\n')
-            cleaned_lines = []
             for line in lines:
                 # Remove leading * and whitespace
                 cleaned = line.strip()
                 if cleaned.startswith('*'):
                     cleaned = cleaned[1:].strip()
                 if cleaned:
-                    cleaned_lines.append(cleaned)
-
-            # Join lines and add as paragraph
-            if cleaned_lines:
-                rst.append(' '.join(cleaned_lines))
-                rst.append("")
+                    rst.append(cleaned)
+            rst.append("")
 
         # Source link
         source_url = f"{self.repo_url}/blob/main/{pass_doc.file_path}"
