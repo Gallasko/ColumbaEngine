@@ -626,8 +626,8 @@ Related Files
 
 Source code locations:
 
-* VM implementation: [src/Engine/Compiler/vm.cpp](../../../src/Engine/Compiler/vm.cpp)
-* VM header: [src/Engine/Compiler/vm.h](../../../src/Engine/Compiler/vm.h)
-* NaN-boxing: [src/Engine/Compiler/value_nanbox.h](../../../src/Engine/Compiler/value_nanbox.h)
-* Chunk structure: [src/Engine/Compiler/chunk.h](../../../src/Engine/Compiler/chunk.h)
-* Memory pools: [src/Engine/Compiler/vmpools.h](../../../src/Engine/Compiler/vmpools.h)
+* VM implementation: `vm.cpp <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/vm.cpp>`_
+* VM header: `vm.h <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/vm.h>`_
+* NaN-boxing: `value_nanbox.h <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/value_nanbox.h>`_
+* Chunk structure: `chunk.h <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/chunk.h>`_
+* Memory pools: `vmpools.h <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/vmpools.h>`_
