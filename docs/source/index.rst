@@ -17,3 +17,10 @@ documentation for details.
 
     getting_started
     api/api
+
+.. toctree::
+    :maxdepth: 2
+    :caption: Script Language:
+
+    script/overview
+    script/api
