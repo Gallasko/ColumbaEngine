@@ -776,8 +776,8 @@ Related Files
 
 Source code locations:
 
-* Pass manager: [src/Engine/Compiler/bytecode_pass.cpp](../../../src/Engine/Compiler/bytecode_pass.cpp)
-* Pass interface: [src/Engine/Compiler/bytecode_pass.h](../../../src/Engine/Compiler/bytecode_pass.h)
-* Bytecode rewriter: [src/Engine/Compiler/bytecode_rewriter.cpp](../../../src/Engine/Compiler/bytecode_rewriter.cpp)
-* Rewriter header: [src/Engine/Compiler/bytecode_rewriter.h](../../../src/Engine/Compiler/bytecode_rewriter.h)
-* Optimization passes: [src/Engine/Compiler/pass/](../../../src/Engine/Compiler/pass/)
+* Pass manager: `bytecode_pass.cpp <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/bytecode_pass.cpp>`_
+* Pass interface: `bytecode_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/bytecode_pass.h>`_
+* Bytecode rewriter: `bytecode_rewriter.cpp <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/bytecode_rewriter.cpp>`_
+* Rewriter header: `bytecode_rewriter.h <https://github.com/Gallasko/ColumbaEngine/blob/main/src/Engine/Compiler/bytecode_rewriter.h>`_
+* Optimization passes directory: `pass/ <https://github.com/Gallasko/ColumbaEngine/tree/main/src/Engine/Compiler/pass>`_
