@@ -1,5 +1,23 @@
 #pragma once
 
+/**
+ * @pass_doc
+ * @name: Remove Define-Get Global Redundancy Pass
+ * @purpose: Eliminates redundant global variable lookups after definition
+ * @category: memory
+ * @example_before:
+ *   OP_Constant <value>
+ *   OP_Define_Global <name>
+ *   OP_Get_Global <name>
+ * @example_after:
+ *   OP_Constant <value>
+ *   OP_Define_Global_Non_Popping <name>
+ * @benefits:
+ *   - Eliminates redundant global lookup
+ *   - Value stays on stack
+ * @end_pass_doc
+ */
+
 #include "../bytecode_pass.h"
 #include "../chunk.h"
 

@@ -1,5 +1,27 @@
 #pragma once
 
+
+/**
+ * @pass_doc
+ * @name: Fuse Pop Operations Pass
+ * @purpose: Combines multiple consecutive pop operations into single PopN instructions
+ * @category: stack
+ * @example_before:
+ *   OP_Pop
+ *   OP_Pop
+ *   OP_Pop
+ * @example_after:
+ *   OP_PopN 3
+ * @benefits:
+ *   - Reduces instruction count (N pops → 1 instruction)
+ *   - Fewer instruction fetches and decodes
+ *   - Better branch prediction
+ *   - More efficient stack manipulation
+ * @additional_notes:
+ *   Recognizes four patterns: Pop+Pop, Pop+PopN, PopN+Pop, PopN+PopN.
+ *   Requires multiple passes for consecutive fusions.
+ * @end_pass_doc
+ */
 #include "../bytecode_pass.h"
 #include "../chunk.h"
 
