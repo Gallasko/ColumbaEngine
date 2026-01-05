@@ -113,7 +113,8 @@ After::
 
 **Notes**
 
-Optimizes Add and Subtract operations on local variables. Also handles mixed local/constant patterns.
+Optimizes Add and Subtract operations on local variables.
+Also handles mixed local/constant patterns.
 
 **Source**: `basic_operator_local_indexing.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/basic_operator_local_indexing.h>`_
 
@@ -153,7 +154,15 @@ After::
 
 **Notes**
 
-Requires multiple passes because folding can expose new opportunities. Example: (5 + 3) + (2 + 4) needs two passes to fully fold to 14. Supported operations: - Arithmetic: +, -, *, /, % (binary), - (unary negation) - Comparison: ==, !=, <, >, <=, >= - Logical: and, or, not - String: concatenation Current limitation: Only folds to OP_Constant (not OP_LongConstant). This limits constant table to 254 entries during optimization.
+Requires multiple passes because folding can expose new opportunities.
+Example: (5 + 3) + (2 + 4) needs two passes to fully fold to 14.
+Supported operations:
+- Arithmetic: +, -, *, /, % (binary), - (unary negation)
+- Comparison: ==, !=, <, >, <=, >=
+- Logical: and, or, not
+- String: concatenation
+Current limitation: Only folds to OP_Constant (not OP_LongConstant).
+This limits constant table to 254 entries during optimization.
 
 **Source**: `constant_folding.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/constant_folding.h>`_
 
@@ -231,7 +240,18 @@ After::
 
 **Notes**
 
-Recognizes the specific pattern of: 1. Loading a local variable 2. Adding constant value 1 3. Storing back to the same local variable 4. Popping the result (statement context) The pass validates that the GET and SET target the same local variable to avoid incorrect transformations. This pattern is extremely common in for loops: for (var i = 0; i < n; i++) Could be extended to support: - Pre-increment (++i) pattern detection - Decrement patterns (i--) - Global variable increments
+Recognizes the specific pattern of:
+1. Loading a local variable
+2. Adding constant value 1
+3. Storing back to the same local variable
+4. Popping the result (statement context)
+The pass validates that the GET and SET target the same local variable
+to avoid incorrect transformations. This pattern is extremely common in
+for loops: for (var i = 0; i < n; i++)
+Could be extended to support:
+- Pre-increment (++i) pattern detection
+- Decrement patterns (i--)
+- Global variable increments
 
 **Source**: `increment_optimization_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/increment_optimization_pass.h>`_
 
@@ -378,7 +398,8 @@ After::
 
 **Notes**
 
-Recognizes four patterns: Pop+Pop, Pop+PopN, PopN+Pop, PopN+PopN. Requires multiple passes for consecutive fusions.
+Recognizes four patterns: Pop+Pop, Pop+PopN, PopN+Pop, PopN+PopN.
+Requires multiple passes for consecutive fusions.
 
 **Source**: `fuse_op_pop.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/fuse_op_pop.h>`_
 
