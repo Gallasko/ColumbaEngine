@@ -1,0 +1,83 @@
+name: Generate Pass Documentation
+
+on:
+  push:
+    branches: [ main, dev ]
+    paths:
+      - 'src/Engine/Compiler/pass/**'
+      - 'scripts/generate_pass_docs.py'
+      - '.github/workflows/generate_docs.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/Engine/Compiler/pass/**'
+      - 'scripts/generate_pass_docs.py'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  generate-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        fetch-depth: 0  # Full history for proper git operations
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        # Add any required dependencies here if needed
+
+    - name: Generate pass documentation
+      run: |
+        python scripts/generate_pass_docs.py \
+          --passes-dir src/Engine/Compiler/pass \
+          --output docs/source/script/passes_reference.rst \
+          --repo-url https://github.com/Gallasko/ColumbaEngine \
+          --verbose
+
+    - name: Check if documentation changed
+      id: check_changes
+      run: |
+        git diff --exit-code docs/source/script/passes_reference.rst || echo "changed=true" >> $GITHUB_OUTPUT
+
+    - name: Update index.rst if new file was created
+      if: steps.check_changes.outputs.changed == 'true'
+      run: |
+        # Check if passes_reference.rst is already in index.rst
+        if ! grep -q "passes_reference" docs/source/index.rst; then
+          echo "Adding passes_reference to index.rst"
+          # Add before the closing of Script Language section
+          sed -i '/script\/optimizer/a\    script\/passes_reference' docs/source/index.rst
+        fi
+
+    - name: Commit and push if changed
+      if: steps.check_changes.outputs.changed == 'true'
+      run: |
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.name "github-actions[bot]"
+        git add docs/source/script/passes_reference.rst
+        git add docs/source/index.rst
+        git commit -m "docs: Auto-generate pass documentation [skip ci]" || exit 0
+        git push
+
+    - name: Create Pull Request (for PRs)
+      if: github.event_name == 'pull_request' && steps.check_changes.outputs.changed == 'true'
+      uses: peter-evans/create-pull-request@v5
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        commit-message: "docs: Auto-generate pass documentation"
+        title: "Auto-generated pass documentation"
+        body: |
+          This PR updates the automatically generated pass documentation.
+
+          Changes detected in optimization passes - documentation has been regenerated.
+        branch: docs/auto-generated-passes
+        delete-branch: true

@@ -1,5 +1,24 @@
 #pragma once
 
+/**
+ * @pass_doc
+ * @name: Constant Variable Access Pass
+ * @purpose: Propagates constant values assigned to variables
+ * @category: arithmetic
+ * @example_before:
+ *   OP_Constant 42
+ *   OP_Set_Local 0
+ *   OP_Get_Local 0
+ * @example_after:
+ *   OP_Constant 42
+ *   OP_Set_Local 0
+ *   OP_Constant 42
+ * @benefits:
+ *   - Eliminates variable loads for constants
+ *   - Enables further constant folding
+ * @end_pass_doc
+ */
+
 #include "../bytecode_pass.h"
 #include "../chunk.h"
 
