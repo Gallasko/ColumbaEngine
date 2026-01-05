@@ -27,7 +27,6 @@ The language supports dynamic typing with the following types:
 * **Tables**: Associative arrays that can store key-value pairs and indexed values
 * **Functions**: First-class functions with closure support
 * **Classes**: Object-oriented programming with inheritance
-* **Nil**: Null/undefined value
 
 Control Flow
 ~~~~~~~~~~~~
@@ -56,12 +55,13 @@ Functions are first-class citizens and support:
 
 Example::
 
-    fun greet(name) {
+    fun greet(name)
+    {
         return "Hello, " + name;
     }
 
     var message = greet("World");
-    __dprint(message);  // Output: Hello, World
+    print(message);  // Output: Hello, World
 
 Object-Oriented Programming
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -76,13 +76,16 @@ The language supports class-based OOP with:
 
 Example::
 
-    class CoffeeMaker {
-        init(coffee) {
+    class CoffeeMaker
+    {
+        init(coffee)
+        {
             this.coffee = coffee;
         }
 
-        brew() {
-            __dprint("Enjoy your cup of " + this.coffee);
+        brew()
+        {
+            print("Enjoy your cup of " + this.coffee);
         }
     }
 
@@ -102,10 +105,10 @@ Tables are versatile data structures that combine arrays and dictionaries:
 Example::
 
     var person = [name: "Emma", age: 23];
-    __dprint(person["name"]);  // Output: Emma
+    print(person["name"]);  // Output: Emma
 
     var numbers = [5, 10, 15];
-    __dprint(numbers[0]);      // Output: 5
+    print(numbers[0]);      // Output: 5
 
 Module System
 ~~~~~~~~~~~~~
@@ -166,11 +169,14 @@ Closures
 
 Functions can capture and maintain references to variables from their enclosing scope::
 
-    fun outer() {
+    fun outer()
+    {
         var x = 1;
-        fun inner() {
-            __dprint(x);  // Captures x from outer
+        fun inner()
+        {
+            print(x);  // Captures x from outer
         }
+
         return inner;
     }
 
@@ -195,6 +201,7 @@ The VM (Virtual Machine) executes the compiled bytecode with:
 Debug Output
 ------------
 
+The ``print()`` function is available for output in scripts.
 The ``__dprint()`` function is available for debug output in scripts. It's commonly used in tests and development to print values to the console.
 
 Getting Started
@@ -202,19 +209,23 @@ Getting Started
 
 A simple "Hello, World!" program::
 
-    __dprint("Hello, World!");
+    print("Hello, World!");
 
 A more complex example with functions and loops::
 
-    fun fibonacci(n) {
-        if (n <= 1) {
+    fun fibonacci(n)
+    {
+        if (n <= 1)
+        {
             return n;
         }
+
         return fibonacci(n - 1) + fibonacci(n - 2);
     }
 
-    for (var i = 0; i < 10; i++) {
-        __dprint(fibonacci(i));
+    for (var i = 0; i < 10; i++)
+    {
+        print(fibonacci(i));
     }
 
 Next Steps
