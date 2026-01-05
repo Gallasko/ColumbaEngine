@@ -24,3 +24,5 @@ documentation for details.
 
     script/overview
     script/api
+    script/vm_internals
+    script/optimizer
