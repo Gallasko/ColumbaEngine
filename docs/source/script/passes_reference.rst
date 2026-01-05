@@ -92,11 +92,28 @@ Basic Operator Local Indexing Pass
 * Changes bytecode size: Yes
 * Requires multiple passes: No
 
-**Notes**:
+**Transformation Example**
 
-*   Optimizes Add and Subtract operations on local variables.
- *   Also handles mixed local/constant patterns.
- *
+Before::
+
+    OP_Get_Local 0
+    OP_Get_Local 1
+    OP_Add
+
+After::
+
+    OP_AddLL 0 1
+
+**Benefits**:
+
+* Reduces 3 instructions to 1 (66%% reduction)
+* Eliminates stack manipulation
+* Direct register-style operations
+* Significant performance gain in tight loops
+
+**Notes**
+
+Optimizes Add and Subtract operations on local variables. Also handles mixed local/constant patterns.
 
 **Source**: `basic_operator_local_indexing.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/basic_operator_local_indexing.h>`_
 
@@ -114,20 +131,29 @@ Constant Folding Pass
 * Changes bytecode size: Yes
 * Requires multiple passes: Yes
 
-**Notes**:
+**Transformation Example**
 
-*   Requires multiple passes because folding can expose new opportunities.
- *   Example: (5 + 3) + (2 + 4) needs two passes to fully fold to 14.
- *
- *   Supported operations:
- *   - Arithmetic: +, -, *, /, % (binary), - (unary negation)
- *   - Comparison: ==, !=, <, >, <=, >=
- *   - Logical: and, or, not
- *   - String: concatenation
- *
- *   Current limitation: Only folds to OP_Constant (not OP_LongConstant).
- *   This limits constant table to 254 entries during optimization.
- *
+Before::
+
+    OP_Constant 5
+    OP_Constant 3
+    OP_Add
+
+After::
+
+    OP_Constant 8
+
+**Benefits**:
+
+* Eliminates runtime arithmetic operations
+* Reduces instruction count by 66% for constant expressions (3 → 1 instruction)
+* Smaller constant table through deduplication
+* Better instruction cache utilization
+* Cascading effect enables other optimizations
+
+**Notes**
+
+Requires multiple passes because folding can expose new opportunities. Example: (5 + 3) + (2 + 4) needs two passes to fully fold to 14. Supported operations: - Arithmetic: +, -, *, /, % (binary), - (unary negation) - Comparison: ==, !=, <, >, <=, >= - Logical: and, or, not - String: concatenation Current limitation: Only folds to OP_Constant (not OP_LongConstant). This limits constant table to 254 entries during optimization.
 
 **Source**: `constant_folding.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/constant_folding.h>`_
 
@@ -145,6 +171,25 @@ Constant Variable Access Pass
 * Changes bytecode size: Yes
 * Requires multiple passes: Yes
 
+**Transformation Example**
+
+Before::
+
+    OP_Constant 42
+    OP_Set_Local 0
+    OP_Get_Local 0
+
+After::
+
+    OP_Constant 42
+    OP_Set_Local 0
+    OP_Constant 42
+
+**Benefits**:
+
+* Eliminates variable loads for constants
+* Enables further constant folding
+
 **Source**: `constant_var_access.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/constant_var_access.h>`_
 
 
@@ -161,23 +206,32 @@ Increment Optimization Pass
 * Changes bytecode size: Yes
 * Requires multiple passes: No
 
-**Notes**:
+**Transformation Example**
 
-*   Recognizes the specific pattern of:
- *   1. Loading a local variable
- *   2. Adding constant value 1
- *   3. Storing back to the same local variable
- *   4. Popping the result (statement context)
- *
- *   The pass validates that the GET and SET target the same local variable
- *   to avoid incorrect transformations. This pattern is extremely common in
- *   for loops: for (var i = 0; i < n; i++)
- *
- *   Could be extended to support:
- *   - Pre-increment (++i) pattern detection
- *   - Decrement patterns (i--)
- *   - Global variable increments
- *
+Before::
+
+    OP_Get_Local 0
+    OP_Constant 1
+    OP_Add
+    OP_Set_Local 0
+    OP_Pop
+
+After::
+
+    OP_Short_Int 0
+    OP_Post_Incr_Local
+
+**Benefits**:
+
+* Reduces instruction count from 5 to 2 (60% reduction)
+* Eliminates constant table lookup
+* Specialized opcode executes faster than generic arithmetic
+* Critical for loop performance (for loops with i++)
+* Better instruction cache utilization in tight loops
+
+**Notes**
+
+Recognizes the specific pattern of: 1. Loading a local variable 2. Adding constant value 1 3. Storing back to the same local variable 4. Popping the result (statement context) The pass validates that the GET and SET target the same local variable to avoid incorrect transformations. This pattern is extremely common in for loops: for (var i = 0; i < n; i++) Could be extended to support: - Pre-increment (++i) pattern detection - Decrement patterns (i--) - Global variable increments
 
 **Source**: `increment_optimization_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/increment_optimization_pass.h>`_
 
@@ -199,6 +253,20 @@ Long Jump Optimization Pass
 * Changes bytecode size: Yes
 * Requires multiple passes: Yes
 
+**Transformation Example**
+
+Before::
+
+    OP_Long_Jump <small offset>
+
+After::
+
+    OP_Jump <small offset>
+
+**Benefits**:
+
+* Reduce bytecode size by using short jumps when possible
+
 **Source**: `long_jump_optimization_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/long_jump_optimization_pass.h>`_
 
 
@@ -219,6 +287,24 @@ Remove Define-Get Global Redundancy Pass
 * Changes bytecode size: Yes
 * Requires multiple passes: Yes
 
+**Transformation Example**
+
+Before::
+
+    OP_Constant <value>
+    OP_Define_Global <name>
+    OP_Get_Global <name>
+
+After::
+
+    OP_Constant <value>
+    OP_Define_Global_Non_Popping <name>
+
+**Benefits**:
+
+* Eliminates redundant global lookup
+* Value stays on stack
+
 **Source**: `remove_def_get_global_redunduncy.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/remove_def_get_global_redunduncy.h>`_
 
 
@@ -234,6 +320,22 @@ Simplify Constant Pass
 * Class name: ``SimplifyConstantToShort``
 * Changes bytecode size: No
 * Requires multiple passes: No
+
+**Transformation Example**
+
+Before::
+
+    OP_Constant <index>
+
+After::
+
+    OP_Short_Int 42
+
+**Benefits**:
+
+* Smaller bytecode
+* Faster execution for small integers
+* Reduced constant pool pressure
 
 **Source**: `simplify_constant_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/simplify_constant_pass.h>`_
 
@@ -255,11 +357,28 @@ Fuse Pop Operations Pass
 * Changes bytecode size: Yes
 * Requires multiple passes: Yes
 
-**Notes**:
+**Transformation Example**
 
-*   Recognizes four patterns: Pop+Pop, Pop+PopN, PopN+Pop, PopN+PopN.
- *   Requires multiple passes for consecutive fusions.
- *
+Before::
+
+    OP_Pop
+    OP_Pop
+    OP_Pop
+
+After::
+
+    OP_PopN 3
+
+**Benefits**:
+
+* Reduces instruction count (N pops → 1 instruction)
+* Fewer instruction fetches and decodes
+* Better branch prediction
+* More efficient stack manipulation
+
+**Notes**
+
+Recognizes four patterns: Pop+Pop, Pop+PopN, PopN+Pop, PopN+PopN. Requires multiple passes for consecutive fusions.
 
 **Source**: `fuse_op_pop.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/fuse_op_pop.h>`_
 
