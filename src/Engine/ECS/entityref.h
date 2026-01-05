@@ -34,6 +34,8 @@ namespace pg
         template <typename Comp>
         bool has() const;
 
+        bool has(const std::string& compName) const noexcept;
+
         template <typename Comp>
         CompRef<Comp> get() const;
 

@@ -11,6 +11,8 @@ namespace pg
 {
     struct VM;
 
+    // Todo be able to write optim pass in pgscript
+
     class BytecodePass
     {
     public:

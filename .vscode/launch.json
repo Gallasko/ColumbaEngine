@@ -7,13 +7,13 @@
             "request": "launch",
             "args": [],
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}/release",
+            "cwd": "${workspaceFolder}",
             "environment": [],
             "externalConsole": false,
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/StandardSys"
+                "program": "${workspaceFolder}/build/Asteroid"
             },
             "osx": {
                 "MIMode": "lldb",

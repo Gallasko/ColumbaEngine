@@ -14,7 +14,7 @@ namespace pg
     // Forward declarations
     class EntitySystem;
     class Entity;
-    class EntityRef;
+    struct EntityRef;
     class ComponentRegistry;
     struct AbstractSystem;
     class CommandDispatcher;

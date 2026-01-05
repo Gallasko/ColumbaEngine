@@ -118,6 +118,8 @@ namespace pg
         template <typename Comp>
         inline bool has() const noexcept;
 
+        bool has(const std::string& compName) const noexcept;
+
         template <typename Comp>
         inline CompRef<Comp> get() noexcept;
 

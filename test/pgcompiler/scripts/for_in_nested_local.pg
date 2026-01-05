@@ -1,0 +1,7 @@
+// Test for-in loop with local variables in the body
+var table = [10, 20]
+
+for (var item : table) {
+    var temp = item + 1;  // Local variable in loop body
+    __dprint(temp);
+}

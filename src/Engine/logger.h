@@ -243,6 +243,7 @@ namespace pg
             class Filter
             {
             public:
+                Filter(bool bypassErrors = true) : bypassErrors(bypassErrors) {}
                 virtual ~Filter() {}
 
                 /**
@@ -252,12 +253,23 @@ namespace pg
                  * @return true if the log need to be filtered out and false if the filter doesn t apply to the log
                  */
                 virtual bool isFiltered(const Logger::Info& log) const = 0;
+
+                /**
+                 * @brief Check if errors should bypass this filter
+                 *
+                 * @return true if error-level logs should bypass this filter (default: true)
+                 */
+                inline bool shouldBypassErrors() const { return bypassErrors; }
+
+            protected:
+                bool bypassErrors;
             };
 
             class FilterFile : public Filter
             {
             public:
-                FilterFile(std::string_view filename, bool blacklisted = true) : filename(filename), blacklisted(blacklisted) {}
+                FilterFile(std::string_view filename, bool blacklisted = true, bool bypassErrors = true)
+                    : Filter(bypassErrors), filename(filename), blacklisted(blacklisted) {}
 
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
@@ -272,7 +284,8 @@ namespace pg
             class FilterFunction : public Filter
             {
             public:
-                FilterFunction(std::string_view function, bool blacklisted = true) : function(function), blacklisted(blacklisted) {}
+                FilterFunction(std::string_view function, bool blacklisted = true, bool bypassErrors = true)
+                    : Filter(bypassErrors), function(function), blacklisted(blacklisted) {}
 
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
@@ -288,7 +301,8 @@ namespace pg
             class FilterObject : public Filter
             {
             public:
-                FilterObject(void* object, bool blacklisted = true) : object(object), blacklisted(blacklisted) {}
+                FilterObject(void* object, bool blacklisted = true, bool bypassErrors = true)
+                    : Filter(bypassErrors), object(object), blacklisted(blacklisted) {}
 
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
@@ -306,7 +320,8 @@ namespace pg
             class FilterObjectName : public Filter
             {
             public:
-                FilterObjectName(std::string_view objectName, bool blacklisted = true) : objectName(objectName), blacklisted(blacklisted) {}
+                FilterObjectName(std::string_view objectName, bool blacklisted = true, bool bypassErrors = true)
+                    : Filter(bypassErrors), objectName(objectName), blacklisted(blacklisted) {}
 
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
@@ -321,7 +336,8 @@ namespace pg
             class FilterScope : public Filter
             {
             public:
-                FilterScope(std::string_view scope, bool blacklisted = true) : scope(scope), blacklisted(blacklisted) {}
+                FilterScope(std::string_view scope, bool blacklisted = true, bool bypassErrors = true)
+                    : Filter(bypassErrors), scope(scope), blacklisted(blacklisted) {}
 
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {
@@ -336,7 +352,8 @@ namespace pg
             class FilterLogLevel : public Filter
             {
             public:
-                FilterLogLevel(const Logger::InfoLevel& level, bool blacklisted = true) : level(level), blacklisted(blacklisted) {}
+                FilterLogLevel(const Logger::InfoLevel& level, bool blacklisted = true, bool bypassErrors = true)
+                    : Filter(bypassErrors), level(level), blacklisted(blacklisted) {}
 
                 inline virtual bool isFiltered(const Logger::Info& log) const
                 {

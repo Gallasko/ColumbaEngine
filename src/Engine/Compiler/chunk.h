@@ -73,7 +73,15 @@ namespace pg
 
         OP_Method,
 
+        OP_Short_Int,
+
         // Optimized opcodes can be added here
+
+        OP_PopN,               // Pop N values from the stack (operand is number of values to pop)
+
+        OP_Define_Constant_Global,    // Define global variable with constant operand
+        OP_Get_Constant_Global,       // Get global variable with constant operand
+        OP_Set_Constant_Global,       // Set global variable with constant operand
 
         OP_Define_Global_Non_Popping,
 
@@ -84,6 +92,7 @@ namespace pg
         OP_SubtractCL, // SUBTRACT optimized for constant and local
 
         // Table operations
+        OP_Build_Vector,  // Create vector instance from stack key-value pairs
         OP_Build_Table,   // Create table instance from stack key-value pairs
         OP_Get_Index,     // table[index] - get field by computed key
         OP_Set_Index,     // table[index] = val - set field by computed key
@@ -144,7 +153,8 @@ namespace pg
             if (!strA || !strB)
                 return false;
 
-            return strA->toString() == strB->toString();        }
+            return strA->toString() == strB->toString();
+        }
 
         AllocatorPool<ElementType, 64>* stringPool = nullptr;  // Set by compiler/VM for string comparison
 
@@ -262,6 +272,7 @@ namespace pg
             case OpCode::OP_Get_Local:
             case OpCode::OP_Set_Local:
             case OpCode::OP_Call:
+            case OpCode::OP_Short_Int:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
@@ -318,15 +329,26 @@ namespace pg
             case OpCode::OP_Invoke:
                 return 3;
 
+            case OpCode::OP_PopN:
+                return 2; // opcode + 1 byte operand (number of values to pop)
+
             case OpCode::OP_AddLL:
             case OpCode::OP_SubtractLL:
             case OpCode::OP_SubtractLC:
             case OpCode::OP_SubtractCL:
                 return 3; // opcode + 2 byte operands (local variable indices)
 
+            case OpCode::OP_Define_Constant_Global:
+            case OpCode::OP_Set_Constant_Global:
+                return 3; // opcode + 2 byte operand (constant index)
+
+            case OpCode::OP_Get_Constant_Global:
+                return 2; // opcode + 1 byte operand (constant index)
+
             case OpCode::OP_Class:
                 return 2; // opcode + 1 byte operand (constant index for class name)
 
+            case OpCode::OP_Build_Vector:
             case OpCode::OP_Build_Table:
                 return 2; // opcode + 1 byte operand (pair count)
 

@@ -1,6 +1,5 @@
 // For-in loop with numeric implicit keys
 var array = [10, 20, 30, 40];
-for (var key : array) {
-    __dprint(key);
-    __dprint(array[key]);
+for (var value : array) {
+    __dprint(value);
 }

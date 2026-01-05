@@ -1,0 +1,46 @@
+import "texture"
+
+logInfo("Initializing player ship")
+
+// Create player ship
+var player = createTexture("I", 40, 40)
+
+//player.attachComp("Player")
+
+// Set initial position (center of screen)
+var screenWidth = 800
+var screenHeight = 600
+
+player["PositionComponent"].setX(screenWidth / 2)
+player["PositionComponent"].setY(screenHeight / 2)
+player["PositionComponent"].setRotation(0.0)  // Visual rotation in degrees, 0 = up
+
+// Store player data in sysData
+sysData["playerId"] = player.__entityId
+
+// Initialize player physics
+sysData["playerVelX"] = 0.0
+sysData["playerVelY"] = 0.0
+sysData["playerRotation"] = 0.0  // Internal rotation in radians (0 = up, increases clockwise)
+
+// Player physics constants
+sysData["playerRotationSpeed"] = 3.0  // Radians per second
+sysData["playerThrustAccel"] = 200.0  // Pixels per second squared
+sysData["playerMaxSpeed"] = 300.0     // Maximum velocity
+sysData["playerDrag"] = 0.99          // Velocity multiplier per frame (friction)
+
+// Key state tracking (0 = not pressed, 1 = pressed)
+sysData["keyLeft"] = 0
+sysData["keyRight"] = 0
+sysData["keyUp"] = 0
+sysData["keyDown"] = 0
+sysData["keySpace"] = 0
+
+// Bullet system
+sysData["bulletCount"] = 0
+sysData["bulletFireRate"] = 0.15      // Seconds between shots
+sysData["bulletFireTimer"] = 0.0      // Cooldown timer
+sysData["bulletSpeed"] = 400.0        // Pixels per second
+sysData["bulletLifetime"] = 1.5       // Seconds before bullet disappears
+
+logInfo("Player ship initialized at center")

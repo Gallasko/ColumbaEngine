@@ -1,0 +1,14 @@
+import "ecs"
+import "string"
+
+// This script is called when a Bullet and an Asteroid collide
+// ent1 and ent2 are automatically provided by the collision system
+
+// Log the collision
+logInfo("Collision! Bullet " + toString(ent1.__entityId) + " hit asteroid " + toString(ent2.__entityId))
+
+// Remove both entities
+removeEntity(ent1.__entityId)
+removeEntity(ent2.__entityId)
+
+logInfo("Both entities destroyed")

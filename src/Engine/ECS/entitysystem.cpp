@@ -45,7 +45,23 @@ namespace
 #include "Compiler/vm.h"
 #include "ecsmodule.h"
 #include "Helpers/mathmodule.h"
+#include "Helpers/randommodule.h"
 #include "Helpers/algorithmmodule.h"
+#include "Helpers/stringmodule.h"
+#include "Helpers/inputmodule_vm.h"
+#include "Input/inputcomponent.h"
+#include "2D/texturemodule.h"
+#include "Files/filemodule.h"
+
+// Include for vm optimization pass
+#include "Compiler/pass/long_jump_optimization_pass.h"
+#include "Compiler/pass/basic_operator_local_indexing.h"
+#include "Compiler/pass/remove_def_get_global_redunduncy.h"
+#include "Compiler/pass/constant_var_access.h"
+#include "Compiler/pass/fuse_op_pop.h"
+#include "Compiler/pass/constant_folding.h"
+#include "Compiler/pass/increment_optimization_pass.h"
+#include "Compiler/pass/simplify_constant_pass.h"
 
 namespace pg
 {
@@ -500,8 +516,57 @@ namespace pg
         LOG_THIS_MEMBER("ECS");
 
         vm.addNativeModule("math", MathModule{});
+        vm.addNativeModule("random", RandomModule{});
         vm.addNativeModule("algorithm", AlgorithmModule{});
+        vm.addNativeModule("string", StringModule{});
+        vm.addNativeModule("file", FileModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
+        vm.addNativeModule("texture", TextureModule{this});
+
+        // Todo change this
+        // Get the Input handler from the MouseClickSystem
+        Input* inputHandler = nullptr;
+        auto mouseClickSys = getSystem<MouseClickSystem>();
+        if (mouseClickSys)
+        {
+            inputHandler = mouseClickSys->inputHandler;
+        }
+
+        // Add input module if we have an input handler
+        if (inputHandler)
+        {
+            vm.addNativeModule("input", InputModuleVM{inputHandler});
+        }
+
+        // Print function - outputs to stdout
+        vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
+            for (int i = 0; i < argCount; i++)
+            {
+                if (i > 0) std::cout << " ";  // Space between arguments
+
+                Value value = args[i];
+                if (IS_STRING(value))
+                    std::cout << vm->asString(value);
+                else if (IS_INT(value))
+                    std::cout << AS_INT(value);
+                else if (IS_DOUBLE(value))
+                    std::cout << AS_DOUBLE(value);
+                else if (IS_BOOL(value))
+                    std::cout << (AS_BOOL(value) ? "true" : "false");
+                else if (IS_FUNC(value))
+                    std::cout << "<function>";
+                else if (IS_CLASS(value))
+                    std::cout << "<class " << vm->asClass(value)->name << ">";
+                else if (IS_INSTANCE(value))
+                    std::cout << "<instance>";
+                else if (IS_VECTOR(value))
+                    std::cout << "<vector>";
+                else
+                    std::cout << "<value>";
+            }
+            std::cout << std::endl;
+            return makeIntValue(0);
+        });
 
         vm.registerNative("debugTable", [](VM *vm, int argCount, Value* args) -> Value {
             if (argCount != 1) return makeBoolValue(false);
@@ -514,7 +579,7 @@ namespace pg
                 {
                     std::string valStr;
                     if (IS_STRING(value))
-                        valStr = vm->asString(value)->toString();
+                        valStr = vm->asString(value);
                     else if (IS_INT(value))
                         valStr = std::to_string(AS_INT(value));
                     else if (IS_DOUBLE(value))
@@ -527,9 +592,31 @@ namespace pg
                     LOG_INFO("Script", "  " << key << " : " << valStr);
                 }
             }
+            else if (IS_VECTOR(args[0]))
+            {
+                ObjVector* vector = vm->asVector(args[0]);
+                LOG_INFO("Script", "Vector contents:");
+                for (size_t i = 0; i < vector->fields.size(); i++)
+                {
+                    Value value = vector->fields[i];
+                    std::string valStr;
+                    if (IS_STRING(value))
+                        valStr = vm->asString(value);
+                    else if (IS_INT(value))
+                        valStr = std::to_string(AS_INT(value));
+                    else if (IS_DOUBLE(value))
+                        valStr = std::to_string(AS_DOUBLE(value));
+                    else if (IS_BOOL(value))
+                        valStr = AS_BOOL(value) ? "true" : "false";
+                    else
+                        valStr = "<complex type>";
+
+                    LOG_INFO("Script", "  [" << i << "] : " << valStr);
+                }
+            }
             else
             {
-                LOG_INFO("Script", "Value is not a table instance");
+                LOG_INFO("Script", "Value is not a table or a vector instance");
             }
 
             return makeBoolValue(true);
@@ -542,7 +629,7 @@ namespace pg
             {
                 std::string valStr;
                 if (IS_STRING(value))
-                    valStr = vm->asString(value)->toString();
+                    valStr = vm->asString(value);
                 else if (IS_INT(value))
                     valStr = std::to_string(AS_INT(value));
                 else if (IS_DOUBLE(value))
@@ -565,7 +652,7 @@ namespace pg
 
             std::string valStr;
             if (IS_STRING(value))
-                valStr = vm->asString(value)->toString();
+                valStr = vm->asString(value);
             else if (IS_INT(value))
                 valStr = std::to_string(AS_INT(value));
             else if (IS_DOUBLE(value))
@@ -580,6 +667,8 @@ namespace pg
             return makeBoolValue(true);
         });
 
+        setOptimizationPasses(vm);
+
         // Setup the VM with necessary bindings and references
         // For example, bind the ECS reference to the VM for script access
         // This is a placeholder implementation; actual implementation may vary
@@ -587,6 +676,25 @@ namespace pg
 
         // Example:
         // vm.bindECS(this);
+    }
+
+    void EntitySystem::setOptimizationPasses(VM &vm)
+    {
+        if (vmOptimizationLevel == VmOptimizationLevel::O3)
+        {
+            vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
+            vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+            vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
+            vm.addOptimizationPass(std::make_unique<FuseOpPop>());
+
+            vm.addOptimizationPass(std::make_unique<ConstantFoldingPass>());
+
+            vm.addOptimizationPass(std::make_unique<ConstantVarAccess>());
+
+            vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
+
+            vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+        }
     }
 
     void EntitySystem::_deleteSystem(_unique_id id)

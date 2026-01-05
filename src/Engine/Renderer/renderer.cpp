@@ -145,6 +145,8 @@ namespace pg
 
     void MasterRenderer::execute()
     {
+        // LOG_INFO(DOM, "=== MasterRenderer::execute() START === Frame: " << nbGeneratedFrames);
+
         // Todo Fix in group and ecs ! ( whereaver we are holding pointer of a comp actually ! )
         // Todo hold a ref to the component list and the component index inside of this list instead of the raw pointer to not get invalidated on resize !
 
@@ -164,6 +166,7 @@ namespace pg
 
         if (inSwap)
         {
+            needNewRender = true;
             return;
         }
 
@@ -174,6 +177,7 @@ namespace pg
 
         if (materialRegisterQueue.size() > 0)
         {
+            LOG_MILE(DOM, "  Processing " << materialRegisterQueue.size() << " materials in queue");
             materialListTemp.clear();
             materialDictTemp.clear();
 
@@ -182,7 +186,7 @@ namespace pg
 
             for (const auto& holder : materialRegisterQueue)
             {
-                LOG_MILE(DOM, "Registering material");
+                LOG_MILE(DOM, "    Registering material: " << holder.materialName);
                 materialListTemp.push_back(holder.material);
 
                 if (holder.materialName != "")
@@ -252,6 +256,7 @@ namespace pg
         // Nothing changed since last time we can skip the render pass
         if (not isDirty)
         {
+            needNewRender = true;
             return;
         }
 
@@ -443,7 +448,7 @@ namespace pg
 
     void MasterRenderer::endRender()
     {
-        needNewRender = false;
+        bool materialsWereSwapped = false;
 
         if (inSwap)
         {
@@ -458,6 +463,21 @@ namespace pg
             std::swap(materialDictTemp, materialDict);
 
             newMaterialRegistered = false;
+            materialsWereSwapped = true;
+
+            // CRITICAL FIX: Mark all renderers as dirty when materials are swapped
+            // This ensures that execute() will rebuild render calls with the new materials
+            for (auto renderer : renderers)
+            {
+                renderer->setDirty(true);
+            }
+        }
+
+        // If materials were just swapped, keep needNewRender true to force a rebuild
+        // Otherwise, clear it since this frame has been rendered
+        if (not materialsWereSwapped)
+        {
+            needNewRender = false;
         }
     }
 

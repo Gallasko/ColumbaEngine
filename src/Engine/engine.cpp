@@ -153,9 +153,15 @@ void Engine::initializeECS()
             printf("No initializer provided, using default systems...\n");
         }
 
-        printf("Starting ECS...\n");
-
-        mainWindow->ecs->start();
+        if (config.autoStartECS)
+        {
+            printf("Starting ECS (auto-start enabled)...\n");
+            mainWindow->ecs->start();
+        }
+        else
+        {
+            printf("ECS auto-start disabled - call getECS()->start() manually when ready\n");
+        }
         ecsReady = true;
 
         if (postInit)

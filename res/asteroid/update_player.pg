@@ -1,0 +1,157 @@
+import "ecs"
+import "math"
+import "string"
+import "texture"
+import "input"
+
+// Screen dimensions
+var screenWidth = 800
+var screenHeight = 600
+
+// Get player entity
+var player = getEntity(sysData["playerId"])
+var pos = player["PositionComponent"]
+
+// Get velocity and rotation from sysData
+var velX = sysData["playerVelX"]
+var velY = sysData["playerVelY"]
+var rotation = sysData["playerRotation"]
+
+// Get physics constants
+var rotSpeed = sysData["playerRotationSpeed"]
+var thrustAccel = sysData["playerThrustAccel"]
+var maxSpeed = sysData["playerMaxSpeed"]
+var drag = sysData["playerDrag"]
+
+// Get key states
+var keyLeft = sysData["keyLeft"]
+var keyRight = sysData["keyRight"]
+var keyUp = sysData["keyUp"]
+var keyDown = sysData["keyDown"]
+var keySpace = sysData["keySpace"]
+
+// Handle rotation (can rotate while thrusting!)
+
+// if (keyLeft == 1)
+if (isKeyPressed(KEY_A))
+{
+    rotation = rotation - rotSpeed * deltaTime
+}
+
+// if (keyRight == 1)
+if (isKeyPressed(KEY_D))
+{
+    rotation = rotation + rotSpeed * deltaTime
+}
+
+// Handle thrust
+// if (keyUp == 1)
+if (isKeyPressed(KEY_W))
+{
+    // Apply thrust in direction of rotation
+    // Rotation 0 = up = negative Y (screen coordinates)
+    var thrustX = sin(rotation) * thrustAccel * deltaTime
+    var thrustY = -cos(rotation) * thrustAccel * deltaTime
+
+    velX = velX + thrustX
+    velY = velY + thrustY
+
+    // Limit to max speed
+    var speed = sqrt(velX * velX + velY * velY)
+
+    if (speed > maxSpeed)
+    {
+        var scale = maxSpeed / speed
+        velX = velX * scale
+        velY = velY * scale
+    }
+}
+
+// Handle brake
+// if (keyDown == 1)
+if (isKeyPressed(KEY_S))
+{
+    velX = velX * 0.9
+    velY = velY * 0.9
+}
+
+// Update fire cooldown timer
+var fireTimer = sysData["bulletFireTimer"]
+if (fireTimer > 0)
+{
+    fireTimer = fireTimer - deltaTime
+    sysData["bulletFireTimer"] = fireTimer
+}
+
+// Handle fire bullet
+if (keySpace == 1)
+{
+    // Check if cooldown is ready
+    if (fireTimer <= 0)
+    {
+        // Fire bullet in direction ship is facing
+        var bulletSpeed = sysData["bulletSpeed"]
+
+        // Calculate bullet velocity based on ship rotation
+        var bulletVelX = sin(rotation) * bulletSpeed
+        var bulletVelY = -cos(rotation) * bulletSpeed
+
+        // Send SpawnBullet event to bullet system
+        sendEvent("SpawnBullet",
+            "x", pos.x,
+            "y", pos.y,
+            "playerWidth", pos.width,
+            "playerHeight", pos.height,
+            "vx", bulletVelX,
+            "vy", bulletVelY,
+            "lifetime", sysData["bulletLifetime"])
+
+        // Reset fire timer
+        sysData["bulletFireTimer"] = sysData["bulletFireRate"]
+
+        logInfo("Bullet fire event sent!")
+    }
+}
+
+// Apply drag (friction) when not thrusting
+if (keyUp != 1)
+{
+    velX = velX * drag
+    velY = velY * drag
+}
+
+// Update position based on velocity
+var newX = pos.x + velX * deltaTime
+var newY = pos.y + velY * deltaTime
+
+// Screen wrapping
+if (newX < 0)
+{
+    newX = screenWidth
+}
+else if (newX > screenWidth)
+{
+    newX = 0
+}
+
+if (newY < 0)
+{
+    newY = screenHeight
+}
+else if (newY > screenHeight)
+{
+    newY = 0
+}
+
+// Update position and rotation
+// Convert rotation from radians to degrees for visual display
+var rotationDegrees = rotation * 180 / PI
+
+pos.setX(newX)
+pos.setY(newY)
+pos.setRotation(rotationDegrees)
+
+// Store updated values back to sysData
+sysData["playerVelX"] = velX
+sysData["playerVelY"] = velY
+sysData["playerRotation"] = rotation

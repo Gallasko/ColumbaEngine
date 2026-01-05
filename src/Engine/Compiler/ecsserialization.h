@@ -16,6 +16,8 @@
 #include "vm.h"
 #include "serialization.h"
 
+#include "ECS/entity.h"
+
 #include <fstream>
 
 namespace pg
@@ -24,8 +26,26 @@ namespace pg
     // Internal helper functions for ECS serialization
     // ============================================================================
 
+    using ComponentSerializerFunc = std::function<void(VM*, ObjInstance*, void*)>;
+    using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
+
     namespace detail
     {
+        bool registryHasComponent(const std::string& name);
+
+        ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name);
+
+        /**
+         * @brief Create a native attachComp function that holds entity pointer
+         *
+         * This allows scripts to attach components immediately without entity lookup.
+         *
+         * @param entityPtr Pointer to the entity
+         * @param ecsRef Pointer to the entity system
+         * @return NativeFn Lambda function that can be registered as a native function
+         */
+        NativeFn createAttachCompFunction(Entity* entityPtr, EntitySystem* ecsRef);
+
         /**
          * @brief Check if a SerializedInfoHolder node represents an ElementType
          */
@@ -450,7 +470,7 @@ namespace pg
         auto classNameIt = objTable->fields.find("__className");
         if (classNameIt != objTable->fields.end() && IS_STRING(classNameIt->second))
         {
-            typeName = vm->asString(classNameIt->second)->toString();
+            typeName = vm->asString(classNameIt->second);
         }
 
         // Create the root unserialized object
@@ -497,7 +517,7 @@ namespace pg
                     }
                     else if (IS_STRING(value))
                     {
-                        valueStr = vm->asString(value)->toString();
+                        valueStr = vm->asString(value);
                         typeStr = "string";
                     }
 
@@ -521,7 +541,8 @@ namespace pg
      * Serialize a component of a known type directly to a VM table.
      * This is useful when you have a component object and want to convert it to a table.
      *
-     * Note: StandardComponent has a specialized overload that generates setter methods.
+     * This function automatically checks the ComponentSerializerRegistry and adds
+     * dynamic setter methods if a serializer is registered for this component type.
      *
      * Example usage:
      * ```cpp
@@ -562,6 +583,7 @@ namespace pg
         };
 
         // Parse the archive and populate the table
+        std::string componentTypeName;
         if (archive.mainNode.children.size() > 0)
         {
             auto& compNode = archive.mainNode.children[0];
@@ -569,15 +591,23 @@ namespace pg
             // Add the class name (component type)
             if (!compNode.className.empty())
             {
+                componentTypeName = compNode.className;
                 Value classNameKey = vm->createString("__className");
                 Value classNameValue = vm->createString(compNode.className);
-                addField(vm->asString(classNameKey)->toString(), classNameValue);
+                addField(vm->asString(classNameKey), classNameValue);
                 vm->releaseAndDelete(classNameKey);
                 vm->releaseAndDelete(classNameValue);  // Release initial reference
             }
 
             // Process all component properties using the shared helper (with retain mode)
             detail::processNodeToTable(vm, tableClass, compNode, table, true);
+        }
+
+        // Check if there's a registered serializer to add dynamic setters
+        if (detail::registryHasComponent(componentTypeName))
+        {
+            auto serializerFunc = detail::getSerializerFuncFromRegistry(componentTypeName);
+            serializerFunc(vm, table, (void*)&component);
         }
 
         return tableValue;
@@ -620,7 +650,7 @@ namespace pg
             {
                 Value classNameKey = vm->createString("__className");
                 Value classNameValue = vm->createString(compNode.className);
-                addField(vm->asString(classNameKey)->toString(), classNameValue);
+                addField(vm->asString(classNameKey), classNameValue);
                 vm->releaseAndDelete(classNameKey);
                 vm->releaseAndDelete(classNameValue);  // Release initial reference
             }
@@ -645,5 +675,90 @@ namespace pg
      */
     extern Value serializeToTable(VM* vm, const StandardComponent& component);
 
+    // ============================================================================
+    // Helper functions for CompList serialization
+    // ============================================================================
+
+    namespace detail
+    {
+        /**
+         * @brief Helper function to serialize a single component from CompList to entity table
+         */
+        template <typename Comp, typename... Comps>
+        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList)
+        {
+            // Get the component from the CompList
+            CompRef<Comp> comp = compList.template get<Comp>();
+
+            if (comp)
+            {
+                // Serialize the component to a table
+                Value componentTableValue = serializeToTable(vm, *comp);
+
+                // Get the component type name
+                std::string componentTypeName = Comp::getType();
+
+                // Add to entity table
+                entityTable->fields[componentTypeName] = componentTableValue;
+
+                LOG_INFO("ECS Serialization", "Serialized component: " << componentTypeName);
+            }
+        }
+    } // namespace detail
+
+    /**
+     * @brief Serialize an entity with specific components to a VM table (templated version)
+     *
+     * Takes a CompList (e.g., CompList<PositionComponent, UiAnchor, Texture2DComponent>)
+     * and serializes all the components in the list to a VM table. This is useful when
+     * you have a CompList from helper functions like makeUiTexture and want to serialize
+     * only those specific components.
+     *
+     * Example usage:
+     * ```cpp
+     * auto compList = makeUiTexture(ecs, 100, 100, "texture.png");
+     * Value table = serializeEntityToTable<PositionComponent, UiAnchor, Texture2DComponent>(vm, ecs, compList);
+     * ```
+     *
+     * @tparam Comps The component types in the CompList
+     * @param vm Pointer to the VM
+     * @param ecsRef Pointer to the entity system
+     * @param compList The CompList containing the entity and component references
+     * @return Value VM Value containing the entity table with specified components
+     */
+    template <typename... Comps>
+    Value serializeEntityToTable(VM* vm, EntitySystem*, const CompList<Comps...>& compList)
+    {
+        // Get the Table class
+        auto it = vm->globals.find("__Table");
+        if (it == vm->globals.end())
+        {
+            throw std::runtime_error("Table class not found in VM globals");
+        }
+
+        Klass* tableClass = vm->asClass(it->second);
+
+        // Create the entity table
+        Value entityTableValue = vm->createInstance(tableClass);
+        ObjInstance* entityTable = vm->asInstance(entityTableValue);
+
+        LOG_INFO("ECS Serialization", "Serializing entity ID " << compList.id << " with CompList");
+
+        // Add the entity ID
+        Value idValue = makeIntValue(static_cast<int64_t>(compList.id));
+        entityTable->fields["__entityId"] = idValue;
+
+        // Add native attachComp function that holds the entity pointer
+        // This allows scripts to attach components immediately without entity lookup
+        Entity* entityPtr = compList.entity.entity;
+        EntitySystem* ecsRef = entityPtr->world();
+        Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entityPtr, ecsRef));
+        entityTable->fields["attachComp"] = attachCompFuncValue;
+
+        // Serialize each component in the CompList using fold expression
+        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);
+
+        return entityTableValue;
+    }
 
 } // namespace pg
