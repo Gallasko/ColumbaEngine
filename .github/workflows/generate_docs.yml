@@ -17,6 +17,8 @@ on:
 jobs:
   generate-docs:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required for pushing commits
 
     steps:
     - name: Checkout repository
