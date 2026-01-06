@@ -3,6 +3,7 @@ import "string"
 import "ecs"
 import "math"
 import "random"
+import "algorithm"
 
 // Screen dimensions (these should match your window size)
 var screenWidth = 800
@@ -10,8 +11,38 @@ var screenHeight = 600
 
 logInfo("Spawning new asteroid")
 
-// Create asteroid with random size
-var size = randomInt(30, 60)
+// Determine asteroid type: "big", "medium", or "small"
+// Default to "big" if no type specified in sysData
+var asteroidType = "big"
+if (contain(sysData, "spawnAsteroidType"))
+{
+    asteroidType = sysData["spawnAsteroidType"]
+}
+
+// Set size and health based on type
+var size = 60
+var health = 3
+var maxHealth = 3
+
+if (asteroidType == "big")
+{
+    size = 60
+    health = 3
+    maxHealth = 3
+}
+else if (asteroidType == "medium")
+{
+    size = 40
+    health = 2
+    maxHealth = 2
+}
+else if (asteroidType == "small")
+{
+    size = 20
+    health = 1
+    maxHealth = 1
+}
+
 var asteroid = createTexture("Ghost", size, size)
 
 // Random spawn position on screen edges
@@ -76,12 +107,42 @@ var vy = finalDirY * speed
 // Random rotation speed (in degrees per second for visual rotation)
 var rotSpeed = randomRange(-2, 2)
 
+// Allow spawning at a specific position (for when asteroids split)
+if (contain(sysData, "spawnAsteroidX") and contain(sysData, "spawnAsteroidY"))
+{
+    spawnX = sysData["spawnAsteroidX"]
+    spawnY = sysData["spawnAsteroidY"]
+    asteroid["PositionComponent"].setX(spawnX)
+    asteroid["PositionComponent"].setY(spawnY)
+
+    // Clear the position override
+    sysData.remove("spawnAsteroidX")
+    sysData.remove("spawnAsteroidY")
+}
+
+// Allow custom velocity (for when asteroids split)
+if (contain(sysData, "spawnAsteroidVX") and contain(sysData, "spawnAsteroidVY"))
+{
+    vx = sysData["spawnAsteroidVX"]
+    vy = sysData["spawnAsteroidVY"]
+
+    // Clear the velocity override
+    sysData.remove("spawnAsteroidVX")
+    sysData.remove("spawnAsteroidVY")
+}
+
 debugTable(asteroid)
 
-// Attach Asteroid component with all necessary data
-asteroid.attachComp("Asteroid", "size", size, "vx", vx, "vy", vy, "rotSpeed", rotSpeed)
+// Attach Asteroid component with all necessary data including health and type
+asteroid.attachComp("Asteroid", "size", size, "vx", vx, "vy", vy, "rotSpeed", rotSpeed, "health", health, "maxHealth", maxHealth, "type", asteroidType)
 
 asteroid.attachComp("Collision")
 
-logInfo("Asteroid spawned at (" + toString(spawnX) + ", " + toString(spawnY) + ")")
-logInfo("Velocity: (" + toString(vx) + ", " + toString(vy) + ")")
+// Clear the type override for next spawn
+if (contain(sysData, "spawnAsteroidType"))
+{
+    sysData.remove("spawnAsteroidType")
+}
+
+logInfo("Asteroid (" + asteroidType + ") spawned at (" + toString(spawnX) + ", " + toString(spawnY) + ")")
+logInfo("Velocity: (" + toString(vx) + ", " + toString(vy) + "), Health: " + toString(health) + "/" + toString(maxHealth))

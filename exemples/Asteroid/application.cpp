@@ -41,9 +41,9 @@ StandardSystemImpl* createAsteroidSpawnTimerSystem()
             float timer = sys->getData("spawnTimer").get<float>();
             timer += deltaTime;
 
-            if (timer > 2.0f)
+            if (timer > 10.0f)
             {
-                timer -= 2.0f;
+                timer -= 10.0f;
                 // for (int i = 0; i < 10; i++)
                     sys->sendEvent("SpawnAsteroid");
             }
@@ -140,6 +140,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
+        ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+
         ecs.createSystem<CollisionSystem>();
 
         ecs.createSystem<CollisionHandlerSystem>();

@@ -125,6 +125,54 @@ All bullet data stored in `sysData`:
 - `bullet[N]_lifetime` - Remaining lifetime
 - `bullet[N]_spawn` - Flag to trigger spawning (1 = spawn, 0 = spawned)
 
+## Asteroid Health and Splitting System
+
+### Three-Tier Asteroid System:
+
+The game features a three-tier asteroid system where larger asteroids break apart into smaller ones:
+
+1. **Big Asteroids** (60px)
+   - Health: 3 hits required
+   - Splits into: 2 medium asteroids
+   - Speed: 50-150 px/s
+
+2. **Medium Asteroids** (40px)
+   - Health: 2 hits required
+   - Splits into: 2 small asteroids
+   - Speed: 60-120 px/s (spawned from big asteroids)
+
+3. **Small Asteroids** (20px)
+   - Health: 1 hit required
+   - Splits into: Nothing (completely destroyed)
+   - Speed: 80-150 px/s (spawned from medium asteroids)
+
+### How It Works:
+
+1. When a bullet hits an asteroid, the asteroid's health decreases by 1
+2. If health reaches 0:
+   - Big asteroids spawn 2 medium asteroids at the destruction location
+   - Medium asteroids spawn 2 small asteroids at the destruction location
+   - Small asteroids are completely destroyed with no fragments
+3. Fragment asteroids inherit the parent's position but get random velocities in opposite directions
+4. Each fragment has its own rotation speed for visual variety
+
+### Asteroid Component Data:
+
+Each asteroid stores the following in its `Asteroid` component:
+- `size` - Visual size in pixels (60/40/20)
+- `vx`, `vy` - Velocity components
+- `rotSpeed` - Rotation speed
+- `health` - Current health (decreases when hit)
+- `maxHealth` - Maximum health for this asteroid type
+- `type` - Asteroid type: "big", "medium", or "small"
+
+### Spawning Custom Asteroids:
+
+To spawn a specific asteroid type, set these values in `sysData` before calling the spawn script:
+- `spawnAsteroidType` - "big", "medium", or "small" (defaults to "big")
+- `spawnAsteroidX`, `spawnAsteroidY` - Optional spawn position
+- `spawnAsteroidVX`, `spawnAsteroidVY` - Optional velocity
+
 ## Next Steps for Full Game
 
 ### TODO:
@@ -135,13 +183,14 @@ All bullet data stored in `sysData`:
 5. ✅ Player ship thrust (up arrow)
 6. ✅ Player velocity/momentum
 7. ✅ Shooting bullets (spacebar with fire rate limiting)
-8. ⬜ Collision detection (bullets vs asteroids, player vs asteroids)
-9. ⬜ Asteroid splitting (large → 2 medium → 2 small)
-10. ⬜ Score tracking
-11. ⬜ Lives system
-12. ⬜ Game over/win conditions
-13. ⬜ Different textures for different sized asteroids
-14. ⬜ Sound effects
+8. ✅ Collision detection (bullets vs asteroids)
+9. ✅ Asteroid health system and splitting (big(3hp) → 2 medium(2hp) → 2 small(1hp))
+10. ⬜ Collision detection (player vs asteroids)
+11. ⬜ Score tracking
+12. ⬜ Lives system
+13. ⬜ Game over/win conditions
+14. ⬜ Different textures for different sized asteroids
+15. ⬜ Sound effects
 
 ## Module Usage
 
@@ -151,6 +200,7 @@ The spawn script uses these modules:
 - `ecs` - For entity management
 - `math` - For trigonometry (sin, cos, sqrt)
 - `random` - For random number generation
+- `algorithm` - For utility functions like `contain()` to check if keys exist in tables
 
 ## How Asteroid Data is Stored
 
