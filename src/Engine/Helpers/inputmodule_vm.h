@@ -32,10 +32,12 @@ namespace pg
             });
 
             // Debug function to test if input module is working
-            addNativeFunction("testInput", [inputPtr](VM* vm, int argCount, Value* args) -> Value {
-                if (!inputPtr) {
+            addNativeFunction("testInput", [inputPtr](VM* vm, int, Value*) -> Value {
+                if (not inputPtr)
+                {
                     return vm->createString("Input system NOT initialized!");
                 }
+
                 return vm->createString("Input system is working!");
             });
 

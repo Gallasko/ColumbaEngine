@@ -12,6 +12,8 @@
 
 #include "Renderer/renderer.h"
 
+#include "Helpers/fsm.h"
+
 using namespace pg;
 
 #ifdef PG_AUTO_CONVERT_EVENTS_TO_STANDARD
@@ -28,11 +30,11 @@ int test = 0;
 StandardSystemImpl* createEventNotificationSystem()
 {
     return createStandardSystem("EventNotification")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("EventNotification", "System initialized");
         })
-        .onEvent("BasicEvent", [](StandardSystemHandle* sys, const StandardEvent& event) {
+        .onEvent("BasicEvent", [](StandardSystemHandle*, const StandardEvent& event) {
             bool verbose = true;
 
             test++;
@@ -70,7 +72,7 @@ StandardSystemImpl* createEventNotificationSystem()
 StandardSystemImpl* createScriptEventNotificationSystem()
 {
     return createStandardSystem("ScriptEventNotification")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("ScriptEventNotification", "System initialized");
         })
@@ -82,7 +84,7 @@ StandardSystemImpl* createScriptEventNotificationSystem()
 StandardSystemImpl* createSimplePositionSystem()
 {
     return createStandardSystem("SimplePosition")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("SimplePosition", "System initialized");
         })
@@ -96,7 +98,7 @@ StandardSystemImpl* createSimplePositionSystem()
 StandardSystemImpl* createSimpleExecSystem()
 {
     return createStandardSystem("SimpleExec")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("SimpleExec", "System initialized");
         })
@@ -107,7 +109,7 @@ StandardSystemImpl* createSimpleExecSystem()
 StandardSystemImpl* createCompExecSystem()
 {
     return createStandardSystem("CompExec")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("CompExec", "System initialized");
         })
@@ -119,7 +121,7 @@ StandardSystemImpl* createCompExecSystem()
 StandardSystemImpl* createCompExecReactorSystem()
 {
     return createStandardSystem("CompExecReactor")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("CompExec", "System initialized");
         })
@@ -130,7 +132,7 @@ StandardSystemImpl* createCompExecReactorSystem()
 StandardSystemImpl* createMouseClickHandlerSystem()
 {
     return createStandardSystem("MouseClickHandler")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("CompExec", "System initialized");
         })
@@ -141,7 +143,7 @@ StandardSystemImpl* createMouseClickHandlerSystem()
 StandardSystemImpl* createKeyHandlerSystem()
 {
     return createStandardSystem("MouseClickHandler")
-        .onInit([](StandardSystemHandle* sys) {
+        .onInit([](StandardSystemHandle*) {
             // Initialize system
             LOG_INFO("CompExec", "System initialized");
         })
@@ -213,6 +215,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
+        // Todo O3 optimization breaks the event system for some reason
+        ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+
         ecs.registerSystem(createEventNotificationSystem());
 
         // Basic Event without a custom value
@@ -342,6 +347,61 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.registerSystem(createDeltaSystem());
 
         ecs.registerSystem(createFPSSystem());
+
+        ecs.createSystem<FSMSystem>();
+
+        auto ent = ecs.createEntity();
+
+        auto fsm = ent.attach<FiniteStateMachine>();
+
+        FSMState idleState("idle");
+
+        idleState.setEnterCallback([](FSMState&) {
+            LOG_INFO("FSM", "Entering idle state");
+        });
+
+        idleState.setExitCallback([](FSMState&) {
+            LOG_INFO("FSM", "Exiting idle state");
+        });
+
+        idleState.setEventCallback("OnSDLScanCode", [](const StandardEvent& event, FSMState& state) {
+            auto key = event.getElement("key").toString();
+
+            LOG_INFO("FSM", "Idle State received scan code: " << key);
+
+            if (key == "A")
+            {
+                state.getFSM()->setState("base", "base");
+            }
+        });
+
+        FSMState baseState("base");
+
+        baseState.setEnterCallback([](FSMState&) {
+            LOG_INFO("FSM", "Entering base state");
+        });
+
+        baseState.setExitCallback([](FSMState&) {
+            LOG_INFO("FSM", "Exiting base state");
+        });
+
+        baseState.setEventCallback("OnSDLScanCode", [](const StandardEvent& event, FSMState& state) {
+            auto key = event.getElement("key").toString();
+
+            LOG_INFO("FSM", "Idle State received scan code: " << key);
+
+            if (key == "A" or key == "D")
+            {
+                state.getFSM()->setState("base", "idle");
+            }
+        });
+
+        fsm->registerState(idleState);
+        fsm->registerState(baseState);
+
+        fsm->setState("base", "idle");
+
+        // fsm->setState("base", "base");
 
         // window.receivedQuitRequest();
 

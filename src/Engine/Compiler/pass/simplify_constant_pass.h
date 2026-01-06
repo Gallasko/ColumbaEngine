@@ -1,5 +1,21 @@
 #pragma once
 
+/**
+ * @pass_doc
+ * @name: Simplify Constant Pass
+ * @purpose: Replaces constant access patterns with optimized variants
+ * @category: memory
+ * @example_before:
+ *   OP_Constant <index>
+ * @example_after:
+ *   OP_Short_Int 42
+ * @benefits:
+ *   - Smaller bytecode
+ *   - Faster execution for small integers
+ *   - Reduced constant pool pressure
+ * @end_pass_doc
+ */
+
 #include "../bytecode_pass.h"
 #include "../chunk.h"
 

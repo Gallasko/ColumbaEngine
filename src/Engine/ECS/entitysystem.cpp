@@ -669,6 +669,9 @@ namespace pg
 
         setOptimizationPasses(vm);
 
+        // Todo add a flag to enable this
+        // vm.enableOptimizationDebugging();
+
         // Setup the VM with necessary bindings and references
         // For example, bind the ECS reference to the VM for script access
         // This is a placeholder implementation; actual implementation may vary

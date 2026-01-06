@@ -26,3 +26,4 @@ documentation for details.
     script/api
     script/vm_internals
     script/optimizer
+    script/passes_reference

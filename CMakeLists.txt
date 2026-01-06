@@ -187,6 +187,7 @@ set(ENGINESOURCE
     src/Engine/Files/filemanager.cpp
     src/Engine/Files/fileparser.cpp
     src/Engine/Profiler/profiler.cpp
+    src/Engine/Helpers/fsm.cpp
     src/Engine/Helpers/openglobject.cpp
     src/Engine/Helpers/tinyfiledialogs.cpp
     src/Engine/Input/input.cpp
