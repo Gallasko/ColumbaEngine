@@ -1,14 +1,130 @@
 import "ecs"
 import "string"
+import "math"
+import "random"
+import "texture"
+import "algorithm"
 
 // This script is called when a Bullet and an Asteroid collide
-// ent1 and ent2 are automatically provided by the collision system
+// Need to detect which entity is which since order can vary
 
-// Log the collision
-logInfo("Collision! Bullet " + toString(ent1.__entityId) + " hit asteroid " + toString(ent2.__entityId))
+// Detect which entity is the bullet and which is the asteroid
+var bullet = 0
+var asteroid = 0
 
-// Remove both entities
-removeEntity(ent1.__entityId)
-removeEntity(ent2.__entityId)
+if (contain(ent1, "Bullet"))
+{
+    bullet = ent1
+    asteroid = ent2
+}
+else
+{
+    bullet = ent2
+    asteroid = ent1
+}
 
-logInfo("Both entities destroyed")
+logInfo("Collision! Bullet " + toString(bullet.__entityId) + " hit asteroid " + toString(asteroid.__entityId))
+
+// Always remove the bullet
+removeEntity(bullet.__entityId)
+
+// Get asteroid data
+var asteroidData = asteroid["Asteroid"]
+var currentHealth = asteroidData.health
+var asteroidType = asteroidData.type
+
+logInfo("Asteroid type: " + asteroidType + ", Health before hit: " + toString(currentHealth))
+
+// Reduce health by 1
+currentHealth = currentHealth - 1
+
+if (currentHealth <= 0)
+{
+    logInfo("Asteroid health depleted")
+
+    debugTable(asteroid)
+
+    var pos = asteroid["PositionComponent"]
+    var asteroidX = pos.x
+    var asteroidY = pos.y
+    var parentVX = asteroidData.vx
+    var parentVY = asteroidData.vy
+
+    // Remove the destroyed asteroid
+    removeEntity(asteroid.__entityId)
+
+    // Asteroid is destroyed - spawn smaller asteroids if applicable
+    logInfo("Asteroid destroyed!")
+
+    // Spawn 2 smaller asteroids if this was big or medium
+    if (asteroidType == "big")
+    {
+        logInfo("Big asteroid destroyed - spawning 2 medium asteroids")
+
+        // Spawn first medium asteroid
+        var angle1 = randomRange(0, 6.28)
+        var speed1 = randomRange(60, 120)
+        var vx1 = cos(angle1) * speed1
+        var vy1 = sin(angle1) * speed1
+        var rotSpeed1 = randomRange(-2, 2)
+
+        var medium1 = createTexture("Ghost", 40, 40)
+        medium1["PositionComponent"].setX(asteroidX)
+        medium1["PositionComponent"].setY(asteroidY)
+        medium1.attachComp("Asteroid", "size", 40, "vx", vx1, "vy", vy1, "rotSpeed", rotSpeed1, "health", 2, "maxHealth", 2, "type", "medium")
+        medium1.attachComp("Collision")
+
+        // Spawn second medium asteroid (opposite direction)
+        var angle2 = angle1 + 3.14 + randomRange(-0.5, 0.5)
+        var speed2 = randomRange(60, 120)
+        var vx2 = cos(angle2) * speed2
+        var vy2 = sin(angle2) * speed2
+        var rotSpeed2 = randomRange(-2, 2)
+
+        var medium2 = createTexture("Ghost", 40, 40)
+        medium2["PositionComponent"].setX(asteroidX)
+        medium2["PositionComponent"].setY(asteroidY)
+        medium2.attachComp("Asteroid", "size", 40, "vx", vx2, "vy", vy2, "rotSpeed", rotSpeed2, "health", 2, "maxHealth", 2, "type", "medium")
+        medium2.attachComp("Collision")
+    }
+    else if (asteroidType == "medium")
+    {
+        logInfo("Medium asteroid destroyed - spawning 2 small asteroids")
+
+        // Spawn first small asteroid
+        var angle1 = randomRange(0, 6.28)
+        var speed1 = randomRange(80, 150)
+        var vx1 = cos(angle1) * speed1
+        var vy1 = sin(angle1) * speed1
+        var rotSpeed1 = randomRange(-2, 2)
+
+        var small1 = createTexture("Ghost", 20, 20)
+        small1["PositionComponent"].setX(asteroidX)
+        small1["PositionComponent"].setY(asteroidY)
+        small1.attachComp("Asteroid", "size", 20, "vx", vx1, "vy", vy1, "rotSpeed", rotSpeed1, "health", 1, "maxHealth", 1, "type", "small")
+        small1.attachComp("Collision")
+
+        // Spawn second small asteroid (opposite direction)
+        var angle2 = angle1 + 3.14 + randomRange(-0.5, 0.5)
+        var speed2 = randomRange(80, 150)
+        var vx2 = cos(angle2) * speed2
+        var vy2 = sin(angle2) * speed2
+        var rotSpeed2 = randomRange(-2, 2)
+
+        var small2 = createTexture("Ghost", 20, 20)
+        small2["PositionComponent"].setX(asteroidX)
+        small2["PositionComponent"].setY(asteroidY)
+        small2.attachComp("Asteroid", "size", 20, "vx", vx2, "vy", vy2, "rotSpeed", rotSpeed2, "health", 1, "maxHealth", 1, "type", "small")
+        small2.attachComp("Collision")
+    }
+    else
+    {
+        logInfo("Small asteroid destroyed - no fragments")
+    }
+}
+else
+{
+    // Asteroid still has health - just update the health value
+    logInfo("Asteroid damaged! Remaining health: " + toString(currentHealth))
+    asteroidData.setHealth(currentHealth)
+}
