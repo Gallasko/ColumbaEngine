@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Gallasko/PgEngine/actions/workflows/main.yml/badge.svg?branch=main)](https://github.com/Gallasko/PgEngine/actions/workflows/main.yml) [![Documentation Status](https://readthedocs.org/projects/columbaengine/badge/?version=latest)](https://columbaengine.readthedocs.io/en/latest/?badge=latest) [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**Website:** [columbaengine.org](https://columbaengine.org/) | **Discord:** [Join our community](https://discord.gg/un4VtehX3W)
+
 ## About
 
 ColumbaEngine is a **completely free and open source** game engine built with modern C++ and a pure Entity Component System (ECS) architecture. Whether you're building 2D games, prototyping ideas, or learning game engine development, ColumbaEngine provides a solid foundation without any licensing fees or royalties.
@@ -126,6 +128,7 @@ ColumbaEngine is perfect for:
 ## Examples & Games
 
 - **Full Tetris Clone** - Complete implementation showcasing engine capabilities
+- **Game Examples & Blog Posts** - Visit [columbaengine.org](https://columbaengine.org/) for tutorials, blog posts, and game examples
 - **More Examples** - Available at [pigeoncodeur.itch.io](https://pigeoncodeur.itch.io/)
 
 ## Development
@@ -180,6 +183,8 @@ $env:TF_ENABLE_PROFILER="profile.json"
 
 We're actively seeking contributors to help build a thriving community around ColumbaEngine!
 
+Join our Discord community: **[https://discord.gg/un4VtehX3W](https://discord.gg/un4VtehX3W)**
+
 ### Current Priorities
 1. **Documentation** - Help us improve tutorials and API documentation
 2. **Platform Support** - Test and improve cross-platform compatibility
@@ -233,7 +238,7 @@ This project is under active development. While the 2D pipeline is production-re
 For more help, please:
 - Check the [documentation](https://columbaengine.readthedocs.io)
 - Open an [issue](https://github.com/Gallasko/ColumbaEngine/issues)
-- Join our community discussions
+- Join our [Discord community](https://discord.gg/un4VtehX3W)
 
 ## License
 
