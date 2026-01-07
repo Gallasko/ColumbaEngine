@@ -161,6 +161,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         makeCollisionHandleScript(&ecs, "res/asteroid/bullet_asteroid_collision.pg",
             [](Entity* ent) { return ent->has("Bullet"); },
             [](Entity* ent) { return ent->has("Asteroid"); });
+
+        makeCollisionHandleScript(&ecs, "res/asteroid/player_asteroid_collision.pg",
+            [](Entity* ent) { return ent->has("Player"); },
+            [](Entity* ent) { return ent->has("Asteroid"); });
     });
 
     // Post-init: manually control ECS execution

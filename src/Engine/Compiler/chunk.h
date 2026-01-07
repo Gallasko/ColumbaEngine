@@ -280,7 +280,7 @@ namespace pg
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
-            case OpCode::OP_Define_Global_Non_Popping:
+            case OpCode::OP_Define_Global_Non_Popping: 
             case OpCode::OP_Get_Global:
             case OpCode::OP_Set_Global:
             case OpCode::OP_Return:
