@@ -50,6 +50,23 @@ if (currentHealth <= 0)
     var parentVX = asteroidData.vx
     var parentVY = asteroidData.vy
 
+    // Award points based on asteroid type
+    var points = 0
+    if (asteroidType == "big")
+    {
+        points = 20
+    }
+    else if (asteroidType == "medium")
+    {
+        points = 50
+    }
+    else if (asteroidType == "small")
+    {
+        points = 100
+    }
+
+    sendEvent("ScoreUpdate", "points", points)
+
     // Remove the destroyed asteroid
     removeEntity(asteroid.__entityId)
 

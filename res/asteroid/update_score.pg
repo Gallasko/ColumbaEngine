@@ -1,0 +1,36 @@
+import "ecs"
+import "string"
+
+// Get current score from event
+var points = event.values.points
+
+// Update score
+var currentScore = sysData["score"]
+currentScore = currentScore + points
+
+sysData["score"] = currentScore
+
+logInfo("Score increased by " + toString(points) + ". New score: " + toString(currentScore))
+
+// Update score text display
+logInfo("About to get scoreTextId from sysData")
+debugTable(sysData)
+
+var scoreTextId = sysData["scoreTextId"]
+
+logInfo("scoreTextId type check: " + toString(scoreTextId))
+
+var scoreEntity = getEntity(scoreTextId)
+
+logInfo("Got scoreEntity")
+
+// Just access the component directly without checking if entity is 0
+// getEntity returns a table/instance that can be accessed directly
+var ttfComp = scoreEntity["TTFText"]
+
+logInfo("Got ttfComp, updating text")
+
+var newText = "Score: " + toString(currentScore)
+ttfComp.setText(newText)
+
+logInfo("Successfully updated score text")
