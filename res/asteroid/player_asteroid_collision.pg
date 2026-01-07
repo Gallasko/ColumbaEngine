@@ -1,0 +1,44 @@
+import "ecs"
+import "string"
+import "algorithm"
+
+// This script is called when the Player and an Asteroid collide
+// Game Over scenario
+
+// Detect which entity is the player and which is the asteroid
+var player = 0
+var asteroid = 0
+
+if (contain(ent1, "Player"))
+{
+    player = ent1
+    asteroid = ent2
+}
+else
+{
+    player = ent2
+    asteroid = ent1
+}
+
+logInfo("GAME OVER! Player collided with asteroid " + toString(asteroid.__entityId))
+
+// Get asteroid info for display
+var asteroidData = asteroid["Asteroid"]
+var asteroidType = asteroidData.type
+
+logInfo("Player destroyed by " + asteroidType + " asteroid")
+
+// Remove the player
+removeEntity(player.__entityId)
+
+// Optionally: Trigger game over event or state
+// You could add:
+// - Display game over screen
+// - Show final score
+// - Offer restart option
+// - Stop game systems
+
+// For now, just send a GameOver event
+sendEvent("GameOver", "reason", "asteroid_collision", "asteroidType", asteroidType)
+
+logInfo("Game Over event sent")
