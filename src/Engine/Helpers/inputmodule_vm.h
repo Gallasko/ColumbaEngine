@@ -13,7 +13,7 @@ namespace pg
     class InputModuleVM : public NativeModule
     {
     public:
-        InputModuleVM(Input* inputRef) : inputReference(inputRef)
+        InputModuleVM(Input* inputRef)
         {
             // Capture input pointer by value (not this pointer)
             Input* inputPtr = inputRef;
@@ -100,8 +100,6 @@ namespace pg
         }
 
     private:
-        Input* inputReference;
-
         /**
          * Check if a key is currently pressed
          * Usage: isKeyPressed(KEY_K)

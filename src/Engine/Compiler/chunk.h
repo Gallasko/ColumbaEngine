@@ -271,6 +271,10 @@ namespace pg
             case OpCode::OP_Constant:
             case OpCode::OP_Get_Local:
             case OpCode::OP_Set_Local:
+            case OpCode::OP_Get_Upvalue:
+            case OpCode::OP_Set_Upvalue:
+            case OpCode::OP_Get_Property:
+            case OpCode::OP_Set_Property:
             case OpCode::OP_Call:
             case OpCode::OP_Short_Int:
                 return 2; // opcode + 1 byte operand
