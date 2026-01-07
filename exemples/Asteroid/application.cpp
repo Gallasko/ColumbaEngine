@@ -140,7 +140,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
-        ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+        // ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
 
         ecs.createSystem<CollisionSystem>();
 
