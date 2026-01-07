@@ -3,6 +3,7 @@
 #include "ECS/entitysystem.h"
 #include "2D/position.h"
 #include "2D/collisionsystem.h"
+#include "UI/ttftext.h"
 
 #include <iostream>
 
@@ -430,7 +431,67 @@ namespace pg
         LOG_MILE("ECS Serialization", "Added generic set() method");
     }
 
-    // Register StandardComponent serializer at static initialization time
+    /**
+     * @brief Generate setters for TTFText component
+     *
+     * Adds methods: setText, setColor, setPosition
+     */
+    void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
+    {
+        LOG_MILE("ECS Serialization", "Generating setters for TTFText component");
+
+        // setText(newText)
+        auto setTextFunc = [component](VM* vm, int argCount, Value* args) -> Value {
+            if (argCount != 1)
+                throw std::runtime_error("setText expects 1 argument");
+
+            if (!IS_STRING(args[0]))
+                throw std::runtime_error("setText expects a string argument");
+
+            std::string newText = vm->asString(args[0]);
+            component->setText(newText);
+
+            return INT_VAL(0);
+        };
+
+        table->fields["setText"] = vm->createNativeFunction(setTextFunc);
+
+        // setColor(r, g, b, [a])
+        auto setColorFunc = [component](VM* vm, int argCount, Value* args) -> Value {
+            if (argCount < 3)
+                throw std::runtime_error("setColor expects at least 3 arguments: r, g, b, [a]");
+
+            constant::Vector4D colors;
+            for (int i = 0; i < 3; i++)
+            {
+                if (IS_INT(args[i]))
+                    colors[i] = static_cast<float>(AS_INT(args[i]));
+                else if (IS_DOUBLE(args[i]))
+                    colors[i] = static_cast<float>(AS_DOUBLE(args[i]));
+                else
+                    throw std::runtime_error("setColor expects numeric arguments");
+            }
+
+            // Alpha (optional, default 255)
+            colors[3] = 255.0f;
+            if (argCount >= 4)
+            {
+                if (IS_INT(args[3]))
+                    colors[3] = static_cast<float>(AS_INT(args[3]));
+                else if (IS_DOUBLE(args[3]))
+                    colors[3] = static_cast<float>(AS_DOUBLE(args[3]));
+            }
+
+            component->setColor(colors);
+
+            return INT_VAL(0);
+        };
+
+        table->fields["setColor"] = vm->createNativeFunction(setColorFunc);
+    }
+
+    // Register component serializers at static initialization time
+    REGISTER_COMPONENT_SERIALIZER(TTFText, serializeTTFTextWithSetters);
     REGISTER_COMPONENT_SERIALIZER(StandardComponent, serializeStandardComponentWithSetters);
 
     // ============================================================================

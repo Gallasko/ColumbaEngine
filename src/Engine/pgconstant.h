@@ -307,6 +307,18 @@ namespace pg
             {
                 return not (*this == rhs);
             }
+
+            float& operator[](size_t index)
+            {
+                switch (index)
+                {
+                    case 0: return x;
+                    case 1: return y;
+                    case 2: return z;
+                    case 3: return w;
+                    default: throw std::out_of_range("Index out of range for Vector4D");
+                }
+            }
         };
 
         class BigInt

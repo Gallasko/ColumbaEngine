@@ -1,0 +1,15 @@
+import "ecs"
+
+var time = sysData["spawnTimer"]
+
+time = time + deltaTime
+
+if (time >= 3.0)
+{
+    time = time - 3.0
+
+    // Spawn a new asteroid
+    sendEvent("SpawnAsteroid")
+}
+
+sysData["spawnTimer"] = time

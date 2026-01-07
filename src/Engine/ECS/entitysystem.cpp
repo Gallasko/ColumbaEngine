@@ -52,6 +52,7 @@ namespace
 #include "Input/inputcomponent.h"
 #include "2D/texturemodule.h"
 #include "Files/filemodule.h"
+#include "UI/uimodule.h"
 
 // Include for vm optimization pass
 #include "Compiler/pass/long_jump_optimization_pass.h"
@@ -522,6 +523,7 @@ namespace pg
         vm.addNativeModule("file", FileModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
         vm.addNativeModule("texture", TextureModule{this});
+        vm.addNativeModule("ui", UIModule{this});
 
         // Todo change this
         // Get the Input handler from the MouseClickSystem

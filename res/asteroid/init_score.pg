@@ -1,0 +1,14 @@
+import "ui"
+
+logInfo("Initializing score display")
+
+// Initialize score
+sysData["score"] = 0
+
+// Create score text display using registered "light" font
+var scoreText = createText("light", "Score: 0", 10, 10, 1.0, 255, 255, 255, 255)
+
+// Store the score text entity for updates
+sysData["scoreTextId"] = scoreText.__entityId
+
+logInfo("Score display created")

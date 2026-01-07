@@ -10,6 +10,10 @@
 
 #include "2D/collisionsystem.h"
 
+#include "UI/ttftext.h"
+
+#include "window.h"
+
 using namespace pg;
 
 namespace
@@ -36,20 +40,21 @@ StandardSystemImpl* createAsteroidSpawnTimerSystem()
             LOG_MILE(DOM, "AsteroidSpawnTimer initialized");
             sys->setData("spawnTimer", 0.0f);
         })
-        .onDelta([](StandardSystemHandle* sys, float deltaTime)
-        {
-            float timer = sys->getData("spawnTimer").get<float>();
-            timer += deltaTime;
+        // .onDelta([](StandardSystemHandle* sys, float deltaTime)
+        // {
+        //     float timer = sys->getData("spawnTimer").get<float>();
+        //     timer += deltaTime;
 
-            if (timer > 10.0f)
-            {
-                timer -= 10.0f;
-                // for (int i = 0; i < 10; i++)
-                    sys->sendEvent("SpawnAsteroid");
-            }
+        //     if (timer > 10.0f)
+        //     {
+        //         timer -= 10.0f;
+        //         // for (int i = 0; i < 10; i++)
+        //             sys->sendEvent("SpawnAsteroid");
+        //     }
 
-            sys->setData("spawnTimer", timer);
-        })
+        //     sys->setData("spawnTimer", timer);
+        // })
+        .onDelta("res/asteroid/spawn_asteroid_timer.pg")
         .build();
 }
 
@@ -130,6 +135,14 @@ StandardSystemImpl* createFPSSystem()
         .build();
 }
 
+StandardSystemImpl* createScoreSystem()
+{
+    return createStandardSystem("ScoreSystem")
+        .onInit("res/asteroid/init_score.pg")
+        .onEvent("ScoreUpdate", "res/asteroid/update_score.pg")
+        .build();
+}
+
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     EngineConfig config;
@@ -148,12 +161,20 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.succeed<CollisionHandlerSystem, CollisionSystem>();
 
+        // Setup TTF text system for UI
+        auto ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+
         ecs.registerSystem(createPlayerSystem());
 
         ecs.registerSystem(createAsteroidSpawnTimerSystem());
         ecs.registerSystem(createAsteroidSystem());
 
         ecs.registerSystem(createBulletSystem());
+
+        ecs.registerSystem(createScoreSystem());
 
         ecs.registerSystem(createFPSSystem());
 
