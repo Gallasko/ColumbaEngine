@@ -51,6 +51,13 @@ namespace pg
         parser.consume("Expect ')' after expression.", TokenType::PCLOSE);
     }
 
+    void anonymousFunction(CParser& parser, bool)
+    {
+        // Parse an anonymous function expression
+        // Syntax: fun(params) { body }
+        parser.parseFunction(FunctionType::TYPE_FUNCTION);
+    }
+
     void unary(CParser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
@@ -658,7 +665,7 @@ namespace pg
         {TokenType::TOK_ELSE,     {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_VAR,      {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_WHILE,    {NULL,        NULL,       Precedence::NONE}},
-        {TokenType::TOK_FUN,      {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_FUN,      {anonymousFunction, NULL,       Precedence::NONE}},
         {TokenType::TOK_RETURN,   {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_CLASS,    {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_THIS,     {this_,       NULL,       Precedence::NONE}},
