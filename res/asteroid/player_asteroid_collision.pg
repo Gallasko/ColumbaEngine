@@ -28,17 +28,4 @@ var asteroidType = asteroidData.type
 
 logInfo("Player destroyed by " + asteroidType + " asteroid")
 
-// Remove the player
-removeEntity(player.__entityId)
-
-// Optionally: Trigger game over event or state
-// You could add:
-// - Display game over screen
-// - Show final score
-// - Offer restart option
-// - Stop game systems
-
-// For now, just send a GameOver event
-sendEvent("GameOver", "reason", "asteroid_collision", "asteroidType", asteroidType)
-
-logInfo("Game Over event sent")
+sendEvent("PlayerHit")
