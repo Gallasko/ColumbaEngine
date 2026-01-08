@@ -618,6 +618,70 @@ namespace pg
         Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entity, ecsRef));
         entityTable->fields["attachComp"] = attachCompFuncValue;
 
+        // Add native has() method to check if entity has a specific component
+        auto hasFunc = [entity, ecsRef](VM* vm, int argCount, Value* args) -> Value {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("has expects exactly 1 argument (componentName)");
+            }
+
+            if (!IS_STRING(args[0]))
+            {
+                throw std::runtime_error("has expects a string argument (component name)");
+            }
+
+            std::string componentName = vm->asString(args[0]);
+
+            // Check if this is a StandardComponent
+            auto* standardCompOwner = ecsRef->getComponentRegistry()->retrieveStandardComponent(componentName);
+            if (standardCompOwner && standardCompOwner->components.has(entity->id))
+            {
+                return makeBoolValue(true);
+            }
+
+            // Check other registered components by iterating through the entity's component list
+            for (const auto& compRef : entity->componentList)
+            {
+                if (compRef.entityHeldType == Entity::EntityHeld::EntityHeldType::id)
+                {
+                    _unique_id componentId = compRef.getId();
+
+                    // Get the component type name
+                    InspectorArchive archive;
+                    ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
+
+                    if (archive.mainNode.children.size() > 0)
+                    {
+                        auto& compNode = archive.mainNode.children[0];
+                        std::string compTypeName = compNode.className;
+
+                        // For StandardComponent, check the actual typeName
+                        if (compTypeName == "StandardComponent")
+                        {
+                            for (const auto& child : compNode.children)
+                            {
+                                if (child.name == "typeName" && !child.children.empty())
+                                {
+                                    compTypeName = child.children[0].name;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (compTypeName == componentName)
+                        {
+                            return makeBoolValue(true);
+                        }
+                    }
+                }
+            }
+
+            return makeBoolValue(false);
+        };
+
+        Value hasFuncValue = vm->createNativeFunction(hasFunc);
+        entityTable->fields["has"] = hasFuncValue;
+
         // Serialize each component
         for (const auto& compRef : entity->componentList)
         {

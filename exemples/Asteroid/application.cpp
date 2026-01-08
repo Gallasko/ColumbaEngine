@@ -28,6 +28,7 @@ StandardSystemImpl* createPlayerSystem()
         .ownComponent("Player")
         .onEvent("OnSDLScanCode", "res/asteroid/move_player.pg")
         .onEvent("OnSDLScanCodeReleased", "res/asteroid/release_player.pg")
+        .onEvent("PlayerHit", "res/asteroid/handle_player_hit.pg")
         .onDelta("res/asteroid/update_player.pg")  // Update physics every frame
         .build();
 }
@@ -140,6 +141,17 @@ StandardSystemImpl* createScoreSystem()
     return createStandardSystem("ScoreSystem")
         .onInit("res/asteroid/init_score.pg")
         .onEvent("ScoreUpdate", "res/asteroid/update_score.pg")
+        .onEvent("ScoreReset", "res/asteroid/reset_score.pg")
+        .build();
+}
+
+StandardSystemImpl* createGameOverSystem()
+{
+    return createStandardSystem("GameOverSystem")
+        .onInit("res/asteroid/init_gameover.pg")
+        .onEvent("GameOver", "res/asteroid/handle_gameover.pg")
+        .onEvent("RespawnPlayer", "res/asteroid/respawn_player.pg")
+        .onEvent("OnSDLScanCode", "res/asteroid/handle_restart.pg")
         .build();
 }
 
@@ -175,6 +187,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.registerSystem(createBulletSystem());
 
         ecs.registerSystem(createScoreSystem());
+
+        ecs.registerSystem(createGameOverSystem());
 
         ecs.registerSystem(createFPSSystem());
 
