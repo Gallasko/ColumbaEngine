@@ -1176,10 +1176,8 @@ namespace pg
 
     void CParser::returnStatement()
     {
-        if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
-        {
-            errorAt(previousToken, "Can't return from top level script.");
-        }
+        // Allow return from top-level scripts to exit early
+        // This is useful for early-exit patterns in event handlers
 
         if (match(TokenType::EOL, TokenType::END))
         {
@@ -1194,9 +1192,20 @@ namespace pg
                 // return;
             }
 
-            expression();
-            consumeEnd("Expect ';' or end of line after return value.");
-            writeByte(OpCode::OP_Return);
+            // For top-level scripts, discard the return value and just exit
+            if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
+            {
+                expression();
+                consumeEnd("Expect ';' or end of line after return value.");
+                writeByte(OpCode::OP_Pop);  // Discard the return value
+                emitReturn();
+            }
+            else
+            {
+                expression();
+                consumeEnd("Expect ';' or end of line after return value.");
+                writeByte(OpCode::OP_Return);
+            }
         }
     }
 
