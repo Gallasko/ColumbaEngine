@@ -29,6 +29,55 @@ namespace pg
     using ComponentSerializerFunc = std::function<void(VM*, ObjInstance*, void*)>;
     using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
 
+    // Function signature for custom component attach handlers
+    // Returns true if the component was attached successfully, false otherwise
+    using ComponentAttachFunc = std::function<bool(VM*, EntitySystem*, Entity*, int argCount, Value* args)>;
+
+    /**
+     * @brief Registry for custom component attach handlers
+     *
+     * This registry allows registering custom attachment logic for specific components
+     * that need special handling beyond the default StandardComponent attachment.
+     *
+     * Example:
+     * ```cpp
+     * bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args) {
+     *     float x = 0.0f, y = 0.0f;
+     *     // Parse arguments...
+     *     ecs->_attach<PositionComponent>(entity, x, y);
+     *     return true;
+     * }
+     *
+     * REGISTER_COMPONENT_ATTACH_HANDLER("Position", attachPositionComponent);
+     * ```
+     */
+    class ComponentAttachRegistry {
+    public:
+        static ComponentAttachRegistry& instance() {
+            static ComponentAttachRegistry registry;
+            return registry;
+        }
+
+        void registerHandler(const std::string& componentName, ComponentAttachFunc handler) {
+            handlers_[componentName] = handler;
+        }
+
+        bool hasHandler(const std::string& componentName) const {
+            return handlers_.find(componentName) != handlers_.end();
+        }
+
+        ComponentAttachFunc getHandler(const std::string& componentName) const {
+            auto it = handlers_.find(componentName);
+            if (it != handlers_.end()) {
+                return it->second;
+            }
+            return nullptr;
+        }
+
+    private:
+        std::unordered_map<std::string, ComponentAttachFunc> handlers_;
+    };
+
     namespace detail
     {
         // Helper functions for extracting arguments from VM values
@@ -414,6 +463,43 @@ namespace pg
             }; \
             table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
         } while(0)
+
+    /**
+     * @brief Macro to register a custom component attach handler
+     *
+     * This macro registers a function that will be called when attachComp() is used
+     * with the specified component name. The handler receives the VM, ECS, entity,
+     * and all arguments passed to attachComp() after the component name.
+     *
+     * Usage:
+     * ```cpp
+     * bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args) {
+     *     // argCount and args contain all arguments AFTER the component name
+     *     // Parse key-value pairs from args
+     *     float x = 0.0f, y = 0.0f;
+     *     for (int i = 0; i < argCount; i += 2) {
+     *         if (i + 1 >= argCount) break;
+     *         std::string key = vm->asString(args[i]);
+     *         if (key == "x") x = detail::extractFloatArg(&args[i + 1], 0);
+     *         if (key == "y") y = detail::extractFloatArg(&args[i + 1], 0);
+     *     }
+     *     ecs->_attach<PositionComponent>(entity, x, y);
+     *     return true;
+     * }
+     *
+     * REGISTER_COMPONENT_ATTACH_HANDLER("Position", attachPositionComponent);
+     * ```
+     */
+    #define REGISTER_COMPONENT_ATTACH_HANDLER(ComponentName, HandlerFunc) \
+        namespace { \
+            struct ComponentName##AttachRegistrar { \
+                ComponentName##AttachRegistrar() { \
+                    pg::ComponentAttachRegistry::instance() \
+                        .registerHandler(#ComponentName, HandlerFunc); \
+                } \
+            }; \
+            static ComponentName##AttachRegistrar ComponentName##_attach_registrar_instance; \
+        }
 
     // ============================================================================
     // Public API functions

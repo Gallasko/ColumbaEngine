@@ -40,50 +40,17 @@ namespace pg
                 }
                 auto componentName = vm->asString(args[0]);
 
-                // Special case: if component name is "Collision", attach CollisionComponent instead
-                if (componentName == "Collision")
+                // Check if there's a registered custom attach handler for this component
+                auto& attachRegistry = ComponentAttachRegistry::instance();
+                if (attachRegistry.hasHandler(componentName))
                 {
-                    // Parse arguments for CollisionComponent
-                    // Expected: attachComp("Collision", "layerId", layerId, "scale", scale, ...)
-                    size_t layerId = 0;
-                    float scale = 1.0f;
-                    // bool checkSpecificLayer = false;
-                    std::vector<size_t> checkLayerId;
-
-                    // Process key-value pairs
-                    for (int i = 1; i < argCount; i += 2)
-                    {
-                        if (i + 1 >= argCount) break;
-
-                        if (!IS_STRING(args[i]))
-                        {
-                            throw std::runtime_error("attachComp expects string keys for properties");
-                        }
-
-                        auto key = vm->asString(args[i]);
-                        auto value = args[i + 1];
-
-                        if (key == "layerId" && IS_INT(value))
-                        {
-                            layerId = static_cast<size_t>(AS_INT(value));
-                        }
-                        else if (key == "scale")
-                        {
-                            scale = extractFloatArg(&value, 0);
-                        }
-                        // Could add checkLayerId array parsing here if needed
-                    }
-
-                    // Attach CollisionComponent with parsed parameters
-                    ecsRef->_attach<CollisionComponent>(entityPtr, layerId, scale);
-
-                    LOG_INFO("ECS Serialization", "Attached native CollisionComponent to entity " << entityPtr->id
-                             << " (layerId=" << layerId << ", scale=" << scale << ")");
-
-                    return INT_VAL(0);
+                    auto handler = attachRegistry.getHandler(componentName);
+                    // Pass all arguments AFTER the component name to the handler
+                    bool success = handler(vm, ecsRef, entityPtr, argCount - 1, args + 1);
+                    return makeBoolValue(success);
                 }
 
-                // Attach the StandardComponent (create empty first)
+                // Default behavior: Attach the StandardComponent (create empty first)
                 CompRef<StandardComponent> component = ecsRef->_attach(entityPtr, componentName);
 
                 // Process remaining arguments as key-value pairs and add them directly to the component
@@ -838,4 +805,119 @@ namespace pg
 
         return tableValue;
     }
+
+    // ============================================================================
+    // Registered Component Attach Handlers
+    // ============================================================================
+
+    /**
+     * @brief Custom attach handler for CollisionComponent
+     *
+     * Expected usage: attachComp("Collision", "layerId", 1, "scale", 2.0)
+     */
+    bool attachCollisionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
+    {
+        size_t layerId = 0;
+        float scale = 1.0f;
+
+        // Process key-value pairs
+        for (int i = 0; i < argCount; i += 2)
+        {
+            if (i + 1 >= argCount) break;
+
+            if (!IS_STRING(args[i]))
+            {
+                LOG_ERROR("ECS Serialization", "attachComp expects string keys for properties");
+                continue;
+            }
+
+            auto key = vm->asString(args[i]);
+
+            if (key == "layerId")
+                layerId = static_cast<size_t>(detail::extractIntArg(args, i + 1));
+            else if (key == "scale")
+                scale = detail::extractFloatArg(args, i + 1);
+        }
+
+        // Attach CollisionComponent with parsed parameters
+        ecs->_attach<CollisionComponent>(entity, layerId, scale);
+
+        LOG_INFO("ECS Serialization", "Attached CollisionComponent to entity " << entity->id
+                 << " (layerId=" << layerId << ", scale=" << scale << ")");
+
+        return true;
+    }
+
+    // Register the Collision component attach handler
+    REGISTER_COMPONENT_ATTACH_HANDLER(Collision, attachCollisionComponent);
+
+    /**
+     * @brief Custom attach handler for PositionComponent
+     *
+     * Expected usage: attachComp("Position", "x", 100, "y", 200, "width", 50, "height", 50, "rotation", 0.0, "visible", true)
+     */
+    bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
+    {
+        float x = 0.0f;
+        float y = 0.0f;
+        float z = 0.0f;
+        float width = 0.0f;
+        float height = 0.0f;
+        float rotation = 0.0f;
+        bool visible = true;
+        bool observable = true;
+
+        // Process key-value pairs
+        for (int i = 0; i < argCount; i += 2)
+        {
+            if (i + 1 >= argCount) break;
+
+            if (!IS_STRING(args[i]))
+            {
+                LOG_ERROR("ECS Serialization", "attachComp expects string keys for properties");
+                continue;
+            }
+
+            auto key = vm->asString(args[i]);
+
+            if (key == "x")
+                x = detail::extractFloatArg(args, i + 1);
+            else if (key == "y")
+                y = detail::extractFloatArg(args, i + 1);
+            else if (key == "z")
+                z = detail::extractFloatArg(args, i + 1);
+            else if (key == "width")
+                width = detail::extractFloatArg(args, i + 1);
+            else if (key == "height")
+                height = detail::extractFloatArg(args, i + 1);
+            else if (key == "rotation")
+                rotation = detail::extractFloatArg(args, i + 1);
+            else if (key == "visible")
+                visible = detail::extractBoolArg(args, i + 1);
+            else if (key == "observable")
+                observable = detail::extractBoolArg(args, i + 1);
+        }
+
+        // Attach PositionComponent with parsed parameters
+        auto comp = ecs->_attach<PositionComponent>(entity);
+
+        comp->x = x;
+        comp->y = y;
+        comp->z = z;
+        comp->width = width;
+        comp->height = height;
+        comp->rotation = rotation;
+        comp->visible = visible;
+        comp->observable = observable;
+
+        LOG_INFO("ECS Serialization", "Attached PositionComponent to entity " << entity->id
+                 << " (x=" << x << ", y=" << y << ", z=" << z
+                 << ", width=" << width << ", height=" << height
+                 << ", rotation=" << rotation << ")");
+
+        return true;
+    }
+
+    // Register the Position component attach handler
+    REGISTER_COMPONENT_ATTACH_HANDLER(Position, attachPositionComponent);
 }
