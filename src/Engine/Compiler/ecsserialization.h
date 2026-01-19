@@ -31,6 +31,36 @@ namespace pg
 
     namespace detail
     {
+        // Helper functions for extracting arguments from VM values
+        inline float extractFloatArg(Value* args, int index = 0)
+        {
+            if (IS_DOUBLE(args[index]))
+                return static_cast<float>(AS_DOUBLE(args[index]));
+            else if (IS_INT(args[index]))
+                return static_cast<float>(AS_INT(args[index]));
+
+            LOG_ERROR("ECS Serialization", "Expected float argument at index " << index);
+            return 0.0f;
+        }
+
+        inline bool extractBoolArg(Value* args, int index = 0)
+        {
+            if (IS_BOOL(args[index]))
+                return AS_BOOL(args[index]);
+
+            LOG_ERROR("ECS Serialization", "Expected bool argument at index " << index);
+            return false;
+        }
+
+        inline std::string extractStringArg(VM *vm, Value* args, int index = 0)
+        {
+            if (IS_STRING(args[index]))
+                return vm->asString(args[index]);
+
+            LOG_ERROR("ECS Serialization", "Expected string argument at index " << index);
+            return "";
+        }
+
         bool registryHasComponent(const std::string& name);
 
         ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name);
@@ -320,6 +350,48 @@ namespace pg
             }
         }
     } // namespace detail
+
+    // Macros to create and register setter functions
+    // These macros reduce boilerplate when creating native setter functions for components
+
+    // Macro to create and register a float setter function
+    // Usage: REGISTER_FLOAT_SETTER(vm, table, component, setX);
+    #define REGISTER_FLOAT_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                float value = detail::extractFloatArg(args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
+
+    // Macro to create and register a bool setter function
+    // Usage: REGISTER_BOOL_SETTER(vm, table, component, setVisible);
+    #define REGISTER_BOOL_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                bool value = detail::extractBoolArg(args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
+
+    // Macro to create and register a string setter function
+    // Usage: REGISTER_STRING_SETTER(vm, table, component, setText);
+    #define REGISTER_STRING_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM* vmPtr, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                std::string value = detail::extractStringArg(vmPtr, args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
 
     // ============================================================================
     // Public API functions
