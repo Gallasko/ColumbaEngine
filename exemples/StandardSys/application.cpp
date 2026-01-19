@@ -14,6 +14,8 @@
 
 #include "Helpers/fsm.h"
 
+#include "Compiler/pass/bytecode_pass_module.h"
+
 using namespace pg;
 
 #ifdef PG_AUTO_CONVERT_EVENTS_TO_STANDARD
