@@ -687,6 +687,8 @@ namespace pg
     {
         if (vmOptimizationLevel == VmOptimizationLevel::O3)
         {
+            vm.enableBytecodeOptimization();
+
             vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
             vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
@@ -699,6 +701,10 @@ namespace pg
             vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
 
             vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+        }
+        else if (vmOptimizationLevel == VmOptimizationLevel::O0)
+        {
+            vm.disableBytecodeOptimization();
         }
     }
 

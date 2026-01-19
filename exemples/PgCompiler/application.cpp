@@ -65,6 +65,11 @@ Value nativeLogInfo(VM* vm, int argCount, Value* args)
 CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling) : fileName(fileName), profilingEnabled(enableProfiling)
 {
     LOG_THIS_MEMBER(DOM);
+}
+
+void CompilerApp::setLoggerSink()
+{
+    LOG_THIS_MEMBER(DOM);
 
     auto terminalSink = std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
 
@@ -75,7 +80,8 @@ CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling) : fi
     terminalSink->addFilter("warn", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::warning));
 }
 
-CompilerApp::~CompilerApp() {
+CompilerApp::~CompilerApp()
+{
     LOG_THIS_MEMBER(DOM);
 }
 
@@ -100,21 +106,28 @@ void CompilerApp::runREPL()
 {
     LOG_THIS_MEMBER(DOM);
 
-    std::cout << "PgCompiler REPL - Enter 'exit' to quit\n";
-    std::cout << "> ";
-
     std::string input;
     std::string line;
 
+    EntitySystem ecs;
+    ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+
+    setLoggerSink();
+
     VM vm;
-    vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
-    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
-    vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
-    vm.enableBytecodeOptimization();
-    vm.enableOptimizationDebugging();
+    ecs.setupVm(vm);
+    // vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
+    // vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    // vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
-    vm.addNativeModule("math", MathModule());
+    // vm.enableBytecodeOptimization();
+    // vm.enableOptimizationDebugging();
+
+    // vm.addNativeModule("math", MathModule());
+
+    std::cout << "PgCompiler REPL - Enter 'exit' to quit\n";
+    std::cout << "> ";
 
     while (std::getline(std::cin, line))
     {
@@ -123,18 +136,21 @@ void CompilerApp::runREPL()
             break;
         }
 
-        if (!input.empty()) {
+        if (not input.empty())
+        {
             input += "\n";
         }
+
         input += line;
 
         // Check if we have a complete statement (simple heuristic)
         // For now, we'll execute after each line, but you can modify this
         // to wait for specific terminators or empty lines
-        if (!line.empty()) {
+        if (not line.empty())
+        {
             // Here you would compile and execute the input
             std::cout << "Compiling: " << input << std::endl;
-            vm.listOptimizationPasses();
+            // vm.listOptimizationPasses();
             vm.interpretFromText(input);
 
             input.clear(); // Reset for next input
@@ -149,6 +165,8 @@ void CompilerApp::runREPL()
 void CompilerApp::runFile(bool needCompile)
 {
     LOG_THIS_MEMBER(DOM);
+
+    setLoggerSink();
 
     EntitySystem ecs;
 
