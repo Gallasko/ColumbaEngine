@@ -69,10 +69,7 @@ namespace pg
                         }
                         else if (key == "scale")
                         {
-                            if (IS_DOUBLE(value))
-                                scale = static_cast<float>(AS_DOUBLE(value));
-                            else if (IS_INT(value))
-                                scale = static_cast<float>(AS_INT(value));
+                            scale = extractFloatArg(&value, 0);
                         }
                         // Could add checkLayerId array parsing here if needed
                     }
@@ -171,104 +168,15 @@ namespace pg
             {"observable", "setObservable"}
         };
 
-        // Generate setter methods for each property
-        for (const auto& prop : propertiesWithSetters)
-        {
-            const std::string& propName = prop.propName;
-            const std::string& setterMethodName = prop.methodName;
-
-            // Create native function directly without polluting globals
-            // Lambda that implements the setter functionality
-            NativeFn setterFunc;
-
-            if (propName == "x")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setX(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setX(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "y")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setY(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setY(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "z")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setZ(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setZ(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "width")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setWidth(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setWidth(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "height")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setHeight(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setHeight(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "rotation")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setRotation(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setRotation(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "visible")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_BOOL(args[0]))
-                        component->setVisibility(AS_BOOL(args[0]));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "observable")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_BOOL(args[0]))
-                        component->setObservable(AS_BOOL(args[0]));
-                    return INT_VAL(0);
-                };
-            }
-
-            // Create native function and add directly to table without going through globals
-            table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
-        }
+        // Generate setter methods for each property using macros
+        REGISTER_FLOAT_SETTER(vm, table, component, setX);
+        REGISTER_FLOAT_SETTER(vm, table, component, setY);
+        REGISTER_FLOAT_SETTER(vm, table, component, setZ);
+        REGISTER_FLOAT_SETTER(vm, table, component, setWidth);
+        REGISTER_FLOAT_SETTER(vm, table, component, setHeight);
+        REGISTER_FLOAT_SETTER(vm, table, component, setRotation);
+        REGISTER_BOOL_SETTER(vm, table, component, setVisibility);
+        REGISTER_BOOL_SETTER(vm, table, component, setObservable);
     }
 
     // Register PositionComponent serializer at static initialization time
@@ -464,22 +372,14 @@ namespace pg
             constant::Vector4D colors;
             for (int i = 0; i < 3; i++)
             {
-                if (IS_INT(args[i]))
-                    colors[i] = static_cast<float>(AS_INT(args[i]));
-                else if (IS_DOUBLE(args[i]))
-                    colors[i] = static_cast<float>(AS_DOUBLE(args[i]));
-                else
-                    throw std::runtime_error("setColor expects numeric arguments");
+                colors[i] = detail::extractFloatArg(args, i);
             }
 
             // Alpha (optional, default 255)
             colors[3] = 255.0f;
             if (argCount >= 4)
             {
-                if (IS_INT(args[3]))
-                    colors[3] = static_cast<float>(AS_INT(args[3]));
-                else if (IS_DOUBLE(args[3]))
-                    colors[3] = static_cast<float>(AS_DOUBLE(args[3]));
+                colors[3] = detail::extractFloatArg(args, 3);
             }
 
             component->setColor(colors);
