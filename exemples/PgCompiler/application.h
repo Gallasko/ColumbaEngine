@@ -13,6 +13,8 @@ public:
     CompilerApp(const std::string& fileName, bool enableProfiling = false);
     ~CompilerApp();
 
+    void setLoggerSink();
+
     int exec();
 
     void runREPL();
