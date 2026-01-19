@@ -52,6 +52,15 @@ namespace pg
             return false;
         }
 
+        inline int extractIntArg(Value* args, int index = 0)
+        {
+            if (IS_INT(args[index]))
+                return static_cast<int>(AS_INT(args[index]));
+
+            LOG_ERROR("ECS Serialization", "Expected int argument at index " << index);
+            return 0;
+        }
+
         inline std::string extractStringArg(VM *vm, Value* args, int index = 0)
         {
             if (IS_STRING(args[index]))
@@ -374,6 +383,19 @@ namespace pg
             auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
                 if (argCount != 1) return INT_VAL(0); \
                 bool value = detail::extractBoolArg(args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
+
+    // Macro to create and register an int setter function
+    // Usage: REGISTER_INT_SETTER(vm, table, component, setLevel);
+    #define REGISTER_INT_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                int value = detail::extractIntArg(args, 0); \
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \

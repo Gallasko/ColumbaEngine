@@ -151,23 +151,6 @@ namespace pg
 
         LOG_MILE("ECS Serialization", "Generating setters for PositionComponent on entity " << entityId);
 
-        // Define the properties that have setters in PositionComponent
-        struct PropertySetter {
-            std::string propName;
-            std::string methodName;
-        };
-
-        std::vector<PropertySetter> propertiesWithSetters = {
-            {"x", "setX"},
-            {"y", "setY"},
-            {"z", "setZ"},
-            {"width", "setWidth"},
-            {"height", "setHeight"},
-            {"rotation", "setRotation"},
-            {"visible", "setVisibility"},
-            {"observable", "setObservable"}
-        };
-
         // Generate setter methods for each property using macros
         REGISTER_FLOAT_SETTER(vm, table, component, setX);
         REGISTER_FLOAT_SETTER(vm, table, component, setY);
@@ -348,21 +331,7 @@ namespace pg
     {
         LOG_MILE("ECS Serialization", "Generating setters for TTFText component");
 
-        // setText(newText)
-        auto setTextFunc = [component](VM* vm, int argCount, Value* args) -> Value {
-            if (argCount != 1)
-                throw std::runtime_error("setText expects 1 argument");
-
-            if (!IS_STRING(args[0]))
-                throw std::runtime_error("setText expects a string argument");
-
-            std::string newText = vm->asString(args[0]);
-            component->setText(newText);
-
-            return INT_VAL(0);
-        };
-
-        table->fields["setText"] = vm->createNativeFunction(setTextFunc);
+        REGISTER_STRING_SETTER(vm, table, component, setText);
 
         // setColor(r, g, b, [a])
         auto setColorFunc = [component](VM* vm, int argCount, Value* args) -> Value {
