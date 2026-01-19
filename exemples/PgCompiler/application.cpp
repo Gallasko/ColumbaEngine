@@ -108,6 +108,7 @@ void CompilerApp::runREPL()
 
     std::string input;
     std::string line;
+    int braceDepth = 0;
 
     EntitySystem ecs;
     ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
@@ -131,7 +132,7 @@ void CompilerApp::runREPL()
 
     while (std::getline(std::cin, line))
     {
-        if (line == "exit")
+        if (line == "exit" && input.empty())
         {
             break;
         }
@@ -143,20 +144,42 @@ void CompilerApp::runREPL()
 
         input += line;
 
-        // Check if we have a complete statement (simple heuristic)
-        // For now, we'll execute after each line, but you can modify this
-        // to wait for specific terminators or empty lines
-        if (not line.empty())
+        // Count braces to determine if we're in a block
+        for (char c : line)
         {
-            // Here you would compile and execute the input
-            std::cout << "Compiling: " << input << std::endl;
-            // vm.listOptimizationPasses();
-            vm.interpretFromText(input);
-
-            input.clear(); // Reset for next input
+            if (c == '{')
+            {
+                braceDepth++;
+            }
+            else if (c == '}')
+            {
+                braceDepth--;
+            }
         }
 
-        std::cout << "> ";
+        // Execute only when all blocks are closed and we have input
+        if (braceDepth == 0 && not input.empty())
+        {
+            std::cout << "[=] Executing...\n";
+            vm.interpretFromText(input);
+
+            input.clear();
+            std::cout << "> ";
+        }
+        else if (braceDepth > 0)
+        {
+            // Show continuation prompt based on nesting depth
+            std::cout << ">";
+            for (int i = 0; i < braceDepth; i++)
+            {
+                std::cout << ">";
+            }
+            std::cout << " ";
+        }
+        else
+        {
+            std::cout << "> ";
+        }
     }
 
     std::cout << "Goodbye!\n";
