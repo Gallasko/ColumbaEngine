@@ -1,0 +1,21 @@
+name: HealthComponent
+namespace: pg
+
+includes:
+  - "<cstdint>"
+
+fields:
+  - name: currentHealth
+    type: int32_t
+    default: 100
+    setter: event
+
+  - name: maxHealth
+    type: int32_t
+    default: 100
+    setter: basic
+
+  - name: isDead
+    type: bool
+    default: false
+    setter: none
