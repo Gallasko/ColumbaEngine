@@ -34,7 +34,7 @@ namespace pg
                 }
 
                 // Get component name
-                if (!IS_STRING(args[0]))
+                if (not IS_STRING(args[0]))
                 {
                     throw std::runtime_error("attachComp expects first argument to be component name (string)");
                 }
@@ -146,7 +146,7 @@ namespace pg
 
         // Get the properties table
         auto propertiesIt = table->fields.find("properties");
-        if (propertiesIt == table->fields.end() || !IS_INSTANCE(propertiesIt->second))
+        if (propertiesIt == table->fields.end() or not IS_INSTANCE(propertiesIt->second))
         {
             LOG_WARNING("ECS Serialization", "No properties table found for StandardComponent, skipping setter generation");
             return;
@@ -158,7 +158,7 @@ namespace pg
         std::vector<std::string> propertyNames;
         for (const auto& [key, value] : propertiesTable->fields)
         {
-            if (key != "__className" && !key.empty())
+            if (key != "__className" and not key.empty())
             {
                 propertyNames.push_back(key);
                 // Copy property to top level
@@ -173,7 +173,7 @@ namespace pg
         {
             // Generate method name: "set" + Capitalized(propName)
             std::string methodName = "set";
-            if (!propName.empty())
+            if (not propName.empty())
             {
                 methodName += static_cast<char>(std::toupper(propName[0]));
                 if (propName.size() > 1)
@@ -198,7 +198,7 @@ namespace pg
                 if (component->has(propName))
                 {
                     ElementType oldValue = component->properties[propName];
-                    valueChanged = !(oldValue == newValue);
+                    valueChanged = not (oldValue == newValue);
                 }
                 else
                 {
@@ -243,7 +243,7 @@ namespace pg
                 return INT_VAL(0);
             }
 
-            if (!IS_STRING(args[0]))
+            if (not IS_STRING(args[0]))
             {
                 LOG_ERROR("StandardComponent Generic Setter", "First argument must be a string (property name)");
                 return INT_VAL(0);
@@ -360,7 +360,7 @@ namespace pg
 
             // Add the class name (component type)
             std::string componentTypeName;
-            if (!compNode.className.empty())
+            if (not compNode.className.empty())
             {
                 componentTypeName = compNode.className;
                 Value classNameValue = vm->createString(compNode.className);
@@ -392,7 +392,7 @@ namespace pg
                     // Extract the type name from the table
                     std::string compTypeName;
                     auto typeNameIt = table->fields.find("typeName");
-                    if (typeNameIt != table->fields.end() && IS_STRING(typeNameIt->second))
+                    if (typeNameIt != table->fields.end() and IS_STRING(typeNameIt->second))
                     {
                         compTypeName = vm->asString(typeNameIt->second);
                         auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
@@ -470,7 +470,7 @@ namespace pg
 
             // Check if this is a StandardComponent
             auto* standardCompOwner = ecsRef->getComponentRegistry()->retrieveStandardComponent(componentName);
-            if (standardCompOwner && standardCompOwner->components.has(entity->id))
+            if (standardCompOwner and standardCompOwner->components.has(entity->id))
             {
                 return makeBoolValue(true);
             }
@@ -676,7 +676,7 @@ namespace pg
         }
 
         // Create or get the entity
-        if (createNew || specifiedId == 0)
+        if (createNew or specifiedId == 0)
         {
             entity = ecsRef->createEntity();
         }
@@ -699,7 +699,7 @@ namespace pg
         for (const auto& [key, value] : table->fields)
         {
             // Skip special fields
-            if (key == "__entityId" || key == "__className")
+            if (key == "__entityId" or key == "__className")
                 continue;
 
             // Check if the field value is a table (component)
@@ -763,7 +763,7 @@ namespace pg
         for (const auto& [key, value] : table->fields)
         {
             // Skip non-numeric keys and special fields
-            if (key == "count" || key == "__className")
+            if (key == "count" or key == "__className")
                 continue;
 
             // Try to parse as numeric index

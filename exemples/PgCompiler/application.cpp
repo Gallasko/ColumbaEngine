@@ -194,16 +194,17 @@ void CompilerApp::runFile(bool needCompile)
     EntitySystem ecs;
 
     VM vm;
-    ecs.setupVm(vm);
-
-    vm.defineNative("log", nativeLogInfo);
-
-    InterpretResult result;
 
     if (profilingEnabled)
     {
         vm.enableProfiling();
     }
+
+    ecs.setupVm(vm);
+
+    vm.defineNative("log", nativeLogInfo);
+
+    InterpretResult result;
 
     if (needCompile)
     {

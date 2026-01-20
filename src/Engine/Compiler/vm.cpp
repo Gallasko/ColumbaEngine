@@ -169,6 +169,13 @@ namespace pg
 
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
+        // Record start time for pre-run profiling (everything before run())
+        std::chrono::steady_clock::time_point interpretStart;
+        if (profiler.isEnabled())
+        {
+            interpretStart = std::chrono::steady_clock::now();
+        }
+
         if (tokens.empty())
         {
             LOG_WARNING("VM", "Empty tokens provided, nothing to execute !");
@@ -270,6 +277,14 @@ namespace pg
             // Runtime allocations will have indices above these max values
             pools.freezeConstantIndices();
 
+            // Record pre-run time if profiling is enabled (everything from start of interpret to here)
+            if (profiler.isEnabled())
+            {
+                auto preRunEnd = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(preRunEnd - interpretStart).count();
+                profiler.recordPreRunTime(duration);
+            }
+
             begin = std::chrono::steady_clock::now();
             auto result = run();
             end = std::chrono::steady_clock::now();
@@ -309,6 +324,10 @@ namespace pg
         try
         {
             pools.freezeConstantIndices();
+
+            // Note: preRunTime is not recorded here as it should be recorded
+            // by the calling interpret method before calling executeChunk
+
             result = run();
         }
         catch(const std::exception& e)
@@ -355,6 +374,13 @@ namespace pg
 
     InterpretResult VM::interpretFromBytecodeFile(const std::string& filename)
     {
+        // Record start time for pre-run profiling
+        std::chrono::steady_clock::time_point interpretStart;
+        if (profiler.isEnabled())
+        {
+            interpretStart = std::chrono::steady_clock::now();
+        }
+
         if (filename.empty())
         {
             LOG_WARNING("VM", "No file specified, nothing to execute !");
@@ -386,6 +412,14 @@ namespace pg
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
 
+        // Record pre-run time if profiling is enabled
+        if (profiler.isEnabled())
+        {
+            auto preRunEnd = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(preRunEnd - interpretStart).count();
+            profiler.recordPreRunTime(duration);
+        }
+
         // Execute and cleanup
         InterpretResult result = executeChunk(funcObj, 0);
         cleanupFunction(funcObj);
@@ -395,6 +429,13 @@ namespace pg
 
     InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount)
     {
+        // Record start time for pre-run profiling
+        std::chrono::steady_clock::time_point interpretStart;
+        if (profiler.isEnabled())
+        {
+            interpretStart = std::chrono::steady_clock::now();
+        }
+
         if (cachedBytecode.empty())
         {
             LOG_WARNING("VM", "Bytecode is empty, nothing to execute !");
@@ -424,6 +465,14 @@ namespace pg
         auto function = createFunction();
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
+
+        // Record pre-run time if profiling is enabled
+        if (profiler.isEnabled())
+        {
+            auto preRunEnd = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(preRunEnd - interpretStart).count();
+            profiler.recordPreRunTime(duration);
+        }
 
         InterpretResult result = executeChunk(funcObj, argCount);
         cleanupFunction(funcObj);
