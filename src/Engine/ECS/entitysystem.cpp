@@ -516,6 +516,13 @@ namespace pg
     {
         LOG_THIS_MEMBER("ECS");
 
+        // Start timing if profiling is enabled
+        std::chrono::steady_clock::time_point setupStart;
+        if (vm.profiler.isEnabled())
+        {
+            setupStart = std::chrono::steady_clock::now();
+        }
+
         vm.addNativeModule("math", MathModule{});
         vm.addNativeModule("random", RandomModule{});
         vm.addNativeModule("algorithm", AlgorithmModule{});
@@ -681,6 +688,14 @@ namespace pg
 
         // Example:
         // vm.bindECS(this);
+
+        // Record setupVm time if profiling is enabled
+        if (vm.profiler.isEnabled())
+        {
+            auto setupEnd = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(setupEnd - setupStart).count();
+            vm.profiler.recordSetupVmTime(duration);
+        }
     }
 
     void EntitySystem::setOptimizationPasses(VM &vm)

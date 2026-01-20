@@ -18,6 +18,21 @@ namespace pg
         uint64_t totalTime = getTotalTimeNs();
 
         std::cout << "\n=== VM Bytecode Profiling Report ===" << std::endl;
+
+        // Print startup timing information
+        if (setupVmTimeNs > 0 || preRunTimeNs > 0)
+        {
+            std::cout << "\n--- Startup Timing ---" << std::endl;
+            std::cout << "setupVm() time:          " << std::setw(12) << std::fixed << std::setprecision(6)
+                      << (setupVmTimeNs / 1'000'000.0) << " ms" << std::endl;
+            std::cout << "Pre-run time:            " << std::setw(12) << std::fixed << std::setprecision(6)
+                      << (preRunTimeNs / 1'000'000.0) << " ms" << std::endl;
+            std::cout << "Total startup time:      " << std::setw(12) << std::fixed << std::setprecision(6)
+                      << (getTotalStartupTimeNs() / 1'000'000.0) << " ms" << std::endl;
+            std::cout << std::endl;
+        }
+
+        std::cout << "--- Runtime Execution ---" << std::endl;
         std::cout << "Total instructions executed: " << totalInstructions << std::endl;
         std::cout << "Total execution time: " << (totalTime / 1'000'000.0) << " ms" << std::endl;
         std::cout << "Average time per instruction: " << (static_cast<double>(totalTime) / totalInstructions) << " ns" << std::endl;
