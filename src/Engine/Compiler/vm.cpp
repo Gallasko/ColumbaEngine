@@ -2180,9 +2180,10 @@ namespace pg
         }
 
         int index = vm->getValueAsInt(slot);
+        vm->releaseAndDelete(slot);
+
         if (index < 0)
         {
-            vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable index cannot be negative.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -2193,19 +2194,18 @@ namespace pg
 
         if (not isValueNumber(vm->stack[stackIndex]))
         {
-            vm->releaseAndDelete(slot);
             vm->runtimeError("Operand after an unary (++) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
+        auto& val = vm->stack[stackIndex];
+
         // Old value is already on the stack (from OP_Get_Local before this opcode)
         // We just need to increment the variable in its slot
-        auto newValue = vm->addValues(vm->stack[stackIndex], INT_VAL(1));
-        vm->releaseAndDelete(vm->stack[stackIndex]);
-        vm->stack[stackIndex] = newValue;
-
-        vm->releaseAndDelete(slot);
+        auto newValue = vm->addValues(val, INT_VAL(1));
+        vm->releaseAndDelete(val);
+        val = newValue;
     }
 
     void op_incr_local(VM* vm)
