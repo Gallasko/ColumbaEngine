@@ -15,6 +15,7 @@
 #include <filesystem>
 #include <variant>
 #include <unordered_map>
+#include <cmath>
 
 #include "Maths/geometry.h"
 

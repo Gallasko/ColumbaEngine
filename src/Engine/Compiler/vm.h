@@ -406,6 +406,7 @@ namespace pg
         Value subtractValues(const Value& a, const Value& b);
         Value multiplyValues(const Value& a, const Value& b);
         Value divideValues(const Value& a, const Value& b);
+        Value moduloValues(const Value& a, const Value& b);
         Value negateValue(const Value& val);
 
         // Comparison operations with proper reference tracking

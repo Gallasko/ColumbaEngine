@@ -73,6 +73,7 @@ namespace pg
     void op_subtract(VM* vm);
     void op_multiply(VM* vm);
     void op_divide(VM* vm);
+    void op_modulo(VM* vm);
     void op_negate(VM* vm);
     void op_equal(VM* vm);
     void op_not_equal(VM* vm);
@@ -951,6 +952,30 @@ namespace pg
         return elementToValue(elemA / elemB);
     }
 
+    Value VM::moduloValues(const Value& a, const Value& b)
+    {
+        // Fast path for integers
+        if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
+            return INT_VAL(AS_INT(a) % AS_INT(b));
+
+        // For floats, use fmod
+        if (IS_FLOAT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
+            return FLOAT_VAL(std::fmod(AS_FLOAT(a), AS_FLOAT(b)));
+
+        // Mixed int/float cases - promote to float
+        if (IS_INT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
+            return FLOAT_VAL(std::fmod(static_cast<double>(AS_INT(a)), AS_FLOAT(b)));
+
+        if (IS_FLOAT(a) and IS_INT(b) and AS_INT(b) != 0)
+            return FLOAT_VAL(std::fmod(AS_FLOAT(a), static_cast<double>(AS_INT(b))));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot modulo function Values");
+
+        throw std::runtime_error("Invalid types for modulo operation");
+    }
+
     Value VM::negateValue(const Value& val)
     {
         // Fast path for integers
@@ -1131,6 +1156,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Subtract), op_subtract);
         register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply);
         register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Modulo), op_modulo);
         register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate);
         register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal);
         register_operation(static_cast<uint8_t>(OpCode::OP_NotEqual), op_not_equal);
@@ -1298,6 +1324,7 @@ namespace pg
     BINARY_OP_TEMPLATE(op_subtract, subtractValues)
     BINARY_OP_TEMPLATE(op_multiply, multiplyValues)
     BINARY_OP_TEMPLATE(op_divide, divideValues)
+    BINARY_OP_TEMPLATE(op_modulo, moduloValues)
 
     BINARY_OP_TEMPLATE(op_equal, equalsValues)
     BINARY_OP_TEMPLATE(op_greater, greaterValues)

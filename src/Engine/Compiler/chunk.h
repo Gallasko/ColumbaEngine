@@ -23,6 +23,7 @@ namespace pg
         OP_Subtract,
         OP_Multiply,
         OP_Divide,
+        OP_Modulo,
         OP_True,
         OP_False,
         OP_Not,
@@ -289,6 +290,7 @@ namespace pg
             case OpCode::OP_Subtract:
             case OpCode::OP_Multiply:
             case OpCode::OP_Divide:
+            case OpCode::OP_Modulo:
             case OpCode::OP_True:
             case OpCode::OP_False:
             case OpCode::OP_Not:
