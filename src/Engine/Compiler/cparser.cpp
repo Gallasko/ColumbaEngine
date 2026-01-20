@@ -102,6 +102,9 @@ namespace pg
             case TokenType::SLASH:
                 parser.writeByte(OpCode::OP_Divide);
                 break;
+            case TokenType::MOD:
+                parser.writeByte(OpCode::OP_Modulo);
+                break;
             case TokenType::LOGICAND:
                 parser.writeByte(OpCode::OP_And);
                 break;
@@ -608,7 +611,8 @@ namespace pg
         {TokenType::PLUS,         {NULL,        binary,     Precedence::TERM}},
         {TokenType::MINUS,        {unary,       binary,     Precedence::TERM}},
         {TokenType::STAR,         {NULL,        binary,     Precedence::FACTOR}},
-        {TokenType::MOD,          {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SLASH,        {NULL,        binary,     Precedence::FACTOR}},
+        {TokenType::MOD,          {NULL,        binary,     Precedence::FACTOR}},
         {TokenType::POW,          {NULL,        NULL,       Precedence::NONE}},
         {TokenType::PENTER,       {grouping,    call,       Precedence::CALL}},
         {TokenType::PCLOSE,       {NULL,        NULL,       Precedence::NONE}},
@@ -626,7 +630,6 @@ namespace pg
         {TokenType::POINT,        {NULL,        dot,        Precedence::CALL}},
         {TokenType::SMARK,        {NULL,        NULL,       Precedence::NONE}},
         {TokenType::DMARK,        {NULL,        NULL,       Precedence::NONE}},
-        {TokenType::SLASH,        {NULL,        binary,     Precedence::FACTOR}},
         {TokenType::BSLASH,       {NULL,        NULL,       Precedence::NONE}},
         {TokenType::SSLASH,       {NULL,        NULL,       Precedence::NONE}},
         {TokenType::HTAG,         {NULL,        NULL,       Precedence::NONE}},

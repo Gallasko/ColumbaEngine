@@ -122,8 +122,6 @@ namespace pg
             return;
         }
 
-        uint64_t totalTime = getTotalTimeNs();
-
         // ANSI color codes
         const char* RED = "\033[31m";
         const char* ORANGE = "\033[33m";
@@ -137,11 +135,13 @@ namespace pg
 
         // Collect all profile entries for this function
         std::vector<InstructionProfile> functionProfiles;
+        uint64_t functionTotalTime = 0;
         for (const auto& [key, profile] : profiles)
         {
             if (profile.functionName == functionName)
             {
                 functionProfiles.push_back(profile);
+                functionTotalTime += profile.totalNanoseconds;
             }
         }
 
@@ -175,7 +175,7 @@ namespace pg
         for (const auto& profile : functionProfiles)
         {
             double timeUs = profile.totalTimeUs();
-            double percentage = totalTime > 0 ? (static_cast<double>(profile.totalNanoseconds) / totalTime * 100.0) : 0.0;
+            double percentage = functionTotalTime > 0 ? (static_cast<double>(profile.totalNanoseconds) / functionTotalTime * 100.0) : 0.0;
 
             // Determine color
             const char* color = RESET;
@@ -197,7 +197,7 @@ namespace pg
         }
 
         std::cout << std::string(100, '-') << std::endl;
-        std::cout << "Total execution time: " << (totalTime / 1'000.0) << " μs" << std::endl;
+        std::cout << "Function execution time: " << (functionTotalTime / 1'000.0) << " μs" << std::endl;
         std::cout << std::endl;
     }
 }

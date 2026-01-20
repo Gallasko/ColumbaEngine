@@ -274,6 +274,9 @@ namespace pg
             case OpCode::OP_Divide:
                 return simpleInstruction("OP_Divide", offset);
 
+            case OpCode::OP_Modulo:
+                return simpleInstruction("OP_Modulo", offset);
+
             case OpCode::OP_True:
                 return simpleInstruction("OP_True", offset);
 
@@ -507,6 +510,7 @@ namespace pg
             case OpCode::OP_Subtract: return "OP_Subtract";
             case OpCode::OP_Multiply: return "OP_Multiply";
             case OpCode::OP_Divide: return "OP_Divide";
+            case OpCode::OP_Modulo: return "OP_Modulo";
             case OpCode::OP_True: return "OP_True";
             case OpCode::OP_False: return "OP_False";
             case OpCode::OP_Not: return "OP_Not";
