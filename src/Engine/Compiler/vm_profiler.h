@@ -267,6 +267,13 @@ namespace pg
          */
         void printBytecodeReport() const;
 
+        /**
+         * @brief Print bytecode disassembly with performance data
+         * Shows bytecode in execution order with timing and percentage columns
+         * @param functionName Name of the function to print performance data for
+         */
+        void printBytecodeWithPerformance(const std::string& functionName) const;
+
     private:
         bool enabled;
         std::unordered_map<InstructionKey, InstructionProfile, InstructionKeyHash> profiles;

@@ -211,7 +211,7 @@ namespace pg
 #endif
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
-        // Apply bytecode optimizations
+        // Apply bytecode optimizations and store functions for profiling
         for (auto f : compiler.parser.allocatedFunction)
         {
             auto *func = asFunction(f);
@@ -241,6 +241,12 @@ namespace pg
                         << " ns"
                         << std::endl;
     #endif
+            }
+
+            if (profiler.isEnabled())
+            {
+                // Store function for profiling reports
+                compiledFunctions.push_back(func);
             }
         }
 
@@ -3537,5 +3543,30 @@ namespace pg
         // Placeholder: Module import not yet implemented
         // vm->runtimeError("Module import not yet implemented: '" + moduleName + "'");
         // vm->vm_return(InterpretResult::RUNTIME_ERROR);
+    }
+
+    void VM::printAllFunctionsBytecodeWithPerformance()
+    {
+        if (!profiler.isEnabled())
+        {
+            std::cout << "Profiling is not enabled. Call enableProfiling() before running the VM." << std::endl;
+            return;
+        }
+
+        if (compiledFunctions.empty())
+        {
+            std::cout << "No functions have been compiled yet." << std::endl;
+            return;
+        }
+
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "Bytecode with Performance - All Functions" << std::endl;
+        std::cout << "========================================\n" << std::endl;
+
+        for (const auto* func : compiledFunctions)
+        {
+            std::string funcName = func->name.empty() ? "<script>" : func->name;
+            profiler.printBytecodeWithPerformance(funcName);
+        }
     }
 }

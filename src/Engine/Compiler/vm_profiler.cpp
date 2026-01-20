@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <algorithm>
 
 namespace pg
 {
@@ -108,6 +109,54 @@ namespace pg
                       << std::endl;
         }
 
+        std::cout << std::endl;
+    }
+
+    void VMProfiler::printBytecodeWithPerformance(const std::string& functionName) const
+    {
+        if (!enabled)
+        {
+            std::cout << "Profiling is not enabled" << std::endl;
+            return;
+        }
+
+        uint64_t totalTime = getTotalTimeNs();
+
+        std::cout << "\n=== Bytecode with Performance Data: " << functionName << " ===" << std::endl;
+        std::cout << "\nFormat: [Time(μs)] [%Total] [Count] | Offset | Opcode" << std::endl;
+        std::cout << std::string(100, '-') << std::endl;
+
+        // Collect all profile entries for this function and sort by offset
+        std::vector<InstructionProfile> functionProfiles;
+        for (const auto& [key, profile] : profiles)
+        {
+            if (profile.functionName == functionName)
+            {
+                functionProfiles.push_back(profile);
+            }
+        }
+
+        // Sort by offset
+        std::sort(functionProfiles.begin(), functionProfiles.end(),
+            [](const InstructionProfile& a, const InstructionProfile& b) {
+                return a.instructionOffset < b.instructionOffset;
+            });
+
+        // Print each instruction with its performance data
+        for (const auto& profile : functionProfiles)
+        {
+            double timeUs = profile.totalTimeUs();
+            double percentage = totalTime > 0 ? (static_cast<double>(profile.totalNanoseconds) / totalTime * 100.0) : 0.0;
+
+            std::cout << "[" << std::setw(10) << std::fixed << std::setprecision(3) << timeUs << "]"
+                      << " [" << std::setw(6) << std::fixed << std::setprecision(2) << percentage << "%]"
+                      << " [" << std::setw(8) << profile.executionCount << "] | "
+                      << std::setw(6) << profile.instructionOffset << " | "
+                      << profile.opcodeName << std::endl;
+        }
+
+        std::cout << std::string(100, '-') << std::endl;
+        std::cout << "Total execution time: " << (totalTime / 1'000.0) << " μs" << std::endl;
         std::cout << std::endl;
     }
 }

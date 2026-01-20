@@ -512,6 +512,13 @@ namespace pg
             profiler.printBytecodeReport();
         }
 
+        inline void printBytecodeWithPerformance(const std::string& functionName) const
+        {
+            profiler.printBytecodeWithPerformance(functionName);
+        }
+
+        void printAllFunctionsBytecodeWithPerformance();
+
         inline void listOptimizationPasses() const
         {
             passManager.listPasses();
@@ -643,6 +650,9 @@ namespace pg
         std::string currentFileName;
 
         std::unordered_map<std::string, NativeFn> registeredNativeFunctions;
+
+        // Track all compiled functions for profiling
+        std::vector<ObjFunction*> compiledFunctions;
     };
 
     // Inline implementations for critical performance functions

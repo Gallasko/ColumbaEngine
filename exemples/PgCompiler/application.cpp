@@ -245,6 +245,7 @@ void CompilerApp::runFile(bool needCompile)
 
     vm.printProfilingReport();
     vm.printProfilingBytecodeReport();
+    vm.printAllFunctionsBytecodeWithPerformance();
 
     switch (result)
     {
