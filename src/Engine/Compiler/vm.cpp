@@ -529,6 +529,12 @@ namespace pg
                 // Only measure timing if profiling is actually enabled
                 if (profiler.isEnabled())
                 {
+                    // IMPORTANT: Capture chunk pointer and function name BEFORE executing the operation
+                    // because operations like OP_Call will change currentFrame
+                    const void* chunkPtr = &currentFrame->closure->function->chunk;
+                    const std::string& functionName = currentFrame->closure->function->name;
+                    std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
+
                     auto startTime = std::chrono::high_resolution_clock::now();
 
                     // Dispatch to operation handler
@@ -536,13 +542,6 @@ namespace pg
 
                     auto endTime = std::chrono::high_resolution_clock::now();
                     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
-
-                    // Get opcode name for display
-                    std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
-
-                    // Get chunk pointer and function name
-                    const void* chunkPtr = &currentFrame->closure->function->chunk;
-                    const std::string& functionName = currentFrame->closure->function->name;
 
                     profiler.recordInstruction(chunkPtr, functionName, instructionOffset, opcode, opcodeName, duration);
                 }
