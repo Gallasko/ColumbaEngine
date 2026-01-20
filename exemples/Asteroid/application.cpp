@@ -95,6 +95,10 @@ StandardSystemImpl* createFPSSystem()
             sys->setData("currentDelta", 0.0f);
             sys->setData("nbRenderedFrames", 0);
             sys->setData("nbGeneratedFrames", 0);
+
+            auto fps = makeTTFText(sys->getWorld(), 500.0f, 10.0f, 14.0f, "light", "0", 0.5);
+
+            sys->setData("fpsTextEntity", fps.entity.id);
         })
         .onDelta([](StandardSystemHandle* sys, float deltaTime) {
             float delta = sys->getData("currentDelta").get<float>();
@@ -124,6 +128,13 @@ StandardSystemImpl* createFPSSystem()
 
                 auto res = currentNbOfFrames - lastNbOfFrames;
                 auto res2 = currentNbOfGFrames - lastNbOfGFrames;
+
+                auto fpsTextEntId = sys->getData("fpsTextEntity").get<size_t>();
+
+                auto fpsTextEnt = sys->getWorld()->getEntity(fpsTextEntId);
+                auto fpsTextComp = fpsTextEnt->get<TTFText>();
+
+                fpsTextComp->setText("FPS: " + std::to_string(res) + ", GFPS: " + std::to_string(res2));
 
                 LOG_INFO("Standard FPS Sys", "FPS: " << res << ", GFPS: " << res2);
 
