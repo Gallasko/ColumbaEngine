@@ -113,7 +113,7 @@ namespace pg
         ObjInstance(Klass* klass) : klass(klass) {}
 
         Klass* klass;
-        std::map<std::string, Value> fields;
+        std::unordered_map<std::string, Value> fields;
     };
 
     struct ObjBoundMethod

@@ -1034,7 +1034,7 @@ namespace pg
         if (IS_FLOAT(a) and IS_INT(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
 
-        if (IS_BOOL(a) && IS_BOOL(b))
+        if (IS_BOOL(a) and IS_BOOL(b))
             return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
 
         // Disallow functions
