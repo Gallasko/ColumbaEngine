@@ -10,7 +10,7 @@
 class CompilerApp
 {
 public:
-    CompilerApp(const std::string& fileName, bool enableProfiling = false);
+    CompilerApp(const std::string& fileName, bool enableProfiling = false, int argc = 0, char** argv = nullptr);
     ~CompilerApp();
 
     void setLoggerSink();
@@ -23,6 +23,8 @@ public:
 private:
     std::string fileName;
     bool profilingEnabled;
+    int m_argc;
+    char** m_argv;
 };
 
 #endif

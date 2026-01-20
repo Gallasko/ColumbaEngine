@@ -62,7 +62,8 @@ Value nativeLogInfo(VM* vm, int argCount, Value* args)
     return makeBoolValue(true);
 }
 
-CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling) : fileName(fileName), profilingEnabled(enableProfiling)
+CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling, int argc, char** argv)
+    : fileName(fileName), profilingEnabled(enableProfiling), m_argc(argc), m_argv(argv)
 {
     LOG_THIS_MEMBER(DOM);
 }
@@ -126,6 +127,28 @@ void CompilerApp::runREPL()
     // vm.enableOptimizationDebugging();
 
     // vm.addNativeModule("math", MathModule());
+
+    // Register command-line argument access functions
+    vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 1) {
+            throw std::runtime_error("getArg expects exactly 1 argument (index)");
+        }
+        if (not IS_INT(args[0])) {
+            throw std::runtime_error("getArg expects an integer argument");
+        }
+        int64_t index = AS_INT(args[0]);
+        if (index < 0 || index >= m_argc) {
+            return vm->createString("");
+        }
+        return vm->createString(m_argv[index]);
+    });
+
+    vm.defineNative("getArgCount", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 0) {
+            throw std::runtime_error("getArgCount expects no arguments");
+        }
+        return makeIntValue(m_argc);
+    });
 
     std::cout << "PgCompiler REPL - Enter 'exit' to quit\n";
     std::cout << "> ";
@@ -203,6 +226,28 @@ void CompilerApp::runFile(bool needCompile)
     ecs.setupVm(vm);
 
     vm.defineNative("log", nativeLogInfo);
+
+    // Register command-line argument access functions
+    vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 1) {
+            throw std::runtime_error("getArg expects exactly 1 argument (index)");
+        }
+        if (not IS_INT(args[0])) {
+            throw std::runtime_error("getArg expects an integer argument");
+        }
+        int64_t index = AS_INT(args[0]);
+        if (index < 0 || index >= m_argc) {
+            return vm->createString("");
+        }
+        return vm->createString(m_argv[index]);
+    });
+
+    vm.defineNative("getArgCount", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 0) {
+            throw std::runtime_error("getArgCount expects no arguments");
+        }
+        return makeIntValue(m_argc);
+    });
 
     InterpretResult result;
 
