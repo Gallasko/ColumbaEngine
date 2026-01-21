@@ -44,7 +44,9 @@ namespace pg
             {"this",     TokenType::TOK_THIS},
             {"import",   TokenType::TOK_IMPORT},
             {"from",     TokenType::TOK_FROM},
-            {"as",       TokenType::TOK_AS}
+            {"as",       TokenType::TOK_AS},
+            {"break",    TokenType::TOK_BREAK},
+            {"continue", TokenType::TOK_CONTINUE}
 
         };
 
