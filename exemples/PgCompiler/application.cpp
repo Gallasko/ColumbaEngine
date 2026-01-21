@@ -74,6 +74,12 @@ void CompilerApp::setLoggerSink()
 
     auto terminalSink = std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
 
+    auto* sink = dynamic_cast<pg::TerminalSink*>(terminalSink.get());
+    if (sink)
+    {
+        sink->setVerboseInfo(false);  // Disable verbose info (domain, file, function)
+    }
+
     terminalSink->addFilter("log", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::log));
     // terminalSink->addFilter("info", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::info));
     terminalSink->addFilter("mile", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::mile));
