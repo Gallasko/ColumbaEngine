@@ -256,7 +256,7 @@ namespace pg
                 throw std::runtime_error("charAt expects first argument to be a string");
             }
 
-            if (not IS_INT(args[0]))
+            if (not IS_INT(args[1]))
             {
                 throw std::runtime_error("charAt expects second argument to be an integer");
             }
