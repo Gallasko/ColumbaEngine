@@ -590,6 +590,46 @@ namespace pg
         parser.writeByte(autoIndex);
     }
 
+    void createTableBrace(CParser& parser, bool)
+    {
+        uint8_t autoIndex = 0;
+
+        if (not parser.check(TokenType::BCLOSE))
+        {
+            do
+            {
+                parser.skipEOL();
+
+                if (parser.check(TokenType::BCLOSE)) break; // trailing comma
+
+                Token first = parser.currentToken();
+                parser.advance(); // now 'previousToken' == first
+
+                if (parser.match(TokenType::DPOINT))
+                {
+                    // Parse the value expression normally
+                    parser.expression(); // value
+                    parser.writeConstant(first.text);
+                }
+                else
+                {
+                    parser.parsePrecedenceFromPrev(Precedence::ASSIGNMENT);
+                    parser.writeConstant(autoIndex); // Implicit key
+                }
+
+                autoIndex++;
+
+                parser.skipEOL();
+            } while (parser.match(TokenType::COMMA));
+        }
+
+        parser.skipEOL();
+        parser.consume("Expect '}' after table values.", TokenType::BCLOSE);
+
+        parser.writeByte(OpCode::OP_Build_Table);
+        parser.writeByte(autoIndex);
+    }
+
     void indexTable(CParser& parser, bool canAssign)
     {
         parser.expression(); // Index expression
@@ -616,7 +656,7 @@ namespace pg
         {TokenType::POW,          {NULL,        NULL,       Precedence::NONE}},
         {TokenType::PENTER,       {grouping,    call,       Precedence::CALL}},
         {TokenType::PCLOSE,       {NULL,        NULL,       Precedence::NONE}},
-        {TokenType::BENTER,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::BENTER,       {createTableBrace, NULL,  Precedence::NONE}},
         {TokenType::BCLOSE,       {NULL,        NULL,       Precedence::NONE}},
         {TokenType::CENTER,       {createTable, indexTable, Precedence::CALL}},
         {TokenType::CCLOSE,       {NULL,        NULL,       Precedence::NONE}},
@@ -876,6 +916,14 @@ namespace pg
         else if (match(TokenType::TOK_RETURN))
         {
             returnStatement();
+        }
+        else if (match(TokenType::TOK_BREAK))
+        {
+            breakStatement();
+        }
+        else if (match(TokenType::TOK_CONTINUE))
+        {
+            continueStatement();
         }
         else if (match(TokenType::TOK_IMPORT))
         {
@@ -1182,6 +1230,18 @@ namespace pg
         }
 
         Compiler::current->endScope();
+    }
+
+    void CParser::breakStatement()
+    {
+        consumeEnd("Expect end of line after 'break'.");
+        errorAt(previousToken, "break statement not yet implemented");
+    }
+
+    void CParser::continueStatement()
+    {
+        consumeEnd("Expect end of line after 'continue'.");
+        errorAt(previousToken, "continue statement not yet implemented");
     }
 
     void CParser::returnStatement()

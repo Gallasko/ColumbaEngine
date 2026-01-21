@@ -153,6 +153,8 @@ namespace pg
         void forStatement();
         void dprintStatement();
         void returnStatement();
+        void breakStatement();
+        void continueStatement();
         void importStatement();
         void methodStatement();
 
