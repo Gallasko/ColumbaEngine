@@ -133,7 +133,14 @@ namespace pg
         else if (log.level == Logger::InfoLevel::warning)
             std::cout << "\033[33m";
 
-        std::cout << logLevelString(log.level) << "'" << log.scope << "' " << logPositionString(log.filename, log.objectName, log.function, log.line) << " " << log.message;
+        if (showVerboseInfo)
+        {
+            std::cout << logLevelString(log.level) << "'" << log.scope << "' " << logPositionString(log.filename, log.objectName, log.function, log.line) << " " << log.message;
+        }
+        else
+        {
+            std::cout << logLevelString(log.level) << log.message;
+        }
 
         // Reset any color put on the text
         std::cout << "\033[0m" << std::endl;
