@@ -346,9 +346,38 @@ namespace pg
                         {
                             if ((i + 1) < line.length())
                             {
-                                if (charaToToken(line[i + 1]) == TokenType::DMARK)
+                                char nextChar = line[i + 1];
+                                if (charaToToken(nextChar) == TokenType::DMARK)
                                 {
                                     token += "\"";
+                                    columnNumber += 2;
+                                    i++;
+                                    goto skip;
+                                }
+                                else if (nextChar == 'n')
+                                {
+                                    token += "\n";
+                                    columnNumber += 2;
+                                    i++;
+                                    goto skip;
+                                }
+                                else if (nextChar == 't')
+                                {
+                                    token += "\t";
+                                    columnNumber += 2;
+                                    i++;
+                                    goto skip;
+                                }
+                                else if (nextChar == 'r')
+                                {
+                                    token += "\r";
+                                    columnNumber += 2;
+                                    i++;
+                                    goto skip;
+                                }
+                                else if (nextChar == '\\')
+                                {
+                                    token += "\\";
                                     columnNumber += 2;
                                     i++;
                                     goto skip;

@@ -16,6 +16,7 @@ namespace pg
             // Add utility functions
             addNativeFunction("contain", nativeContain);
             addNativeFunction("toInt", nativeToInt);
+            addNativeFunction("typeOf", nativeTypeOf);
 
             // Array functions
             addNativeFunction("len", nativeLen);
@@ -116,6 +117,51 @@ namespace pg
             auto intValue = value.get<int>();
 
             return makeIntValue(intValue);
+        }
+
+        /**
+         * Get the type of a value as a string
+         * Usage: typeOf(value)
+         * Returns: string describing the type ("int", "double", "string", "bool", "array", "table", "function", "class", etc.)
+         */
+        static Value nativeTypeOf(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("typeOf expects exactly 1 argument");
+            }
+
+            Value v = args[0];
+            std::string typeName;
+
+            if (IS_INT(v))
+                typeName = "int";
+            else if (IS_DOUBLE(v))
+                typeName = "double";
+            else if (IS_BOOL(v))
+                typeName = "bool";
+            else if (IS_STRING(v))
+                typeName = "string";
+            else if (IS_VECTOR(v))
+                typeName = "array";
+            else if (IS_INSTANCE(v))
+                typeName = "table";
+            else if (IS_CLASS(v))
+                typeName = "class";
+            else if (IS_FUNC(v))
+                typeName = "function";
+            else if (IS_CLOSURE(v))
+                typeName = "closure";
+            else if (IS_NAT_FUNC(v))
+                typeName = "native_function";
+            else if (IS_BOUND_METHOD(v))
+                typeName = "bound_method";
+            else if (IS_UPVALUE(v))
+                typeName = "upvalue";
+            else
+                typeName = "unknown";
+
+            return vm->createString(typeName);
         }
 
         /**
