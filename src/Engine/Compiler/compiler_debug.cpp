@@ -29,6 +29,8 @@ namespace pg
                 std::cout << "<bound method #" << AS_BOUND_METHOD_INDEX(value) << ">";
             else if (IS_STRING(value))
                 std::cout << "<string #" << AS_STRING_INDEX(value) << ">";
+            else if (IS_VECTOR(value))
+                std::cout << "<vector #" << AS_VECTOR_INDEX(value) << ">";
             else if (IS_INT(value))
                 std::cout << AS_INT(value);
             else if (IS_BOOL(value))
@@ -112,9 +114,26 @@ namespace pg
         {
             std::cout << "<string " << vm->valueToElement(value).toString() << "> #" << AS_STRING_INDEX(value);
         }
+        else if (IS_VECTOR(value))
+        {
+            ObjVector* vec = vm->asVector(value);
+            std::cout << "<vector[" << vec->fields.size() << "]> #" << AS_VECTOR_INDEX(value);
+        }
+        else if (IS_INT(value))
+        {
+            std::cout << AS_INT(value);
+        }
+        else if (IS_BOOL(value))
+        {
+            std::cout << (AS_BOOL(value) ? "true" : "false");
+        }
+        else if (IS_DOUBLE(value))
+        {
+            std::cout << AS_DOUBLE(value);
+        }
         else
         {
-            std::cout << vm->valueToElement(value).toString();
+            std::cout << "<unknown type>";
         }
     }
 

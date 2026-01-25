@@ -164,9 +164,10 @@ namespace pg
             }
 
             ObjVector* vec = vm->asVector(args[0]);
-            vec->fields.push_back(args[1]);
+            vec->fields.push_back(vm->retainValue(args[1]));
 
-            return args[0];
+            // Retain before returning because VM will release all arguments
+            return vm->retainValue(args[0]);
         }
 
         /**
@@ -195,7 +196,7 @@ namespace pg
             Value value = vec->fields.back();
             vec->fields.pop_back();
 
-            return value;
+            return vm->retainValue(value); // Retain before returning
         }
 
         /**
@@ -228,9 +229,10 @@ namespace pg
                 throw std::runtime_error("insert index out of bounds");
             }
 
-            vec->fields.insert(vec->fields.begin() + index, args[2]);
+            vec->fields.insert(vec->fields.begin() + index, vm->retainValue(args[2]));
 
-            return args[0];
+            // Retain before returning because VM will release all arguments
+            return vm->retainValue(args[0]);
         }
 
         /**
