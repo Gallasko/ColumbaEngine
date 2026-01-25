@@ -1,0 +1,30 @@
+// Test table persistence in loop
+import "algorithm"
+import "string"
+
+var items = ["a", "b", "c"]
+var currentItem = {}
+
+for (var i = 0; i < len(items); i = i + 1) {
+    __dprint("Iteration " + toString(i))
+
+    if (i == 0) {
+        __dprint("Creating new table")
+        currentItem = {}
+        currentItem["name"] = "test"
+        __dprint("Added name to table")
+    }
+
+    if (i == 1) {
+        __dprint("Checking if table still has name...")
+        if (contain(currentItem, "name")) {
+            __dprint("Table still valid!")
+            currentItem["type"] = "int"
+            __dprint("Added type to table")
+        } else {
+            __dprint("Table lost its name!")
+        }
+    }
+}
+
+__dprint("Test complete")

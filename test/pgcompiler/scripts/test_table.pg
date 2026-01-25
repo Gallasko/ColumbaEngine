@@ -1,0 +1,15 @@
+// Test table assignment
+
+import "algorithm"
+
+var currentItem = {}
+
+// First assignment
+currentItem["name"] = "test1"
+__dprint("After first assignment: " + currentItem["name"])
+
+// Second assignment
+currentItem["type"] = "test2"
+__dprint("After second assignment: " + currentItem["type"])
+
+__dprint("Test complete")
