@@ -1,162 +1,176 @@
 // Component Generator
 // Parses .pgcomp files and generates C++ component code
 
+import "string"
+import "file"
+import "algorithm"
+
 // ============================================================================
 // YAML Parser
 // ============================================================================
 
 class YamlParser {
     init() {
-        this.indentStack = [];
+        this.indentStack = []
     }
 
     parse(content) {
-        var lines = this.splitLines(content);
-        var root = [];
-        var stack = [root];
-        var indentStack = [0];
-        var currentKey = nil;
+        log("Parse: splitting lines...")
+        var lines = splitLines(content)
+        log("Parse: split into " + toString(len(lines)) + " lines")
 
+        var result = {}
+        var currentSection = ""
+        var currentArray = []
+        var currentItem = {}
+
+        log("Parse: starting line iteration...")
         for (var i = 0; i < len(lines); i = i + 1) {
-            var line = lines[i];
-            var trimmed = trim(line);
+            var line = lines[i]
+            var trimmed = trim(line)
+            log("Line " + toString(i) + ": '" + trimmed + "'")
 
             // Skip empty lines and comments
-            if (len(trimmed) == 0 or startsWith(trimmed, "#")) {
-                continue;
-            }
+            if (len(trimmed) > 0 and not startsWith(trimmed, "#")) {
+                var indent = this.getIndent(line)
+                log("  indent=" + toString(indent))
 
-            var indent = this.getIndent(line);
+                if (startsWith(trimmed, "-")) {
+                    log("  -> array item")
+                    // Array item - save previous item if exists
+                    if (contain(currentItem, "name")) {
+                        push(currentArray, currentItem)
+                    }
+                    currentItem = {}
 
-            // Pop stack if we've dedented
-            while (len(indentStack) > 1 and indent < indentStack[len(indentStack) - 1]) {
-                pop(stack);
-                pop(indentStack);
-            }
+                    // Parse the line after the dash
+                    var afterDash = trim(substring(trimmed, 1, len(trimmed)))
+                    if (contains(afterDash, ":")) {
+                        // Array item with key-value (e.g., "- name: value")
+                        var parts = this.splitFirst(afterDash, ":")
+                        var key = trim(parts[0])
+                        var value = trim(parts[1])
+                        currentItem[key] = this.parseValue(value)
+                    } else if (len(afterDash) > 0) {
+                        // Simple array item (e.g., "- <cstdint>")
+                        // Push it directly to the array as a simple value
+                        push(currentArray, this.parseValue(afterDash))
+                        currentItem = {}
+                    }
+                } else if (contains(trimmed, ":")) {
+                    log("  -> key-value pair")
+                    // Key-value pair
+                    var parts = this.splitFirst(trimmed, ":")
+                    var key = trim(parts[0])
+                    var value = trim(parts[1])
+                    log("  key='" + key + "' value='" + value + "'")
 
-            // Parse the line
-            if (contains(trimmed, ":")) {
-                var parts = this.splitFirst(trimmed, ":");
-                var key = trim(parts[0]);
-                var value = trim(parts[1]);
-
-                var current = stack[len(stack) - 1];
-
-                if (len(value) == 0) {
-                    // It's a nested object
-                    var newObj = [];
-                    current[key] = newObj;
-                    push(stack, newObj);
-                    push(indentStack, indent);
-                } else {
-                    // It's a key-value pair
-                    current[key] = this.parseValue(value);
-                }
-            } else if (startsWith(trimmed, "-")) {
-                // Array item
-                var value = trim(substring(trimmed, 1, len(trimmed)));
-                var current = stack[len(stack) - 1];
-
-                // Ensure current is an array
-                if (typeOf(current) != "array") {
-                    // Convert to array if needed
-                    var arr = [];
-                    push(arr, this.parseArrayItem(value));
-
-                    // Replace parent's last key with array
-                    if (len(stack) >= 2) {
-                        var parent = stack[len(stack) - 2];
-                        // Find the key that points to current
-                        for (var k : parent)
-                        {
-                            if (parent[k] == current) {
-                                parent[k] = arr;
-                                stack[len(stack) - 1] = arr;
-                                break;
+                    if (indent == 0) {
+                        log("  -> top-level")
+                        // Top-level key
+                        if (len(value) == 0) {
+                            log("  -> section start: " + key)
+                            // Start of array or object section
+                            if (len(currentArray) > 0 or contain(currentItem, "name")) {
+                                // Save previous array
+                                if (contain(currentItem, "name")) {
+                                    push(currentArray, currentItem)
+                                    currentItem = {}
+                                }
+                                log("  -> saving section '" + currentSection + "' with " + toString(len(currentArray)) + " items")
+                                result[currentSection] = currentArray
+                                currentArray = []
                             }
+                            currentSection = key
+                        } else {
+                            log("  -> simple key-value: " + key + " = " + value)
+                            // Simple key-value
+                            result[key] = this.parseValue(value)
+                        }
+                    } else {
+                        log("  -> indented key-value")
+                        // Indented key - part of current item
+                        if (len(value) > 0) {
+                            log("  -> about to parse value for key: " + key)
+                            log("  -> checking if currentItem already has a key...")
+                            if (contain(currentItem, "name")) {
+                                log("  -> currentItem has 'name' key, seems valid")
+                            } else {
+                                log("  -> currentItem does NOT have 'name' key yet")
+                            }
+                            var parsedValue = this.parseValue(value)
+                            log("  -> parsed value successfully")
+                            log("  -> about to assign to currentItem")
+                            currentItem[key] = parsedValue
+                            log("  -> assignment complete")
                         }
                     }
-                } else {
-                    push(current, this.parseArrayItem(value));
                 }
             }
         }
 
-        return root;
+        // Save last item/array
+        if (contain(currentItem, "name")) {
+            push(currentArray, currentItem)
+        }
+        if (len(currentArray) > 0) {
+            result[currentSection] = currentArray
+        }
+
+        log("Parse: complete, returning result")
+        return result
     }
 
     parseArrayItem(value) {
         if (contains(value, ":")) {
             // It's an object
-            var obj = [];
-            var parts = this.splitFirst(value, ":");
-            var key = trim(parts[0]);
-            var val = trim(parts[1]);
-            obj[key] = this.parseValue(val);
-            return obj;
+            var obj = {}
+            var parts = this.splitFirst(value, ":")
+            var key = trim(parts[0])
+            var val = trim(parts[1])
+            obj[key] = this.parseValue(val)
+            return obj
         }
-        return this.parseValue(value);
+        return this.parseValue(value)
     }
 
     parseValue(value) {
+        log("    Parsing value: '" + value + "'")
         // Remove quotes if present
         if (startsWith(value, "\"") and endsWith(value, "\"")) {
-            return substring(value, 1, len(value) - 1);
+            return substring(value, 1, len(value) - 1)
         }
         if (startsWith(value, "'") and endsWith(value, "'")) {
-            return substring(value, 1, len(value) - 1);
+            return substring(value, 1, len(value) - 1)
         }
 
-        // Try to parse as number
-        if (value == "true") return true;
-        if (value == "false") return false;
-        if (value == "nil" or value == "null") return nil;
+        // Parse boolean
+        if (value == "true") return true
+        if (value == "false") return false
 
-        return value;
+        return value
     }
 
     getIndent(line) {
-        var count = 0;
-        for (var i = 0; i < len(line); i = i + 1) {
-            var ch = charAt(line, i);
+        var count = 0
+        var done = false
+        for (var i = 0; i < len(line) and not done; i = i + 1) {
+            var ch = charAt(line, i)
             if (ch == " ") {
-                count = count + 1;
-            } else if (ch == "\t") {
-                count = count + 4;  // Treat tab as 4 spaces
+                count = count + 1
             } else {
-                break;
+                done = true
             }
         }
-        return count;
-    }
-
-    splitLines(content) {
-        var lines = [];
-        var current = "";
-
-        for (var i = 0; i < len(content); i = i + 1) {
-            var ch = charAt(content, i);
-            if (ch == "\n") {
-                push(lines, current);
-                current = "";
-            } else {
-                current = current + ch;
-            }
-        }
-
-        if (len(current) > 0) {
-            push(lines, current);
-        }
-
-        return lines;
+        return count
     }
 
     splitFirst(str, delimiter) {
-        var idx = indexOf(str, delimiter);
+        var idx = indexOf(str, delimiter)
         if (idx == -1) {
-            return [str, ""];
+            return [str, ""]
         }
-        return [substring(str, 0, idx), substring(str, idx + 1, len(str))];
+        return [substring(str, 0, idx), substring(str, idx + 1, len(str))]
     }
 }
 
@@ -166,19 +180,19 @@ class YamlParser {
 
 class ComponentSchema {
     init(data) {
-        this.name = data["name"];
-        this.namespace = data["namespace"];
-        this.fields = data["fields"];
-        this.includes = data["includes"];
-        this.events = data["events"];
+        this.name = data["name"]
+        this.namespace = data["namespace"]
+        this.fields = data["fields"]
+        this.includes = data["includes"]
+        this.events = data["events"]
     }
 
     getField(index) {
-        return this.fields[index];
+        return this.fields[index]
     }
 
     getFieldCount() {
-        return len(this.fields);
+        return len(this.fields)
     }
 }
 
@@ -188,145 +202,159 @@ class ComponentSchema {
 
 class HeaderGenerator {
     generate(schema) {
-        var code = "";
+        var code = ""
 
         // Header guard
-        var guardName = toUpperCase(schema.name) + "_GENERATED_H";
-        code = code + "#pragma once\n\n";
+        code = code + "#pragma once\n\n"
+        log(typeOf(schema))
+
+        log(typeOf(schema["includes"]))
+        log(schema.namespace)
 
         // Includes
-        if (schema.includes != nil) {
-            for (var i = 0; i < len(schema.includes); i = i + 1) {
-                code = code + "#include " + schema.includes[i] + "\n";
+        if (contain(schema, "includes")) {
+            log(typeOf(schema["includes"]))
+            for (var i = 0; i < len(schema["includes"]); i = i + 1) {
+                log(schema["includes"][i])
+                code = code + "#include " + schema["includes"][i] + "\n"
             }
-            code = code + "\n";
+            code = code + "\n"
         }
+
+        log(schema["namespace"])
 
         // Namespace
-        if (schema.namespace != nil) {
-            code = code + "namespace " + schema.namespace + " {\n\n";
+        if (contain(schema, "namespace")) {
+            code = code + "namespace " + schema["namespace"] + " {\n\n"
         }
 
+        log(typeOf(schema["name"]))
+        log(schema["name"])
+
         // Component class
-        code = code + "class " + schema.name + " {\n";
-        code = code + "public:\n";
+        code = code + "class " + schema["name"] + " {\n"
+        code = code + "public:\n"
 
         // Fields
         for (var i = 0; i < len(schema.fields); i = i + 1) {
-            var field = schema.fields[i];
-            code = code + "    " + field["type"] + " " + field["name"];
-            if (field["default"] != nil) {
-                code = code + " = " + field["default"];
+            var field = schema.fields[i]
+            code = code + "    " + field["type"] + " " + field["name"]
+            if (contain(field, "default")) {
+                code = code + " = " + toString(field["default"])
             }
-            code = code + ";\n";
+            code = code + ";\n"
         }
 
-        code = code + "\n";
+        code = code + "\n"
 
         // Getters
         for (var i = 0; i < len(schema.fields); i = i + 1) {
-            var field = schema.fields[i];
-            var fieldName = field["name"];
-            var fieldType = field["type"];
-            var getterName = "get" + capitalize(fieldName);
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var getterName = "get" + capitalize(fieldName)
 
-            code = code + "    " + fieldType + " " + getterName + "() const { return " + fieldName + "; }\n";
+            code = code + "    " + fieldType + " " + getterName + "() const { return " + fieldName + "; }\n"
         }
 
-        code = code + "\n";
+        code = code + "\n"
 
         // Setters (declarations only, implementations in .cpp)
         for (var i = 0; i < len(schema.fields); i = i + 1) {
-            var field = schema.fields[i];
-            var fieldName = field["name"];
-            var fieldType = field["type"];
-            var setterName = "set" + capitalize(fieldName);
-            var setterMode = field["setter"];
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var setterName = "set" + capitalize(fieldName)
 
-            if (setterMode != nil and setterMode != "none") {
-                code = code + "    void " + setterName + "(const " + fieldType + "& value);\n";
+            if (contain(field, "setter")) {
+                var setterMode = field["setter"]
+                if (setterMode != "none") {
+                    code = code + "    void " + setterName + "(const " + fieldType + "& value);\n"
+                }
             }
         }
 
-        code = code + "};\n\n";
+        code = code + "};\n\n"
 
         // Close namespace
-        if (schema.namespace != nil) {
-            code = code + "} // namespace " + schema.namespace + "\n";
+        if (contain(schema, "namespace")) {
+            code = code + "} // namespace " + schema.namespace + "\n"
         }
 
-        return code;
+        return code
     }
 }
 
 class CppGenerator {
     generate(schema) {
-        var code = "";
+        var code = ""
 
         // Include the header
-        code = code + "#include \"" + schema.name + ".generated.h\"\n\n";
+        code = code + "#include \"" + schema.name + ".generated.h\"\n\n"
 
         // Namespace
-        if (schema.namespace != nil) {
-            code = code + "namespace " + schema.namespace + " {\n\n";
+        if (contain(schema, "namespace")) {
+            code = code + "namespace " + schema.namespace + " {\n\n"
         }
 
         // Setter implementations
         for (var i = 0; i < len(schema.fields); i = i + 1) {
-            var field = schema.fields[i];
-            var fieldName = field["name"];
-            var fieldType = field["type"];
-            var setterName = "set" + capitalize(fieldName);
-            var setterMode = field["setter"];
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var setterName = "set" + capitalize(fieldName)
 
-            if (setterMode == nil or setterMode == "none") {
-                continue;
-            }
+            if (contain(field, "setter")) {
+                var setterMode = field["setter"]
+                if (setterMode != "none") {
+                    code = code + "void " + schema.name + "::" + setterName + "(const " + fieldType + "& value) {\n"
 
-            code = code + "void " + schema.name + "::" + setterName + "(const " + fieldType + "& value) {\n";
+                    if (setterMode == "basic") {
+                        // Basic setter: just assign
+                        code = code + "    " + fieldName + " = value;\n"
+                    } else if (setterMode == "event") {
+                        // Event setter: assign + send event
+                        code = code + "    " + fieldName + " = value;\n"
+                        code = code + "    if (ecsRef) {\n"
+                        code = code + "        sendEvent<" + schema.name + "Changed>(ecsRef, entity);\n"
+                        code = code + "    }\n"
+                    } else if (setterMode == "custom_event") {
+                        // Custom event setter: check if changed, then assign + send custom event
+                        var eventType = ""
+                        if (contain(field, "event_type")) {
+                            eventType = field["event_type"]
+                        } else {
+                            eventType = capitalize(fieldName) + "Changed"
+                        }
 
-            if (setterMode == "basic") {
-                // Basic setter: just assign
-                code = code + "    " + fieldName + " = value;\n";
-            } else if (setterMode == "event") {
-                // Event setter: assign + send event
-                code = code + "    " + fieldName + " = value;\n";
-                code = code + "    if (ecsRef) {\n";
-                code = code + "        sendEvent<" + schema.name + "Changed>(ecsRef, entity);\n";
-                code = code + "    }\n";
-            } else if (setterMode == "custom_event") {
-                // Custom event setter: check if changed, then assign + send custom event
-                var eventType = field["event_type"];
-                if (eventType == nil) {
-                    eventType = capitalize(fieldName) + "Changed";
+                        code = code + "    if (" + fieldName + " != value) {\n"
+                        code = code + "        " + fieldName + " = value;\n"
+                        code = code + "        if (ecsRef) {\n"
+                        code = code + "            sendEvent<" + eventType + ">(ecsRef, entity);\n"
+                        code = code + "        }\n"
+                        code = code + "    }\n"
+                    } else if (setterMode == "custom") {
+                        // Custom setter: use inline code
+                        if (contain(field, "setter_code")) {
+                            var customCode = field["setter_code"]
+                            code = code + "    " + customCode + "\n"
+                        } else {
+                            code = code + "    // TODO: Implement custom setter logic\n"
+                            code = code + "    " + fieldName + " = value;\n"
+                        }
+                    }
+
+                    code = code + "}\n\n"
                 }
-
-                code = code + "    if (" + fieldName + " != value) {\n";
-                code = code + "        " + fieldName + " = value;\n";
-                code = code + "        if (ecsRef) {\n";
-                code = code + "            sendEvent<" + eventType + ">(ecsRef, entity);\n";
-                code = code + "        }\n";
-                code = code + "    }\n";
-            } else if (setterMode == "custom") {
-                // Custom setter: use inline code
-                var customCode = field["setter_code"];
-                if (customCode != nil) {
-                    code = code + "    " + customCode + "\n";
-                } else {
-                    code = code + "    // TODO: Implement custom setter logic\n";
-                    code = code + "    " + fieldName + " = value;\n";
-                }
             }
-
-            code = code + "}\n\n";
         }
 
         // Close namespace
-        if (schema.namespace != nil) {
-            code = code + "} // namespace " + schema.namespace + "\n";
+        if (contain(schema, "namespace")) {
+            code = code + "} // namespace " + schema.namespace + "\n"
         }
 
-        return code;
+        return code
     }
 }
 
@@ -335,53 +363,86 @@ class CppGenerator {
 // ============================================================================
 
 fun main() {
-    log("Component Generator Starting...");
+    log("Component Generator Starting...")
 
-    var argCount = getArgCount();
-    log("Argument count: " + toString(argCount));
+    var argCount = getArgCount()
+    log("Argument count: " + toString(argCount))
 
     if (argCount < 2) {
-        log("Usage: pgcompiler component_generator.pg <input.pgcomp>");
-        return;
+        log("Usage: pgcompiler component_generator.pg <input.pgcomp>")
+        return
     }
 
-    var inputFile = getArg(1);
-    log("Input file: " + inputFile);
+    var inputFile = getArg(2)
+    log("Input file: " + inputFile)
 
     // Check if file exists
     if (not fileExists(inputFile)) {
-        log("Error: File not found: " + inputFile);
-        return;
+        log("Error: File not found: " + inputFile)
+        return
     }
 
     // Read the file
-    var content = readFile(inputFile);
-    log("File content length: " + toString(len(content)));
+    log("Reading file...")
+    var content = readFile(inputFile)
+    log("File content length: " + toString(len(content)))
 
     // Parse YAML
-    var parser = YamlParser();
-    var data = parser.parse(content);
+    log("Creating YAML parser...")
+    var parser = YamlParser()
+    log("Starting YAML parse...")
+    var data = parser.parse(content)
+    log("YAML parse complete")
 
     // Create schema
-    var schema = ComponentSchema(data);
+    log("Creating component schema...")
 
-    log("Generating code for component: " + schema.name);
+    if (contain(data, "name")) {
+        log("Data has 'name' key: " + data["name"])
+    } else {
+        log("ERROR: Data does not contain 'name' key!")
+    }
+
+    if (contain(data, "namespace")) {
+        log("Data has 'namespace' key: " + data["namespace"])
+    }
+
+    if (contain(data, "fields")) {
+        log("Data has 'fields' key, type: " + typeOf(data["fields"]))
+    }
+
+    if (contain(data, "includes")) {
+        log("Data has 'includes' key, type: " + typeOf(data["includes"]))
+    } else {
+        log("Data does NOT have 'includes' key")
+    }
+
+    var schema = ComponentSchema(data)
+    log("Schema created")
+
+    log("Generating code for component: " + schema.name)
 
     // Generate header
-    var headerGen = HeaderGenerator();
-    var headerCode = headerGen.generate(schema);
-    var headerFile = schema.name + ".generated.h";
-    writeFile(headerFile, headerCode);
-    log("Generated: " + headerFile);
+    var headerGen = HeaderGenerator()
+
+    log("Generating header code...")
+
+    var headerCode = headerGen.generate(schema)
+
+    log("Header generated successfully")
+
+    var headerFile = schema.name + ".generated.h"
+    writeFile(headerFile, headerCode)
+    log("Generated: " + headerFile)
 
     // Generate cpp
-    var cppGen = CppGenerator();
-    var cppCode = cppGen.generate(schema);
-    var cppFile = schema.name + ".generated.cpp";
-    writeFile(cppFile, cppCode);
-    log("Generated: " + cppFile);
+    var cppGen = CppGenerator()
+    var cppCode = cppGen.generate(schema)
+    var cppFile = schema.name + ".generated.cpp"
+    writeFile(cppFile, cppCode)
+    log("Generated: " + cppFile)
 
-    log("Component generation complete!");
+    log("Component generation complete!")
 }
 
-main();
+main()
