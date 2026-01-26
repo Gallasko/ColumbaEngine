@@ -52,9 +52,13 @@ class YamlParser {
                         var value = trim(parts[1])
                         currentItem[key] = this.parseValue(value)
                     } else if (len(afterDash) > 0) {
-                        // Simple array item (e.g., "- <cstdint>")
-                        // Push it directly to the array as a simple value
-                        push(currentArray, this.parseValue(afterDash))
+                        // Simple array item (e.g., "- <cstdint>" or "- \"file.h\"")
+                        // For includes and methods, keep the value as-is without parsing
+                        if (currentSection == "includes") {
+                            push(currentArray, afterDash)
+                        } else {
+                            push(currentArray, this.parseValue(afterDash))
+                        }
                         currentItem = {}
                     }
                 } else if (contains(trimmed, ":")) {
@@ -178,20 +182,26 @@ class YamlParser {
 // Component Schema
 // ============================================================================
 
-class ComponentSchema {
-    init(data) {
+class ComponentSchema
+{
+    init(data)
+    {
         this.name = data["name"]
         this.namespace = data["namespace"]
         this.fields = data["fields"]
         this.includes = data["includes"]
         this.events = data["events"]
+        this.methods = data["methods"]
+        this.baseClass = data["base_class"]
     }
 
-    getField(index) {
+    getField(index)
+    {
         return this.fields[index]
     }
 
-    getFieldCount() {
+    getFieldCount()
+    {
         return len(this.fields)
     }
 }
@@ -200,158 +210,236 @@ class ComponentSchema {
 // Code Generators
 // ============================================================================
 
-class HeaderGenerator {
-    generate(schema) {
+class HeaderGenerator
+{
+    generate(schema)
+    {
         var code = ""
 
-        // Header guard
-        code = code + "#pragma once\n\n"
-        log(typeOf(schema))
+        debugTable(schema)
 
-        log(typeOf(schema["includes"]))
-        log(schema.namespace)
+        // Header guard
+        code += "#pragma once\n\n"
 
         // Includes
-        if (contain(schema, "includes")) {
-            log(typeOf(schema["includes"]))
-            for (var i = 0; i < len(schema["includes"]); i = i + 1) {
-                log(schema["includes"][i])
-                code = code + "#include " + schema["includes"][i] + "\n"
+        if (contain(schema, "includes"))
+        {
+            for (var i = 0; i < len(schema["includes"]); i = i + 1)
+            {
+                code += "#include " + schema["includes"][i] + "\n"
             }
-            code = code + "\n"
+            code += "\n"
         }
-
-        log(schema["namespace"])
 
         // Namespace
-        if (contain(schema, "namespace")) {
-            code = code + "namespace " + schema["namespace"] + " {\n\n"
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema["namespace"] + "\n{\n\n"
         }
 
-        log(typeOf(schema["name"]))
-        log(schema["name"])
+        // Event structs
+        if (contain(schema, "events"))
+        {
+            for (var i = 0; i < len(schema["events"]); i = i + 1)
+            {
+                var eventName = schema["events"][i]
+                code += "struct " + eventName + "\n"
+                code += "{\n"
+                code += "    _unique_id id = 0;\n"
+                code += "};\n\n"
+            }
+        }
 
-        // Component class
-        code = code + "class " + schema["name"] + " {\n"
-        code = code + "public:\n"
+        // Component class with inheritance
+        code += "class " + schema["name"]
+        if (contain(schema, "baseClass"))
+        {
+            code += " : public " + schema["baseClass"]
+        }
+        code += "\n{\n"
+
+        if (contain(schema, "baseClass") and schema["baseClass"] == "Component")
+        {
+            code += "    " + "DEFAULT_COMPONENT_MEMBERS(" + schema["name"] +")\n\n"
+        }
+
+        code += "public:\n"
 
         // Fields
-        for (var i = 0; i < len(schema.fields); i = i + 1) {
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
             var field = schema.fields[i]
-            code = code + "    " + field["type"] + " " + field["name"]
-            if (contain(field, "default")) {
-                code = code + " = " + toString(field["default"])
+            code += "    " + field["type"] + " " + field["name"]
+
+            if (contain(field, "default"))
+            {
+                code += " = " + toString(field["default"])
             }
-            code = code + ";\n"
+
+            code += ";\n"
         }
 
-        code = code + "\n"
+        code += "\n"
 
         // Getters
-        for (var i = 0; i < len(schema.fields); i = i + 1) {
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
             var field = schema.fields[i]
             var fieldName = field["name"]
             var fieldType = field["type"]
             var getterName = "get" + capitalize(fieldName)
 
-            code = code + "    " + fieldType + " " + getterName + "() const { return " + fieldName + "; }\n"
+            code += "    " + fieldType + " " + getterName + "() const { return " + fieldName + "; }\n"
         }
 
-        code = code + "\n"
+        code += "\n"
 
         // Setters (declarations only, implementations in .cpp)
-        for (var i = 0; i < len(schema.fields); i = i + 1) {
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
             var field = schema.fields[i]
             var fieldName = field["name"]
             var fieldType = field["type"]
             var setterName = "set" + capitalize(fieldName)
 
-            if (contain(field, "setter")) {
+            if (contain(field, "setter"))
+            {
                 var setterMode = field["setter"]
-                if (setterMode != "none") {
-                    code = code + "    void " + setterName + "(const " + fieldType + "& value);\n"
+                if (setterMode != "none")
+                {
+                    code += "    void " + setterName + "(const " + fieldType + "& value);\n"
                 }
             }
         }
 
-        code = code + "};\n\n"
+        code += "\n"
+
+        // Custom methods (inline implementations)
+        if (contain(schema, "methods"))
+        {
+            for (var i = 0; i < len(schema["methods"]); i = i + 1)
+            {
+                var method = schema["methods"][i]
+                code += "    " + method + "\n"
+            }
+            code += "\n"
+        }
+
+        // getType() static method
+        code += "    inline static std::string getType() { return \"" + schema.name + "\"; }\n"
+
+        code += "};\n\n"
 
         // Close namespace
-        if (contain(schema, "namespace")) {
-            code = code + "} // namespace " + schema.namespace + "\n"
+        if (contain(schema, "namespace"))
+        {
+            code += "} // namespace " + schema.namespace + "\n"
         }
 
         return code
     }
 }
 
-class CppGenerator {
-    generate(schema) {
+class CppGenerator
+{
+    generate(schema)
+    {
         var code = ""
 
         // Include the header
-        code = code + "#include \"" + schema.name + ".generated.h\"\n\n"
+        code += "#include \"" + schema.name + ".generated.h\"\n\n"
+        code += "#include \"ECS/entitysystem.h\"\n\n"
 
         // Namespace
-        if (contain(schema, "namespace")) {
-            code = code + "namespace " + schema.namespace + " {\n\n"
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema.namespace + "\n{\n\n"
         }
 
         // Setter implementations
-        for (var i = 0; i < len(schema.fields); i = i + 1) {
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
             var field = schema.fields[i]
             var fieldName = field["name"]
             var fieldType = field["type"]
             var setterName = "set" + capitalize(fieldName)
 
-            if (contain(field, "setter")) {
+            if (contain(field, "setter"))
+            {
                 var setterMode = field["setter"]
-                if (setterMode != "none") {
-                    code = code + "void " + schema.name + "::" + setterName + "(const " + fieldType + "& value) {\n"
+                if (setterMode != "none")
+                {
+                    code += "void " + schema.name + "::" + setterName + "(const " + fieldType + "& value)\n{\n"
 
-                    if (setterMode == "basic") {
+                    if (setterMode == "basic")
+                    {
                         // Basic setter: just assign
-                        code = code + "    " + fieldName + " = value;\n"
-                    } else if (setterMode == "event") {
+                        code += "    " + fieldName + " = value;\n"
+                    }
+                    else if (setterMode == "event")
+                    {
                         // Event setter: assign + send event
-                        code = code + "    " + fieldName + " = value;\n"
-                        code = code + "    if (ecsRef) {\n"
-                        code = code + "        sendEvent<" + schema.name + "Changed>(ecsRef, entity);\n"
-                        code = code + "    }\n"
-                    } else if (setterMode == "custom_event") {
+                        code += "    " + fieldName + " = value;\n\n"
+                        code += "    if (ecsRef)\n    {\n"
+                        // Get the event name from schema or use default
+                        var eventName = ""
+
+                        if (contain(schema, "events") and len(schema["events"]) > 0)
+                        {
+                            eventName = schema["events"][0]
+                        }
+                        else
+                        {
+                            eventName = schema.name + "Changed"
+                        }
+
+                        code += "        ecsRef->sendEvent(" + eventName + "{entityId});\n"
+                        code += "    }\n"
+                    }
+                    else if (setterMode == "custom_event")
+                    {
                         // Custom event setter: check if changed, then assign + send custom event
                         var eventType = ""
-                        if (contain(field, "event_type")) {
+                        if (contain(field, "event_type"))
+                        {
                             eventType = field["event_type"]
-                        } else {
+                        }
+                        else
+                        {
                             eventType = capitalize(fieldName) + "Changed"
                         }
 
-                        code = code + "    if (" + fieldName + " != value) {\n"
-                        code = code + "        " + fieldName + " = value;\n"
-                        code = code + "        if (ecsRef) {\n"
-                        code = code + "            sendEvent<" + eventType + ">(ecsRef, entity);\n"
-                        code = code + "        }\n"
-                        code = code + "    }\n"
-                    } else if (setterMode == "custom") {
+                        code += "    if (" + fieldName + " != value) {\n"
+                        code += "        " + fieldName + " = value;\n"
+                        code += "        if (ecsRef) {\n"
+                        code += "            sendEvent<" + eventType + ">(ecsRef, id);\n"
+                        code += "        }\n"
+                        code += "    }\n"
+                    }
+                    else if (setterMode == "custom")
+                    {
                         // Custom setter: use inline code
-                        if (contain(field, "setter_code")) {
+                        if (contain(field, "setter_code"))
+                        {
                             var customCode = field["setter_code"]
-                            code = code + "    " + customCode + "\n"
-                        } else {
-                            code = code + "    // TODO: Implement custom setter logic\n"
-                            code = code + "    " + fieldName + " = value;\n"
+                            code += "    " + customCode + "\n"
+                        }
+                        else
+                        {
+                            code += "    // TODO: Implement custom setter logic\n"
+                            code += "    " + fieldName + " = value;\n"
                         }
                     }
 
-                    code = code + "}\n\n"
+                    code += "}\n\n"
                 }
             }
         }
 
         // Close namespace
-        if (contain(schema, "namespace")) {
-            code = code + "} // namespace " + schema.namespace + "\n"
+        if (contain(schema, "namespace"))
+        {
+            code += "} // namespace " + schema.namespace + "\n"
         }
 
         return code
