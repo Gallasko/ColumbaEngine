@@ -260,8 +260,8 @@ class HeaderGenerator
             }
         }
 
-        // Component class with inheritance
-        code += "class " + schema["name"]
+        // Component struct with inheritance
+        code += "struct " + schema["name"]
         if (contain(schema, "baseClass"))
         {
             code += " : public " + schema["baseClass"]
@@ -273,7 +273,7 @@ class HeaderGenerator
             code += "    " + "DEFAULT_COMPONENT_MEMBERS(" + schema["name"] +")\n\n"
         }
 
-        code += "public:\n"
+        // code += "public:\n"
 
         // Fields
         for (var i = 0; i < len(schema.fields); i = i + 1)
@@ -339,6 +339,12 @@ class HeaderGenerator
         code += "    inline static std::string getType() { return \"" + schema.name + "\"; }\n"
 
         code += "};\n\n"
+
+        // Serialization template declarations
+        code += "template <>\n"
+        code += "void serialize(Archive& archive, const " + schema.name + "& value);\n\n"
+        code += "template <>\n"
+        code += schema.name + " deserialize(const UnserializedObject& serializedString);\n\n"
 
         // Close namespace
         if (contain(schema, "namespace"))
@@ -445,6 +451,64 @@ class CppGenerator
                 }
             }
         }
+
+        // Serialization implementation
+        code += "// Serialize function for " + schema.name + "\n"
+        code += "template <>\n"
+        code += "void serialize(Archive& archive, const " + schema.name + "& value)\n"
+        code += "{\n"
+        code += "    archive.startSerialization(\"" + schema.name + "\");\n\n"
+
+        // Serialize each field (unless marked with serialize: false)
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+
+            // Skip fields explicitly marked with serialize: false
+            var shouldSerialize = true
+            if (contain(field, "serialize") and field["serialize"] == false)
+            {
+                shouldSerialize = false
+            }
+
+            if (shouldSerialize)
+            {
+                code += "    serialize(archive, \"" + fieldName + "\", value." + fieldName + ");\n"
+            }
+        }
+
+        code += "\n    archive.endSerialization();\n"
+        code += "}\n\n"
+
+        // Deserialization implementation
+        code += "// Deserialize function for " + schema.name + "\n"
+        code += "template <>\n"
+        code += schema.name + " deserialize(const UnserializedObject& serializedString)\n"
+        code += "{\n"
+        code += "    " + schema.name + " data;\n\n"
+
+        // Deserialize each field (unless marked with serialize: false)
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+
+            // Skip fields explicitly marked with serialize: false
+            var shouldSerialize = true
+            if (contain(field, "serialize") and field["serialize"] == false)
+            {
+                shouldSerialize = false
+            }
+
+            if (shouldSerialize)
+            {
+                code += "    defaultDeserialize(serializedString, \"" + fieldName + "\", data." + fieldName + ");\n"
+            }
+        }
+
+        code += "\n    return data;\n"
+        code += "}\n\n"
 
         // Close namespace
         if (contain(schema, "namespace"))
