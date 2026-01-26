@@ -190,6 +190,7 @@ class ComponentSchema
         this.namespace = data["namespace"]
         this.fields = data["fields"]
         this.includes = data["includes"]
+        this.forwards = data["forwards"]
         this.events = data["events"]
         this.methods = data["methods"]
         this.baseClass = data["base_class"]
@@ -227,6 +228,15 @@ class HeaderGenerator
             for (var i = 0; i < len(schema["includes"]); i = i + 1)
             {
                 code += "#include " + schema["includes"][i] + "\n"
+            }
+            code += "\n"
+        }
+
+        if (contain(schema, "forwards"))
+        {
+            for (var i = 0; i < len(schema["forwards"]); i = i + 1)
+            {
+                code += schema["forwards"][i] + "\n"
             }
             code += "\n"
         }
