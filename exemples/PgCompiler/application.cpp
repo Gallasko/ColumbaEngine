@@ -118,7 +118,7 @@ void CompilerApp::runREPL()
     int braceDepth = 0;
 
     EntitySystem ecs;
-    ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+    // ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
 
     setLoggerSink();
 
@@ -221,6 +221,8 @@ void CompilerApp::runFile(bool needCompile)
     setLoggerSink();
 
     EntitySystem ecs;
+
+    ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
 
     VM vm;
 

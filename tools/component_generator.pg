@@ -194,6 +194,7 @@ class ComponentSchema
         this.events = data["events"]
         this.methods = data["methods"]
         this.baseClass = data["base_class"]
+        this.shortname = data["shortname"]
     }
 
     getField(index)
@@ -345,6 +346,209 @@ class HeaderGenerator
         code += "void serialize(Archive& archive, const " + schema.name + "& value);\n\n"
         code += "template <>\n"
         code += schema.name + " deserialize(const UnserializedObject& serializedString);\n\n"
+
+        // Close namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "} // namespace " + schema.namespace + "\n"
+        }
+
+        return code
+    }
+}
+
+class SerializationGenerator
+{
+    generate(schema)
+    {
+        var code = ""
+
+        // Include necessary headers
+        code += "#include \"stdafx.h\"\n\n"
+        code += "#include \"" + schema.name + ".generated.h\"\n\n"
+        code += "#include \"Compiler/ecsserialization.h\"\n"
+        code += "#include \"ECS/entitysystem.h\"\n\n"
+
+        // Namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema["namespace"] + "\n{\n\n"
+        }
+
+        // Generate serialization function with setters
+        code += "void serialize" + schema.name + "WithSetters(VM* vm, ObjInstance* table, " + schema.name + "* component)\n"
+        code += "{\n"
+        code += "    // Get component context\n"
+        code += "    _unique_id entityId = component->entityId;\n\n"
+        code += "    LOG_MILE(\"ECS Serialization\", \"Generating setters for " + schema.name + " on entity \" << entityId);\n\n"
+        code += "    // Generate setter methods for each property using macros\n"
+
+        // Generate setter registrations for each field with a setter
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var setterName = "set" + capitalize(fieldName)
+
+            if (contain(field, "setter") and field["setter"] != "none")
+            {
+                var macroName = ""
+
+                // Determine the appropriate macro based on field type
+                if (fieldType == "float")
+                {
+                    macroName = "REGISTER_FLOAT_SETTER"
+                }
+                else if (fieldType == "bool")
+                {
+                    macroName = "REGISTER_BOOL_SETTER"
+                }
+                else if (fieldType == "int" or fieldType == "_unique_id")
+                {
+                    macroName = "REGISTER_INT_SETTER"
+                }
+                else if (fieldType == "double")
+                {
+                    macroName = "REGISTER_DOUBLE_SETTER"
+                }
+                else
+                {
+                    // For other types, use a generic comment
+                    code += "    // TODO: Add setter registration for " + fieldName + " (" + fieldType + ")\n"
+                }
+
+                if (len(macroName) > 0)
+                {
+                    code += "    " + macroName + "(vm, table, component, " + setterName + ");\n"
+                }
+            }
+        }
+
+        code += "}\n\n"
+
+        // Register component serializer
+        code += "// Register " + schema.name + " serializer at static initialization time\n"
+        code += "REGISTER_COMPONENT_SERIALIZER(" + schema.name + ", serialize" + schema.name + "WithSetters);\n\n"
+
+        // Generate attach handler function
+        code += "bool attach" + schema.name + "(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)\n"
+        code += "{\n"
+
+        // Declare variables for each field with default values
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var defaultValue = ""
+
+            if (contain(field, "default"))
+            {
+                defaultValue = " = " + toString(field["default"])
+            }
+            else
+            {
+                // Provide sensible defaults for common types
+                if (fieldType == "float" or fieldType == "double")
+                {
+                    defaultValue = " = 0.0f"
+                }
+                else if (fieldType == "int" or fieldType == "_unique_id")
+                {
+                    defaultValue = " = 0"
+                }
+                else if (fieldType == "bool")
+                {
+                    defaultValue = " = false"
+                }
+            }
+
+            code += "    " + fieldType + " " + fieldName + defaultValue + ";\n"
+        }
+
+        code += "\n    // Process key-value pairs\n"
+        code += "    for (int i = 0; i < argCount; i += 2)\n"
+        code += "    {\n"
+        code += "        if (i + 1 >= argCount) break;\n\n"
+        code += "        if (!IS_STRING(args[i]))\n"
+        code += "        {\n"
+        code += "            LOG_ERROR(\"ECS Serialization\", \"attachComp expects string keys for properties\");\n"
+        code += "            continue;\n"
+        code += "        }\n\n"
+        code += "        auto key = vm->asString(args[i]);\n\n"
+
+        // Generate key extraction for each field
+        var firstField = true
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+
+            var extractFunc = ""
+            if (fieldType == "float" or fieldType == "double")
+            {
+                extractFunc = "detail::extractFloatArg"
+            }
+            else if (fieldType == "bool")
+            {
+                extractFunc = "detail::extractBoolArg"
+            }
+            else if (fieldType == "int" or fieldType == "_unique_id")
+            {
+                extractFunc = "detail::extractIntArg"
+            }
+
+            if (len(extractFunc) > 0)
+            {
+                if (firstField)
+                {
+                    code += "        if (key == \"" + fieldName + "\")\n"
+                    firstField = false
+                }
+                else
+                {
+                    code += "        else if (key == \"" + fieldName + "\")\n"
+                }
+                code += "            " + fieldName + " = " + extractFunc + "(args, i + 1);\n"
+            }
+        }
+
+        code += "    }\n\n"
+
+        // Attach component and set fields
+        code += "    // Attach " + schema.name + " with parsed parameters\n"
+        code += "    auto comp = ecs->_attach<" + schema.name + ">(entity);\n\n"
+
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            code += "    comp->" + fieldName + " = " + fieldName + ";\n"
+        }
+
+        code += "\n    LOG_INFO(\"ECS Serialization\", \"Attached " + schema.name + " to entity \" << entity->id);\n\n"
+        code += "    return true;\n"
+        code += "}\n\n"
+
+        // Register the attach handler - use shortname if provided, otherwise extract from component name
+        var componentShortName = ""
+        if (contain(schema, "shortname") and typeOf(schema["shortname"]) == "string" and len(schema["shortname"]) > 0)
+        {
+            componentShortName = schema["shortname"]
+        }
+        else
+        {
+            componentShortName = schema.name
+            if (contains(componentShortName, "Component"))
+            {
+                var idx = indexOf(componentShortName, "Component")
+                componentShortName = substring(componentShortName, 0, idx)
+            }
+        }
+        code += "// Register the " + componentShortName + " component attach handler\n"
+        code += "REGISTER_COMPONENT_ATTACH_HANDLER(" + componentShortName + ", attach" + schema.name + ");\n\n"
 
         // Close namespace
         if (contain(schema, "namespace"))
@@ -603,6 +807,13 @@ fun main() {
     var cppFile = schema.name + ".generated.cpp"
     writeFile(cppFile, cppCode)
     log("Generated: " + cppFile)
+
+    // Generate serialization
+    var serGen = SerializationGenerator()
+    var serCode = serGen.generate(schema)
+    var serFile = schema.name + ".serialization.cpp"
+    writeFile(serFile, serCode)
+    log("Generated: " + serFile)
 
     log("Component generation complete!")
 }

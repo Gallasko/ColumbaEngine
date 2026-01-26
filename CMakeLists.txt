@@ -242,8 +242,16 @@ set(ENGINESOURCE
     src/Engine/UI/uisystem.cpp
 )
 
+# Automatically find all generated component files
+file(GLOB_RECURSE GENERATED_COMPONENT_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.generated.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.serialization.cpp"
+)
+
+message(STATUS "Found ${CMAKE_CURRENT_LIST_LINE} generated component files: ${GENERATED_COMPONENT_SOURCES}")
+
 # Create the static library
-add_library(ColumbaEngine STATIC ${ENGINESOURCE})
+add_library(ColumbaEngine STATIC ${ENGINESOURCE} ${GENERATED_COMPONENT_SOURCES})
 
 # Todo find why the pch doesn't work on windows
 if(MINGW)
