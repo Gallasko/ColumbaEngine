@@ -16,25 +16,27 @@ namespace pg {
             return false;
         }
 
-        LOG_INFO("LongJumpOptimization", "Starting long jump optimization pass");
+        LOG_MILE("LongJumpOptimization", "Starting long jump optimization pass");
 
         bool globalChanged = false;
         int iterationCount = 0;
         const int maxIterations = 100; // Prevent infinite loops
 
         // Keep optimizing until no more changes are possible
-        while (iterationCount < maxIterations) {
+        while (iterationCount < maxIterations)
+        {
             iterationCount++;
 
             // Find optimizable jumps in the current state of the chunk
             auto candidates = findOptimizableJumps(chunk);
 
-            if (candidates.empty()) {
-                LOG_INFO("LongJumpOptimization", "No more long jumps can be optimized (iteration " << iterationCount << ")");
+            if (candidates.empty())
+            {
+                LOG_MILE("LongJumpOptimization", "No more long jumps can be optimized (iteration " << iterationCount << ")");
                 break;
             }
 
-            LOG_INFO("LongJumpOptimization", "Iteration " << iterationCount << ": Found " << candidates.size() << " optimizable jumps");
+            LOG_MILE("LongJumpOptimization", "Iteration " << iterationCount << ": Found " << candidates.size() << " optimizable jumps");
 
             // Optimize the first candidate (this maintains simpler logic)
             const auto& jump = candidates[0];
@@ -64,22 +66,26 @@ namespace pg {
             bool success = rewriter->rewriteAtRaw(chunk, jump.instructionOffset, 5,
                                                 {static_cast<uint8_t>(shortOpcode), highByte, lowByte});
 
-            if (success) {
-                LOG_INFO("LongJumpOptimization", "Optimized long jump at offset " << jump.instructionOffset
+            if (success)
+            {
+                LOG_MILE("LongJumpOptimization", "Optimized long jump at offset " << jump.instructionOffset
                          << " (distance: " << shortDistance << ")");
                 globalChanged = true;
-            } else {
+            }
+            else
+            {
                 LOG_WARNING("LongJumpOptimization", "Failed to optimize jump at offset " << jump.instructionOffset);
                 break;
             }
         }
 
-        if (iterationCount >= maxIterations) {
+        if (iterationCount >= maxIterations)
+        {
             LOG_WARNING("LongJumpOptimization", "Reached maximum iterations, stopping optimization");
         }
 
         if (globalChanged) {
-            LOG_INFO("LongJumpOptimization", "Successfully completed optimization after " << iterationCount << " iterations");
+            LOG_MILE("LongJumpOptimization", "Successfully completed optimization after " << iterationCount << " iterations");
         }
 
         return globalChanged;
@@ -114,7 +120,7 @@ namespace pg {
                     jumpInfo.canOptimize = true;
                     candidates.push_back(jumpInfo);
 
-                    LOG_INFO("LongJumpOptimization", "Long jump at offset " << i <<
+                    LOG_MILE("LongJumpOptimization", "Long jump at offset " << i <<
                              " with distance " << jumpDistance << " can be optimized");
                 }
             }
