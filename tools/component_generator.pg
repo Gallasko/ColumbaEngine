@@ -233,6 +233,12 @@ class HeaderGenerator
             code += "\n"
         }
 
+        // Namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema["namespace"] + "\n{\n\n"
+        }
+
         if (contain(schema, "forwards"))
         {
             for (var i = 0; i < len(schema["forwards"]); i = i + 1)
@@ -240,12 +246,6 @@ class HeaderGenerator
                 code += schema["forwards"][i] + "\n"
             }
             code += "\n"
-        }
-
-        // Namespace
-        if (contain(schema, "namespace"))
-        {
-            code += "namespace " + schema["namespace"] + "\n{\n\n"
         }
 
         // Event structs

@@ -55,6 +55,7 @@ methods:
   - "bool isObservable() const { return observable; }"
   - "bool isRenderable() const { return visible and observable; }"
   - "bool updatefromAnchor(const UiAnchor& anchor);"
+  - "void setVisibility(const bool& visible) { this->visible = visible; }"
 
 events:
   - PositionComponentChangedEvent
