@@ -349,11 +349,10 @@ target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 # This is used ONLY for building the bootstrap compiler
 add_library(ColumbaEngineMinimal STATIC ${MINIMAL_ENGINESOURCE})
 
-if(MINGW)
-    set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
-endif()
-
-target_precompile_headers(ColumbaEngineMinimal PRIVATE src/Engine/stdafx.h)
+# Disable PCH for minimal engine to avoid rebuilding it
+# (The minimal engine is small enough that PCH overhead isn't worth it,
+#  and it would need a separate PCH due to PG_MINIMAL_BUILD definition)
+set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
 # Define PG_MINIMAL_BUILD for the minimal engine
 target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)

@@ -3575,7 +3575,8 @@ namespace pg
     {
         if (!profiler.isEnabled())
         {
-            std::cout << "Profiling is not enabled. Call enableProfiling() before running the VM." << std::endl;
+            LOG_WARNING("VM_Profiling", "Profiling is not enabled. Call enableProfiling() before running the VM.");
+
             return;
         }
 

@@ -400,7 +400,14 @@ namespace pg
 
         return system;
     }
+#else
+    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment>, std::shared_ptr<ClassInstance>)
+    {
+        return nullptr;
+    }
 #endif
+
+
 
     void EntitySystem::deleteSystem(_unique_id id)
     {

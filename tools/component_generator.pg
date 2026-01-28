@@ -224,7 +224,7 @@ class HeaderGenerator
         code += "#pragma once\n\n"
 
         // Includes
-        if (contain(schema, "includes"))
+        if (contain(schema, "includes") and typeOf(schema["includes"]) == "array")
         {
             for (var i = 0; i < len(schema["includes"]); i = i + 1)
             {
@@ -239,7 +239,7 @@ class HeaderGenerator
             code += "namespace " + schema["namespace"] + "\n{\n\n"
         }
 
-        if (contain(schema, "forwards"))
+        if (contain(schema, "forwards") and typeOf(schema["forwards"]) == "array")
         {
             for (var i = 0; i < len(schema["forwards"]); i = i + 1)
             {
@@ -249,7 +249,7 @@ class HeaderGenerator
         }
 
         // Event structs
-        if (contain(schema, "events"))
+        if (contain(schema, "events") and typeOf(schema["events"]) == "array")
         {
             for (var i = 0; i < len(schema["events"]); i = i + 1)
             {
@@ -284,7 +284,16 @@ class HeaderGenerator
 
             if (contain(field, "default"))
             {
-                code += " = " + toString(field["default"])
+                var defaultValue = field["default"]
+                // For string types, ensure quotes are preserved
+                if (contains(field["type"], "string") and typeOf(defaultValue) == "string")
+                {
+                    code += " = \"" + defaultValue + "\""
+                }
+                else
+                {
+                    code += " = " + toString(defaultValue)
+                }
             }
 
             code += ";\n"
@@ -326,7 +335,7 @@ class HeaderGenerator
         code += "\n"
 
         // Custom methods (inline implementations)
-        if (contain(schema, "methods"))
+        if (contain(schema, "methods") and typeOf(schema["methods"]) == "array")
         {
             for (var i = 0; i < len(schema["methods"]); i = i + 1)
             {

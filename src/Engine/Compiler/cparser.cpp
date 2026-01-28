@@ -1287,7 +1287,6 @@ namespace pg
 
         if (not parseImportFile(moduleName))
         {
-            std::cout << "Trying native module import for '" << moduleName << "'" << std::endl;
             // Try to import a native module if file import failed
             if (not vm->loadNativeModule(moduleName))
             {
