@@ -12,7 +12,6 @@ namespace pg
     {
         if (profiles.empty())
         {
-            std::cout << "No profiling data collected" << std::endl;
             return;
         }
 
@@ -75,7 +74,6 @@ namespace pg
     {
         if (profiles.empty())
         {
-            std::cout << "No profiling data collected" << std::endl;
             return;
         }
 
@@ -118,7 +116,7 @@ namespace pg
     {
         if (!enabled)
         {
-            std::cout << "Profiling is not enabled" << std::endl;
+            LOG_WARNING("VM_Profiling", "Profiling is not enabled");
             return;
         }
 
