@@ -20,7 +20,7 @@
 
 #include "Systems/coresystems.h"
 
-#include "Interpreter/interpretersystem.h"
+// #include "Interpreter/interpretersystem.h"
 
 #ifdef PROFILE
 std::mutex profileMutex;
@@ -43,14 +43,14 @@ namespace
 
 // Include for the vm setup
 #include "Compiler/vm.h"
-#include "ecsmodule.h"
 #include "Helpers/mathmodule.h"
-#include "Helpers/randommodule.h"
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
 #include "Files/filemodule.h"
 
 #ifndef PG_MINIMAL_BUILD
+#include "ecsmodule.h"
+#include "Helpers/randommodule.h"
 #include "Helpers/inputmodule_vm.h"
 #include "Input/inputcomponent.h"
 #include "2D/texturemodule.h"
@@ -375,6 +375,7 @@ namespace pg
         }
     }
 
+#ifndef PG_MINIMAL_BUILD
     InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance)
     {
         LOG_THIS_MEMBER("ECS");
@@ -399,6 +400,7 @@ namespace pg
 
         return system;
     }
+#endif
 
     void EntitySystem::deleteSystem(_unique_id id)
     {
@@ -527,13 +529,13 @@ namespace pg
         }
 
         vm.addNativeModule("math", MathModule{});
-        vm.addNativeModule("random", RandomModule{});
         vm.addNativeModule("algorithm", AlgorithmModule{});
         vm.addNativeModule("string", StringModule{});
         vm.addNativeModule("file", FileModule{});
-        vm.addNativeModule("ecs", EcsCompiledModule{this});
 
 #ifndef PG_MINIMAL_BUILD
+        vm.addNativeModule("random", RandomModule{});
+        vm.addNativeModule("ecs", EcsCompiledModule{this});
         vm.addNativeModule("texture", TextureModule{this});
         vm.addNativeModule("ui", UIModule{this});
 

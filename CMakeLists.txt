@@ -148,6 +148,50 @@ endif()
 message("Current c++ debug flags used: '${CMAKE_C_FLAGS}'")
 message("Current c++ release flags used: '${CMAKE_CXX_FLAGS}'")
 
+# Minimal engine source files (for bootstrap compiler only)
+# These files are needed to run PG scripts (VM + modules + ECS for module registration)
+set(MINIMAL_ENGINESOURCE
+    # Core compiler/VM files
+    src/Engine/Compiler/compiler_debug.cpp
+    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_profiler.cpp
+    src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/object.cpp
+    src/Engine/Compiler/cparser.cpp
+    src/Engine/Compiler/bytecode_pass.cpp
+    src/Engine/Compiler/bytecode_rewriter.cpp
+    src/Engine/Compiler/chunk_serializer.cpp
+    src/Engine/Compiler/pass/bytecode_pass_module.cpp
+    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
+    src/Engine/Compiler/pass/constant_folding.cpp
+    # Minimal interpreter (only lexer and token for parsing)
+    src/Engine/Interpreter/lexer.cpp
+    src/Engine/Interpreter/token.cpp
+    # ECS system (needed for module registration and VM integration)
+    src/Engine/ECS/commanddispatcher.cpp
+    src/Engine/ECS/componentregistry.cpp
+    src/Engine/ECS/entity.cpp
+    src/Engine/ECS/entitysystem.cpp
+    src/Engine/ECS/group.cpp
+    src/Engine/ECS/savemanager.cpp
+    src/Engine/ECS/sparseset.cpp
+    src/Engine/ECS/standardsystem.cpp
+    src/Engine/ECS/system.cpp
+    src/Engine/ECS/uniqueid.cpp
+    # Essential support files
+    src/Engine/logger.cpp
+    src/Engine/serialization.cpp
+    src/Engine/Files/filemanager.cpp
+    src/Engine/Files/fileparser.cpp
+    src/Engine/Memory/elementtype.cpp
+    src/Engine/Memory/parallelfor.cpp
+    src/Engine/Profiler/profiler.cpp
+    # Core systems (provides EntityName component)
+    src/Engine/Systems/coresystems.cpp
+)
+
+# Full engine source files
 set(ENGINESOURCE
     src/Engine/engine.cpp
     src/Engine/window.cpp
@@ -258,157 +302,20 @@ file(GLOB GENERATED_COMPONENT_SOURCES
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.serialization.cpp"
 )
 
-# Check if we have component definitions but no generated files
-set(NEED_COMPONENT_GENERATION FALSE)
-set(NEED_BOOTSTRAP FALSE)
-
+# Report component generation status
 if(COMPONENT_DEFINITIONS)
     list(LENGTH COMPONENT_DEFINITIONS NUM_DEFINITIONS)
     list(LENGTH GENERATED_COMPONENT_SOURCES NUM_GENERATED)
 
-    # We need generation if we have definitions but fewer generated files
-    # (Each .pgcomp should produce 2 .cpp files: .generated.cpp and .serialization.cpp)
+    # We expect 2 files per component (.generated.cpp and .serialization.cpp)
     math(EXPR EXPECTED_FILES "${NUM_DEFINITIONS} * 2")
 
     if(NUM_GENERATED LESS EXPECTED_FILES)
-        set(NEED_COMPONENT_GENERATION TRUE)
         message(STATUS "Component generation needed: ${NUM_DEFINITIONS} definitions, ${NUM_GENERATED}/${EXPECTED_FILES} generated files found")
-
-        # If we're NOT in a minimal build and we need generation, we need to bootstrap
-        if(NOT PG_MINIMAL_BUILD)
-            set(NEED_BOOTSTRAP TRUE)
-            message(STATUS "Bootstrap build required - will build minimal compiler first")
-        endif()
+        message(STATUS "  -> Components will be regenerated automatically before building ColumbaEngine")
     else()
         message(STATUS "Component generation up-to-date: ${NUM_DEFINITIONS} definitions, ${NUM_GENERATED} generated files")
     endif()
-endif()
-
-# If we need to bootstrap, do it now during configuration
-if(NEED_BOOTSTRAP)
-    message(STATUS "========================================")
-    message(STATUS "BOOTSTRAPPING: Building minimal compiler...")
-    message(STATUS "========================================")
-
-    # Save current cache variables to restore later (as a list, not string)
-    get_cmake_property(CACHE_VARS CACHE_VARIABLES)
-    set(RESTORE_ARGS "")
-    foreach(cache_var ${CACHE_VARS})
-        # Only save user-defined options and important build settings
-        if(cache_var MATCHES "^(CMAKE_BUILD_TYPE|USE_GDB|AUTO_CONVERT_EVENT|PG_PROFILE|BUILD_STATIC_LIB|BUILD_EXAMPLES|USE_CCACHE)$")
-            get_property(cache_type CACHE ${cache_var} PROPERTY TYPE)
-            if(cache_type)
-                list(APPEND RESTORE_ARGS "-D${cache_var}=${${cache_var}}")
-            endif()
-        endif()
-    endforeach()
-
-    # Reconfigure THIS build as minimal (WITHOUT restore args - just minimal)
-    message(STATUS "Reconfiguring current build as minimal...")
-    execute_process(
-        COMMAND ${CMAKE_COMMAND}
-            ${CMAKE_CURRENT_SOURCE_DIR}
-            -DPG_MINIMAL_BUILD=ON
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        RESULT_VARIABLE RECONFIG_RESULT
-    )
-
-    if(NOT RECONFIG_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to reconfigure as minimal build")
-    endif()
-
-    # Build PgCompiler - use same core count as will be used for main build
-    # Detect processor count for parallel builds
-    include(ProcessorCount)
-    ProcessorCount(N_CORES)
-    if(NOT N_CORES EQUAL 0)
-        set(BUILD_PARALLEL "-j${N_CORES}")
-        message(STATUS "Building PgCompiler with ${N_CORES} cores...")
-    else()
-        set(BUILD_PARALLEL "")
-        message(STATUS "Building PgCompiler (single-threaded)...")
-    endif()
-
-    message(STATUS "Progress will be shown below:")
-    message(STATUS "----------------------------------------")
-    execute_process(
-        COMMAND ${CMAKE_COMMAND}
-            --build ${CMAKE_CURRENT_BINARY_DIR}
-            --target PgCompiler
-            ${BUILD_PARALLEL}
-        RESULT_VARIABLE BOOTSTRAP_BUILD_RESULT
-    )
-
-    if(NOT BOOTSTRAP_BUILD_RESULT EQUAL 0)
-        message(FATAL_ERROR "Bootstrap build of PgCompiler failed")
-    endif()
-
-    message(STATUS "----------------------------------------")
-    message(STATUS "Bootstrap compiler built successfully")
-
-    # Generate components using the just-built compiler
-    set(BOOTSTRAP_COMPILER "${CMAKE_CURRENT_BINARY_DIR}/PgCompiler${CMAKE_EXECUTABLE_SUFFIX}")
-
-    message(STATUS "========================================")
-    message(STATUS "GENERATING COMPONENTS...")
-    message(STATUS "========================================")
-
-    foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
-        get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
-        message(STATUS "Generating ${COMP_NAME}...")
-
-        execute_process(
-            COMMAND ${BOOTSTRAP_COMPILER}
-                ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                ${COMP_DEF}
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
-            RESULT_VARIABLE GEN_RESULT
-            OUTPUT_VARIABLE GEN_OUTPUT
-            ERROR_VARIABLE GEN_ERROR
-        )
-
-        if(NOT GEN_RESULT EQUAL 0)
-            message(WARNING "Component generation failed for ${COMP_NAME}:\n${GEN_ERROR}")
-        else()
-            message(STATUS "${COMP_NAME} generated")
-        endif()
-    endforeach()
-
-    # Re-scan for generated files
-    file(GLOB GENERATED_COMPONENT_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.generated.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.serialization.cpp"
-    )
-
-    message(STATUS "========================================")
-    message(STATUS "BOOTSTRAP COMPLETE")
-    message(STATUS "Reconfiguring back to full build...")
-    message(STATUS "========================================")
-
-    # Reconfigure back to full build with original settings
-    execute_process(
-        COMMAND ${CMAKE_COMMAND}
-            ${CMAKE_CURRENT_SOURCE_DIR}
-            -DPG_MINIMAL_BUILD=OFF
-            ${RESTORE_ARGS}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        RESULT_VARIABLE RECONFIG_FULL_RESULT
-    )
-
-    if(NOT RECONFIG_FULL_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to reconfigure for full build")
-    endif()
-
-    message(STATUS "Reconfiguration complete - continuing with full build configuration")
-
-    # Re-scan again after reconfiguration
-    file(GLOB GENERATED_COMPONENT_SOURCES
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.generated.cpp"
-        "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.serialization.cpp"
-    )
-
-    # Mark that generation is no longer needed since bootstrap just completed
-    set(NEED_COMPONENT_GENERATION FALSE)
 endif()
 
 # Now check what we're building with
@@ -436,17 +343,109 @@ endif()
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 
 # ===============================================
-# COMPONENT GENERATION TARGET (must be after ColumbaEngine but before examples)
+# MINIMAL ENGINE LIBRARY (for bootstrap compiler)
 # ===============================================
-# This target will be populated with dependencies later when PgCompiler is built
-# Only create this in non-minimal builds AND only if we still need generation
-# (Don't create if bootstrap just completed - files already generated)
-if(COMPONENT_DEFINITIONS AND NOT PG_MINIMAL_BUILD AND NEED_COMPONENT_GENERATION)
-    add_custom_target(GenerateComponents
-        COMMENT "Generating ECS components from .pgcomp files..."
-    )
-    message(STATUS "Component generation target created for ${NUM_DEFINITIONS} components")
+# Create a minimal engine library with only VM + modules + ECS
+# This is used ONLY for building the bootstrap compiler
+add_library(ColumbaEngineMinimal STATIC ${MINIMAL_ENGINESOURCE})
+
+if(MINGW)
+    set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 endif()
+
+target_precompile_headers(ColumbaEngineMinimal PRIVATE src/Engine/stdafx.h)
+
+# Define PG_MINIMAL_BUILD for the minimal engine
+target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)
+
+message(STATUS "Created minimal engine library")
+
+# Minimal engine needs the same include directories as full engine
+target_include_directories(ColumbaEngineMinimal PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
+)
+
+# Add platform-specific includes for minimal engine
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    target_include_directories(ColumbaEngineMinimal PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${SDL2_DIR}/include>
+    )
+endif()
+
+# Minimal engine linking (much simpler - no rendering, no audio, no networking)
+if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
+else()
+    # Native platforms - only need basic SDL2 for minimal functionality
+    if(TARGET SDL2-static)
+        target_link_libraries(ColumbaEngineMinimal PUBLIC SDL2-static glm)
+    elseif(TARGET SDL2::SDL2-static)
+        target_link_libraries(ColumbaEngineMinimal PUBLIC SDL2::SDL2-static glm)
+    endif()
+endif()
+
+# ===============================================
+# BOOTSTRAP COMPILER EXECUTABLE
+# ===============================================
+# Create a minimal PgCompiler executable that can run component generator
+# This uses the minimal engine library to avoid circular dependencies
+add_executable(PgCompilerBootstrap
+    exemples/PgCompiler/main.cpp
+    exemples/PgCompiler/application.cpp
+    exemples/PgCompiler/constant_uniformity_pass.cpp
+)
+
+target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD)
+
+target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
+
+# Link against minimal engine (no rendering, no generated components)
+target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
+
+message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
+
+# ===============================================
+# COMPONENT REGENERATION TARGET
+# ===============================================
+# Create a target to regenerate components when .pgcomp files change
+# This uses the bootstrap compiler to avoid circular dependencies
+if(COMPONENT_DEFINITIONS)
+    add_custom_target(RegenerateComponents
+        COMMENT "Regenerating all ECS components from .pgcomp files..."
+    )
+
+    # Make it depend on the bootstrap compiler
+    add_dependencies(RegenerateComponents PgCompilerBootstrap)
+
+    foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
+        get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+
+        # Create a target for each component
+        add_custom_target(Regenerate_${COMP_NAME}
+            COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
+            COMMAND $<TARGET_FILE:PgCompilerBootstrap>
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                    ${COMP_DEF}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
+            COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
+            VERBATIM
+        )
+
+        add_dependencies(Regenerate_${COMP_NAME} PgCompilerBootstrap)
+        add_dependencies(RegenerateComponents Regenerate_${COMP_NAME})
+    endforeach()
+
+    message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
+    message(STATUS "  Run: cmake --build . --target RegenerateComponents")
+    message(STATUS "  Or:  cmake --build . --target Regenerate_<ComponentName>")
+
+    # Make ColumbaEngine depend on RegenerateComponents so components are always generated before building
+    add_dependencies(ColumbaEngine RegenerateComponents)
+    message(STATUS "ColumbaEngine will automatically regenerate components before building")
+endif()
+
 
 # Include directories - ONLY use generator expressions for proper build/install interface
 target_include_directories(ColumbaEngine PUBLIC

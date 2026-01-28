@@ -3,9 +3,7 @@
 #include <chrono>
 
 #include "ECS/entitysystem.h"
-
-#include "Interpreter/scriptcallable.h"
-#include "Interpreter/pginterpreter.h"
+#include "ECS/callable.h"
 
 #include "oneventcomponent.h"
 
@@ -234,13 +232,6 @@ namespace pg
         ~TextInputTriggeredEvent() {}
 
         EntityRef entity;
-    };
-
-    struct RunScriptFromTextInputSystem : public System<Listener<TextInputTriggeredEvent>, StoragePolicy>
-    {
-        virtual std::string getSystemName() const override { return "Run Script From Text Input System"; }
-
-        virtual void onEvent(const TextInputTriggeredEvent& event) override;
     };
 
     struct OnEventComponentSystem : public System<Own<OnEventComponent>, Own<OnStandardEventComponent>, StoragePolicy>
