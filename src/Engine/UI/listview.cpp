@@ -131,7 +131,7 @@ namespace pg
         // Z + 1 so the initial z of the list is for the background
         uiAnchor->setZConstrain(PosConstrain{viewEnt.id, AnchorType::Z, PosOpType::Add, 1});
 
-        ecsRef->attach<ClippedTo>(ent, viewUi->id);
+        ecsRef->attach<ClippedTo>(ent, viewUi->entityId);
 
         view->entities.push_back(ent);
 
