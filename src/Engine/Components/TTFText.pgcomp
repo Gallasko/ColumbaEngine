@@ -1,10 +1,11 @@
 name: TTFText
 shortname: TTFText
 namespace: pg
-base_class: Ctor
+base_class: Component
 
 includes:
   - <string>
+  - "ECS/system.h"
   - "pgconstant.h"
 
 fields:

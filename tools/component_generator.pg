@@ -454,7 +454,16 @@ class SerializationGenerator
 
             if (contain(field, "default"))
             {
-                defaultValue = " = " + toString(field["default"])
+                var defVal = field["default"]
+                // For string types, ensure quotes are preserved
+                if (contains(fieldType, "string") and typeOf(defVal) == "string")
+                {
+                    defaultValue = " = \"" + defVal + "\""
+                }
+                else
+                {
+                    defaultValue = " = " + toString(defVal)
+                }
             }
             else
             {
