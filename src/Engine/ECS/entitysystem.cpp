@@ -48,11 +48,14 @@ namespace
 #include "Helpers/randommodule.h"
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
+#include "Files/filemodule.h"
+
+#ifndef PG_MINIMAL_BUILD
 #include "Helpers/inputmodule_vm.h"
 #include "Input/inputcomponent.h"
 #include "2D/texturemodule.h"
-#include "Files/filemodule.h"
 #include "UI/uimodule.h"
+#endif
 
 // Include for vm optimization pass
 #include "Compiler/pass/long_jump_optimization_pass.h"
@@ -529,6 +532,8 @@ namespace pg
         vm.addNativeModule("string", StringModule{});
         vm.addNativeModule("file", FileModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
+
+#ifndef PG_MINIMAL_BUILD
         vm.addNativeModule("texture", TextureModule{this});
         vm.addNativeModule("ui", UIModule{this});
 
@@ -546,6 +551,7 @@ namespace pg
         {
             vm.addNativeModule("input", InputModuleVM{inputHandler});
         }
+#endif
 
         // Print function - outputs to stdout
         vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
