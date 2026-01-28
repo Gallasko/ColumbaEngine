@@ -411,38 +411,52 @@ message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minim
 # Create a target to regenerate components when .pgcomp files change
 # This uses the bootstrap compiler to avoid circular dependencies
 if(COMPONENT_DEFINITIONS)
-    add_custom_target(RegenerateComponents
-        COMMENT "Regenerating all ECS components from .pgcomp files..."
-    )
-
-    # Make it depend on the bootstrap compiler
-    add_dependencies(RegenerateComponents PgCompilerBootstrap)
+    set(ALL_GENERATED_FILES "")
 
     foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
         get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
 
-        # Create a target for each component
-        add_custom_target(Regenerate_${COMP_NAME}
+        # Define the output files
+        set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
+        set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
+        set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
+
+        # Add custom command that only runs when inputs change
+        add_custom_command(
+            OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
             COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
             COMMAND $<TARGET_FILE:PgCompilerBootstrap>
                     ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
                     ${COMP_DEF}
+            DEPENDS
+                PgCompilerBootstrap
+                ${COMP_DEF}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
             COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
             VERBATIM
         )
 
-        add_dependencies(Regenerate_${COMP_NAME} PgCompilerBootstrap)
-        add_dependencies(RegenerateComponents Regenerate_${COMP_NAME})
+        # Create a target for this component (for manual regeneration)
+        add_custom_target(Regenerate_${COMP_NAME}
+            DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+        )
+
+        list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
     endforeach()
 
-    message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
-    message(STATUS "  Run: cmake --build . --target RegenerateComponents")
-    message(STATUS "  Or:  cmake --build . --target Regenerate_<ComponentName>")
+    # Create a target to regenerate all components (for manual use)
+    add_custom_target(RegenerateComponents
+        DEPENDS ${ALL_GENERATED_FILES}
+        COMMENT "All components up to date"
+    )
 
-    # Make ColumbaEngine depend on RegenerateComponents so components are always generated before building
+    message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
+    message(STATUS "  Components will regenerate only when .pgcomp files change")
+    message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
+
+    # Make ColumbaEngine depend on the generated files so they're built before the engine
     add_dependencies(ColumbaEngine RegenerateComponents)
-    message(STATUS "ColumbaEngine will automatically regenerate components before building")
 endif()
 
 
