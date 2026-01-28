@@ -50,8 +50,6 @@ namespace pg
 
             // Todo move this as a helper func on the rewriter it could be use in a lot of places
             auto compareConstant = [](const CapturedInstruction& cap1, const CapturedInstruction& cap2) -> bool {
-                LOG_INFO("Def", "Found a possible match");
-
                 if (cap1.opcode != cap2.opcode)
                     return false;
 
