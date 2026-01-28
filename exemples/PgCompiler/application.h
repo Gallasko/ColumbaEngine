@@ -1,12 +1,6 @@
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#include "Compiler/chunk.h"
-
-#include "ECS/entitysystem.h"
-#include "ECS/loggersystem.h"
-#include "ECS/ecsmodule.h"
-
 class CompilerApp
 {
 public:

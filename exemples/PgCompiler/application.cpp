@@ -1,6 +1,12 @@
+#include "stdafx.h"
+
 #include "application.h"
 
 #include "logger.h"
+
+#include "ECS/entitysystem.h"
+
+#include "ECS/loggersystem.h"
 
 #include "Compiler/chunk.h"
 #include "Compiler/compiler_debug.h"

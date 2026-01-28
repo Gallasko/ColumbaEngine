@@ -313,7 +313,9 @@ namespace pg
             return sys;
         }
 
+#ifndef PG_MINIMAL_BUILD
         InterpreterSystem* createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance);
+#endif
 
         /**
          * Overload of deleteSystem mainly used for deleting Interpreter system
