@@ -31,51 +31,6 @@ namespace pg
         constexpr float ATLAS_HEIGHT = 1024.0f;
     }
 
-    template <>
-    void serialize(Archive& archive, const TTFText& value)
-    {
-        archive.startSerialization(TTFText::getType());
-
-        serialize(archive, "text", value.text);
-        serialize(archive, "scale", value.scale);
-        serialize(archive, "colors", value.colors);
-        serialize(archive, "fontPath", value.fontPath);
-        serialize(archive, "wrap", value.wrap);
-
-        archive.endSerialization();
-    }
-
-    template <>
-    TTFText deserialize(const UnserializedObject& serializedString)
-    {
-        LOG_THIS(DOM);
-
-        std::string type = "";
-
-        if (serializedString.isNull())
-        {
-            LOG_ERROR(DOM, "Element is null");
-        }
-        else
-        {
-            LOG_INFO(DOM, "Deserializing Sentence Text");
-
-            TTFText data;
-
-            data.text = deserialize<std::string>(serializedString["text"]);
-            data.fontPath = deserialize<std::string>(serializedString["fontPath"]);
-
-            defaultDeserialize(serializedString, "scale", data.scale);
-            defaultDeserialize(serializedString, "colors", data.colors);
-            defaultDeserialize(serializedString, "wrap", data.wrap);
-
-            return data;
-        }
-
-        return TTFText{};
-    }
-
-
     TTFTextSystem::TTFTextSystem(MasterRenderer *renderer) : AbstractRenderer(renderer, RenderStage::Render)
     {
         if (FT_Init_FreeType(&ft))
@@ -119,7 +74,14 @@ namespace pg
         });
     }
 
-    void TTFTextSystem::onEvent(const EntityChangedEvent& event)
+    void TTFTextSystem::onEvent(const PositionComponentChangedEvent& event)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        onEventUpdate(event.id);
+    }
+
+    void TTFTextSystem::onEvent(const TTFTextChangedEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -252,7 +214,7 @@ namespace pg
 
         auto entity = ecsRef->getEntity(entityId);
 
-        if (not entity or not entity->has<PositionComponent>() or not entity->has<TTFTextCall>())
+        if (not entity or not entity->has<TTFTextCall>())
             return;
 
         textUpdateQueue.push(entityId);
@@ -446,7 +408,7 @@ namespace pg
             for (size_t charIndex = 0; charIndex < seg.text.length(); charIndex++)
             {
                 char c = seg.text[charIndex];
-                
+
                 if (c == ' ')
                 {
                     // Handle space character
@@ -461,16 +423,16 @@ namespace pg
                         // Beginning of a word - calculate word width for wrapping check
                         std::string currentWord;
                         size_t wordEnd = charIndex;
-                        
+
                         // Extract the full word (until space or end)
                         while (wordEnd < seg.text.length() && seg.text[wordEnd] != ' ')
                         {
                             currentWord += seg.text[wordEnd];
                             wordEnd++;
                         }
-                        
+
                         float wordWidth = computeWordWidth(currentWord, obj->fontPath, scale);
-                        
+
                         // Check if word would exceed line width
                         if (wrap && (currentX - startX + wordWidth > maxWidth))
                         {
@@ -478,7 +440,7 @@ namespace pg
                             currentX = startX;
                         }
                     }
-                    
+
                     // Process the character normally
                     RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, seg.colors, viewport);
                     calls.push_back(call);
