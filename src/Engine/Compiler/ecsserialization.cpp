@@ -261,45 +261,45 @@ namespace pg
         LOG_MILE("ECS Serialization", "Added generic set() method");
     }
 
-    /**
-     * @brief Generate setters for TTFText component
-     *
-     * Adds methods: setText, setColor, setPosition
-     */
-    void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
-    {
-        LOG_MILE("ECS Serialization", "Generating setters for TTFText component");
+    // /**
+    //  * @brief Generate setters for TTFText component
+    //  *
+    //  * Adds methods: setText, setColor, setPosition
+    //  */
+    // void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
+    // {
+    //     LOG_MILE("ECS Serialization", "Generating setters for TTFText component");
 
-        REGISTER_STRING_SETTER(vm, table, component, setText);
+    //     REGISTER_STRING_SETTER(vm, table, component, setText);
 
-        // setColor(r, g, b, [a])
-        auto setColorFunc = [component](VM* vm, int argCount, Value* args) -> Value {
-            if (argCount < 3)
-                throw std::runtime_error("setColor expects at least 3 arguments: r, g, b, [a]");
+    //     // setColor(r, g, b, [a])
+    //     auto setColorFunc = [component](VM* vm, int argCount, Value* args) -> Value {
+    //         if (argCount < 3)
+    //             throw std::runtime_error("setColor expects at least 3 arguments: r, g, b, [a]");
 
-            constant::Vector4D colors;
-            for (int i = 0; i < 3; i++)
-            {
-                colors[i] = detail::extractFloatArg(args, i);
-            }
+    //         constant::Vector4D colors;
+    //         for (int i = 0; i < 3; i++)
+    //         {
+    //             colors[i] = detail::extractFloatArg(args, i);
+    //         }
 
-            // Alpha (optional, default 255)
-            colors[3] = 255.0f;
-            if (argCount >= 4)
-            {
-                colors[3] = detail::extractFloatArg(args, 3);
-            }
+    //         // Alpha (optional, default 255)
+    //         colors[3] = 255.0f;
+    //         if (argCount >= 4)
+    //         {
+    //             colors[3] = detail::extractFloatArg(args, 3);
+    //         }
 
-            component->setColor(colors);
+    //         component->setColors(colors);
 
-            return INT_VAL(0);
-        };
+    //         return INT_VAL(0);
+    //     };
 
-        table->fields["setColor"] = vm->createNativeFunction(setColorFunc);
-    }
+    //     table->fields["setColor"] = vm->createNativeFunction(setColorFunc);
+    // }
 
-    // Register component serializers at static initialization time
-    REGISTER_COMPONENT_SERIALIZER(TTFText, serializeTTFTextWithSetters);
+    // // Register component serializers at static initialization time
+    // REGISTER_COMPONENT_SERIALIZER(TTFText, serializeTTFTextWithSetters);
     REGISTER_COMPONENT_SERIALIZER(StandardComponent, serializeStandardComponentWithSetters);
 
     // ============================================================================

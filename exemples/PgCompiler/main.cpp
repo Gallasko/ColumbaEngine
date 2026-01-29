@@ -54,6 +54,7 @@ int main(int argc, char *argv[])
             std::cout << "Options:" << std::endl;
             std::cout << "  --profile, -p    Enable profiling" << std::endl;
             std::cout << "  --help, -h       Show this help message" << std::endl;
+            std::cout << "  --info, -i       Show info logs" << std::endl;
             return 0;
         }
         else if (fileName.empty())
