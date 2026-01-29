@@ -1,0 +1,16 @@
+import "string"
+// Multiple break statements in same loop
+var i = 0;
+while (i < 20) {
+    if (i == 3) {
+        __dprint("breaking at 3");
+        break;
+    }
+    if (i == 10) {
+        __dprint("breaking at 10");
+        break;
+    }
+    __dprint(i);
+    i = i + 1;
+}
+__dprint("final i: " + toString(i));

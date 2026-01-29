@@ -1,0 +1,19 @@
+import "string"
+
+// Break in for-in loop
+var tbl = {};
+tbl[0] = "apple";
+tbl[1] = "banana";
+tbl[2] = "cherry";
+tbl[3] = "date";
+tbl[4] = "elderberry";
+
+var count = 0;
+for (var key : tbl) {
+    __dprint(tbl[key]);
+    count = count + 1;
+    if (count == 3) {
+        break;
+    }
+}
+__dprint("processed " + toString(count) + " items");

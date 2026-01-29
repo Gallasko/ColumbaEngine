@@ -27,6 +27,13 @@ namespace pg
         bool isLocal;
     };
 
+    struct LoopContext
+    {
+        int loopStart;                    // Offset for continue (future use)
+        std::vector<int> breakJumps;      // Patch points for break statements
+        int scopeDepth;                   // Scope depth at loop entry
+    };
+
     struct VM;
 
     struct Compiler
@@ -73,6 +80,7 @@ namespace pg
         FunctionType currentType = FunctionType::TYPE_SCRIPT;
 
         std::vector<Local> locals;
+        std::vector<LoopContext> loopContexts;  // Stack of nested loop contexts
 
         int localCount = 0;
         int scopeDepth = 0;

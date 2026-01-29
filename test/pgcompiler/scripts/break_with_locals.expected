@@ -1,0 +1,4 @@
+i=0 squared=0 sum=0
+i=1 squared=4 sum=4
+i=2 squared=16 sum=20
+final sum: 20

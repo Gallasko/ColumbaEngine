@@ -1002,6 +1002,13 @@ namespace pg
     {
         int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
+        // Push loop context for break/continue support
+        Compiler::current->loopContexts.push_back({
+            loopStart,
+            std::vector<int>(),
+            Compiler::current->scopeDepth
+        });
+
         skipEOL();
         consume("Expect '(' after 'while'.", TokenType::PENTER);
         skipEOL();
@@ -1019,6 +1026,14 @@ namespace pg
 
         patchJump(exitJump);
         writeByte(OpCode::OP_Pop); // Pop the condition
+
+        // Patch all break jumps to exit the loop
+        for (int offset : Compiler::current->loopContexts.back().breakJumps) {
+            patchJump(offset);
+        }
+
+        // Pop loop context
+        Compiler::current->loopContexts.pop_back();
     }
 
     void CParser::forStatement()
@@ -1092,6 +1107,13 @@ namespace pg
                 // 4. Loop condition: __i < __size
                 int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
 
+                // Push loop context for break/continue support
+                Compiler::current->loopContexts.push_back({
+                    loopStart,
+                    std::vector<int>(),
+                    Compiler::current->scopeDepth
+                });
+
                 // Get __i
                 writeByte(OpCode::OP_Get_Local);
                 writeByte(counterSlot);
@@ -1151,6 +1173,14 @@ namespace pg
                 writeByte(OpCode::OP_Pop); // Pop the condition result
                 // Stack: [__table, __size, __i]
 
+                // Patch all break jumps to exit the loop
+                for (int offset : Compiler::current->loopContexts.back().breakJumps) {
+                    patchJump(offset);
+                }
+
+                // Pop loop context
+                Compiler::current->loopContexts.pop_back();
+
                 // 11. End scope - pops __i, __size, __table (and key if it's still around)
                 Compiler::current->endScope();
                 return;
@@ -1186,6 +1216,13 @@ namespace pg
         skipEOL();
 
         int loopStart = static_cast<int>(Compiler::current->getCurrentChunk().code.size());
+
+        // Push loop context for break/continue support
+        Compiler::current->loopContexts.push_back({
+            loopStart,
+            std::vector<int>(),
+            Compiler::current->scopeDepth
+        });
 
         // Condition
         int exitJump = -1;
@@ -1229,19 +1266,84 @@ namespace pg
             writeByte(OpCode::OP_Pop); // Pop the condition
         }
 
+        // Patch all break jumps to exit the loop
+        for (int offset : Compiler::current->loopContexts.back().breakJumps) {
+            patchJump(offset);
+        }
+
+        // Pop loop context
+        Compiler::current->loopContexts.pop_back();
+
         Compiler::current->endScope();
     }
 
     void CParser::breakStatement()
     {
         consumeEnd("Expect end of line after 'break'.");
-        errorAt(previousToken, "break statement not yet implemented");
+
+        // Validate we're inside a loop
+        if (Compiler::current->loopContexts.empty())
+        {
+            errorAt(previousToken, "Cannot use 'break' outside of a loop.");
+            return;
+        }
+
+        // Get the current loop context
+        LoopContext& loop = Compiler::current->loopContexts.back();
+
+        // Pop all locals that are deeper than the loop's scope
+        // This ensures proper cleanup when breaking out of the loop
+        for (int i = Compiler::current->localCount - 1;
+             i >= 0 && Compiler::current->locals[i].depth > loop.scopeDepth;
+             i--)
+        {
+            if (Compiler::current->locals[i].isCaptured)
+            {
+                writeByte(OpCode::OP_Close_Upvalue);
+            }
+            else
+            {
+                writeByte(OpCode::OP_Pop);
+            }
+        }
+
+        // Emit jump with placeholder offset, record for later patching
+        int jumpOffset = emitJump(OpCode::OP_Long_Jump);
+        loop.breakJumps.push_back(jumpOffset);
     }
 
     void CParser::continueStatement()
     {
         consumeEnd("Expect end of line after 'continue'.");
-        errorAt(previousToken, "continue statement not yet implemented");
+
+        // Validate we're inside a loop
+        if (Compiler::current->loopContexts.empty())
+        {
+            errorAt(previousToken, "Cannot use 'continue' outside of a loop.");
+            return;
+        }
+
+        // Get the current loop context
+        LoopContext& loop = Compiler::current->loopContexts.back();
+
+        // Pop all locals that are deeper than the loop's scope
+        // This ensures proper cleanup when continuing to the next iteration
+        for (int i = Compiler::current->localCount - 1;
+             i >= 0 && Compiler::current->locals[i].depth > loop.scopeDepth;
+             i--)
+        {
+            if (Compiler::current->locals[i].isCaptured)
+            {
+                writeByte(OpCode::OP_Close_Upvalue);
+            }
+            else
+            {
+                writeByte(OpCode::OP_Pop);
+            }
+        }
+
+        // Emit loop back to the start of the loop (where the condition is checked)
+        emitLoop(loop.loopStart);
     }
 
     void CParser::returnStatement()

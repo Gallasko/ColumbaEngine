@@ -1,0 +1,10 @@
+// Simple break in while loop
+var i = 0;
+while (i < 10) {
+    __dprint(i);
+    if (i == 3) {
+        break;
+    }
+    i = i + 1;
+}
+__dprint("done");

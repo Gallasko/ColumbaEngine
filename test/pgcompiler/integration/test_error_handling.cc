@@ -279,10 +279,22 @@ TEST_F(ErrorHandlingTest, LargeConstantPoolHandling) {
 TEST_F(ErrorHandlingTest, ErrorLocationReporting) {
     // These test whether errors report useful location information
     // The actual testing would depend on how error messages are exposed
-    
+
     // Test that we can at least trigger errors on specific lines
     assertCompileError("1 +\n+ 2");  // Error on line 2
     assertCompileError("1\n+\n+ 2");  // Error on line 3
+}
+
+TEST_F(ErrorHandlingTest, BreakOutsideLoop) {
+    // Break statement outside of any loop should be a compile error
+    assertCompileError("break;");
+    assertCompileError("var x = 10; break;");
+    assertCompileError("if (true) { break; }");
+    assertCompileError("fun test() { break; }");
+
+    // Break after a loop should still fail
+    assertCompileError("while (false) { } break;");
+    assertCompileError("for (var i = 0; i < 5; i = i + 1) { } break;");
 }
 
 } // namespace test
