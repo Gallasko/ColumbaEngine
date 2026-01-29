@@ -184,45 +184,7 @@ namespace pg
         {"Div", PosOpType::Div}
     };
 
-    // Serialize function for PositionComponent
-    template <>
-    void serialize(Archive& archive, const PositionComponent& value)
-    {
-        archive.startSerialization("PositionComponent");
-
-        serialize(archive, "x", value.x);
-        serialize(archive, "y", value.y);
-        serialize(archive, "z", value.z);
-
-        serialize(archive, "width", value.width);
-        serialize(archive, "height", value.height);
-
-        serialize(archive, "rotation", value.rotation);
-        serialize(archive, "visible", value.visible);
-
-        archive.endSerialization();
-    }
-
-    // Deserialize function for PositionComponent
-    template <>
-    PositionComponent deserialize(const UnserializedObject& serializedString)
-    {
-        PositionComponent data;
-
-        defaultDeserialize(serializedString, "x", data.x);
-        defaultDeserialize(serializedString, "y", data.y);
-        defaultDeserialize(serializedString, "z", data.z);
-
-        defaultDeserialize(serializedString, "width", data.width);
-        defaultDeserialize(serializedString, "height", data.height);
-
-        defaultDeserialize(serializedString, "rotation", data.rotation);
-        defaultDeserialize(serializedString, "visible", data.visible);
-
-        return data;
-    }
-
-        // Serialize function for UiAnchor
+    // Serialize function for UiAnchor
     template <>
     void serialize(Archive& archive, const UiAnchor& value)
     {
@@ -740,116 +702,6 @@ namespace pg
         }
     }
 
-    void PositionComponent::onCreation(EntityRef entity)
-    {
-        ecsRef = entity->world();
-        id = entity->id;
-    }
-
-    void PositionComponent::setX(float x)
-    {
-        if (areNotAlmostEqual(this->x, x))
-        {
-            LOG_THIS(DOM);
-
-            this->x = x;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
-    void PositionComponent::setY(float y)
-    {
-        if (areNotAlmostEqual(this->y, y))
-        {
-            LOG_THIS(DOM);
-
-            this->y = y;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
-    void PositionComponent::setZ(float z)
-    {
-        if (areNotAlmostEqual(this->z, z))
-        {
-            LOG_THIS(DOM);
-
-            this->z = z;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
-    void PositionComponent::setWidth(float width)
-    {
-        if (areNotAlmostEqual(this->width, width))
-        {
-            LOG_THIS(DOM);
-
-            this->width = width;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
-    void PositionComponent::setHeight(float height)
-    {
-        if (areNotAlmostEqual(this->height, height))
-        {
-            LOG_THIS(DOM);
-
-            this->height = height;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
-    void PositionComponent::setRotation(float rotation)
-    {
-        if (areNotAlmostEqual(this->rotation, rotation))
-        {
-            LOG_THIS(DOM);
-
-            this->rotation = rotation;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
-    void PositionComponent::setVisibility(bool visible)
-    {
-        if (this->visible != visible)
-        {
-            LOG_THIS(DOM);
-
-            this->visible = visible;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
-    void PositionComponent::setObservable(bool observable)
-    {
-        if (this->observable != observable)
-        {
-            LOG_THIS(DOM);
-
-            this->observable = observable;
-
-            if (ecsRef)
-                ecsRef->sendEvent(PositionComponentChangedEvent{id});
-        }
-    }
-
     bool PositionComponent::updatefromAnchor(const UiAnchor& anchor)
     {
         float oldX = x;
@@ -917,6 +769,19 @@ namespace pg
         }
 
         return areNotAlmostEqual(oldX, x) or areNotAlmostEqual(oldY, y) or areNotAlmostEqual(oldZ, z) or areNotAlmostEqual(oldWidth, width) or areNotAlmostEqual(oldHeight, height);
+    }
+
+    void PositionComponent::setVisibility(const bool& value)
+    {
+        if (visible != value)
+    {
+        visible = value;
+
+        if (ecsRef)
+        {
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
+        }
+    }
     }
 
     void PositionComponentSystem::pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId)

@@ -1,0 +1,34 @@
+// Test resetting table after adding to array (regression test for reference counting bug)
+import "algorithm"
+import "string"
+
+var items = ["item1", "item2", "item3"]
+var currentArray = []
+var currentItem = {}
+
+for (var i = 0; i < len(items); i = i + 1) {
+    var item = items[i]
+    __dprint("Processing: " + item)
+
+    // If currentItem has data, save it
+    if (contain(currentItem, "name")) {
+        __dprint("Saving previous item to array")
+        push(currentArray, currentItem)
+    }
+
+    // Reset currentItem to empty table
+    currentItem = {}
+
+    // Add new data to currentItem
+    currentItem["name"] = item
+    currentItem["type"] = "string"
+    __dprint("Added item to currentItem")
+}
+
+__dprint("Final save")
+if (contain(currentItem, "name")) {
+    push(currentArray, currentItem)
+}
+
+__dprint("Array has " + toString(len(currentArray)) + " items")
+__dprint("Test complete")

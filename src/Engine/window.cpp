@@ -446,8 +446,6 @@ namespace pg
 
         ecs->createSystem<TextInputSystem>(inputHandler);
 
-        ecs->createSystem<RunScriptFromTextInputSystem>();
-
         ecs->createSystem<SceneElementSystem>();
 
         ecs->createSystem<PrefabSystem>();

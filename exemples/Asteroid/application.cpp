@@ -10,6 +10,10 @@
 
 #include "2D/collisionsystem.h"
 
+#include "UI/ttftext.h"
+
+#include "window.h"
+
 using namespace pg;
 
 namespace
@@ -24,6 +28,7 @@ StandardSystemImpl* createPlayerSystem()
         .ownComponent("Player")
         .onEvent("OnSDLScanCode", "res/asteroid/move_player.pg")
         .onEvent("OnSDLScanCodeReleased", "res/asteroid/release_player.pg")
+        .onEvent("PlayerHit", "res/asteroid/handle_player_hit.pg")
         .onDelta("res/asteroid/update_player.pg")  // Update physics every frame
         .build();
 }
@@ -36,20 +41,21 @@ StandardSystemImpl* createAsteroidSpawnTimerSystem()
             LOG_MILE(DOM, "AsteroidSpawnTimer initialized");
             sys->setData("spawnTimer", 0.0f);
         })
-        .onDelta([](StandardSystemHandle* sys, float deltaTime)
-        {
-            float timer = sys->getData("spawnTimer").get<float>();
-            timer += deltaTime;
+        // .onDelta([](StandardSystemHandle* sys, float deltaTime)
+        // {
+        //     float timer = sys->getData("spawnTimer").get<float>();
+        //     timer += deltaTime;
 
-            if (timer > 10.0f)
-            {
-                timer -= 10.0f;
-                // for (int i = 0; i < 10; i++)
-                    sys->sendEvent("SpawnAsteroid");
-            }
+        //     if (timer > 10.0f)
+        //     {
+        //         timer -= 10.0f;
+        //         // for (int i = 0; i < 10; i++)
+        //             sys->sendEvent("SpawnAsteroid");
+        //     }
 
-            sys->setData("spawnTimer", timer);
-        })
+        //     sys->setData("spawnTimer", timer);
+        // })
+        .onDelta("res/asteroid/spawn_asteroid_timer.pg")
         .build();
 }
 
@@ -89,6 +95,10 @@ StandardSystemImpl* createFPSSystem()
             sys->setData("currentDelta", 0.0f);
             sys->setData("nbRenderedFrames", 0);
             sys->setData("nbGeneratedFrames", 0);
+
+            auto fps = makeTTFText(sys->getWorld(), 500.0f, 10.0f, 14.0f, "light", "0", 0.5);
+
+            sys->setData("fpsTextEntity", fps.entity.id);
         })
         .onDelta([](StandardSystemHandle* sys, float deltaTime) {
             float delta = sys->getData("currentDelta").get<float>();
@@ -119,6 +129,13 @@ StandardSystemImpl* createFPSSystem()
                 auto res = currentNbOfFrames - lastNbOfFrames;
                 auto res2 = currentNbOfGFrames - lastNbOfGFrames;
 
+                auto fpsTextEntId = sys->getData("fpsTextEntity").get<size_t>();
+
+                auto fpsTextEnt = sys->getWorld()->getEntity(fpsTextEntId);
+                auto fpsTextComp = fpsTextEnt->get<TTFText>();
+
+                fpsTextComp->setText("FPS: " + std::to_string(res) + ", GFPS: " + std::to_string(res2));
+
                 LOG_INFO("Standard FPS Sys", "FPS: " << res << ", GFPS: " << res2);
 
                 sys->setData("nbRenderedFrames", currentNbOfFrames);
@@ -127,6 +144,25 @@ StandardSystemImpl* createFPSSystem()
 
             sys->setData("currentDelta", delta);
         })
+        .build();
+}
+
+StandardSystemImpl* createScoreSystem()
+{
+    return createStandardSystem("ScoreSystem")
+        .onInit("res/asteroid/init_score.pg")
+        .onEvent("ScoreUpdate", "res/asteroid/update_score.pg")
+        .onEvent("ScoreReset", "res/asteroid/reset_score.pg")
+        .build();
+}
+
+StandardSystemImpl* createGameOverSystem()
+{
+    return createStandardSystem("GameOverSystem")
+        .onInit("res/asteroid/init_gameover.pg")
+        .onEvent("GameOver", "res/asteroid/handle_gameover.pg")
+        .onEvent("RespawnPlayer", "res/asteroid/respawn_player.pg")
+        .onEvent("OnSDLScanCode", "res/asteroid/handle_restart.pg")
         .build();
 }
 
@@ -140,13 +176,19 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
-        ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+        // ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
 
         ecs.createSystem<CollisionSystem>();
 
         ecs.createSystem<CollisionHandlerSystem>();
 
         ecs.succeed<CollisionHandlerSystem, CollisionSystem>();
+
+        // Setup TTF text system for UI
+        auto ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
         ecs.registerSystem(createPlayerSystem());
 
@@ -155,11 +197,19 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.registerSystem(createBulletSystem());
 
+        ecs.registerSystem(createScoreSystem());
+
+        ecs.registerSystem(createGameOverSystem());
+
         ecs.registerSystem(createFPSSystem());
 
         // Register collision handler for Bullet-Asteroid collisions
         makeCollisionHandleScript(&ecs, "res/asteroid/bullet_asteroid_collision.pg",
             [](Entity* ent) { return ent->has("Bullet"); },
+            [](Entity* ent) { return ent->has("Asteroid"); });
+
+        makeCollisionHandleScript(&ecs, "res/asteroid/player_asteroid_collision.pg",
+            [](Entity* ent) { return ent->has("Player"); },
             [](Entity* ent) { return ent->has("Asteroid"); });
     });
 

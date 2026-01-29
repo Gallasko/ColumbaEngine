@@ -61,9 +61,17 @@ namespace pg
             tokens.pop();
         }
 
-        inline const TokenType& peek() const { return tokens.front().type; }
+        inline const TokenType& peek() const
+        {
+            if (tokens.empty())
+            {
+                static const TokenType eofType = TokenType::ENDOFFILE;
+                return eofType;
+            }
+            return tokens.front().type;
+        }
 
-        inline bool isAtEnd() const { return peek() == TokenType::ENDOFFILE; }
+        inline bool isAtEnd() const { return tokens.empty() || peek() == TokenType::ENDOFFILE; }
 
         inline bool checkType(const TokenType& token) const
         {
@@ -145,6 +153,8 @@ namespace pg
         void forStatement();
         void dprintStatement();
         void returnStatement();
+        void breakStatement();
+        void continueStatement();
         void importStatement();
         void methodStatement();
 

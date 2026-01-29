@@ -4,6 +4,8 @@
 
 #include "pgconstant.h"
 
+#include "Components/PositionComponent.generated.h"
+
 namespace pg
 {
     enum class AnchorType : uint8_t
@@ -45,11 +47,6 @@ namespace pg
         Rotation
     };
 
-    struct PositionComponentChangedEvent
-    {
-        _unique_id id = 0;
-    };
-
     enum class PosOpType
     {
         None,
@@ -67,7 +64,7 @@ namespace pg
     extern const std::map<PosOpType, std::string> PosOpTypeToStringMap;
     extern const std::map<std::string, PosOpType> StringToPosOpTypeMap;
 
-    inline static std::string getType() { return "UiComponent"; }
+    // inline static std::string getType() { return "UiComponent"; }
 
     struct PosConstrain
     {
@@ -155,9 +152,6 @@ namespace pg
 
         inline static std::string getType() { return "RotationHandleComponent"; }
     };
-
-    // Forward declaration
-    struct PositionComponent;
 
     // Todo add a Dtor that remove any parenting
     // Be careful on edge case such as being anchored and clipped at the same time to the same entity
@@ -283,53 +277,6 @@ namespace pg
         EntitySystem *ecsRef = nullptr;
     };
 
-    struct PositionComponent : public Ctor
-    {
-        // Todo make a basic constructor
-        float x = 0.0f;
-        float y = 0.0f;
-        float z = 0.0f;
-
-        float width = 0.0f;
-        float height = 0.0f;
-
-        float rotation = 0.0f;
-
-        bool visible = true;
-        bool observable = true;
-
-        virtual void onCreation(EntityRef entity) override;
-
-        void setX(float x);
-        void setY(float y);
-        void setZ(float z);
-
-        void setWidth(float width);
-        void setHeight(float height);
-
-        void setRotation(float rotation);
-
-        void setVisibility(bool visible);
-        void setObservable(bool observable);
-
-        bool isVisible() const { return visible; }
-        bool isObservable() const { return observable; }
-        bool isRenderable() const { return visible and observable; }
-
-        bool updatefromAnchor(const UiAnchor& anchor);
-
-        inline static std::string getType() { return "PositionComponent"; }
-
-        // Private:
-
-        _unique_id id = 0;
-
-        EntitySystem *ecsRef = nullptr;
-    };
-
-    template <>
-    void serialize(Archive& archive, const PositionComponent& value);
-
     template <>
     void serialize(Archive& archive, const UiAnchor& value);
 
@@ -344,9 +291,6 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const RotationHandleComponent& value);
-
-    template <>
-    PositionComponent deserialize(const UnserializedObject& serializedString);
 
     template <>
     UiAnchor deserialize(const UnserializedObject& serializedString);

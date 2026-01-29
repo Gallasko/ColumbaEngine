@@ -1,0 +1,19 @@
+import "ecs"
+import "string"
+
+logInfo("Resetting score...")
+
+// Reset score to 0
+sysData["score"] = 0
+
+// Update score display
+if (sysData["scoreTextId"] != 0)
+{
+    var scoreText = getEntity(sysData["scoreTextId"])
+    if (scoreText != 0)
+    {
+        scoreText["TTFText"].setText("Score: 0")
+    }
+}
+
+logInfo("Score reset to 0")

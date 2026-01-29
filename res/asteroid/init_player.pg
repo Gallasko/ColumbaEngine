@@ -5,7 +5,8 @@ logInfo("Initializing player ship")
 // Create player ship
 var player = createTexture("I", 40, 40)
 
-//player.attachComp("Player")
+player.attachComp("Player")
+player.attachComp("Collision", "scale", 0.5)
 
 // Set initial position (center of screen)
 var screenWidth = 800

@@ -1,0 +1,875 @@
+// Component Generator
+// Parses .pgcomp files and generates C++ component code
+
+import "string"
+import "file"
+import "algorithm"
+
+// ============================================================================
+// YAML Parser
+// ============================================================================
+
+class YamlParser {
+    init() {
+        this.indentStack = []
+    }
+
+    parse(content) {
+        log("Parse: splitting lines...")
+        var lines = splitLines(content)
+        log("Parse: split into " + toString(len(lines)) + " lines")
+
+        var result = {}
+        var currentSection = ""
+        var currentArray = []
+        var currentItem = {}
+
+        log("Parse: starting line iteration...")
+        for (var i = 0; i < len(lines); i = i + 1) {
+            var line = lines[i]
+            var trimmed = trim(line)
+            log("Line " + toString(i) + ": '" + trimmed + "'")
+
+            // Skip empty lines and comments
+            if (len(trimmed) > 0 and not startsWith(trimmed, "#")) {
+                var indent = this.getIndent(line)
+                log("  indent=" + toString(indent))
+
+                if (startsWith(trimmed, "-")) {
+                    log("  -> array item")
+                    // Array item - save previous item if exists
+                    if (contain(currentItem, "name")) {
+                        push(currentArray, currentItem)
+                    }
+                    currentItem = {}
+
+                    // Parse the line after the dash
+                    var afterDash = trim(substring(trimmed, 1, len(trimmed)))
+                    if (contains(afterDash, ":")) {
+                        // Array item with key-value (e.g., "- name: value")
+                        var parts = this.splitFirst(afterDash, ":")
+                        var key = trim(parts[0])
+                        var value = trim(parts[1])
+                        currentItem[key] = this.parseValue(value)
+                    } else if (len(afterDash) > 0) {
+                        // Simple array item (e.g., "- <cstdint>" or "- \"file.h\"")
+                        // For includes and methods, keep the value as-is without parsing
+                        if (currentSection == "includes") {
+                            push(currentArray, afterDash)
+                        } else {
+                            push(currentArray, this.parseValue(afterDash))
+                        }
+                        currentItem = {}
+                    }
+                } else if (contains(trimmed, ":")) {
+                    log("  -> key-value pair")
+                    // Key-value pair
+                    var parts = this.splitFirst(trimmed, ":")
+                    var key = trim(parts[0])
+                    var value = trim(parts[1])
+                    log("  key='" + key + "' value='" + value + "'")
+
+                    if (indent == 0) {
+                        log("  -> top-level")
+                        // Top-level key
+                        if (len(value) == 0) {
+                            log("  -> section start: " + key)
+                            // Start of array or object section
+                            if (len(currentArray) > 0 or contain(currentItem, "name")) {
+                                // Save previous array
+                                if (contain(currentItem, "name")) {
+                                    push(currentArray, currentItem)
+                                    currentItem = {}
+                                }
+                                log("  -> saving section '" + currentSection + "' with " + toString(len(currentArray)) + " items")
+                                result[currentSection] = currentArray
+                                currentArray = []
+                            }
+                            currentSection = key
+                        } else {
+                            log("  -> simple key-value: " + key + " = " + value)
+                            // Simple key-value
+                            result[key] = this.parseValue(value)
+                        }
+                    } else {
+                        log("  -> indented key-value")
+                        // Indented key - part of current item
+                        if (len(value) > 0) {
+                            log("  -> about to parse value for key: " + key)
+                            log("  -> checking if currentItem already has a key...")
+                            if (contain(currentItem, "name")) {
+                                log("  -> currentItem has 'name' key, seems valid")
+                            } else {
+                                log("  -> currentItem does NOT have 'name' key yet")
+                            }
+                            var parsedValue = this.parseValue(value)
+                            log("  -> parsed value successfully")
+                            log("  -> about to assign to currentItem")
+                            currentItem[key] = parsedValue
+                            log("  -> assignment complete")
+                        }
+                    }
+                }
+            }
+        }
+
+        // Save last item/array
+        if (contain(currentItem, "name")) {
+            push(currentArray, currentItem)
+        }
+        if (len(currentArray) > 0) {
+            result[currentSection] = currentArray
+        }
+
+        log("Parse: complete, returning result")
+        return result
+    }
+
+    parseArrayItem(value) {
+        if (contains(value, ":")) {
+            // It's an object
+            var obj = {}
+            var parts = this.splitFirst(value, ":")
+            var key = trim(parts[0])
+            var val = trim(parts[1])
+            obj[key] = this.parseValue(val)
+            return obj
+        }
+        return this.parseValue(value)
+    }
+
+    parseValue(value) {
+        log("    Parsing value: '" + value + "'")
+        // Remove quotes if present
+        if (startsWith(value, "\"") and endsWith(value, "\"")) {
+            return substring(value, 1, len(value) - 1)
+        }
+        if (startsWith(value, "'") and endsWith(value, "'")) {
+            return substring(value, 1, len(value) - 1)
+        }
+
+        // Parse boolean
+        if (value == "true") return true
+        if (value == "false") return false
+
+        return value
+    }
+
+    getIndent(line) {
+        var count = 0
+        var done = false
+        for (var i = 0; i < len(line) and not done; i = i + 1) {
+            var ch = charAt(line, i)
+            if (ch == " ") {
+                count = count + 1
+            } else {
+                done = true
+            }
+        }
+        return count
+    }
+
+    splitFirst(str, delimiter) {
+        var idx = indexOf(str, delimiter)
+        if (idx == -1) {
+            return [str, ""]
+        }
+        return [substring(str, 0, idx), substring(str, idx + 1, len(str))]
+    }
+}
+
+// ============================================================================
+// Component Schema
+// ============================================================================
+
+class ComponentSchema
+{
+    init(data)
+    {
+        this.name = data["name"]
+        this.namespace = data["namespace"]
+        this.fields = data["fields"]
+        this.includes = data["includes"]
+        this.forwards = data["forwards"]
+        this.events = data["events"]
+        this.methods = data["methods"]
+        this.baseClass = data["base_class"]
+        this.shortname = data["shortname"]
+    }
+
+    getField(index)
+    {
+        return this.fields[index]
+    }
+
+    getFieldCount()
+    {
+        return len(this.fields)
+    }
+}
+
+// ============================================================================
+// Code Generators
+// ============================================================================
+
+class HeaderGenerator
+{
+    generate(schema)
+    {
+        var code = ""
+
+        debugTable(schema)
+
+        // Header guard
+        code += "#pragma once\n\n"
+
+        // Includes
+        if (contain(schema, "includes") and typeOf(schema["includes"]) == "array")
+        {
+            for (var i = 0; i < len(schema["includes"]); i = i + 1)
+            {
+                code += "#include " + schema["includes"][i] + "\n"
+            }
+            code += "\n"
+        }
+
+        // Namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema["namespace"] + "\n{\n\n"
+        }
+
+        if (contain(schema, "forwards") and typeOf(schema["forwards"]) == "array")
+        {
+            for (var i = 0; i < len(schema["forwards"]); i = i + 1)
+            {
+                code += schema["forwards"][i] + "\n"
+            }
+            code += "\n"
+        }
+
+        // Event structs
+        if (contain(schema, "events") and typeOf(schema["events"]) == "array")
+        {
+            for (var i = 0; i < len(schema["events"]); i = i + 1)
+            {
+                var eventName = schema["events"][i]
+                code += "struct " + eventName + "\n"
+                code += "{\n"
+                code += "    _unique_id id = 0;\n"
+                code += "};\n\n"
+            }
+        }
+
+        // Component struct with inheritance
+        code += "struct " + schema["name"]
+        if (contain(schema, "baseClass"))
+        {
+            code += " : public " + schema["baseClass"]
+        }
+        code += "\n{\n"
+
+        if (contain(schema, "baseClass") and schema["baseClass"] == "Component")
+        {
+            code += "    " + "DEFAULT_COMPONENT_MEMBERS(" + schema["name"] +")\n\n"
+        }
+
+        // code += "public:\n"
+
+        // Fields
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            code += "    " + field["type"] + " " + field["name"]
+
+            if (contain(field, "default"))
+            {
+                var defaultValue = field["default"]
+                // For string types, ensure quotes are preserved
+                if (contains(field["type"], "string") and typeOf(defaultValue) == "string")
+                {
+                    code += " = \"" + defaultValue + "\""
+                }
+                else
+                {
+                    code += " = " + toString(defaultValue)
+                }
+            }
+
+            code += ";\n"
+        }
+
+        code += "\n"
+
+        // Getters
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var getterName = "get" + capitalize(fieldName)
+
+            code += "    " + fieldType + " " + getterName + "() const { return " + fieldName + "; }\n"
+        }
+
+        code += "\n"
+
+        // Setters (declarations only, implementations in .cpp)
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var setterName = "set" + capitalize(fieldName)
+
+            if (contain(field, "setter"))
+            {
+                var setterMode = field["setter"]
+                if (setterMode != "none")
+                {
+                    code += "    void " + setterName + "(const " + fieldType + "& value);\n"
+                }
+            }
+        }
+
+        code += "\n"
+
+        // Custom methods (inline implementations)
+        if (contain(schema, "methods") and typeOf(schema["methods"]) == "array")
+        {
+            for (var i = 0; i < len(schema["methods"]); i = i + 1)
+            {
+                var method = schema["methods"][i]
+                code += "    " + method + "\n"
+            }
+            code += "\n"
+        }
+
+        // getType() static method
+        code += "    inline static std::string getType() { return \"" + schema.name + "\"; }\n"
+
+        code += "};\n\n"
+
+        // Serialization template declarations
+        code += "template <>\n"
+        code += "void serialize(Archive& archive, const " + schema.name + "& value);\n\n"
+        code += "template <>\n"
+        code += schema.name + " deserialize(const UnserializedObject& serializedString);\n\n"
+
+        // Close namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "} // namespace " + schema.namespace + "\n\n"
+        }
+
+        // Add a reference that forces the .serialization.cpp to be linked (OUTSIDE namespace)
+        code += "// Force reference to serialization registration\n"
+        code += "// This ensures the .serialization.cpp file is linked and static initializers run\n"
+        code += "extern \"C\" void __init_" + schema.name + "_registration();\n"
+        code += "namespace __force_link_impl {\n"
+        code += "    static struct __" + schema.name + "_ForceLink {\n"
+        code += "        __" + schema.name + "_ForceLink() {\n"
+        code += "            // Call init to force linking of the .serialization.cpp\n"
+        code += "            __init_" + schema.name + "_registration();\n"
+        code += "        }\n"
+        code += "    } __" + schema.name + "_force_link_instance;\n"
+        code += "}\n"
+
+        return code
+    }
+}
+
+class SerializationGenerator
+{
+    generate(schema)
+    {
+        var code = ""
+
+        // Include necessary headers
+        code += "#include \"stdafx.h\"\n\n"
+        code += "#include \"" + schema.name + ".generated.h\"\n\n"
+        code += "#include \"Compiler/ecsserialization.h\"\n"
+        code += "#include \"ECS/entitysystem.h\"\n\n"
+
+        // Namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema["namespace"] + "\n{\n\n"
+        }
+
+        // Generate serialization function with setters
+        code += "void serialize" + schema.name + "WithSetters(VM* vm, ObjInstance* table, " + schema.name + "* component)\n"
+        code += "{\n"
+        code += "    // Get component context\n"
+        code += "    _unique_id entityId = component->entityId;\n\n"
+        code += "    LOG_MILE(\"ECS Serialization\", \"Generating setters for " + schema.name + " on entity \" << entityId);\n\n"
+        code += "    // Generate setter methods for each property using macros\n"
+
+        // Generate setter registrations for each field with a setter
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var setterName = "set" + capitalize(fieldName)
+
+            if (contain(field, "setter") and field["setter"] != "none")
+            {
+                var macroName = ""
+
+                // Determine the appropriate macro based on field type
+                if (fieldType == "float")
+                {
+                    macroName = "REGISTER_FLOAT_SETTER"
+                }
+                else if (fieldType == "bool")
+                {
+                    macroName = "REGISTER_BOOL_SETTER"
+                }
+                else if (fieldType == "int" or fieldType == "_unique_id")
+                {
+                    macroName = "REGISTER_INT_SETTER"
+                }
+                else if (fieldType == "double")
+                {
+                    macroName = "REGISTER_DOUBLE_SETTER"
+                }
+                else
+                {
+                    // For other types, use a generic comment
+                    code += "    // TODO: Add setter registration for " + fieldName + " (" + fieldType + ")\n"
+                }
+
+                if (len(macroName) > 0)
+                {
+                    code += "    " + macroName + "(vm, table, component, " + setterName + ");\n"
+                }
+            }
+        }
+
+        code += "}\n\n"
+
+        // Register component serializer
+        code += "// Register " + schema.name + " serializer at static initialization time\n"
+        code += "REGISTER_COMPONENT_SERIALIZER(" + schema.name + ", serialize" + schema.name + "WithSetters);\n\n"
+
+        // Generate attach handler function
+        code += "bool attach" + schema.name + "(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)\n"
+        code += "{\n"
+
+        // Declare variables for each field with default values
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var defaultValue = ""
+
+            if (contain(field, "default"))
+            {
+                var defVal = field["default"]
+                // For string types, ensure quotes are preserved
+                if (contains(fieldType, "string") and typeOf(defVal) == "string")
+                {
+                    defaultValue = " = \"" + defVal + "\""
+                }
+                else
+                {
+                    defaultValue = " = " + toString(defVal)
+                }
+            }
+            else
+            {
+                // Provide sensible defaults for common types
+                if (fieldType == "float" or fieldType == "double")
+                {
+                    defaultValue = " = 0.0f"
+                }
+                else if (fieldType == "int" or fieldType == "_unique_id")
+                {
+                    defaultValue = " = 0"
+                }
+                else if (fieldType == "bool")
+                {
+                    defaultValue = " = false"
+                }
+            }
+
+            code += "    " + fieldType + " " + fieldName + defaultValue + ";\n"
+        }
+
+        code += "\n    // Process key-value pairs\n"
+        code += "    for (int i = 0; i < argCount; i += 2)\n"
+        code += "    {\n"
+        code += "        if (i + 1 >= argCount) break;\n\n"
+        code += "        if (!IS_STRING(args[i]))\n"
+        code += "        {\n"
+        code += "            LOG_ERROR(\"ECS Serialization\", \"attachComp expects string keys for properties\");\n"
+        code += "            continue;\n"
+        code += "        }\n\n"
+        code += "        auto key = vm->asString(args[i]);\n\n"
+
+        // Generate key extraction for each field
+        var firstField = true
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+
+            var extractFunc = ""
+            if (fieldType == "float" or fieldType == "double")
+            {
+                extractFunc = "detail::extractFloatArg"
+            }
+            else if (fieldType == "bool")
+            {
+                extractFunc = "detail::extractBoolArg"
+            }
+            else if (fieldType == "int" or fieldType == "_unique_id")
+            {
+                extractFunc = "detail::extractIntArg"
+            }
+
+            if (len(extractFunc) > 0)
+            {
+                if (firstField)
+                {
+                    code += "        if (key == \"" + fieldName + "\")\n"
+                    firstField = false
+                }
+                else
+                {
+                    code += "        else if (key == \"" + fieldName + "\")\n"
+                }
+                code += "            " + fieldName + " = " + extractFunc + "(args, i + 1);\n"
+            }
+        }
+
+        code += "    }\n\n"
+
+        // Attach component and set fields
+        code += "    // Attach " + schema.name + " with parsed parameters\n"
+        code += "    auto comp = ecs->_attach<" + schema.name + ">(entity);\n\n"
+
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            code += "    comp->" + fieldName + " = " + fieldName + ";\n"
+        }
+
+        code += "\n    LOG_INFO(\"ECS Serialization\", \"Attached " + schema.name + " to entity \" << entity->id);\n\n"
+        code += "    return true;\n"
+        code += "}\n\n"
+
+        // Register the attach handler - use shortname if provided, otherwise extract from component name
+        var componentShortName = ""
+        if (contain(schema, "shortname") and typeOf(schema["shortname"]) == "string" and len(schema["shortname"]) > 0)
+        {
+            componentShortName = schema["shortname"]
+        }
+        else
+        {
+            componentShortName = schema.name
+            if (contains(componentShortName, "Component"))
+            {
+                var idx = indexOf(componentShortName, "Component")
+                componentShortName = substring(componentShortName, 0, idx)
+            }
+        }
+        code += "// Register the " + componentShortName + " component attach handler\n"
+        code += "REGISTER_COMPONENT_ATTACH_HANDLER(" + componentShortName + ", attach" + schema.name + ");\n\n"
+
+        // Close namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "} // namespace " + schema.namespace + "\n\n"
+        }
+
+        // Add the init function that forces this file to be linked
+        code += "// Initialization function referenced from .generated.h\n"
+        code += "// This ensures this .serialization.cpp is linked and static initializers run\n"
+        code += "extern \"C\" void __init_" + schema.name + "_registration() {\n"
+        code += "    // Being called is enough to force linking\n"
+        code += "}\n"
+
+        return code
+    }
+}
+
+class CppGenerator
+{
+    generate(schema)
+    {
+        var code = ""
+
+        // Include the header
+        code += "#include \"" + schema.name + ".generated.h\"\n\n"
+        code += "#include \"ECS/entitysystem.h\"\n\n"
+
+        // Namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema.namespace + "\n{\n\n"
+        }
+
+        // Setter implementations
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+            var setterName = "set" + capitalize(fieldName)
+
+            if (contain(field, "setter"))
+            {
+                var setterMode = field["setter"]
+                if (setterMode != "none")
+                {
+                    code += "void " + schema.name + "::" + setterName + "(const " + fieldType + "& value)\n{\n"
+
+                    if (setterMode == "basic")
+                    {
+                        // Basic setter: just assign
+                        code += "    " + fieldName + " = value;\n"
+                    }
+                    else if (setterMode == "event")
+                    {
+                        // Event setter: check if changed, then assign + send event
+                        // Use areNotAlmostEqual for floats/doubles
+                        var comparisonCheck = ""
+                        if (fieldType == "float" or fieldType == "double")
+                        {
+                            comparisonCheck = "areNotAlmostEqual(" + fieldName + ", value)"
+                        }
+                        else
+                        {
+                            comparisonCheck = fieldName + " != value"
+                        }
+
+                        code += "    if (" + comparisonCheck + ")\n"
+                        code += "    {\n"
+                        code += "        " + fieldName + " = value;\n\n"
+                        code += "        if (ecsRef)\n"
+                        code += "        {\n"
+
+                        // Get the event name from schema or use default
+                        var eventName = ""
+
+                        if (contain(schema, "events") and len(schema["events"]) > 0)
+                        {
+                            eventName = schema["events"][0]
+                        }
+                        else
+                        {
+                            eventName = schema.name + "Changed"
+                        }
+
+                        code += "            ecsRef->sendEvent(" + eventName + "{entityId});\n"
+                        code += "        }\n"
+                        code += "    }\n"
+                    }
+                    else if (setterMode == "custom_event")
+                    {
+                        // Custom event setter: check if changed, then assign + send custom event
+                        var eventType = ""
+                        if (contain(field, "event_type"))
+                        {
+                            eventType = field["event_type"]
+                        }
+                        else
+                        {
+                            eventType = capitalize(fieldName) + "Changed"
+                        }
+
+                        code += "    if (" + fieldName + " != value) {\n"
+                        code += "        " + fieldName + " = value;\n"
+                        code += "        if (ecsRef) {\n"
+                        code += "            sendEvent<" + eventType + ">(ecsRef, id);\n"
+                        code += "        }\n"
+                        code += "    }\n"
+                    }
+                    else if (setterMode == "custom")
+                    {
+                        // Custom setter: use inline code
+                        if (contain(field, "setter_code"))
+                        {
+                            var customCode = field["setter_code"]
+                            code += "    " + customCode + "\n"
+                        }
+                        else
+                        {
+                            code += "    // TODO: Implement custom setter logic\n"
+                            code += "    " + fieldName + " = value;\n"
+                        }
+                    }
+
+                    code += "}\n\n"
+                }
+            }
+        }
+
+        // Serialization implementation
+        code += "// Serialize function for " + schema.name + "\n"
+        code += "template <>\n"
+        code += "void serialize(Archive& archive, const " + schema.name + "& value)\n"
+        code += "{\n"
+        code += "    archive.startSerialization(\"" + schema.name + "\");\n\n"
+
+        // Serialize each field (unless marked with serialize: false)
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+
+            // Skip fields explicitly marked with serialize: false
+            var shouldSerialize = true
+            if (contain(field, "serialize") and field["serialize"] == false)
+            {
+                shouldSerialize = false
+            }
+
+            if (shouldSerialize)
+            {
+                code += "    serialize(archive, \"" + fieldName + "\", value." + fieldName + ");\n"
+            }
+        }
+
+        code += "\n    archive.endSerialization();\n"
+        code += "}\n\n"
+
+        // Deserialization implementation
+        code += "// Deserialize function for " + schema.name + "\n"
+        code += "template <>\n"
+        code += schema.name + " deserialize(const UnserializedObject& serializedString)\n"
+        code += "{\n"
+        code += "    " + schema.name + " data;\n\n"
+
+        // Deserialize each field (unless marked with serialize: false)
+        for (var i = 0; i < len(schema.fields); i = i + 1)
+        {
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+
+            // Skip fields explicitly marked with serialize: false
+            var shouldSerialize = true
+            if (contain(field, "serialize") and field["serialize"] == false)
+            {
+                shouldSerialize = false
+            }
+
+            if (shouldSerialize)
+            {
+                code += "    defaultDeserialize(serializedString, \"" + fieldName + "\", data." + fieldName + ");\n"
+            }
+        }
+
+        code += "\n    return data;\n"
+        code += "}\n\n"
+
+        // Close namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "} // namespace " + schema.namespace + "\n"
+        }
+
+        return code
+    }
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+fun main() {
+    log("Component Generator Starting...")
+
+    var argCount = getArgCount()
+    log("Argument count: " + toString(argCount))
+
+    if (argCount < 2) {
+        log("Usage: pgcompiler component_generator.pg <input.pgcomp>")
+        return
+    }
+
+    var inputFile = getArg(2)
+    log("Input file: " + inputFile)
+
+    // Check if file exists
+    if (not fileExists(inputFile)) {
+        log("Error: File not found: " + inputFile)
+        return
+    }
+
+    // Read the file
+    log("Reading file...")
+    var content = readFile(inputFile)
+    log("File content length: " + toString(len(content)))
+
+    // Parse YAML
+    log("Creating YAML parser...")
+    var parser = YamlParser()
+    log("Starting YAML parse...")
+    var data = parser.parse(content)
+    log("YAML parse complete")
+
+    // Create schema
+    log("Creating component schema...")
+
+    if (contain(data, "name")) {
+        log("Data has 'name' key: " + data["name"])
+    } else {
+        log("ERROR: Data does not contain 'name' key!")
+    }
+
+    if (contain(data, "namespace")) {
+        log("Data has 'namespace' key: " + data["namespace"])
+    }
+
+    if (contain(data, "fields")) {
+        log("Data has 'fields' key, type: " + typeOf(data["fields"]))
+    }
+
+    if (contain(data, "includes")) {
+        log("Data has 'includes' key, type: " + typeOf(data["includes"]))
+    } else {
+        log("Data does NOT have 'includes' key")
+    }
+
+    var schema = ComponentSchema(data)
+    log("Schema created")
+
+    log("Generating code for component: " + schema.name)
+
+    // Generate header
+    var headerGen = HeaderGenerator()
+
+    log("Generating header code...")
+
+    var headerCode = headerGen.generate(schema)
+
+    log("Header generated successfully")
+
+    var headerFile = schema.name + ".generated.h"
+    writeFile(headerFile, headerCode)
+    log("Generated: " + headerFile)
+
+    // Generate cpp
+    var cppGen = CppGenerator()
+    var cppCode = cppGen.generate(schema)
+    var cppFile = schema.name + ".generated.cpp"
+    writeFile(cppFile, cppCode)
+    log("Generated: " + cppFile)
+
+    // Generate serialization
+    var serGen = SerializationGenerator()
+    var serCode = serGen.generate(schema)
+    var serFile = schema.name + ".serialization.cpp"
+    writeFile(serFile, serCode)
+    log("Generated: " + serFile)
+
+    log("Component generation complete!")
+}
+
+main()

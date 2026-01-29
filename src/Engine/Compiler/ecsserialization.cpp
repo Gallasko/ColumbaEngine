@@ -3,6 +3,7 @@
 #include "ECS/entitysystem.h"
 #include "2D/position.h"
 #include "2D/collisionsystem.h"
+#include "UI/ttftext.h"
 
 #include <iostream>
 
@@ -33,59 +34,23 @@ namespace pg
                 }
 
                 // Get component name
-                if (!IS_STRING(args[0]))
+                if (not IS_STRING(args[0]))
                 {
                     throw std::runtime_error("attachComp expects first argument to be component name (string)");
                 }
                 auto componentName = vm->asString(args[0]);
 
-                // Special case: if component name is "Collision", attach CollisionComponent instead
-                if (componentName == "Collision")
+                // Check if there's a registered custom attach handler for this component
+                auto& attachRegistry = ComponentAttachRegistry::instance();
+                if (attachRegistry.hasHandler(componentName))
                 {
-                    // Parse arguments for CollisionComponent
-                    // Expected: attachComp("Collision", "layerId", layerId, "scale", scale, ...)
-                    size_t layerId = 0;
-                    float scale = 1.0f;
-                    // bool checkSpecificLayer = false;
-                    std::vector<size_t> checkLayerId;
-
-                    // Process key-value pairs
-                    for (int i = 1; i < argCount; i += 2)
-                    {
-                        if (i + 1 >= argCount) break;
-
-                        if (!IS_STRING(args[i]))
-                        {
-                            throw std::runtime_error("attachComp expects string keys for properties");
-                        }
-
-                        auto key = vm->asString(args[i]);
-                        auto value = args[i + 1];
-
-                        if (key == "layerId" && IS_INT(value))
-                        {
-                            layerId = static_cast<size_t>(AS_INT(value));
-                        }
-                        else if (key == "scale")
-                        {
-                            if (IS_DOUBLE(value))
-                                scale = static_cast<float>(AS_DOUBLE(value));
-                            else if (IS_INT(value))
-                                scale = static_cast<float>(AS_INT(value));
-                        }
-                        // Could add checkLayerId array parsing here if needed
-                    }
-
-                    // Attach CollisionComponent with parsed parameters
-                    ecsRef->_attach<CollisionComponent>(entityPtr, layerId, scale);
-
-                    LOG_INFO("ECS Serialization", "Attached native CollisionComponent to entity " << entityPtr->id
-                             << " (layerId=" << layerId << ", scale=" << scale << ")");
-
-                    return INT_VAL(0);
+                    auto handler = attachRegistry.getHandler(componentName);
+                    // Pass all arguments AFTER the component name to the handler
+                    bool success = handler(vm, ecsRef, entityPtr, argCount - 1, args + 1);
+                    return makeBoolValue(success);
                 }
 
-                // Attach the StandardComponent (create empty first)
+                // Default behavior: Attach the StandardComponent (create empty first)
                 CompRef<StandardComponent> component = ecsRef->_attach(entityPtr, componentName);
 
                 // Process remaining arguments as key-value pairs and add them directly to the component
@@ -140,140 +105,6 @@ namespace pg
     // ============================================================================
 
     /**
-     * @brief Generate setters for PositionComponent
-     *
-     * This function adds dynamic setter methods to a PositionComponent table that
-     * call the component's C++ setter methods (setX, setY, etc.) which automatically
-     * trigger PositionComponentChangedEvent.
-     */
-    void serializePositionComponentWithSetters(VM* vm, ObjInstance* table, PositionComponent* component)
-    {
-        // Get component context
-        _unique_id entityId = component->id;
-
-        LOG_MILE("ECS Serialization", "Generating setters for PositionComponent on entity " << entityId);
-
-        // Define the properties that have setters in PositionComponent
-        struct PropertySetter {
-            std::string propName;
-            std::string methodName;
-        };
-
-        std::vector<PropertySetter> propertiesWithSetters = {
-            {"x", "setX"},
-            {"y", "setY"},
-            {"z", "setZ"},
-            {"width", "setWidth"},
-            {"height", "setHeight"},
-            {"rotation", "setRotation"},
-            {"visible", "setVisibility"},
-            {"observable", "setObservable"}
-        };
-
-        // Generate setter methods for each property
-        for (const auto& prop : propertiesWithSetters)
-        {
-            const std::string& propName = prop.propName;
-            const std::string& setterMethodName = prop.methodName;
-
-            // Create native function directly without polluting globals
-            // Lambda that implements the setter functionality
-            NativeFn setterFunc;
-
-            if (propName == "x")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setX(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setX(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "y")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setY(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setY(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "z")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setZ(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setZ(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "width")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setWidth(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setWidth(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "height")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setHeight(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setHeight(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "rotation")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_DOUBLE(args[0]))
-                        component->setRotation(static_cast<float>(AS_DOUBLE(args[0])));
-                    else if (IS_INT(args[0]))
-                        component->setRotation(static_cast<float>(AS_INT(args[0])));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "visible")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_BOOL(args[0]))
-                        component->setVisibility(AS_BOOL(args[0]));
-                    return INT_VAL(0);
-                };
-            }
-            else if (propName == "observable")
-            {
-                setterFunc = [component](VM*, int argCount, Value* args) -> Value {
-                    if (argCount != 1) return INT_VAL(0);
-                    if (IS_BOOL(args[0]))
-                        component->setObservable(AS_BOOL(args[0]));
-                    return INT_VAL(0);
-                };
-            }
-
-            // Create native function and add directly to table without going through globals
-            table->fields[setterMethodName] = vm->createNativeFunction(setterFunc);
-        }
-    }
-
-    // Register PositionComponent serializer at static initialization time
-    REGISTER_COMPONENT_SERIALIZER(PositionComponent, serializePositionComponentWithSetters);
-
-    /**
      * @brief Generate setters for StandardComponent
      *
      * This function adds dynamic setter methods to a StandardComponent table that
@@ -287,7 +118,7 @@ namespace pg
 
         // Get the properties table
         auto propertiesIt = table->fields.find("properties");
-        if (propertiesIt == table->fields.end() || !IS_INSTANCE(propertiesIt->second))
+        if (propertiesIt == table->fields.end() or not IS_INSTANCE(propertiesIt->second))
         {
             LOG_WARNING("ECS Serialization", "No properties table found for StandardComponent, skipping setter generation");
             return;
@@ -299,7 +130,7 @@ namespace pg
         std::vector<std::string> propertyNames;
         for (const auto& [key, value] : propertiesTable->fields)
         {
-            if (key != "__className" && !key.empty())
+            if (key != "__className" and not key.empty())
             {
                 propertyNames.push_back(key);
                 // Copy property to top level
@@ -314,7 +145,7 @@ namespace pg
         {
             // Generate method name: "set" + Capitalized(propName)
             std::string methodName = "set";
-            if (!propName.empty())
+            if (not propName.empty())
             {
                 methodName += static_cast<char>(std::toupper(propName[0]));
                 if (propName.size() > 1)
@@ -339,7 +170,7 @@ namespace pg
                 if (component->has(propName))
                 {
                     ElementType oldValue = component->properties[propName];
-                    valueChanged = !(oldValue == newValue);
+                    valueChanged = not (oldValue == newValue);
                 }
                 else
                 {
@@ -384,7 +215,7 @@ namespace pg
                 return INT_VAL(0);
             }
 
-            if (!IS_STRING(args[0]))
+            if (not IS_STRING(args[0]))
             {
                 LOG_ERROR("StandardComponent Generic Setter", "First argument must be a string (property name)");
                 return INT_VAL(0);
@@ -430,7 +261,45 @@ namespace pg
         LOG_MILE("ECS Serialization", "Added generic set() method");
     }
 
-    // Register StandardComponent serializer at static initialization time
+    /**
+     * @brief Generate setters for TTFText component
+     *
+     * Adds methods: setText, setColor, setPosition
+     */
+    void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
+    {
+        LOG_MILE("ECS Serialization", "Generating setters for TTFText component");
+
+        REGISTER_STRING_SETTER(vm, table, component, setText);
+
+        // setColor(r, g, b, [a])
+        auto setColorFunc = [component](VM* vm, int argCount, Value* args) -> Value {
+            if (argCount < 3)
+                throw std::runtime_error("setColor expects at least 3 arguments: r, g, b, [a]");
+
+            constant::Vector4D colors;
+            for (int i = 0; i < 3; i++)
+            {
+                colors[i] = detail::extractFloatArg(args, i);
+            }
+
+            // Alpha (optional, default 255)
+            colors[3] = 255.0f;
+            if (argCount >= 4)
+            {
+                colors[3] = detail::extractFloatArg(args, 3);
+            }
+
+            component->setColor(colors);
+
+            return INT_VAL(0);
+        };
+
+        table->fields["setColor"] = vm->createNativeFunction(setColorFunc);
+    }
+
+    // Register component serializers at static initialization time
+    REGISTER_COMPONENT_SERIALIZER(TTFText, serializeTTFTextWithSetters);
     REGISTER_COMPONENT_SERIALIZER(StandardComponent, serializeStandardComponentWithSetters);
 
     // ============================================================================
@@ -463,7 +332,7 @@ namespace pg
 
             // Add the class name (component type)
             std::string componentTypeName;
-            if (!compNode.className.empty())
+            if (not compNode.className.empty())
             {
                 componentTypeName = compNode.className;
                 Value classNameValue = vm->createString(compNode.className);
@@ -495,7 +364,7 @@ namespace pg
                     // Extract the type name from the table
                     std::string compTypeName;
                     auto typeNameIt = table->fields.find("typeName");
-                    if (typeNameIt != table->fields.end() && IS_STRING(typeNameIt->second))
+                    if (typeNameIt != table->fields.end() and IS_STRING(typeNameIt->second))
                     {
                         compTypeName = vm->asString(typeNameIt->second);
                         auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
@@ -556,6 +425,70 @@ namespace pg
         // This allows scripts to attach components immediately without entity lookup
         Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entity, ecsRef));
         entityTable->fields["attachComp"] = attachCompFuncValue;
+
+        // Add native has() method to check if entity has a specific component
+        auto hasFunc = [entity, ecsRef](VM* vm, int argCount, Value* args) -> Value {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("has expects exactly 1 argument (componentName)");
+            }
+
+            if (!IS_STRING(args[0]))
+            {
+                throw std::runtime_error("has expects a string argument (component name)");
+            }
+
+            std::string componentName = vm->asString(args[0]);
+
+            // Check if this is a StandardComponent
+            auto* standardCompOwner = ecsRef->getComponentRegistry()->retrieveStandardComponent(componentName);
+            if (standardCompOwner and standardCompOwner->components.has(entity->id))
+            {
+                return makeBoolValue(true);
+            }
+
+            // Check other registered components by iterating through the entity's component list
+            for (const auto& compRef : entity->componentList)
+            {
+                if (compRef.entityHeldType == Entity::EntityHeld::EntityHeldType::id)
+                {
+                    _unique_id componentId = compRef.getId();
+
+                    // Get the component type name
+                    InspectorArchive archive;
+                    ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
+
+                    if (archive.mainNode.children.size() > 0)
+                    {
+                        auto& compNode = archive.mainNode.children[0];
+                        std::string compTypeName = compNode.className;
+
+                        // For StandardComponent, check the actual typeName
+                        if (compTypeName == "StandardComponent")
+                        {
+                            for (const auto& child : compNode.children)
+                            {
+                                if (child.name == "typeName" && !child.children.empty())
+                                {
+                                    compTypeName = child.children[0].name;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (compTypeName == componentName)
+                        {
+                            return makeBoolValue(true);
+                        }
+                    }
+                }
+            }
+
+            return makeBoolValue(false);
+        };
+
+        Value hasFuncValue = vm->createNativeFunction(hasFunc);
+        entityTable->fields["has"] = hasFuncValue;
 
         // Serialize each component
         for (const auto& compRef : entity->componentList)
@@ -715,7 +648,7 @@ namespace pg
         }
 
         // Create or get the entity
-        if (createNew || specifiedId == 0)
+        if (createNew or specifiedId == 0)
         {
             entity = ecsRef->createEntity();
         }
@@ -738,7 +671,7 @@ namespace pg
         for (const auto& [key, value] : table->fields)
         {
             // Skip special fields
-            if (key == "__entityId" || key == "__className")
+            if (key == "__entityId" or key == "__className")
                 continue;
 
             // Check if the field value is a table (component)
@@ -802,7 +735,7 @@ namespace pg
         for (const auto& [key, value] : table->fields)
         {
             // Skip non-numeric keys and special fields
-            if (key == "count" || key == "__className")
+            if (key == "count" or key == "__className")
                 continue;
 
             // Try to parse as numeric index
@@ -844,4 +777,49 @@ namespace pg
 
         return tableValue;
     }
+
+    // ============================================================================
+    // Registered Component Attach Handlers
+    // ============================================================================
+
+    /**
+     * @brief Custom attach handler for CollisionComponent
+     *
+     * Expected usage: attachComp("Collision", "layerId", 1, "scale", 2.0)
+     */
+    bool attachCollisionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
+    {
+        size_t layerId = 0;
+        float scale = 1.0f;
+
+        // Process key-value pairs
+        for (int i = 0; i < argCount; i += 2)
+        {
+            if (i + 1 >= argCount) break;
+
+            if (!IS_STRING(args[i]))
+            {
+                LOG_ERROR("ECS Serialization", "attachComp expects string keys for properties");
+                continue;
+            }
+
+            auto key = vm->asString(args[i]);
+
+            if (key == "layerId")
+                layerId = static_cast<size_t>(detail::extractIntArg(args, i + 1));
+            else if (key == "scale")
+                scale = detail::extractFloatArg(args, i + 1);
+        }
+
+        // Attach CollisionComponent with parsed parameters
+        ecs->_attach<CollisionComponent>(entity, layerId, scale);
+
+        LOG_INFO("ECS Serialization", "Attached CollisionComponent to entity " << entity->id
+                 << " (layerId=" << layerId << ", scale=" << scale << ")");
+
+        return true;
+    }
+
+    // Register the Collision component attach handler
+    REGISTER_COMPONENT_ATTACH_HANDLER(Collision, attachCollisionComponent);
 }

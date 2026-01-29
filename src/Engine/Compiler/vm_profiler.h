@@ -67,7 +67,7 @@ namespace pg
             }
         };
 
-        VMProfiler() : enabled(false), totalInstructions(0) {}
+        VMProfiler() : enabled(false), totalInstructions(0), setupVmTimeNs(0), preRunTimeNs(0) {}
 
         /**
          * @brief Enable or disable profiling
@@ -115,6 +115,8 @@ namespace pg
         {
             profiles.clear();
             totalInstructions = 0;
+            setupVmTimeNs = 0;
+            preRunTimeNs = 0;
         }
 
         /**
@@ -213,6 +215,48 @@ namespace pg
         }
 
         /**
+         * @brief Record time spent in setupVm()
+         * @param nanoseconds Time spent in setupVm (native module registration, etc.)
+         */
+        void recordSetupVmTime(uint64_t nanoseconds)
+        {
+            setupVmTimeNs = nanoseconds;
+        }
+
+        /**
+         * @brief Record time from end of setupVm until run()
+         * @param nanoseconds Time spent in compilation and pre-run setup
+         */
+        void recordPreRunTime(uint64_t nanoseconds)
+        {
+            preRunTimeNs = nanoseconds;
+        }
+
+        /**
+         * @brief Get total VM startup time (setupVm + preRun)
+         */
+        uint64_t getTotalStartupTimeNs() const
+        {
+            return setupVmTimeNs + preRunTimeNs;
+        }
+
+        /**
+         * @brief Get time spent in setupVm
+         */
+        uint64_t getSetupVmTimeNs() const
+        {
+            return setupVmTimeNs;
+        }
+
+        /**
+         * @brief Get time spent before run()
+         */
+        uint64_t getPreRunTimeNs() const
+        {
+            return preRunTimeNs;
+        }
+
+        /**
          * @brief Print profiling report to stdout
          */
         void printReport(bool sortByTime = true) const;
@@ -223,9 +267,18 @@ namespace pg
          */
         void printBytecodeReport() const;
 
+        /**
+         * @brief Print bytecode disassembly with performance data
+         * Shows bytecode in execution order with timing and percentage columns
+         * @param functionName Name of the function to print performance data for
+         */
+        void printBytecodeWithPerformance(const std::string& functionName) const;
+
     private:
         bool enabled;
         std::unordered_map<InstructionKey, InstructionProfile, InstructionKeyHash> profiles;
         uint64_t totalInstructions;
+        uint64_t setupVmTimeNs;      // Time spent in setupVm()
+        uint64_t preRunTimeNs;        // Time from end of setupVm until run()
     };
 }
