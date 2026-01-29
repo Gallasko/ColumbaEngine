@@ -1,0 +1,7 @@
+// Break immediately without any iteration
+var count = 0;
+while (true) {
+    break;
+    count = count + 1; // Should never execute
+}
+__dprint(count);

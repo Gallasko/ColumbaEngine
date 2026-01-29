@@ -1,0 +1,13 @@
+outer: 0
+  inner: 1
+  inner: 3
+  inner: 5
+outer: 1
+  inner: 1
+  inner: 3
+  inner: 5
+outer: 2
+  inner: 1
+  inner: 3
+  inner: 5
+total iterations: 9

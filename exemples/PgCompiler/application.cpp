@@ -87,10 +87,23 @@ void CompilerApp::setLoggerSink()
     }
 
     terminalSink->addFilter("log", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::log));
-    terminalSink->addFilter("info", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::info));
     terminalSink->addFilter("mile", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::mile));
     terminalSink->addFilter("test", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::test));
     terminalSink->addFilter("warn", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::warning));
+
+    bool needInfo = false;
+    for (int i = 1; i < m_argc; i++)
+    {
+        std::string arg = m_argv[i];
+
+        if (arg == "--info" or arg == "-i")
+        {
+            needInfo = true;
+        }
+    }
+
+    if (not needInfo)
+        terminalSink->addFilter("info", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::info));
 }
 
 CompilerApp::~CompilerApp()
@@ -142,23 +155,32 @@ void CompilerApp::runREPL()
 
     // Register command-line argument access functions
     vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount != 1) {
+        if (argCount != 1)
+        {
             throw std::runtime_error("getArg expects exactly 1 argument (index)");
         }
-        if (not IS_INT(args[0])) {
+
+        if (not IS_INT(args[0]))
+        {
             throw std::runtime_error("getArg expects an integer argument");
         }
+
         int64_t index = AS_INT(args[0]);
-        if (index < 0 || index >= m_argc) {
+
+        if (index < 0 or index >= m_argc)
+        {
             return vm->createString("");
         }
+
         return vm->createString(m_argv[index]);
     });
 
-    vm.defineNative("getArgCount", [this](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount != 0) {
+    vm.defineNative("getArgCount", [this](VM*, int argCount, Value*) -> Value {
+        if (argCount != 0)
+        {
             throw std::runtime_error("getArgCount expects no arguments");
         }
+
         return makeIntValue(m_argc);
     });
 
@@ -243,23 +265,32 @@ void CompilerApp::runFile(bool needCompile)
 
     // Register command-line argument access functions
     vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount != 1) {
+        if (argCount != 1)
+        {
             throw std::runtime_error("getArg expects exactly 1 argument (index)");
         }
-        if (not IS_INT(args[0])) {
+
+        if (not IS_INT(args[0]))
+        {
             throw std::runtime_error("getArg expects an integer argument");
         }
+
         int64_t index = AS_INT(args[0]);
-        if (index < 0 || index >= m_argc) {
+
+        if (index < 0 or index >= m_argc)
+        {
             return vm->createString("");
         }
+
         return vm->createString(m_argv[index]);
     });
 
-    vm.defineNative("getArgCount", [this](VM* vm, int argCount, Value* args) -> Value {
-        if (argCount != 0) {
+    vm.defineNative("getArgCount", [this](VM*, int argCount, Value*) -> Value {
+        if (argCount != 0)
+        {
             throw std::runtime_error("getArgCount expects no arguments");
         }
+
         return makeIntValue(m_argc);
     });
 
