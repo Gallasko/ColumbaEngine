@@ -636,9 +636,24 @@ class CppGenerator
                     }
                     else if (setterMode == "event")
                     {
-                        // Event setter: assign + send event
-                        code += "    " + fieldName + " = value;\n\n"
-                        code += "    if (ecsRef)\n    {\n"
+                        // Event setter: check if changed, then assign + send event
+                        // Use areNotAlmostEqual for floats/doubles
+                        var comparisonCheck = ""
+                        if (fieldType == "float" or fieldType == "double")
+                        {
+                            comparisonCheck = "areNotAlmostEqual(" + fieldName + ", value)"
+                        }
+                        else
+                        {
+                            comparisonCheck = fieldName + " != value"
+                        }
+
+                        code += "    if (" + comparisonCheck + ")\n"
+                        code += "    {\n"
+                        code += "        " + fieldName + " = value;\n\n"
+                        code += "        if (ecsRef)\n"
+                        code += "        {\n"
+
                         // Get the event name from schema or use default
                         var eventName = ""
 
@@ -651,7 +666,8 @@ class CppGenerator
                             eventName = schema.name + "Changed"
                         }
 
-                        code += "        ecsRef->sendEvent(" + eventName + "{entityId});\n"
+                        code += "            ecsRef->sendEvent(" + eventName + "{entityId});\n"
+                        code += "        }\n"
                         code += "    }\n"
                     }
                     else if (setterMode == "custom_event")
