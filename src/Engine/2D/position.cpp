@@ -771,6 +771,19 @@ namespace pg
         return areNotAlmostEqual(oldX, x) or areNotAlmostEqual(oldY, y) or areNotAlmostEqual(oldZ, z) or areNotAlmostEqual(oldWidth, width) or areNotAlmostEqual(oldHeight, height);
     }
 
+    void PositionComponent::setVisibility(const bool& value)
+    {
+        if (visible != value)
+    {
+        visible = value;
+
+        if (ecsRef)
+        {
+            ecsRef->sendEvent(PositionComponentChangedEvent{entityId});
+        }
+    }
+    }
+
     void PositionComponentSystem::pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId)
     {
         for (const auto& child : parentalMap[parentId])
