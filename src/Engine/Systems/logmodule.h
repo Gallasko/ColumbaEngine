@@ -183,6 +183,48 @@ namespace pg
         std::shared_ptr<Logger::LogSink> sink;
     };
 
+    class SetVerboseLogs : public Function
+    {
+        using Function::Function;
+    public:
+        void setUp(std::shared_ptr<Logger::LogSink> sink)
+        {
+            setArity(1, 1);
+
+            this->sink = sink;
+        }
+
+        virtual ValuablePtr call(ValuableQueue& args) override
+        {
+            auto value = args.front()->getElement();
+            args.pop();
+
+            if (not value.isBool())
+            {
+                LOG_ERROR("SetVerboseLogs", "Cannot set verbose logs, value passed is not a boolean");
+                return nullptr;
+            }
+
+            try
+            {
+                auto* s = dynamic_cast<pg::TerminalSink*>(sink.get());
+                if (s)
+                {
+                    s->setVerboseInfo(value.isTrue());  // Set verbose info (domain, file, function)
+                }
+            }
+            catch (...)
+            {
+                LOG_ERROR("SetVerboseLogs", "Cannot set verbose logs, sink is not a TerminalSink");
+            }
+
+            return nullptr;
+        }
+
+        std::shared_ptr<Logger::LogSink> sink;
+    };
+
+
     struct LogModule : public SysModule
     {
         LogModule(std::shared_ptr<Logger::LogSink> terminalSink)
@@ -191,6 +233,7 @@ namespace pg
             addSystemFunction<DebugPrint>("debugLog");
             addSystemFunction<AddFilterScopeFunction>("addFilterScope", terminalSink);
             addSystemFunction<AddFilterLevelFunction>("addFilterLevel", terminalSink);
+            addSystemFunction<SetVerboseLogs>("setVerboseLogs", terminalSink);
         }
     };
 }
