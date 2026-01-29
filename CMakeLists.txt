@@ -358,6 +358,11 @@ target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
 # Link against minimal engine (no rendering, no generated components)
 target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
 
+# Windows-specific: Use console subsystem (not GUI/WinMain)
+if(WIN32)
+    target_link_options(PgCompilerBootstrap PRIVATE -mconsole)
+endif()
+
 message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
 
 # ===============================================
