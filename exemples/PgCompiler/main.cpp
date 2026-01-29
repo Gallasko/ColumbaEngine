@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    CompilerApp app(fileName, enableProfiling);
+    CompilerApp app(fileName, enableProfiling, argc, argv);
 
     return app.exec();
 }

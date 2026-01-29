@@ -1,0 +1,61 @@
+name: PositionComponent
+namespace: pg
+base_class: Component
+
+includes:
+  - "ECS/system.h"
+  - "pgconstant.h"
+
+forwards:
+  - "struct UiAnchor;"
+
+fields:
+  - name: x
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: y
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: z
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: width
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: height
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: rotation
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: visible
+    type: bool
+    default: true
+    setter: event
+
+  - name: observable
+    type: bool
+    default: true
+    setter: event
+
+methods:
+  - "bool isVisible() const { return visible; }"
+  - "bool isObservable() const { return observable; }"
+  - "bool isRenderable() const { return visible and observable; }"
+  - "bool updatefromAnchor(const UiAnchor& anchor);"
+  - "void setVisibility(const bool& value);"
+
+events:
+  - PositionComponentChangedEvent

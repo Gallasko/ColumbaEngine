@@ -532,12 +532,21 @@ namespace pg
     {
     friend class Logger;
     public:
-        TerminalSink() {}
+        TerminalSink() : showVerboseInfo(true) {}
 
         virtual ~TerminalSink() {}
 
         /** Stream operator used to get the log and print the message to the console */
         virtual void processLog(const Logger::Info& log) override;
+
+        /** Enable or disable verbose logging (domain, file, function) */
+        void setVerboseInfo(bool enabled) { showVerboseInfo = enabled; }
+
+        /** Check if verbose info is enabled */
+        bool getVerboseInfo() const { return showVerboseInfo; }
+
+    private:
+        bool showVerboseInfo;
     };
 
     class FileSink : public Logger::LogSink

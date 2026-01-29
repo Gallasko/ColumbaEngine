@@ -1,0 +1,42 @@
+import "texture"
+import "ecs"
+import "string"
+
+logInfo("Respawning player...")
+
+// Screen dimensions
+var screenWidth = 800
+var screenHeight = 600
+
+// Create new player entity
+var player = createTexture("Ship", 32, 32)
+
+// Position in center of screen
+player["PositionComponent"].setX(screenWidth / 2)
+player["PositionComponent"].setY(screenHeight / 2)
+player["PositionComponent"].setRotation(0.0)
+
+// // Attach Player component with physics variables
+// player.attachComp("Player",
+//     "vx", 0.0,
+//     "vy", 0.0,
+//     "rotation", 0.0,
+//     "rotationSpeed", 3.0,
+//     "thrustAccel", 200.0,
+//     "maxSpeed", 300.0,
+//     "drag", 0.99,
+//     "keyLeft", 0,
+//     "keyRight", 0,
+//     "keyUp", 0,
+//     "keyDown", 0,
+//     "keySpace", 0,
+//     "fireCooldown", 0.0
+// )
+
+// // Attach collision component
+// player.attachComp("Collision")
+
+// // Store player ID in sysData
+// sysData["playerId"] = player.__entityId
+
+// logInfo("Player respawned with ID: " + toString(player.__entityId))

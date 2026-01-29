@@ -2,8 +2,6 @@
 
 #include "coresystems.h"
 
-#include "UI/textinput.h"
-
 namespace pg
 {
     static constexpr char const * DOM = "Core System";
@@ -41,21 +39,5 @@ namespace pg
         }
 
         return EntityName{""};
-    }
-
-    void RunScriptFromTextInputSystem::onEvent(const TextInputTriggeredEvent& event)
-    {
-        LOG_THIS_MEMBER("Run Script From Text Input System");
-
-        if (not event.entity.has<TextInputComponent>())
-        {
-            LOG_ERROR("Run Script From Text Input System", "Entity has no Text Input Component");
-        }
-
-        auto textComp = event.entity.get<TextInputComponent>();
-
-        LOG_INFO("Run Script From Text Input System", "Trying to execute script: " << textComp->returnText);
-
-        ecsRef->sendEvent(ExecuteFileScriptEvent{textComp->returnText});
     }
 }

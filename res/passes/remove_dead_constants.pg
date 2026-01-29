@@ -1,0 +1,99 @@
+// Example optimization pass written in PgScript
+// This pass removes dead constant loads followed immediately by pops
+
+import "bytecode_pass"
+
+// Define the optimization pass
+fun removeDeadConstantsPass() {
+    // Create a pattern to match: OP_Constant followed by OP_Pop
+    var pattern = createPattern()
+
+    // Match any constant load operation (OP_Constant or OP_LongConstant)
+    patternConstant(pattern, true)  // true = capture this instruction
+
+    // Followed by a Pop operation
+    addPatternOp(pattern, OP_Pop, false)
+
+    // Define the rewrite rule
+    // When we find this pattern, we want to remove both instructions
+    addRewriteRule(pattern, fun(capturedIndex) {
+        // Return empty bytecode array to delete the matched instructions
+        // This effectively removes the dead constant load
+        return []
+    })
+
+    // Apply all rewrite rules to the chunk
+    var changed = applyRewrites()
+
+    return changed
+}
+
+// Another example: Fuse consecutive Pop operations into PopN
+fun fuseConsecutivePopsPass() {
+    var pattern = createPattern()
+
+    // Match: OP_Pop followed by OP_Pop
+    addPatternOp(pattern, OP_Pop, false)
+    addPatternOp(pattern, OP_Pop, false)
+
+    addRewriteRule(pattern, fun(capturedIndex) {
+        // Replace with OP_PopN 2
+        var result = []
+        result[0] = OP_PopN
+        result[1] = 2
+        return result
+    })
+
+    var changed = applyRewrites()
+    return changed
+}
+
+// Advanced example: Optimize constant addition
+fun optimizeConstantAdditionPass() {
+    var pattern = createPattern()
+
+    // Match: OP_Constant <index1> OP_Constant <index2> OP_Add
+    patternConstant(pattern, true)   // Capture first constant
+    patternConstant(pattern, true)   // Capture second constant
+    addPatternOp(pattern, OP_Add, false)
+
+    addRewriteRule(pattern, fun(capturedIndex) {
+        // Get the constant indices from captured instructions
+        var opcode1 = getCapturedOpcode(capturedIndex, 0)
+        var opcode2 = getCapturedOpcode(capturedIndex, 1)
+
+        // Get operands (constant indices)
+        var operandCount1 = getCapturedOperandCount(capturedIndex, 0)
+        var operandCount2 = getCapturedOperandCount(capturedIndex, 1)
+
+        // For a real implementation, we would:
+        // 1. Look up the actual constant values from the chunk
+        // 2. Compute the addition
+        // 3. Add the new constant to the chunk
+        // 4. Emit code to load the new constant
+
+        // For now, just demonstrate the pattern matching works
+        // by leaving the code unchanged
+        var result = []
+
+        // Re-emit the original instructions (no optimization yet)
+        // In a real pass, we would emit a single constant load here
+
+        return result  // Return empty to demonstrate pattern detection
+    })
+
+    var changed = applyRewrites()
+    return changed
+}
+
+// Register the passes with the pass manager
+// Note: This requires VM support to be fully implemented
+
+// Configure pass properties
+setPassChangesSize(true)  // This pass changes the bytecode size
+setPassRequiresMultiplePasses(true)  // May need multiple passes for chains of pops
+
+// Register the pass
+registerPass("RemoveDeadConstants", removeDeadConstantsPass)
+registerPass("FuseConsecutivePops", fuseConsecutivePopsPass)
+registerPass("OptimizeConstantAddition", optimizeConstantAdditionPass)

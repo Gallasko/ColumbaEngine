@@ -1,0 +1,28 @@
+import "ecs"
+
+if (sysData["playerId"] == 0)
+{
+    // No player entity, nothing to update
+    return
+}
+
+var id = sysData["playerId"]
+
+// Remove the player
+removeEntity(id)
+
+sysData["playerId"] = 0
+
+logInfo("Player hit and removed")
+
+// Optionally: Trigger game over event or state
+// You could add:
+// - Display game over screen
+// - Show final score
+// - Offer restart option
+// - Stop game systems
+
+// For now, just send a GameOver event
+sendEvent("GameOver", "reason", "asteroid_collision")
+
+logInfo("Game Over event sent")

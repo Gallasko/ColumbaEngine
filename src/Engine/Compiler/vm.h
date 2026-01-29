@@ -406,6 +406,7 @@ namespace pg
         Value subtractValues(const Value& a, const Value& b);
         Value multiplyValues(const Value& a, const Value& b);
         Value divideValues(const Value& a, const Value& b);
+        Value moduloValues(const Value& a, const Value& b);
         Value negateValue(const Value& val);
 
         // Comparison operations with proper reference tracking
@@ -463,68 +464,73 @@ namespace pg
         ObjUpvalue* openUpvalues = nullptr;
 
         // Optimization control methods
-        void enableBytecodeOptimization()
+        inline void enableBytecodeOptimization()
         {
             enableOptimizations = true;
-            LOG_INFO("VM", "Bytecode optimization enabled");
         }
 
-        void disableBytecodeOptimization()
+        inline void disableBytecodeOptimization()
         {
             enableOptimizations = false;
-            LOG_INFO("VM", "Bytecode optimization disabled");
         }
 
-        void enableOptimizationDebugging()
+        inline void enableOptimizationDebugging()
         {
             passManager.setDebugOutput(true);
         }
 
-        void disableOptimizationDebugging()
+        inline void disableOptimizationDebugging()
         {
             passManager.setDebugOutput(false);
         }
 
         // Profiler control methods
-        void enableProfiling()
+        inline void enableProfiling()
         {
             profiler.setEnabled(true);
             profiler.reset();
             LOG_INFO("VM", "Bytecode profiling enabled");
         }
 
-        void disableProfiling()
+        inline void disableProfiling()
         {
             profiler.setEnabled(false);
             LOG_INFO("VM", "Bytecode profiling disabled");
         }
 
-        void resetProfiling()
+        inline void resetProfiling()
         {
             profiler.reset();
         }
 
-        void printProfilingReport(bool sortByTime = true)
+        inline void printProfilingReport(bool sortByTime = true)
         {
             profiler.printReport(sortByTime);
         }
 
-        void printProfilingBytecodeReport()
+        inline void printProfilingBytecodeReport()
         {
             profiler.printBytecodeReport();
         }
 
-        void listOptimizationPasses() const
+        inline void printBytecodeWithPerformance(const std::string& functionName) const
+        {
+            profiler.printBytecodeWithPerformance(functionName);
+        }
+
+        void printAllFunctionsBytecodeWithPerformance();
+
+        inline void listOptimizationPasses() const
         {
             passManager.listPasses();
         }
 
-        void addOptimizationPass(std::unique_ptr<BytecodePass> pass)
+        inline void addOptimizationPass(std::unique_ptr<BytecodePass> pass)
         {
             passManager.addPass(std::move(pass));
         }
 
-        void registerNative(const std::string& name, NativeFn function)
+        inline void registerNative(const std::string& name, NativeFn function)
         {
             registeredNativeFunctions[name] = function;
 
@@ -645,6 +651,9 @@ namespace pg
         std::string currentFileName;
 
         std::unordered_map<std::string, NativeFn> registeredNativeFunctions;
+
+        // Track all compiled functions for profiling
+        std::vector<ObjFunction*> compiledFunctions;
     };
 
     // Inline implementations for critical performance functions

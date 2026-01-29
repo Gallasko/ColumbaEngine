@@ -1,6 +1,12 @@
+#include "stdafx.h"
+
 #include "application.h"
 
 #include "logger.h"
+
+#include "ECS/entitysystem.h"
+
+#include "ECS/loggersystem.h"
 
 #include "Compiler/chunk.h"
 #include "Compiler/compiler_debug.h"
@@ -62,20 +68,33 @@ Value nativeLogInfo(VM* vm, int argCount, Value* args)
     return makeBoolValue(true);
 }
 
-CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling) : fileName(fileName), profilingEnabled(enableProfiling)
+CompilerApp::CompilerApp(const std::string &fileName, bool enableProfiling, int argc, char** argv)
+    : fileName(fileName), profilingEnabled(enableProfiling), m_argc(argc), m_argv(argv)
+{
+    LOG_THIS_MEMBER(DOM);
+}
+
+void CompilerApp::setLoggerSink()
 {
     LOG_THIS_MEMBER(DOM);
 
     auto terminalSink = std::shared_ptr<pg::Logger::LogSink>(pg::Logger::registerSink<pg::TerminalSink>());
 
+    auto* sink = dynamic_cast<pg::TerminalSink*>(terminalSink.get());
+    if (sink)
+    {
+        sink->setVerboseInfo(false);  // Disable verbose info (domain, file, function)
+    }
+
     terminalSink->addFilter("log", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::log));
-    // terminalSink->addFilter("info", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::info));
+    terminalSink->addFilter("info", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::info));
     terminalSink->addFilter("mile", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::mile));
     terminalSink->addFilter("test", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::test));
     terminalSink->addFilter("warn", new pg::Logger::LogSink::FilterLogLevel(pg::Logger::InfoLevel::warning));
 }
 
-CompilerApp::~CompilerApp() {
+CompilerApp::~CompilerApp()
+{
     LOG_THIS_MEMBER(DOM);
 }
 
@@ -100,47 +119,102 @@ void CompilerApp::runREPL()
 {
     LOG_THIS_MEMBER(DOM);
 
+    std::string input;
+    std::string line;
+    int braceDepth = 0;
+
+    EntitySystem ecs;
+    // ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+
+    setLoggerSink();
+
+    VM vm;
+
+    ecs.setupVm(vm);
+    // vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
+    // vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    // vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
+
+    // vm.enableBytecodeOptimization();
+    // vm.enableOptimizationDebugging();
+
+    // vm.addNativeModule("math", MathModule());
+
+    // Register command-line argument access functions
+    vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 1) {
+            throw std::runtime_error("getArg expects exactly 1 argument (index)");
+        }
+        if (not IS_INT(args[0])) {
+            throw std::runtime_error("getArg expects an integer argument");
+        }
+        int64_t index = AS_INT(args[0]);
+        if (index < 0 || index >= m_argc) {
+            return vm->createString("");
+        }
+        return vm->createString(m_argv[index]);
+    });
+
+    vm.defineNative("getArgCount", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 0) {
+            throw std::runtime_error("getArgCount expects no arguments");
+        }
+        return makeIntValue(m_argc);
+    });
+
     std::cout << "PgCompiler REPL - Enter 'exit' to quit\n";
     std::cout << "> ";
 
-    std::string input;
-    std::string line;
-
-    VM vm;
-    vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
-    vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
-    vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
-
-    vm.enableBytecodeOptimization();
-    vm.enableOptimizationDebugging();
-
-    vm.addNativeModule("math", MathModule());
-
     while (std::getline(std::cin, line))
     {
-        if (line == "exit")
+        if (line == "exit" && input.empty())
         {
             break;
         }
 
-        if (!input.empty()) {
+        if (not input.empty())
+        {
             input += "\n";
         }
+
         input += line;
 
-        // Check if we have a complete statement (simple heuristic)
-        // For now, we'll execute after each line, but you can modify this
-        // to wait for specific terminators or empty lines
-        if (!line.empty()) {
-            // Here you would compile and execute the input
-            std::cout << "Compiling: " << input << std::endl;
-            vm.listOptimizationPasses();
-            vm.interpretFromText(input);
-
-            input.clear(); // Reset for next input
+        // Count braces to determine if we're in a block
+        for (char c : line)
+        {
+            if (c == '{')
+            {
+                braceDepth++;
+            }
+            else if (c == '}')
+            {
+                braceDepth--;
+            }
         }
 
-        std::cout << "> ";
+        // Execute only when all blocks are closed and we have input
+        if (braceDepth == 0 && not input.empty())
+        {
+            std::cout << "[=] Executing...\n";
+            vm.interpretFromText(input);
+
+            input.clear();
+            std::cout << "> ";
+        }
+        else if (braceDepth > 0)
+        {
+            // Show continuation prompt based on nesting depth
+            std::cout << ">";
+            for (int i = 0; i < braceDepth; i++)
+            {
+                std::cout << ">";
+            }
+            std::cout << " ";
+        }
+        else
+        {
+            std::cout << "> ";
+        }
     }
 
     std::cout << "Goodbye!\n";
@@ -150,19 +224,46 @@ void CompilerApp::runFile(bool needCompile)
 {
     LOG_THIS_MEMBER(DOM);
 
+    setLoggerSink();
+
     EntitySystem ecs;
 
+    ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+
     VM vm;
-    ecs.setupVm(vm);
-
-    vm.defineNative("log", nativeLogInfo);
-
-    InterpretResult result;
 
     if (profilingEnabled)
     {
         vm.enableProfiling();
     }
+
+    ecs.setupVm(vm);
+
+    vm.defineNative("log", nativeLogInfo);
+
+    // Register command-line argument access functions
+    vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 1) {
+            throw std::runtime_error("getArg expects exactly 1 argument (index)");
+        }
+        if (not IS_INT(args[0])) {
+            throw std::runtime_error("getArg expects an integer argument");
+        }
+        int64_t index = AS_INT(args[0]);
+        if (index < 0 || index >= m_argc) {
+            return vm->createString("");
+        }
+        return vm->createString(m_argv[index]);
+    });
+
+    vm.defineNative("getArgCount", [this](VM* vm, int argCount, Value* args) -> Value {
+        if (argCount != 0) {
+            throw std::runtime_error("getArgCount expects no arguments");
+        }
+        return makeIntValue(m_argc);
+    });
+
+    InterpretResult result;
 
     if (needCompile)
     {
@@ -203,6 +304,7 @@ void CompilerApp::runFile(bool needCompile)
 
     vm.printProfilingReport();
     vm.printProfilingBytecodeReport();
+    vm.printAllFunctionsBytecodeWithPerformance();
 
     switch (result)
     {

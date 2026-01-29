@@ -23,6 +23,7 @@ namespace pg
         OP_Subtract,
         OP_Multiply,
         OP_Divide,
+        OP_Modulo,
         OP_True,
         OP_False,
         OP_Not,
@@ -271,12 +272,16 @@ namespace pg
             case OpCode::OP_Constant:
             case OpCode::OP_Get_Local:
             case OpCode::OP_Set_Local:
+            case OpCode::OP_Get_Upvalue:
+            case OpCode::OP_Set_Upvalue:
+            case OpCode::OP_Get_Property:
+            case OpCode::OP_Set_Property:
             case OpCode::OP_Call:
             case OpCode::OP_Short_Int:
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
-            case OpCode::OP_Define_Global_Non_Popping:
+            case OpCode::OP_Define_Global_Non_Popping: 
             case OpCode::OP_Get_Global:
             case OpCode::OP_Set_Global:
             case OpCode::OP_Return:
@@ -285,6 +290,7 @@ namespace pg
             case OpCode::OP_Subtract:
             case OpCode::OP_Multiply:
             case OpCode::OP_Divide:
+            case OpCode::OP_Modulo:
             case OpCode::OP_True:
             case OpCode::OP_False:
             case OpCode::OP_Not:

@@ -734,6 +734,21 @@ TEST_F(ScriptTestBench, TestStringReleaseRetrack)
 //     testScript("testTables2");
 // }
 
+TEST_F(ScriptTestBench, TestTable)
+{
+    testScript("test_table");
+}
+
+TEST_F(ScriptTestBench, TestLoopTable)
+{
+    testScript("test_loop_table");
+}
+
+TEST_F(ScriptTestBench, TestResetTable)
+{
+    testScript("test_reset_table");
+}
+
 // ============================================================================
 // Import Tests
 // ============================================================================

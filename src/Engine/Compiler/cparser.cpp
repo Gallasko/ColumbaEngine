@@ -51,6 +51,13 @@ namespace pg
         parser.consume("Expect ')' after expression.", TokenType::PCLOSE);
     }
 
+    void anonymousFunction(CParser& parser, bool)
+    {
+        // Parse an anonymous function expression
+        // Syntax: fun(params) { body }
+        parser.parseFunction(FunctionType::TYPE_FUNCTION);
+    }
+
     void unary(CParser& parser, bool)
     {
         Token operatorToken = parser.previousToken;
@@ -94,6 +101,9 @@ namespace pg
                 break;
             case TokenType::SLASH:
                 parser.writeByte(OpCode::OP_Divide);
+                break;
+            case TokenType::MOD:
+                parser.writeByte(OpCode::OP_Modulo);
                 break;
             case TokenType::LOGICAND:
                 parser.writeByte(OpCode::OP_And);
@@ -580,6 +590,46 @@ namespace pg
         parser.writeByte(autoIndex);
     }
 
+    void createTableBrace(CParser& parser, bool)
+    {
+        uint8_t autoIndex = 0;
+
+        if (not parser.check(TokenType::BCLOSE))
+        {
+            do
+            {
+                parser.skipEOL();
+
+                if (parser.check(TokenType::BCLOSE)) break; // trailing comma
+
+                Token first = parser.currentToken();
+                parser.advance(); // now 'previousToken' == first
+
+                if (parser.match(TokenType::DPOINT))
+                {
+                    // Parse the value expression normally
+                    parser.expression(); // value
+                    parser.writeConstant(first.text);
+                }
+                else
+                {
+                    parser.parsePrecedenceFromPrev(Precedence::ASSIGNMENT);
+                    parser.writeConstant(autoIndex); // Implicit key
+                }
+
+                autoIndex++;
+
+                parser.skipEOL();
+            } while (parser.match(TokenType::COMMA));
+        }
+
+        parser.skipEOL();
+        parser.consume("Expect '}' after table values.", TokenType::BCLOSE);
+
+        parser.writeByte(OpCode::OP_Build_Table);
+        parser.writeByte(autoIndex);
+    }
+
     void indexTable(CParser& parser, bool canAssign)
     {
         parser.expression(); // Index expression
@@ -601,11 +651,12 @@ namespace pg
         {TokenType::PLUS,         {NULL,        binary,     Precedence::TERM}},
         {TokenType::MINUS,        {unary,       binary,     Precedence::TERM}},
         {TokenType::STAR,         {NULL,        binary,     Precedence::FACTOR}},
-        {TokenType::MOD,          {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::SLASH,        {NULL,        binary,     Precedence::FACTOR}},
+        {TokenType::MOD,          {NULL,        binary,     Precedence::FACTOR}},
         {TokenType::POW,          {NULL,        NULL,       Precedence::NONE}},
         {TokenType::PENTER,       {grouping,    call,       Precedence::CALL}},
         {TokenType::PCLOSE,       {NULL,        NULL,       Precedence::NONE}},
-        {TokenType::BENTER,       {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::BENTER,       {createTableBrace, NULL,  Precedence::NONE}},
         {TokenType::BCLOSE,       {NULL,        NULL,       Precedence::NONE}},
         {TokenType::CENTER,       {createTable, indexTable, Precedence::CALL}},
         {TokenType::CCLOSE,       {NULL,        NULL,       Precedence::NONE}},
@@ -619,7 +670,6 @@ namespace pg
         {TokenType::POINT,        {NULL,        dot,        Precedence::CALL}},
         {TokenType::SMARK,        {NULL,        NULL,       Precedence::NONE}},
         {TokenType::DMARK,        {NULL,        NULL,       Precedence::NONE}},
-        {TokenType::SLASH,        {NULL,        binary,     Precedence::FACTOR}},
         {TokenType::BSLASH,       {NULL,        NULL,       Precedence::NONE}},
         {TokenType::SSLASH,       {NULL,        NULL,       Precedence::NONE}},
         {TokenType::HTAG,         {NULL,        NULL,       Precedence::NONE}},
@@ -658,7 +708,7 @@ namespace pg
         {TokenType::TOK_ELSE,     {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_VAR,      {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_WHILE,    {NULL,        NULL,       Precedence::NONE}},
-        {TokenType::TOK_FUN,      {NULL,        NULL,       Precedence::NONE}},
+        {TokenType::TOK_FUN,      {anonymousFunction, NULL,       Precedence::NONE}},
         {TokenType::TOK_RETURN,   {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_CLASS,    {NULL,        NULL,       Precedence::NONE}},
         {TokenType::TOK_THIS,     {this_,       NULL,       Precedence::NONE}},
@@ -866,6 +916,14 @@ namespace pg
         else if (match(TokenType::TOK_RETURN))
         {
             returnStatement();
+        }
+        else if (match(TokenType::TOK_BREAK))
+        {
+            breakStatement();
+        }
+        else if (match(TokenType::TOK_CONTINUE))
+        {
+            continueStatement();
         }
         else if (match(TokenType::TOK_IMPORT))
         {
@@ -1174,12 +1232,22 @@ namespace pg
         Compiler::current->endScope();
     }
 
+    void CParser::breakStatement()
+    {
+        consumeEnd("Expect end of line after 'break'.");
+        errorAt(previousToken, "break statement not yet implemented");
+    }
+
+    void CParser::continueStatement()
+    {
+        consumeEnd("Expect end of line after 'continue'.");
+        errorAt(previousToken, "continue statement not yet implemented");
+    }
+
     void CParser::returnStatement()
     {
-        if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
-        {
-            errorAt(previousToken, "Can't return from top level script.");
-        }
+        // Allow return from top-level scripts to exit early
+        // This is useful for early-exit patterns in event handlers
 
         if (match(TokenType::EOL, TokenType::END))
         {
@@ -1194,9 +1262,20 @@ namespace pg
                 // return;
             }
 
-            expression();
-            consumeEnd("Expect ';' or end of line after return value.");
-            writeByte(OpCode::OP_Return);
+            // For top-level scripts, discard the return value and just exit
+            if (Compiler::current->currentType == FunctionType::TYPE_SCRIPT)
+            {
+                expression();
+                consumeEnd("Expect ';' or end of line after return value.");
+                writeByte(OpCode::OP_Pop);  // Discard the return value
+                emitReturn();
+            }
+            else
+            {
+                expression();
+                consumeEnd("Expect ';' or end of line after return value.");
+                writeByte(OpCode::OP_Return);
+            }
         }
     }
 
@@ -1208,7 +1287,6 @@ namespace pg
 
         if (not parseImportFile(moduleName))
         {
-            std::cout << "Trying native module import for '" << moduleName << "'" << std::endl;
             // Try to import a native module if file import failed
             if (not vm->loadNativeModule(moduleName))
             {

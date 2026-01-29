@@ -73,6 +73,7 @@ namespace pg
     void op_subtract(VM* vm);
     void op_multiply(VM* vm);
     void op_divide(VM* vm);
+    void op_modulo(VM* vm);
     void op_negate(VM* vm);
     void op_equal(VM* vm);
     void op_not_equal(VM* vm);
@@ -169,6 +170,13 @@ namespace pg
 
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
+        // Record start time for pre-run profiling (everything before run())
+        std::chrono::steady_clock::time_point interpretStart;
+        if (profiler.isEnabled())
+        {
+            interpretStart = std::chrono::steady_clock::now();
+        }
+
         if (tokens.empty())
         {
             LOG_WARNING("VM", "Empty tokens provided, nothing to execute !");
@@ -204,7 +212,7 @@ namespace pg
 #endif
         // LOG_INFO("VM", "Compilation took " << elapsed_seconds.count() << "s");
 
-        // Apply bytecode optimizations
+        // Apply bytecode optimizations and store functions for profiling
         for (auto f : compiler.parser.allocatedFunction)
         {
             auto *func = asFunction(f);
@@ -234,6 +242,12 @@ namespace pg
                         << " ns"
                         << std::endl;
     #endif
+            }
+
+            if (profiler.isEnabled())
+            {
+                // Store function for profiling reports
+                compiledFunctions.push_back(func);
             }
         }
 
@@ -269,6 +283,14 @@ namespace pg
             // Freeze constant indices - all pool allocations up to this point are constants
             // Runtime allocations will have indices above these max values
             pools.freezeConstantIndices();
+
+            // Record pre-run time if profiling is enabled (everything from start of interpret to here)
+            if (profiler.isEnabled())
+            {
+                auto preRunEnd = std::chrono::steady_clock::now();
+                auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(preRunEnd - interpretStart).count();
+                profiler.recordPreRunTime(duration);
+            }
 
             begin = std::chrono::steady_clock::now();
             auto result = run();
@@ -309,6 +331,10 @@ namespace pg
         try
         {
             pools.freezeConstantIndices();
+
+            // Note: preRunTime is not recorded here as it should be recorded
+            // by the calling interpret method before calling executeChunk
+
             result = run();
         }
         catch(const std::exception& e)
@@ -355,6 +381,13 @@ namespace pg
 
     InterpretResult VM::interpretFromBytecodeFile(const std::string& filename)
     {
+        // Record start time for pre-run profiling
+        std::chrono::steady_clock::time_point interpretStart;
+        if (profiler.isEnabled())
+        {
+            interpretStart = std::chrono::steady_clock::now();
+        }
+
         if (filename.empty())
         {
             LOG_WARNING("VM", "No file specified, nothing to execute !");
@@ -386,6 +419,14 @@ namespace pg
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
 
+        // Record pre-run time if profiling is enabled
+        if (profiler.isEnabled())
+        {
+            auto preRunEnd = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(preRunEnd - interpretStart).count();
+            profiler.recordPreRunTime(duration);
+        }
+
         // Execute and cleanup
         InterpretResult result = executeChunk(funcObj, 0);
         cleanupFunction(funcObj);
@@ -395,6 +436,13 @@ namespace pg
 
     InterpretResult VM::interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount)
     {
+        // Record start time for pre-run profiling
+        std::chrono::steady_clock::time_point interpretStart;
+        if (profiler.isEnabled())
+        {
+            interpretStart = std::chrono::steady_clock::now();
+        }
+
         if (cachedBytecode.empty())
         {
             LOG_WARNING("VM", "Bytecode is empty, nothing to execute !");
@@ -424,6 +472,14 @@ namespace pg
         auto function = createFunction();
         ObjFunction* funcObj = asFunction(function);
         funcObj->chunk = chunk;
+
+        // Record pre-run time if profiling is enabled
+        if (profiler.isEnabled())
+        {
+            auto preRunEnd = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(preRunEnd - interpretStart).count();
+            profiler.recordPreRunTime(duration);
+        }
 
         InterpretResult result = executeChunk(funcObj, argCount);
         cleanupFunction(funcObj);
@@ -474,6 +530,12 @@ namespace pg
                 // Only measure timing if profiling is actually enabled
                 if (profiler.isEnabled())
                 {
+                    // IMPORTANT: Capture chunk pointer and function name BEFORE executing the operation
+                    // because operations like OP_Call will change currentFrame
+                    const void* chunkPtr = &currentFrame->closure->function->chunk;
+                    const std::string& functionName = currentFrame->closure->function->name;
+                    std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
+
                     auto startTime = std::chrono::high_resolution_clock::now();
 
                     // Dispatch to operation handler
@@ -481,13 +543,6 @@ namespace pg
 
                     auto endTime = std::chrono::high_resolution_clock::now();
                     auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
-
-                    // Get opcode name for display
-                    std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
-
-                    // Get chunk pointer and function name
-                    const void* chunkPtr = &currentFrame->closure->function->chunk;
-                    const std::string& functionName = currentFrame->closure->function->name;
 
                     profiler.recordInstruction(chunkPtr, functionName, instructionOffset, opcode, opcodeName, duration);
                 }
@@ -897,6 +952,30 @@ namespace pg
         return elementToValue(elemA / elemB);
     }
 
+    Value VM::moduloValues(const Value& a, const Value& b)
+    {
+        // Fast path for integers
+        if (IS_INT(a) and IS_INT(b) and AS_INT(b) != 0)
+            return INT_VAL(AS_INT(a) % AS_INT(b));
+
+        // For floats, use fmod
+        if (IS_FLOAT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
+            return FLOAT_VAL(std::fmod(AS_FLOAT(a), AS_FLOAT(b)));
+
+        // Mixed int/float cases - promote to float
+        if (IS_INT(a) and IS_FLOAT(b) and areNotAlmostEqual(static_cast<float>(AS_FLOAT(b)), 0.0f))
+            return FLOAT_VAL(std::fmod(static_cast<double>(AS_INT(a)), AS_FLOAT(b)));
+
+        if (IS_FLOAT(a) and IS_INT(b) and AS_INT(b) != 0)
+            return FLOAT_VAL(std::fmod(AS_FLOAT(a), static_cast<double>(AS_INT(b))));
+
+        // Disallow functions
+        if (IS_FUNC(a) or IS_FUNC(b))
+            throw std::runtime_error("Cannot modulo function Values");
+
+        throw std::runtime_error("Invalid types for modulo operation");
+    }
+
     Value VM::negateValue(const Value& val)
     {
         // Fast path for integers
@@ -955,7 +1034,7 @@ namespace pg
         if (IS_FLOAT(a) and IS_INT(b))
             return BOOL_VAL(areNotAlmostEqual(static_cast<float>(AS_FLOAT(a)), static_cast<float>(AS_INT(b))));
 
-        if (IS_BOOL(a) && IS_BOOL(b))
+        if (IS_BOOL(a) and IS_BOOL(b))
             return BOOL_VAL(AS_BOOL(a) != AS_BOOL(b));
 
         // Disallow functions
@@ -1077,6 +1156,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Subtract), op_subtract);
         register_operation(static_cast<uint8_t>(OpCode::OP_Multiply), op_multiply);
         register_operation(static_cast<uint8_t>(OpCode::OP_Divide), op_divide);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Modulo), op_modulo);
         register_operation(static_cast<uint8_t>(OpCode::OP_Negate), op_negate);
         register_operation(static_cast<uint8_t>(OpCode::OP_Equal), op_equal);
         register_operation(static_cast<uint8_t>(OpCode::OP_NotEqual), op_not_equal);
@@ -1244,6 +1324,7 @@ namespace pg
     BINARY_OP_TEMPLATE(op_subtract, subtractValues)
     BINARY_OP_TEMPLATE(op_multiply, multiplyValues)
     BINARY_OP_TEMPLATE(op_divide, divideValues)
+    BINARY_OP_TEMPLATE(op_modulo, moduloValues)
 
     BINARY_OP_TEMPLATE(op_equal, equalsValues)
     BINARY_OP_TEMPLATE(op_greater, greaterValues)
@@ -2099,9 +2180,10 @@ namespace pg
         }
 
         int index = vm->getValueAsInt(slot);
+        vm->releaseAndDelete(slot);
+
         if (index < 0)
         {
-            vm->releaseAndDelete(slot);
             vm->runtimeError("Local variable index cannot be negative.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
@@ -2112,19 +2194,18 @@ namespace pg
 
         if (not isValueNumber(vm->stack[stackIndex]))
         {
-            vm->releaseAndDelete(slot);
             vm->runtimeError("Operand after an unary (++) must be a number.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
             return;
         }
 
+        auto& val = vm->stack[stackIndex];
+
         // Old value is already on the stack (from OP_Get_Local before this opcode)
         // We just need to increment the variable in its slot
-        auto newValue = vm->addValues(vm->stack[stackIndex], INT_VAL(1));
-        vm->releaseAndDelete(vm->stack[stackIndex]);
-        vm->stack[stackIndex] = newValue;
-
-        vm->releaseAndDelete(slot);
+        auto newValue = vm->addValues(val, INT_VAL(1));
+        vm->releaseAndDelete(val);
+        val = newValue;
     }
 
     void op_incr_local(VM* vm)
@@ -3488,5 +3569,31 @@ namespace pg
         // Placeholder: Module import not yet implemented
         // vm->runtimeError("Module import not yet implemented: '" + moduleName + "'");
         // vm->vm_return(InterpretResult::RUNTIME_ERROR);
+    }
+
+    void VM::printAllFunctionsBytecodeWithPerformance()
+    {
+        if (!profiler.isEnabled())
+        {
+            LOG_WARNING("VM_Profiling", "Profiling is not enabled. Call enableProfiling() before running the VM.");
+
+            return;
+        }
+
+        if (compiledFunctions.empty())
+        {
+            std::cout << "No functions have been compiled yet." << std::endl;
+            return;
+        }
+
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "Bytecode with Performance - All Functions" << std::endl;
+        std::cout << "========================================\n" << std::endl;
+
+        for (const auto* func : compiledFunctions)
+        {
+            std::string funcName = func->name.empty() ? "<script>" : func->name;
+            profiler.printBytecodeWithPerformance(funcName);
+        }
     }
 }

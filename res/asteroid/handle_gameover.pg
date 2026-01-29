@@ -1,0 +1,45 @@
+import "ecs"
+import "string"
+import "algorithm"
+import "ui"
+
+// This script handles the GameOver event
+
+logInfo("GameOver event received!")
+
+// Get event data
+var reason = "unknown"
+var asteroidType = "unknown"
+
+debugTable(event.values)
+
+if (contain(event.values, "reason"))
+{
+    reason = event.values["reason"]
+}
+
+if (contain(event.values, "asteroidType"))
+{
+    asteroidType = event.values["asteroidType"]
+}
+
+logInfo("Game Over Reason: " + reason)
+logInfo("Destroyed by " + asteroidType + " asteroid")
+
+// Set game over flag
+sysData["isGameOver"] = true
+sysData["gameOverReason"] = "Destroyed by " + asteroidType + " asteroid!"
+
+// Create Game Over text
+var gameOverText = createText("bold", "GAME OVER", 150, 250, 1, 255, 50, 50, 255)
+sysData["gameOverTextId"] = gameOverText.__entityId
+
+// Create restart instruction text
+var restartText = createText("light", "Press R to Restart", 150, 350, 1.0, 200, 200, 200, 255)
+sysData["restartTextId"] = restartText.__entityId
+
+// Create reason text
+var reasonText = createText("light", sysData["gameOverReason"], 150, 320, 0.5, 255, 255, 255, 255)
+sysData["reasonTextId"] = reasonText.__entityId
+
+logInfo("Game Over UI created")

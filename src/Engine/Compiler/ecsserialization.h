@@ -29,8 +29,96 @@ namespace pg
     using ComponentSerializerFunc = std::function<void(VM*, ObjInstance*, void*)>;
     using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
 
+    // Function signature for custom component attach handlers
+    // Returns true if the component was attached successfully, false otherwise
+    using ComponentAttachFunc = std::function<bool(VM*, EntitySystem*, Entity*, int argCount, Value* args)>;
+
+    /**
+     * @brief Registry for custom component attach handlers
+     *
+     * This registry allows registering custom attachment logic for specific components
+     * that need special handling beyond the default StandardComponent attachment.
+     *
+     * Example:
+     * ```cpp
+     * bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args) {
+     *     float x = 0.0f, y = 0.0f;
+     *     // Parse arguments...
+     *     ecs->_attach<PositionComponent>(entity, x, y);
+     *     return true;
+     * }
+     *
+     * REGISTER_COMPONENT_ATTACH_HANDLER("Position", attachPositionComponent);
+     * ```
+     */
+    class ComponentAttachRegistry {
+    public:
+        static ComponentAttachRegistry& instance() {
+            static ComponentAttachRegistry registry;
+            return registry;
+        }
+
+        void registerHandler(const std::string& componentName, ComponentAttachFunc handler) {
+            handlers_[componentName] = handler;
+        }
+
+        bool hasHandler(const std::string& componentName) const {
+            return handlers_.find(componentName) != handlers_.end();
+        }
+
+        ComponentAttachFunc getHandler(const std::string& componentName) const {
+            auto it = handlers_.find(componentName);
+            if (it != handlers_.end()) {
+                return it->second;
+            }
+            return nullptr;
+        }
+
+    private:
+        std::unordered_map<std::string, ComponentAttachFunc> handlers_;
+    };
+
     namespace detail
     {
+        // Helper functions for extracting arguments from VM values
+        inline float extractFloatArg(Value* args, int index = 0)
+        {
+            if (IS_DOUBLE(args[index]))
+                return static_cast<float>(AS_DOUBLE(args[index]));
+            else if (IS_INT(args[index]))
+                return static_cast<float>(AS_INT(args[index]));
+
+            LOG_ERROR("ECS Serialization", "Expected float argument at index " << index);
+            return 0.0f;
+        }
+
+        inline bool extractBoolArg(Value* args, int index = 0)
+        {
+            if (IS_BOOL(args[index]))
+                return AS_BOOL(args[index]);
+
+            LOG_ERROR("ECS Serialization", "Expected bool argument at index " << index);
+            return false;
+        }
+
+        inline int extractIntArg(Value* args, int index = 0)
+        {
+            if (IS_INT(args[index]))
+                return static_cast<int>(AS_INT(args[index]));
+
+            LOG_ERROR("ECS Serialization", "Expected int argument at index " << index);
+            return 0;
+        }
+
+        inline std::string extractStringArg(VM *vm, Value* args, int index = 0)
+        {
+            if (IS_STRING(args[index]))
+                return vm->asString(args[index]);
+
+            LOG_ERROR("ECS Serialization", "Expected string argument at index " << index);
+            return "";
+        }
+
         bool registryHasComponent(const std::string& name);
 
         ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name);
@@ -320,6 +408,98 @@ namespace pg
             }
         }
     } // namespace detail
+
+    // Macros to create and register setter functions
+    // These macros reduce boilerplate when creating native setter functions for components
+
+    // Macro to create and register a float setter function
+    // Usage: REGISTER_FLOAT_SETTER(vm, table, component, setX);
+    #define REGISTER_FLOAT_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                float value = detail::extractFloatArg(args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
+
+    // Macro to create and register a bool setter function
+    // Usage: REGISTER_BOOL_SETTER(vm, table, component, setVisible);
+    #define REGISTER_BOOL_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                bool value = detail::extractBoolArg(args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
+
+    // Macro to create and register an int setter function
+    // Usage: REGISTER_INT_SETTER(vm, table, component, setLevel);
+    #define REGISTER_INT_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM*, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                int value = detail::extractIntArg(args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
+
+    // Macro to create and register a string setter function
+    // Usage: REGISTER_STRING_SETTER(vm, table, component, setText);
+    #define REGISTER_STRING_SETTER(vm, table, component, methodName) \
+        do { \
+            auto setterFunc = [component](VM* vmPtr, int argCount, Value* args) -> Value { \
+                if (argCount != 1) return INT_VAL(0); \
+                std::string value = detail::extractStringArg(vmPtr, args, 0); \
+                component->methodName(value); \
+                return INT_VAL(0); \
+            }; \
+            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+        } while(0)
+
+    /**
+     * @brief Macro to register a custom component attach handler
+     *
+     * This macro registers a function that will be called when attachComp() is used
+     * with the specified component name. The handler receives the VM, ECS, entity,
+     * and all arguments passed to attachComp() after the component name.
+     *
+     * Usage:
+     * ```cpp
+     * bool attachPositionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args) {
+     *     // argCount and args contain all arguments AFTER the component name
+     *     // Parse key-value pairs from args
+     *     float x = 0.0f, y = 0.0f;
+     *     for (int i = 0; i < argCount; i += 2) {
+     *         if (i + 1 >= argCount) break;
+     *         std::string key = vm->asString(args[i]);
+     *         if (key == "x") x = detail::extractFloatArg(&args[i + 1], 0);
+     *         if (key == "y") y = detail::extractFloatArg(&args[i + 1], 0);
+     *     }
+     *     ecs->_attach<PositionComponent>(entity, x, y);
+     *     return true;
+     * }
+     *
+     * REGISTER_COMPONENT_ATTACH_HANDLER("Position", attachPositionComponent);
+     * ```
+     */
+    #define REGISTER_COMPONENT_ATTACH_HANDLER(ComponentName, HandlerFunc) \
+        namespace { \
+            struct ComponentName##AttachRegistrar { \
+                ComponentName##AttachRegistrar() { \
+                    pg::ComponentAttachRegistry::instance() \
+                        .registerHandler(#ComponentName, HandlerFunc); \
+                } \
+            }; \
+            static ComponentName##AttachRegistrar ComponentName##_attach_registrar_instance; \
+        }
 
     // ============================================================================
     // Public API functions
