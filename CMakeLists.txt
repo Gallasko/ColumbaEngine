@@ -10,7 +10,6 @@ option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds" OFF)
 option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
 option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
-option(PG_MINIMAL_BUILD "Build minimal engine without generated components (for bootstrapping)" OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -296,51 +295,7 @@ file(GLOB COMPONENT_DEFINITIONS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.pgcomp"
 )
 
-# Find all generated component files (these may not exist on first build)
-file(GLOB GENERATED_COMPONENT_SOURCES
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.generated.cpp"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.serialization.cpp"
-)
-
-# Report component generation status
-if(COMPONENT_DEFINITIONS)
-    list(LENGTH COMPONENT_DEFINITIONS NUM_DEFINITIONS)
-    list(LENGTH GENERATED_COMPONENT_SOURCES NUM_GENERATED)
-
-    # We expect 2 files per component (.generated.cpp and .serialization.cpp)
-    math(EXPR EXPECTED_FILES "${NUM_DEFINITIONS} * 2")
-
-    if(NUM_GENERATED LESS EXPECTED_FILES)
-        message(STATUS "Component generation needed: ${NUM_DEFINITIONS} definitions, ${NUM_GENERATED}/${EXPECTED_FILES} generated files found")
-        message(STATUS "  -> Components will be regenerated automatically before building ColumbaEngine")
-    else()
-        message(STATUS "Component generation up-to-date: ${NUM_DEFINITIONS} definitions, ${NUM_GENERATED} generated files")
-    endif()
-endif()
-
-# Now check what we're building with
-if(PG_MINIMAL_BUILD)
-    message(STATUS "Building MINIMAL engine (no generated components)")
-    set(GENERATED_COMPONENT_SOURCES "")
-else()
-    if(GENERATED_COMPONENT_SOURCES)
-        list(LENGTH GENERATED_COMPONENT_SOURCES NUM_GEN_FILES)
-        message(STATUS "Building FULL engine with ${NUM_GEN_FILES} generated component files")
-    else()
-        message(STATUS "Building engine without generated components")
-    endif()
-endif()
-
-# Create the static library
-add_library(ColumbaEngine STATIC ${ENGINESOURCE} ${GENERATED_COMPONENT_SOURCES})
-
-# Todo find why the pch doesn't work on windows
-if(MINGW)
-    set_target_properties(ColumbaEngine PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
-endif()
-
-# Set precompiled headers - but don't make them public for consumers
-target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
+# Note: ColumbaEngine library will be created AFTER component generation
 
 # ===============================================
 # MINIMAL ENGINE LIBRARY (for bootstrap compiler)
@@ -443,6 +398,12 @@ if(COMPONENT_DEFINITIONS)
         )
 
         list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
+
+        # Mark the generated files as GENERATED so CMake knows they'll be created
+        set_source_files_properties(
+            ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+            PROPERTIES GENERATED TRUE
+        )
     endforeach()
 
     # Create a target to regenerate all components (for manual use)
@@ -454,11 +415,41 @@ if(COMPONENT_DEFINITIONS)
     message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
     message(STATUS "  Components will regenerate only when .pgcomp files change")
     message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
-
-    # Make ColumbaEngine depend on the generated files so they're built before the engine
-    add_dependencies(ColumbaEngine RegenerateComponents)
 endif()
 
+# ===============================================
+# FULL ENGINE LIBRARY (with generated components)
+# ===============================================
+# Build the list of generated component sources
+set(GENERATED_COMPONENT_SOURCES "")
+if(COMPONENT_DEFINITIONS)
+    foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
+        get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+        list(APPEND GENERATED_COMPONENT_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp"
+        )
+    endforeach()
+
+    list(LENGTH GENERATED_COMPONENT_SOURCES NUM_GEN_SOURCES)
+    message(STATUS "ColumbaEngine will include ${NUM_GEN_SOURCES} generated component source files")
+endif()
+
+# Create the full engine library with generated components
+add_library(ColumbaEngine STATIC ${ENGINESOURCE} ${GENERATED_COMPONENT_SOURCES})
+
+# Todo find why the pch doesn't work on windows
+if(MINGW)
+    set_target_properties(ColumbaEngine PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+endif()
+
+# Set precompiled headers - but don't make them public for consumers
+target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
+
+# Make ColumbaEngine depend on component regeneration
+if(COMPONENT_DEFINITIONS)
+    add_dependencies(ColumbaEngine RegenerateComponents)
+endif()
 
 # Include directories - ONLY use generator expressions for proper build/install interface
 target_include_directories(ColumbaEngine PUBLIC
