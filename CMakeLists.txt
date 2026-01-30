@@ -314,31 +314,16 @@ target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)
 
 message(STATUS "Created minimal engine library")
 
-# Minimal engine needs the same include directories as full engine
+# Minimal engine needs minimal include directories (no SDL2, no rendering libs)
 target_include_directories(ColumbaEngineMinimal PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
 )
 
-# Add platform-specific includes for minimal engine
-if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_include_directories(ColumbaEngineMinimal PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${SDL2_DIR}/include>
-    )
-endif()
-
 # Minimal engine linking (much simpler - no rendering, no audio, no networking)
-if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-    target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
-else()
-    # Native platforms - only need basic SDL2 for minimal functionality
-    if(TARGET SDL2-static)
-        target_link_libraries(ColumbaEngineMinimal PUBLIC SDL2-static glm)
-    elseif(TARGET SDL2::SDL2-static)
-        target_link_libraries(ColumbaEngineMinimal PUBLIC SDL2::SDL2-static glm)
-    endif()
-endif()
+# For minimal builds, we don't need SDL2 at all - just GLM for math types
+target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
 
 # ===============================================
 # BOOTSTRAP COMPILER EXECUTABLE
@@ -351,17 +336,13 @@ add_executable(PgCompilerBootstrap
     exemples/PgCompiler/constant_uniformity_pass.cpp
 )
 
-target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD)
+target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD SDL_MAIN_HANDLED)
 
 target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
 
 # Link against minimal engine (no rendering, no generated components)
 target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
 
-# Windows-specific: Use console subsystem (not GUI/WinMain)
-if(WIN32)
-    target_link_options(PgCompilerBootstrap PRIVATE -mconsole)
-endif()
 
 message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
 

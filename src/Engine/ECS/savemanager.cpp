@@ -2,6 +2,7 @@
 
 #include "savemanager.h"
 
+#ifndef PG_MINIMAL_BUILD
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <SDL2/SDL.h>
@@ -19,6 +20,7 @@
 #endif
 #include <GL/gl.h>
 #endif
+#endif // PG_MINIMAL_BUILD
 
 #include "logger.h"
 #include "serialization.h"

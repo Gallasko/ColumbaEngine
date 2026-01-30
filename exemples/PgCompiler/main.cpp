@@ -8,6 +8,7 @@
 
 #include "logger.h"
 
+#ifndef PG_MINIMAL_BUILD
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <SDL2/SDL.h>
@@ -25,6 +26,7 @@
 #endif
 #include <GL/gl.h>
 #endif
+#endif // PG_MINIMAL_BUILD
 
 //[TODO] Variant using operator* dereferencing to recast to the original type
 int main(int argc, char *argv[])
