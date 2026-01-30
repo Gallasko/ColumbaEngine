@@ -141,20 +141,25 @@ void CompilerApp::runREPL()
 
     setLoggerSink();
 
-    VM vm;
+    std::unique_ptr<VM> vm(new VM());
 
-    ecs.setupVm(vm);
-    // vm.addOptimizationPass(std::make_unique<ConstantUniformityPass>());
-    // vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
-    // vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
+    if (profilingEnabled)
+    {
+        vm->enableProfiling();
+    }
 
-    // vm.enableBytecodeOptimization();
-    // vm.enableOptimizationDebugging();
+    ecs.setupVm(*vm);
+    // vm->addOptimizationPass(std::make_unique<ConstantUniformityPass>());
+    // vm->addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+    // vm->addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
 
-    // vm.addNativeModule("math", MathModule());
+    // vm->enableBytecodeOptimization();
+    // vm->enableOptimizationDebugging();
+
+    // vm->addNativeModule("math", MathModule());
 
     // Register command-line argument access functions
-    vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
+    vm->defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
         if (argCount != 1)
         {
             throw std::runtime_error("getArg expects exactly 1 argument (index)");
@@ -175,7 +180,7 @@ void CompilerApp::runREPL()
         return vm->createString(m_argv[index]);
     });
 
-    vm.defineNative("getArgCount", [this](VM*, int argCount, Value*) -> Value {
+    vm->defineNative("getArgCount", [this](VM*, int argCount, Value*) -> Value {
         if (argCount != 0)
         {
             throw std::runtime_error("getArgCount expects no arguments");
@@ -218,7 +223,7 @@ void CompilerApp::runREPL()
         if (braceDepth == 0 && not input.empty())
         {
             std::cout << "[=] Executing...\n";
-            vm.interpretFromText(input);
+            vm->interpretFromText(input);
 
             input.clear();
             std::cout << "> ";
@@ -252,19 +257,19 @@ void CompilerApp::runFile(bool needCompile)
 
     ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
 
-    VM vm;
+    std::unique_ptr<VM> vm(new VM());
 
     if (profilingEnabled)
     {
-        vm.enableProfiling();
+        vm->enableProfiling();
     }
 
-    ecs.setupVm(vm);
+    ecs.setupVm(*vm);
 
-    vm.defineNative("log", nativeLogInfo);
+    vm->defineNative("log", nativeLogInfo);
 
     // Register command-line argument access functions
-    vm.defineNative("getArg", [this](VM* vm, int argCount, Value* args) -> Value {
+    vm->defineNative("getArg", [this](VM* vmArg, int argCount, Value* args) -> Value {
         if (argCount != 1)
         {
             throw std::runtime_error("getArg expects exactly 1 argument (index)");
@@ -279,13 +284,13 @@ void CompilerApp::runFile(bool needCompile)
 
         if (index < 0 or index >= m_argc)
         {
-            return vm->createString("");
+            return vmArg->createString("");
         }
 
-        return vm->createString(m_argv[index]);
+        return vmArg->createString(m_argv[index]);
     });
 
-    vm.defineNative("getArgCount", [this](VM*, int argCount, Value*) -> Value {
+    vm->defineNative("getArgCount", [this](VM*, int argCount, Value*) -> Value {
         if (argCount != 0)
         {
             throw std::runtime_error("getArgCount expects no arguments");
@@ -298,12 +303,12 @@ void CompilerApp::runFile(bool needCompile)
 
     if (needCompile)
     {
-        // vm.addOptimizationPass(std::make_uniqueh
+        // vm->addOptimizationPass(std::make_uniqueh
 
-        vm.enableBytecodeOptimization();
-        vm.enableOptimizationDebugging();
+        vm->enableBytecodeOptimization();
+        vm->enableOptimizationDebugging();
 
-        // vm.disableBytecodeOptimization();
+        // vm->disableBytecodeOptimization();
 
         std::cout << sizeof(Value) << " bytes per Value on this platform." << std::endl;
 
@@ -323,27 +328,28 @@ void CompilerApp::runFile(bool needCompile)
 
         auto tokens = lexer.getTokens();
 
-        vm.listOptimizationPasses();
+        vm->listOptimizationPasses();
 
-        vm.currentFileName = fileName;
-        result = vm.interpret(tokens, false, "temp.pgc");
+        vm->currentFileName = fileName;
+
+        result = vm->interpret(tokens, false, "temp.pgc");
     }
     else
     {
-        result = vm.interpretFromBytecodeFile(fileName);
+        result = vm->interpretFromBytecodeFile(fileName);
     }
 
-    vm.printProfilingReport();
-    vm.printProfilingBytecodeReport();
-    vm.printAllFunctionsBytecodeWithPerformance();
+    vm->printProfilingReport();
+    vm->printProfilingBytecodeReport();
+    vm->printAllFunctionsBytecodeWithPerformance();
 
     switch (result)
     {
         case InterpretResult::OK:
             LOG_INFO(DOM, "File executed successfully");
 
-            // LOG_INFO(DOM, "Results: " << vm.testOutput);
-            std::cout << vm.testOutput << std::endl;
+            // LOG_INFO(DOM, "Results: " << vm->testOutput);
+            std::cout << vm->testOutput << std::endl;
 
             break;
         case InterpretResult::COMPILE_ERROR:
