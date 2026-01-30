@@ -1,0 +1,19 @@
+import "string"
+
+// Continue in nested loops - should only affect inner loop
+var outer = 0;
+var count = 0;
+while (outer < 3) {
+    __dprint("outer: " + toString(outer));
+    var j = 0;
+    while (j < 5) {
+        j = j + 1;
+        if (j == 2 or j == 4) {
+            continue; // Only continues inner loop
+        }
+        __dprint("  inner: " + toString(j));
+        count = count + 1;
+    }
+    outer = outer + 1;
+}
+__dprint("total iterations: " + toString(count));

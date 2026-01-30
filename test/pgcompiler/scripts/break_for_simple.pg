@@ -1,0 +1,8 @@
+// Simple break in for loop
+for (var i = 0; i < 10; i = i + 1) {
+    __dprint(i);
+    if (i == 4) {
+        break;
+    }
+}
+__dprint("finished");

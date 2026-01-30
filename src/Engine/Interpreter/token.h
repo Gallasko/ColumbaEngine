@@ -90,6 +90,8 @@ namespace pg
         TOK_FROM,
         TOK_AS,
         TOK_DPRINT,
+        TOK_BREAK,
+        TOK_CONTINUE,
 
         TOK_ERROR,
     };

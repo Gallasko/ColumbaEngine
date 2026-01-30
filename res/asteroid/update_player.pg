@@ -8,6 +8,12 @@ import "input"
 var screenWidth = 800
 var screenHeight = 600
 
+if (sysData["playerId"] == 0)
+{
+    // No player entity, nothing to update
+    return
+}
+
 // Get player entity
 var player = getEntity(sysData["playerId"])
 var pos = player["PositionComponent"]

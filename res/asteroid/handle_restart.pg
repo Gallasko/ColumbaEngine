@@ -1,0 +1,59 @@
+import "ecs"
+import "string"
+
+// This script handles restart when R key is pressed during game over
+
+// Only process if game is over
+if (sysData["isGameOver"] == false)
+{
+    return
+}
+
+debugTable(event.values)
+
+// Check if R key was pressed
+if (event.values["key"] != "R")
+{
+    return
+}
+
+logInfo("Restart requested - clearing game over state")
+
+// Remove game over UI elements
+if (sysData["gameOverTextId"] != 0)
+{
+    removeEntity(sysData["gameOverTextId"])
+    sysData["gameOverTextId"] = 0
+}
+
+if (sysData["restartTextId"] != 0)
+{
+    removeEntity(sysData["restartTextId"])
+    sysData["restartTextId"] = 0
+}
+
+// Clear all asteroids
+var asteroids = getEntities("Asteroid")
+for (var asteroid : asteroids)
+{
+    removeEntity(asteroid.__entityId)
+}
+
+// Clear all bullets
+var bullets = getEntities("Bullet")
+for (var bullet : bullets)
+{
+    removeEntity(bullet.__entityId)
+}
+
+// Reset game over state
+sysData["isGameOver"] = false
+sysData["gameOverReason"] = ""
+
+// Reset score
+sendEvent("ScoreReset")
+
+// Respawn player
+sendEvent("RespawnPlayer")
+
+logInfo("Game restarted successfully")

@@ -521,6 +521,55 @@ TEST_F(ScriptTestBench, ForInWithOuterLocal)
 }
 
 // ============================================================================
+// Break Statement
+// ============================================================================
+
+TEST_F(ScriptTestBench, BreakWhileSimple)
+{
+    testScript("break_while_simple");
+}
+
+TEST_F(ScriptTestBench, BreakForSimple)
+{
+    testScript("break_for_simple");
+}
+
+TEST_F(ScriptTestBench, BreakImmediate)
+{
+    testScript("break_immediate");
+}
+
+TEST_F(ScriptTestBench, BreakNestedLoops)
+{
+    testScript("break_nested_loops");
+}
+
+TEST_F(ScriptTestBench, BreakWithLocals)
+{
+    testScript("break_with_locals");
+}
+
+TEST_F(ScriptTestBench, BreakMultipleInLoop)
+{
+    testScript("break_multiple_in_loop");
+}
+
+TEST_F(ScriptTestBench, BreakForIn)
+{
+    testScript("break_for_in");
+}
+
+TEST_F(ScriptTestBench, BreakWithReturnValue)
+{
+    testScript("break_with_return_value");
+}
+
+TEST_F(ScriptTestBench, BreakDeeplyNested)
+{
+    testScript("break_deeply_nested");
+}
+
+// ============================================================================
 // Vectors
 // ============================================================================
 
@@ -733,6 +782,21 @@ TEST_F(ScriptTestBench, TestStringReleaseRetrack)
 // {
 //     testScript("testTables2");
 // }
+
+TEST_F(ScriptTestBench, TestTable)
+{
+    testScript("test_table");
+}
+
+TEST_F(ScriptTestBench, TestLoopTable)
+{
+    testScript("test_loop_table");
+}
+
+TEST_F(ScriptTestBench, TestResetTable)
+{
+    testScript("test_reset_table");
+}
 
 // ============================================================================
 // Import Tests

@@ -1,0 +1,15 @@
+import "string"
+
+// Break in deeply nested loops
+var result = "";
+for (var i = 0; i < 2; i = i + 1) {
+    for (var j = 0; j < 3; j = j + 1) {
+        for (var k = 0; k < 4; k = k + 1) {
+            if (k == 2) {
+                break; // Only breaks innermost loop
+            }
+            result = result + toString(i) + "," + toString(j) + "," + toString(k) + ";";
+        }
+    }
+}
+__dprint(result);

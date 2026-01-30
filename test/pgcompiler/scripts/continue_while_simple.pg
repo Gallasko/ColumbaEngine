@@ -1,0 +1,10 @@
+// Simple continue in while loop - skip even numbers
+var i = 0;
+while (i < 6) {
+    i = i + 1;
+    if (i == 2 or i == 4) {
+        continue;
+    }
+    __dprint(i);
+}
+__dprint("done");

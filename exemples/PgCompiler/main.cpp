@@ -8,6 +8,7 @@
 
 #include "logger.h"
 
+#ifndef PG_MINIMAL_BUILD
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <SDL2/SDL.h>
@@ -25,6 +26,7 @@
 #endif
 #include <GL/gl.h>
 #endif
+#endif // PG_MINIMAL_BUILD
 
 //[TODO] Variant using operator* dereferencing to recast to the original type
 int main(int argc, char *argv[])
@@ -54,6 +56,7 @@ int main(int argc, char *argv[])
             std::cout << "Options:" << std::endl;
             std::cout << "  --profile, -p    Enable profiling" << std::endl;
             std::cout << "  --help, -h       Show this help message" << std::endl;
+            std::cout << "  --info, -i       Show info logs" << std::endl;
             return 0;
         }
         else if (fileName.empty())
@@ -62,7 +65,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    CompilerApp app(fileName, enableProfiling);
+    CompilerApp app(fileName, enableProfiling, argc, argv);
 
     return app.exec();
 }

@@ -147,6 +147,50 @@ endif()
 message("Current c++ debug flags used: '${CMAKE_C_FLAGS}'")
 message("Current c++ release flags used: '${CMAKE_CXX_FLAGS}'")
 
+# Minimal engine source files (for bootstrap compiler only)
+# These files are needed to run PG scripts (VM + modules + ECS for module registration)
+set(MINIMAL_ENGINESOURCE
+    # Core compiler/VM files
+    src/Engine/Compiler/compiler_debug.cpp
+    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_profiler.cpp
+    src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/object.cpp
+    src/Engine/Compiler/cparser.cpp
+    src/Engine/Compiler/bytecode_pass.cpp
+    src/Engine/Compiler/bytecode_rewriter.cpp
+    src/Engine/Compiler/chunk_serializer.cpp
+    src/Engine/Compiler/pass/bytecode_pass_module.cpp
+    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
+    src/Engine/Compiler/pass/constant_folding.cpp
+    # Minimal interpreter (only lexer and token for parsing)
+    src/Engine/Interpreter/lexer.cpp
+    src/Engine/Interpreter/token.cpp
+    # ECS system (needed for module registration and VM integration)
+    src/Engine/ECS/commanddispatcher.cpp
+    src/Engine/ECS/componentregistry.cpp
+    src/Engine/ECS/entity.cpp
+    src/Engine/ECS/entitysystem.cpp
+    src/Engine/ECS/group.cpp
+    src/Engine/ECS/savemanager.cpp
+    src/Engine/ECS/sparseset.cpp
+    src/Engine/ECS/standardsystem.cpp
+    src/Engine/ECS/system.cpp
+    src/Engine/ECS/uniqueid.cpp
+    # Essential support files
+    src/Engine/logger.cpp
+    src/Engine/serialization.cpp
+    src/Engine/Files/filemanager.cpp
+    src/Engine/Files/fileparser.cpp
+    src/Engine/Memory/elementtype.cpp
+    src/Engine/Memory/parallelfor.cpp
+    src/Engine/Profiler/profiler.cpp
+    # Core systems (provides EntityName component)
+    src/Engine/Systems/coresystems.cpp
+)
+
+# Full engine source files
 set(ENGINESOURCE
     src/Engine/engine.cpp
     src/Engine/window.cpp
@@ -170,6 +214,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/bytecode_pass.cpp
     src/Engine/Compiler/bytecode_rewriter.cpp
     src/Engine/Compiler/chunk_serializer.cpp
+    src/Engine/Compiler/pass/bytecode_pass_module.cpp
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/Compiler/pass/constant_folding.cpp
@@ -241,8 +286,143 @@ set(ENGINESOURCE
     src/Engine/UI/uisystem.cpp
 )
 
-# Create the static library
-add_library(ColumbaEngine STATIC ${ENGINESOURCE})
+# ===============================================
+# COMPONENT GENERATION SETUP (Two-stage build)
+# ===============================================
+
+# Find all .pgcomp component definition files
+file(GLOB COMPONENT_DEFINITIONS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/*.pgcomp"
+)
+
+# Note: ColumbaEngine library will be created AFTER component generation
+
+# ===============================================
+# MINIMAL ENGINE LIBRARY (for bootstrap compiler)
+# ===============================================
+# Create a minimal engine library with only VM + modules + ECS
+# This is used ONLY for building the bootstrap compiler
+add_library(ColumbaEngineMinimal STATIC ${MINIMAL_ENGINESOURCE})
+
+# Disable PCH for minimal engine to avoid rebuilding it
+# (The minimal engine is small enough that PCH overhead isn't worth it,
+#  and it would need a separate PCH due to PG_MINIMAL_BUILD definition)
+set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+
+# Define PG_MINIMAL_BUILD for the minimal engine
+target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)
+
+message(STATUS "Created minimal engine library")
+
+# Minimal engine needs minimal include directories (no SDL2, no rendering libs)
+target_include_directories(ColumbaEngineMinimal PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
+)
+
+# Minimal engine linking (much simpler - no rendering, no audio, no networking)
+# For minimal builds, we don't need SDL2 at all - just GLM for math types
+target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
+
+# ===============================================
+# BOOTSTRAP COMPILER EXECUTABLE
+# ===============================================
+# Create a minimal PgCompiler executable that can run component generator
+# This uses the minimal engine library to avoid circular dependencies
+add_executable(PgCompilerBootstrap
+    exemples/PgCompiler/main.cpp
+    exemples/PgCompiler/application.cpp
+    exemples/PgCompiler/constant_uniformity_pass.cpp
+)
+
+target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD SDL_MAIN_HANDLED)
+
+target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
+
+# Link against minimal engine (no rendering, no generated components)
+target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
+
+
+message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
+
+# ===============================================
+# COMPONENT REGENERATION TARGET
+# ===============================================
+# Create a target to regenerate components when .pgcomp files change
+# This uses the bootstrap compiler to avoid circular dependencies
+if(COMPONENT_DEFINITIONS)
+    set(ALL_GENERATED_FILES "")
+
+    foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
+        get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+
+        # Define the output files
+        set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
+        set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
+        set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
+
+        # Add custom command that only runs when inputs change
+        add_custom_command(
+            OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+            COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
+            COMMAND $<TARGET_FILE:PgCompilerBootstrap>
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                    ${COMP_DEF}
+            DEPENDS
+                PgCompilerBootstrap
+                ${COMP_DEF}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
+            COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
+            VERBATIM
+        )
+
+        # Create a target for this component (for manual regeneration)
+        add_custom_target(Regenerate_${COMP_NAME}
+            DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+        )
+
+        list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
+
+        # Mark the generated files as GENERATED so CMake knows they'll be created
+        set_source_files_properties(
+            ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+            PROPERTIES GENERATED TRUE
+        )
+    endforeach()
+
+    # Create a target to regenerate all components (for manual use)
+    add_custom_target(RegenerateComponents
+        DEPENDS ${ALL_GENERATED_FILES}
+        COMMENT "All components up to date"
+    )
+
+    message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
+    message(STATUS "  Components will regenerate only when .pgcomp files change")
+    message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
+endif()
+
+# ===============================================
+# FULL ENGINE LIBRARY (with generated components)
+# ===============================================
+# Build the list of generated component sources
+set(GENERATED_COMPONENT_SOURCES "")
+if(COMPONENT_DEFINITIONS)
+    foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
+        get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+        list(APPEND GENERATED_COMPONENT_SOURCES
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp"
+        )
+    endforeach()
+
+    list(LENGTH GENERATED_COMPONENT_SOURCES NUM_GEN_SOURCES)
+    message(STATUS "ColumbaEngine will include ${NUM_GEN_SOURCES} generated component source files")
+endif()
+
+# Create the full engine library with generated components
+add_library(ColumbaEngine STATIC ${ENGINESOURCE} ${GENERATED_COMPONENT_SOURCES})
 
 # Todo find why the pch doesn't work on windows
 if(MINGW)
@@ -251,6 +431,11 @@ endif()
 
 # Set precompiled headers - but don't make them public for consumers
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
+
+# Make ColumbaEngine depend on component regeneration
+if(COMPONENT_DEFINITIONS)
+    add_dependencies(ColumbaEngine RegenerateComponents)
+endif()
 
 # Include directories - ONLY use generator expressions for proper build/install interface
 target_include_directories(ColumbaEngine PUBLIC
@@ -434,7 +619,7 @@ install(EXPORT ColumbaEngineTargets
 # Install vendored dependencies headers
 install(DIRECTORY ${GLM_DIR}/glm/
     DESTINATION include/glm
-    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h" PATTERN "*.inl"
 )
 
 install(DIRECTORY ${TASKFLOW_DIR}/taskflow/
@@ -764,6 +949,55 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
+
+        # ===============================================
+        # COMPONENT GENERATION BUILD STEP
+        # ===============================================
+        # Populate the GenerateComponents target now that PgCompiler exists
+        if(COMPONENT_DEFINITIONS AND TARGET GenerateComponents)
+            # Make GenerateComponents depend on PgCompiler being built
+            add_dependencies(GenerateComponents PgCompiler)
+
+            foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
+                get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+
+                # Expected output files
+                set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
+                set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
+                set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
+
+                # Add custom command to generate this component
+                add_custom_command(
+                    OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                    COMMAND ${CMAKE_COMMAND} -E echo "Generating ${COMP_NAME} component..."
+                    COMMAND $<TARGET_FILE:PgCompiler>
+                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                            ${COMP_DEF}
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                            ${CMAKE_CURRENT_BINARY_DIR}/${COMP_NAME}.generated.h
+                            ${GENERATED_HEADER}
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                            ${CMAKE_CURRENT_BINARY_DIR}/${COMP_NAME}.generated.cpp
+                            ${GENERATED_CPP}
+                    COMMAND ${CMAKE_COMMAND} -E copy
+                            ${CMAKE_CURRENT_BINARY_DIR}/${COMP_NAME}.serialization.cpp
+                            ${GENERATED_SER}
+                    DEPENDS PgCompiler ${COMP_DEF} ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+                    COMMENT "Generating ${COMP_NAME} from ${COMP_DEF}"
+                    VERBATIM
+                )
+
+                # Add the outputs to the GenerateComponents target
+                add_custom_target(Generate_${COMP_NAME}
+                    DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                )
+                add_dependencies(GenerateComponents Generate_${COMP_NAME})
+            endforeach()
+
+            message(STATUS "Component generation configured for ${NUM_DEFINITIONS} components")
+            message(STATUS "Run 'cmake --build . --target GenerateComponents' to generate components")
+        endif()
 
         ###
 

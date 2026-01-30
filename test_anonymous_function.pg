@@ -1,0 +1,32 @@
+// Test anonymous functions
+
+// Assign an anonymous function to a variable
+var add = fun(a, b) {
+    return a + b
+}
+
+// Call it
+var result = add(5, 3)
+__dprint(result)  // Should print 8
+
+// Pass an anonymous function as an argument
+fun applyOperation(x, y, operation) {
+    return operation(x, y)
+}
+
+var multiplied = applyOperation(4, 7, fun(a, b) {
+    return a * b
+})
+
+__dprint(multiplied)  // Should print 28
+
+// Use in an array
+var operations = [
+    fun(x) { return x + 1; },
+    fun(x) { return x * 2; },
+    fun(x) { return x - 3; }
+]
+
+__dprint(operations[0](10))  // Should print 11
+__dprint(operations[1](10))  // Should print 20
+__dprint(operations[2](10))  // Should print 7

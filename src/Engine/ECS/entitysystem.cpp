@@ -20,7 +20,7 @@
 
 #include "Systems/coresystems.h"
 
-#include "Interpreter/interpretersystem.h"
+// #include "Interpreter/interpretersystem.h"
 
 #ifdef PROFILE
 std::mutex profileMutex;
@@ -43,15 +43,19 @@ namespace
 
 // Include for the vm setup
 #include "Compiler/vm.h"
-#include "ecsmodule.h"
 #include "Helpers/mathmodule.h"
-#include "Helpers/randommodule.h"
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
+#include "Files/filemodule.h"
+
+#ifndef PG_MINIMAL_BUILD
+#include "ecsmodule.h"
+#include "Helpers/randommodule.h"
 #include "Helpers/inputmodule_vm.h"
 #include "Input/inputcomponent.h"
 #include "2D/texturemodule.h"
-#include "Files/filemodule.h"
+#include "UI/uimodule.h"
+#endif
 
 // Include for vm optimization pass
 #include "Compiler/pass/long_jump_optimization_pass.h"
@@ -371,6 +375,7 @@ namespace pg
         }
     }
 
+#ifndef PG_MINIMAL_BUILD
     InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance)
     {
         LOG_THIS_MEMBER("ECS");
@@ -395,6 +400,14 @@ namespace pg
 
         return system;
     }
+#else
+    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment>, std::shared_ptr<ClassInstance>)
+    {
+        return nullptr;
+    }
+#endif
+
+
 
     void EntitySystem::deleteSystem(_unique_id id)
     {
@@ -515,13 +528,23 @@ namespace pg
     {
         LOG_THIS_MEMBER("ECS");
 
+        // Start timing if profiling is enabled
+        std::chrono::steady_clock::time_point setupStart;
+        if (vm.profiler.isEnabled())
+        {
+            setupStart = std::chrono::steady_clock::now();
+        }
+
         vm.addNativeModule("math", MathModule{});
-        vm.addNativeModule("random", RandomModule{});
         vm.addNativeModule("algorithm", AlgorithmModule{});
         vm.addNativeModule("string", StringModule{});
         vm.addNativeModule("file", FileModule{});
+
+#ifndef PG_MINIMAL_BUILD
+        vm.addNativeModule("random", RandomModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
         vm.addNativeModule("texture", TextureModule{this});
+        vm.addNativeModule("ui", UIModule{this});
 
         // Todo change this
         // Get the Input handler from the MouseClickSystem
@@ -537,6 +560,7 @@ namespace pg
         {
             vm.addNativeModule("input", InputModuleVM{inputHandler});
         }
+#endif
 
         // Print function - outputs to stdout
         vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
@@ -679,12 +703,22 @@ namespace pg
 
         // Example:
         // vm.bindECS(this);
+
+        // Record setupVm time if profiling is enabled
+        if (vm.profiler.isEnabled())
+        {
+            auto setupEnd = std::chrono::steady_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(setupEnd - setupStart).count();
+            vm.profiler.recordSetupVmTime(duration);
+        }
     }
 
     void EntitySystem::setOptimizationPasses(VM &vm)
     {
         if (vmOptimizationLevel == VmOptimizationLevel::O3)
         {
+            vm.enableBytecodeOptimization();
+
             vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
             vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
@@ -697,6 +731,10 @@ namespace pg
             vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
 
             vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+        }
+        else if (vmOptimizationLevel == VmOptimizationLevel::O0)
+        {
+            vm.disableBytecodeOptimization();
         }
     }
 

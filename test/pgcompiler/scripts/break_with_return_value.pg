@@ -1,0 +1,28 @@
+import "string"
+
+// Break with computation returning a value
+fun findFirst(limit) {
+    for (var i = 0; i < limit; i = i + 1) {
+        if (i * i > 50) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+var result = findFirst(20);
+__dprint("first number whose square > 50: " + toString(result));
+
+// Break in loop that contributes to result
+var found = false;
+var value = 0;
+for (var i = 1; i < 100; i = i + 1) {
+    if (i * i * i > 1000) {
+        value = i;
+        found = true;
+        break;
+    }
+}
+if (found) {
+    __dprint("first number whose cube > 1000: " + toString(value));
+}

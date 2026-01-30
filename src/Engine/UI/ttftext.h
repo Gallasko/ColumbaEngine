@@ -6,125 +6,13 @@
 #include "2D/position.h"
 #include "Renderer/renderer.h"
 
+#include "Components/TTFText.generated.h"
+
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
 namespace pg
 {
-    struct TTFText : public Ctor
-    {
-        TTFText() {}
-        TTFText(const std::string& text, const std::string& fontPath, float scale, constant::Vector4D colors = {255.0f, 255.0f, 255.0f, 255.0f}) : text(text), fontPath(fontPath), scale(scale), colors(colors) {}
-
-        inline static std::string getType() { return "TTFText"; }
-
-        virtual void onCreation(EntityRef entity)
-        {
-            ecsRef = entity.ecsRef;
-
-            entityId = entity.id;
-        }
-
-        void setText(const std::string& text)
-        {
-            if (this->text != text)
-            {
-                LOG_THIS("TTF Text");
-
-                this->text = text;
-
-                if (ecsRef)
-                {
-                    changed = true;
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setColor(const constant::Vector4D& colors)
-        {
-            if (this->colors != colors)
-            {
-                LOG_THIS("TTF Text");
-
-                this->colors = colors;
-
-                if (ecsRef)
-                {
-                    changed = true;
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setWrap(bool wrap)
-        {
-            if (this->wrap != wrap)
-            {
-                LOG_THIS("TTF Text");
-
-                this->wrap = wrap;
-
-                if (ecsRef)
-                {
-                    changed = true;
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setSpacing(float spacing)
-        {
-            if (areNotAlmostEqual(this->spacing, spacing))
-            {
-                LOG_THIS("TTF Text");
-
-                this->spacing = spacing;
-
-                if (ecsRef)
-                {
-                    changed = true;
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setViewport(size_t viewport)
-        {
-            if (this->viewport != viewport)
-            {
-                this->viewport = viewport;
-
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        std::string text;
-
-        float textWidth, textHeight;
-
-        std::string fontPath;
-
-        float scale = 1.0f;
-
-        constant::Vector4D colors;
-
-        bool wrap = false;
-
-        float spacing = 0.0f;
-
-        size_t viewport = 0;
-
-        EntitySystem * ecsRef = nullptr;
-
-        _unique_id entityId = 0;
-
-        bool changed = false;
-    };
-
     struct TTFTextCall
     {
         TTFTextCall(const std::vector<RenderCall>& calls) : calls(calls) {}
@@ -132,18 +20,13 @@ namespace pg
         std::vector<RenderCall> calls;
     };
 
-    template <>
-    void serialize(Archive& archive, const TTFText& value);
-
-    template <>
-    TTFText deserialize(const UnserializedObject& serializedString);
-
     struct TTFTextResizeEvent
     {
         _unique_id id;
     };
 
-    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<PositionComponent>, Listener<EntityChangedEvent>, InitSys>
+    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<PositionComponent>,
+        Listener<PositionComponentChangedEvent>, Listener<TTFTextChangedEvent>, InitSys>
     {
         struct Character
         {
@@ -160,7 +43,8 @@ namespace pg
 
         virtual void init() override;
 
-        virtual void onEvent(const EntityChangedEvent& event) override;
+        virtual void onEvent(const PositionComponentChangedEvent& event) override;
+        virtual void onEvent(const TTFTextChangedEvent& event) override;
 
         void registerFont(const std::string& fontPath, const std::string& fontName = "", int size = 48);
 

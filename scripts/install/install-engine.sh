@@ -241,37 +241,13 @@ create_test_app() {
     # Create main.cpp
     cat > src/main.cpp << 'EOF'
 #include <iostream>
-#include <stdio.h>
-#include <stdint.h>
-#include <assert.h>
 
 #include "application.h"
-#include "logger.h"
-
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#include <SDL2/SDL.h>
-#include <SDL_opengles2.h>
-#include <GLES2/gl2.h>
-#else
-#ifdef __linux__
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_opengl.h>
-#elif _WIN32
-#include <SDL.h>
-#include <SDL_opengl.h>
-#endif
-#include <GL/gl.h>
-#endif
 
 int main(int argc, char *argv[])
 {
     // Decouple C++ and C stream for faster runtime
     std::ios_base::sync_with_stdio(false);
-
-#ifdef __EMSCRIPTEN__
-    printf("Starting program...\n");
-#endif
 
     GameApp app("ColumbaEngine Test App");
 
@@ -284,7 +260,7 @@ EOF
 #ifndef APPLICATION_H
 #define APPLICATION_H
 
-#include "window.h"
+#include "engine.h"
 
 class GameApp
 {
@@ -295,7 +271,7 @@ public:
     int exec();
 
 private:
-    std::string appName;
+    pg::Engine engine;
 };
 
 #endif
@@ -304,7 +280,7 @@ EOF
     # Create application.cpp
     cat > src/application.cpp << 'EOF'
 #include "application.h"
-#include "logger.h"
+#include "boxbouncersystem.h"
 
 using namespace pg;
 
@@ -312,150 +288,160 @@ namespace {
     static const char *const DOM = "App";
 }
 
-GameApp::GameApp(const std::string &appName) : appName(appName) {
-    LOG_THIS_MEMBER(DOM);
+GameApp::GameApp(const std::string &appName) : engine(appName)
+{
+    engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
+    {
+        auto config = engine.getConfig();
+        ecs.createSystem<BoxBouncerSystem>(config.width, config.height);
+    });
 }
 
-GameApp::~GameApp() {
-    LOG_THIS_MEMBER(DOM);
+GameApp::~GameApp()
+{
 }
 
-std::thread *initThread;
-pg::Window *mainWindow = nullptr;
-std::atomic<bool> initialized = {false};
-bool init = false;
-bool running = true;
-
-void initWindow(const std::string &appName) {
-#ifdef __EMSCRIPTEN__
-    mainWindow = new pg::Window(appName, "/save/savedData.sz");
-#else
-    mainWindow = new pg::Window(appName);
-#endif
-
-    LOG_INFO(DOM, "Window init...");
-    initialized = true;
+int GameApp::exec()
+{
+    return engine.exec();
 }
+EOF
 
-void initGame() {
-    printf("Initializing engine ...\n");
+    # Create boxbouncersystem.h
+    cat > src/boxbouncersystem.h << 'EOF'
+// BoxBouncerSystem.h
+#pragma once
 
-#ifdef __EMSCRIPTEN__
-    EM_ASM(
-        console.error("Syncing... !");
-        FS.mkdir('/save');
-        console.error("Syncing... !");
-        FS.mount(IDBFS, {autoPersist: true}, '/save');
-        console.error("Syncing... !");
-        FS.syncfs(true, function (err) {
-            console.error("Synced !");
-            if (err) {
-                console.error("Initial sync error:", err);
-            }
-        });
-        console.error("Syncing... !");
-    );
-#endif
+#include <random>
 
-    mainWindow->initEngine();
-    printf("Engine initialized ...\n");
+#include "Systems/basicsystems.h"
+#include "2D/simple2dobject.h"
 
-    mainWindow->ecs.dumbTaskflow();
-    mainWindow->render();
-    mainWindow->resize(820, 640);
-    mainWindow->ecs.start();
+using namespace pg;
 
-    printf("Engine initialized\n");
-}
+struct BouncingBox
+{
+    float velocityX;
+    float velocityY;
+    float speed;
 
-void syncFilesystem() {
-#ifdef __EMSCRIPTEN__
-    EM_ASM(
-        FS.syncfs(false, function (err) {
-            if (err) {
-                console.error("Sync error:", err);
-            } else {
-                console.log("Filesystem synced.");
-            }
-        });
-    );
-#endif
-}
+    BouncingBox(float vx = 0.0f, float vy = 0.0f, float spd = 100.0f)
+        : velocityX(vx), velocityY(vy), speed(spd) {}
+};
 
-void mainloop(void *arg) {
-    if (not initialized.load())
-        return;
+class BoxBouncerSystem : public System<InitSys, Listener<TickEvent>>
+{
+private:
+    float screenWidth;
+    float screenHeight;
+    std::mt19937 rng;
+    std::uniform_real_distribution<float> colorDist;
 
-    if (not init) {
-        if (initThread) {
-            printf("Joining thread...\n");
-            initThread->join();
-            delete initThread;
-            printf("Thread joined...\n");
+    float deltaTime = 0.0f;
+
+    EntityRef ent;
+
+public:
+    BoxBouncerSystem(float width = 820.0f, float height = 640.0f)
+        : screenWidth(width), screenHeight(height), rng(std::random_device{}()), colorDist(0.0f, 255.0f) {}
+
+    // Name of the system so it is easier to debug the taskflow
+    virtual std::string getSystemName() const override { return "Box Bouncer System"; }
+
+    void init() override
+    {
+        // Create a 2D square
+        auto shape = makeSimple2DShape(ecsRef, Shape2D::Square,
+            screenWidth / 2, screenHeight / 2,
+            {255.0f, 100.0f, 100.0f, 255.0f}); // Red square
+
+        auto pos = shape.get<PositionComponent>();
+
+        // Set initial size
+        pos->width = 120.0f;
+        pos->height = 70.0f;
+
+        // Add bouncing behavior component
+        auto bouncer = shape.attachGeneric<BouncingBox>();
+        bouncer->velocityX = 180.0f;  // pixels per second
+        bouncer->velocityY = 180.0f;  // pixels per second
+        bouncer->speed = 150.0f;
+
+        ent = shape.entity;
+    }
+
+    virtual void onEvent(const TickEvent& event) override
+    {
+        deltaTime += event.tick / 1000.0f;
+    }
+
+    void execute() override
+    {
+        if (deltaTime == 0.0f)
+            return;
+
+        auto pos = ent->get<PositionComponent>();
+        auto shape2D = ent->get<Simple2DObject>();
+        auto bouncer = ent->get<BouncingBox>();
+
+        if (not pos or not shape2D or not bouncer)
+            return;
+
+        // Update position
+        auto x = pos->x + bouncer->velocityX * deltaTime;
+        auto y = pos->y + bouncer->velocityY * deltaTime;
+
+        // Check boundaries and bounce
+        float width = pos->width;
+        float height = pos->height;
+
+        // Left/Right boundaries
+        if (x <= 0 or x + width >= screenWidth)
+        {
+            bouncer->velocityX = -bouncer->velocityX;
+            changeColor(shape2D);
+
+            // Keep within bounds
+            if (x <= 0)
+                x = 0;
+            else
+                x = screenWidth - width;
         }
 
-        init = true;
-        mainWindow->init(820, 640, false, static_cast<SDL_Window *>(arg));
-        printf("Window init done !\n");
-        initGame();
-    }
+        // Top/Bottom boundaries
+        if (y <= 0 or y + height >= screenHeight)
+        {
+            bouncer->velocityY = -bouncer->velocityY;
+            changeColor(shape2D);
 
-    SDL_Event event;
-    while (SDL_PollEvent(&event)) {
-        mainWindow->processEvents(event);
-    }
-
-    mainWindow->render();
-
-#ifdef __EMSCRIPTEN__
-    if (event.type == SDL_QUIT) {
-        syncFilesystem();
-    }
-#endif
-
-    if (mainWindow->requestQuit()) {
-        LOG_ERROR("Window", "RequestQuit");
-        std::terminate();
-    }
-}
-
-int GameApp::exec() {
-#ifdef __EMSCRIPTEN__
-    printf("Start init thread...\n");
-    initThread = new std::thread(initWindow, appName);
-    printf("Detach init thread...\n");
-
-    SDL_Window *pWindow = SDL_CreateWindow("ColumbaEngine Test App",
-                        SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                        820, 640,
-                        SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_SHOWN);
-
-    emscripten_set_main_loop_arg(mainloop, pWindow, 0, 1);
-#else
-    LOG_THIS_MEMBER(DOM);
-
-    initWindow(appName);
-    mainWindow->init(820, 640, false);
-    LOG_INFO(DOM, "Window init done !");
-    initGame();
-
-    while (running) {
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            mainWindow->processEvents(event);
+            // Keep within bounds
+            if (y <= 0)
+                y = 0;
+            else
+                y = screenHeight - height;
         }
 
-        mainWindow->render();
+        pos->setX(x);
+        pos->setY(y);
 
-        if (mainWindow->requestQuit())
-            break;
+        deltaTime = 0.0f;
     }
 
-    delete mainWindow;
-#endif
+    void setScreenSize(float width, float height)
+    {
+        screenWidth = width;
+        screenHeight = height;
+    }
 
-    return 0;
-}
+private:
+    void changeColor(Simple2DObject* simple2D)
+    {
+        auto r = colorDist(rng), g = colorDist(rng), b = colorDist(rng);
+
+        // Change to random color when bouncing
+        simple2D->setColors({r, g, b, 255.0f});
+    }
+};
 EOF
 
     # Create CMakeLists.txt
@@ -634,6 +620,7 @@ EOF
 # ColumbaEngine Test Application
 
 This is a basic test application created by the ColumbaEngine installation script.
+It demonstrates a simple bouncing box that changes color when it hits the screen edges.
 
 ## Building
 
@@ -658,18 +645,36 @@ cd build
 ./ColumbaEngineTestApp
 ```
 
-The application will create a window using ColumbaEngine. Press ESC or close the window to exit.
+The application will create a window displaying a bouncing colored box. Press ESC or close the window to exit.
 
 ## Project Structure
 
 - `src/main.cpp` - Entry point
-- `src/application.h/cpp` - Main application class
+- `src/application.h/cpp` - Main application class using pg::Engine
+- `src/boxbouncersystem.h` - Box bouncer system demonstrating ECS usage
 - `CMakeLists.txt` - CMake configuration
 - `build.sh` - Build script with debug/release options
+
+## What it demonstrates
+
+This example shows:
+- Using the `pg::Engine` class for easy setup
+- Creating a custom system (`BoxBouncerSystem`) with ECS
+- Using `InitSys` for initialization
+- Listening to `TickEvent` for game loop updates
+- Creating 2D shapes with `makeSimple2DShape`
+- Attaching custom components (`BouncingBox`)
+- Simple physics and collision detection with screen bounds
 
 ## Modifying
 
 You can modify the application by editing the files in `src/`. The CMakeLists.txt is set up to automatically find and link ColumbaEngine.
+
+Try experimenting with:
+- Different initial velocities in `BoxBouncerSystem::init()`
+- Multiple bouncing boxes
+- Different shapes (Triangle, Circle)
+- Adding gravity or acceleration
 EOF
 
     log_success "Test application created in: $test_dir"

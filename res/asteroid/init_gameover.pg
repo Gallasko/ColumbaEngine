@@ -1,0 +1,13 @@
+import "texture"
+import "string"
+import "ecs"
+
+logInfo("Initializing Game Over system")
+
+// Set initial game state
+sysData["isGameOver"] = false
+sysData["gameOverReason"] = ""
+sysData["gameOverTextId"] = 0
+sysData["restartTextId"] = 0
+
+logInfo("Game Over system initialized")

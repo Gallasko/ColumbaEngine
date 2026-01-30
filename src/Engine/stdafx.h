@@ -15,26 +15,19 @@
 #include <filesystem>
 #include <variant>
 #include <unordered_map>
+#include <cmath>
 
-#include "Maths/geometry.h"
+#include "Memory/elementtype.h"
+#include "Files/filemanager.h"
 
 #include "logger.h"
-#include "configuration.h"
 #include "serialization.h"
+#include "configuration.h"
 #include "pgconstant.h"
 
-// #include <vector>
-// #include <unordered_map>
-// #include <algorithm>
-
-// If issues happens while working on system.h, comment this line !
-// #include "ECS/system.h"
-// #include "ECS/entitysystem.h"
-// #include "Renderer/renderer.h"
+#include "Maths/geometry.h"
 
 #include "ECS/entitysystem_fwd.h"
 
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
-
-// #include <taskflow.hpp>

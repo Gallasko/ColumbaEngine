@@ -1,0 +1,90 @@
+name: TTFText
+shortname: TTFText
+namespace: pg
+base_class: Component
+
+includes:
+  - <string>
+  - "ECS/system.h"
+  - "pgconstant.h"
+
+fields:
+  - name: text
+    type: std::string
+    default: ""
+    setter: event
+
+  - name: textWidth
+    type: float
+    default: 0.0f
+    serialize: false
+
+  - name: textHeight
+    type: float
+    default: 0.0f
+    serialize: false
+
+  - name: fontPath
+    type: std::string
+    default: ""
+    setter: event
+
+  - name: scale
+    type: float
+    default: 1.0f
+    setter: event
+
+  - name: colors
+    type: constant::Vector4D
+    default: "{255.0f, 255.0f, 255.0f, 255.0f}"
+    setter: event
+#    customSerializationSetter: "auto setColorsFunc = [component](VM* vm, int argCount, Value* args) -> Value {
+#            if (argCount < 3)
+#                throw std::runtime_error(\"setColor expects at least 3 arguments: r, g, b, [a]\");
+#
+#            constant::Vector4D colors;
+#            for (int i = 0; i < 3; i++)
+#            {
+#                colors[i] = detail::extractFloatArg(args, i);
+#            }
+#
+#            // Alpha (optional, default 255)
+#            colors[3] = 255.0f;
+#            if (argCount >= 4)
+#            {
+#                colors[3] = detail::extractFloatArg(args, 3);
+#            }
+#
+#            component->setColors(colors);
+#
+#            return INT_VAL(0);
+#        };
+#
+#        table->fields[\"setColors\"] = vm->createNativeFunction(setColorsFunc);"
+
+  - name: wrap
+    type: bool
+    default: false
+    setter: event
+
+  - name: spacing
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: viewport
+    type: size_t
+    default: 0
+    setter: event
+
+  - name: changed
+    type: bool
+    default: false
+    serialize: false
+
+constructors:
+  - params: [text, fontPath, scale, colors]
+    defaults: {colors: "{255.0f, 255.0f, 255.0f, 255.0f}"}
+
+events:
+  - TTFTextChangedEvent

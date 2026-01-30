@@ -14,10 +14,11 @@ This reference documents all bytecode optimization passes available in the VM.
 Overview
 --------
 
-The VM includes **8 optimization passes** organized into categories:
+The VM includes **9 optimization passes** organized into categories:
 
 * **Arithmetic**: 4 passes
 * **Control Flow**: 1 passes
+* **General**: 1 passes
 * **Memory**: 2 passes
 * **Stack**: 1 passes
 
@@ -68,6 +69,11 @@ Quick Reference
      - Memory
      - Yes
      - Yes
+   * - :ref:`ScriptedBytecodePass <scriptedbytecodepass>`
+     - Auto-extracted pass: ScriptedBytecodePass
+     - General
+     - No
+     - No
    * - :ref:`Simplify Constant Pass <simplify-constant-pass>`
      - Replaces constant access patterns with optimized variants
      - Memory
@@ -288,6 +294,26 @@ After::
 * Reduce bytecode size by using short jumps when possible
 
 **Source**: `long_jump_optimization_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/long_jump_optimization_pass.h>`_
+
+
+General
+~~~~~~~
+
+
+.. _scriptedbytecodepass:
+
+ScriptedBytecodePass
+^^^^^^^^^^^^^^^^^^^^
+
+**Purpose**: Auto-extracted pass: ScriptedBytecodePass
+
+**Properties**:
+
+* Class name: ``ScriptedBytecodePass``
+* Changes bytecode size: No
+* Requires multiple passes: No
+
+**Source**: `bytecode_pass_module.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/bytecode_pass_module.h>`_
 
 
 Memory

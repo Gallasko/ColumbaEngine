@@ -1,0 +1,14 @@
+import "string"
+
+// Break with local variables - ensure proper cleanup
+var sum = 0;
+for (var i = 0; i < 5; i = i + 1) {
+    var temp = i * 2;
+    var squared = temp * temp;
+    if (squared > 20) {
+        break; // Should clean up temp and squared
+    }
+    sum = sum + squared;
+    __dprint("i=" + toString(i) + " squared=" + toString(squared) + " sum=" + toString(sum));
+}
+__dprint("final sum: " + toString(sum));

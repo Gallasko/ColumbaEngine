@@ -1,0 +1,5 @@
+// Error: break statement outside of loop (should fail compilation)
+var x = 10;
+if (x > 5) {
+    break; // ERROR: not in a loop
+}
