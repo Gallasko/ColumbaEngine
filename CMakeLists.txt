@@ -619,7 +619,7 @@ install(EXPORT ColumbaEngineTargets
 # Install vendored dependencies headers
 install(DIRECTORY ${GLM_DIR}/glm/
     DESTINATION include/glm
-    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
+    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h" PATTERN "*.inl"
 )
 
 install(DIRECTORY ${TASKFLOW_DIR}/taskflow/
