@@ -433,9 +433,11 @@ namespace pg
         std::unordered_map<std::string, Value> globals;
 
         // Native module registry (per VM instance)
-        struct NativeModuleData {
+        struct NativeModuleData
+        {
             std::map<std::string, NativeFn> functions;
             std::map<std::string, ElementType> variables;
+            std::function<void(VM*)> init;
         };
 
         std::unordered_map<std::string, NativeModuleData> nativeModules;
@@ -584,6 +586,7 @@ namespace pg
             NativeModuleData data;
             data.functions = moduleData.exportedFunctions;
             data.variables = moduleData.exportedVariables;
+            data.init = [moduleData](VM* vm) { moduleData.init(vm); };
             nativeModules[moduleName] = data;
 
             // Note: Module is registered but not loaded into global scope
@@ -613,6 +616,8 @@ namespace pg
                     globals[name] = elementToValue(value);
                 }
             }
+
+            it->second.init(this);
 
             return true;
         }

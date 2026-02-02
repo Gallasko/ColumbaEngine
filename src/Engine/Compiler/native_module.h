@@ -31,6 +31,8 @@ namespace pg
     protected:
         NativeModule() {}
 
+        virtual void init(VM* vm) const {}
+
         /**
          * Register a native function to be exported by this module
          * @param name The name of the function as it will appear in the script
