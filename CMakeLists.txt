@@ -164,6 +164,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/Compiler/pass/constant_folding.cpp
+    src/Engine/Compiler/ecsserialization.cpp
     # Minimal interpreter (only lexer and token for parsing)
     src/Engine/Interpreter/lexer.cpp
     src/Engine/Interpreter/token.cpp

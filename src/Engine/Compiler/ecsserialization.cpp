@@ -1,9 +1,6 @@
 #include "ecsserialization.h"
 
 #include "ECS/entitysystem.h"
-#include "2D/position.h"
-#include "2D/collisionsystem.h"
-#include "UI/ttftext.h"
 
 #include <iostream>
 
@@ -260,43 +257,6 @@ namespace pg
 
         LOG_MILE("ECS Serialization", "Added generic set() method");
     }
-
-    // /**
-    //  * @brief Generate setters for TTFText component
-    //  *
-    //  * Adds methods: setText, setColor, setPosition
-    //  */
-    // void serializeTTFTextWithSetters(VM* vm, ObjInstance* table, TTFText* component)
-    // {
-    //     LOG_MILE("ECS Serialization", "Generating setters for TTFText component");
-
-    //     REGISTER_STRING_SETTER(vm, table, component, setText);
-
-    //     // setColor(r, g, b, [a])
-    //     auto setColorFunc = [component](VM* vm, int argCount, Value* args) -> Value {
-    //         if (argCount < 3)
-    //             throw std::runtime_error("setColor expects at least 3 arguments: r, g, b, [a]");
-
-    //         constant::Vector4D colors;
-    //         for (int i = 0; i < 3; i++)
-    //         {
-    //             colors[i] = detail::extractFloatArg(args, i);
-    //         }
-
-    //         // Alpha (optional, default 255)
-    //         colors[3] = 255.0f;
-    //         if (argCount >= 4)
-    //         {
-    //             colors[3] = detail::extractFloatArg(args, 3);
-    //         }
-
-    //         component->setColors(colors);
-
-    //         return INT_VAL(0);
-    //     };
-
-    //     table->fields["setColor"] = vm->createNativeFunction(setColorFunc);
-    // }
 
     // // Register component serializers at static initialization time
     // REGISTER_COMPONENT_SERIALIZER(TTFText, serializeTTFTextWithSetters);
@@ -782,44 +742,44 @@ namespace pg
     // Registered Component Attach Handlers
     // ============================================================================
 
-    /**
-     * @brief Custom attach handler for CollisionComponent
-     *
-     * Expected usage: attachComp("Collision", "layerId", 1, "scale", 2.0)
-     */
-    bool attachCollisionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
-    {
-        size_t layerId = 0;
-        float scale = 1.0f;
+    // /**
+    //  * @brief Custom attach handler for CollisionComponent
+    //  *
+    //  * Expected usage: attachComp("Collision", "layerId", 1, "scale", 2.0)
+    //  */
+    // bool attachCollisionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
+    // {
+    //     size_t layerId = 0;
+    //     float scale = 1.0f;
 
-        // Process key-value pairs
-        for (int i = 0; i < argCount; i += 2)
-        {
-            if (i + 1 >= argCount) break;
+    //     // Process key-value pairs
+    //     for (int i = 0; i < argCount; i += 2)
+    //     {
+    //         if (i + 1 >= argCount) break;
 
-            if (!IS_STRING(args[i]))
-            {
-                LOG_ERROR("ECS Serialization", "attachComp expects string keys for properties");
-                continue;
-            }
+    //         if (!IS_STRING(args[i]))
+    //         {
+    //             LOG_ERROR("ECS Serialization", "attachComp expects string keys for properties");
+    //             continue;
+    //         }
 
-            auto key = vm->asString(args[i]);
+    //         auto key = vm->asString(args[i]);
 
-            if (key == "layerId")
-                layerId = static_cast<size_t>(detail::extractIntArg(args, i + 1));
-            else if (key == "scale")
-                scale = detail::extractFloatArg(args, i + 1);
-        }
+    //         if (key == "layerId")
+    //             layerId = static_cast<size_t>(detail::extractIntArg(args, i + 1));
+    //         else if (key == "scale")
+    //             scale = detail::extractFloatArg(args, i + 1);
+    //     }
 
-        // Attach CollisionComponent with parsed parameters
-        ecs->_attach<CollisionComponent>(entity, layerId, scale);
+    //     // Attach CollisionComponent with parsed parameters
+    //     ecs->_attach<CollisionComponent>(entity, layerId, scale);
 
-        LOG_INFO("ECS Serialization", "Attached CollisionComponent to entity " << entity->id
-                 << " (layerId=" << layerId << ", scale=" << scale << ")");
+    //     LOG_INFO("ECS Serialization", "Attached CollisionComponent to entity " << entity->id
+    //              << " (layerId=" << layerId << ", scale=" << scale << ")");
 
-        return true;
-    }
+    //     return true;
+    // }
 
-    // Register the Collision component attach handler
-    REGISTER_COMPONENT_ATTACH_HANDLER(Collision, attachCollisionComponent);
+    // // Register the Collision component attach handler
+    // REGISTER_COMPONENT_ATTACH_HANDLER(Collision, attachCollisionComponent);
 }
