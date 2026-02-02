@@ -31,7 +31,7 @@ namespace pg
     protected:
         NativeModule() {}
 
-        virtual void init(VM* vm) const {}
+        virtual void init(VM*) const {}
 
         /**
          * Register a native function to be exported by this module
