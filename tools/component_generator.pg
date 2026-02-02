@@ -915,6 +915,7 @@ class CppGenerator
         var code = ""
 
         // Include the header
+        code += "#include \"stdafx.h\"\n\n"
         code += "#include \"" + schema.name + ".generated.h\"\n\n"
         code += "#include \"ECS/entitysystem.h\"\n\n"
 
