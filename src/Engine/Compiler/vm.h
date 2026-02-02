@@ -617,6 +617,47 @@ namespace pg
             globals[name] = createNativeFunction(function);
         }
 
+        /**
+         * @brief Add a native method to a class
+         *
+         * This helper function adds a C++ native function as a method to a class.
+         * The native function receives the receiver instance as args[0].
+         *
+         * @param classValue The class Value to add the method to
+         * @param methodName The name of the method
+         * @param function The native function implementation
+         *
+         * @example
+         * Value myClass = vm->createClass("MyClass");
+         * vm->addNativeMethod(myClass, "greet", [](VM* vm, int argCount, Value* args) -> Value {
+         *     // args[0] is the receiver (instance)
+         *     // args[1..n] are the method arguments
+         *     ObjInstance* instance = vm->asInstance(args[0]);
+         *
+         *     if (argCount > 1) {
+         *         std::string name = vm->asString(args[1]);
+         *         std::cout << "Hello, " << name << "!" << std::endl;
+         *     }
+         *
+         *     return makeIntValue(-1); // Return value
+         * });
+         *
+         * // Usage in script:
+         * // var obj = MyClass();
+         * // obj.greet("World");  // argCount=2: args[0]=obj, args[1]="World"
+         */
+        void addNativeMethod(Value classValue, const std::string& methodName, NativeFn function)
+        {
+            if (not IS_CLASS(classValue))
+            {
+                throw std::runtime_error("addNativeMethod: first argument must be a class");
+            }
+
+            Klass* klass = asClass(classValue);
+            Value nativeFunc = createNativeFunction(function);
+            klass->methods[methodName] = nativeFunc;
+        }
+
         // Native module system - per VM instance
         void addNativeModule(const std::string& moduleName, const NativeModule& moduleData)
         {

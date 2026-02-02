@@ -684,9 +684,38 @@ namespace pg
             return false;
         }
 
-        Closure* method = asClosure(it->second);
+        Value methodValue = it->second;
 
-        return callBound(method, argCount);
+        // Handle closures (script-defined methods)
+        if (IS_CLOSURE(methodValue))
+        {
+            Closure* method = asClosure(methodValue);
+            return callBound(method, argCount);
+        }
+
+        // Handle native functions (C++-defined methods)
+        if (IS_NAT_FUNC(methodValue))
+        {
+            auto* native = asNativeFunc(methodValue);
+
+            // For native methods, pass receiver as args[0], method arguments as args[1], args[2], etc.
+            // Receiver is at stack[size - argCount - 1]
+            // Increment argCount to include the receiver
+            Value result = native->function(this, argCount + 1, stack.data() + stack.size() - argCount - 1);
+
+            // Remove arguments and receiver from the stack
+            for (int i = 0; i < argCount + 1; i++)
+            {
+                auto v = pop();
+                releaseAndDelete(v);
+            }
+
+            push(result);
+            return true;
+        }
+
+        runtimeError((Strfy() << "Method '" << methodName << "' is not a closure or native function." ).getData());
+        return false;
     }
 
     bool VM::call(Closure* closure, int argCount)
@@ -2383,14 +2412,30 @@ namespace pg
 
         auto methodValue = methodIt->second;
 
-        // Create a bound method
-        auto bound = vm->createBoundMethod(vm->peek(0), vm->asClosure(methodValue));  // Already tracked
+        // Handle closures (script-defined methods) - create bound method
+        if (IS_CLOSURE(methodValue))
+        {
+            auto bound = vm->createBoundMethod(vm->peek(0), vm->asClosure(methodValue));  // Already tracked
 
-        auto instance = vm->pop(); // Remove the instance
-        vm->releaseAndDelete(instance);
-        vm->push(bound);
+            auto instance = vm->pop(); // Remove the instance
+            vm->releaseAndDelete(instance);
+            vm->push(bound);
 
-        return true;
+            return true;
+        }
+
+        // Handle native functions (C++-defined methods) - return native function directly
+        // Native functions will receive the receiver as the first argument when called
+        if (IS_NAT_FUNC(methodValue))
+        {
+            auto instance = vm->pop(); // Remove the instance
+            vm->releaseAndDelete(instance);
+            vm->push(vm->retainValue(methodValue));  // Push the native function directly
+
+            return true;
+        }
+
+        return false;
     }
 
     void op_get_property(VM* vm)
@@ -2491,8 +2536,8 @@ namespace pg
 
         std::string methodName = methodNameElem.toString();
 
-        // The class is below the method closure on the stack
-        auto methodClosureValue = vm->pop();
+        // The class is below the method closure/native function on the stack
+        auto methodValue = vm->pop();
         auto classValue = vm->peek();
 
         if (not IS_CLASS(classValue))
@@ -2505,15 +2550,16 @@ namespace pg
 
         Klass* klass = vm->asClass(classValue);
 
-        if (not IS_CLOSURE(methodClosureValue))
+        // Methods can be either closures (script-defined) or native functions (C++-defined)
+        if (not IS_CLOSURE(methodValue) and not IS_NAT_FUNC(methodValue))
         {
-            vm->runtimeError("Method must be a closure.");
+            vm->runtimeError("Method must be a closure or native function.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
 
             return;
         }
 
-        klass->methods[methodName] = methodClosureValue;
+        klass->methods[methodName] = methodValue;
     }
 
     void op_short_int(VM* vm)
