@@ -659,11 +659,15 @@ namespace pg
         }
 
         // Native module system - per VM instance
-        void addNativeModule(const std::string& moduleName, const NativeModule& moduleData)
+        template<typename T>
+        void addNativeModule(const std::string& moduleName, const T& moduleData)
         {
+            static_assert(std::is_base_of<NativeModule, T>::value, "Module must derive from NativeModule");
+
             NativeModuleData data;
             data.functions = moduleData.exportedFunctions;
             data.variables = moduleData.exportedVariables;
+            // Capture the full derived type, not just the base class
             data.init = [moduleData](VM* vm) { moduleData.init(vm); };
             nativeModules[moduleName] = data;
 
@@ -676,8 +680,11 @@ namespace pg
             auto it = nativeModules.find(moduleName);
             if (it == nativeModules.end())
             {
+                LOG_WARNING("VM", "Native module '" << moduleName << "' not found");
                 return false;
             }
+
+            LOG_INFO("VM", "Loading native module: " << moduleName);
 
             // Define all native functions from the module into this VM's globals
             for (const auto& [name, func] : it->second.functions)
@@ -695,7 +702,9 @@ namespace pg
                 }
             }
 
+            LOG_INFO("VM", "Calling init() for module: " << moduleName);
             it->second.init(this);
+            LOG_INFO("VM", "Finished init() for module: " << moduleName);
 
             return true;
         }

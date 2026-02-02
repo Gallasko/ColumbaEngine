@@ -43,6 +43,7 @@ namespace
 
 // Include for the vm setup
 #include "Compiler/vm.h"
+#include "ecsnativemodule.h"
 #include "Helpers/mathmodule.h"
 #include "Helpers/algorithmmodule.h"
 #include "Helpers/stringmodule.h"
@@ -539,10 +540,10 @@ namespace pg
         vm.addNativeModule("algorithm", AlgorithmModule{});
         vm.addNativeModule("string", StringModule{});
         vm.addNativeModule("file", FileModule{});
+        vm.addNativeModule("ecs", EcsCompiledModule{this});
 
 #ifndef PG_MINIMAL_BUILD
         vm.addNativeModule("random", RandomModule{});
-        vm.addNativeModule("ecs", EcsCompiledModule{this});
         vm.addNativeModule("texture", TextureModule{this});
         vm.addNativeModule("ui", UIModule{this});
 
