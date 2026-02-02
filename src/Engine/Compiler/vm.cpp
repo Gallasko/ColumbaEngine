@@ -2732,6 +2732,11 @@ namespace pg
         // Convert ElementType to string for lookup (assuming ElementType has toString() or similar)
         std::string stringContent = element.toString();
 
+        return createString(stringContent);
+    }
+
+    Value VM::createString(const std::string& stringContent)
+    {
         // Small string optimization: inline strings with 5 or fewer characters
         if (stringContent.length() <= 5)
         {

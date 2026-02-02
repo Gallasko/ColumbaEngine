@@ -125,7 +125,7 @@ namespace pg
 
         virtual void init(VM* vm) const override
         {
-            LOG_INFO("EcsCompiledModule", "Initializing ECS module - creating __StandardSysClass");
+            LOG_MILE("EcsCompiledModule", "Initializing ECS module - creating __StandardSysClass");
 
             auto klass = vm->createClass("__StandardSysClass");
 
@@ -155,9 +155,9 @@ namespace pg
                 ObjVector* components = vm->asVector(componentsVec);
 
                 // Add component name to the list
-                components->fields.push_back(vm->createString(ElementType{componentName}));
+                components->fields.push_back(vm->createString(componentName));
 
-                LOG_INFO("StandardSysClass", "Added component '" << componentName << "' to system");
+                LOG_MILE("StandardSysClass", "Added component '" << componentName << "' to system");
 
                 // Return self for chaining
                 return vm->retainValue(args[0]);
@@ -172,7 +172,7 @@ namespace pg
 
                 ObjInstance* self = vm->asInstance(args[0]);
 
-                if (!IS_STRING(args[1]))
+                if (not IS_STRING(args[1]))
                 {
                     throw std::runtime_error("onInit expects a string script path");
                 }
@@ -180,7 +180,7 @@ namespace pg
                 // Store the script path
                 self->fields["__initScript"] = vm->retainValue(args[1]);
 
-                LOG_INFO("StandardSysClass", "Set init script: " << vm->asString(args[1]));
+                LOG_MILE("StandardSysClass", "Set init script: " << vm->asString(args[1]));
 
                 // Return self for chaining
                 return vm->retainValue(args[0]);
@@ -195,7 +195,7 @@ namespace pg
 
                 ObjInstance* self = vm->asInstance(args[0]);
 
-                if (!IS_STRING(args[1]))
+                if (not IS_STRING(args[1]))
                 {
                     throw std::runtime_error("onExecute expects a string script path");
                 }
@@ -203,7 +203,7 @@ namespace pg
                 // Store the script path
                 self->fields["__executeScript"] = vm->retainValue(args[1]);
 
-                LOG_INFO("StandardSysClass", "Set execute script: " << vm->asString(args[1]));
+                LOG_MILE("StandardSysClass", "Set execute script: " << vm->asString(args[1]));
 
                 // Return self for chaining
                 return vm->retainValue(args[0]);
@@ -218,7 +218,7 @@ namespace pg
 
                 ObjInstance* self = vm->asInstance(args[0]);
 
-                if (!IS_STRING(args[1]))
+                if (not IS_STRING(args[1]))
                 {
                     throw std::runtime_error("onDelta expects a string script path");
                 }
@@ -226,7 +226,7 @@ namespace pg
                 // Store the script path
                 self->fields["__deltaScript"] = vm->retainValue(args[1]);
 
-                LOG_INFO("StandardSysClass", "Set delta script: " << vm->asString(args[1]));
+                LOG_MILE("StandardSysClass", "Set delta script: " << vm->asString(args[1]));
 
                 // Return self for chaining
                 return vm->retainValue(args[0]);
@@ -241,12 +241,12 @@ namespace pg
 
                 ObjInstance* self = vm->asInstance(args[0]);
 
-                if (!IS_STRING(args[1]))
+                if (not IS_STRING(args[1]))
                 {
                     throw std::runtime_error("onEvent expects event name to be a string");
                 }
 
-                if (!IS_STRING(args[2]))
+                if (not IS_STRING(args[2]))
                 {
                     throw std::runtime_error("onEvent expects a string script path");
                 }
@@ -261,12 +261,12 @@ namespace pg
                 // Store as a pair: [eventName, scriptPath]
                 Value pair = vm->createVector();
                 ObjVector* pairVec = vm->asVector(pair);
-                pairVec->fields.push_back(vm->createString(ElementType{eventName}));
-                pairVec->fields.push_back(vm->createString(ElementType{scriptPath}));
+                pairVec->fields.push_back(vm->createString(eventName));
+                pairVec->fields.push_back(vm->createString(scriptPath));
 
                 eventScripts->fields.push_back(pair);
 
-                LOG_INFO("StandardSysClass", "Set event script for '" << eventName << "': " << scriptPath);
+                LOG_MILE("StandardSysClass", "Set event script for '" << eventName << "': " << scriptPath);
 
                 // Return self for chaining
                 return vm->retainValue(args[0]);
@@ -285,7 +285,7 @@ namespace pg
                 std::string systemName = vm->asString(self->fields["__systemName"]);
 
                 ObjVector* componentsVec = vm->asVector(self->fields["__components"]);
-                ObjVector* eventsVec = vm->asVector(self->fields["__events"]);
+                // ObjVector* eventsVec = vm->asVector(self->fields["__events"]);
 
                 // Convert component names to vector
                 std::vector<std::string> componentNames;
@@ -346,7 +346,7 @@ namespace pg
 
             vm->globals["__StandardSysClass"] = vm->retainValue(klass);
 
-            LOG_INFO("EcsCompiledModule", "__StandardSysClass registered in VM globals");
+            LOG_MILE("EcsCompiledModule", "__StandardSysClass registered in VM globals");
         }
 
         EcsCompiledModule(EntitySystem *ecsRef) : ecsRef(ecsRef)
@@ -384,7 +384,7 @@ namespace pg
 
                     auto entityId = AS_INT(idValue);
 
-                    LOG_INFO("Ecs Compiled Module", "Removing entity with id " << entityId);
+                    LOG_MILE("Ecs Compiled Module", "Removing entity with id " << entityId);
 
                     ecsRefCopy->removeEntity(entityId);
                     return args[0];
@@ -407,7 +407,7 @@ namespace pg
                 auto entityId = AS_INT(args[0]);
                 auto entity = ecsRefCopy->getEntity(entityId);
 
-                if (!entity)
+                if (not entity)
                 {
                     throw std::runtime_error("Entity with id " + std::to_string(entityId) + " not found");
                 }
@@ -468,7 +468,7 @@ namespace pg
                     }
                 }
 
-                LOG_INFO("Ecs Compiled Module", "Sending event: " << eventName);
+                LOG_MILE("Ecs Compiled Module", "Sending event: " << eventName);
                 ecsRefCopy->sendEvent(event);
 
                 return makeIntValue(0);
@@ -495,7 +495,7 @@ namespace pg
                     }
 
                     auto idValue = instance->fields.at("__entityId");
-                    if (!IS_INT(idValue))
+                    if (not IS_INT(idValue))
                     {
                         throw std::runtime_error("attachComponent: __entityId must be an integer");
                     }
@@ -507,7 +507,7 @@ namespace pg
                 }
 
                 // Get component name
-                if (!IS_STRING(args[1]))
+                if (not IS_STRING(args[1]))
                 {
                     throw std::runtime_error("attachComponent expects second argument to be component name (string)");
                 }
@@ -515,7 +515,7 @@ namespace pg
 
                 // Get the entity
                 auto entity = ecsRefCopy->getEntity(entityId);
-                if (!entity)
+                if (not entity)
                 {
                     throw std::runtime_error("attachComponent: entity with ID " + std::to_string(entityId) + " not found");
                 }
@@ -531,7 +531,7 @@ namespace pg
                         throw std::runtime_error("attachComponent expects key-value pairs for component properties");
                     }
 
-                    if (!IS_STRING(args[i]))
+                    if (not IS_STRING(args[i]))
                     {
                         throw std::runtime_error("attachComponent expects string keys for properties");
                     }
@@ -586,7 +586,7 @@ namespace pg
                         }
                     }
 
-                    LOG_INFO("Ecs Compiled Module", "Attached StandardComponent '" << componentName
+                    LOG_MILE("Ecs Compiled Module", "Attached StandardComponent '" << componentName
                              << "' to entity " << entityId << " with " << properties.size() << " properties");
 
                     return makeBoolValue(true);
@@ -624,7 +624,7 @@ namespace pg
                 ObjInstance* systemInstance = vm->asInstance(inst);
 
                 // Store system name
-                systemInstance->fields["__systemName"] = vm->createString(ElementType{systemName});
+                systemInstance->fields["__systemName"] = vm->createString(systemName);
 
                 // Create lists to store component names and event names
                 Value componentsVector = vm->createVector();
@@ -634,12 +634,12 @@ namespace pg
                 systemInstance->fields["__events"] = eventsVector;
 
                 // Create fields for script paths (stored as strings)
-                systemInstance->fields["__initScript"] = vm->createString(ElementType{""});
-                systemInstance->fields["__executeScript"] = vm->createString(ElementType{""});
-                systemInstance->fields["__deltaScript"] = vm->createString(ElementType{""});
+                systemInstance->fields["__initScript"] = vm->createString("");
+                systemInstance->fields["__executeScript"] = vm->createString("");
+                systemInstance->fields["__deltaScript"] = vm->createString("");
                 systemInstance->fields["__eventScripts"] = vm->createVector(); // Vector of [eventName, scriptPath] pairs
 
-                LOG_INFO("Ecs Compiled Module", "Created system builder for '" << systemName << "'");
+                LOG_MILE("Ecs Compiled Module", "Created system builder for '" << systemName << "'");
 
                 return inst;
             });

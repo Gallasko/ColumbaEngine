@@ -407,6 +407,8 @@ namespace pg
 
         // Create new heap objects and return tracked Values
         Value createString(const ElementType& element);
+        Value createString(const std::string& stringContent);
+        Value createString(const char* cstr) { return createString(std::string(cstr)); }
         Value createClosure(ObjFunction* function);
         Value createFunction();
         Value createUpvalue(Value* slot);
@@ -684,8 +686,6 @@ namespace pg
                 return false;
             }
 
-            LOG_INFO("VM", "Loading native module: " << moduleName);
-
             // Define all native functions from the module into this VM's globals
             for (const auto& [name, func] : it->second.functions)
             {
@@ -702,9 +702,7 @@ namespace pg
                 }
             }
 
-            LOG_INFO("VM", "Calling init() for module: " << moduleName);
             it->second.init(this);
-            LOG_INFO("VM", "Finished init() for module: " << moduleName);
 
             return true;
         }

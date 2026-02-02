@@ -1,0 +1,7 @@
+import "ecs"
+
+print("Initializing game...")
+
+var asteroidSys = createSystem("AsteroidSystem")
+
+asteroidSys.ownComponent("Asteroid").onEvent("SpawnAsteroid", "res/asteroid/spawn_single_asteroid.pg").onDelta("res/asteroid/update_asteroids.pg").build();
