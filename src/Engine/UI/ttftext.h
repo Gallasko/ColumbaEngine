@@ -20,11 +20,6 @@ namespace pg
         std::vector<RenderCall> calls;
     };
 
-    struct TTFTextResizeEvent
-    {
-        _unique_id id;
-    };
-
     struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<PositionComponent>,
         Listener<PositionComponentChangedEvent>, Listener<TTFTextChangedEvent>, InitSys>
     {

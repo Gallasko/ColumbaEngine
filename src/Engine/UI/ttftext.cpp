@@ -585,7 +585,8 @@ namespace pg
             i++;
         }
         // Flush remaining text.
-        if (not currentSegment.empty()) {
+        if (not currentSegment.empty())
+        {
             TTFText seg = original;
             seg.text = currentSegment;
             seg.colors = currentColor;

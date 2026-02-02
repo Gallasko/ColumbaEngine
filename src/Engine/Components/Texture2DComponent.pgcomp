@@ -1,0 +1,45 @@
+name: Texture2DComponent
+namespace: pg
+base_class: Component
+
+includes:
+  - <string>
+  - "ECS/system.h"
+  - "pgconstant.h"
+
+fields:
+  - name: textureName
+    type: std::string
+    default: ""
+    setter: event
+
+  - name: opacity
+    type: float
+    default: 1.0f
+    setter: event
+
+  - name: overlappingColor
+    type: constant::Vector3D
+    default: "{0.0f, 0.0f, 0.0f}"
+    setter: event
+
+  - name: overlappingColorRatio
+    type: float
+    default: 0.0f
+    setter: event
+
+  - name: viewport
+    type: size_t
+    default: 0
+    setter: event
+
+methods:
+  - "void setTexture(const std::string& textureName);"
+  - "void setOverlappingColor(const constant::Vector3D& color, float ratio);"
+
+constructors:
+  - params: [textureName, viewport]
+    defaults: {viewport: 0}
+
+events:
+  - TextureChangedEvent
