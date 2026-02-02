@@ -408,7 +408,7 @@ namespace pg
         // Load all native modules that were imported during compilation
         for (const std::string& moduleName : chunk.importedModules)
         {
-            if (!loadNativeModule(moduleName))
+            if (not loadNativeModule(moduleName))
             {
                 LOG_WARNING("VM", "Failed to load imported module '" << moduleName << "' from bytecode file");
             }
@@ -453,7 +453,7 @@ namespace pg
         std::istringstream bytecodeStream(std::string(cachedBytecode.begin(), cachedBytecode.end()), std::ios::binary);
 
         Chunk chunk;
-        if (!ChunkSerializer::deserialize(chunk, bytecodeStream, this))
+        if (not ChunkSerializer::deserialize(chunk, bytecodeStream, this))
         {
             LOG_ERROR("VM", "Failed to deserialize cached bytecode");
             return InterpretResult::COMPILE_ERROR;
@@ -462,7 +462,7 @@ namespace pg
         // Load all native modules that were imported during compilation
         for (const std::string& moduleName : chunk.importedModules)
         {
-            if (!loadNativeModule(moduleName))
+            if (not loadNativeModule(moduleName))
             {
                 LOG_WARNING("VM", "Failed to load imported module '" << moduleName << "' from cached bytecode");
             }
@@ -3565,10 +3565,6 @@ namespace pg
         {
             LOG_INFO("VM", "Post-import global: " << global.first);
         }
-
-        // Placeholder: Module import not yet implemented
-        // vm->runtimeError("Module import not yet implemented: '" + moduleName + "'");
-        // vm->vm_return(InterpretResult::RUNTIME_ERROR);
     }
 
     void VM::printAllFunctionsBytecodeWithPerformance()
