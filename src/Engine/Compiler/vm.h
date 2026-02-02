@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <setjmp.h>
 
+#include "ECS/uniqueid.h"
+
 #ifdef DEBUG_RUNTIME_MEMORY
 #include <iostream>
 #endif
@@ -150,6 +152,19 @@ namespace pg
 
             // Clear the interned strings map
             pools.internedStrings.clear();
+
+            // Clear the custom pointer pool
+            // Todo add a flag when registering a custom pointer type to indicate if VM should free them
+            // for (auto& [typeId, ptrList] : pools.customPointerPool)
+            // {
+            //     for (void* ptr : ptrList)
+            //     {
+            //         // User is responsible for freeing custom pointers if needed
+            //         // Here we just clear the pool
+            //     }
+            // }
+
+            pools.customPointerPool.clear();
         }
 
         void reset()
@@ -163,7 +178,7 @@ namespace pg
             globals.clear();
 
             // Clean up any remaining Values on the stack
-            while (!stack.empty())
+            while (not stack.empty())
             {
                 auto value = stack.pop();
                 releaseAndDelete(value);
@@ -378,8 +393,15 @@ namespace pg
         inline ObjBoundMethod* asBoundMethod(Value v) { return pools.getBoundMethod(v); }
         inline ObjVector* asVector(Value v)           { return pools.getVector(v); }
 
+        template <typename Type>
+        inline Type* asCustomPtr(Value v)
+        {
+            return static_cast<Type*>(pools.getCustomPointer(v));
+        }
+
         // Helper to get string content from either long or small strings
-        inline std::string asString(Value v) {
+        inline std::string asString(Value v)
+        {
             return IS_SMALL_STRING(v) ? AS_SMALL_STRING(v) : asStringPtr(v)->toString();
         }
 
@@ -392,6 +414,21 @@ namespace pg
         Value createInstance(Klass* klass);
         Value createBoundMethod(const Value& receiver, Closure* method);
         Value createVector();
+
+        template <typename Type>
+        Value createCustomPtr(Type* ptr)
+        {
+            const auto& id = getTypeId<Type>();
+
+            auto& pool = pools.customPointerPool[id];
+            pool.push_back(static_cast<void*>(ptr));
+
+            uint32_t index = static_cast<uint32_t>(pool.size() - 1);
+
+            Value val = makeCustomPtrValue(id, index);
+
+            return val;
+        }
 
         // Convert between Value and ElementType
         Value elementToValue(const ElementType& element);
@@ -622,6 +659,39 @@ namespace pg
             return true;
         }
 
+        template <typename Type>
+        _unique_id getGlobalGenericId() const noexcept
+        {
+            static const _unique_id id = globalIdGenerator.generateId();
+            return id;
+        }
+
+        template <typename Type>
+        _unique_id getTypeId() const noexcept
+        {
+            auto globalId = getGlobalGenericId<Type>();
+
+            auto it = idMap.find(globalId);
+
+            // Todo add a variable to keep track of the running state of the ECS
+            if (it == idMap.end())
+            {
+                LOG_MILE("ID", "Generating a new id (in compiler) for " << typeid(Type).name());
+
+                return idMap[globalId] = idGenerator.generateId();
+            }
+
+            return it->second;
+
+            // This can't work as the static make this id the same through all the different object
+            // static const _unique_id id = idGenerator.generateId();
+            // return id;
+        }
+
+        static UniqueIdGenerator globalIdGenerator;
+        mutable UniqueIdGenerator idGenerator;
+        mutable std::unordered_map<_unique_id, _unique_id> idMap;
+
         // Test helper: Set up VM with a specific chunk for testing
         void setupTestChunk(const Chunk& chunk)
         {
@@ -665,7 +735,7 @@ namespace pg
     inline Value VM::retainValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need refcounting
-        if (!requiresRefCount(v))
+        if (not requiresRefCount(v))
             return v;
 
         // Constants are never ref-counted (they live forever in the constant table)
@@ -676,7 +746,8 @@ namespace pg
         uint32_t index = GET_INDEX(v);
         auto& refCounts = pools.getRefCountVector(v);
 
-        if (index < refCounts.size()) {
+        if (index < refCounts.size())
+        {
             refCounts[index]++;
 
 #ifdef DEBUG_RUNTIME_MEMORY
@@ -690,7 +761,7 @@ namespace pg
     inline bool VM::releaseValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need cleanup
-        if (!requiresRefCount(v))
+        if (not requiresRefCount(v))
             return false;
 
         // Constants are never released (they live forever in the constant table)
@@ -701,12 +772,13 @@ namespace pg
         uint32_t index = GET_INDEX(v);
         auto& refCounts = pools.getRefCountVector(v);
 
-        if (index >= refCounts.size() || refCounts[index] == 0)
+        if (index >= refCounts.size() or refCounts[index] == 0)
             return false;
 
         refCounts[index]--;
 
-        if (refCounts[index] == 0) {
+        if (refCounts[index] == 0)
+        {
 #ifdef DEBUG_RUNTIME_MEMORY
             std::cout << "Releasing " << valueTypeName(v) << "[" << index << "]" << std::endl;
 #endif
@@ -719,7 +791,7 @@ namespace pg
     inline Value VM::trackNewValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need tracking
-        if (!requiresRefCount(v))
+        if (not requiresRefCount(v))
             return v;
 
         // For newly created objects, start with refcount=1
