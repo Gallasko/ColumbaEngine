@@ -304,17 +304,32 @@ namespace pg
 
         // Check if we're accessing from within a method of the same instance
         // If so, bypass metamethods and do direct field access
+        //
+        // IMPORTANT: We only want to bypass metamethods when the property is being set
+        // from within a METHOD of the same instance, not from external code.
+        // The key insight: when a method is called via callBound(), frame->slots points
+        // to the receiver. But we need to distinguish this from the global script context.
+        //
+        // Solution: Check if the current frame's stackBase points to its slots.
+        // For bound methods: stackBase == slots (both point to receiver)
+        // For regular functions/scripts: stackBase != slots
         bool isInternalAccess = false;
-        if (vm->frameCount > 0)
+        if (vm->frameCount > 1)  // Must be at least 2 frames (script + method)
         {
-            // Check if slots[0] (the receiver of the current method) is the same instance
-            Value currentReceiver = vm->currentFrame->slots[0];
-            Value accessedInstance = vm->peek(1);
+            // Check if current frame is a bound method call
+            // In callBound(), stackBase is set to slots (see vm_helpers.cpp:222)
+            bool isBoundMethodContext = (vm->currentFrame->stackBase == vm->currentFrame->slots);
 
-            // Compare the Value directly - they're the same instance if the values are equal
-            if (IS_INSTANCE(currentReceiver) and currentReceiver == accessedInstance)
+            if (isBoundMethodContext)
             {
-                isInternalAccess = true;
+                Value currentReceiver = vm->currentFrame->slots[0];
+                Value accessedInstance = vm->peek(1);
+
+                // Only bypass if we're accessing the same instance that's the receiver
+                if (IS_INSTANCE(currentReceiver) and currentReceiver == accessedInstance)
+                {
+                    isInternalAccess = true;
+                }
             }
         }
 

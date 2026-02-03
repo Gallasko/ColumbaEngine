@@ -11,7 +11,7 @@ class ProxyClass {
 // Create a native function to act as __set
 fun createSetMethod() {
     return fun(self, propName, value) {
-        __dprint("__set called: " + propName + " = " + __toString(value))
+        __dprint("__set called: " + propName + " = " + toString(value))
         return value
     }
 }
