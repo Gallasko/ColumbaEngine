@@ -302,27 +302,47 @@ namespace pg
 
         auto nameStr = name.toString();
 
+        // Check if we're accessing from within a method of the same instance
+        // If so, bypass metamethods and do direct field access
+        bool isInternalAccess = false;
+        if (vm->frameCount > 0)
+        {
+            // Check if slots[0] (the receiver of the current method) is the same instance
+            Value currentReceiver = vm->currentFrame->slots[0];
+            Value accessedInstance = vm->peek(1);
+
+            // Compare the Value directly - they're the same instance if the values are equal
+            if (IS_INSTANCE(currentReceiver) and currentReceiver == accessedInstance)
+            {
+                isInternalAccess = true;
+            }
+        }
+
         // Check for __set metamethod in class methods OR instance fields
         Value setMethod;
         bool hasSetMethod = false;
         bool isDynamicSet = false;
 
-        // First check class methods
-        auto setMetaIt = instance->klass->methods.find("__set");
-        if (setMetaIt != instance->klass->methods.end())
+        // Only check for metamethods if this is NOT an internal access
+        if (not isInternalAccess)
         {
-            setMethod = setMetaIt->second;
-            hasSetMethod = true;
-        }
-        else
-        {
-            // Also check instance fields for __set (for dynamic metamethods)
-            auto fieldIt = instance->fields.find("__set");
-            if (fieldIt != instance->fields.end())
+            // First check class methods
+            auto setMetaIt = instance->klass->methods.find("__set");
+            if (setMetaIt != instance->klass->methods.end())
             {
-                setMethod = fieldIt->second;
+                setMethod = setMetaIt->second;
                 hasSetMethod = true;
-                isDynamicSet = true;
+            }
+            else
+            {
+                // Also check instance fields for __set (for dynamic metamethods)
+                auto fieldIt = instance->fields.find("__set");
+                if (fieldIt != instance->fields.end())
+                {
+                    setMethod = fieldIt->second;
+                    hasSetMethod = true;
+                    isDynamicSet = true;
+                }
             }
         }
 

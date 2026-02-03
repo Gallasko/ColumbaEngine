@@ -1,0 +1,39 @@
+import "string"
+
+class Test
+{
+    init()
+    {
+        this.data = {};
+    }
+
+    __get(key)
+    {
+        __dprint("__get[" + key + "] called");
+
+        if (key == "first")
+        {
+            return 10;
+        }
+        else if (key == "second")
+        {
+            return 20;
+        }
+        else
+        {
+            __dprint("Unknown key accessed: " + key);
+            return 0;
+        }
+    }
+}
+
+var testInstance = Test();
+
+// Test index access via bracket notation
+var a = testInstance["first"];
+var b = testInstance["second"];
+var c = testInstance["third"];
+
+__dprint("a = " + toString(a)); // Should print 10
+__dprint("b = " + toString(b)); // Should print 20
+__dprint("c = " + toString(c)); // Should print 0

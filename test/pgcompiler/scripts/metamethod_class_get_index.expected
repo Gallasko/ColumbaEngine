@@ -1,0 +1,7 @@
+__get[first] called
+__get[second] called
+__get[third] called
+Unknown key accessed: third
+a = 10
+b = 20
+c = 0

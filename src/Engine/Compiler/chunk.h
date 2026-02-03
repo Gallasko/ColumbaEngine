@@ -133,11 +133,11 @@ namespace pg
             if (a == b) return true;
 
             // For non-string types, only bit pattern equality matters
-            if (!IS_STRING(a) || !IS_STRING(b))
+            if (not IS_STRING(a) or not IS_STRING(b))
                 return false;
 
             // If no string pool available, can only compare bit patterns
-            if (!stringPool)
+            if (not stringPool)
                 return false;
 
             // Compare actual string content
@@ -145,13 +145,13 @@ namespace pg
             uint32_t indexB = AS_STRING_INDEX(b);
 
             // Bounds check
-            if (indexA >= stringPool->getNbElements() || indexB >= stringPool->getNbElements())
+            if (indexA >= stringPool->getNbElements() or indexB >= stringPool->getNbElements())
                 return false;
 
             auto strA = stringPool->getElement(indexA);
             auto strB = stringPool->getElement(indexB);
 
-            if (!strA || !strB)
+            if (not strA or not strB)
                 return false;
 
             return strA->toString() == strB->toString();
@@ -281,7 +281,7 @@ namespace pg
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
-            case OpCode::OP_Define_Global_Non_Popping: 
+            case OpCode::OP_Define_Global_Non_Popping:
             case OpCode::OP_Get_Global:
             case OpCode::OP_Set_Global:
             case OpCode::OP_Return:

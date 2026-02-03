@@ -1,0 +1,7 @@
+__set[x] = 42
+Setting property: x
+__set[name] = Alice
+Setting property: name
+__set[active] = true
+Setting property: active
+Done setting via brackets
