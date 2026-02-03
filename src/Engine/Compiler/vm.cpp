@@ -2478,28 +2478,66 @@ namespace pg
             return;
         }
 
-        // Check for __get metamethod before trying methods
+        // Check for __get metamethod in class methods OR instance fields
+        Value getMethod;
+        bool hasGetMethod = false;
+        bool isDynamicGet = false;
+
+        // First check class methods
         auto getMetaIt = instance->klass->methods.find("__get");
         if (getMetaIt != instance->klass->methods.end())
         {
-            // Call __get(instance, propertyName)
-            Value getMethod = getMetaIt->second;
+            getMethod = getMetaIt->second;
+            hasGetMethod = true;
+        }
+        else
+        {
+            // Also check instance fields for __get (for dynamic metamethods)
+            auto fieldIt = instance->fields.find("__get");
+            if (fieldIt != instance->fields.end())
+            {
+                getMethod = fieldIt->second;
+                hasGetMethod = true;
+                isDynamicGet = true;
+            }
+        }
 
+        if (hasGetMethod and (IS_CLOSURE(getMethod) or IS_NAT_FUNC(getMethod)))
+        {
+            // Call __get(instance, propertyName)
             if (IS_CLOSURE(getMethod))
             {
                 // Push property name as argument
                 vm->push(nameValue);
 
-                // Call the __get method (instance is already on stack)
-                if (vm->callValue(getMethod, 1))
+                if (isDynamicGet)
                 {
-                    return; // Success, result is on stack
+                    // Call the __get method as a closure with stack [inst, val]
+                    if (not vm->call(vm->asClosure(getMethod), 2))
+                    {
+                        vm->runtimeError("Cannot call __get metamethod.");
+                        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                        return;
+                    }
+
                 }
                 else
                 {
-                    vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                    return;
+                    // Call the __get method as a bound method (instance is already on stack)
+                    if (not vm->callBound(vm->asClosure(getMethod), 1))
+                    {
+                        vm->runtimeError("Cannot call __get metamethod.");
+                        vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                        return;
+                    }
                 }
+
+                // No need to pop the values as callValue handles that
+
+                // Function has been called, frame is set up with stackBase pointing to where to truncate on return
+                vm->currentFrame = &vm->frames[vm->frameCount - 1];
+                vm->updateChunkCache(); // Update cached chunk data for new frame
+                return;
             }
             else if (IS_NAT_FUNC(getMethod))
             {
@@ -2555,12 +2593,31 @@ namespace pg
 
         auto nameStr = name.toString();
 
-        // Check for __set metamethod first
+        // Check for __set metamethod in class methods OR instance fields
+        Value setMethod;
+        bool hasSetMethod = false;
+
+        // First check class methods
         auto setMetaIt = instance->klass->methods.find("__set");
         if (setMetaIt != instance->klass->methods.end())
         {
+            setMethod = setMetaIt->second;
+            hasSetMethod = true;
+        }
+        else
+        {
+            // Also check instance fields for __set (for dynamic metamethods)
+            auto fieldIt = instance->fields.find("__set");
+            if (fieldIt != instance->fields.end())
+            {
+                setMethod = fieldIt->second;
+                hasSetMethod = true;
+            }
+        }
+
+        if (hasSetMethod)
+        {
             // Call __set(instance, propertyName, value)
-            Value setMethod = setMetaIt->second;
 
             if (IS_CLOSURE(setMethod))
             {
