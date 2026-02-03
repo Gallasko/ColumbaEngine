@@ -1,0 +1,3 @@
+realField = 999
+__get called for: fakeField
+fakeField = -1

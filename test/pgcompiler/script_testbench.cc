@@ -898,6 +898,40 @@ TEST_F(ScriptTestBench, AdventOfCode2025Day3Part2)
 //     testScriptError("testFuncFailed", InterpretResult::RUNTIME_ERROR);
 // }
 
+// ============================================================================
+// Metamethod Tests (__get and __set)
+// ============================================================================
+
+TEST_F(ScriptTestBench, MetamethodGetBasic)
+{
+    testScript("metamethod_get_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodSetBasic)
+{
+    testScript("metamethod_set_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodGetIndex)
+{
+    testScript("metamethod_get_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodSetIndex)
+{
+    testScript("metamethod_set_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodFieldsPriority)
+{
+    testScript("metamethod_fields_priority");
+}
+
+TEST_F(ScriptTestBench, MetamethodProxySimulation)
+{
+    testScript("metamethod_proxy_simulation");
+}
+
 } // namespace test
 } // namespace pg
 

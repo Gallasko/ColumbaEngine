@@ -1,0 +1,6 @@
+__get called with property: x
+__get called with property: y
+__get called with property: z
+x = 100
+y = 200
+z = -1

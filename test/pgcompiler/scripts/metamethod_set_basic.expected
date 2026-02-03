@@ -1,0 +1,4 @@
+__set called: x = 100
+__set called: y = 200
+__set called: name = test
+Done setting properties

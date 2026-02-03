@@ -2478,6 +2478,49 @@ namespace pg
             return;
         }
 
+        // Check for __get metamethod before trying methods
+        auto getMetaIt = instance->klass->methods.find("__get");
+        if (getMetaIt != instance->klass->methods.end())
+        {
+            // Call __get(instance, propertyName)
+            Value getMethod = getMetaIt->second;
+
+            if (IS_CLOSURE(getMethod))
+            {
+                // Push property name as argument
+                vm->push(nameValue);
+
+                // Call the __get method (instance is already on stack)
+                if (vm->callValue(getMethod, 1))
+                {
+                    return; // Success, result is on stack
+                }
+                else
+                {
+                    vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                    return;
+                }
+            }
+            else if (IS_NAT_FUNC(getMethod))
+            {
+                auto* native = vm->asNativeFunc(getMethod);
+
+                // Call native __get(instance, propertyName)
+                // Stack: [instance] -> args[0]=instance, args[1]=propertyName
+                vm->push(nameValue);  // Push property name
+                Value result = native->function(vm, 2, vm->stack.data() + vm->stack.size() - 2);
+
+                // Remove arguments from stack
+                auto propName = vm->pop();
+                auto inst = vm->pop();
+                vm->releaseAndDelete(propName);
+                vm->releaseAndDelete(inst);
+
+                vm->push(result);
+                return;
+            }
+        }
+
         // Try to find a method in the class
         if (not bindMethod(vm, instance->klass, nameStr))
         {
@@ -2510,17 +2553,76 @@ namespace pg
             return;
         }
 
+        auto nameStr = name.toString();
+
+        // Check for __set metamethod first
+        auto setMetaIt = instance->klass->methods.find("__set");
+        if (setMetaIt != instance->klass->methods.end())
+        {
+            // Call __set(instance, propertyName, value)
+            Value setMethod = setMetaIt->second;
+
+            if (IS_CLOSURE(setMethod))
+            {
+                // Stack is currently: [instance, value]
+                // We need: [instance, propertyName, value]
+                Value value = vm->pop();     // Pop value
+                // instance is still on stack
+
+                vm->push(nameValue);  // Push property name
+                vm->push(value);      // Push value
+
+                // Call __set(instance, propertyName, value)
+                if (vm->callValue(setMethod, 2))
+                {
+                    // __set was called successfully, result is on stack
+                    return;
+                }
+                else
+                {
+                    vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                    return;
+                }
+            }
+            else if (IS_NAT_FUNC(setMethod))
+            {
+                auto* native = vm->asNativeFunc(setMethod);
+
+                // Stack: [instance, value]
+                // Call native __set(instance, propertyName, value)
+                Value value = vm->peek(0);  // Get value (keep on stack)
+
+                vm->push(nameValue);  // Push property name
+                vm->push(value);      // Push value again
+
+                // Now stack: [instance, value, propertyName, value]
+                // Call with args[0]=instance, args[1]=propertyName, args[2]=value
+                Value result = native->function(vm, 3, vm->stack.data() + vm->stack.size() - 4);
+
+                // Clean up stack: remove [value, propertyName, value]
+                vm->pop(); // value (duplicate)
+                vm->pop(); // propertyName
+                vm->pop(); // value (original)
+                auto inst = vm->pop(); // instance
+                vm->releaseAndDelete(inst);
+
+                vm->push(result); // Push result (usually the value that was set)
+                return;
+            }
+        }
+
+        // No __set metamethod, do normal field assignment
         auto value = vm->pop(); // Value to set
         auto inst = vm->pop(); // Instance
         vm->releaseAndDelete(inst);
 
         // Todo maybe fix
-        if (instance->fields.find(name.toString()) != instance->fields.end())
+        if (instance->fields.find(nameStr) != instance->fields.end())
         {
-            vm->releaseAndDelete(instance->fields[name.toString()]);
+            vm->releaseAndDelete(instance->fields[nameStr]);
         }
 
-        instance->fields[name.toString()] = vm->retainValue(value);
+        instance->fields[nameStr] = vm->retainValue(value);
         vm->push(value);
     }
 
@@ -3133,19 +3235,54 @@ namespace pg
             return;
         }
 
+        // Look up in fields map first
+        auto it = inst->fields.find(key);
+        if (it != inst->fields.end())
+        {
+            vm->releaseAndDelete(index);
+            vm->releaseAndDelete(target);
+            vm->push(vm->retainValue(it->second));
+            return;
+        }
+
+        // Check for __get metamethod if property not found in fields
+        if (inst->klass)
+        {
+            auto getMetaIt = inst->klass->methods.find("__get");
+            if (getMetaIt != inst->klass->methods.end())
+            {
+                Value getMethod = getMetaIt->second;
+
+                if (IS_NAT_FUNC(getMethod))
+                {
+                    auto* native = vm->asNativeFunc(getMethod);
+
+                    // Call __get(instance, key)
+                    // Stack setup: args[0]=instance, args[1]=key
+                    Value keyValue = vm->createString(ElementType{key});
+
+                    vm->push(target);   // Push instance
+                    vm->push(keyValue); // Push key as string
+
+                    Value result = native->function(vm, 2, vm->stack.data() + vm->stack.size() - 2);
+
+                    // Clean up stack
+                    vm->pop(); // keyValue
+                    vm->pop(); // target
+                    vm->releaseAndDelete(keyValue);
+                    vm->releaseAndDelete(index);
+                    vm->releaseAndDelete(target);
+
+                    vm->push(result);
+                    return;
+                }
+            }
+        }
+
+        // Property not found and no __get metamethod
         vm->releaseAndDelete(index);
         vm->releaseAndDelete(target);
-
-        // Look up in fields map
-        auto it = inst->fields.find(key);
-        if (it == inst->fields.end())
-        {
-            vm->push(BOOL_VAL(false));  // Or NIL_VAL if you have it
-        }
-        else
-        {
-            vm->push(vm->retainValue(it->second));
-        }
+        vm->push(BOOL_VAL(false));  // Or NIL_VAL if you have it
     }
 
     void op_set_index(VM* vm)
@@ -3239,6 +3376,42 @@ namespace pg
 
             vm->releaseAndDelete(index);
 
+            // Check for __set metamethod first
+            if (inst->klass)
+            {
+                auto setMetaIt = inst->klass->methods.find("__set");
+                if (setMetaIt != inst->klass->methods.end())
+                {
+                    Value setMethod = setMetaIt->second;
+
+                    if (IS_NAT_FUNC(setMethod))
+                    {
+                        auto* native = vm->asNativeFunc(setMethod);
+
+                        // Call __set(instance, key, value)
+                        // Stack setup: args[0]=instance, args[1]=key, args[2]=value
+                        Value keyValue = vm->createString(key);
+
+                        vm->push(target);    // Push instance (target still on stack at peek(0))
+                        vm->push(keyValue);  // Push key as string
+                        vm->push(value);     // Push value
+
+                        native->function(vm, 3, vm->stack.data() + vm->stack.size() - 3);
+
+                        // Clean up stack
+                        vm->pop(); // value
+                        vm->pop(); // keyValue
+                        vm->pop(); // target (still on stack at peek(0), don't release twice)
+                        vm->releaseAndDelete(keyValue);
+                        vm->releaseAndDelete(value);
+
+                        // Note: target stays on stack (peek(0)) as per op_set_index contract
+                        return;
+                    }
+                }
+            }
+
+            // No __set metamethod, do normal field assignment
             // Release old value if it exists
             auto it = inst->fields.find(key);
             if (it != inst->fields.end())

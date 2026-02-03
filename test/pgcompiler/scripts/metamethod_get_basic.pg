@@ -1,0 +1,33 @@
+// Test basic __get metamethod functionality
+
+class ProxyClass {
+    init() {
+        // Nothing to initialize
+    }
+}
+
+// Create a native function to act as __get
+fun createGetMethod() {
+    return fun(self, propName) {
+        __dprint("__get called with property: " + propName)
+        if (propName == "x") {
+            return 100
+        }
+        if (propName == "y") {
+            return 200
+        }
+        return -1
+    }
+}
+
+var obj = ProxyClass()
+obj.__get = createGetMethod()
+
+// Test property access via dot notation
+var x = obj.x
+var y = obj.y
+var z = obj.z
+
+__dprint("x = " + __toString(x))
+__dprint("y = " + __toString(y))
+__dprint("z = " + __toString(z))

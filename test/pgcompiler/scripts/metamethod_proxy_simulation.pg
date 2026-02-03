@@ -1,0 +1,53 @@
+// Simulate a component proxy pattern (zero-copy component access)
+
+class ComponentProxy {
+    init(x, y) {
+        // Store internal data
+        this.__data_x = x
+        this.__data_y = y
+    }
+}
+
+// Create __get to intercept property reads
+fun createProxyGet() {
+    return fun(self, prop) {
+        if (prop == "x") {
+            return self.__data_x
+        }
+        if (prop == "y") {
+            return self.__data_y
+        }
+        return 0
+    }
+}
+
+// Create __set to intercept property writes
+fun createProxySet() {
+    return fun(self, prop, value) {
+        __dprint("Setting " + prop + " to " + __toString(value))
+        if (prop == "x") {
+            self.__data_x = value
+        }
+        if (prop == "y") {
+            self.__data_y = value
+        }
+        return value
+    }
+}
+
+// Create component proxy
+var position = ComponentProxy(10, 20)
+position.__get = createProxyGet()
+position.__set = createProxySet()
+
+// Read properties (zero-copy style)
+__dprint("Initial x = " + __toString(position.x))
+__dprint("Initial y = " + __toString(position.y))
+
+// Write properties
+position.x = 100
+position.y = 200
+
+// Read again
+__dprint("Updated x = " + __toString(position.x))
+__dprint("Updated y = " + __toString(position.y))

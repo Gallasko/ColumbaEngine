@@ -1,0 +1,25 @@
+// Test __set metamethod with bracket notation (index access)
+
+class ProxyClass {
+    init() {
+        // Nothing to initialize
+    }
+}
+
+// Create a native function to act as __set
+fun createSetMethod() {
+    return fun(self, key, value) {
+        __dprint("__set[" + key + "] = " + __toString(value))
+        return value
+    }
+}
+
+var obj = ProxyClass()
+obj.__set = createSetMethod()
+
+// Test index setting via bracket notation
+obj["x"] = 42
+obj["name"] = "Alice"
+obj["active"] = true
+
+__dprint("Done setting via brackets")
