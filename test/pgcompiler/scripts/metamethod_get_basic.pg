@@ -1,21 +1,32 @@
+import "string"
+
 // Test basic __get metamethod functionality
 
-class ProxyClass {
-    init() {
-        // Nothing to initialize
+class ProxyClass
+{
+    init()
+    {
+        this.val = 0
     }
 }
 
 // Create a native function to act as __get
-fun createGetMethod() {
+fun createGetMethod()
+{
     return fun(self, propName) {
         __dprint("__get called with property: " + propName)
-        if (propName == "x") {
+
+        if (propName == "x")
+        {
             return 100
         }
-        if (propName == "y") {
+
+        if (propName == "y")
+        {
+            self.val = 10
             return 200
         }
+
         return -1
     }
 }
@@ -23,11 +34,17 @@ fun createGetMethod() {
 var obj = ProxyClass()
 obj.__get = createGetMethod()
 
+__dprint("Initial val = " + toString(obj.val))
+
 // Test property access via dot notation
 var x = obj.x
-var y = obj.y
-var z = obj.z
+__dprint("x = " + toString(x))
+__dprint("val after accessing x = " + toString(obj.val))
 
-__dprint("x = " + __toString(x))
-__dprint("y = " + __toString(y))
-__dprint("z = " + __toString(z))
+var y = obj.y
+__dprint("y = " + toString(y))
+__dprint("val after accessing y = " + toString(obj.val))
+
+var z = obj.z
+__dprint("z = " + toString(z))
+

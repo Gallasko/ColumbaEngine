@@ -586,6 +586,16 @@ namespace pg
                     std::cout << "<instance>";
                 else if (IS_VECTOR(value))
                     std::cout << "<vector>";
+                else if (IS_NAT_FUNC(value))
+                    std::cout << "<native function>";
+                else if (IS_CLOSURE(value))
+                    std::cout << "<closure>";
+                else if (IS_BOUND_METHOD(value))
+                    std::cout << "<bound method>";
+                else if (IS_UPVALUE(value))
+                    std::cout << "<upvalue>";
+                else if (IS_CUSTOM_PTR(value))
+                    std::cout << "<custom pointer>";
                 else
                     std::cout << "<value>";
             }

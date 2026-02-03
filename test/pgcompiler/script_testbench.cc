@@ -902,6 +902,11 @@ TEST_F(ScriptTestBench, AdventOfCode2025Day3Part2)
 // Metamethod Tests (__get and __set)
 // ============================================================================
 
+TEST_F(ScriptTestBench, MetamethodClassGetBasic)
+{
+    testScript("metamethod_class_get_basic");
+}
+
 TEST_F(ScriptTestBench, MetamethodGetBasic)
 {
     testScript("metamethod_get_basic");
