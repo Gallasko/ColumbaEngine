@@ -11,28 +11,39 @@ class ComponentProxy {
 }
 
 // Create __get to intercept property reads
-fun createProxyGet() {
-    return fun(prop) {
-        if (prop == "x") {
+fun createProxyGet()
+{
+    return fun(self, prop) {
+        if (prop == "x")
+        {
             return self.__data_x
         }
-        if (prop == "y") {
+
+        if (prop == "y")
+        {
             return self.__data_y
         }
+
         return 0
     }
 }
 
 // Create __set to intercept property writes
-fun createProxySet() {
+fun createProxySet()
+{
     return fun(self, prop, value) {
         __dprint("Setting " + prop + " to " + toString(value))
-        if (prop == "x") {
+
+        if (prop == "x")
+        {
             self.__data_x = value
         }
-        if (prop == "y") {
+
+        if (prop == "y")
+        {
             self.__data_y = value
         }
+
         return value
     }
 }
@@ -41,6 +52,11 @@ fun createProxySet() {
 var position = ComponentProxy(10, 20)
 position.__get = createProxyGet()
 position.__set = createProxySet()
+
+print("Initial position x: ")
+print(position.x)
+print("Initial position y: ")
+print(position.y)
 
 // Read properties (zero-copy style)
 __dprint("Initial x = " + toString(position.x))

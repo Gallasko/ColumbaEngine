@@ -1,3 +1,5 @@
+import "string"
+
 // Test that real fields take priority over __get metamethod
 
 class ProxyClass {
@@ -19,8 +21,8 @@ obj.__get = createGetMethod()
 
 // Access real field - should NOT call __get
 var real = obj.realField
-__dprint("realField = " + __toString(real))
+__dprint("realField = " + toString(real))
 
 // Access non-existent field - SHOULD call __get
 var fake = obj.fakeField
-__dprint("fakeField = " + __toString(fake))
+__dprint("fakeField = " + toString(fake))
