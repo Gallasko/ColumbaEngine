@@ -1,0 +1,25 @@
+// Test basic __set metamethod functionality
+
+class ProxyClass {
+    init() {
+        // Nothing to initialize
+    }
+}
+
+// Create a native function to act as __set
+fun createSetMethod() {
+    return fun(self, propName, value) {
+        __dprint("__set called: " + propName + " = " + __toString(value))
+        return value
+    }
+}
+
+var obj = ProxyClass()
+obj.__set = createSetMethod()
+
+// Test property setting via dot notation
+obj.x = 100
+obj.y = 200
+obj.name = "test"
+
+__dprint("Done setting properties")

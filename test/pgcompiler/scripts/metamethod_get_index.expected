@@ -1,0 +1,6 @@
+__get[first] called
+__get[second] called
+__get[third] called
+a = 10
+b = 20
+c = 0

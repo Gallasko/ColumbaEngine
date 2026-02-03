@@ -1,0 +1,26 @@
+// Test that real fields take priority over __get metamethod
+
+class ProxyClass {
+    init() {
+        this.realField = 999
+    }
+}
+
+// Create a __get that should NOT be called for real fields
+fun createGetMethod() {
+    return fun(self, propName) {
+        __dprint("__get called for: " + propName)
+        return -1
+    }
+}
+
+var obj = ProxyClass()
+obj.__get = createGetMethod()
+
+// Access real field - should NOT call __get
+var real = obj.realField
+__dprint("realField = " + __toString(real))
+
+// Access non-existent field - SHOULD call __get
+var fake = obj.fakeField
+__dprint("fakeField = " + __toString(fake))
