@@ -1,0 +1,5 @@
+Initial value: 0
+Setting 'example' to: 42
+Value after setting 'example': 42
+Setter called with unknown property: randomProp = 99
+Final value: 42

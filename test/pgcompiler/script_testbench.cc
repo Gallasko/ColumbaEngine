@@ -907,6 +907,11 @@ TEST_F(ScriptTestBench, MetamethodClassGetBasic)
     testScript("metamethod_class_get_basic");
 }
 
+TEST_F(ScriptTestBench, MetamethodClassSetBasic)
+{
+    testScript("metamethod_class_set_basic");
+}
+
 TEST_F(ScriptTestBench, MetamethodGetBasic)
 {
     testScript("metamethod_get_basic");
@@ -917,9 +922,19 @@ TEST_F(ScriptTestBench, MetamethodSetBasic)
     testScript("metamethod_set_basic");
 }
 
+TEST_F(ScriptTestBench, MetamethodClassGetIndex)
+{
+    testScript("metamethod_class_get_index");
+}
+
 TEST_F(ScriptTestBench, MetamethodGetIndex)
 {
     testScript("metamethod_get_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodClassSetIndex)
+{
+    testScript("metamethod_class_set_index");
 }
 
 TEST_F(ScriptTestBench, MetamethodSetIndex)
