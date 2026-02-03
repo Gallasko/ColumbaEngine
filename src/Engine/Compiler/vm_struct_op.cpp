@@ -220,10 +220,24 @@ namespace pg
 
                 if (isDynamicGet)
                 {
-                    std::cout << "Dynamic __get called\n";
-                    // Call the __get method as a closure with stack [inst, val]
+                    // For dynamic __get (stored in instance field), we need to set up the stack as:
+                    // [...] [getMethod] [instance] [propertyName]
+                    // Currently stack is: [...] [instance] [propertyName]
+
+                    // We need to insert the getMethod closure before the arguments
+                    // Pop the arguments temporarily
+                    Value propName = vm->pop();  // propertyName
+                    Value inst = vm->pop();      // instance
+
+                    // Push in correct order: getMethod, instance, propertyName
+                    vm->push(vm->retainValue(getMethod));
+                    vm->push(inst);
+                    vm->push(propName);
+
+                    // Call the __get method as a closure with stack [getMethod, inst, propName]
                     if (not vm->call(vm->asClosure(getMethod), 2))
                     {
+                        vm->releaseAndDelete(getMethod);
                         vm->runtimeError("Cannot call __get metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
                         return;
@@ -302,19 +316,15 @@ namespace pg
 
         auto nameStr = name.toString();
 
-        // Check if we're accessing from within a method of the same instance
-        // If so, bypass metamethods and do direct field access
-        //
-        // IMPORTANT: We only want to bypass metamethods when the property is being set
-        // from within a METHOD of the same instance, not from external code.
-        // The key insight: when a method is called via callBound(), frame->slots points
-        // to the receiver. But we need to distinguish this from the global script context.
-        //
-        // Solution: Check if the current frame's stackBase points to its slots.
-        // For bound methods: stackBase == slots (both point to receiver)
-        // For regular functions/scripts: stackBase != slots
-        bool isInternalAccess = false;
-        if (vm->frameCount > 1)  // Must be at least 2 frames (script + method)
+        // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
+        // and bypass metamethods. This prevents infinite recursion when metamethods like
+        // __set need to actually store data in internal fields.
+        bool isInternalField = (nameStr.length() >= 2 and nameStr[0] == '_' and nameStr[1] == '_');
+
+        // Also check if we're accessing from within a bound method of the same instance
+        bool isInternalAccess = isInternalField;
+
+        if (not isInternalAccess and vm->frameCount > 1)
         {
             // Check if current frame is a bound method call
             // In callBound(), stackBase is set to slots (see vm_helpers.cpp:222)
@@ -376,9 +386,25 @@ namespace pg
 
                 if (isDynamicSet)
                 {
+                    // For dynamic __set (instance field), we need to set up the stack as:
+                    // [...] [setMethod] [instance] [propertyName] [value]
+                    // Currently stack is: [...] [instance] [propertyName] [value]
+
+                    // Pop the arguments temporarily
+                    Value val = vm->pop();       // value
+                    Value propName = vm->pop();  // propertyName
+                    Value inst = vm->pop();      // instance
+
+                    // Push in correct order: setMethod, instance, propertyName, value
+                    vm->push(vm->retainValue(setMethod));
+                    vm->push(inst);
+                    vm->push(propName);
+                    vm->push(val);
+
                     // For dynamic __set (instance field), call with 3 args: [instance, propertyName, value]
                     if (not vm->call(vm->asClosure(setMethod), 3))
                     {
+                        vm->releaseAndDelete(setMethod);
                         vm->runtimeError("Cannot call __set metamethod.");
                         vm->vm_return(InterpretResult::RUNTIME_ERROR);
                         return;
@@ -774,9 +800,23 @@ namespace pg
 
                 if (isDynamicGet)
                 {
+                    // For dynamic __get (instance field), we need to set up the stack as:
+                    // [...] [getMethod] [instance] [key]
+                    // Currently stack is: [...] [instance] [key]
+
+                    // Pop arguments temporarily
+                    Value key = vm->pop();  // key
+                    Value inst = vm->pop(); // instance
+
+                    // Push in correct order: getMethod, instance, key
+                    vm->push(vm->retainValue(getMethod));
+                    vm->push(inst);
+                    vm->push(key);
+
                     // Dynamic __get: call with 2 args [instance, key]
                     if (not vm->call(vm->asClosure(getMethod), 2))
                     {
+                        vm->releaseAndDelete(getMethod);
                         vm->releaseAndDelete(keyValue);
                         vm->releaseAndDelete(index);
                         vm->releaseAndDelete(target);
@@ -928,12 +968,18 @@ namespace pg
 
             vm->releaseAndDelete(index);
 
+            // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
+            // and bypass metamethods. This prevents infinite recursion when metamethods like
+            // __set need to actually store data in internal fields.
+            bool isInternalField = (key.length() >= 2 and key[0] == '_' and key[1] == '_');
+
             // Check for __set metamethod in class methods OR instance fields
             Value setMethod;
             bool hasSetMethod = false;
             bool isDynamicSet = false;
 
-            if (inst->klass)
+            // Only check for metamethods if this is NOT an internal field
+            if (not isInternalField and inst->klass)
             {
                 // First check class methods
                 auto setMetaIt = inst->klass->methods.find("__set");
@@ -968,9 +1014,25 @@ namespace pg
 
                     if (isDynamicSet)
                     {
+                        // For dynamic __set (instance field), we need to set up the stack as:
+                        // [...] [setMethod] [instance] [key] [value]
+                        // Currently stack is: [...] [instance] [key] [value]
+
+                        // Pop arguments temporarily
+                        Value val = vm->pop();  // value
+                        Value key = vm->pop();  // key
+                        Value inst = vm->pop(); // instance
+
+                        // Push in correct order: setMethod, instance, key, value
+                        vm->push(vm->retainValue(setMethod));
+                        vm->push(inst);
+                        vm->push(key);
+                        vm->push(val);
+
                         // Dynamic __set: call with 3 args [instance, key, value]
                         if (not vm->call(vm->asClosure(setMethod), 3))
                         {
+                            vm->releaseAndDelete(setMethod);
                             vm->releaseAndDelete(keyValue);
                             vm->releaseAndDelete(value);
                             vm->runtimeError("Cannot call __set metamethod.");
