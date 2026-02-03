@@ -16,6 +16,8 @@
 #include "commanddispatcher.h"
 #include "savemanager.h"
 
+#include "Compiler/value_nanbox.h"
+
 #ifdef PROFILE
 #include <atomic>
 #include <mutex>
@@ -1327,14 +1329,23 @@ namespace pg
     using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
 
     /**
+     * @brief Function type for creating component proxy instances
+     *
+     * Takes a VM pointer and a raw component pointer, returns a proxy Value.
+     * This allows zero-copy component access from scripts.
+     */
+    using ComponentProxyFactoryFunc = std::function<Value(VM*, void*)>;
+
+    /**
      * @brief Registration structure that handles type erasure for component serializers
      *
      * Similar to ComponentCreateCommand in the dispatcher, this structure stores
      * a type-erased serializer function that can be called with void* pointers.
      * It also stores a retriever function that knows how to get the component from an entity.
+     * Additionally, stores a proxy factory function for creating zero-copy component proxies.
      */
     struct ComponentSerializerRegistration {
-        ComponentSerializerRegistration() : serializer(nullptr), retriever(nullptr) {}
+        ComponentSerializerRegistration() : serializer(nullptr), retriever(nullptr), proxyFactory(nullptr) {}
 
         template <typename ComponentType>
         ComponentSerializerRegistration(void(*func)(VM*, ObjInstance*, ComponentType*))
@@ -1362,6 +1373,7 @@ namespace pg
 
         ComponentSerializerFunc serializer;
         ComponentRetrieverFunc retriever;
+        ComponentProxyFactoryFunc proxyFactory;  // NEW: Zero-copy proxy factory
     };
 
     /**
@@ -1451,6 +1463,85 @@ namespace pg
             return nullptr;
         }
 
+        /**
+         * @brief Register a proxy factory function for a component
+         *
+         * This enables zero-copy component access from scripts by creating proxy
+         * instances that directly reference C++ component memory.
+         *
+         * @param componentName The name of the component
+         * @param factory Function that creates a proxy Value from a component pointer
+         */
+        void registerProxyFactory(const std::string& componentName, ComponentProxyFactoryFunc factory)
+        {
+            auto it = serializers_.find(componentName);
+
+            if (it != serializers_.end())
+            {
+                it->second.proxyFactory = factory;
+            }
+            else
+            {
+                // Create new registration with just proxy factory
+                ComponentSerializerRegistration reg;
+                reg.proxyFactory = factory;
+                serializers_[componentName] = reg;
+            }
+        }
+
+        /**
+         * @brief Check if a proxy factory is registered for a component
+         *
+         * @param componentName The name of the component to check
+         * @return true if a proxy factory is registered, false otherwise
+         */
+        bool hasProxyFactory(const std::string& componentName) const
+        {
+            auto it = serializers_.find(componentName);
+
+            return it != serializers_.end() and it->second.proxyFactory != nullptr;
+        }
+
+        /**
+         * @brief Get the proxy factory function for a component
+         *
+         * @param componentName The name of the component
+         * @return ComponentProxyFactoryFunc The proxy factory function, or nullptr if not found
+         */
+        ComponentProxyFactoryFunc getProxyFactory(const std::string& componentName) const
+        {
+            auto it = serializers_.find(componentName);
+
+            if (it != serializers_.end())
+            {
+                return it->second.proxyFactory;
+            }
+
+            return nullptr;
+        }
+
+        /**
+         * @brief Create a component proxy using the registered factory
+         *
+         * Convenience method that looks up the factory and calls it.
+         *
+         * @param componentName The name of the component
+         * @param vm Pointer to the VM
+         * @param componentPtr Raw pointer to the component
+         * @return Value The proxy instance, or nil if no factory registered
+         */
+        Value createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const
+        {
+            auto factory = getProxyFactory(componentName);
+
+            if (factory)
+            {
+                return factory(vm, componentPtr);
+            }
+
+            return makeIntValue(-1);  // Return sentinel value if no factory
+        }
+
     private:
         ComponentSerializerRegistry() = default;
         ComponentSerializerRegistry(const ComponentSerializerRegistry&) = delete;
@@ -1485,5 +1576,33 @@ namespace pg
                 } \
             }; \
             static ComponentType##SerializerRegistrar ComponentType##_registrar_instance; \
+        }
+
+    /**
+     * @brief Macro to easily register a component proxy factory
+     *
+     * This macro creates a static initializer that registers a proxy factory function
+     * for zero-copy component access from scripts. The proxy factory receives a raw
+     * component pointer and returns a VM Value representing the proxy instance.
+     *
+     * Example:
+     * ```cpp
+     * Value createPositionComponentProxy(VM* vm, void* rawPtr) {
+     *     PositionComponent* comp = static_cast<PositionComponent*>(rawPtr);
+     *     return PositionComponentProxy::createProxy(vm, comp);
+     * }
+     *
+     * REGISTER_COMPONENT_PROXY(PositionComponent, createPositionComponentProxy);
+     * ```
+     */
+    #define REGISTER_COMPONENT_PROXY(ComponentType, FactoryFunction) \
+        namespace { \
+            struct ComponentType##ProxyRegistrar { \
+                ComponentType##ProxyRegistrar() { \
+                    pg::ComponentSerializerRegistry::instance() \
+                        .registerProxyFactory(#ComponentType, FactoryFunction); \
+                } \
+            }; \
+            static ComponentType##ProxyRegistrar ComponentType##_proxy_registrar_instance; \
         }
 }
