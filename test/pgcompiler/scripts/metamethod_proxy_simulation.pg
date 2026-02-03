@@ -53,11 +53,6 @@ var position = ComponentProxy(10, 20)
 position.__get = createProxyGet()
 position.__set = createProxySet()
 
-print("Initial position x: ")
-print(position.x)
-print("Initial position y: ")
-print(position.y)
-
 // Read properties (zero-copy style)
 __dprint("Initial x = " + toString(position.x))
 __dprint("Initial y = " + toString(position.y))
