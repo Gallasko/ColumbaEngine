@@ -152,7 +152,10 @@ message("Current c++ release flags used: '${CMAKE_CXX_FLAGS}'")
 set(MINIMAL_ENGINESOURCE
     # Core compiler/VM files
     src/Engine/Compiler/compiler_debug.cpp
-    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_core.cpp
+    src/Engine/Compiler/vm_helpers.cpp
+    src/Engine/Compiler/vm_binary_op.cpp
+    src/Engine/Compiler/vm_struct_op.cpp
     src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
     src/Engine/Compiler/object.cpp
@@ -206,7 +209,10 @@ set(ENGINESOURCE
     src/Engine/2D/texture.cpp
     src/Engine/Audio/audiosystem.cpp
     src/Engine/Compiler/compiler_debug.cpp
-    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_core.cpp
+    src/Engine/Compiler/vm_helpers.cpp
+    src/Engine/Compiler/vm_binary_op.cpp
+    src/Engine/Compiler/vm_struct_op.cpp
     src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
     src/Engine/Compiler/ecsserialization.cpp
