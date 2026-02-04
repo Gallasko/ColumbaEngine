@@ -268,6 +268,75 @@ namespace pg
 
     Value serializeComponentToTable(VM* vm, EntitySystem* ecsRef, const Entity* entity, _unique_id componentId)
     {
+        // Create an Archive and serialize the component to get the component type name
+        InspectorArchive archive;
+        ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
+
+        std::string componentTypeName;
+        if (archive.mainNode.children.size() > 0)
+        {
+            auto& compNode = archive.mainNode.children[0];
+            componentTypeName = compNode.className;
+        }
+
+        // Check if this component has proxy metadata registered
+        auto& proxyRegistry = ComponentProxyRegistry::instance();
+        if (proxyRegistry.hasMetadata(componentTypeName))
+        {
+            LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName);
+
+            // Get the component pointer
+            void* componentPtr = nullptr;
+
+            if (componentTypeName == "StandardComponent")
+            {
+                // StandardComponent requires special handling
+                std::string compTypeName;
+                auto& compNode = archive.mainNode.children[0];
+                for (const auto& child : compNode.children)
+                {
+                    if (child.name == "typeName" && !child.value.empty())
+                    {
+                        compTypeName = child.value;
+                        break;
+                    }
+                }
+
+                if (!compTypeName.empty())
+                {
+                    auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
+                    if (owner)
+                    {
+                        componentPtr = owner->getComponent(entity->id);
+                    }
+                }
+            }
+            else
+            {
+                // For all other components, use the registered retriever
+                auto& registry = ComponentSerializerRegistry::instance();
+                if (registry.hasSerializer(componentTypeName))
+                {
+                    auto retrieverFunc = registry.getRetriever(componentTypeName);
+                    if (retrieverFunc)
+                    {
+                        componentPtr = retrieverFunc(ecsRef, entity->id);
+                    }
+                }
+            }
+
+            if (componentPtr)
+            {
+                // Return a proxy instead of a table copy
+                return ComponentProxy::createProxy(vm, componentTypeName, componentPtr);
+            }
+            else
+            {
+                LOG_WARNING("ECS Serialization", "Could not retrieve component pointer for proxy, falling back to table");
+            }
+        }
+
+        // Fallback: Original table-based serialization (for components without proxy metadata)
         // Get the Table class
         auto it = vm->globals.find("__Table");
         if (it == vm->globals.end())
@@ -276,10 +345,6 @@ namespace pg
         }
 
         Klass* tableClass = vm->asClass(it->second);
-
-        // Create an Archive and serialize the component
-        InspectorArchive archive;
-        ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
 
         // Create the table instance
         Value tableValue = vm->createInstance(tableClass);
@@ -291,7 +356,6 @@ namespace pg
             auto& compNode = archive.mainNode.children[0];
 
             // Add the class name (component type)
-            std::string componentTypeName;
             if (not compNode.className.empty())
             {
                 componentTypeName = compNode.className;
