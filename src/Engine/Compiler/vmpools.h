@@ -44,7 +44,7 @@ namespace pg
         // ====================================================================
 
         /** Pool for string objects (ElementType) */
-        AllocatorPool<ElementType, 64> stringPool;
+        AllocatorPool<std::string, 64> stringPool;
 
         /** String interning map - maps string content to pool index for deduplication */
         std::unordered_map<std::string, uint32_t> internedStrings;
@@ -316,7 +316,7 @@ namespace pg
         /**
          * @brief Get string object from pool
          */
-        inline ElementType* getString(Value v)
+        inline std::string* getString(Value v)
         {
             return stringPool.getElement(AS_STRING_INDEX(v));
         }
@@ -478,7 +478,7 @@ namespace pg
     // ====================================================================
 
     template<>
-    inline ElementType* VMPools::getPoolObject<ElementType>(Value v)
+    inline std::string* VMPools::getPoolObject<std::string>(Value v)
     {
         return getString(v);
     }

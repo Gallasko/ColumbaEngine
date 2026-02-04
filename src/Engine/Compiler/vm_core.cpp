@@ -18,17 +18,10 @@ namespace pg
 {
     UniqueIdGenerator VM::globalIdGenerator;
 
-    bool isValueNumber(const Value& val, VM* vm)
+    bool isValueNumber(const Value& val, VM*)
     {
         if (IS_INT(val) or IS_DOUBLE(val))
             return true;
-
-        // String objects might represent numbers - need pool access
-        if (IS_STRING(val) and vm != nullptr)
-        {
-            ElementType* obj = vm->pools.getString(val);
-            return obj->isNumber();
-        }
 
         return false;
     }
@@ -53,8 +46,7 @@ namespace pg
         // String objects might represent booleans - need pool access
         if (IS_STRING(val) and vm != nullptr)
         {
-            ElementType* obj = vm->pools.getString(val);
-            return obj->isTrue();
+            return true;
         }
 
         if (IS_CLOSURE(val) or IS_FUNC(val) or IS_NAT_FUNC(val) or
