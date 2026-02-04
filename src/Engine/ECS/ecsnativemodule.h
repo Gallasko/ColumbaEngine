@@ -597,7 +597,7 @@ namespace pg
                 }
             });
 
-            addNativeFunction("createSystem", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+            addNativeFunction("createSystem", [](VM* vm, int argCount, Value* args) -> Value {
                 if (argCount < 1)
                 {
                     throw std::runtime_error("createSystem expects at least 1 argument (systemName)");

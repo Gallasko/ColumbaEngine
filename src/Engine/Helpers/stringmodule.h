@@ -31,6 +31,7 @@ namespace pg
             addNativeFunction("replace", nativeReplace);
             addNativeFunction("join", nativeJoin);
             addNativeFunction("capitalize", nativeCapitalize);
+            addNativeFunction("lowerize", nativeLowerize);
             addNativeFunction("toLowerCase", nativeToLowerCase);
             addNativeFunction("toUpperCase", nativeToUpperCase);
             addNativeFunction("trim", nativeTrim);
@@ -412,6 +413,31 @@ namespace pg
 
             std::string result = str;
             result[0] = std::toupper(result[0]);
+
+            return vm->createString(result);
+        }
+
+        static Value nativeLowerize(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("lowerize expects exactly 1 argument (string)");
+            }
+
+            if (not IS_STRING(args[0]))
+            {
+                throw std::runtime_error("lowerize expects a string argument");
+            }
+
+            auto str = vm->asString(args[0]);
+
+            if (str.empty())
+            {
+                return vm->createString(str);
+            }
+
+            std::string result = str;
+            result[0] = std::tolower(result[0]);
 
             return vm->createString(result);
         }

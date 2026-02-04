@@ -78,6 +78,126 @@ namespace pg
         std::unordered_map<std::string, ComponentAttachFunc> handlers_;
     };
 
+    // ============================================================================
+    // Component Proxy System (Zero-Copy Direct Memory Access)
+    // ============================================================================
+
+    /**
+     * @brief Enum for supported property types in component proxies
+     */
+    enum class PropertyType
+    {
+        Float,
+        Double,
+        Int,
+        Bool,
+        String,
+        UnsignedInt,
+        UniqueId
+    };
+
+    /**
+     * @brief Metadata for a single property in a component
+     *
+     * Contains all information needed to read/write a property via metamethods.
+     * Uses offset-based memory access for zero-copy performance.
+     */
+    struct PropertyMetadata
+    {
+        std::string name;
+        PropertyType type;
+        size_t offset;              // Offset in bytes from component base
+        bool writable;
+
+        // Setter function that calls the component's setter method (which may fire events)
+        // ALWAYS provided for writable properties to ensure events are fired correctly
+        using SetterFn = std::function<void(void* component, VM* vm, Value value)>;
+        SetterFn setter;            // Required for writable properties
+    };
+
+    /**
+     * @brief Complete metadata for a component type
+     *
+     * Contains all properties and provides fast lookup for the single ComponentProxy class.
+     */
+    struct ComponentProxyMetadata
+    {
+        std::string componentTypeName;
+        size_t componentSize;
+        std::vector<PropertyMetadata> properties;
+
+        // Fast lookup by property name (built during registration)
+        std::unordered_map<std::string, const PropertyMetadata*> propertyMap;
+    };
+
+    /**
+     * @brief Registry for component proxy metadata
+     *
+     * Stores metadata for all components that support the zero-copy proxy system.
+     * Used by the single ComponentProxy class to dynamically access component properties.
+     */
+    class ComponentProxyRegistry
+    {
+    public:
+        static ComponentProxyRegistry& instance()
+        {
+            static ComponentProxyRegistry registry;
+            return registry;
+        }
+
+        void registerMetadata(const ComponentProxyMetadata& metadata)
+        {
+            metadata_[metadata.componentTypeName] = metadata;
+        }
+
+        const ComponentProxyMetadata& getMetadata(const std::string& typeName) const
+        {
+            auto it = metadata_.find(typeName);
+
+            if (it == metadata_.end())
+            {
+                throw std::runtime_error("No proxy metadata for component: " + typeName);
+            }
+
+            return it->second;
+        }
+
+        bool hasMetadata(const std::string& typeName) const
+        {
+            return metadata_.find(typeName) != metadata_.end();
+        }
+
+    private:
+        std::unordered_map<std::string, ComponentProxyMetadata> metadata_;
+    };
+
+    /**
+     * @brief Single universal proxy class for all components
+     *
+     * Uses metadata-driven property access via __get and __set metamethods.
+     * Provides zero-copy direct memory access to C++ component fields.
+     */
+    class ComponentProxy
+    {
+    public:
+        /**
+         * @brief Register the ComponentProxy class with the VM
+         *
+         * Called once at VM startup. Creates the class and installs __get and __set metamethods.
+         */
+        static void registerWithVM(VM* vm);
+
+        /**
+         * @brief Create a proxy instance for a component
+         *
+         * @param vm VM instance
+         * @param typeName Component type name (e.g., "PositionComponent")
+         * @param componentPtr Pointer to the C++ component
+         * @return Value containing the proxy instance
+         */
+        static Value createProxy(VM* vm, const std::string& typeName, void* componentPtr);
+    };
+
     namespace detail
     {
         // Helper functions for extracting arguments from VM values
