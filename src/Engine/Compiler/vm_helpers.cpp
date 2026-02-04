@@ -231,9 +231,8 @@ namespace pg
         if (IS_LONG_STRING(value))
         {
             // Remove from interned strings map before releasing
-            ElementType* str = asStringPtr(value);
-            std::string strContent = str->toString();
-            pools.internedStrings.erase(strContent);
+            std::string* str = asStringPtr(value);
+            pools.internedStrings.erase(*str);
             pools.stringPool.release(str);
         }
         else if (IS_SMALL_STRING(value))
@@ -440,9 +439,7 @@ namespace pg
         }
 
         // String doesn't exist, create new one
-        // IMPORTANT: Always store as STRING type, not whatever type the input ElementType had
-        ElementType stringElement(stringContent);
-        auto [ptr, index] = pools.stringPool.allocateWithIndex(stringElement);
+        auto [ptr, index] = pools.stringPool.allocateWithIndex(stringContent);
         Value val = makeStringValue(static_cast<uint32_t>(index));
 
         // Add to intern map for future reuse
@@ -568,9 +565,7 @@ namespace pg
             return AS_BOOL(value) ? 1 : 0;
         else if (IS_LONG_STRING(value))
         {
-            ElementType* obj = asStringPtr(value);
-            if (obj->type == ElementType::UnionType::INT)
-                return obj->get<int>();
+            // Should be an error or need a conversion with explicit toString
         }
         else if (IS_SMALL_STRING(value))
         {
