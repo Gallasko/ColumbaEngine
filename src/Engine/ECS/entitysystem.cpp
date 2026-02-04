@@ -49,14 +49,7 @@ namespace
 #include "Helpers/stringmodule.h"
 #include "Files/filemodule.h"
 
-#ifndef PG_MINIMAL_BUILD
-#include "ecsmodule.h"
-#include "Helpers/randommodule.h"
-#include "Helpers/inputmodule_vm.h"
-#include "Input/inputcomponent.h"
-#include "2D/texturemodule.h"
-#include "UI/uimodule.h"
-#endif
+// Full build modules are now in entitysystem_full.cpp or entitysystem_minimal.cpp
 
 // Include for vm optimization pass
 #include "Compiler/pass/long_jump_optimization_pass.h"
@@ -376,39 +369,7 @@ namespace pg
         }
     }
 
-#ifndef PG_MINIMAL_BUILD
-    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment> env, std::shared_ptr<ClassInstance> sysInstance)
-    {
-        LOG_THIS_MEMBER("ECS");
-
-        // Todo: add support for system creation during runtime
-        if (running)
-        {
-            LOG_ERROR("ECS", "System creation during runtime is not supported");
-            return nullptr;
-        }
-
-        auto system = new InterpreterSystem(env, sysInstance);
-        system->_id = registry.idGenerator.generateId();
-
-        system->ecsRef = this;
-
-        systems.emplace(system->_id, system);
-
-        system->addToRegistry(&registry);
-
-        internalCreateSystem(system);
-
-        return system;
-    }
-#else
-    InterpreterSystem* EntitySystem::createInterpreterSystem(std::shared_ptr<Environment>, std::shared_ptr<ClassInstance>)
-    {
-        return nullptr;
-    }
-#endif
-
-
+    // createInterpreterSystem is now implemented in entitysystem_full.cpp or entitysystem_minimal.cpp
 
     void EntitySystem::deleteSystem(_unique_id id)
     {
@@ -542,26 +503,8 @@ namespace pg
         vm.addNativeModule("file", FileModule{});
         vm.addNativeModule("ecs", EcsCompiledModule{this});
 
-#ifndef PG_MINIMAL_BUILD
-        vm.addNativeModule("random", RandomModule{});
-        vm.addNativeModule("texture", TextureModule{this});
-        vm.addNativeModule("ui", UIModule{this});
-
-        // Todo change this
-        // Get the Input handler from the MouseClickSystem
-        Input* inputHandler = nullptr;
-        auto mouseClickSys = getSystem<MouseClickSystem>();
-        if (mouseClickSys)
-        {
-            inputHandler = mouseClickSys->inputHandler;
-        }
-
-        // Add input module if we have an input handler
-        if (inputHandler)
-        {
-            vm.addNativeModule("input", InputModuleVM{inputHandler});
-        }
-#endif
+        // Setup full build modules (implemented in entitysystem_full.cpp or entitysystem_minimal.cpp)
+        setupVmFullModules(vm);
 
         // Print function - outputs to stdout
         vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
@@ -808,5 +751,17 @@ namespace pg
         {
             LOG_ERROR("ECS", "Both systems " << sys1Id << " and " << sys2Id << " are not registered task in ecs can't reorder their task !");
         }
+    }
+
+    Value ComponentSerializerRegistry::createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const
+    {
+        auto factory = getProxyFactory(componentName);
+
+        if (factory)
+        {
+            return factory(vm, componentPtr);
+        }
+
+        return INT_VAL(-1);  // Return sentinel value if no factory
     }
 }

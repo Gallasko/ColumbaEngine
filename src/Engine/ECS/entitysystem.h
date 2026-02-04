@@ -16,8 +16,6 @@
 #include "commanddispatcher.h"
 #include "savemanager.h"
 
-#include "Compiler/value_nanbox.h"
-
 #ifdef PROFILE
 #include <atomic>
 #include <mutex>
@@ -53,6 +51,7 @@ namespace pg
     class StandardSystemImpl;
 
     struct VM;
+    typedef uint64_t Value;
 
     // Todo add batching for entity and component creation/deletion
 
@@ -665,6 +664,9 @@ namespace pg
         // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
 
         void setOptimizationPasses(VM& vm);
+
+        // Setup full build modules (implemented in entitysystem_full.cpp or entitysystem_minimal.cpp)
+        void setupVmFullModules(VM& vm);
 
         void internalCreateSystem(AbstractSystem* system);
 
@@ -1393,7 +1395,8 @@ namespace pg
      * REGISTER_COMPONENT_SERIALIZER(MyComponent, serializeMyComponentWithSetters);
      * ```
      */
-    class ComponentSerializerRegistry {
+    class ComponentSerializerRegistry
+    {
     public:
         /**
          * @brief Get the singleton instance of the registry
@@ -1530,17 +1533,7 @@ namespace pg
          * @param componentPtr Raw pointer to the component
          * @return Value The proxy instance, or nil if no factory registered
          */
-        Value createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const
-        {
-            auto factory = getProxyFactory(componentName);
-
-            if (factory)
-            {
-                return factory(vm, componentPtr);
-            }
-
-            return makeIntValue(-1);  // Return sentinel value if no factory
-        }
+        Value createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const;
 
     private:
         ComponentSerializerRegistry() = default;
