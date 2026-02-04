@@ -1089,9 +1089,14 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(bench PRIVATE
             benchmark/memorypool.cc
+            benchmark/serialization.cc
         )
 
         target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)
+
+        add_custom_command(TARGET bench PRE_BUILD
+                           COMMAND ${CMAKE_COMMAND} -E copy_directory
+                           ${CMAKE_SOURCE_DIR}/test/bench $<TARGET_FILE_DIR:bench>/test/bench)
 
         # ===============================================
         # COMPILER TEST TARGET (simple script-based testbench)

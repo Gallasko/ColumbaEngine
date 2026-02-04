@@ -801,39 +801,52 @@ class ProxyMetadataGenerator
         var setterName = "set" + capitalize(fieldName)
         var code = ""
 
+        // Track which parameters are used to add (void) casts for unused ones
+        var usesVm = false
+        var usesVal = true  // val is always used
+
         if (fieldType == "float")
         {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
             code += "                    float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));\n"
             code += "                    c->" + setterName + "(v);\n"
         }
         else if (fieldType == "double")
         {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
             code += "                    double v = IS_DOUBLE(val) ? AS_DOUBLE(val) : static_cast<double>(AS_INT(val));\n"
             code += "                    c->" + setterName + "(v);\n"
         }
         else if (fieldType == "int")
         {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
             code += "                    c->" + setterName + "(static_cast<int>(AS_INT(val)));\n"
         }
         else if (fieldType == "_unique_id")
         {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
             code += "                    c->" + setterName + "(static_cast<_unique_id>(AS_INT(val)));\n"
         }
         else if (fieldType == "unsigned int" or fieldType == "size_t")
         {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
             code += "                    c->" + setterName + "(static_cast<unsigned int>(AS_INT(val)));\n"
         }
         else if (fieldType == "bool")
         {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
             code += "                    c->" + setterName + "(AS_BOOL(val));\n"
         }
         else if (fieldType == "std::string")
         {
+            usesVm = true
             code += "                    c->" + setterName + "(vm->asString(val));\n"
         }
         else
         {
             // Fallback for unknown types
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    (void)val; // Suppress unused parameter warning\n"
             code += "                    // TODO: Handle setter for type " + fieldType + "\n"
         }
 
