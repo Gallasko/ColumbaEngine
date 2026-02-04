@@ -1251,6 +1251,9 @@ namespace pg
             emitLoop(loopStart);
             loopStart = incrementStart;
 
+            // Update the loop context so continue jumps to the increment, not the condition
+            Compiler::current->loopContexts.back().loopStart = incrementStart;
+
             patchJump(bodyJump);
         }
 
