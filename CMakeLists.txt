@@ -176,6 +176,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
     src/Engine/ECS/entitysystem.cpp
+    src/Engine/ECS/entitysystem_minimal.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
     src/Engine/ECS/sparseset.cpp
@@ -229,6 +230,7 @@ set(ENGINESOURCE
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
     src/Engine/ECS/entitysystem.cpp
+    src/Engine/ECS/entitysystem_full.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
     src/Engine/ECS/sparseset.cpp
