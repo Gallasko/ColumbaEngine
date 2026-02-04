@@ -697,17 +697,8 @@ class ProxyMetadataGenerator
             code += "namespace " + schema["namespace"] + "\n{\n\n"
         }
 
-        // Helper function to compute offset without offsetof() macro (works for non-standard-layout types)
-        code += "template<typename T, typename M>\n"
-        code += "static size_t computeOffset(M T::*member) {\n"
-        code += "    // Use a valid non-null address to avoid UB\n"
-        code += "    constexpr size_t baseAddr = 0x1000;\n"
-        code += "    T* dummy = reinterpret_cast<T*>(baseAddr);\n"
-        code += "    return reinterpret_cast<size_t>(&(dummy->*member)) - baseAddr;\n"
-        code += "}\n\n"
-
         code += "struct " + schema.name + "ProxyMetadataRegistrar\n{\n"
-        code += "    " + schema.name + "ProxyMetadataRegistrar()\n{\n"
+        code += "    " + schema.name + "ProxyMetadataRegistrar()\n    {\n"
         code += "        pg::ComponentProxyMetadata metadata;\n"
         code += "        metadata.componentTypeName = \"" + schema.name + "\";\n"
         code += "        metadata.componentSize = sizeof(" + schema.name + ");\n\n"
@@ -737,10 +728,15 @@ class ProxyMetadataGenerator
             }
 
             code += "        // Property: " + fieldName + "\n"
-            code += "        metadata.properties.push_back({\n"
+            code += "        metadata.properties.emplace(\"" + fieldName + "\", PropertyMetadata{\n"
             code += "            \"" + fieldName + "\",\n"
             code += "            pg::PropertyType::" + propType + ",\n"
-            code += "            computeOffset(&" + schema.name + "::" + fieldName + "),\n"
+
+            code += "            [](void* comp, VM* vm) -> Value {\n"
+            code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
+            code += this.generateGetterCall(schema.name, field);
+            code += "            },\n"
+
             code += "            " + toString(writable) + ",\n"
 
             // Generate setter lambda if writable
@@ -758,12 +754,6 @@ class ProxyMetadataGenerator
 
             code += "        });\n\n"
         }
-
-        // Build property map
-        code += "        // Build property lookup map\n"
-        code += "        for (const auto& prop : metadata.properties)\n{\n"
-        code += "            metadata.propertyMap[prop.name] = &prop;\n"
-        code += "        }\n\n"
 
         code += "        pg::ComponentProxyRegistry::instance().registerMetadata(metadata);\n"
         code += "        LOG_INFO(\"ComponentProxy\", \"Registered proxy metadata for " + schema.name + "\");\n"
@@ -792,6 +782,63 @@ class ProxyMetadataGenerator
 
         // Default to Int for unknown types
         return "Int"
+    }
+
+    generateGetterCall(componentName, field)
+    {
+        var fieldName = field["name"]
+        var fieldType = field["type"]
+        var getterName = "get" + capitalize(fieldName)
+        var code = ""
+
+        // Track which parameters are used to add (void) casts for unused ones
+        var usesVm = false
+        var usesVal = true  // val is always used
+
+        if (fieldType == "float")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeFloatValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "double")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeDoubleValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "int")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeIntValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "_unique_id")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeIntValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "unsigned int" or fieldType == "size_t")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeIntValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "bool")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeBoolValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "std::string")
+        {
+            usesVm = true
+            code += "                return vm->createString(c->" + getterName + "());\n"
+        }
+        else
+        {
+            // Fallback for unknown types
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                // TODO: Handle getter for type " + fieldType + "\n"
+            code += "                return INT_VAL(-1);\n"
+        }
+
+        return code
     }
 
     generateSetterCall(componentName, field)

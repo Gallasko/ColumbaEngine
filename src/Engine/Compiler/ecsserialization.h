@@ -106,13 +106,16 @@ namespace pg
     {
         std::string name;
         PropertyType type;
-        size_t offset;              // Offset in bytes from component base
+
+        using GetterFn = std::function<Value(void* component, VM* vm)>;
+        GetterFn getter = nullptr; // Optional getter function for custom access logic (e.g., computed properties)
+
         bool writable;
 
         // Setter function that calls the component's setter method (which may fire events)
         // ALWAYS provided for writable properties to ensure events are fired correctly
         using SetterFn = std::function<void(void* component, VM* vm, Value value)>;
-        SetterFn setter;            // Required for writable properties
+        SetterFn setter = nullptr; // Required for writable properties
     };
 
     /**
@@ -124,10 +127,8 @@ namespace pg
     {
         std::string componentTypeName;
         size_t componentSize;
-        std::vector<PropertyMetadata> properties;
 
-        // Fast lookup by property name (built during registration)
-        std::unordered_map<std::string, const PropertyMetadata*> propertyMap;
+        std::unordered_map<std::string, PropertyMetadata> properties;
     };
 
     /**

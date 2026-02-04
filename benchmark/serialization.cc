@@ -17,6 +17,8 @@
 #include "Compiler/ecsserialization.h"
 #include "ECS/standardsystem.h"
 
+#include "../test/mocklogger.h"
+
 namespace pg
 {
     namespace benchmark
@@ -103,6 +105,8 @@ namespace pg
          */
         void benchmarkScriptUpdateWithSerialization(unsigned int entityCount)
         {
+            // MockLogger<TerminalSink> logger;
+
             EntitySystem ecs("benchmark_script");
             VM vm;
             ecs.setupVm(vm);
@@ -133,11 +137,10 @@ namespace pg
                 entity->attach("Test");
             }
 
-            
             // Benchmark script execution (including serialization in getEntities)
             auto start = std::chrono::high_resolution_clock::now();
-            
-            ecs.executeOnce(); 
+
+            ecs.executeOnce();
 
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
