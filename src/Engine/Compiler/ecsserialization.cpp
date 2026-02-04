@@ -12,7 +12,7 @@ namespace pg
         bool registryHasComponent(const std::string& name)
         {
             auto& registry = ComponentSerializerRegistry::instance();
-            return not name.empty() && registry.hasSerializer(name);
+            return not name.empty() and registry.hasSerializer(name);
         }
 
         ComponentSerializerFunc getSerializerFuncFromRegistry(const std::string& name)
@@ -268,6 +268,8 @@ namespace pg
 
     Value serializeComponentToTable(VM* vm, EntitySystem* ecsRef, const Entity* entity, _unique_id componentId)
     {
+        // Todo add a function that only get the component name without having to do the full serialization
+
         // Create an Archive and serialize the component to get the component type name
         InspectorArchive archive;
         ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
@@ -281,6 +283,7 @@ namespace pg
 
         // Check if this component has proxy metadata registered
         auto& proxyRegistry = ComponentProxyRegistry::instance();
+
         if (proxyRegistry.hasMetadata(componentTypeName))
         {
             LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName);
@@ -529,7 +532,7 @@ namespace pg
                 std::string componentTypeName = "Component";
 
                 auto classNameIt = compTable->fields.find("__className");
-                if (classNameIt != compTable->fields.end() && IS_STRING(classNameIt->second))
+                if (classNameIt != compTable->fields.end() and IS_STRING(classNameIt->second))
                 {
                     componentTypeName = vm->asString(classNameIt->second);
 
@@ -537,7 +540,7 @@ namespace pg
                     if (componentTypeName == "StandardComponent")
                     {
                         auto typeNameIt = compTable->fields.find("typeName");
-                        if (typeNameIt != compTable->fields.end() && IS_STRING(typeNameIt->second))
+                        if (typeNameIt != compTable->fields.end() and IS_STRING(typeNameIt->second))
                         {
                             componentTypeName = vm->asString(typeNameIt->second);
                         }
@@ -844,40 +847,24 @@ namespace pg
             }
 
             const ComponentProxyMetadata& metadata = registry.getMetadata(typeName);
-            auto propIt = metadata.propertyMap.find(propName);
+            auto propIt = metadata.properties.find(propName);
 
-            if (propIt == metadata.propertyMap.end())
+            if (propIt == metadata.properties.end())
             {
                 // Property not found - return nil or 0
                 return INT_VAL(0);
             }
 
-            const PropertyMetadata* prop = propIt->second;
+            const PropertyMetadata& prop = propIt->second;
 
-            // Direct memory access using offset!
-            char* basePtr = static_cast<char*>(componentPtr);
-            void* fieldPtr = basePtr + prop->offset;
-
-            // Convert C++ value to VM Value based on type
-            switch (prop->type)
+            if (prop.getter)
             {
-                case PropertyType::Float:
-                    return makeDoubleValue(*static_cast<float*>(fieldPtr));
-                case PropertyType::Double:
-                    return makeDoubleValue(*static_cast<double*>(fieldPtr));
-                case PropertyType::Int:
-                    return makeIntValue(*static_cast<int*>(fieldPtr));
-                case PropertyType::Bool:
-                    return makeBoolValue(*static_cast<bool*>(fieldPtr));
-                case PropertyType::String:
-                    return vm->createString(*static_cast<std::string*>(fieldPtr));
-                case PropertyType::UnsignedInt:
-                    return makeIntValue(static_cast<int64_t>(*static_cast<unsigned int*>(fieldPtr)));
-                case PropertyType::UniqueId:
-                    return makeIntValue(static_cast<int64_t>(*static_cast<_unique_id*>(fieldPtr)));
-                default:
-                    return INT_VAL(0);
+                return prop.getter(componentPtr, vm);
             }
+
+            LOG_WARNING("ComponentProxy", "No getter function for property '" << propName << "' !");
+
+            return INT_VAL(0);
         });
 
         // Add __set metamethod (handles ALL component property writes)
@@ -914,62 +901,30 @@ namespace pg
             }
 
             const ComponentProxyMetadata& metadata = registry.getMetadata(typeName);
-            auto propIt = metadata.propertyMap.find(propName);
+            auto propIt = metadata.properties.find(propName);
 
-            if (propIt == metadata.propertyMap.end())
+            if (propIt == metadata.properties.end())
             {
                 // Property not found - just return the value
                 return newValue;
             }
 
-            const PropertyMetadata* prop = propIt->second;
+            const PropertyMetadata& prop = propIt->second;
 
-            if (not prop->writable)
+            if (not prop.writable)
             {
                 vm->runtimeError("Property '" + propName + "' is read-only");
                 return newValue;
             }
 
             // If there's a setter function, use it (this calls the component's setter method which fires events!)
-            if (prop->setter)
+            if (prop.setter)
             {
-                prop->setter(componentPtr, vm, newValue);
+                prop.setter(componentPtr, vm, newValue);
                 return newValue;
             }
 
-            LOG_WARNING("ComponentProxy", "No setter function for property '" << propName << "', using direct memory write");
-
-            // Fallback: direct memory write (should not happen if generator is correct)
-            // This path is here for safety but setter should always be provided for writable properties
-            char* basePtr = static_cast<char*>(componentPtr);
-            void* fieldPtr = basePtr + prop->offset;
-
-            switch (prop->type)
-            {
-                case PropertyType::Float: {
-                    float val = IS_DOUBLE(newValue) ? static_cast<float>(AS_DOUBLE(newValue)) : static_cast<float>(AS_INT(newValue));
-                    *static_cast<float*>(fieldPtr) = val;
-                    break;
-                }
-                case PropertyType::Double:
-                    *static_cast<double*>(fieldPtr) = AS_DOUBLE(newValue);
-                    break;
-                case PropertyType::Int:
-                    *static_cast<int*>(fieldPtr) = static_cast<int>(AS_INT(newValue));
-                    break;
-                case PropertyType::Bool:
-                    *static_cast<bool*>(fieldPtr) = AS_BOOL(newValue);
-                    break;
-                case PropertyType::String:
-                    *static_cast<std::string*>(fieldPtr) = vm->asString(newValue);
-                    break;
-                case PropertyType::UnsignedInt:
-                    *static_cast<unsigned int*>(fieldPtr) = static_cast<unsigned int>(AS_INT(newValue));
-                    break;
-                case PropertyType::UniqueId:
-                    *static_cast<_unique_id*>(fieldPtr) = static_cast<_unique_id>(AS_INT(newValue));
-                    break;
-            }
+            LOG_WARNING("ComponentProxy", "No setter function for property '" << propName << "' !");
 
             return newValue;
         });
@@ -998,6 +953,7 @@ namespace pg
         // Store component pointer and type name (both use __ prefix to bypass metamethods!)
         proxy->fields["__componentPtr"] = vm->createCustomPtr<void>(componentPtr);
         proxy->fields["__typeName"] = vm->createString(typeName);
+        proxy->fields["__className"] = vm->createString(typeName);
 
         return proxyInstance;
     }

@@ -10,6 +10,6 @@ for (var test : tests)
     var newX = pos.x + 1
     var newY = pos.y + 1
 
-    pos.setX(newX)
-    pos.setY(newY)
+    pos.x = newX
+    pos.y = newY
 }
