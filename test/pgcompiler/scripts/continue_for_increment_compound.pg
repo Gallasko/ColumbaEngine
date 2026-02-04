@@ -1,0 +1,18 @@
+import "string"
+
+// Test continue with += increment and compound condition
+// This mimics the component_generator.pg scenario
+var count = 0
+for (var i = 0; i < 5; i += 1) {
+    __dprint("i = " + toString(i));
+    
+    if (i == 1 or i == 3) {
+        __dprint("skipping " + toString(i));
+        continue;
+    }
+    
+    __dprint("processing " + toString(i));
+    count = count + 1;
+}
+__dprint("count = " + toString(count));
+__dprint("finished");
