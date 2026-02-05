@@ -16,6 +16,8 @@
 #include "Compiler/vm.h"
 #include "ECS/entitysystem.h"
 
+#include "../test/mocklogger.h"
+
 namespace pg
 {
     namespace benchmark
@@ -25,6 +27,8 @@ namespace pg
          */
         int64_t runScriptBenchmark(const std::string& scriptPath, int count = -1)
         {
+            // MockLogger<TerminalSink> logger;
+
             VM vm;
 
             // If count is provided, add it as a global variable
@@ -36,17 +40,16 @@ namespace pg
             // Measure execution time
             auto start = std::chrono::high_resolution_clock::now();
 
-            try
+            InterpretResult result = vm.interpretFromFile(scriptPath);
+
+            auto end = std::chrono::high_resolution_clock::now();
+
+            if (result != InterpretResult::OK)
             {
-                vm.interpretFromFile(scriptPath);
-            }
-            catch (const std::exception& e)
-            {
-                std::cerr << "Script error: " << e.what() << std::endl;
+                std::cerr << "Script interpretation failed with result: " << static_cast<int>(result) << std::endl;
                 return -1;
             }
 
-            auto end = std::chrono::high_resolution_clock::now();
             return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
         }
 
@@ -161,17 +164,16 @@ namespace pg
 
                 auto start = std::chrono::high_resolution_clock::now();
 
-                try
+                InterpretResult result = vm.interpretFromFile("test/bench/bench_06_native_metamethod.pg");
+
+                auto end = std::chrono::high_resolution_clock::now();
+
+                if (result != InterpretResult::OK)
                 {
-                    vm.interpretFromFile("test/bench/bench_06_native_metamethod.pg");
-                }
-                catch (const std::exception& e)
-                {
-                    std::cerr << "Script error: " << e.what() << std::endl;
+                    std::cerr << "Script interpretation failed with result: " << static_cast<int>(result) << std::endl;
                     continue;
                 }
 
-                auto end = std::chrono::high_resolution_clock::now();
                 auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
 
                 std::cout << "  Count " << count << ": " << duration << " μs";

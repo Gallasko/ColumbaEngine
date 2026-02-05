@@ -20,8 +20,6 @@ for (var i = 0; i < count; i = i + 1)
     tables[i] = table
 }
 
-__dprint("Created " + toString(count) + " tables")
-
 // Benchmark: iterate and read+write properties
 for (var i = 0; i < count; i = i + 1)
 {
@@ -35,5 +33,3 @@ for (var i = 0; i < count; i = i + 1)
     t.x = x + 1
     t.y = y + 1
 }
-
-__dprint("Updated " + toString(count) + " tables")
