@@ -76,7 +76,7 @@ namespace pg
 
             for (auto* entity : entities)
             {
-                auto pos = entity->get<PositionComponent>();
+                // auto pos = entity->get<PositionComponent>();
 
                 // This is what the current system does - full serialization
                 Value tableValue = serializeComponentToTable(&vm, &ecs, entity, ecs.getComponentRegistry()->getTypeId<PositionComponent>());

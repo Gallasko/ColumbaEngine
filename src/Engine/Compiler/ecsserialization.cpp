@@ -268,17 +268,20 @@ namespace pg
 
     Value serializeComponentToTable(VM* vm, EntitySystem* ecsRef, const Entity* entity, _unique_id componentId)
     {
-        // Todo add a function that only get the component name without having to do the full serialization
+        // Get the component type name directly from the registry (no archive needed!)
+        std::string componentTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(componentId);
 
-        // Create an Archive and serialize the component to get the component type name
-        InspectorArchive archive;
-        ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
-
-        std::string componentTypeName;
-        if (archive.mainNode.children.size() > 0)
+        // For StandardComponent, get the actual runtime type name
+        std::string actualTypeName = componentTypeName;
+        if (componentTypeName == "StandardComponent")
         {
-            auto& compNode = archive.mainNode.children[0];
-            componentTypeName = compNode.className;
+            // Get the StandardComponent pointer directly to read its typeName field
+            // This avoids creating an archive just to extract the type name
+            StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
+            if (standardComp)
+            {
+                actualTypeName = standardComp->typeName;
+            }
         }
 
         // Check if this component has proxy metadata registered
@@ -294,20 +297,9 @@ namespace pg
             if (componentTypeName == "StandardComponent")
             {
                 // StandardComponent requires special handling
-                std::string compTypeName;
-                auto& compNode = archive.mainNode.children[0];
-                for (const auto& child : compNode.children)
+                if (not actualTypeName.empty())
                 {
-                    if (child.name == "typeName" && !child.value.empty())
-                    {
-                        compTypeName = child.value;
-                        break;
-                    }
-                }
-
-                if (!compTypeName.empty())
-                {
-                    auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
+                    auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(actualTypeName);
                     if (owner)
                     {
                         componentPtr = owner->getComponent(entity->id);
@@ -340,6 +332,10 @@ namespace pg
         }
 
         // Fallback: Original table-based serialization (for components without proxy metadata)
+        // NOW create the archive (only when needed for table serialization)
+        InspectorArchive archive;
+        ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
+
         // Get the Table class
         auto it = vm->globals.find("__Table");
         if (it == vm->globals.end())
@@ -387,14 +383,10 @@ namespace pg
 
                 if (componentTypeName == "StandardComponent")
                 {
-                    // StandardComponent requires special handling due to its dynamic nature
-                    // Extract the type name from the table
-                    std::string compTypeName;
-                    auto typeNameIt = table->fields.find("typeName");
-                    if (typeNameIt != table->fields.end() and IS_STRING(typeNameIt->second))
+                    // StandardComponent requires special handling - use actualTypeName we already have
+                    if (not actualTypeName.empty())
                     {
-                        compTypeName = vm->asString(typeNameIt->second);
-                        auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(compTypeName);
+                        auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(actualTypeName);
 
                         if (owner)
                         {

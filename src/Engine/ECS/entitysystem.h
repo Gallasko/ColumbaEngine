@@ -1018,8 +1018,11 @@ namespace pg
             serialize(archive, *(owner->getComponent(entity->id)));
         });
 
+        // Store component type name for fast lookup
         if constexpr(HasStaticName<Type>::value)
         {
+            componentTypeNameMap.emplace(id, Type::getType());
+
             componentDeserializeMap.emplace(Type::getType(), [this](const UnserializedObject& serializedStr, EntityRef entity) {
                 if (serializedStr.isNull())
                     return;
