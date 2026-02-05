@@ -1090,6 +1090,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_sources(bench PRIVATE
             benchmark/memorypool.cc
             benchmark/serialization.cc
+            benchmark/script_performance.cc
         )
 
         target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)
