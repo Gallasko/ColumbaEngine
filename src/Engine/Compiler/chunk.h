@@ -382,5 +382,10 @@ namespace pg
         int arity; // Number of parameters
         std::string name;
         int upvalueCount = 0;
+
+        // Cache for property name strings from constants
+        // Maps constant index -> string representation
+        // Only populated for string constants used in property access
+        mutable std::unordered_map<uint8_t, std::string> propertyNameCache;
     };
 }

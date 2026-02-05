@@ -163,25 +163,43 @@ namespace pg
         auto* instance = vm->asInstance(vm->peek(0));
 
         uint8_t constantIndex = *vm->currentFrame->ip++;
-        auto nameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        auto name = vm->valueToElement(nameValue);
+        auto* function = vm->currentFrame->closure->function;
 
-        if (not name.isLitteral())
+        // Check cache first
+        auto cacheIt = function->propertyNameCache.find(constantIndex);
+        std::string nameStr;
+
+        if (cacheIt != function->propertyNameCache.end())
         {
-            vm->runtimeError("Property name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            // Cache hit - use cached string
+            nameStr = cacheIt->second;
+        }
+        else
+        {
+            // Cache miss - convert and cache
+            auto nameValue = function->chunk.constants[constantIndex];
+            auto name = vm->valueToElement(nameValue);
 
-            return;
+            if (not name.isLitteral())
+            {
+                vm->runtimeError("Property name must be a litteral.");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            nameStr = name.toString();
+            function->propertyNameCache[constantIndex] = nameStr;
         }
 
-        auto nameStr = name.toString();
+        auto nameValue = function->chunk.constants[constantIndex];
 
-        // Try to find a field first
-        if (instance->fields.find(nameStr) != instance->fields.end())
+        // Try to find a field first (use iterator to avoid double lookup)
+        auto fieldIt = instance->fields.find(nameStr);
+        if (fieldIt != instance->fields.end())
         {
             auto inst = vm->pop(); // Remove the instance from the stack
             vm->releaseAndDelete(inst);
-            vm->push(vm->retainValue(instance->fields[nameStr]));
+            vm->push(vm->retainValue(fieldIt->second));
 
             return;
         }
@@ -303,18 +321,35 @@ namespace pg
         auto* instance = vm->asInstance(vm->peek(1));
 
         uint8_t constantIndex = *vm->currentFrame->ip++;
-        auto nameValue = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        auto name = vm->valueToElement(nameValue);
+        auto* function = vm->currentFrame->closure->function;
 
-        if (not name.isLitteral())
+        // Check cache first
+        auto cacheIt = function->propertyNameCache.find(constantIndex);
+        std::string nameStr;
+
+        if (cacheIt != function->propertyNameCache.end())
         {
-            vm->runtimeError("Field name must be a litteral.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            // Cache hit - use cached string
+            nameStr = cacheIt->second;
+        }
+        else
+        {
+            // Cache miss - convert and cache
+            auto nameValue = function->chunk.constants[constantIndex];
+            auto name = vm->valueToElement(nameValue);
 
-            return;
+            if (not name.isLitteral())
+            {
+                vm->runtimeError("Field name must be a litteral.");
+                vm->vm_return(InterpretResult::RUNTIME_ERROR);
+                return;
+            }
+
+            nameStr = name.toString();
+            function->propertyNameCache[constantIndex] = nameStr;
         }
 
-        auto nameStr = name.toString();
+        auto nameValue = function->chunk.constants[constantIndex];
 
         // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
         // and bypass metamethods. This prevents infinite recursion when metamethods like
@@ -457,13 +492,18 @@ namespace pg
         auto inst = vm->pop(); // Instance
         vm->releaseAndDelete(inst);
 
-        // Todo maybe fix
-        if (instance->fields.find(nameStr) != instance->fields.end())
+        // Use single map lookup with iterator
+        auto fieldIt = instance->fields.find(nameStr);
+        if (fieldIt != instance->fields.end())
         {
-            vm->releaseAndDelete(instance->fields[nameStr]);
+            vm->releaseAndDelete(fieldIt->second);
+            fieldIt->second = vm->retainValue(value);
+        }
+        else
+        {
+            instance->fields[nameStr] = vm->retainValue(value);
         }
 
-        instance->fields[nameStr] = vm->retainValue(value);
         vm->push(value);
     }
 
