@@ -1,0 +1,35 @@
+// Benchmark 4: foreach iteration
+// This tests the performance of for-in loops (like sys.getEntities)
+
+// var count = 2000
+
+// Create tables in a parent table (simulating entity list)
+var entities = {}
+for (var i = 0; i < count; i = i + 1)
+{
+    entities[toString(i)] = {
+        "x": 100,
+        "y": 200
+    }
+}
+
+__dprint("Created " + toString(count) + " entities in table")
+
+// Benchmark: foreach iteration with property access
+var counter = 0
+for (var key : entities)
+{
+    var entity = entities[key]
+
+    // Read properties
+    var x = entity.x
+    var y = entity.y
+
+    // Write properties
+    entity.x = x + 1
+    entity.y = y + 1
+
+    counter = counter + 1
+}
+
+__dprint("Updated " + toString(counter) + " entities via foreach")
