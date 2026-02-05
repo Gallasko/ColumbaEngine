@@ -6,25 +6,25 @@ class ProxyStruct
 {
     init()
     {
-        __x = 100
-        __y = 200
+        this.__x = 100
+        this.__y = 200
     }
 
     __get(propName)
     {
         if (propName == "x")
-            return __x
+            return this.__x
         if (propName == "y")
-            return __y
+            return this.__y
         return 0
     }
 
     __set(propName, value)
     {
         if (propName == "x")
-            __x = value
+            this.__x = value
         else if (propName == "y")
-            __y = value
+            this.__y = value
     }
 }
 
@@ -36,8 +36,6 @@ for (var i = 0; i < count; i = i + 1)
 {
     structs[i] = ProxyStruct()
 }
-
-__dprint("Created " + toString(count) + " proxy structs")
 
 // Benchmark: iterate and read+write via metamethods
 for (var i = 0; i < count; i = i + 1)
@@ -52,5 +50,3 @@ for (var i = 0; i < count; i = i + 1)
     s.x = x + 1
     s.y = y + 1
 }
-
-__dprint("Updated " + toString(count) + " proxy structs")

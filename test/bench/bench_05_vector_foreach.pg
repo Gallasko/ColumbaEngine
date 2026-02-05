@@ -16,8 +16,6 @@ for (var i = 0; i < count; i = i + 1)
     }
 }
 
-__dprint("Created vector with " + toString(count) + " entities")
-
 // Benchmark: foreach iteration over vector
 var counter = 0
 for (var entity : entities)
@@ -32,5 +30,3 @@ for (var entity : entities)
 
     counter = counter + 1
 }
-
-__dprint("Updated " + toString(counter) + " entities via vector foreach")

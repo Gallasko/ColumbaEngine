@@ -7,13 +7,11 @@
 var entities = {}
 for (var i = 0; i < count; i = i + 1)
 {
-    entities[toString(i)] = {
+    entities[i] = {
         "x": 100,
         "y": 200
     }
 }
-
-__dprint("Created " + toString(count) + " entities in table")
 
 // Benchmark: foreach iteration with property access
 var counter = 0
@@ -31,5 +29,3 @@ for (var key : entities)
 
     counter = counter + 1
 }
-
-__dprint("Updated " + toString(counter) + " entities via foreach")
