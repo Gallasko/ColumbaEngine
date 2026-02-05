@@ -265,6 +265,9 @@ namespace pg
             serialize(archive, *(owner->getComponent(entity->id)));
         });
 
+        // Store component type name for fast lookup
+        componentTypeNameMap.emplace(id, typeName);
+
         // Register deserialize callback using the typeName
         componentDeserializeMap.emplace(typeName, [this, typeName](const UnserializedObject& serializedStr, EntityRef entity) {
             if (serializedStr.isNull())

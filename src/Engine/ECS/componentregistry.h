@@ -372,6 +372,21 @@ namespace pg
             componentSerializeMap.at(id)(archive, entity);
         }
 
+        /**
+         * @brief Get the component type name from its ID
+         * @param id The unique component type ID
+         * @return std::string The component type name, or empty string if not found
+         */
+        inline std::string getComponentTypeName(_unique_id id) const
+        {
+            auto it = componentTypeNameMap.find(id);
+            if (it != componentTypeNameMap.end())
+            {
+                return it->second;
+            }
+            return "";
+        }
+
         inline void deserializeComponentToEntity(const UnserializedObject& serializedString, EntityRef entity) const
         {
             const auto& name = serializedString.getObjectType();
@@ -498,6 +513,7 @@ namespace pg
         std::unordered_map<_unique_id, void*> componentStorageMap;
         std::unordered_map<_unique_id, std::function<void(Entity*)>> componentDeleteMap;
         std::unordered_map<_unique_id, std::function<void(Archive&, const Entity*)>> componentSerializeMap;
+        std::unordered_map<_unique_id, std::string> componentTypeNameMap;  // Maps component ID to type name
         std::unordered_map<std::string, std::function<void(const UnserializedObject&, EntityRef)>> componentDeserializeMap;
         std::unordered_map<std::string, std::function<void(EntityRef)>> componentDetachMap;
         std::unordered_map<_unique_id, void*> groupStorageMap;

@@ -432,19 +432,18 @@ namespace pg
 
                 // Stack: [instance, value]
                 // Call native __set(instance, propertyName, value)
-                Value value = vm->peek(0);  // Get value (keep on stack)
+                Value value = vm->pop();  // Pop value temporarily
 
                 vm->push(nameValue);  // Push property name
-                vm->push(value);      // Push value again
+                vm->push(value);      // Push value
 
-                // Now stack: [instance, value, propertyName, value]
+                // Now stack: [instance, propertyName, value]
                 // Call with args[0]=instance, args[1]=propertyName, args[2]=value
-                Value result = native->function(vm, 3, vm->stack.data() + vm->stack.size() - 4);
+                Value result = native->function(vm, 3, vm->stack.data() + vm->stack.size() - 3);
 
-                // Clean up stack: remove [value, propertyName, value]
-                vm->pop(); // value (duplicate)
+                // Clean up stack: remove [propertyName, value]
+                vm->pop(); // value
                 vm->pop(); // propertyName
-                vm->pop(); // value (original)
                 auto inst = vm->pop(); // instance
                 vm->releaseAndDelete(inst);
 
