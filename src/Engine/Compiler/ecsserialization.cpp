@@ -473,32 +473,22 @@ namespace pg
                 {
                     _unique_id componentId = compRef.getId();
 
-                    // Get the component type name
-                    InspectorArchive archive;
-                    ecsRef->getComponentRegistry()->serializeComponentFromEntity(archive, entity, componentId);
+                    // Use fast getComponentTypeName() instead of creating an archive!
+                    std::string compTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(componentId);
 
-                    if (archive.mainNode.children.size() > 0)
+                    // For StandardComponent, get the actual type name
+                    if (compTypeName == "StandardComponent")
                     {
-                        auto& compNode = archive.mainNode.children[0];
-                        std::string compTypeName = compNode.className;
-
-                        // For StandardComponent, check the actual typeName
-                        if (compTypeName == "StandardComponent")
+                        StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
+                        if (standardComp)
                         {
-                            for (const auto& child : compNode.children)
-                            {
-                                if (child.name == "typeName" && !child.children.empty())
-                                {
-                                    compTypeName = child.children[0].name;
-                                    break;
-                                }
-                            }
+                            compTypeName = standardComp->typeName;
                         }
+                    }
 
-                        if (compTypeName == componentName)
-                        {
-                            return makeBoolValue(true);
-                        }
+                    if (compTypeName == componentName)
+                    {
+                        return makeBoolValue(true);
                     }
                 }
             }
@@ -516,31 +506,24 @@ namespace pg
             {
                 _unique_id componentId = compRef.getId();
 
-                // Serialize the component
-                Value componentTableValue = serializeComponentToTable(vm, ecsRef, entity, componentId);
+                // Get component type name FIRST (fast lookup, no archive needed)
+                std::string componentTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(componentId);
 
-                // Get the component type name from the serialized table's __className field
-                ObjInstance* compTable = vm->asInstance(componentTableValue);
-                std::string componentTypeName = "Component";
-
-                auto classNameIt = compTable->fields.find("__className");
-                if (classNameIt != compTable->fields.end() and IS_STRING(classNameIt->second))
+                // For StandardComponent, get the actual runtime type name
+                if (componentTypeName == "StandardComponent")
                 {
-                    componentTypeName = vm->asString(classNameIt->second);
-
-                    // For StandardComponent, use the actual typeName instead of "StandardComponent"
-                    if (componentTypeName == "StandardComponent")
+                    StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
+                    if (standardComp)
                     {
-                        auto typeNameIt = compTable->fields.find("typeName");
-                        if (typeNameIt != compTable->fields.end() and IS_STRING(typeNameIt->second))
-                        {
-                            componentTypeName = vm->asString(typeNameIt->second);
-                        }
+                        componentTypeName = standardComp->typeName;
                     }
                 }
 
-                // Add to entity table
-                entityTable->fields[componentTypeName] = componentTableValue;
+                // Serialize the component (will return proxy for registered components)
+                Value componentValue = serializeComponentToTable(vm, ecsRef, entity, componentId);
+
+                // Add to entity table using the type name we already have
+                entityTable->fields[componentTypeName] = componentValue;
             }
         }
 
