@@ -113,7 +113,33 @@ namespace pg
         ObjInstance(Klass* klass) : klass(klass) {}
 
         Klass* klass;
-        std::map<std::string, Value> fields;
+
+        // Interned field storage:
+        // - fieldValues: Values in insertion order
+        // - internedFields: Maps property name -> index in fieldValues
+        std::vector<Value> fieldValues;
+        std::unordered_map<std::string, size_t> internedFields;
+
+        // Helper to set a field value (creates or updates)
+        inline void setField(const std::string& name, Value value, VM *vm = nullptr, bool deleteOld = false);
+
+        // Helper to get a field value (returns nullptr-like value if not found)
+        inline Value getField(const std::string& name) const
+        {
+            auto it = internedFields.find(name);
+
+            if (it != internedFields.end())
+            {
+                return fieldValues[it->second];
+            }
+
+            return makeIntValue(0);  // Return a default value
+        }
+
+        inline bool hasField(const std::string& name) const
+        {
+            return internedFields.find(name) != internedFields.end();
+        }
     };
 
     struct ObjBoundMethod

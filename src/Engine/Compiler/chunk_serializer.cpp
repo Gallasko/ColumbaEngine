@@ -174,6 +174,13 @@ namespace pg
                 return false;
         }
 
+        // Write constantStrings section (for interned property names)
+        writeUint32(out, static_cast<uint32_t>(chunk.constantStrings.size()));
+        for (const std::string& str : chunk.constantStrings)
+        {
+            writeString(out, str);
+        }
+
         return out.good();
     }
 
@@ -201,6 +208,15 @@ namespace pg
             if (!deserializeValueImpl(in, value, vm))
                 return false;
             chunk.constants.push_back(value);
+        }
+
+        // Read constantStrings section (for interned property names)
+        uint32_t constantStringsCount = readUint32(in);
+        chunk.constantStrings.reserve(constantStringsCount);
+        for (uint32_t i = 0; i < constantStringsCount; i++)
+        {
+            std::string str = readString(in);
+            chunk.constantStrings.push_back(str);
         }
 
         return in.good();

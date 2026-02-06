@@ -94,14 +94,14 @@ namespace pg
      */
     enum ValueTagExt : uint8_t
     {
-        TAG_INSTANCE      = 0,  // Index into instance pool
-        TAG_BOUND_METHOD  = 1,  // Index into bound method pool
-        TAG_VECTOR        = 2,  // Index into vector pool
-        TAG_SMALL_STRING  = 3,  // Inline string (up to 5 chars)
-        TAG_CUSTOM_PTR    = 4,  // Hold a custom pointer (user-defined)
-        TAG_RESERVED_5    = 5,  // Reserved for future use
-        TAG_RESERVED_6    = 6,  // Reserved for future use
-        TAG_RESERVED_7    = 7,  // Reserved for future use
+        TAG_INSTANCE        = 0,  // Index into instance pool
+        TAG_BOUND_METHOD    = 1,  // Index into bound method pool
+        TAG_VECTOR          = 2,  // Index into vector pool
+        TAG_SMALL_STRING    = 3,  // Inline string (up to 5 chars)
+        TAG_CUSTOM_PTR      = 4,  // Hold a custom pointer (user-defined)
+        TAG_INTERNED_STRING = 5,  // Index into chunk's constantStrings vector (property names)
+        TAG_RESERVED_6      = 6,  // Reserved for future use
+        TAG_RESERVED_7      = 7,  // Reserved for future use
     };
 
     /**
@@ -229,10 +229,15 @@ namespace pg
         return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_CUSTOM_PTR;
     }
 
-    // Unified string check (both small and long strings)
+    inline bool IS_INTERNED_STRING(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INTERNED_STRING;
+    }
+
+    // Unified string check (long, small, and interned strings)
     inline bool IS_STRING(Value v)
     {
-        return IS_LONG_STRING(v) or IS_SMALL_STRING(v);
+        return IS_LONG_STRING(v) or IS_SMALL_STRING(v) or IS_INTERNED_STRING(v);
     }
 
     // Legacy compatibility (for transition period)
@@ -378,6 +383,16 @@ namespace pg
     }
 
     /**
+     * Create an interned string value (index into chunk's constantStrings)
+     * Used for property names and other compile-time constant strings
+     */
+    inline Value makeInternedStringValue(uint32_t index)
+    {
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_INTERNED_STRING) << TAG_SHIFT) |
+               static_cast<uint64_t>(index);
+    }
+
+    /**
      * Create a custom pointer value with type and index - uses negative tag
      * Format in 47-bit payload: [15-bit type][32-bit index]
      * Bits [46:32] = type (0-32767) - allows differentiating 32K pointer types
@@ -488,6 +503,14 @@ namespace pg
      * Extract pool index for native function
      */
     inline uint32_t AS_NATIVE_INDEX(Value v)
+    {
+        return GET_INDEX(v);
+    }
+
+    /**
+     * Extract index for interned string (into constantStrings)
+     */
+    inline uint32_t AS_INTERNED_STRING_INDEX(Value v)
     {
         return GET_INDEX(v);
     }
