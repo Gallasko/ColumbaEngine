@@ -57,7 +57,7 @@ namespace pg
                 std::string key = vm->asString(args[1]);
 
                 // Check if the key exists in the instance's fields
-                bool exists = instance->fields.find(key) != instance->fields.end();
+                bool exists = instance->hasField(key);
 
                 return makeBoolValue(exists);
             }
@@ -188,8 +188,10 @@ namespace pg
             }
             else
             {
-                throw std::runtime_error("len expects an array or string");
+                throw std::runtime_error("len expects an array or string, got " + std::string(valueTypeName(args[0])));
             }
+
+            return makeIntValue(0); // Unreachable, but silences compiler warning
         }
 
         /**

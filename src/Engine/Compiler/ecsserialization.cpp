@@ -114,24 +114,28 @@ namespace pg
         // _unique_id entityId = component->entityId;
 
         // Get the properties table
-        auto propertiesIt = table->fields.find("properties");
-        if (propertiesIt == table->fields.end() or not IS_INSTANCE(propertiesIt->second))
+        auto propVal = table->getField("properties");
+
+        if ((not table->hasField("properties")) or not IS_INSTANCE(propVal))
         {
             LOG_WARNING("ECS Serialization", "No properties table found for StandardComponent, skipping setter generation");
             return;
         }
 
-        ObjInstance* propertiesTable = vm->asInstance(propertiesIt->second);
+        ObjInstance* propertiesTable = vm->asInstance(propVal);
 
         // Flatten properties to the top level of the table
         std::vector<std::string> propertyNames;
-        for (const auto& [key, value] : propertiesTable->fields)
+
+        for (const auto& [key, v] : propertiesTable->internedFields)
         {
+            auto value = propertiesTable->fieldValues[v];
+
             if (key != "__className" and not key.empty())
             {
                 propertyNames.push_back(key);
                 // Copy property to top level
-                table->fields[key] = vm->retainValue(value);
+                table->setField(key, vm->retainValue(value));
             }
         }
 
@@ -180,12 +184,7 @@ namespace pg
                     // setWithEvent updates the property and fires Changed<ComponentType> event
                     component->setWithEvent(propName, newValue);
 
-                    // Also update the VM table so the script sees the change immediately
-                    if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
-                    {
-                        vm->releaseAndDelete(propertiesTable->fields[propName]);
-                    }
-                    propertiesTable->fields[propName] = vm->retainValue(args[0]);
+                    propertiesTable->setField(propName, vm->retainValue(args[0]), vm, true);
                 }
 
                 return INT_VAL(0);
@@ -198,7 +197,7 @@ namespace pg
             Value setterValue = makeNativeFuncValue(static_cast<uint32_t>(funcIndex));
 
             // Add directly to table without going through globals
-            table->fields[methodName] = vm->trackNewValue(setterValue);
+            table->setField(methodName, vm->trackNewValue(setterValue));
 
             LOG_MILE("ECS Serialization", "Added setter method: " << methodName);
         }
@@ -241,19 +240,14 @@ namespace pg
                 // setWithEvent updates the property and fires Changed<ComponentType> event
                 component->setWithEvent(propName, newValue);
 
-                // Also update the VM table so the script sees the change immediately
-                if (propertiesTable->fields.find(propName) != propertiesTable->fields.end())
-                {
-                    vm->releaseAndDelete(propertiesTable->fields[propName]);
-                }
-                propertiesTable->fields[propName] = vm->retainValue(args[1]);
+                propertiesTable->setField(propName, vm->retainValue(args[1]), vm, true);
             }
 
             return INT_VAL(0);
         };
 
         // Create native function and add directly to table without going through globals
-        table->fields["set"] = vm->createNativeFunction(genericSetterFunc);
+        table->setField("set", vm->createNativeFunction(genericSetterFunc));
 
         LOG_MILE("ECS Serialization", "Added generic set() method");
     }
@@ -360,12 +354,7 @@ namespace pg
                 componentTypeName = compNode.className;
                 Value classNameValue = vm->createString(compNode.className);
 
-                if (table->fields.find("__className") != table->fields.end())
-                {
-                    vm->releaseAndDelete(table->fields["__className"]);
-                }
-
-                table->fields["__className"] = classNameValue;
+                table->setField("__className", classNameValue, vm, true);
             }
 
             // Process all component properties using the shared helper
@@ -438,12 +427,12 @@ namespace pg
 
         // Add the entity ID
         Value idValue = makeIntValue(static_cast<int64_t>(entity->id));
-        entityTable->fields["__entityId"] = idValue;
+        entityTable->setField("__entityId", idValue);
 
         // Add native attachComp function that holds the entity pointer
         // This allows scripts to attach components immediately without entity lookup
         Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entity, ecsRef));
-        entityTable->fields["attachComp"] = attachCompFuncValue;
+        entityTable->setField("attachComp", attachCompFuncValue);
 
         // Add native has() method to check if entity has a specific component
         auto hasFunc = [entity, ecsRef](VM* vm, int argCount, Value* args) -> Value {
@@ -497,7 +486,7 @@ namespace pg
         };
 
         Value hasFuncValue = vm->createNativeFunction(hasFunc);
-        entityTable->fields["has"] = hasFuncValue;
+        entityTable->setField("has", hasFuncValue);
 
         // Serialize each component
         for (const auto& compRef : entity->componentList)
@@ -523,7 +512,7 @@ namespace pg
                 Value componentValue = serializeComponentToTable(vm, ecsRef, entity, componentId);
 
                 // Add to entity table using the type name we already have
-                entityTable->fields[componentTypeName] = componentValue;
+                entityTable->setField(componentTypeName, componentValue);
             }
         }
 
@@ -547,11 +536,12 @@ namespace pg
         if (typeName.empty())
         {
             // Try to find the class name in the table
-            auto it = table->fields.find("__className");
-            if (it != table->fields.end())
+            if (table->hasField("__className"))
             {
-                if (IS_STRING(it->second))
-                    typeName = vm->asString(it->second);
+                auto val = table->getField("__className");
+
+                if (IS_STRING(val))
+                    typeName = vm->asString(val);
             }
 
             if (typeName.empty())
@@ -572,8 +562,10 @@ namespace pg
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
         processTable = [&](ObjInstance* currentTable, UnserializedObject& currentObj) {
-            for (const auto& [key, value] : currentTable->fields)
+            for (const auto& [key, v] : currentTable->internedFields)
             {
+                auto value = currentTable->fieldValues[v];
+
                 // Skip special fields
                 if (key == "__className")
                     continue;
@@ -640,12 +632,14 @@ namespace pg
 
         // Check if there's an entity ID specified
         _unique_id specifiedId = 0;
-        auto idIt = table->fields.find("__entityId");
-        if (idIt != table->fields.end())
+
+        if (table->hasField("__entityId"))
         {
-            if (IS_INT(idIt->second))
+            auto val = table->getField("__entityId");
+
+            if (IS_INT(val))
             {
-                specifiedId = static_cast<_unique_id>(AS_INT(idIt->second));
+                specifiedId = static_cast<_unique_id>(val);
             }
         }
 
@@ -670,8 +664,10 @@ namespace pg
         }
 
         // Deserialize each component
-        for (const auto& [key, value] : table->fields)
+        for (const auto& [key, v] : table->internedFields)
         {
+            auto value = table->fieldValues[v];
+
             // Skip special fields
             if (key == "__entityId" or key == "__className")
                 continue;
@@ -708,7 +704,7 @@ namespace pg
             Value entityTableValue = serializeEntityToTable(vm, ecsRef, entity);
 
             Value indexKey = vm->createString(std::to_string(index));
-            entitiesTable->fields[vm->asString(indexKey)] = vm->retainValue(entityTableValue);
+            entitiesTable->setField(vm->asString(indexKey), vm->retainValue(entityTableValue));
             vm->releaseAndDelete(indexKey);
             vm->releaseAndDelete(entityTableValue);
 
@@ -718,7 +714,7 @@ namespace pg
         // Add count field
         Value countKey = vm->createString("count");
         Value countValue = makeIntValue(static_cast<int64_t>(entities.size()));
-        entitiesTable->fields[vm->asString(countKey)] = vm->retainValue(countValue);
+        entitiesTable->setField(vm->asString(countKey), vm->retainValue(countValue));
         vm->releaseAndDelete(countKey);
 
         return entitiesTableValue;
@@ -734,11 +730,13 @@ namespace pg
         ObjInstance* table = vm->asInstance(entitiesTable);
         std::vector<EntityRef> entities;
 
-        for (const auto& [key, value] : table->fields)
+        for (const auto& [key, v] : table->internedFields)
         {
             // Skip non-numeric keys and special fields
             if (key == "count" or key == "__className")
                 continue;
+
+            auto value = table->fieldValues[v];
 
             // Try to parse as numeric index
             try
@@ -800,25 +798,21 @@ namespace pg
             ObjInstance* self = vm->asInstance(args[0]);
             std::string propName = vm->asString(args[1]);
 
-            // Get component pointer and type name from internal fields
-            auto ptrIt = self->fields.find("__componentPtr");
-            auto typeIt = self->fields.find("__typeName");
-
-            if (ptrIt == self->fields.end() or typeIt == self->fields.end())
+            if ((not self->hasField("__componentPtr")) or (not self->hasField("__typeName")))
             {
                 vm->runtimeError("ComponentProxy missing internal fields");
-                return INT_VAL(0);
+                return INT_VAL(-1);
             }
 
-            void* componentPtr = vm->asCustomPtr<void>(ptrIt->second);
-            std::string typeName = vm->asString(typeIt->second);
+            void* componentPtr = vm->asCustomPtr<void>(self->getField("__componentPtr"));
+            std::string typeName = vm->asString(self->getField("__typeName"));
 
             // Get metadata for this component type
             auto& registry = ComponentProxyRegistry::instance();
             if (not registry.hasMetadata(typeName))
             {
                 vm->runtimeError("No metadata for component type: " + typeName);
-                return INT_VAL(0);
+                return INT_VAL(-1);
             }
 
             const ComponentProxyMetadata& metadata = registry.getMetadata(typeName);
@@ -827,7 +821,7 @@ namespace pg
             if (propIt == metadata.properties.end())
             {
                 // Property not found - return nil or 0
-                return INT_VAL(0);
+                return INT_VAL(-1);
             }
 
             const PropertyMetadata& prop = propIt->second;
@@ -839,7 +833,7 @@ namespace pg
 
             LOG_WARNING("ComponentProxy", "No getter function for property '" << propName << "' !");
 
-            return INT_VAL(0);
+            return INT_VAL(-1);
         });
 
         // Add __set metamethod (handles ALL component property writes)
@@ -854,18 +848,14 @@ namespace pg
             std::string propName = vm->asString(args[1]);
             Value newValue = args[2];
 
-            // Get component pointer and type name from internal fields
-            auto ptrIt = self->fields.find("__componentPtr");
-            auto typeIt = self->fields.find("__typeName");
-
-            if (ptrIt == self->fields.end() or typeIt == self->fields.end())
+            if ((not self->hasField("__componentPtr")) or (not self->hasField("__typeName")))
             {
                 vm->runtimeError("ComponentProxy missing internal fields");
                 return newValue;
             }
 
-            void* componentPtr = vm->asCustomPtr<void>(ptrIt->second);
-            std::string typeName = vm->asString(typeIt->second);
+            void* componentPtr = vm->asCustomPtr<void>(self->getField("__componentPtr"));
+            std::string typeName = vm->asString(self->getField("__typeName"));
 
             // Get metadata for this component type
             auto& registry = ComponentProxyRegistry::instance();
@@ -926,9 +916,9 @@ namespace pg
         ObjInstance* proxy = vm->asInstance(proxyInstance);
 
         // Store component pointer and type name (both use __ prefix to bypass metamethods!)
-        proxy->fields["__componentPtr"] = vm->createCustomPtr<void>(componentPtr);
-        proxy->fields["__typeName"] = vm->createString(typeName);
-        proxy->fields["__className"] = vm->createString(typeName);
+        proxy->setField("__componentPtr", vm->createCustomPtr<void>(componentPtr));
+        proxy->setField("__typeName", vm->createString(typeName));
+        proxy->setField("__className", vm->createString(typeName));
 
         return proxyInstance;
     }

@@ -329,13 +329,13 @@ namespace pg
                 Value value = detail::extractElementTypeValue(vm, node);
                 if (retainValues)
                 {
-                    currentTable->fields[node.name] = vm->retainValue(value);
+                    currentTable->setField(node.name, vm->retainValue(value));
                     if (IS_STRING(value))
                         vm->releaseAndDelete(value);
                 }
                 else
                 {
-                    currentTable->fields[node.name] = value;
+                    currentTable->setField(node.name, value);
                 }
                 return;
             }
@@ -347,13 +347,13 @@ namespace pg
 
                 if (retainValues)
                 {
-                    currentTable->fields[node.name] = vm->retainValue(value);
+                    currentTable->setField(node.name, vm->retainValue(value));
                     if (IS_STRING(value))
                         vm->releaseAndDelete(value);
                 }
                 else
                 {
-                    currentTable->fields[node.name] = value;
+                    currentTable->setField(node.name, value);
                 }
             }
 
@@ -391,30 +391,28 @@ namespace pg
 
                         if (retainValues)
                         {
-                            nestedTable->fields[std::to_string(i)] = vm->retainValue(elementValue);
+                            nestedTable->setField(std::to_string(i), vm->retainValue(elementValue));
                             if (IS_STRING(elementValue))
                                 vm->releaseAndDelete(elementValue);
                         }
                         else
                         {
-                            nestedTable->fields[std::to_string(i)] = elementValue;
+                            nestedTable->setField(std::to_string(i), elementValue);
                         }
                     }
 
                     if (retainValues)
                     {
-                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
                         vm->releaseAndDelete(nestedTableValue);
                     }
                     else
                     {
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        currentTable->fields[node.name] = nestedTableValue;
+                        currentTable->setField(node.name, nestedTableValue, vm, true);
                     }
                 }
                 // Check if this is an UnorderedMap
-                else if (node.className == "UnorderedMap" && !node.name.empty())
+                else if (node.className == "UnorderedMap" and not node.name.empty())
                 {
                     Value nestedTableValue = vm->createInstance(tableClass);
                     ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
@@ -472,27 +470,25 @@ namespace pg
                         {
                             if (retainValues)
                             {
-                                nestedTable->fields[actualKey] = vm->retainValue(actualValue);
+                                nestedTable->setField(actualKey, vm->retainValue(actualValue));
                                 if (IS_STRING(actualValue))
                                     vm->releaseAndDelete(actualValue);
                             }
                             else
                             {
-                                nestedTable->fields[actualKey] = actualValue;
+                                nestedTable->setField(actualKey, actualValue);
                             }
                         }
                     }
 
                     if (retainValues)
                     {
-                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
                         vm->releaseAndDelete(nestedTableValue);
                     }
                     else
                     {
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        currentTable->fields[node.name] = nestedTableValue;
+                        currentTable->setField(node.name, nestedTableValue, vm, true);
                     }
                 }
                 // If the node has a name, create a nested table for the children
@@ -508,14 +504,12 @@ namespace pg
 
                     if (retainValues)
                     {
-                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
                         vm->releaseAndDelete(nestedTableValue);
                     }
                     else
                     {
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        currentTable->fields[node.name] = nestedTableValue;
+                        currentTable->setField(node.name, nestedTableValue, vm, true);
                     }
                 }
                 else
@@ -768,10 +762,9 @@ namespace pg
         // Get the class name (component type)
         std::string typeName = Type::getType();
 
-        auto classNameIt = objTable->fields.find("__className");
-        if (classNameIt != objTable->fields.end() && IS_STRING(classNameIt->second))
+        if (objTable->hasField("__className"))
         {
-            typeName = vm->asString(classNameIt->second);
+            typeName = vm->asString(objTable->getField("__className"));
         }
 
         // Create the root unserialized object
@@ -782,11 +775,13 @@ namespace pg
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
         processTable = [&](ObjInstance* currentTable, UnserializedObject& currentObj) {
-            for (const auto& [key, value] : currentTable->fields)
+            for (const auto& [key, v] : currentTable->internedFields)
             {
                 // Skip special fields
                 if (key == "__className")
                     continue;
+
+                auto value = currentTable->fieldValues[v];
 
                 if (IS_INSTANCE(value))
                 {
@@ -880,7 +875,7 @@ namespace pg
 
         // Helper function to add field to table
         auto addField = [&](const std::string& key, Value value) {
-            table->fields[key] = vm->retainValue(value);
+            table->setField(key, vm->retainValue(value));
         };
 
         // Parse the archive and populate the table
@@ -938,7 +933,7 @@ namespace pg
 
         // Helper function to add field to table
         auto addField = [&](const std::string& key, Value value) {
-            table->fields[key] = vm->retainValue(value);
+            table->setField(key, vm->retainValue(value));
         };
 
         // Parse the archive and populate the table
@@ -1000,7 +995,7 @@ namespace pg
                 std::string componentTypeName = Comp::getType();
 
                 // Add to entity table
-                entityTable->fields[componentTypeName] = componentTableValue;
+                entityTable->setField(componentTypeName, componentTableValue);
 
                 LOG_INFO("ECS Serialization", "Serialized component: " << componentTypeName);
             }
@@ -1047,14 +1042,14 @@ namespace pg
 
         // Add the entity ID
         Value idValue = makeIntValue(static_cast<int64_t>(compList.id));
-        entityTable->fields["__entityId"] = idValue;
+        entityTable->setField("__entityId", idValue);
 
         // Add native attachComp function that holds the entity pointer
         // This allows scripts to attach components immediately without entity lookup
         Entity* entityPtr = compList.entity.entity;
         EntitySystem* ecsRef = entityPtr->world();
         Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entityPtr, ecsRef));
-        entityTable->fields["attachComp"] = attachCompFuncValue;
+        entityTable->setField("attachComp", attachCompFuncValue);
 
         // Serialize each component in the CompList using fold expression
         (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);

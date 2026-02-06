@@ -13,7 +13,7 @@ namespace pg
         upvalues.resize(func->upvalueCount);
     }
 
-    inline void ObjInstance::setField(const std::string& name, Value value, VM *vm, bool deleteOld)
+    void ObjInstance::setField(const std::string& name, Value value, VM *vm, bool deleteOld)
     {
         auto it = internedFields.find(name);
         if (it != internedFields.end())
