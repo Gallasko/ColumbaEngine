@@ -121,7 +121,7 @@ namespace pg
         std::unordered_map<std::string, size_t> internedFields;
 
         // Helper to set a field value (creates or updates)
-        inline void setField(const std::string& name, Value value, VM *vm = nullptr, bool deleteOld = false);
+        void setField(const std::string& name, Value value, VM *vm = nullptr, bool deleteOld = false);
 
         // Helper to get a field value (returns nullptr-like value if not found)
         inline Value getField(const std::string& name) const

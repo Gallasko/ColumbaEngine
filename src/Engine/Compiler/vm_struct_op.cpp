@@ -15,11 +15,11 @@ namespace pg
 
         ObjInstance* instance = vm->asInstance(receiverValue);
 
-        // Check for field first
-        auto fieldIt = instance->fields.find(name);
-        if (fieldIt != instance->fields.end())
+        // Check for field
+        auto fieldIt = instance->internedFields.find(name);
+        if (fieldIt != instance->internedFields.end())
         {
-            Value fieldValue = fieldIt->second;
+            Value fieldValue = instance->fieldValues[fieldIt->second];
             vm->releaseAndDelete(vm->stack[vm->stack.size() - argCount - 1]); // Remove receiver
             vm->stack[vm->stack.size() - argCount - 1] = vm->retainValue(fieldValue); // Replace it with the field value
             return vm->callValue(fieldValue, argCount);
@@ -31,28 +31,17 @@ namespace pg
 
     void op_invoke(VM* vm)
     {
-        uint8_t methodIndex = *vm->currentFrame->ip++;
-
-        auto methodValue = vm->currentFrame->closure->function->chunk.constants[methodIndex];
-        auto methodValueName = vm->valueToElement(methodValue);
-
+        uint8_t stringIndex = *vm->currentFrame->ip++;
         uint8_t argCount = *vm->currentFrame->ip++;
 
-        if (not methodValueName.isLitteral())
-        {
-            vm->runtimeError("Invoke operand must be a method name string.");
-            vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
-            return;
-        }
-
-        auto methodName = methodValueName.toString();
+        // Get method name from constant strings (no conversion needed!)
+        auto* function = vm->currentFrame->closure->function;
+        const std::string& methodName = function->chunk.constantStrings[stringIndex];
 
         if (not invoke(vm, methodName, argCount))
         {
             vm->runtimeError("Method '" + methodName + "' not found.");
             vm->vm_return(InterpretResult::RUNTIME_ERROR);
-
             return;
         }
 
@@ -162,45 +151,23 @@ namespace pg
 
         auto* instance = vm->asInstance(vm->peek(0));
 
-        uint8_t constantIndex = *vm->currentFrame->ip++;
+
+        uint8_t stringIndex = *vm->currentFrame->ip++;
         auto* function = vm->currentFrame->closure->function;
 
-        // Check cache first
-        auto cacheIt = function->propertyNameCache.find(constantIndex);
-        std::string nameStr;
+        // Get property name from constant strings (no conversion needed!)
+        const std::string& nameStr = function->chunk.constantStrings[stringIndex];
 
-        if (cacheIt != function->propertyNameCache.end())
-        {
-            // Cache hit - use cached string
-            nameStr = cacheIt->second;
-        }
-        else
-        {
-            // Cache miss - convert and cache
-            auto nameValue = function->chunk.constants[constantIndex];
-            auto name = vm->valueToElement(nameValue);
+        // Create interned string Value for metamethod calls (no heap allocation!)
+        Value nameValue = makeInternedStringValue(stringIndex);
 
-            if (not name.isLitteral())
-            {
-                vm->runtimeError("Property name must be a litteral.");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
-            }
-
-            nameStr = name.toString();
-            function->propertyNameCache[constantIndex] = nameStr;
-        }
-
-        auto nameValue = function->chunk.constants[constantIndex];
-
-        // Try to find a field first (use iterator to avoid double lookup)
-        auto fieldIt = instance->fields.find(nameStr);
-        if (fieldIt != instance->fields.end())
+        // Try to find field (direct string lookup, O(1) average case)
+        auto fieldIt = instance->internedFields.find(nameStr);
+        if (fieldIt != instance->internedFields.end())
         {
             auto inst = vm->pop(); // Remove the instance from the stack
             vm->releaseAndDelete(inst);
-            vm->push(vm->retainValue(fieldIt->second));
-
+            vm->push(vm->retainValue(instance->fieldValues[fieldIt->second]));
             return;
         }
 
@@ -219,10 +186,10 @@ namespace pg
         else
         {
             // Also check instance fields for __get (for dynamic metamethods)
-            auto fieldIt = instance->fields.find("__get");
-            if (fieldIt != instance->fields.end())
+            auto fieldIt = instance->internedFields.find("__get");
+            if (fieldIt != instance->internedFields.end())
             {
-                getMethod = fieldIt->second;
+                getMethod = instance->fieldValues[fieldIt->second];
                 hasGetMethod = true;
                 isDynamicGet = true;
             }
@@ -231,6 +198,7 @@ namespace pg
         if (hasGetMethod and (IS_CLOSURE(getMethod) or IS_NAT_FUNC(getMethod)))
         {
             // Call __get(instance, propertyName)
+            // nameValue already created above as interned string
             if (IS_CLOSURE(getMethod))
             {
                 // Push property name as argument
@@ -320,36 +288,14 @@ namespace pg
 
         auto* instance = vm->asInstance(vm->peek(1));
 
-        uint8_t constantIndex = *vm->currentFrame->ip++;
+        uint8_t stringIndex = *vm->currentFrame->ip++;
         auto* function = vm->currentFrame->closure->function;
 
-        // Check cache first
-        auto cacheIt = function->propertyNameCache.find(constantIndex);
-        std::string nameStr;
+        // Get property name from constant strings (no conversion needed!)
+        const std::string& nameStr = function->chunk.constantStrings[stringIndex];
 
-        if (cacheIt != function->propertyNameCache.end())
-        {
-            // Cache hit - use cached string
-            nameStr = cacheIt->second;
-        }
-        else
-        {
-            // Cache miss - convert and cache
-            auto nameValue = function->chunk.constants[constantIndex];
-            auto name = vm->valueToElement(nameValue);
-
-            if (not name.isLitteral())
-            {
-                vm->runtimeError("Field name must be a litteral.");
-                vm->vm_return(InterpretResult::RUNTIME_ERROR);
-                return;
-            }
-
-            nameStr = name.toString();
-            function->propertyNameCache[constantIndex] = nameStr;
-        }
-
-        auto nameValue = function->chunk.constants[constantIndex];
+        // Create interned string Value for metamethod calls (no heap allocation!)
+        Value nameValue = makeInternedStringValue(stringIndex);
 
         // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
         // and bypass metamethods. This prevents infinite recursion when metamethods like
@@ -396,10 +342,10 @@ namespace pg
             else
             {
                 // Also check instance fields for __set (for dynamic metamethods)
-                auto fieldIt = instance->fields.find("__set");
-                if (fieldIt != instance->fields.end())
+                auto fieldIt = instance->internedFields.find("__set");
+                if (fieldIt != instance->internedFields.end())
                 {
-                    setMethod = fieldIt->second;
+                    setMethod = instance->fieldValues[fieldIt->second];
                     hasSetMethod = true;
                     isDynamicSet = true;
                 }
@@ -409,7 +355,7 @@ namespace pg
         if (hasSetMethod)
         {
             // Call __set(instance, propertyName, value)
-
+            // nameValue already created above as interned string
             if (IS_CLOSURE(setMethod))
             {
                 // Stack is currently: [instance, value]
@@ -492,16 +438,21 @@ namespace pg
         auto inst = vm->pop(); // Instance
         vm->releaseAndDelete(inst);
 
-        // Use single map lookup with iterator
-        auto fieldIt = instance->fields.find(nameStr);
-        if (fieldIt != instance->fields.end())
+        // Check if field exists
+        auto fieldIt = instance->internedFields.find(nameStr);
+        if (fieldIt != instance->internedFields.end())
         {
-            vm->releaseAndDelete(fieldIt->second);
-            fieldIt->second = vm->retainValue(value);
+            // Update existing field
+            size_t valueIndex = fieldIt->second;
+            vm->releaseAndDelete(instance->fieldValues[valueIndex]);
+            instance->fieldValues[valueIndex] = vm->retainValue(value);
         }
         else
         {
-            instance->fields[nameStr] = vm->retainValue(value);
+            // New field - add to storage
+            size_t newIndex = instance->fieldValues.size();
+            instance->fieldValues.push_back(vm->retainValue(value));
+            instance->internedFields[nameStr] = newIndex;
         }
 
         vm->push(value);
@@ -581,16 +532,22 @@ namespace pg
         Value instanceVal = vm->createInstance(tableClass);
         ObjInstance* table = vm->asInstance(instanceVal);
 
+        // Pre-allocate storage
+        table->fieldValues.reserve(pairCount);
+        table->internedFields.reserve(pairCount);
+
         // Pop pairCount key-value pairs from stack (in reverse)
-        std::vector<std::pair<std::string, Value>> pairs;
-        pairs.reserve(pairCount);
+        std::vector<std::string> keys;
+        std::vector<Value> values;
+        keys.reserve(pairCount);
+        values.reserve(pairCount);
 
         for (int i = 0; i < pairCount; i++)
         {
             Value key = vm->pop();
             Value value = vm->pop();
 
-            // Convert key to string
+            // Convert key to string and intern
             std::string keyStr;
             if (IS_STRING(key))
             {
@@ -609,15 +566,20 @@ namespace pg
                 return;
             }
 
-            vm->releaseAndDelete(key);  // We've converted it to string, release original
-            pairs.push_back({keyStr, value});
+            // Intern the key string
+            vm->releaseAndDelete(key);  // We've converted it, release original
+
+            keys.push_back(keyStr);
+            values.push_back(value);
         }
 
         // Insert pairs in correct order (we popped in reverse)
-        for (auto it = pairs.rbegin(); it != pairs.rend(); ++it)
+        for (int i = pairCount - 1; i >= 0; i--)
         {
-            table->fields[it->first] = vm->retainValue(it->second);
-            vm->releaseAndDelete(it->second);  // Release our temporary reference
+            size_t valueIndex = table->fieldValues.size();
+            table->fieldValues.push_back(vm->retainValue(values[i]));
+            table->setField(keys[i], valueIndex);  // it->first is the string key
+            vm->releaseAndDelete(values[i]);  // Release our temporary reference
         }
 
         // Push the table instance we created
@@ -790,13 +752,13 @@ namespace pg
             return;
         }
 
-        // Look up in fields map first
-        auto it = inst->fields.find(key);
-        if (it != inst->fields.end())
+        // Look up field
+        auto fieldIt = inst->internedFields.find(key);
+        if (fieldIt != inst->internedFields.end())
         {
             vm->releaseAndDelete(index);
             vm->releaseAndDelete(target);
-            vm->push(vm->retainValue(it->second));
+            vm->push(vm->retainValue(inst->fieldValues[fieldIt->second]));
             return;
         }
 
@@ -817,10 +779,10 @@ namespace pg
             else
             {
                 // Also check instance fields for __get
-                auto fieldIt = inst->fields.find("__get");
-                if (fieldIt != inst->fields.end())
+                auto fieldIt = inst->internedFields.find("__get");
+                if (fieldIt != inst->internedFields.end())
                 {
-                    getMethod = fieldIt->second;
+                    getMethod = inst->fieldValues[fieldIt->second];
                     hasGetMethod = true;
                     isDynamicGet = true;
                 }
@@ -1030,10 +992,9 @@ namespace pg
                 else
                 {
                     // Also check instance fields for __set
-                    auto fieldIt = inst->fields.find("__set");
-                    if (fieldIt != inst->fields.end())
+                    if (inst->hasField("__set"))
                     {
-                        setMethod = fieldIt->second;
+                        setMethod = inst->getField("__set");
                         hasSetMethod = true;
                         isDynamicSet = true;
                     }
@@ -1125,15 +1086,22 @@ namespace pg
             }
 
             // No __set metamethod, do normal field assignment
-            // Release old value if it exists
-            auto it = inst->fields.find(key);
-            if (it != inst->fields.end())
+            auto fieldIt = inst->internedFields.find(key);
+            if (fieldIt != inst->internedFields.end())
             {
-                vm->releaseAndDelete(it->second);
+                // Update existing field
+                size_t valueIndex = fieldIt->second;
+                vm->releaseAndDelete(inst->fieldValues[valueIndex]);
+                inst->fieldValues[valueIndex] = vm->retainValue(value);
+            }
+            else
+            {
+                // New field - add to storage
+                size_t newIndex = inst->fieldValues.size();
+                inst->fieldValues.push_back(vm->retainValue(value));
+                inst->internedFields[key] = newIndex;
             }
 
-            // Store in fields map
-            inst->fields[key] = vm->retainValue(value);
             vm->releaseAndDelete(value);  // Release our reference (field now owns it)
             return;
         }
@@ -1260,8 +1228,11 @@ namespace pg
         ObjInstance* table = vm->asInstance(tableVal);
         int64_t index = AS_INT(iteratorState);
 
+        // Determine total field count
+        size_t totalFields = table->fieldValues.size();
+
         // Check if we've reached the end
-        if (static_cast<size_t>(index) >= table->fields.size())
+        if (static_cast<size_t>(index) >= totalFields)
         {
             // End of iteration - push false to indicate done
             // Stack remains: [table, iterator_state, false]
@@ -1270,9 +1241,16 @@ namespace pg
         }
 
         // Get the key at the current index
-        auto it = table->fields.begin();
-        std::advance(it, index);
-        std::string key = it->first;
+        // We need to find the key that maps to this index
+        std::string key;
+        for (const auto& pair : table->internedFields)
+        {
+            if (pair.second == static_cast<size_t>(index))
+            {
+                key = pair.first;  // pair.first is the string key
+                break;
+            }
+        }
 
         // Pop old iterator state
         vm->pop();  // Remove old iterator state
@@ -1319,8 +1297,9 @@ namespace pg
         vm->pop();
         vm->releaseAndDelete(tableVal);
 
-        // Push the size as an integer
-        vm->push(makeIntValue(static_cast<int64_t>(table->fields.size())));
+        // Push the field count
+        size_t totalSize = table->fieldValues.size();
+        vm->push(makeIntValue(static_cast<int64_t>(totalSize)));
     }
 
     void op_table_at(VM* vm)
@@ -1388,8 +1367,11 @@ namespace pg
         ObjInstance* table = vm->asInstance(tableVal);
         int64_t index = AS_INT(indexVal);
 
+        // Determine total field count
+        size_t totalFields = table->fieldValues.size();
+
         // Check bounds
-        if (index < 0 || static_cast<size_t>(index) >= table->fields.size())
+        if (index < 0 || static_cast<size_t>(index) >= totalFields)
         {
             vm->releaseAndDelete(indexVal);
             vm->releaseAndDelete(tableVal);
@@ -1399,9 +1381,15 @@ namespace pg
         }
 
         // Get the key at the specified index
-        auto it = table->fields.begin();
-        std::advance(it, index);
-        std::string key = it->first;
+        std::string key;
+        for (const auto& pair : table->internedFields)
+        {
+            if (pair.second == static_cast<size_t>(index))
+            {
+                key = pair.first;  // pair.first is the string key
+                break;
+            }
+        }
 
         vm->releaseAndDelete(indexVal);
         vm->releaseAndDelete(tableVal);

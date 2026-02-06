@@ -72,6 +72,9 @@ namespace pg
         // Initialize built-in classes (like Table)
         initialize_builtin_classes();
 
+        // Reserve base pool size on startup
+        pools.reserve();
+
         // Initialize single-character string cache for performance
         // Pre-allocate all 256 possible single-byte character strings
         for (int i = 0; i < 256; i++)

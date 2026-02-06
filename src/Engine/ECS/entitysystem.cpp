@@ -553,8 +553,10 @@ namespace pg
             {
                 ObjInstance* table = vm->asInstance(args[0]);
                 LOG_INFO("Script", "Table contents:");
-                for (const auto& [key, value] : table->fields)
+                for (const auto& [key, v] : table->internedFields)
                 {
+                    auto value = table->fieldValues[v];
+
                     std::string valStr;
                     if (IS_STRING(value))
                         valStr = vm->asString(value);

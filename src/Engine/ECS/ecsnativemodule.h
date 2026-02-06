@@ -151,7 +151,7 @@ namespace pg
                 auto componentName = vm->asString(args[1]);
 
                 // Get or create the components vector
-                Value componentsVec = self->fields["__components"];
+                Value componentsVec = self->getField("__components");
                 ObjVector* components = vm->asVector(componentsVec);
 
                 // Add component name to the list
@@ -178,7 +178,7 @@ namespace pg
                 }
 
                 // Store the script path
-                self->fields["__initScript"] = vm->retainValue(args[1]);
+                self->setField("__initScript", vm->retainValue(args[1]));
 
                 LOG_MILE("StandardSysClass", "Set init script: " << vm->asString(args[1]));
 
@@ -201,7 +201,7 @@ namespace pg
                 }
 
                 // Store the script path
-                self->fields["__executeScript"] = vm->retainValue(args[1]);
+                self->setField("__executeScript", vm->retainValue(args[1]));
 
                 LOG_MILE("StandardSysClass", "Set execute script: " << vm->asString(args[1]));
 
@@ -224,7 +224,7 @@ namespace pg
                 }
 
                 // Store the script path
-                self->fields["__deltaScript"] = vm->retainValue(args[1]);
+                self->setField("__deltaScript", vm->retainValue(args[1]));
 
                 LOG_MILE("StandardSysClass", "Set delta script: " << vm->asString(args[1]));
 
@@ -255,7 +255,7 @@ namespace pg
                 auto scriptPath = vm->asString(args[2]);
 
                 // Get or create the event scripts vector
-                Value eventScriptsVec = self->fields["__eventScripts"];
+                Value eventScriptsVec = self->getField("__eventScripts");
                 ObjVector* eventScripts = vm->asVector(eventScriptsVec);
 
                 // Store as a pair: [eventName, scriptPath]
@@ -282,9 +282,9 @@ namespace pg
                 ObjInstance* self = vm->asInstance(args[0]);
 
                 // Extract system configuration from the instance fields
-                std::string systemName = vm->asString(self->fields["__systemName"]);
+                std::string systemName = vm->asString(self->getField("__systemName"));
 
-                ObjVector* componentsVec = vm->asVector(self->fields["__components"]);
+                ObjVector* componentsVec = vm->asVector(self->getField("__components"));
                 // ObjVector* eventsVec = vm->asVector(self->fields["__events"]);
 
                 // Convert component names to vector
@@ -295,13 +295,13 @@ namespace pg
                 }
 
                 // Get script paths
-                std::string initScript = vm->asString(self->fields["__initScript"]);
-                std::string executeScript = vm->asString(self->fields["__executeScript"]);
-                std::string deltaScript = vm->asString(self->fields["__deltaScript"]);
+                std::string initScript = vm->asString(self->getField("__initScript"));
+                std::string executeScript = vm->asString(self->getField("__executeScript"));
+                std::string deltaScript = vm->asString(self->getField("__deltaScript"));
 
                 // Build event script map
                 _S_EventScriptMap eventScriptMap;
-                ObjVector* eventScripts = vm->asVector(self->fields["__eventScripts"]);
+                ObjVector* eventScripts = vm->asVector(self->getField("__eventScripts"));
 
                 for (Value pairVal : eventScripts->fields)
                 {
@@ -336,7 +336,7 @@ namespace pg
 
                 // Store the system impl pointer in the instance using custom ptr
                 Value systemImplPtr = vm->createCustomPtr(systemImpl);
-                self->fields["__systemImpl"] = systemImplPtr;
+                self->setField("__systemImpl", systemImplPtr);
 
                 LOG_INFO("StandardSysClass", "Built and registered system '" << systemName << "' with "
                          << componentNames.size() << " components");
@@ -370,12 +370,12 @@ namespace pg
                 {
                     auto instance = vm->asInstance(args[0]);
 
-                    if (instance->fields.find("__entityId") == instance->fields.end())
+                    if (instance->hasField("__entityId"))
                     {
                         throw std::runtime_error("removeEntity expects an entity with an __entityId field");
                     }
 
-                    auto idValue = instance->fields.at("__entityId");
+                    auto idValue = instance->getField("__entityId");
 
                     if (not IS_INT(idValue))
                     {
@@ -482,6 +482,7 @@ namespace pg
 
                 // Get entity ID (can be either int or entity table)
                 _unique_id entityId;
+
                 if (IS_INT(args[0]))
                 {
                     entityId = AS_INT(args[0]);
@@ -489,16 +490,19 @@ namespace pg
                 else if (IS_INSTANCE(args[0]))
                 {
                     auto instance = vm->asInstance(args[0]);
-                    if (instance->fields.find("__entityId") == instance->fields.end())
+
+                    if (instance->hasField("__entityId"))
                     {
                         throw std::runtime_error("attachComponent: entity instance must have __entityId field");
                     }
 
-                    auto idValue = instance->fields.at("__entityId");
+                    auto idValue = instance->getField("__entityId");
+
                     if (not IS_INT(idValue))
                     {
                         throw std::runtime_error("attachComponent: __entityId must be an integer");
                     }
+
                     entityId = AS_INT(idValue);
                 }
                 else
@@ -511,10 +515,12 @@ namespace pg
                 {
                     throw std::runtime_error("attachComponent expects second argument to be component name (string)");
                 }
+
                 auto componentName = vm->asString(args[1]);
 
                 // Get the entity
                 auto entity = ecsRefCopy->getEntity(entityId);
+
                 if (not entity)
                 {
                     throw std::runtime_error("attachComponent: entity with ID " + std::to_string(entityId) + " not found");
@@ -624,20 +630,20 @@ namespace pg
                 ObjInstance* systemInstance = vm->asInstance(inst);
 
                 // Store system name
-                systemInstance->fields["__systemName"] = vm->createString(systemName);
+                systemInstance->setField("__systemName", vm->createString(systemName));
 
                 // Create lists to store component names and event names
                 Value componentsVector = vm->createVector();
                 Value eventsVector = vm->createVector();
 
-                systemInstance->fields["__components"] = componentsVector;
-                systemInstance->fields["__events"] = eventsVector;
+                systemInstance->setField("__components", componentsVector);
+                systemInstance->setField("__events", eventsVector);
 
                 // Create fields for script paths (stored as strings)
-                systemInstance->fields["__initScript"] = vm->createString("");
-                systemInstance->fields["__executeScript"] = vm->createString("");
-                systemInstance->fields["__deltaScript"] = vm->createString("");
-                systemInstance->fields["__eventScripts"] = vm->createVector(); // Vector of [eventName, scriptPath] pairs
+                systemInstance->setField("__initScript", vm->createString(""));
+                systemInstance->setField("__executeScript", vm->createString(""));
+                systemInstance->setField("__deltaScript", vm->createString(""));
+                systemInstance->setField("__eventScripts", vm->createVector()); // Vector of [eventName, scriptPath] pairs
 
                 LOG_MILE("Ecs Compiled Module", "Created system builder for '" << systemName << "'");
 
