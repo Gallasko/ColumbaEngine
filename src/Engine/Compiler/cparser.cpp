@@ -508,28 +508,28 @@ namespace pg
         parser.consume("Expect property name after '.'.", TokenType::EXPRESSION);
 
         auto propertyName = parser.previousToken.text;
-        auto value = parser.vm->createString(propertyName); // Ensure string is created in VM
-        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(value);
+        // Use constantStrings instead of creating a string Value
+        uint8_t stringIndex = Compiler::current->getCurrentChunk().addConstantString(propertyName);
 
         if (canAssign and parser.match(TokenType::EQUAL))
         {
             parser.expression();
             parser.writeByte(OpCode::OP_Set_Property);
-            parser.writeByte(constantIndex);
+            parser.writeByte(stringIndex);
         }
         else if (parser.match(TokenType::PENTER))
         {
-            // Method call
+            // Method call - use interned string index
             auto argCount = argumentList(parser);
-            parser.emitBytes(OpCode::OP_Invoke, constantIndex);
+            parser.emitBytes(OpCode::OP_Invoke, stringIndex);
             parser.writeByte(argCount);
         }
         else
         {
             parser.writeByte(OpCode::OP_Get_Property);
-            parser.writeByte(constantIndex);
+            parser.writeByte(stringIndex);
         }
-        // TODO: Add support for obj.prop += expr and obj.prop -= expr
+        // TODO: Add support for obj.prop += expr and obj.prop += expr
         // This requires either a DUP opcode or re-evaluating the left side
     }
 

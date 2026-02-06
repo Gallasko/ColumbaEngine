@@ -269,7 +269,7 @@ namespace pg
         }
         else if (IS_INSTANCE(value))
         {
-            for (auto& [ _ , field] : asInstance(value)->fields)
+            for (auto& field : asInstance(value)->fieldValues)
             {
                 releaseAndDelete(field);
             }

@@ -482,10 +482,19 @@ namespace pg
             return static_cast<Type*>(pools.getCustomPointer(v));
         }
 
-        // Helper to get string content from either long or small strings
+        // Helper to get string content from long, small, or interned strings
         inline std::string asString(Value v)
         {
-            return IS_SMALL_STRING(v) ? AS_SMALL_STRING(v) : *asStringPtr(v);
+            if (IS_SMALL_STRING(v))
+                return AS_SMALL_STRING(v);
+            else if (IS_INTERNED_STRING(v))
+            {
+                // Get the string from the current function's constantStrings
+                uint32_t index = AS_INTERNED_STRING_INDEX(v);
+                return currentFrame->closure->function->chunk.constantStrings[index];
+            }
+            else
+                return *asStringPtr(v);
         }
 
         // Create new heap objects and return tracked Values

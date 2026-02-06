@@ -114,6 +114,10 @@ namespace pg
 
         std::vector<Value> constants;
 
+        // Interned constant strings - referenced by index in property access opcodes
+        // This avoids creating Value objects for every constant string
+        std::vector<std::string> constantStrings;
+
         std::vector<int> lines;
 
         // Track which native modules were imported during compilation
@@ -256,10 +260,39 @@ namespace pg
             return code.size() - 1;
         }
 
+        // Add a constant string (for property names, etc.) and return its index
+        uint8_t addConstantString(const std::string& str)
+        {
+            // Check if string already exists
+            for (size_t i = 0; i < constantStrings.size(); i++)
+            {
+                if (constantStrings[i] == str)
+                {
+                    if (i > 255)
+                    {
+                        throw std::runtime_error("Too many constant strings for single-byte index");
+                    }
+                    return static_cast<uint8_t>(i);
+                }
+            }
+
+            // Add new constant string
+            constantStrings.push_back(str);
+            size_t index = constantStrings.size() - 1;
+
+            if (index > 255)
+            {
+                throw std::runtime_error("Too many constant strings for single-byte index");
+            }
+
+            return static_cast<uint8_t>(index);
+        }
+
         void clear()
         {
             code.clear();
             constants.clear();
+            constantStrings.clear();
             lines.clear();
         }
     };
@@ -382,10 +415,5 @@ namespace pg
         int arity; // Number of parameters
         std::string name;
         int upvalueCount = 0;
-
-        // Cache for property name strings from constants
-        // Maps constant index -> string representation
-        // Only populated for string constants used in property access
-        mutable std::unordered_map<uint8_t, std::string> propertyNameCache;
     };
 }
