@@ -533,6 +533,12 @@ namespace pg
             return ElementType(AS_DOUBLE(value));
         else if (IS_SMALL_STRING(value))
             return ElementType(AS_SMALL_STRING(value));
+        else if (IS_INTERNED_STRING(value))
+        {
+            // Materialize interned string from VM's constantStrings
+            uint32_t index = AS_INTERNED_STRING_INDEX(value);
+            return ElementType(constantStrings[index]);
+        }
         else if (IS_LONG_STRING(value))
             return *asStringPtr(value);
         else

@@ -18,6 +18,7 @@ namespace pg
         OP_Return = 0,
         OP_Constant,
         OP_LongConstant,
+        OP_Constant_String,  // Load string from constantStrings array
         OP_Negate,
         OP_Add,
         OP_Subtract,

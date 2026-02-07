@@ -158,9 +158,6 @@ namespace pg
         // Get property name from constant strings (no conversion needed!)
         const std::string& nameStr = function->chunk.constantStrings[stringIndex];
 
-        // Create interned string Value for metamethod calls (no heap allocation!)
-        Value nameValue = makeInternedStringValue(stringIndex);
-
         // Try to find field (direct string lookup, O(1) average case)
         auto fieldIt = instance->internedFields.find(nameStr);
         if (fieldIt != instance->internedFields.end())
@@ -198,7 +195,9 @@ namespace pg
         if (hasGetMethod and (IS_CLOSURE(getMethod) or IS_NAT_FUNC(getMethod)))
         {
             // Call __get(instance, propertyName)
-            // nameValue already created above as interned string
+            // Create a real string Value for the metamethod
+            Value nameValue = vm->createString(nameStr);
+
             if (IS_CLOSURE(getMethod))
             {
                 // Push property name as argument
@@ -294,9 +293,6 @@ namespace pg
         // Get property name from constant strings (no conversion needed!)
         const std::string& nameStr = function->chunk.constantStrings[stringIndex];
 
-        // Create interned string Value for metamethod calls (no heap allocation!)
-        Value nameValue = makeInternedStringValue(stringIndex);
-
         // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
         // and bypass metamethods. This prevents infinite recursion when metamethods like
         // __set need to actually store data in internal fields.
@@ -355,7 +351,9 @@ namespace pg
         if (hasSetMethod)
         {
             // Call __set(instance, propertyName, value)
-            // nameValue already created above as interned string
+            // Create a real string Value for the metamethod
+            Value nameValue = vm->createString(nameStr);
+
             if (IS_CLOSURE(setMethod))
             {
                 // Stack is currently: [instance, value]

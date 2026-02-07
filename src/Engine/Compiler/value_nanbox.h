@@ -629,6 +629,9 @@ namespace pg
         if (IS_SMALL_STRING(v)) // Inline strings don't need refcount
             return false;
 
+        if (IS_INTERNED_STRING(v)) // Interned strings live in VM's constantStrings, no refcount needed
+            return false;
+
         if (IS_CUSTOM_PTR(v)) // Custom pointers managed externally
             return false;
 

@@ -1750,7 +1750,39 @@ namespace pg
 
     void CParser::writeConstant(const ElementType& constant)
     {
-        Compiler::current->getCurrentChunk().addConstant(vm->elementToValue(constant), previousToken.line);
+        // If it's a string constant, add to VM's constantStrings and push interned string value
+        if (constant.isLitteral())
+        {
+            std::string str = constant.toString();
+
+            // Find or add string to VM's global constantStrings
+            uint32_t index = 0;
+            bool found = false;
+            for (size_t i = 0; i < vm->constantStrings.size(); i++)
+            {
+                if (vm->constantStrings[i] == str)
+                {
+                    index = static_cast<uint32_t>(i);
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found)
+            {
+                index = static_cast<uint32_t>(vm->constantStrings.size());
+                vm->constantStrings.push_back(str);
+            }
+
+            // Add interned string value as a constant
+            Value internedStr = makeInternedStringValue(index);
+            Compiler::current->getCurrentChunk().addConstant(internedStr, previousToken.line);
+        }
+        else
+        {
+            // Non-string constants go through normal path
+            Compiler::current->getCurrentChunk().addConstant(vm->elementToValue(constant), previousToken.line);
+        }
     }
 
     void CParser::writeByte(const OpCode& byte)
