@@ -489,9 +489,9 @@ namespace pg
                 return AS_SMALL_STRING(v);
             else if (IS_INTERNED_STRING(v))
             {
-                // Get the string from the current function's constantStrings
+                // Get the string from the VM's global constantStrings
                 uint32_t index = AS_INTERNED_STRING_INDEX(v);
-                return currentFrame->closure->function->chunk.constantStrings[index];
+                return constantStrings[index];
             }
             else
                 return *asStringPtr(v);
@@ -869,6 +869,10 @@ namespace pg
 
         // Track all compiled functions for profiling
         std::vector<ObjFunction*> compiledFunctions;
+
+        // Global constant strings (for interned string values)
+        // All compile-time string constants are stored here and referenced by index
+        std::vector<std::string> constantStrings;
     };
 
     // Inline implementations for critical performance functions
