@@ -202,6 +202,15 @@ namespace pg
     // Module operations
     void op_import(VM* vm);
 
+    // Register-based operations
+    void op_load_constant_r(VM* vm);
+    void op_move_r(VM* vm);
+    void op_add_rrr(VM* vm);
+    void op_less_rr(VM* vm);
+    void op_incr_r(VM* vm);
+    void op_less_rrr(VM* vm);
+    void op_jump_if_false_r(VM* vm);
+
     struct VM
     {
         VM();
@@ -827,21 +836,29 @@ namespace pg
         void setupTestChunk(const Chunk& chunk)
         {
             // Create a temporary function object for testing
-            if (frameCount > 0 && frames[0].closure->function != nullptr)
-            {
-                delete frames[0].closure->function;
-            }
-
             auto* testFunction = new ObjFunction();
             testFunction->chunk = chunk;
             testFunction->name = "test";
             testFunction->arity = 0;
 
+            // Create a closure for the function
+            Value closureValue = createClosure(testFunction);
+            Closure* closure = asClosure(closureValue);
+
+            // Push the closure onto the stack (this is what the VM normally does)
+            push(closureValue);
+
+            // Set up the first frame
             frameCount = 1;
-            frames[0].closure->function = testFunction;
+            frames[0].closure = closure;
             frames[0].ip = testFunction->chunk.code.data();
-            frames[0].slots = stack.data();  // For tests, start at beginning
+            // slots should point PAST the closure (where local variables start)
+            frames[0].slots = stack.data() + 1;  // Skip the closure at stack[0]
+            frames[0].stackBase = stack.data();
             currentFrame = &frames[0];
+
+            // Update chunk data cache
+            updateChunkCache();
         }
 
         // Helper methods for interpreting bytecode

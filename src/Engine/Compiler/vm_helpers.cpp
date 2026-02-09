@@ -402,6 +402,15 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Import), op_import);
 
         register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global_Non_Popping), op_define_global_non_popping);
+
+        // Register-based operations
+        register_operation(static_cast<uint8_t>(OpCode::OP_Load_Constant_R), op_load_constant_r);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Move_R), op_move_r);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Add_RRR), op_add_rrr);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Less_RR), op_less_rr);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Incr_R), op_incr_r);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Less_RRR), op_less_rrr);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Jump_If_False_R), op_jump_if_false_r);
     }
 
     void VM::initialize_builtin_classes()

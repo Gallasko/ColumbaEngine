@@ -838,4 +838,103 @@ namespace pg
         vm->push(result);
     }
 
+    // ===================================================================
+    // Register-based operations (no push/pop, direct slot manipulation)
+    // ===================================================================
+
+    void op_load_constant_r(VM* vm)
+    {
+        uint8_t destSlot = *vm->currentFrame->ip++;
+        uint8_t constIndex = *vm->currentFrame->ip++;
+
+        Value constant = vm->currentFrame->closure->function->chunk.constants[constIndex];
+
+        // Direct write to stack slot (register) - no push!
+        vm->currentFrame->slots[destSlot] = constant;
+    }
+
+    void op_move_r(VM* vm)
+    {
+        uint8_t destSlot = *vm->currentFrame->ip++;
+        uint8_t srcSlot = *vm->currentFrame->ip++;
+
+        // Direct register-to-register move - no push/pop!
+        vm->currentFrame->slots[destSlot] = vm->currentFrame->slots[srcSlot];
+    }
+
+    void op_add_rrr(VM* vm)
+    {
+        uint8_t destSlot = *vm->currentFrame->ip++;
+        uint8_t src1Slot = *vm->currentFrame->ip++;
+        uint8_t src2Slot = *vm->currentFrame->ip++;
+
+        Value a = vm->currentFrame->slots[src1Slot];
+        Value b = vm->currentFrame->slots[src2Slot];
+
+        // Direct computation and storage - no push/pop!
+        vm->currentFrame->slots[destSlot] = vm->addValues(a, b);
+    }
+
+    void op_less_rr(VM* vm)
+    {
+        uint8_t src1Slot = *vm->currentFrame->ip++;
+        uint8_t src2Slot = *vm->currentFrame->ip++;
+
+        Value a = vm->currentFrame->slots[src1Slot];
+        Value b = vm->currentFrame->slots[src2Slot];
+
+        // Comparison result pushed to stack for use by jump instructions
+        vm->push(vm->lessValues(a, b));
+    }
+
+    void op_incr_r(VM* vm)
+    {
+        uint8_t slot = *vm->currentFrame->ip++;
+
+        Value val = vm->currentFrame->slots[slot];
+
+        // Fast path for integers
+        if (IS_INT(val))
+        {
+            vm->currentFrame->slots[slot] = INT_VAL(AS_INT(val) + 1);
+        }
+        else if (IS_FLOAT(val))
+        {
+            vm->currentFrame->slots[slot] = FLOAT_VAL(AS_FLOAT(val) + 1.0);
+        }
+        else
+        {
+            // Fall back to add operation
+            vm->currentFrame->slots[slot] = vm->addValues(val, INT_VAL(1));
+        }
+    }
+
+    void op_less_rrr(VM* vm)
+    {
+        uint8_t destSlot = *vm->currentFrame->ip++;
+        uint8_t src1Slot = *vm->currentFrame->ip++;
+        uint8_t src2Slot = *vm->currentFrame->ip++;
+
+        Value a = vm->currentFrame->slots[src1Slot];
+        Value b = vm->currentFrame->slots[src2Slot];
+
+        // Direct computation and storage - no push!
+        vm->currentFrame->slots[destSlot] = vm->lessValues(a, b);
+    }
+
+    void op_jump_if_false_r(VM* vm)
+    {
+        uint8_t slot = *vm->currentFrame->ip++;
+        uint16_t offset = (*vm->currentFrame->ip++) << 8;
+        offset |= *vm->currentFrame->ip++;
+
+        Value condition = vm->currentFrame->slots[slot];
+
+        // Jump if false (doesn't pop, just reads from register)
+        if (!isValueTrue(condition, vm))
+        {
+            vm->currentFrame->ip += offset;
+        }
+    }
+
 }
