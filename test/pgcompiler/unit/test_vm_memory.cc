@@ -3,6 +3,7 @@
 #include "Compiler/vm.h"
 #include "Compiler/value_nanbox.h"
 #include "Compiler/chunk_serializer.h"
+#include "Compiler/object.h"
 
 #include <sstream>
 
@@ -13,14 +14,29 @@ class VMMemoryTest : public ::testing::Test
 {
 protected:
     VM* vm;
+    ObjFunction* testFunction;
+    Closure* testClosure;
 
     void SetUp() override
     {
         vm = new VM();
+
+        // Create a test function and closure for interned string tests
+        testFunction = new ObjFunction();
+        testFunction->name = "<test>";
+        testFunction->arity = 0;
+        testClosure = new Closure(testFunction);
+
+        // Set up a call frame pointing to this closure so asString() works
+        vm->frames[0].closure = testClosure;
+        vm->currentFrame = &vm->frames[0];
+        vm->frameCount = 1;
     }
 
     void TearDown() override
     {
+        delete testClosure;
+        delete testFunction;
         delete vm;
         vm = nullptr;
     }
@@ -68,8 +84,8 @@ TEST_F(VMMemoryTest, SmallStringsDontNeedRefCount)
 
 TEST_F(VMMemoryTest, InternedStringsDontNeedRefCount)
 {
-    // Interned strings live in VM's constantStrings vector
-    vm->constantStrings.push_back("testString");
+    // Interned strings live in chunk's constantStrings vector
+    testFunction->chunk.constantStrings.push_back("testString");
     Value internedStr = makeInternedStringValue(0);
 
     EXPECT_TRUE(IS_INTERNED_STRING(internedStr));
@@ -152,7 +168,7 @@ TEST_F(VMMemoryTest, ReleaseAndDeleteCleansUp)
 
 TEST_F(VMMemoryTest, InternedStringNotInPool)
 {
-    vm->constantStrings.push_back("myConstant");
+    testFunction->chunk.constantStrings.push_back("myConstant");
     Value internedStr = makeInternedStringValue(0);
 
     EXPECT_TRUE(IS_INTERNED_STRING(internedStr));
@@ -164,7 +180,7 @@ TEST_F(VMMemoryTest, InternedStringNotInPool)
 
 TEST_F(VMMemoryTest, InternedStringNoRetain)
 {
-    vm->constantStrings.push_back("myConstant");
+    testFunction->chunk.constantStrings.push_back("myConstant");
     Value internedStr = makeInternedStringValue(0);
 
     // Retain should be a no-op for interned strings
@@ -178,7 +194,7 @@ TEST_F(VMMemoryTest, InternedStringNoRetain)
 
 TEST_F(VMMemoryTest, InternedStringCanBeUsedMultipleTimes)
 {
-    vm->constantStrings.push_back("sharedConstant");
+    testFunction->chunk.constantStrings.push_back("sharedConstant");
     Value interned1 = makeInternedStringValue(0);
     Value interned2 = makeInternedStringValue(0);
 
@@ -196,7 +212,7 @@ TEST_F(VMMemoryTest, InternedStringCanBeUsedMultipleTimes)
 }
 
 TEST_F(VMMemoryTest, AsStringWorksForInternedStrings) {
-    vm->constantStrings.push_back("myInternedString");
+    testFunction->chunk.constantStrings.push_back("myInternedString");
     Value internedStr = makeInternedStringValue(0);
 
     std::string result = vm->asString(internedStr);
@@ -233,12 +249,13 @@ TEST_F(VMMemoryTest, ChunkConstantsNotRefCounted) {
 // ===================================================================
 
 TEST_F(VMMemoryTest, SerializeInternedString) {
-    // Add interned string to VM
-    vm->constantStrings.push_back("internedConstant");
+    // Add interned string to chunk
+    testFunction->chunk.constantStrings.push_back("internedConstant");
     Value internedStr = makeInternedStringValue(0);
 
     // Create a chunk with the interned string in constants
     Chunk chunk;
+    chunk.constantStrings.push_back("internedConstant");
     chunk.constants.push_back(internedStr);
 
     // Serialize
@@ -246,16 +263,27 @@ TEST_F(VMMemoryTest, SerializeInternedString) {
     bool success = ChunkSerializer::serialize(chunk, out, vm);
     EXPECT_TRUE(success);
 
-    // Deserialize into a new VM
+    // Deserialize into a new VM with proper chunk context
     VM* vm2 = new VM();
+    ObjFunction* testFunction2 = new ObjFunction();
+    testFunction2->name = "<test2>";
+    testFunction2->arity = 0;
+    auto* testClosure2 = new Closure(testFunction2);
+
     Chunk chunk2;
     std::istringstream in(out.str(), std::ios::binary);
     success = ChunkSerializer::deserialize(chunk2, in, vm2);
     EXPECT_TRUE(success);
 
-    // Check that constantStrings were transferred
-    EXPECT_EQ(vm2->constantStrings.size(), 1);
-    EXPECT_EQ(vm2->constantStrings[0], "internedConstant");
+    // Set up frame so asString() works
+    vm2->frames[0].closure = testClosure2;
+    vm2->currentFrame = &vm2->frames[0];
+    vm2->frameCount = 1;
+    testFunction2->chunk = chunk2;
+
+    // Check that constantStrings were transferred to chunk
+    EXPECT_EQ(chunk2.constantStrings.size(), 1);
+    EXPECT_EQ(chunk2.constantStrings[0], "internedConstant");
 
     // Check that the value was correctly deserialized
     EXPECT_EQ(chunk2.constants.size(), 1);
@@ -267,17 +295,20 @@ TEST_F(VMMemoryTest, SerializeInternedString) {
     std::string result = vm2->asString(deserializedStr);
     EXPECT_EQ(result, "internedConstant");
 
+    delete testClosure2;
+    delete testFunction2;
     delete vm2;
 }
 
 TEST_F(VMMemoryTest, SerializeMixedStrings) {
     // Setup: interned string, long string, small string
-    vm->constantStrings.push_back("interned");
+    testFunction->chunk.constantStrings.push_back("interned");
     Value internedStr = makeInternedStringValue(0);
     Value longStr = vm->createString("this is a long heap string");
     Value smallStr = makeSmallStringValue("small", 5);
 
     Chunk chunk;
+    chunk.constantStrings.push_back("interned");
     chunk.constants.push_back(internedStr);
     chunk.constants.push_back(longStr);
     chunk.constants.push_back(smallStr);
@@ -292,10 +323,21 @@ TEST_F(VMMemoryTest, SerializeMixedStrings) {
 
     // Deserialize
     VM* vm2 = new VM();
+    ObjFunction* testFunction2 = new ObjFunction();
+    testFunction2->name = "<test2>";
+    testFunction2->arity = 0;
+    auto* testClosure2 = new Closure(testFunction2);
+
     Chunk chunk2;
     std::istringstream in(out.str(), std::ios::binary);
     success = ChunkSerializer::deserialize(chunk2, in, vm2);
     EXPECT_TRUE(success);
+
+    // Set up frame so asString() works
+    vm2->frames[0].closure = testClosure2;
+    vm2->currentFrame = &vm2->frames[0];
+    vm2->frameCount = 1;
+    testFunction2->chunk = chunk2;
 
     EXPECT_EQ(chunk2.constants.size(), 3);
 
@@ -312,6 +354,8 @@ TEST_F(VMMemoryTest, SerializeMixedStrings) {
     EXPECT_TRUE(IS_SMALL_STRING(v2));
     EXPECT_EQ(vm2->asString(v2), "small");
 
+    delete testClosure2;
+    delete testFunction2;
     delete vm2;
 }
 
@@ -322,7 +366,7 @@ TEST_F(VMMemoryTest, SerializeMixedStrings) {
 TEST_F(VMMemoryTest, MultipleInternedStringsNoLeaks) {
     // Create many interned strings
     for (int i = 0; i < 100; i++) {
-        vm->constantStrings.push_back("string_" + std::to_string(i));
+        testFunction->chunk.constantStrings.push_back("string_" + std::to_string(i));
     }
 
     // Create values for all of them
@@ -345,8 +389,8 @@ TEST_F(VMMemoryTest, MultipleInternedStringsNoLeaks) {
 
 TEST_F(VMMemoryTest, MixedStringOperationsNoLeaks) {
     // Mix of all string types
+    testFunction->chunk.constantStrings.push_back("interned");
     Value interned = makeInternedStringValue(0);
-    vm->constantStrings.push_back("interned");
 
     Value small = makeSmallStringValue("short", 5);
     Value long1 = vm->createString("long string 1");
