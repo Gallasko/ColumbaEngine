@@ -122,6 +122,10 @@ namespace pg
         // Note: Imports are always global (added to VM globals), even if written in local scopes
         std::vector<std::string> importedModules;
 
+        // Constant strings (for interned string values) - stored per chunk
+        // All compile-time string constants are stored here and referenced by index
+        std::vector<std::string> constantStrings;
+
         // Note: With NaN-boxing and pool-based memory, constants don't need cleanup in destructor
         // The VM's pools handle all memory management via reference counting
 

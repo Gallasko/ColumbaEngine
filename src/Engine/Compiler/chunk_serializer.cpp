@@ -40,19 +40,11 @@ namespace pg
             writeString(out, moduleName);
         }
 
-        // Write VM global constantStrings section (for interned string values)
-        if (vm != nullptr)
+        // Write chunk's constantStrings section (for interned string values)
+        writeUint32(out, static_cast<uint32_t>(chunk.constantStrings.size()));
+        for (const std::string& str : chunk.constantStrings)
         {
-            writeUint32(out, static_cast<uint32_t>(vm->constantStrings.size()));
-            for (const std::string& str : vm->constantStrings)
-            {
-                writeString(out, str);
-            }
-        }
-        else
-        {
-            // No VM provided, write empty section
-            writeUint32(out, 0);
+            writeString(out, str);
         }
 
         return out.good();
@@ -108,15 +100,15 @@ namespace pg
             }
         }
 
-        // Read VM global constantStrings section (may not exist in older bytecode)
-        if (in.good() && in.peek() != EOF && vm != nullptr)
+        // Read chunk's constantStrings section (may not exist in older bytecode)
+        if (in.good() && in.peek() != EOF)
         {
             uint32_t constantStringsCount = readUint32(in);
-            vm->constantStrings.clear();
-            vm->constantStrings.reserve(constantStringsCount);
+            chunk.constantStrings.clear();
+            chunk.constantStrings.reserve(constantStringsCount);
             for (uint32_t i = 0; i < constantStringsCount; i++)
             {
-                vm->constantStrings.push_back(readString(in));
+                chunk.constantStrings.push_back(readString(in));
             }
         }
 
@@ -266,21 +258,7 @@ namespace pg
         writeUint32(file, BYTECODE_MAGIC);
         writeUint32(file, BYTECODE_VERSION);
 
-        // Write VM global constantStrings section (for interned string values)
-        if (vm != nullptr)
-        {
-            writeUint32(file, static_cast<uint32_t>(vm->constantStrings.size()));
-            for (const std::string& str : vm->constantStrings)
-            {
-                writeString(file, str);
-            }
-        }
-        else
-        {
-            // No VM provided, write empty section
-            writeUint32(file, 0);
-        }
-
+        // constantStrings are now written per-chunk in serializeChunkImpl
         return serializeFunctionImpl(function, file, vm);
     }
 
@@ -312,28 +290,16 @@ namespace pg
         if (version != BYTECODE_VERSION)
             return nullptr;
 
-        // Read VM global constantStrings section
-        if (vm != nullptr)
-        {
-            uint32_t constantStringsCount = readUint32(file);
-            vm->constantStrings.clear();
-            vm->constantStrings.reserve(constantStringsCount);
-            for (uint32_t i = 0; i < constantStringsCount; i++)
-            {
-                vm->constantStrings.push_back(readString(file));
-            }
-        }
-        else
-        {
-            // Skip the section if no VM provided
-            uint32_t constantStringsCount = readUint32(file);
-            for (uint32_t i = 0; i < constantStringsCount; i++)
-            {
-                readString(file); // Discard
-            }
-        }
+        // Read the top-level function (which will include its chunk's constantStrings)
+        ObjFunction* function = deserializeFunctionImpl(file, vm);
 
-        return deserializeFunctionImpl(file, vm);
+        if (function == nullptr)
+            return nullptr;
+
+        // The constantStrings section is now stored in the function's chunk
+        // and was loaded during deserializeFunctionImpl -> deserializeChunkImpl
+
+        return function;
     }
 
     ObjFunction* ChunkSerializer::deserializeFunctionImpl(std::istream& in, VM* vm)
@@ -377,6 +343,13 @@ namespace pg
                 return false;
         }
 
+        // Write chunk's constantStrings section (for interned string values)
+        writeUint32(out, static_cast<uint32_t>(chunk.constantStrings.size()));
+        for (const std::string& str : chunk.constantStrings)
+        {
+            writeString(out, str);
+        }
+
         return out.good();
     }
 
@@ -404,6 +377,15 @@ namespace pg
             if (!deserializeValueImpl(in, value, vm))
                 return false;
             chunk.constants.push_back(value);
+        }
+
+        // Read chunk's constantStrings section
+        uint32_t constantStringsCount = readUint32(in);
+        chunk.constantStrings.clear();
+        chunk.constantStrings.reserve(constantStringsCount);
+        for (uint32_t i = 0; i < constantStringsCount; i++)
+        {
+            chunk.constantStrings.push_back(readString(in));
         }
 
         return in.good();

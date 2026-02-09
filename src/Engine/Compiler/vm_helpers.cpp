@@ -535,8 +535,18 @@ namespace pg
             return ElementType(AS_SMALL_STRING(value));
         else if (IS_INTERNED_STRING(value))
         {
-            // Materialize interned string from VM's constantStrings
+            // Materialize interned string from current chunk's constantStrings
+            if (!currentFrame || !currentFrame->closure || !currentFrame->closure->function)
+            {
+                throw std::runtime_error("Cannot convert interned string to ElementType: no active execution frame");
+            }
             uint32_t index = AS_INTERNED_STRING_INDEX(value);
+            const auto& constantStrings = currentFrame->closure->function->chunk.constantStrings;
+            if (index >= constantStrings.size())
+            {
+                throw std::runtime_error("Interned string index " + std::to_string(index) +
+                                       " out of bounds (size: " + std::to_string(constantStrings.size()) + ")");
+            }
             return ElementType(constantStrings[index]);
         }
         else if (IS_LONG_STRING(value))

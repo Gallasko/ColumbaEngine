@@ -509,12 +509,13 @@ namespace pg
 
         auto propertyName = parser.previousToken.text;
 
-        // Add to VM's global constantStrings (same as done for constants)
+        // Add to current chunk's constantStrings
+        auto& chunk = Compiler::current->getCurrentChunk();
         uint8_t stringIndex;
         bool found = false;
-        for (size_t i = 0; i < parser.vm->constantStrings.size(); i++)
+        for (size_t i = 0; i < chunk.constantStrings.size(); i++)
         {
-            if (parser.vm->constantStrings[i] == propertyName)
+            if (chunk.constantStrings[i] == propertyName)
             {
                 stringIndex = static_cast<uint8_t>(i);
                 found = true;
@@ -524,14 +525,14 @@ namespace pg
 
         if (not found)
         {
-            if (parser.vm->constantStrings.size() >= 256)
+            if (chunk.constantStrings.size() >= 256)
             {
-                parser.errorAt(parser.previousToken, "Too many constant strings in VM.");
+                parser.errorAt(parser.previousToken, "Too many constant strings in chunk.");
                 return;
             }
 
-            stringIndex = static_cast<uint8_t>(parser.vm->constantStrings.size());
-            parser.vm->constantStrings.push_back(propertyName);
+            stringIndex = static_cast<uint8_t>(chunk.constantStrings.size());
+            chunk.constantStrings.push_back(propertyName);
         }
 
         if (canAssign and parser.match(TokenType::EQUAL))
@@ -1773,17 +1774,18 @@ namespace pg
 
     void CParser::writeConstant(const ElementType& constant)
     {
-        // If it's a string constant, add to VM's constantStrings and push interned string value
+        // If it's a string constant, add to current chunk's constantStrings and push interned string value
         if (constant.isLitteral())
         {
             std::string str = constant.toString();
 
-            // Find or add string to VM's global constantStrings
+            // Find or add string to current chunk's constantStrings
+            auto& chunk = Compiler::current->getCurrentChunk();
             uint32_t index = 0;
             bool found = false;
-            for (size_t i = 0; i < vm->constantStrings.size(); i++)
+            for (size_t i = 0; i < chunk.constantStrings.size(); i++)
             {
-                if (vm->constantStrings[i] == str)
+                if (chunk.constantStrings[i] == str)
                 {
                     index = static_cast<uint32_t>(i);
                     found = true;
@@ -1793,19 +1795,19 @@ namespace pg
 
             if (not found)
             {
-                if (vm->constantStrings.size() >= 256)
+                if (chunk.constantStrings.size() >= 256)
                 {
-                    errorAt(previousToken, "Too many constant strings in VM.");
+                    errorAt(previousToken, "Too many constant strings in chunk.");
                     return;
                 }
 
-                index = static_cast<uint32_t>(vm->constantStrings.size());
-                vm->constantStrings.push_back(str);
+                index = static_cast<uint32_t>(chunk.constantStrings.size());
+                chunk.constantStrings.push_back(str);
             }
 
             // Add interned string value as a constant
             Value internedStr = makeInternedStringValue(index);
-            Compiler::current->getCurrentChunk().addConstant(internedStr, previousToken.line);
+            chunk.addConstant(internedStr, previousToken.line);
         }
         else
         {
