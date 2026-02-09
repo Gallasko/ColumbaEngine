@@ -537,7 +537,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     // Macro to create and register a bool setter function
@@ -550,7 +550,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     // Macro to create and register an int setter function
@@ -563,7 +563,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     // Macro to create and register a string setter function
@@ -576,7 +576,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     /**

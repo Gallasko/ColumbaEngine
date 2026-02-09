@@ -349,7 +349,7 @@ namespace pg
         };
 
         // Create native function and add directly to table without going through globals
-        table->fields["setOverlappingColor"] = vm->createNativeFunction(overlappingColorSetterFunc);
+        table->setField("setOverlappingColor", vm->createNativeFunction(overlappingColorSetterFunc));
     }
 
     // Register Texture2DComponent serializer at static initialization time
