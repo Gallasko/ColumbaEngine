@@ -1103,13 +1103,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         # COMPILER TEST TARGET (simple script-based testbench)
         # ===============================================
 
-        # PgCompiler source files (needed for testing)
-        set(PGCOMPILER_SOURCES)
-
         # Create the compiler test executable with simple script testbench
         add_executable(test_compiler test/pgcompiler/script_testbench.cc)
 
-        target_sources(test_compiler PRIVATE ${PGCOMPILER_SOURCES})
+        target_sources(test_compiler PRIVATE
+            test/pgcompiler/unit/test_vm_memory.cc
+        )
 
         # Include directories for compiler tests
         target_include_directories(test_compiler PRIVATE
@@ -1120,7 +1119,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_link_libraries(test_compiler PRIVATE
             gtest
             gtest_main
-            ColumbaEngine
+            ColumbaEngineMinimal
         )
 
         # Add DEBUG_CHECK_STACK define for test_compiler target

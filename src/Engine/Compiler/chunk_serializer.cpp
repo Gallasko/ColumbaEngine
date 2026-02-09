@@ -5,6 +5,124 @@
 
 namespace pg
 {
+    // Implementation of serialize that needs VM definition
+    bool ChunkSerializer::serialize(const Chunk& chunk, std::ostream& out, VM* vm)
+    {
+        // Write magic number
+        writeUint32(out, BYTECODE_MAGIC);
+
+        // Write version
+        writeUint32(out, BYTECODE_VERSION);
+
+        // Write code section
+        writeUint32(out, static_cast<uint32_t>(chunk.code.size()));
+        out.write(reinterpret_cast<const char*>(chunk.code.data()), chunk.code.size());
+
+        // Write line information
+        writeUint32(out, static_cast<uint32_t>(chunk.lines.size()));
+        for (int line : chunk.lines)
+        {
+            writeInt32(out, line);
+        }
+
+        // Write constants section
+        writeUint32(out, static_cast<uint32_t>(chunk.constants.size()));
+        for (const Value& value : chunk.constants)
+        {
+            if (!serializeValueImpl(out, value, vm))
+                return false;
+        }
+
+        // Write imported modules section
+        writeUint32(out, static_cast<uint32_t>(chunk.importedModules.size()));
+        for (const std::string& moduleName : chunk.importedModules)
+        {
+            writeString(out, moduleName);
+        }
+
+        // Write VM global constantStrings section (for interned string values)
+        if (vm != nullptr)
+        {
+            writeUint32(out, static_cast<uint32_t>(vm->constantStrings.size()));
+            for (const std::string& str : vm->constantStrings)
+            {
+                writeString(out, str);
+            }
+        }
+        else
+        {
+            // No VM provided, write empty section
+            writeUint32(out, 0);
+        }
+
+        return out.good();
+    }
+
+    // Implementation of deserialize that needs VM definition
+    bool ChunkSerializer::deserialize(Chunk& chunk, std::istream& in, VM* vm)
+    {
+        chunk.clear();
+
+        // Read and verify magic number
+        uint32_t magic = readUint32(in);
+        if (magic != BYTECODE_MAGIC)
+            return false;
+
+        // Read and verify version
+        uint32_t version = readUint32(in);
+        if (version != BYTECODE_VERSION)
+            return false;
+
+        // Read code section
+        uint32_t codeSize = readUint32(in);
+        chunk.code.resize(codeSize);
+        in.read(reinterpret_cast<char*>(chunk.code.data()), codeSize);
+
+        // Read line information
+        uint32_t linesSize = readUint32(in);
+        chunk.lines.resize(linesSize);
+        for (uint32_t i = 0; i < linesSize; i++)
+        {
+            chunk.lines[i] = readInt32(in);
+        }
+
+        // Read constants section
+        uint32_t constantsCount = readUint32(in);
+        chunk.constants.reserve(constantsCount);
+        for (uint32_t i = 0; i < constantsCount; i++)
+        {
+            Value value;
+            if (!deserializeValueImpl(in, value, vm))
+                return false;
+            chunk.constants.push_back(value);
+        }
+
+        // Read imported modules section (may not exist in older bytecode)
+        if (in.good() && in.peek() != EOF)
+        {
+            uint32_t modulesCount = readUint32(in);
+            chunk.importedModules.reserve(modulesCount);
+            for (uint32_t i = 0; i < modulesCount; i++)
+            {
+                chunk.importedModules.push_back(readString(in));
+            }
+        }
+
+        // Read VM global constantStrings section (may not exist in older bytecode)
+        if (in.good() && in.peek() != EOF && vm != nullptr)
+        {
+            uint32_t constantStringsCount = readUint32(in);
+            vm->constantStrings.clear();
+            vm->constantStrings.reserve(constantStringsCount);
+            for (uint32_t i = 0; i < constantStringsCount; i++)
+            {
+                vm->constantStrings.push_back(readString(in));
+            }
+        }
+
+        return in.good();
+    }
+
     // Implementation of serializeValue that needs VM definition
     bool ChunkSerializer::serializeValueImpl(std::ostream& out, const Value& value, VM* vm)
     {
@@ -24,6 +142,15 @@ namespace pg
         {
             writeUint8(out, static_cast<uint8_t>(ValueType::BOOL));
             writeUint8(out, AS_BOOL(value) ? 1 : 0);
+            return true;
+        }
+        else if (IS_INTERNED_STRING(value))
+        {
+            // Interned strings: serialize the index into VM's constantStrings
+            // IMPORTANT: Check interned strings BEFORE IS_STRING check, since IS_STRING matches both
+            writeUint8(out, static_cast<uint8_t>(ValueType::INTERNED_STRING));
+            uint32_t index = AS_INTERNED_STRING_INDEX(value);
+            writeUint32(out, index);
             return true;
         }
         else if (IS_STRING(value))
@@ -87,6 +214,14 @@ namespace pg
                 value = makeBoolValue(boolVal != 0);
                 return true;
             }
+            case ValueType::INTERNED_STRING:
+            {
+                // Interned strings: just restore the index value
+                // The actual string content is in VM's constantStrings (already loaded)
+                uint32_t index = readUint32(in);
+                value = makeInternedStringValue(index);
+                return true;
+            }
             case ValueType::STRING:
             {
                 // Read string content and recreate it in the VM's string pool
@@ -121,6 +256,34 @@ namespace pg
         }
     }
 
+    bool ChunkSerializer::serializeFunctionToFile(const ObjFunction* function, const std::string& filename, VM* vm)
+    {
+        std::ofstream file(filename, std::ios::binary);
+        if (!file.is_open())
+            return false;
+
+        // Write magic and version
+        writeUint32(file, BYTECODE_MAGIC);
+        writeUint32(file, BYTECODE_VERSION);
+
+        // Write VM global constantStrings section (for interned string values)
+        if (vm != nullptr)
+        {
+            writeUint32(file, static_cast<uint32_t>(vm->constantStrings.size()));
+            for (const std::string& str : vm->constantStrings)
+            {
+                writeString(file, str);
+            }
+        }
+        else
+        {
+            // No VM provided, write empty section
+            writeUint32(file, 0);
+        }
+
+        return serializeFunctionImpl(function, file, vm);
+    }
+
     bool ChunkSerializer::serializeFunctionImpl(const ObjFunction* function, std::ostream& out, VM* vm)
     {
         // Don't write magic/version for nested functions (already written at top level)
@@ -131,6 +294,46 @@ namespace pg
 
         // Write the chunk (without magic/version)
         return serializeChunkImpl(function->chunk, out, vm);
+    }
+
+    ObjFunction* ChunkSerializer::deserializeFunctionFromFile(const std::string& filename, VM* vm)
+    {
+        std::ifstream file(filename, std::ios::binary);
+        if (!file.is_open())
+            return nullptr;
+
+        // Read and verify magic
+        uint32_t magic = readUint32(file);
+        if (magic != BYTECODE_MAGIC)
+            return nullptr;
+
+        // Read and verify version
+        uint32_t version = readUint32(file);
+        if (version != BYTECODE_VERSION)
+            return nullptr;
+
+        // Read VM global constantStrings section
+        if (vm != nullptr)
+        {
+            uint32_t constantStringsCount = readUint32(file);
+            vm->constantStrings.clear();
+            vm->constantStrings.reserve(constantStringsCount);
+            for (uint32_t i = 0; i < constantStringsCount; i++)
+            {
+                vm->constantStrings.push_back(readString(file));
+            }
+        }
+        else
+        {
+            // Skip the section if no VM provided
+            uint32_t constantStringsCount = readUint32(file);
+            for (uint32_t i = 0; i < constantStringsCount; i++)
+            {
+                readString(file); // Discard
+            }
+        }
+
+        return deserializeFunctionImpl(file, vm);
     }
 
     ObjFunction* ChunkSerializer::deserializeFunctionImpl(std::istream& in, VM* vm)
@@ -174,13 +377,6 @@ namespace pg
                 return false;
         }
 
-        // Write constantStrings section (for interned property names)
-        writeUint32(out, static_cast<uint32_t>(chunk.constantStrings.size()));
-        for (const std::string& str : chunk.constantStrings)
-        {
-            writeString(out, str);
-        }
-
         return out.good();
     }
 
@@ -208,15 +404,6 @@ namespace pg
             if (!deserializeValueImpl(in, value, vm))
                 return false;
             chunk.constants.push_back(value);
-        }
-
-        // Read constantStrings section (for interned property names)
-        uint32_t constantStringsCount = readUint32(in);
-        chunk.constantStrings.reserve(constantStringsCount);
-        for (uint32_t i = 0; i < constantStringsCount; i++)
-        {
-            std::string str = readString(in);
-            chunk.constantStrings.push_back(str);
         }
 
         return in.good();
