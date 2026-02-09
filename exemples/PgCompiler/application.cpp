@@ -250,7 +250,7 @@ void CompilerApp::runFile(bool needCompile)
 
     EntitySystem ecs;
 
-    ecs.setVMOptimizationLevel(VmOptimizationLevel::O0);
+    ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
 
     VM vm;
 

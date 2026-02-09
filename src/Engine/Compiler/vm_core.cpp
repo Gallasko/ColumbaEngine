@@ -502,13 +502,8 @@ namespace pg
         }
 #endif
         Value constant = vm->currentFrame->closure->function->chunk.constants[constantIndex];
-        // Escape analysis: Constants live in bytecode chunk, don't need refcounting
-        // Only retain if it's a heap object that could be GC'd
-        if (requiresRefCount(constant)) {
-            vm->push(vm->retainValue(constant));
-        } else {
-            vm->push(constant);  // Primitives/constants just copied
-        }
+
+        vm->push(constant);  // Primitives/constants just copied
     }
 
     void op_long_constant(VM* vm)

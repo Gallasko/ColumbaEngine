@@ -106,6 +106,17 @@ namespace pg
 
         // Module operations
         OP_Import,        // Import a module (expects module name string on stack)
+
+        // Register-based opcodes (direct slot access, no push/pop)
+        OP_Load_Constant_R,  // Load constant to register: <dest_slot> <const_index>
+        OP_Move_R,           // Move between registers: <dest_slot> <src_slot>
+        OP_Add_RRR,          // Add registers: <dest_slot> <src1_slot> <src2_slot>
+        OP_Less_RR,          // Compare less: <src1_slot> <src2_slot> (result on stack for jump)
+        OP_Incr_R,           // Increment register: <slot>
+        OP_Less_RRR,         // Compare less to register: <dest_slot> <src1_slot> <src2_slot> (no push)
+        OP_Jump_If_False_R,  // Jump if register is false: <slot> <offset_high> <offset_low>
+
+        OP_Custom = 255, // Custom opcode for extensions (not used by core VM)
     };
 
     struct Chunk
@@ -370,6 +381,22 @@ namespace pg
 
             case OpCode::OP_Import:
                 return 1; // opcode only (module name is on stack)
+
+            // Register-based opcodes
+            case OpCode::OP_Load_Constant_R:
+                return 3; // opcode + dest_slot + const_index
+            case OpCode::OP_Move_R:
+                return 3; // opcode + dest_slot + src_slot
+            case OpCode::OP_Add_RRR:
+                return 4; // opcode + dest_slot + src1_slot + src2_slot
+            case OpCode::OP_Less_RR:
+                return 3; // opcode + src1_slot + src2_slot
+            case OpCode::OP_Incr_R:
+                return 2; // opcode + slot
+            case OpCode::OP_Less_RRR:
+                return 4; // opcode + dest_slot + src1_slot + src2_slot
+            case OpCode::OP_Jump_If_False_R:
+                return 4; // opcode + slot + offset_high + offset_low
 
             default:
                 return 1; // default to single byte for unknown opcodes
