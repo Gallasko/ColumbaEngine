@@ -215,7 +215,12 @@ namespace pg
          */
         inline bool isConstant(Value v) const
         {
-            if (IS_STRING(v))
+            // Interned strings are ALWAYS constants (they live in VM's constantStrings vector)
+            if (IS_INTERNED_STRING(v))
+            {
+                return true;
+            }
+            else if (IS_STRING(v))  // Long or small strings
             {
                 return AS_STRING_INDEX(v) <= maxConstantStringIndex;
             }

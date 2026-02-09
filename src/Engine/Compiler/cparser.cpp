@@ -508,8 +508,31 @@ namespace pg
         parser.consume("Expect property name after '.'.", TokenType::EXPRESSION);
 
         auto propertyName = parser.previousToken.text;
-        // Use constantStrings instead of creating a string Value
-        uint8_t stringIndex = Compiler::current->getCurrentChunk().addConstantString(propertyName);
+
+        // Add to VM's global constantStrings (same as done for constants)
+        uint8_t stringIndex;
+        bool found = false;
+        for (size_t i = 0; i < parser.vm->constantStrings.size(); i++)
+        {
+            if (parser.vm->constantStrings[i] == propertyName)
+            {
+                stringIndex = static_cast<uint8_t>(i);
+                found = true;
+                break;
+            }
+        }
+
+        if (not found)
+        {
+            if (parser.vm->constantStrings.size() >= 256)
+            {
+                parser.errorAt(parser.previousToken, "Too many constant strings in VM.");
+                return;
+            }
+
+            stringIndex = static_cast<uint8_t>(parser.vm->constantStrings.size());
+            parser.vm->constantStrings.push_back(propertyName);
+        }
 
         if (canAssign and parser.match(TokenType::EQUAL))
         {
@@ -1768,8 +1791,14 @@ namespace pg
                 }
             }
 
-            if (!found)
+            if (not found)
             {
+                if (vm->constantStrings.size() >= 256)
+                {
+                    errorAt(previousToken, "Too many constant strings in VM.");
+                    return;
+                }
+
                 index = static_cast<uint32_t>(vm->constantStrings.size());
                 vm->constantStrings.push_back(str);
             }

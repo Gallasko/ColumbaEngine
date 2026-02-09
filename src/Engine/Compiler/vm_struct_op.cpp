@@ -34,9 +34,8 @@ namespace pg
         uint8_t stringIndex = *vm->currentFrame->ip++;
         uint8_t argCount = *vm->currentFrame->ip++;
 
-        // Get method name from constant strings (no conversion needed!)
-        auto* function = vm->currentFrame->closure->function;
-        const std::string& methodName = function->chunk.constantStrings[stringIndex];
+        // Get method name from VM's global constant strings (no conversion needed!)
+        const std::string& methodName = vm->constantStrings[stringIndex];
 
         if (not invoke(vm, methodName, argCount))
         {
@@ -153,10 +152,8 @@ namespace pg
 
 
         uint8_t stringIndex = *vm->currentFrame->ip++;
-        auto* function = vm->currentFrame->closure->function;
-
-        // Get property name from constant strings (no conversion needed!)
-        const std::string& nameStr = function->chunk.constantStrings[stringIndex];
+        // Get property name from VM's global constant strings (no conversion needed!)
+        const std::string& nameStr = vm->constantStrings[stringIndex];
 
         // Try to find field (direct string lookup, O(1) average case)
         auto fieldIt = instance->internedFields.find(nameStr);
@@ -288,10 +285,8 @@ namespace pg
         auto* instance = vm->asInstance(vm->peek(1));
 
         uint8_t stringIndex = *vm->currentFrame->ip++;
-        auto* function = vm->currentFrame->closure->function;
-
-        // Get property name from constant strings (no conversion needed!)
-        const std::string& nameStr = function->chunk.constantStrings[stringIndex];
+        // Get property name from VM's global constant strings (no conversion needed!)
+        const std::string& nameStr = vm->constantStrings[stringIndex];
 
         // IMPORTANT: Fields starting with '__' (double underscore) are treated as "internal"
         // and bypass metamethods. This prevents infinite recursion when metamethods like

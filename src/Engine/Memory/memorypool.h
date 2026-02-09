@@ -265,6 +265,9 @@ namespace pg
          */
         void destroyAll()
         {
+            if (maxAllocatedIndex == 0)
+                return;
+
             // Build a set of free list pointers for fast lookup
             std::set<PGMemChunk<T>*> freeSet;
             PGMemChunk<T>* current = freeList;
@@ -285,6 +288,10 @@ namespace pg
                     obj->~T();
                 }
             }
+
+            // Reset pool state - all objects are now destroyed
+            nbElements = 0;
+            freeList = nullptr;
         }
 
         /**

@@ -84,6 +84,61 @@ namespace pg
         }
     }
 
+    VM::~VM()
+    {
+        // Free all Values stored in globals before destruction
+        for (auto& pair : globals)
+        {
+            releaseAndDelete(pair.second);
+        }
+
+        // Clean up any remaining Values on the stack
+        while (not stack.empty())
+        {
+            auto value = stack.pop();
+            releaseAndDelete(value);
+        }
+
+        // Clean up the single-character string cache
+        // These were created in the constructor with refcount=1 and need to be released
+        for (int i = 0; i < 256; i++)
+        {
+            Value cachedStr = singleCharCache[i];
+            if (requiresRefCount(cachedStr))
+            {
+                releaseAndDelete(cachedStr);
+            }
+        }
+
+        // Destroy all remaining objects in pools (including constants)
+        // This is necessary to properly cleanup objects with complex destructors like ElementType
+        pools.stringPool.destroyAll();
+        pools.closurePool.destroyAll();
+        pools.functionPool.destroyAll();
+        pools.upvaluePool.destroyAll();
+        pools.classPool.destroyAll();
+        pools.nativeFuncPool.destroyAll();
+        pools.instancePool.destroyAll();
+        pools.boundMethodPool.destroyAll();
+        pools.vectorPool.destroyAll();
+
+        // Clear the interned strings map
+        pools.internedStrings.clear();
+
+        // Clear the custom pointer pool
+        // Todo add a flag when registering a custom pointer type to indicate if VM should free them
+        // for (auto& [typeId, ptrList] : pools.customPointerPool)
+        // {
+        //     for (void* ptr : ptrList)
+        //     {
+        //         // User is responsible for freeing custom pointers if needed
+        //         // Here we just clear the pool
+        //     }
+        // }
+
+        pools.customPointerPool.clear();
+    }
+
     InterpretResult VM::interpret(const std::queue<Token>& tokens, bool compileOnly, const std::string& dumpByteCode)
     {
         // Record start time for pre-run profiling (everything before run())

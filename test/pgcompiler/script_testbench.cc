@@ -952,6 +952,47 @@ TEST_F(ScriptTestBench, MetamethodProxySimulation)
     testScript("metamethod_proxy_simulation");
 }
 
+// Memory Management Tests
+TEST_F(ScriptTestBench, VMMemoryPoolReserve)
+{
+    // Test that VM can be created and destroyed without crashes
+    // This specifically tests the pools.reserve() issue
+    VM* testVm = new VM();
+    delete testVm;
+
+    // Create another VM to ensure pools are properly cleaned up
+    testVm = new VM();
+    delete testVm;
+}
+
+TEST_F(ScriptTestBench, VMMultipleCreationDestruction)
+{
+    // Test multiple VM creation/destruction cycles
+    for (int i = 0; i < 10; i++)
+    {
+        VM* testVm = new VM();
+        // Run a simple script
+        testVm->interpretFromText("var x = 1 + 2;", false);
+        delete testVm;
+    }
+}
+
+TEST_F(ScriptTestBench, VMStringMemoryHandling)
+{
+    // Test that string creation and destruction works correctly
+    VM* testVm = new VM();
+
+    // Create various string types
+    testVm->interpretFromText(R"(
+        var smallStr = "abc";          // Small string (inline)
+        var longStr = "this is a very long string";  // Heap string
+        var str1 = "test";
+        var str2 = "test";  // Should reuse interned string
+    )", false);
+
+    delete testVm;
+}
+
 } // namespace test
 } // namespace pg
 

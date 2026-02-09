@@ -207,48 +207,7 @@ namespace pg
         VM();
 
         // Destructor to properly clean up globals map and stack
-        ~VM()
-        {
-            // Free all Values stored in globals before destruction
-            for (auto& pair : globals)
-            {
-                releaseAndDelete(pair.second);
-            }
-            // Clean up any remaining Values on the stack
-            while (!stack.empty())
-            {
-                auto value = stack.pop();
-                releaseAndDelete(value);
-            }
-
-            // Destroy all remaining objects in pools (including constants)
-            // This is necessary to properly cleanup objects with complex destructors like ElementType
-            pools.stringPool.destroyAll();
-            pools.closurePool.destroyAll();
-            pools.functionPool.destroyAll();
-            pools.upvaluePool.destroyAll();
-            pools.classPool.destroyAll();
-            pools.nativeFuncPool.destroyAll();
-            pools.instancePool.destroyAll();
-            pools.boundMethodPool.destroyAll();
-            pools.vectorPool.destroyAll();
-
-            // Clear the interned strings map
-            pools.internedStrings.clear();
-
-            // Clear the custom pointer pool
-            // Todo add a flag when registering a custom pointer type to indicate if VM should free them
-            // for (auto& [typeId, ptrList] : pools.customPointerPool)
-            // {
-            //     for (void* ptr : ptrList)
-            //     {
-            //         // User is responsible for freeing custom pointers if needed
-            //         // Here we just clear the pool
-            //     }
-            // }
-
-            pools.customPointerPool.clear();
-        }
+        ~VM();
 
         void reset()
         {

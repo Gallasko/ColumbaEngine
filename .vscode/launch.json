@@ -94,7 +94,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/test"
+                "program": "${workspaceFolder}/build/test_compiler"
             },
             "osx": {
                 "MIMode": "lldb",
@@ -106,7 +106,7 @@
                 "miDebuggerPath": "gdb.exe",
                 "program": "${workspaceFolder}/release/test.exe"
             },
-            "preLaunchTask": "test"
+            // "preLaunchTask": "test"
         }
     ]
 }
