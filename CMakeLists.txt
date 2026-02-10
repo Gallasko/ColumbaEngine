@@ -1108,6 +1108,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(test_compiler PRIVATE
             test/pgcompiler/unit/test_vm_memory.cc
+            test/pgcompiler/unit/test_register_ops.cc
         )
 
         # Include directories for compiler tests

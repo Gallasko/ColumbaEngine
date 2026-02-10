@@ -163,6 +163,84 @@ namespace pg
             }
         }
 
+        void benchmarkSystemBaseline(unsigned int entityCount)
+        {
+            // MockLogger<TerminalSink> logger;
+
+            struct Test : public Component
+            {
+
+            };
+
+            class TestPositionSystem : public System<InitSys, Own<Test>, Ref<PositionComponent>>
+            {
+                virtual void init() override
+                {
+                    registerGroup<PositionComponent, Test>();
+                }
+
+                virtual void execute() override
+                {
+                    for (auto entity : viewGroup<PositionComponent, Test>())
+                    {
+                        auto pos = entity->get<PositionComponent>();
+
+                        pos->x += 1.0f;
+                        pos->y += 1.0f;
+                    }
+                }
+            };
+
+            EntitySystem ecs("benchmark_script");
+            VM vm;
+            ecs.setupVm(vm);
+
+            auto sys = ecs.createSystem<PositionComponentSystem>();
+            auto testSys = ecs.createSystem<TestPositionSystem>();
+
+            // Create entities
+            for (unsigned int i = 0; i < entityCount; ++i)
+            {
+                auto entity = ecs.createEntity("entity_" + std::to_string(i));
+                auto pos = entity->attach<PositionComponent>();
+                pos->x = static_cast<float>(i);
+                pos->y = static_cast<float>(i + 1);
+                pos->z = 0.0f;
+                pos->width = 10.0f;
+                pos->height = 10.0f;
+                pos->rotation = 0.0f;
+                pos->visible = true;
+                pos->observable = true;
+
+                entity->attach<Test>();
+            }
+
+            // Benchmark script execution (including serialization in getEntities)
+            auto start = std::chrono::high_resolution_clock::now();
+
+            ecs.executeOnce();
+
+            auto end = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+            std::cout << "[Native Sys Update] " << entityCount << " entities: "
+                      << duration << " μs ("
+                      << (duration / static_cast<double>(entityCount)) << " μs/entity)"
+                      << std::endl;
+
+            // Verify updates worked
+            auto entities = sys->view<PositionComponent>();
+            if (entities.nbComponents() > 2)
+            {
+                auto* pos = entities[1];
+
+                if (pos->x != 1.0f or pos->y != 2.0f)
+                {
+                    std::cout << "WARNING: Position update did not work correctly!" << std::endl;
+                }
+            }
+        }
+
         // /**
         //  * @brief Benchmark memory usage of serialization
         //  *
@@ -214,6 +292,17 @@ namespace pg
             for (auto count : entityCounts)
             {
                 benchmarkFullSerialization(count);
+            }
+        }
+
+        TEST(SerializationBenchmark, BaselineUpdate)
+        {
+            auto entityCounts = {10, 100, 500, 1000, 2000, 5000, 10000, 50000, 100000, 200000, 500000, 1000000};
+
+            std::cout << "\n=== Native System Update Benchmark ===" << std::endl;
+            for (auto count : entityCounts)
+            {
+                benchmarkSystemBaseline(count);
             }
         }
 
