@@ -14,6 +14,8 @@
 
 #include "chunk_serializer.h"
 
+#include "decoded_chunk.h"
+
 namespace pg
 {
     UniqueIdGenerator VM::globalIdGenerator;
@@ -202,6 +204,25 @@ namespace pg
                         << " ns"
                         << std::endl;
     #endif
+            }
+
+            // Pre-decode chunk for faster execution
+            if (not func->chunk.code.empty())
+            {
+                begin = std::chrono::steady_clock::now();
+
+                LOG_INFO("VM", "Pre-decoding chunk for function: " << func->name);
+                ChunkDecoder decoder;
+                func->decodedChunk = decoder.decode(func->chunk, this);
+
+                end = std::chrono::steady_clock::now();
+
+#ifdef DEBUG_PROFILE_COMPILE
+                std::cout << "Chunk decoding took: "
+                         << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
+                         << " ns"
+                         << std::endl;
+#endif
             }
 
             if (profiler.isEnabled())
@@ -454,6 +475,13 @@ namespace pg
         if (currentFrame->closure->function->chunk.code.empty())
             return InterpretResult::OK;
 
+        // Check if we have a pre-decoded chunk - use it for faster execution
+        if (currentFrame->closure->function->decodedChunk != nullptr)
+        {
+            return runDecoded();
+        }
+
+        // Fallback: execute from bytecode (slower path)
         // Cache chunk data pointer to avoid repeated vector::data() calls
         updateChunkCache();
 
@@ -514,6 +542,155 @@ namespace pg
 
                 // Update frame IP for potential frame switches
                 // currentFrame->ip = ip;
+            }
+        }
+
+        return exit_result;
+    }
+
+    // ============================================================================
+    // DECODED CHUNK EXECUTION - Fast path with pre-decoded instructions
+    // ============================================================================
+    // This is the optimized execution path that runs from pre-decoded chunks.
+    // Benefits:
+    // - No instruction fetch overhead (operands pre-extracted)
+    // - No opcode decode (handler pre-resolved)
+    // - No operand extraction (already done at load time)
+    // - Direct execution from decoded instruction array
+    // ============================================================================
+
+    InterpretResult VM::runDecoded()
+    {
+        // Get the decoded chunk for the current function
+        DecodedChunk* decoded = currentFrame->closure->function->decodedChunk;
+
+        if (decoded == nullptr || decoded->instructions.empty())
+        {
+            // Fallback to bytecode execution
+            return run();
+        }
+
+        // Start at the beginning of decoded instructions
+        // We need to map currentFrame->ip to instruction index
+        size_t instructionIndex = 0;
+
+        // If we're resuming mid-function, find the correct instruction index
+        if (currentFrame->ip != currentFrame->closure->function->chunk.code.data())
+        {
+            size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+            instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
+        }
+
+        // Execute with longjmp support
+        if (setjmp(exit_jump) == 0)
+        {
+            while (instructionIndex < decoded->instructions.size())
+            {
+                DecodedInstruction& instr = decoded->instructions[instructionIndex];
+
+#ifdef DEBUG_TRACE_EXECUTION
+                // Update currentFrame->ip for debug output
+                currentFrame->ip = currentFrame->closure->function->chunk.code.data() + instr.bytecodeOffset;
+
+                std::cout << "          ";
+                for (size_t i = 0; i < stack.size(); ++i)
+                {
+                    std::cout << "[";
+                    printValue(this, stack[i]);
+                    std::cout << "] ";
+                }
+                std::cout << std::endl;
+                disassembleInstruction(this, currentFrame->closure->function->chunk, instr.bytecodeOffset);
+#endif
+
+                // Update currentFrame->ip to point past the opcode to the operands
+                // This allows handlers that read operands via *ip++ to work correctly
+                currentFrame->ip = currentFrame->closure->function->chunk.code.data() + instr.bytecodeOffset + 1;
+
+                // Execute the pre-decoded instruction
+                // The handler is already resolved, operands are already extracted
+                if (profiler.isEnabled())
+                {
+                    const void* chunkPtr = &currentFrame->closure->function->chunk;
+                    const std::string& functionName = currentFrame->closure->function->name;
+                    const std::string& opcodeName = opcodeToString(static_cast<OpCode>(instr.originalOpcode));
+
+                    auto startTime = std::chrono::high_resolution_clock::now();
+
+                    // Execute handler - it will read operands from currentFrame->ip if needed
+                    if (instr.decodedHandler)
+                    {
+                        instr.decodedHandler(this, instr);
+                    }
+                    else
+                    {
+                         instr.handler(this);
+                    }
+
+                    auto endTime = std::chrono::high_resolution_clock::now();
+                    auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count();
+
+                    profiler.recordInstruction(chunkPtr, functionName, instr.bytecodeOffset,
+                                              instr.originalOpcode, opcodeName, duration);
+                }
+                else
+                {
+                    // Execute handler - it will read operands from currentFrame->ip if needed
+                    if (instr.decodedHandler)
+                    {
+                        instr.decodedHandler(this, instr);
+                    }
+                    else
+                    {
+                         instr.handler(this);
+                    }
+
+                }
+
+                // Handle control flow changes (calls, returns, jumps)
+                // Check if currentFrame has changed (function call/return)
+                if (currentFrame != &frames[frameCount - 1])
+                {
+                    currentFrame = &frames[frameCount - 1];
+
+                    // Switched to a different function - check if it has decoded chunk
+                    if (currentFrame->closure->function->decodedChunk != nullptr)
+                    {
+                        decoded = currentFrame->closure->function->decodedChunk;
+                        instructionIndex = 0;  // Start from beginning of new function
+
+                        // If IP was set to middle of function, find the right index
+                        if (currentFrame->ip != currentFrame->closure->function->chunk.code.data())
+                        {
+                            size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                            instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
+                        }
+                        continue;
+                    }
+                    else
+                    {
+                        // New function doesn't have decoded chunk, fall back to bytecode
+                        updateChunkCache();
+                        return run();
+                    }
+                }
+
+                // After handler execution, check if IP was modified by control flow
+                size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+
+                // Calculate where IP should be after normal instruction execution
+                size_t expectedIpOffset = instr.bytecodeOffset + 1 + instr.operandBytes;
+
+                if (currentIpOffset != expectedIpOffset)
+                {
+                    // IP was changed by handler (jump/loop/call/return) - find the new instruction
+                    instructionIndex = decoded->findInstructionIndex(currentIpOffset);
+                }
+                else
+                {
+                    // Normal sequential flow: advance to next instruction
+                    instructionIndex++;
+                }
             }
         }
 
@@ -1115,6 +1292,28 @@ namespace pg
 
         vm->globals[name.toString()] = vm->retainValue(value1);
     }
+
+    void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        // Read operands directly from pre-decoded instruction (no memory fetch!)
+        uint8_t constant1 = instr.operands.indexed.byte1;
+        uint8_t constant2 = instr.operands.indexed.byte2;
+
+        auto value1 = vm->currentFrame->closure->function->chunk.constants[constant1];
+        auto value2 = vm->currentFrame->closure->function->chunk.constants[constant2];
+
+        auto name = vm->valueToElement(value2);
+
+        if (not name.isLitteral())
+        {
+            vm->runtimeError("Global variable name must be a litteral.");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+            return;
+        }
+
+        vm->globals[name.toString()] = vm->retainValue(value1);
+    }
+
 
     void op_get_constant_global(VM* vm)
     {

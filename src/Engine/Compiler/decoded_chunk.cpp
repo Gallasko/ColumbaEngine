@@ -78,6 +78,7 @@ namespace pg
         // Look up handler and metadata
         const OpCodeInfo& info = vm->operations[opcode];
         instr.handler = info.handler;
+        instr.decodedHandler = info.decodedHandler;
         instr.flags = info.flags;
         instr.operandBytes = info.operandBytes;
         instr.constantPtr = nullptr;
