@@ -571,7 +571,7 @@ namespace pg
         {
             size_t valueIndex = table->fieldValues.size();
             table->fieldValues.push_back(vm->retainValue(values[i]));
-            table->setField(keys[i], valueIndex);  // it->first is the string key
+            table->internedFields[keys[i]] = valueIndex;  // Map key to value index
             vm->releaseAndDelete(values[i]);  // Release our temporary reference
         }
 

@@ -141,25 +141,48 @@ namespace pg
             if (not IS_STRING(a) or not IS_STRING(b))
                 return false;
 
-            // If no string pool available, can only compare bit patterns
-            if (not stringPool)
-                return false;
+            // Handle different string types properly
+            bool aIsSmall = IS_SMALL_STRING(a);
+            bool bIsSmall = IS_SMALL_STRING(b);
+            bool aIsInterned = IS_INTERNED_STRING(a);
+            bool bIsInterned = IS_INTERNED_STRING(b);
+            bool aIsLong = IS_LONG_STRING(a);
+            bool bIsLong = IS_LONG_STRING(b);
 
-            // Compare actual string content
-            uint32_t indexA = AS_STRING_INDEX(a);
-            uint32_t indexB = AS_STRING_INDEX(b);
+            // Small strings: compare inline data directly
+            if (aIsSmall and bIsSmall)
+            {
+                return AS_SMALL_STRING(a) == AS_SMALL_STRING(b);
+            }
 
-            // Bounds check
-            if (indexA >= stringPool->getNbElements() or indexB >= stringPool->getNbElements())
-                return false;
+            // Interned strings: compare indices (they reference chunk.constantStrings)
+            if (aIsInterned and bIsInterned)
+            {
+                return AS_INTERNED_STRING_INDEX(a) == AS_INTERNED_STRING_INDEX(b);
+            }
 
-            auto strA = stringPool->getElement(indexA);
-            auto strB = stringPool->getElement(indexB);
+            // Long strings: compare content from string pool
+            if (aIsLong and bIsLong and stringPool)
+            {
+                uint32_t indexA = AS_STRING_INDEX(a);
+                uint32_t indexB = AS_STRING_INDEX(b);
 
-            if (not strA or not strB)
-                return false;
+                // Bounds check
+                if (indexA >= stringPool->getNbElements() or indexB >= stringPool->getNbElements())
+                    return false;
 
-            return strA == strB;
+                auto strA = stringPool->getElement(indexA);
+                auto strB = stringPool->getElement(indexB);
+
+                if (not strA or not strB)
+                    return false;
+
+                return *strA == *strB;
+            }
+
+            // Mixed string types are never equal
+            // (We don't compare content across different representations)
+            return false;
         }
 
         AllocatorPool<std::string, 64>* stringPool = nullptr;  // Set by compiler/VM for string comparison

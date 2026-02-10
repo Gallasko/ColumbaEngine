@@ -220,8 +220,7 @@ namespace pg
                 std::string strContent = readString(in);
                 if (vm != nullptr)
                 {
-                    ElementType elem(strContent);
-                    value = vm->createString(elem);
+                    value = vm->createString(strContent);
                 }
                 else
                 {
