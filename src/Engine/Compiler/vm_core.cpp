@@ -624,7 +624,7 @@ namespace pg
                     }
                     else
                     {
-                         instr.handler(this);
+                        instr.handler(this);
                     }
 
                     auto endTime = std::chrono::high_resolution_clock::now();
@@ -642,7 +642,7 @@ namespace pg
                     }
                     else
                     {
-                         instr.handler(this);
+                        instr.handler(this);
                     }
 
                 }
@@ -675,22 +675,24 @@ namespace pg
                     }
                 }
 
+                instructionIndex++;
+
                 // After handler execution, check if IP was modified by control flow
-                size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                // size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
 
-                // Calculate where IP should be after normal instruction execution
-                size_t expectedIpOffset = instr.bytecodeOffset + 1 + instr.operandBytes;
+                // // Calculate where IP should be after normal instruction execution
+                // size_t expectedIpOffset = instr.bytecodeOffset + 1 + instr.operandBytes;
 
-                if (currentIpOffset != expectedIpOffset)
-                {
-                    // IP was changed by handler (jump/loop/call/return) - find the new instruction
-                    instructionIndex = decoded->findInstructionIndex(currentIpOffset);
-                }
-                else
-                {
-                    // Normal sequential flow: advance to next instruction
-                    instructionIndex++;
-                }
+                // if (currentIpOffset != expectedIpOffset)
+                // {
+                //     // IP was changed by handler (jump/loop/call/return) - find the new instruction
+                //     instructionIndex = decoded->findInstructionIndex(currentIpOffset);
+                // }
+                // else
+                // {
+                //     // Normal sequential flow: advance to next instruction
+                //     instructionIndex++;
+                // }
             }
         }
 
