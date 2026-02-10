@@ -431,11 +431,19 @@ namespace pg
         }
     }
 
+    // Forward declaration
+    struct DecodedChunk;
+
     struct ObjFunction
     {
         Chunk chunk;
         int arity; // Number of parameters
         std::string name;
         int upvalueCount = 0;
+
+        // Pre-decoded chunk for faster execution (lazily created)
+        DecodedChunk* decodedChunk = nullptr;
+
+        ~ObjFunction();
     };
 }

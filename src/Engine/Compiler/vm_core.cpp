@@ -494,7 +494,7 @@ namespace pg
                     // because operations like OP_Call will change currentFrame
                     const void* chunkPtr = &currentFrame->closure->function->chunk;
                     const std::string& functionName = currentFrame->closure->function->name;
-                    std::string opcodeName = opcodeToString(static_cast<OpCode>(opcode));
+                    const std::string& opcodeName = opcodeToString(static_cast<OpCode>(opcode));
 
                     auto startTime = std::chrono::high_resolution_clock::now();
 
@@ -531,7 +531,8 @@ namespace pg
 #endif
         auto value = vm->pop();
         // Escape analysis: Only release heap objects, not primitives
-        if (requiresRefCount(value)) {
+        if (requiresRefCount(value))
+        {
             vm->releaseAndDelete(value);
         }
     }
