@@ -647,52 +647,52 @@ namespace pg
 
                 }
 
-                // Handle control flow changes (calls, returns, jumps)
-                // Check if currentFrame has changed (function call/return)
-                if (currentFrame != &frames[frameCount - 1])
+                // Handle control flow changes only for specific opcodes
+                OpCode opcode = static_cast<OpCode>(instr.originalOpcode);
+
+                // Check for jump instructions that modify IP
+                if (opcode == OpCode::OP_Jump || opcode == OpCode::OP_Jump_If_False || opcode == OpCode::OP_Loop ||
+                    opcode == OpCode::OP_Long_Jump || opcode == OpCode::OP_Long_Jump_If_False || opcode == OpCode::OP_Long_Loop)
                 {
-                    currentFrame = &frames[frameCount - 1];
+                    // IP was modified by jump - find the new instruction index
+                    size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                    instructionIndex = decoded->findInstructionIndex(currentIpOffset);
+                    continue;
+                }
 
-                    // Switched to a different function - check if it has decoded chunk
-                    if (currentFrame->closure->function->decodedChunk != nullptr)
+                // Check for call/invoke instructions that change frames
+                if (opcode == OpCode::OP_Call || opcode == OpCode::OP_Invoke)
+                {
+                    // Frame may have changed - verify
+                    if (currentFrame != &frames[frameCount - 1])
                     {
-                        decoded = currentFrame->closure->function->decodedChunk;
-                        instructionIndex = 0;  // Start from beginning of new function
+                        currentFrame = &frames[frameCount - 1];
 
-                        // If IP was set to middle of function, find the right index
-                        if (currentFrame->ip != currentFrame->closure->function->chunk.code.data())
+                        // Switched to a different function - check if it has decoded chunk
+                        if (currentFrame->closure->function->decodedChunk != nullptr)
                         {
-                            size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
-                            instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
+                            decoded = currentFrame->closure->function->decodedChunk;
+                            instructionIndex = 0;  // Start from beginning of new function
+
+                            // If IP was set to middle of function, find the right index
+                            if (currentFrame->ip != currentFrame->closure->function->chunk.code.data())
+                            {
+                                size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                                instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
+                            }
+                            continue;
                         }
-                        continue;
-                    }
-                    else
-                    {
-                        // New function doesn't have decoded chunk, fall back to bytecode
-                        updateChunkCache();
-                        return run();
+                        else
+                        {
+                            // New function doesn't have decoded chunk, fall back to bytecode
+                            updateChunkCache();
+                            return run();
+                        }
                     }
                 }
 
+                // Normal sequential execution - just advance to next instruction
                 instructionIndex++;
-
-                // After handler execution, check if IP was modified by control flow
-                // size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
-
-                // // Calculate where IP should be after normal instruction execution
-                // size_t expectedIpOffset = instr.bytecodeOffset + 1 + instr.operandBytes;
-
-                // if (currentIpOffset != expectedIpOffset)
-                // {
-                //     // IP was changed by handler (jump/loop/call/return) - find the new instruction
-                //     instructionIndex = decoded->findInstructionIndex(currentIpOffset);
-                // }
-                // else
-                // {
-                //     // Normal sequential flow: advance to next instruction
-                //     instructionIndex++;
-                // }
             }
         }
 
