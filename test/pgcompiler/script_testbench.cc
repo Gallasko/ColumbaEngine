@@ -587,6 +587,11 @@ TEST_F(ScriptTestBench, StringLiterals)
     testScript("string_literals");
 }
 
+TEST_F(ScriptTestBench, StringIndexing)
+{
+    testScript("string_indexing");
+}
+
 TEST_F(ScriptTestBench, StringConcatenation)
 {
     testScript("string_concatenation");
