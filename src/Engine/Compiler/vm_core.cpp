@@ -777,6 +777,28 @@ namespace pg
         }
     }
 
+    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        // Read slot directly from pre-decoded instruction (no memory fetch!)
+        uint8_t slot = instr.operands.byte;
+
+        if (slot >= 255)
+        {
+            vm->runtimeError("Local variable slot out of range");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        Value value = vm->currentFrame->slots[slot];
+        // Escape analysis: Only retain heap objects, not primitives or stack values
+        if (requiresRefCount(value)) {
+            vm->push(vm->retainValue(value));
+        } else {
+            vm->push(value);  // Primitives just copied by value
+        }
+    }
+
     void op_set_local(VM* vm)
     {
         uint8_t slot = *vm->currentFrame->ip++;

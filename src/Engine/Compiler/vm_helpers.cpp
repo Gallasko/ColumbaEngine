@@ -372,7 +372,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_PopN), op_pop_n, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Locals
-        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local, op_get_local_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local, OpCodeInfo::BATCHABLE | OpCodeInfo::LOCAL_ONLY);
 
         // Global variables (default: no flags)

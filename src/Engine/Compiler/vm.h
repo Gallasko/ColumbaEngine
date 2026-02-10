@@ -170,6 +170,7 @@ namespace pg
     void op_or(VM* vm);
     void op_pop(VM* vm);
     void op_get_local(VM* vm);
+    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
     void op_set_local(VM* vm);
     void op_get_global(VM* vm);
     void op_define_global(VM* vm);
