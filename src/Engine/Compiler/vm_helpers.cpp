@@ -427,7 +427,7 @@ namespace pg
         // Small string optimization: inline strings with 5 or fewer characters
         if (stringContent.length() <= 5)
         {
-            return makeSmallStringValue(stringContent.c_str(), static_cast<uint8_t>(stringContent.length()));
+            return makeSmallStringValue(stringContent.data(), static_cast<uint8_t>(stringContent.length()));
         }
 
         // // Check if string already exists in the intern map

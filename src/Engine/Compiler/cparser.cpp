@@ -1774,46 +1774,10 @@ namespace pg
 
     void CParser::writeConstant(const ElementType& constant)
     {
-        // If it's a string constant, add to current chunk's constantStrings and push interned string value
-        if (constant.isLitteral())
-        {
-            std::string str = constant.toString();
-
-            // Find or add string to current chunk's constantStrings
-            auto& chunk = Compiler::current->getCurrentChunk();
-            uint32_t index = 0;
-            bool found = false;
-            for (size_t i = 0; i < chunk.constantStrings.size(); i++)
-            {
-                if (chunk.constantStrings[i] == str)
-                {
-                    index = static_cast<uint32_t>(i);
-                    found = true;
-                    break;
-                }
-            }
-
-            if (not found)
-            {
-                if (chunk.constantStrings.size() >= 256)
-                {
-                    errorAt(previousToken, "Too many constant strings in chunk.");
-                    return;
-                }
-
-                index = static_cast<uint32_t>(chunk.constantStrings.size());
-                chunk.constantStrings.push_back(str);
-            }
-
-            // Add interned string value as a constant
-            Value internedStr = makeInternedStringValue(index);
-            chunk.addConstant(internedStr, previousToken.line);
-        }
-        else
-        {
-            // Non-string constants go through normal path
-            Compiler::current->getCurrentChunk().addConstant(vm->elementToValue(constant), previousToken.line);
-        }
+        // String literals are added as heap strings (not interned strings)
+        // Only property names/method names should be interned, not regular string constants
+        // This allows string values to be freely passed between chunks (upvalues, function args, etc.)
+        Compiler::current->getCurrentChunk().addConstant(vm->elementToValue(constant), previousToken.line);
     }
 
     void CParser::writeByte(const OpCode& byte)
