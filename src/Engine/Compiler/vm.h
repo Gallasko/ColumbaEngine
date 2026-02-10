@@ -38,13 +38,17 @@ namespace pg
 
     // Forward declaration for VM
     struct VM;
+    struct DecodedInstruction;
 
     // Function pointer type for operation handlers
     typedef void (*OpHandler)(VM* vm);
+    typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // Operation information structure
-    struct OpCodeInfo {
+    struct OpCodeInfo
+    {
         OpHandler handler;
+        OpDecodedHandler decodedHandler = nullptr;
 
         // NEW: Metadata for pre-decoding and batching optimization
         uint8_t flags;           // Instruction properties
@@ -66,6 +70,7 @@ namespace pg
         OpCodeInfo() : handler(nullptr), flags(0), operandBytes(0), stackEffect(0) {}
         OpCodeInfo(OpHandler h) : handler(h), flags(0), operandBytes(0), stackEffect(0) {}
         OpCodeInfo(OpHandler h, uint8_t f) : handler(h), flags(f), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo(OpHandler h, uint8_t f, OpDecodedHandler dh) : handler(h), decodedHandler(dh), flags(f), operandBytes(0), stackEffect(0) {}
 
         bool isPure() const { return (flags & PURE) != 0; }
         bool isBatchable() const { return (flags & BATCHABLE) != 0; }
@@ -199,6 +204,7 @@ namespace pg
     void op_pop_n(VM* vm);
 
     void op_define_constant_global(VM* vm);
+    void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
     void op_get_constant_global(VM* vm);
     void op_set_constant_global(VM* vm);
 
@@ -326,6 +332,7 @@ namespace pg
         InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0);
 
         InterpretResult run();
+        InterpretResult runDecoded();  // Execute from pre-decoded chunks (faster)
 
         // Core Value operations for performance
         inline void push(Value value)  // Pass by value (64-bit in register)
@@ -875,6 +882,7 @@ namespace pg
         static void register_builtin_operations();
         static void register_operation(uint8_t opcode, OpHandler handler);
         static void register_operation(uint8_t opcode, OpHandler handler, uint8_t flags);
+        static void register_operation(uint8_t opcode, OpHandler handler, OpDecodedHandler decodedHandler, uint8_t flags = 0);
         void initialize_builtin_classes();
 
         std::string currentFileName;

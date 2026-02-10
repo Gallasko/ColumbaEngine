@@ -324,6 +324,11 @@ namespace pg
         operations[opcode] = OpCodeInfo(handler, flags);
     }
 
+    void VM::register_operation(uint8_t opcode, OpHandler handler, OpDecodedHandler decodedHandler, uint8_t flags)
+    {
+        operations[opcode] = OpCodeInfo(handler, flags, decodedHandler);
+    }
+
     void VM::register_builtin_operations()
     {
         // Control flow (default flags: 0 - no batching, has control flow)
@@ -375,7 +380,7 @@ namespace pg
         register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global), op_define_global);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Global), op_set_global);
         register_operation(static_cast<uint8_t>(OpCode::OP_Define_Global_Non_Popping), op_define_global_non_popping);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Constant_Global), op_define_constant_global);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Define_Constant_Global), op_define_constant_global, op_define_constant_global_decoded);
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Constant_Global), op_get_constant_global);
         register_operation(static_cast<uint8_t>(OpCode::OP_Set_Constant_Global), op_set_constant_global);
 

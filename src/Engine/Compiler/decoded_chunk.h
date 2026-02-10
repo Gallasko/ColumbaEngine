@@ -8,7 +8,10 @@ namespace pg
 {
     // Forward declarations
     struct VM;
+    struct DecodedInstruction;
+
     typedef void (*OpHandler)(VM* vm);
+    typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // ============================================================================
     // PRE-DECODED INSTRUCTION FORMAT
@@ -21,6 +24,7 @@ namespace pg
     struct DecodedInstruction
     {
         OpHandler handler;           // Pre-resolved function pointer
+        OpDecodedHandler decodedHandler = nullptr; // Optional handler that receives the full instruction (for complex ops)
 
         // Operand storage (union to save space)
         union
