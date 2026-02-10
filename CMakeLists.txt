@@ -158,6 +158,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/vm_struct_op.cpp
     src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/decoded_chunk.cpp
     src/Engine/Compiler/object.cpp
     src/Engine/Compiler/cparser.cpp
     src/Engine/Compiler/bytecode_pass.cpp
@@ -216,6 +217,7 @@ set(ENGINESOURCE
     src/Engine/Compiler/vm_struct_op.cpp
     src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/decoded_chunk.cpp
     src/Engine/Compiler/ecsserialization.cpp
     src/Engine/Compiler/object.cpp
     src/Engine/Compiler/cparser.cpp

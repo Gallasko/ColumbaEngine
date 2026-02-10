@@ -46,8 +46,31 @@ namespace pg
     struct OpCodeInfo {
         OpHandler handler;
 
-        OpCodeInfo() : handler(nullptr) {}
-        OpCodeInfo(OpHandler h) : handler(h) {}
+        // NEW: Metadata for pre-decoding and batching optimization
+        uint8_t flags;           // Instruction properties
+        uint8_t operandBytes;    // Number of operand bytes (0-4) - inferred from getInstructionSize if 0
+        int8_t stackEffect;      // Net stack change (-128 to +127) - not used yet
+
+        // Flags for instruction properties
+        static constexpr uint8_t PURE         = 0x01;  // No side effects
+        static constexpr uint8_t CONST_TIME   = 0x02;  // Always same execution time
+        static constexpr uint8_t NO_CALL      = 0x04;  // Doesn't call functions
+        static constexpr uint8_t NO_BRANCH    = 0x08;  // Doesn't change control flow
+        static constexpr uint8_t NO_MEMORY    = 0x10;  // Doesn't allocate/free memory
+        static constexpr uint8_t BATCHABLE    = 0x20;  // Safe for batch execution
+        static constexpr uint8_t LOCAL_ONLY   = 0x40;  // Only touches locals/stack
+
+        // Common flag combinations
+        static constexpr uint8_t PURE_BATCH   = PURE | BATCHABLE;  // Pure and batchable (most common)
+
+        OpCodeInfo() : handler(nullptr), flags(0), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo(OpHandler h) : handler(h), flags(0), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo(OpHandler h, uint8_t f) : handler(h), flags(f), operandBytes(0), stackEffect(0) {}
+
+        bool isPure() const { return (flags & PURE) != 0; }
+        bool isBatchable() const { return (flags & BATCHABLE) != 0; }
+        bool isConstTime() const { return (flags & CONST_TIME) != 0; }
+        bool noBranch() const { return (flags & NO_BRANCH) != 0; }
     };
 
     // Forward declare VM for helper functions
@@ -851,6 +874,7 @@ namespace pg
         void vm_return(InterpretResult result);
         static void register_builtin_operations();
         static void register_operation(uint8_t opcode, OpHandler handler);
+        static void register_operation(uint8_t opcode, OpHandler handler, uint8_t flags);
         void initialize_builtin_classes();
 
         std::string currentFileName;
