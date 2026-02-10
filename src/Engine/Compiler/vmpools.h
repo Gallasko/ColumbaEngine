@@ -113,31 +113,31 @@ namespace pg
         // ====================================================================
 
         /** Max constant index for string pool (all indices <= this are constants) */
-        uint32_t maxConstantStringIndex = 0;
+        uint32_t maxConstantStringIndex = UINT32_MAX;
 
         /** Max constant index for closure pool */
-        uint32_t maxConstantClosureIndex = 0;
+        uint32_t maxConstantClosureIndex = UINT32_MAX;
 
         /** Max constant index for function pool */
-        uint32_t maxConstantFunctionIndex = 0;
+        uint32_t maxConstantFunctionIndex = UINT32_MAX;
 
         /** Max constant index for upvalue pool */
-        uint32_t maxConstantUpvalueIndex = 0;
+        uint32_t maxConstantUpvalueIndex = UINT32_MAX;
 
         /** Max constant index for class pool */
-        uint32_t maxConstantClassIndex = 0;
+        uint32_t maxConstantClassIndex = UINT32_MAX;
 
         /** Max constant index for native function pool */
-        uint32_t maxConstantNativeFuncIndex = 0;
+        uint32_t maxConstantNativeFuncIndex = UINT32_MAX;
 
         /** Max constant index for instance pool */
-        uint32_t maxConstantInstanceIndex = 0;
+        uint32_t maxConstantInstanceIndex = UINT32_MAX;
 
         /** Max constant index for bound method pool */
-        uint32_t maxConstantBoundMethodIndex = 0;
+        uint32_t maxConstantBoundMethodIndex = UINT32_MAX;
 
         /** Max constant index for vector pool */
-        uint32_t maxConstantVectorIndex = 0;
+        uint32_t maxConstantVectorIndex = UINT32_MAX;
 
         // ====================================================================
         // Public API
@@ -222,38 +222,48 @@ namespace pg
             }
             else if (IS_STRING(v))  // Long or small strings
             {
+                // UINT32_MAX is sentinel value meaning "constants not frozen yet"
+                if (maxConstantStringIndex == UINT32_MAX) return false;
                 return AS_STRING_INDEX(v) <= maxConstantStringIndex;
             }
             else if (IS_CLOSURE(v))
             {
+                if (maxConstantClosureIndex == UINT32_MAX) return false;
                 return AS_CLOSURE_INDEX(v) <= maxConstantClosureIndex;
             }
             else if (IS_FUNC(v))
             {
+                if (maxConstantFunctionIndex == UINT32_MAX) return false;
                 return AS_FUNCTION_INDEX(v) <= maxConstantFunctionIndex;
             }
             else if (IS_UPVALUE(v))
             {
+                if (maxConstantUpvalueIndex == UINT32_MAX) return false;
                 return AS_UPVALUE_INDEX(v) <= maxConstantUpvalueIndex;
             }
             else if (IS_CLASS(v))
             {
+                if (maxConstantClassIndex == UINT32_MAX) return false;
                 return AS_CLASS_INDEX(v) <= maxConstantClassIndex;
             }
             else if (IS_NAT_FUNC(v))
             {
+                if (maxConstantNativeFuncIndex == UINT32_MAX) return false;
                 return AS_NATIVE_INDEX(v) <= maxConstantNativeFuncIndex;
             }
             else if (IS_INSTANCE(v))
             {
+                if (maxConstantInstanceIndex == UINT32_MAX) return false;
                 return AS_INSTANCE_INDEX(v) <= maxConstantInstanceIndex;
             }
             else if (IS_BOUND_METHOD(v))
             {
+                if (maxConstantBoundMethodIndex == UINT32_MAX) return false;
                 return AS_BOUND_METHOD_INDEX(v) <= maxConstantBoundMethodIndex;
             }
             else if (IS_VECTOR(v))
             {
+                if (maxConstantVectorIndex == UINT32_MAX) return false;
                 return AS_VECTOR_INDEX(v) <= maxConstantVectorIndex;
             }
 
