@@ -75,13 +75,13 @@ namespace pg
         // Reserve base pool size on startup
         pools.reserve();
 
-        // // Initialize single-character string cache for performance
-        // // Pre-allocate all 256 possible single-byte character strings
-        // for (int i = 0; i < 256; i++)
-        // {
-        //     std::string singleChar(1, static_cast<char>(i));
-        //     singleCharCache[i] = createString(singleChar);
-        // }
+        // Initialize single-character string cache for performance
+        // Pre-allocate all 256 possible single-byte character strings
+        for (int i = 0; i < 256; i++)
+        {
+            std::string singleChar(1, static_cast<char>(i));
+            singleCharCache[i] = createString(singleChar);
+        }
     }
 
     VM::~VM()
@@ -101,14 +101,14 @@ namespace pg
 
         // Clean up the single-character string cache
         // These were created in the constructor with refcount=1 and need to be released
-        // for (int i = 0; i < 256; i++)
-        // {
-        //     Value cachedStr = singleCharCache[i];
-        //     if (requiresRefCount(cachedStr))
-        //     {
-        //         releaseAndDelete(cachedStr);
-        //     }
-        // }
+        for (int i = 0; i < 256; i++)
+        {
+            Value cachedStr = singleCharCache[i];
+            if (requiresRefCount(cachedStr))
+            {
+                releaseAndDelete(cachedStr);
+            }
+        }
 
         // Destroy all remaining objects in pools (including constants)
         // This is necessary to properly cleanup objects with complex destructors like ElementType
