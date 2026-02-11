@@ -71,8 +71,8 @@ else  // Left edge
     spawnY = randomRange(0, screenHeight)
 }
 
-asteroid["PositionComponent"].setX(spawnX)
-asteroid["PositionComponent"].setY(spawnY)
+asteroid["PositionComponent"].x = spawnX
+asteroid["PositionComponent"].y = spawnY
 
 // Random velocity toward center of screen
 var centerX = screenWidth / 2

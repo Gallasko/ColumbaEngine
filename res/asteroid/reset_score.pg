@@ -12,7 +12,7 @@ if (sysData["scoreTextId"] != 0)
     var scoreText = getEntity(sysData["scoreTextId"])
     if (scoreText != 0)
     {
-        scoreText["TTFText"].setText("Score: 0")
+        scoreText["TTFText"].text = "Score: 0"
     }
 }
 

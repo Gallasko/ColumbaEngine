@@ -23,7 +23,7 @@ for (var bullet : bullets)
 
     // Update lifetime
     lifetime = lifetime - deltaTime
-    data.setLifetime(lifetime)
+    data.lifetime = lifetime
 
     // Remove bullet if lifetime expired
     if (lifetime <= 0)
@@ -45,8 +45,8 @@ for (var bullet : bullets)
         }
         else
         {
-            pos.setX(newX)
-            pos.setY(newY)
+            pos.x = newX
+            pos.y = newY
         }
     }
 }
