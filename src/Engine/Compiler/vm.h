@@ -150,7 +150,9 @@ namespace pg
     // Forward declarations for operation handlers
     void op_return(VM* vm);
     void op_constant(VM* vm);
+    void op_constant_decoded(VM* vm, const DecodedInstruction& instr);
     void op_long_constant(VM* vm);
+    void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
     void op_add(VM* vm);
     void op_subtract(VM* vm);
     void op_multiply(VM* vm);
@@ -172,6 +174,7 @@ namespace pg
     void op_get_local(VM* vm);
     void op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
     void op_set_local(VM* vm);
+    void op_set_local_decoded(VM* vm, const DecodedInstruction& instr);
     void op_get_global(VM* vm);
     void op_define_global(VM* vm);
     void op_set_global(VM* vm);
