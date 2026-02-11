@@ -668,21 +668,12 @@ namespace pg
                 // Check for call/invoke instructions that change frames
                 if (opcode == OpCode::OP_Call || opcode == OpCode::OP_Invoke)
                 {
-                    std::cout << "[DEBUG] OP_Call/Invoke detected. frameBeforeExecution=" << (void*)frameBeforeExecution
-                              << ", currentFrame=" << (void*)currentFrame << std::endl;
-
                     // Frame changed if currentFrame is different from what it was before execution
                     if (currentFrame != frameBeforeExecution)
                     {
-                        std::cout << "[DEBUG] Frame changed! Switching to new function: "
-                                  << currentFrame->closure->function->name << std::endl;
-
                         // Switched to a different function - check if it has decoded chunk
                         if (currentFrame->closure->function->decodedChunk != nullptr)
                         {
-                            std::cout << "[DEBUG] New function has decoded chunk with "
-                                      << currentFrame->closure->function->decodedChunk->instructions.size()
-                                      << " instructions" << std::endl;
                             decoded = currentFrame->closure->function->decodedChunk;
                             instructionIndex = 0;  // Start from beginning of new function
 
@@ -692,12 +683,10 @@ namespace pg
                                 size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
                                 instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
                             }
-                            std::cout << "[DEBUG] Starting at instructionIndex=" << instructionIndex << std::endl;
                             continue;
                         }
                         else
                         {
-                            std::cout << "[DEBUG] New function has NO decoded chunk, falling back" << std::endl;
                             // New function doesn't have decoded chunk, fall back to bytecode
                             updateChunkCache();
                             return run();
@@ -712,41 +701,26 @@ namespace pg
                 // Check for return instruction that may restore previous frame
                 if (opcode == OpCode::OP_Return)
                 {
-                    std::cout << "[DEBUG] OP_Return detected. decodedBeforeExecution=" << (void*)decodedBeforeExecution
-                              << ", currentDecoded=" << (void*)decoded << std::endl;
-
-                    // After return, the decoded chunk may have changed back to caller's chunk
+                    // After return, check if we've returned to a different frame
                     // op_return has already updated currentFrame to point to the caller
-                    if (frameCount > 0)
+                    if (frameCount > 0 && currentFrame != frameBeforeExecution)
                     {
-                        // Check if we've returned to a different decoded chunk
+                        // Check if the caller has a decoded chunk
                         DecodedChunk* newDecoded = currentFrame->closure->function->decodedChunk;
-                        if (newDecoded != decodedBeforeExecution)
+                        if (newDecoded != nullptr)
                         {
-                            std::cout << "[DEBUG] Returned to different function: "
-                                      << currentFrame->closure->function->name << std::endl;
+                            decoded = newDecoded;
 
-                            // Returned to a different function - check if it has decoded chunk
-                            if (newDecoded != nullptr)
-                            {
-                                std::cout << "[DEBUG] Caller has decoded chunk with "
-                                          << newDecoded->instructions.size() << " instructions" << std::endl;
-                                decoded = newDecoded;
-
-                                // Find where we are in the caller's decoded chunk
-                                // The IP should be pointing right after the OP_Call instruction
-                                size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
-                                instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
-                                std::cout << "[DEBUG] Resuming at instructionIndex=" << instructionIndex << std::endl;
-                                continue;
-                            }
-                            else
-                            {
-                                std::cout << "[DEBUG] Caller has NO decoded chunk, falling back" << std::endl;
-                                // Caller doesn't have decoded chunk, fall back to bytecode
-                                updateChunkCache();
-                                return run();
-                            }
+                            // Find where we are in the caller's decoded chunk
+                            // The IP should be pointing right after the OP_Call instruction
+                            size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                            instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
+                            continue;
+                        }
+                        else
+                        {
+                            updateChunkCache();
+                            return run();
                         }
                     }
                     // If frameCount == 0, we've returned from the top-level script
