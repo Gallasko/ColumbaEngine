@@ -665,8 +665,13 @@ namespace pg
                     continue;
                 }
 
-                // Check for call/invoke instructions that change frames
-                if (opcode == OpCode::OP_Call || opcode == OpCode::OP_Invoke)
+                // Check for instructions that can change frames
+                // OP_Call, OP_Invoke: explicit function calls
+                // OP_Get_Property, OP_Set_Property: may call __get/__set metamethods
+                // OP_Get_Index, OP_Set_Index: may call __get/__set metamethods for indexing
+                if (opcode == OpCode::OP_Call || opcode == OpCode::OP_Invoke ||
+                    opcode == OpCode::OP_Get_Property || opcode == OpCode::OP_Set_Property ||
+                    opcode == OpCode::OP_Get_Index || opcode == OpCode::OP_Set_Index)
                 {
                     // Frame changed if currentFrame is different from what it was before execution
                     if (currentFrame != frameBeforeExecution)
