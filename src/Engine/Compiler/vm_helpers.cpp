@@ -334,8 +334,8 @@ namespace pg
         // Control flow (default flags: 0 - no batching, has control flow)
         register_operation(static_cast<uint8_t>(OpCode::OP_Return), op_return);
         // Pure & batchable: Constants
-        register_operation(static_cast<uint8_t>(OpCode::OP_Constant), op_constant, OpCodeInfo::PURE_BATCH);
-        register_operation(static_cast<uint8_t>(OpCode::OP_LongConstant), op_long_constant, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Constant), op_constant, op_constant_decoded, OpCodeInfo::PURE_BATCH);
+        register_operation(static_cast<uint8_t>(OpCode::OP_LongConstant), op_long_constant, op_long_constant_decoded, OpCodeInfo::PURE_BATCH);
         register_operation(static_cast<uint8_t>(OpCode::OP_Short_Int), op_short_int, OpCodeInfo::PURE_BATCH);
 
         // Pure & batchable: Arithmetic
@@ -373,7 +373,7 @@ namespace pg
 
         // Pure & batchable: Locals
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Local), op_get_local, op_get_local_decoded, OpCodeInfo::PURE_BATCH | OpCodeInfo::LOCAL_ONLY);
-        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local, OpCodeInfo::BATCHABLE | OpCodeInfo::LOCAL_ONLY);
+        register_operation(static_cast<uint8_t>(OpCode::OP_Set_Local), op_set_local, op_set_local_decoded, OpCodeInfo::BATCHABLE | OpCodeInfo::LOCAL_ONLY);
 
         // Global variables (default: no flags)
         register_operation(static_cast<uint8_t>(OpCode::OP_Get_Global), op_get_global);

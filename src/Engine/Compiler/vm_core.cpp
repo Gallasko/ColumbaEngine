@@ -733,6 +733,12 @@ namespace pg
         vm->push(constant);  // Primitives/constants just copied
     }
 
+    void op_constant_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        // Use pre-resolved constant pointer (no index lookup needed!)
+        vm->push(*instr.constantPtr);
+    }
+
     void op_long_constant(VM* vm)
     {
         uint32_t constantIndex = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
@@ -754,6 +760,12 @@ namespace pg
         } else {
             vm->push(constant);  // Primitives/constants just copied
         }
+    }
+
+    void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        // Use pre-resolved constant pointer (no index lookup needed!)
+        vm->push(*instr.constantPtr);
     }
 
     void op_get_local(VM* vm)
@@ -833,6 +845,35 @@ namespace pg
         // }
 
         // vm->currentFrame->slots[slot] = vm->peek(0);
+    }
+
+    void op_set_local_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        // Read slot directly from pre-decoded instruction (no memory fetch!)
+        uint8_t slot = instr.operands.byte;
+
+        if (slot >= 255)
+        {
+            vm->runtimeError("Local variable slot out of range");
+            vm->vm_return(InterpretResult::RUNTIME_ERROR);
+
+            return;
+        }
+
+        Value newValue = vm->peek(0);
+        Value oldValue = vm->currentFrame->slots[slot];
+
+        // Retain the new value if it's a heap object (slot now owns a reference)
+        if (requiresRefCount(newValue)) {
+            vm->currentFrame->slots[slot] = vm->retainValue(newValue);
+        } else {
+            vm->currentFrame->slots[slot] = newValue;
+        }
+
+        // Release old value if it's a heap object (after assignment to avoid use-after-free if old == new)
+        if (requiresRefCount(oldValue)) {
+            vm->releaseAndDelete(oldValue);
+        }
     }
 
     void op_long_jump_if_false(VM* vm)
