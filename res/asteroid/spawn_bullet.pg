@@ -21,10 +21,12 @@ var bullet = createTexture("Ghost", bulletSize, bulletSize)
 var bulletX = spawnX + playerWidth / 2 - bulletSize / 2
 var bulletY = spawnY + playerHeight / 2 - bulletSize / 2
 
-bullet["PositionComponent"].setX(bulletX)
-bullet["PositionComponent"].setY(bulletY)
+bullet["PositionComponent"].x = bulletX
+bullet["PositionComponent"].y = bulletY
 
 // Store bullet data in system storage
+
+debugTable(bullet)
 
 attachComp(bullet, "Bullet", "vx", vx, "vy", vy, "lifetime", lifetime)
 

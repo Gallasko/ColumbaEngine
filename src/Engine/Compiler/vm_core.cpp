@@ -697,10 +697,6 @@ namespace pg
                             return run();
                         }
                     }
-                    else
-                    {
-                        std::cout << "[DEBUG] Frame did NOT change (same frame)" << std::endl;
-                    }
                 }
 
                 // Check for return instruction that may restore previous frame

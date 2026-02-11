@@ -896,8 +896,6 @@ namespace pg
 
         // Store the ComponentProxy class in globals
         vm->globals["ComponentProxy"] = vm->retainValue(klassValue);
-
-        LOG_INFO("ComponentProxy", "Registered ComponentProxy class with VM");
     }
 
     Value ComponentProxy::createProxy(VM* vm, const std::string& typeName, void* componentPtr)

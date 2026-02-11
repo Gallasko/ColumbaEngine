@@ -12,9 +12,9 @@ player.attachComp("Collision", "scale", 0.5)
 var screenWidth = 800
 var screenHeight = 600
 
-player["PositionComponent"].setX(screenWidth / 2)
-player["PositionComponent"].setY(screenHeight / 2)
-player["PositionComponent"].setRotation(0.0)  // Visual rotation in degrees, 0 = up
+player["PositionComponent"].x = screenWidth / 2
+player["PositionComponent"].y = screenHeight / 2
+player["PositionComponent"].rotation = 0.0  // Visual rotation in degrees, 0 = up
 
 // Store player data in sysData
 sysData["playerId"] = player.__entityId
