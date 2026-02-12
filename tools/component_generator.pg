@@ -178,7 +178,8 @@ class YamlParser
                                 // Update i to skip all the lines we just processed
                                 i = j
 
-                                currentItem[key] = multiLineValue
+                                // Properly escape all quotes in the multiline value
+                                currentItem[key] = this.escapeQuotesInMultiline(multiLineValue)
                             }
                             else
                             {
@@ -356,6 +357,50 @@ class YamlParser
         }
 
         return [substring(str, 0, idx), substring(str, idx + 1, len(str))]
+    }
+
+    escapeQuotesInMultiline(str)
+    {
+        // Escapes all double quotes in a multiline string for proper C++ code generation
+        // Replaces \" with " so the generated code has proper quote
+        var result = ""
+        var i = 0
+
+        while (i < len(str))
+        {
+            var ch = str[i]
+
+            if (ch == "\\")
+            {
+                if (i + 1 < len(str))
+                {
+                    var nextCh = str[i + 1]
+
+                    if (nextCh == "\"")
+                    {
+                        log("Found escaped quote at position " + toString(i))
+                        result = result + "\""
+                        i = i + 1  // Skip the next quote
+                    }
+                    else
+                    {
+                        result = result + "\\"
+                    }
+                }
+                else
+                {
+                    result = result + "\\"
+                }
+            }
+            else
+            {
+                result = result + ch
+            }
+
+            i = i + 1
+        }
+
+        return result
     }
 }
 
