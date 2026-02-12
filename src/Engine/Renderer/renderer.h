@@ -304,6 +304,8 @@ namespace pg
 
         bool isDirty() const { return dirty; }
 
+        bool hasChanged() const { return changed; }
+
     protected:
         MasterRenderer *masterRenderer;
 

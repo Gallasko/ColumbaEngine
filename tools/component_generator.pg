@@ -804,7 +804,17 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            code += "    comp->" + fieldName + " = " + fieldName + ";\n"
+            var setterName = "set" + capitalize(fieldName)
+
+            // Use setter if available, otherwise direct assignment
+            if (contain(field, "setter") and field["setter"] != "none")
+            {
+                code += "    comp->" + setterName + "(" + fieldName + ");\n"
+            }
+            else
+            {
+                code += "    comp->" + fieldName + " = " + fieldName + ";\n"
+            }
         }
 
         code += "\n    LOG_INFO(\"ECS Serialization\", \"Attached " + schema.name + " to entity \" << entity->id);\n\n"
