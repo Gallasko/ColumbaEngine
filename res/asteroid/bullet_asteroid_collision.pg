@@ -143,5 +143,5 @@ else
 {
     // Asteroid still has health - just update the health value
     logInfo("Asteroid damaged! Remaining health: " + toString(currentHealth))
-    asteroidData.health = currentHealth
+    asteroidData.setHealth(currentHealth)
 }

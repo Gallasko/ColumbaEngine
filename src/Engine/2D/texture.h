@@ -7,115 +7,10 @@
 
 #include "logger.h"
 
+#include "Components/Texture2DComponent.generated.h"
+
 namespace pg
 {
-    struct Texture2DComponent : public Ctor
-    {
-        Texture2DComponent(const std::string& textureName, size_t viewport = 0) : textureName(textureName), viewport(viewport) { }
-        Texture2DComponent(const Texture2DComponent &rhs) : textureName(rhs.textureName), entityId(rhs.entityId), ecsRef(rhs.ecsRef), opacity(rhs.opacity), overlappingColor(rhs.overlappingColor), overlappingColorRatio(rhs.overlappingColorRatio), viewport(rhs.viewport) { }
-        virtual ~Texture2DComponent() {}
-
-        Texture2DComponent& operator=(const Texture2DComponent& other)
-        {
-            textureName = other.textureName;
-
-            opacity = other.opacity;
-
-            overlappingColor = other.overlappingColor;
-            overlappingColorRatio = other.overlappingColorRatio;
-            viewport = other.viewport;
-
-            if (ecsRef)
-            {
-                ecsRef->sendEvent(EntityChangedEvent{entityId});
-            }
-
-            return *this;
-        }
-
-        virtual void onCreation(EntityRef entity) override
-        {
-            ecsRef = entity->world();
-
-            entityId = entity->id;
-        }
-
-        inline static std::string getType() { return "Texture2DComponent"; }
-
-        void setTexture(const std::string& textureName)
-        {
-            if (this->textureName != textureName)
-            {
-                this->textureName = textureName;
-
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setOverlappingColor(const constant::Vector3D& color, float ratio)
-        {
-            if (areNotAlmostEqual(ratio, overlappingColorRatio) or overlappingColor != color)
-            {
-                this->overlappingColor = color;
-                this->overlappingColorRatio = ratio;
-
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setOpacity(float opacity)
-        {
-            if (areNotAlmostEqual(this->opacity, opacity))
-            {
-                this->opacity = opacity;
-
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        void setViewport(size_t viewport)
-        {
-            if (this->viewport != viewport)
-            {
-                this->viewport = viewport;
-
-                if (ecsRef)
-                {
-                    ecsRef->sendEvent(EntityChangedEvent{entityId});
-                }
-            }
-        }
-
-        // Todo make those private
-        std::string textureName;
-
-        _unique_id entityId = 0;
-
-        EntitySystem *ecsRef = nullptr;
-
-        float opacity = 1.0f;
-
-        constant::Vector3D overlappingColor = {0.0f, 0.0f, 0.0f};
-        float overlappingColorRatio = 0.0f;
-
-        size_t viewport = 0;
-    };
-
-    template <>
-    void serialize(Archive& archive, const Texture2DComponent& value);
-
-    template <>
-    Texture2DComponent deserialize(const UnserializedObject& serializedString);
-
     struct TextureRenderCall
     {
         TextureRenderCall(const RenderCall& call) : call(call) {}
@@ -123,7 +18,7 @@ namespace pg
         RenderCall call;
     };
 
-    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Own<TextureRenderCall>, Listener<EntityChangedEvent>, Ref<PositionComponent>, InitSys>
+    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Own<TextureRenderCall>, Listener<PositionComponentChangedEvent>, Listener<TextureChangedEvent>, Ref<PositionComponent>, InitSys>
     {
         Texture2DComponentSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
 
@@ -135,7 +30,8 @@ namespace pg
 
         RenderCall createRenderCall(CompRef<PositionComponent> ui, CompRef<Texture2DComponent> obj);
 
-        virtual void onEvent(const EntityChangedEvent& event) override;
+        virtual void onEvent(const PositionComponentChangedEvent& event) override;
+        virtual void onEvent(const TextureChangedEvent& event) override;
 
         void onEventUpdate(_unique_id entityId);
 
