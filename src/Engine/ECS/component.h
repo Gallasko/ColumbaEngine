@@ -40,15 +40,11 @@ namespace pg
     struct Component : public Ctor
     {
         Component() = default;
-        Component(const Component& other) : ecsRef(other.ecsRef), entityId(other.entityId) {}
+        Component(const Component& other) = default;
+        Component(Component&& other) noexcept = default;
 
-        Component& operator=(const Component& other)
-        {
-            ecsRef = other.ecsRef;
-            entityId = other.entityId;
-
-            return *this;
-        }
+        Component& operator=(const Component& other) = default;
+        Component& operator=(Component&& other) noexcept = default;
 
         virtual ~Component() {}
 

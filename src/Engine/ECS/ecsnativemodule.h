@@ -370,7 +370,7 @@ namespace pg
                 {
                     auto instance = vm->asInstance(args[0]);
 
-                    if (instance->hasField("__entityId"))
+                    if (!instance->hasField("__entityId"))
                     {
                         throw std::runtime_error("removeEntity expects an entity with an __entityId field");
                     }
@@ -491,7 +491,7 @@ namespace pg
                 {
                     auto instance = vm->asInstance(args[0]);
 
-                    if (instance->hasField("__entityId"))
+                    if (!instance->hasField("__entityId"))
                     {
                         throw std::runtime_error("attachComponent: entity instance must have __entityId field");
                     }

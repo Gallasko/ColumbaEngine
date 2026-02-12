@@ -21,8 +21,12 @@ var bullet = createTexture("Ghost", bulletSize, bulletSize)
 var bulletX = spawnX + playerWidth / 2 - bulletSize / 2
 var bulletY = spawnY + playerHeight / 2 - bulletSize / 2
 
-bullet["PositionComponent"].x = bulletX
-bullet["PositionComponent"].y = bulletY
+var pos = bullet["PositionComponent"]
+
+pos.x = bulletX
+pos.y = bulletY
+
+print("Spawning bullet at (" + toString(pos.x) + ", " + toString(pos.y) + ") with velocity (" + toString(vx) + ", " + toString(vy) + ") and lifetime " + toString(lifetime))
 
 // Store bullet data in system storage
 
