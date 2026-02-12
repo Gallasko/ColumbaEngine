@@ -755,6 +755,22 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+
+        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+
+        target_sources(RenderingTest PRIVATE
+            exemples/RenderingTest/application.cpp
+        )
+
+        target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
+
+        set_target_properties(RenderingTest
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
         add_executable(Asteroid exemples/Asteroid/main.cpp)
 
         target_include_directories(Asteroid PUBLIC exemples/Asteroid)
@@ -930,6 +946,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+
+        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+
+        target_sources(RenderingTest PRIVATE
+            exemples/RenderingTest/application.cpp
+        )
+
+        target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
 
         ###
 
