@@ -130,6 +130,13 @@ namespace pg
 
 #ifdef PROFILE
             PROFILE_END("CommandDispatch", "Command");
+
+            PROFILE_BEGIN("GroupEventDispatch", "Event");
+#endif
+            groupEventDispatcher.process();
+
+#ifdef PROFILE
+            PROFILE_END("GroupEventDispatch", "Event");
 #endif
 
             if (not stopRequested)

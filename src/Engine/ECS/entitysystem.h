@@ -538,14 +538,17 @@ namespace pg
         }
 
         template <typename Event>
-        void sendEvent(const Event& event)
+        void sendEvent(const Event& event, bool isGroupEvent = false)
         {
             LOG_THIS_MEMBER("ECS");
+
+            // Select the appropriate dispatcher based on event type
+            auto& dispatcher = isGroupEvent ? groupEventDispatcher : eventDispatcher;
 
             // Dispatch the typed C++ event
             if (running)
             {
-                eventDispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
+                dispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
             }
             else
             {
@@ -560,7 +563,7 @@ namespace pg
 
                 if (running)
                 {
-                    eventDispatcher.enqueueEvent([stdEvent, this](){
+                    dispatcher.enqueueEvent([stdEvent, this](){
                         LOG_THIS("ECS");
                         registry.processEvent(stdEvent);
                     });
@@ -802,6 +805,8 @@ namespace pg
         CommandDispatcher cmdDispatcher;
 
         EventDispatcher eventDispatcher;
+
+        EventDispatcher groupEventDispatcher;
 
         SaveManager saveManager;
 
@@ -1202,12 +1207,12 @@ namespace pg
         // In case of texture it is called twice once for ui and once for tex comp
         setN->onComponentCreation.emplace(id, [](EntityRef entity) {
             LOG_MILE("Group", "On component creation for entity " << entity->id << ", sending event !");
-            entity->world()->sendEvent(OnCompCreatedCheckForGroup<Group<Type, Types...>>{entity});
+            entity->world()->sendEvent(OnCompCreatedCheckForGroup<Group<Type, Types...>>{entity}, true);
         });
 
         setN->onComponentDeletion.emplace(id, [](EntityRef entity) {
             LOG_MILE("Group", "On component deletion for entity " << entity->id << ", sending event !");
-            entity->world()->sendEvent(OnCompDeletionCheckForGroup<Group<Type, Types...>>{entity->id, entity->componentList});
+            entity->world()->sendEvent(OnCompDeletionCheckForGroup<Group<Type, Types...>>{entity->id, entity->componentList}, true);
         });
     }
 
