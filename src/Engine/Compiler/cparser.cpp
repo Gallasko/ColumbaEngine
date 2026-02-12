@@ -2,13 +2,14 @@
 
 #include "cparser.h"
 
+#include <unordered_map>
+
 #include "compiler.h"
 #include "vm.h"
 
 #include "Interpreter/lexer.h"
 #include "logger.h"
 #include "chunk_serializer.h"
-#include <unordered_map>
 
 namespace pg
 {
@@ -1481,7 +1482,7 @@ namespace pg
     {
         // Extract the directory path from the current file being parsed
         std::string baseDir = "";
-        if (!vm->currentFileName.empty())
+        if (not vm->currentFileName.empty())
         {
             size_t lastSlash = vm->currentFileName.find_last_of("/\\");
             if (lastSlash != std::string::npos)
@@ -1529,7 +1530,7 @@ namespace pg
                 // Load the chunk from the .pgc file
                 Chunk chunk;
                 ChunkSerializer serializer;
-                if (!serializer.deserializeFromFile(chunk, compiledFileName, vm))
+                if (not serializer.deserializeFromFile(chunk, compiledFileName, vm))
                 {
                     error("Failed to load compiled module '" + moduleName + "' from " + compiledFileName);
                     return true; // File exists but failed to deserialize - don't fallback to native module
@@ -1572,7 +1573,7 @@ namespace pg
         }
 
         // Check if .pg file exists
-        if (!UniversalFileAccessor::exists(fullPath))
+        if (not UniversalFileAccessor::exists(fullPath))
         {
             // File doesn't exist - return false to allow fallback to native module
             return false;
