@@ -478,6 +478,37 @@ class ProxyMetadataGenerator
             usesVm = true
             code += "                return vm->createString(c->" + getterName + "());\n"
         }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            usesVm = true
+            code += "                // Convert Vector3D to table\n"
+            code += "                auto it = vm->globals.find(\"__Table\");\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                Value tableValue = vm->createInstance(tableClass);\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
+            code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
+            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
+            code += "                return tableValue;\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            usesVm = true
+            code += "                // Convert Vector4D to table\n"
+            code += "                auto it = vm->globals.find(\"__Table\");\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                Value tableValue = vm->createInstance(tableClass);\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
+            code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
+            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
+            code += "                table->setField(\"w\", makeFloatValue(vec.w), vm, true);\n"
+            code += "                return tableValue;\n"
+        }
         else
         {
             // Fallback for unknown types
@@ -536,6 +567,44 @@ class ProxyMetadataGenerator
         {
             usesVm = true
             code += "                    c->" + setterName + "(vm->asString(val));\n"
+        }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            usesVm = true
+            code += "                    // Convert table or vector to Vector3D\n"
+            code += "                    if (IS_INSTANCE(val)) {\n"
+            code += "                        ObjInstance* table = vm->asInstance(val);\n"
+            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
+            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                    } else if (IS_VECTOR(val)) {\n"
+            code += "                        ObjVector* vec = vm->asVector(val);\n"
+            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
+            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                    }\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            usesVm = true
+            code += "                    // Convert table or vector to Vector4D\n"
+            code += "                    if (IS_INSTANCE(val)) {\n"
+            code += "                        ObjInstance* table = vm->asInstance(val);\n"
+            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
+            code += "                        float w = static_cast<float>(AS_DOUBLE(table->getField(\"w\")));\n"
+            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                    } else if (IS_VECTOR(val)) {\n"
+            code += "                        ObjVector* vec = vm->asVector(val);\n"
+            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
+            code += "                        float w = vec->fields.size() > 3 ? static_cast<float>(AS_DOUBLE(vec->fields[3])) : 0.0f;\n"
+            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                    }\n"
         }
         else
         {
