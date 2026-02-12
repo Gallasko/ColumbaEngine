@@ -981,18 +981,45 @@ namespace pg
          * @brief Helper function to serialize a single component from CompList to entity table
          */
         template <typename Comp, typename... Comps>
-        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList)
+        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList, EntitySystem* ecsRef)
         {
             // Get the component from the CompList
             CompRef<Comp> comp = compList.template get<Comp>();
 
             if (comp)
             {
-                // Serialize the component to a table
-                Value componentTableValue = serializeToTable(vm, *comp);
-
                 // Get the component type name
                 std::string componentTypeName = Comp::getType();
+
+                Value componentTableValue;
+
+                // Check if this component has proxy metadata registered
+                auto& proxyRegistry = ComponentProxyRegistry::instance();
+
+                if (proxyRegistry.hasMetadata(componentTypeName))
+                {
+                    LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName);
+
+                    // Get the component pointer directly from the CompRef
+                    void* componentPtr = comp.operator->();
+
+                    if (componentPtr)
+                    {
+                        // Create a proxy instead of a table copy
+                        componentTableValue = ComponentProxy::createProxy(vm, componentTypeName, componentPtr);
+                    }
+                    else
+                    {
+                        LOG_WARNING("ECS Serialization", "Could not retrieve component pointer for proxy, falling back to table");
+                        // Fallback to table serialization
+                        componentTableValue = serializeToTable(vm, *comp);
+                    }
+                }
+                else
+                {
+                    // No proxy metadata registered, use traditional table serialization
+                    componentTableValue = serializeToTable(vm, *comp);
+                }
 
                 // Add to entity table
                 entityTable->setField(componentTypeName, componentTableValue);
@@ -1052,7 +1079,8 @@ namespace pg
         entityTable->setField("attachComp", attachCompFuncValue);
 
         // Serialize each component in the CompList using fold expression
-        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);
+        // Pass ecsRef to enable proxy-aware serialization
+        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList, ecsRef), ...);
 
         return entityTableValue;
     }
