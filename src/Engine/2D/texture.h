@@ -9,6 +9,8 @@
 
 #include "Components/Texture2DComponent.generated.h"
 
+#include <unordered_set>
+
 namespace pg
 {
     struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Listener<PositionComponentChangedEvent>, Listener<TextureChangedEvent>, Ref<PositionComponent>, InitSys>
@@ -34,10 +36,11 @@ namespace pg
         // Use this material preset if a material is not specified when creating an atlas texture component !
         Material atlasMaterialPreset;
 
-        std::queue<_unique_id> textureUpdateQueue;
+        std::unordered_set<_unique_id> textureUpdateSet;
 
         // Map of entity ID to render call - owned by the system directly
         std::unordered_map<_unique_id, RenderCall> entityRenderCalls;
+        std::vector<_unique_id> entitiesInRenderGroup;
     };
 
     /** Helper that create an entity with a Pos component and a Texture component */

@@ -800,16 +800,13 @@ namespace pg
         if (changedIds.size() <= 0)
             return;
 
-        LOG_INFO(DOM, "=== PositionComponentSystem::execute() START ===");
-        LOG_INFO(DOM, "ChangedIds size: " << changedIds.size());
-
         // std::set<_unique_id> modifiedIds;
         // std::set<_unique_id> impactedIds;
 
         // while (changedIds.size() > 0)
         for (const auto& id : changedIds)
         {
-            LOG_INFO(DOM, "Processing changed entity ID: " << id);
+            LOG_MILE(DOM, "Processing changed entity ID: " << id);
 
             auto anchorChanged = false;
             auto entity = ecsRef->getEntity(id);
@@ -821,12 +818,12 @@ namespace pg
             }
 
             auto pos = entity->get<PositionComponent>();
-            LOG_INFO(DOM, "Entity " << id << " position - x: " << pos->x << ", y: " << pos->y
+            LOG_MILE(DOM, "Entity " << id << " position - x: " << pos->x << ", y: " << pos->y
                         << ", width: " << pos->width << ", height: " << pos->height);
 
             if (entity->has<UiAnchor>())
             {
-                LOG_INFO(DOM, "Entity " << id << " has UiAnchor, updating...");
+                LOG_MILE(DOM, "Entity " << id << " has UiAnchor, updating...");
 
                 auto anchor = entity->get<UiAnchor>();
 
@@ -838,19 +835,19 @@ namespace pg
 
                 anchorChanged |= changed;
 
-                LOG_INFO(DOM, "Anchor update result - anchorChanged: " << anchorChanged);
+                LOG_MILE(DOM, "Anchor update result - anchorChanged: " << anchorChanged);
             }
             else
             {
-                LOG_INFO(DOM, "Entity " << id << " has NO UiAnchor");
+                LOG_MILE(DOM, "Entity " << id << " has NO UiAnchor");
             }
 
-            LOG_INFO(DOM, "Sending EntityChangedEvent for entity " << id);
+            LOG_MILE(DOM, "Sending EntityChangedEvent for entity " << id);
             ecsRef->sendEvent(EntityChangedEvent{id});
 
             if (anchorChanged)
             {
-                LOG_INFO(DOM, "Sending PositionComponentChangedEvent for entity " << id);
+                LOG_MILE(DOM, "Sending PositionComponentChangedEvent for entity " << id);
                 ecsRef->sendEvent(PositionComponentChangedEvent{id});
             }
 
@@ -863,13 +860,9 @@ namespace pg
         }
 
         changedIds.clear();
-        LOG_INFO(DOM, "ChangedIds cleared");
-
         // changedIds = impactedIds;
 
         // impactedIds.clear();
-
-        LOG_INFO(DOM, "=== PositionComponentSystem::execute() END ===");
 
         // for (const auto& id : modifiedIds)
         // {
