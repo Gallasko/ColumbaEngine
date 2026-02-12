@@ -82,20 +82,32 @@ namespace pg
         auto group = registerGroup<PositionComponent, Texture2DComponent>();
 
         group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE("Texture 2D System", "Add entity " << entity->id << " to ui - texture 2D group !");
+            LOG_INFO("Texture 2D System", "=== GROUP CALLBACK: Entity " << entity->id << " ADDED to texture 2D group ===");
 
-            textureUpdateQueue.push(entity.id);
+            auto pos = entity->get<PositionComponent>();
+            auto tex = entity->get<Texture2DComponent>();
+
+            LOG_INFO("Texture 2D System", "Entity has PositionComponent: " << entity->has<PositionComponent>());
+            LOG_INFO("Texture 2D System", "Entity has Texture2DComponent: " << entity->has<Texture2DComponent>());
+
+            if (pos and tex)
+            {
+                LOG_INFO("Texture 2D System", "Position at callback - x: " << pos->x << ", y: " << pos->y
+                         << ", width: " << pos->width << ", height: " << pos->height);
+                LOG_INFO("Texture 2D System", "Texture at callback - name: " << tex->textureName);
+            }
+
+            entityRenderCalls[entity->id] = createRenderCall(pos, tex);
+            LOG_INFO("Texture 2D System", "Entity added to textureUpdateQueue. Queue size: " << textureUpdateQueue.size());
 
             changed = true;
         });
 
         group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_MILE("Texture 2D System", "Remove entity " << id << " of ui - texture 2D group !");
+            LOG_INFO("Texture 2D System", "Remove entity " << id << " of ui - texture 2D group !");
 
-            auto entity = ecsRef->getEntity(id);
-
-            if (entity->has<TextureRenderCall>())
-                ecsRef->detach<TextureRenderCall>(entity);
+            // Remove render call from the map
+            entityRenderCalls.erase(id);
 
             changed = true;
         });
@@ -104,45 +116,66 @@ namespace pg
     void Texture2DComponentSystem::execute()
     {
         if (not changed)
+        {
             return;
+        }
+
+        LOG_INFO(DOM, "=== Texture2DComponentSystem::execute() START ===");
+        LOG_INFO(DOM, "Update queue size: " << textureUpdateQueue.size());
+
+        int processedCount = 0;
+        int failedCount = 0;
 
         while (not textureUpdateQueue.empty())
         {
             auto entityId = textureUpdateQueue.front();
 
+            LOG_INFO(DOM, "Processing entity ID: " << entityId);
+
             auto entity = ecsRef->getEntity(entityId);
 
             if (not entity)
             {
+                LOG_WARNING(DOM, "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
                 textureUpdateQueue.pop();
+                failedCount++;
                 continue;
             }
+
+            LOG_INFO(DOM, "Entity " << entityId << " found successfully");
 
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<Texture2DComponent>();
 
-            if (entity->has<TextureRenderCall>())
-            {
-                entity->get<TextureRenderCall>()->call = createRenderCall(ui, obj);
-            }
-            else
-            {
-                ecsRef->_attach<TextureRenderCall>(entity, createRenderCall(ui, obj));
-            }
+            LOG_INFO(DOM, "Position - x: " << ui->x << ", y: " << ui->y
+                     << ", width: " << ui->width << ", height: " << ui->height
+                     << ", visible: " << ui->visible);
+            LOG_INFO(DOM, "Texture name: " << obj->textureName);
+
+            // Store render call directly in the system's map (no component needed!)
+            LOG_INFO(DOM, "Creating/updating render call for entity " << entityId);
+            entityRenderCalls[entityId] = createRenderCall(ui, obj);
 
             textureUpdateQueue.pop();
+            processedCount++;
         }
+
+        LOG_INFO(DOM, "Processed " << processedCount << " entities, failed: " << failedCount);
 
         renderCallList.clear();
 
-        const auto& renderCallView = view<TextureRenderCall>();
+        // Build render call list from the system's map
+        renderCallList.reserve(entityRenderCalls.size());
 
-        renderCallList.reserve(renderCallView.nbComponents());
+        LOG_INFO(DOM, "Building render call list from " << entityRenderCalls.size() << " stored render calls");
 
-        for (const auto& renderCall : renderCallView)
+        for (const auto& [entityId, renderCall] : entityRenderCalls)
         {
-            renderCallList.push_back(renderCall->call);
+            renderCallList.push_back(renderCall);
         }
+
+        LOG_INFO(DOM, "Final render call list size: " << renderCallList.size());
+        LOG_INFO(DOM, "=== Texture2DComponentSystem::execute() END ===");
 
         finishChanges();
     }
@@ -279,9 +312,7 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto entity = ecsRef->getEntity(entityId);
-
-        if (not entity or not entity->has<TextureRenderCall>())
+        if (entityRenderCalls.find(entityId) == entityRenderCalls.end())
             return;
 
         textureUpdateQueue.push(entityId);
