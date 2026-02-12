@@ -11,14 +11,7 @@
 
 namespace pg
 {
-    struct TextureRenderCall
-    {
-        TextureRenderCall(const RenderCall& call) : call(call) {}
-
-        RenderCall call;
-    };
-
-    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Own<TextureRenderCall>, Listener<PositionComponentChangedEvent>, Listener<TextureChangedEvent>, Ref<PositionComponent>, InitSys>
+    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Listener<PositionComponentChangedEvent>, Listener<TextureChangedEvent>, Ref<PositionComponent>, InitSys>
     {
         Texture2DComponentSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
 
@@ -42,6 +35,9 @@ namespace pg
         Material atlasMaterialPreset;
 
         std::queue<_unique_id> textureUpdateQueue;
+
+        // Map of entity ID to render call - owned by the system directly
+        std::unordered_map<_unique_id, RenderCall> entityRenderCalls;
     };
 
     /** Helper that create an entity with a Pos component and a Texture component */
