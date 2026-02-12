@@ -52,7 +52,10 @@ class YamlParser
                     // Parse the line after the dash
                     var afterDash = trim(substring(trimmed, 1, len(trimmed)))
 
-                    if (contains(afterDash, ":"))
+                    // Check if it's a quoted string - if so, treat as simple value
+                    var isQuotedString = len(afterDash) > 0 and (substring(afterDash, 0, 1) == "\"" or substring(afterDash, 0, 1) == "'")
+
+                    if (not isQuotedString and contains(afterDash, ":"))
                     {
                         // Array item with key-value (e.g., "- name: value")
                         var parts = this.splitFirst(afterDash, ":")
