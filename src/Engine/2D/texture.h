@@ -148,6 +148,22 @@ namespace pg
         std::queue<_unique_id> textureUpdateQueue;
     };
 
+    /** Helper that create an entity with a Pos component and a Texture component */
+    template <typename Type>
+    CompList<PositionComponent, Texture2DComponent> make2DTexture(Type *ecs, float width, float height, const std::string& name)
+    {
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        auto tex = ecs->template attach<Texture2DComponent>(entity, name);
+
+        return CompList<PositionComponent, Texture2DComponent>(entity, ui, tex);
+    }
+
     /** Helper that create an entity with an Ui component and a Texture component */
     template <typename Type>
     CompList<PositionComponent, UiAnchor, Texture2DComponent> makeUiTexture(Type *ecs, float width, float height, const std::string& name)
