@@ -765,6 +765,181 @@ namespace pg
             EXPECT_EQ(sys->nbEventReceived, 11); // Parent, child, and grandchild updates
         }
 
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, component_creation_with_immediate_setter_calls_stopped_ecs)
+        {
+            // This test simulates what happens when createTexture() is called from scripts
+            // when ECS is stopped (in init/event handlers)
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            // Simulate createTexture("texture", 50, 75)
+            auto entity = ecs.createEntity();
+            auto pos = ecs.attach<PositionComponent>(entity);
+
+            // These setters are called immediately after attach (like make2DTexture does)
+            pos->setWidth(50.0f);
+            pos->setHeight(75.0f);
+
+            // Events should be sent immediately in stopped ECS
+            EXPECT_EQ(sys->nbEventReceived, 2); // width and height changed
+
+            EXPECT_FLOAT_EQ(pos->x, 0.0f);      // Default
+            EXPECT_FLOAT_EQ(pos->y, 0.0f);      // Default
+            EXPECT_FLOAT_EQ(pos->width, 50.0f);
+            EXPECT_FLOAT_EQ(pos->height, 75.0f);
+
+            sys->reset();
+
+            // Now simulate script setting position:
+            // player["PositionComponent"].x = 100
+            // player["PositionComponent"].y = 200
+            pos->setX(100.0f);
+            pos->setY(200.0f);
+
+            // These should also send events immediately
+            EXPECT_EQ(sys->nbEventReceived, 2); // x and y changed
+
+            EXPECT_FLOAT_EQ(pos->x, 100.0f);
+            EXPECT_FLOAT_EQ(pos->y, 200.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, component_creation_with_immediate_setter_calls_running_ecs)
+        {
+            // This test simulates what happens when createTexture() is called from scripts
+            // when ECS is running (in systems)
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            ecs.fakeStart();
+            EXPECT_TRUE(ecs.isRunning());
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            // Simulate createTexture("texture", 50, 75)
+            auto entity = ecs.createEntity();
+            auto pos = ecs.attach<PositionComponent>(entity);
+
+            // These setters are called immediately after attach
+            pos->setWidth(50.0f);
+            pos->setHeight(75.0f);
+
+            // Events should be queued, not processed yet
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            // Now simulate script setting position
+            pos->setX(100.0f);
+            pos->setY(200.0f);
+
+            // Still no events processed
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            // Execute once to process events
+            ecs.executeOnce();
+
+            // Now all 4 events should have been processed
+            EXPECT_EQ(sys->nbEventReceived, 4); // width, height, x, y all changed
+
+            EXPECT_FLOAT_EQ(pos->x, 100.0f);
+            EXPECT_FLOAT_EQ(pos->y, 200.0f);
+            EXPECT_FLOAT_EQ(pos->width, 50.0f);
+            EXPECT_FLOAT_EQ(pos->height, 75.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, setting_same_value_as_default_does_not_trigger_event)
+        {
+            // This test demonstrates the core issue: if you try to set a value
+            // that's the same as the default, no event is sent
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto entity = ecs.createEntity();
+            auto pos = ecs.attach<PositionComponent>(entity);
+
+            // Default values are all 0.0f
+            EXPECT_FLOAT_EQ(pos->x, 0.0f);
+            EXPECT_FLOAT_EQ(pos->y, 0.0f);
+
+            // Try to set to the same value (0.0f)
+            pos->setX(0.0f);
+            pos->setY(0.0f);
+
+            // No events should be sent because values didn't change
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            // Now set to different values
+            pos->setX(100.0f);
+            pos->setY(200.0f);
+
+            // Events should be sent
+            EXPECT_EQ(sys->nbEventReceived, 2);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(position_component_test, direct_field_access_bypasses_events)
+        {
+            // This test shows what happens with direct field access
+            // (which should NOT happen with proper proxy usage)
+            EntitySystem ecs;
+
+            EXPECT_FALSE(ecs.isRunning());
+
+            ecs.createSystem<PositionComponentSystem>();
+            auto sys = ecs.createSystem<PositionTestSystem>();
+
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            auto entity = ecs.createEntity();
+            auto pos = ecs.attach<PositionComponent>(entity);
+
+            // Direct field access (WRONG - bypasses setter)
+            pos->x = 100.0f;
+            pos->y = 200.0f;
+
+            // No events should be sent because setters weren't called
+            EXPECT_EQ(sys->nbEventReceived, 0);
+
+            // Values are still changed though
+            EXPECT_FLOAT_EQ(pos->x, 100.0f);
+            EXPECT_FLOAT_EQ(pos->y, 200.0f);
+
+            // Now use setters (CORRECT)
+            pos->setX(300.0f);
+            pos->setY(400.0f);
+
+            // Events should be sent
+            EXPECT_EQ(sys->nbEventReceived, 2);
+
+            EXPECT_FLOAT_EQ(pos->x, 300.0f);
+            EXPECT_FLOAT_EQ(pos->y, 400.0f);
+        }
+
 
 
     } // namespace test
