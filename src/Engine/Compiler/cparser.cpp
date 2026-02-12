@@ -1479,6 +1479,17 @@ namespace pg
 
     bool CParser::parseImportFile(const std::string& moduleName)
     {
+        // Extract the directory path from the current file being parsed
+        std::string baseDir = "";
+        if (!vm->currentFileName.empty())
+        {
+            size_t lastSlash = vm->currentFileName.find_last_of("/\\");
+            if (lastSlash != std::string::npos)
+            {
+                baseDir = vm->currentFileName.substr(0, lastSlash + 1);
+            }
+        }
+
         // Add .pg extension if not present
         std::string fileName = moduleName;
         if (fileName.find(".pg") == std::string::npos)
@@ -1486,26 +1497,29 @@ namespace pg
             fileName += ".pg";
         }
 
+        // Prepend base directory to make path relative to current script file
+        std::string fullPath = baseDir + fileName;
+
         // Determine the compiled file name based on what exists
         std::string compiledFileName;
-        if (fileName.find(".pgc") != std::string::npos)
+        if (fullPath.find(".pgc") != std::string::npos)
         {
-            compiledFileName = fileName;
+            compiledFileName = fullPath;
         }
-        else if (UniversalFileAccessor::exists(fileName + "c"))
+        else if (UniversalFileAccessor::exists(fullPath + "c"))
         {
-            compiledFileName = fileName + "c";
+            compiledFileName = fullPath + "c";
         }
-        else if (UniversalFileAccessor::exists(fileName + ".pgc"))
+        else if (UniversalFileAccessor::exists(fullPath + ".pgc"))
         {
-            compiledFileName = fileName + ".pgc";
+            compiledFileName = fullPath + ".pgc";
         }
         else
         {
-            compiledFileName = fileName.substr(0, fileName.find_last_of(".")) + ".pgc";
+            compiledFileName = fullPath.substr(0, fullPath.find_last_of(".")) + ".pgc";
         }
 
-        if (fileName.find(".pgc") != std::string::npos or UniversalFileAccessor::exists(fileName + "c") or UniversalFileAccessor::exists(fileName + ".pgc"))
+        if (fullPath.find(".pgc") != std::string::npos or UniversalFileAccessor::exists(fullPath + "c") or UniversalFileAccessor::exists(fullPath + ".pgc"))
         {
             // .pgc file exists - load from serialized bytecode
             try
@@ -1558,7 +1572,7 @@ namespace pg
         }
 
         // Check if .pg file exists
-        if (!UniversalFileAccessor::exists(fileName))
+        if (!UniversalFileAccessor::exists(fullPath))
         {
             // File doesn't exist - return false to allow fallback to native module
             return false;
@@ -1569,7 +1583,7 @@ namespace pg
         {
             // Use the Lexer to read and tokenize the file
             Lexer lexer;
-            lexer.readFromFile(fileName);
+            lexer.readFromFile(fullPath);
             auto importTokens = lexer.getTokens();
 
             // Create a nested compiler for the imported module
