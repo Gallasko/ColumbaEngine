@@ -51,6 +51,7 @@ namespace pg
     class StandardSystemImpl;
 
     struct VM;
+    typedef uint64_t Value;
 
     // Todo add batching for entity and component creation/deletion
 
@@ -475,7 +476,7 @@ namespace pg
                     component = registry.retrieveStandardComponent(compName)->internalCreateComponent(entity, std::forward<Args>(args)...);
                 }
 
-                LOG_INFO("ECS", "Attached StandardComponent [" << compName << "] to entity [" << entity.id << "]");
+                LOG_MILE("ECS", "Attached StandardComponent [" << compName << "] to entity [" << entity.id << "]");
 
                 auto res = CompRef<StandardComponent>(component, entity.id, this, not running, compName);
 
@@ -537,14 +538,17 @@ namespace pg
         }
 
         template <typename Event>
-        void sendEvent(const Event& event)
+        void sendEvent(const Event& event, bool isGroupEvent = false)
         {
             LOG_THIS_MEMBER("ECS");
+
+            // Select the appropriate dispatcher based on event type
+            auto& dispatcher = isGroupEvent ? groupEventDispatcher : eventDispatcher;
 
             // Dispatch the typed C++ event
             if (running)
             {
-                eventDispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
+                dispatcher.enqueueEvent([event, this](){ LOG_THIS("ECS"); registry.processEvent(event); });
             }
             else
             {
@@ -559,7 +563,7 @@ namespace pg
 
                 if (running)
                 {
-                    eventDispatcher.enqueueEvent([stdEvent, this](){
+                    dispatcher.enqueueEvent([stdEvent, this](){
                         LOG_THIS("ECS");
                         registry.processEvent(stdEvent);
                     });
@@ -663,6 +667,9 @@ namespace pg
         // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
 
         void setOptimizationPasses(VM& vm);
+
+        // Setup full build modules (implemented in entitysystem_full.cpp or entitysystem_minimal.cpp)
+        void setupVmFullModules(VM& vm);
 
         void internalCreateSystem(AbstractSystem* system);
 
@@ -798,6 +805,8 @@ namespace pg
         CommandDispatcher cmdDispatcher;
 
         EventDispatcher eventDispatcher;
+
+        EventDispatcher groupEventDispatcher;
 
         SaveManager saveManager;
 
@@ -1014,8 +1023,11 @@ namespace pg
             serialize(archive, *(owner->getComponent(entity->id)));
         });
 
+        // Store component type name for fast lookup
         if constexpr(HasStaticName<Type>::value)
         {
+            componentTypeNameMap.emplace(id, Type::getType());
+
             componentDeserializeMap.emplace(Type::getType(), [this](const UnserializedObject& serializedStr, EntityRef entity) {
                 if (serializedStr.isNull())
                     return;
@@ -1195,12 +1207,12 @@ namespace pg
         // In case of texture it is called twice once for ui and once for tex comp
         setN->onComponentCreation.emplace(id, [](EntityRef entity) {
             LOG_MILE("Group", "On component creation for entity " << entity->id << ", sending event !");
-            entity->world()->sendEvent(OnCompCreatedCheckForGroup<Group<Type, Types...>>{entity});
+            entity->world()->sendEvent(OnCompCreatedCheckForGroup<Group<Type, Types...>>{entity}, true);
         });
 
         setN->onComponentDeletion.emplace(id, [](EntityRef entity) {
             LOG_MILE("Group", "On component deletion for entity " << entity->id << ", sending event !");
-            entity->world()->sendEvent(OnCompDeletionCheckForGroup<Group<Type, Types...>>{entity->id, entity->componentList});
+            entity->world()->sendEvent(OnCompDeletionCheckForGroup<Group<Type, Types...>>{entity->id, entity->componentList}, true);
         });
     }
 
@@ -1327,14 +1339,23 @@ namespace pg
     using ComponentRetrieverFunc = std::function<void*(EntitySystem*, _unique_id)>;
 
     /**
+     * @brief Function type for creating component proxy instances
+     *
+     * Takes a VM pointer and a raw component pointer, returns a proxy Value.
+     * This allows zero-copy component access from scripts.
+     */
+    using ComponentProxyFactoryFunc = std::function<Value(VM*, void*)>;
+
+    /**
      * @brief Registration structure that handles type erasure for component serializers
      *
      * Similar to ComponentCreateCommand in the dispatcher, this structure stores
      * a type-erased serializer function that can be called with void* pointers.
      * It also stores a retriever function that knows how to get the component from an entity.
+     * Additionally, stores a proxy factory function for creating zero-copy component proxies.
      */
     struct ComponentSerializerRegistration {
-        ComponentSerializerRegistration() : serializer(nullptr), retriever(nullptr) {}
+        ComponentSerializerRegistration() : serializer(nullptr), retriever(nullptr), proxyFactory(nullptr) {}
 
         template <typename ComponentType>
         ComponentSerializerRegistration(void(*func)(VM*, ObjInstance*, ComponentType*))
@@ -1362,6 +1383,7 @@ namespace pg
 
         ComponentSerializerFunc serializer;
         ComponentRetrieverFunc retriever;
+        ComponentProxyFactoryFunc proxyFactory;  // NEW: Zero-copy proxy factory
     };
 
     /**
@@ -1381,7 +1403,8 @@ namespace pg
      * REGISTER_COMPONENT_SERIALIZER(MyComponent, serializeMyComponentWithSetters);
      * ```
      */
-    class ComponentSerializerRegistry {
+    class ComponentSerializerRegistry
+    {
     public:
         /**
          * @brief Get the singleton instance of the registry
@@ -1451,6 +1474,75 @@ namespace pg
             return nullptr;
         }
 
+        /**
+         * @brief Register a proxy factory function for a component
+         *
+         * This enables zero-copy component access from scripts by creating proxy
+         * instances that directly reference C++ component memory.
+         *
+         * @param componentName The name of the component
+         * @param factory Function that creates a proxy Value from a component pointer
+         */
+        void registerProxyFactory(const std::string& componentName, ComponentProxyFactoryFunc factory)
+        {
+            auto it = serializers_.find(componentName);
+
+            if (it != serializers_.end())
+            {
+                it->second.proxyFactory = factory;
+            }
+            else
+            {
+                // Create new registration with just proxy factory
+                ComponentSerializerRegistration reg;
+                reg.proxyFactory = factory;
+                serializers_[componentName] = reg;
+            }
+        }
+
+        /**
+         * @brief Check if a proxy factory is registered for a component
+         *
+         * @param componentName The name of the component to check
+         * @return true if a proxy factory is registered, false otherwise
+         */
+        bool hasProxyFactory(const std::string& componentName) const
+        {
+            auto it = serializers_.find(componentName);
+
+            return it != serializers_.end() and it->second.proxyFactory != nullptr;
+        }
+
+        /**
+         * @brief Get the proxy factory function for a component
+         *
+         * @param componentName The name of the component
+         * @return ComponentProxyFactoryFunc The proxy factory function, or nullptr if not found
+         */
+        ComponentProxyFactoryFunc getProxyFactory(const std::string& componentName) const
+        {
+            auto it = serializers_.find(componentName);
+
+            if (it != serializers_.end())
+            {
+                return it->second.proxyFactory;
+            }
+
+            return nullptr;
+        }
+
+        /**
+         * @brief Create a component proxy using the registered factory
+         *
+         * Convenience method that looks up the factory and calls it.
+         *
+         * @param componentName The name of the component
+         * @param vm Pointer to the VM
+         * @param componentPtr Raw pointer to the component
+         * @return Value The proxy instance, or nil if no factory registered
+         */
+        Value createComponentProxy(const std::string& componentName, VM* vm, void* componentPtr) const;
+
     private:
         ComponentSerializerRegistry() = default;
         ComponentSerializerRegistry(const ComponentSerializerRegistry&) = delete;
@@ -1485,5 +1577,33 @@ namespace pg
                 } \
             }; \
             static ComponentType##SerializerRegistrar ComponentType##_registrar_instance; \
+        }
+
+    /**
+     * @brief Macro to easily register a component proxy factory
+     *
+     * This macro creates a static initializer that registers a proxy factory function
+     * for zero-copy component access from scripts. The proxy factory receives a raw
+     * component pointer and returns a VM Value representing the proxy instance.
+     *
+     * Example:
+     * ```cpp
+     * Value createPositionComponentProxy(VM* vm, void* rawPtr) {
+     *     PositionComponent* comp = static_cast<PositionComponent*>(rawPtr);
+     *     return PositionComponentProxy::createProxy(vm, comp);
+     * }
+     *
+     * REGISTER_COMPONENT_PROXY(PositionComponent, createPositionComponentProxy);
+     * ```
+     */
+    #define REGISTER_COMPONENT_PROXY(ComponentType, FactoryFunction) \
+        namespace { \
+            struct ComponentType##ProxyRegistrar { \
+                ComponentType##ProxyRegistrar() { \
+                    pg::ComponentSerializerRegistry::instance() \
+                        .registerProxyFactory(#ComponentType, FactoryFunction); \
+                } \
+            }; \
+            static ComponentType##ProxyRegistrar ComponentType##_proxy_registrar_instance; \
         }
 }

@@ -1,0 +1,5 @@
+Initial value: 0
+Value after accessing 'example': 42
+Getter called with unknown property: randomProp
+Value after accessing 'randomProp': -1
+Final value: 42

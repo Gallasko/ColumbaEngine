@@ -31,6 +31,7 @@ namespace pg
             addNativeFunction("replace", nativeReplace);
             addNativeFunction("join", nativeJoin);
             addNativeFunction("capitalize", nativeCapitalize);
+            addNativeFunction("lowerize", nativeLowerize);
             addNativeFunction("toLowerCase", nativeToLowerCase);
             addNativeFunction("toUpperCase", nativeToUpperCase);
             addNativeFunction("trim", nativeTrim);
@@ -189,7 +190,7 @@ namespace pg
                 throw std::runtime_error("startsWith expects exactly 2 arguments (string, prefix)");
             }
 
-            if (not IS_STRING(args[0]) || not IS_STRING(args[1]))
+            if (not IS_STRING(args[0]) or not IS_STRING(args[1]))
             {
                 throw std::runtime_error("startsWith expects both arguments to be strings");
             }
@@ -197,7 +198,7 @@ namespace pg
             auto str = vm->asString(args[0]);
             auto prefix = vm->asString(args[1]);
 
-            bool result = str.size() >= prefix.size() &&
+            bool result = str.size() >= prefix.size() and
                           str.compare(0, prefix.size(), prefix) == 0;
 
             return makeBoolValue(result);
@@ -210,7 +211,7 @@ namespace pg
                 throw std::runtime_error("endsWith expects exactly 2 arguments (string, suffix)");
             }
 
-            if (not IS_STRING(args[0]) || not IS_STRING(args[1]))
+            if (not IS_STRING(args[0]) or not IS_STRING(args[1]))
             {
                 throw std::runtime_error("endsWith expects both arguments to be strings");
             }
@@ -218,7 +219,7 @@ namespace pg
             auto str = vm->asString(args[0]);
             auto suffix = vm->asString(args[1]);
 
-            bool result = str.size() >= suffix.size() &&
+            bool result = str.size() >= suffix.size() and
                           str.compare(str.size() - suffix.size(), suffix.size(), suffix) == 0;
 
             return makeBoolValue(result);
@@ -412,6 +413,31 @@ namespace pg
 
             std::string result = str;
             result[0] = std::toupper(result[0]);
+
+            return vm->createString(result);
+        }
+
+        static Value nativeLowerize(VM* vm, int argCount, Value* args)
+        {
+            if (argCount != 1)
+            {
+                throw std::runtime_error("lowerize expects exactly 1 argument (string)");
+            }
+
+            if (not IS_STRING(args[0]))
+            {
+                throw std::runtime_error("lowerize expects a string argument");
+            }
+
+            auto str = vm->asString(args[0]);
+
+            if (str.empty())
+            {
+                return vm->createString(str);
+            }
+
+            std::string result = str;
+            result[0] = std::tolower(result[0]);
 
             return vm->createString(result);
         }

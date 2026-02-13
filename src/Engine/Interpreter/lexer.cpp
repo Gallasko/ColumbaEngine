@@ -273,7 +273,7 @@ namespace pg
                         {
                             tokens.emplace(strToKeyword(token), token, lineNumber, columnNumber);
                         }
-                        columnNumber+= token.length();
+                        columnNumber += token.length();
 
                         token = "";
                         isTokenNumber = false;

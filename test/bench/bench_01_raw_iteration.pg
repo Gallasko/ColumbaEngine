@@ -1,0 +1,18 @@
+// Benchmark 1: Raw iteration over a vector
+// This tests the baseline performance of for loops and vector access
+
+// count is provided as a global variable from C++
+
+// Create a simple vector
+var vec = []
+for (var i = 0; i < count; i = i + 1)
+{
+    vec[i] = i
+}
+
+// Benchmark: iterate and sum
+var sum = 0
+for (var i = 0; i < count; i = i + 1)
+{
+    sum = sum + vec[i]
+}

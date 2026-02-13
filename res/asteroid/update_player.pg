@@ -153,9 +153,9 @@ else if (newY > screenHeight)
 // Convert rotation from radians to degrees for visual display
 var rotationDegrees = rotation * 180 / PI
 
-pos.setX(newX)
-pos.setY(newY)
-pos.setRotation(rotationDegrees)
+pos.x = newX
+pos.y = newY
+pos.rotation = rotationDegrees
 
 // Store updated values back to sysData
 sysData["playerVelX"] = velX

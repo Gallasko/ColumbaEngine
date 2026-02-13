@@ -31,6 +31,6 @@ var ttfComp = scoreEntity["TTFText"]
 logInfo("Got ttfComp, updating text")
 
 var newText = "Score: " + toString(currentScore)
-ttfComp.setText(newText)
+ttfComp.text = newText
 
 logInfo("Successfully updated score text")

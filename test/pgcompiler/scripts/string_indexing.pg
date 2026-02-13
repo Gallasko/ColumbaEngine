@@ -1,0 +1,24 @@
+var small = "small"
+
+__dprint(small[0])
+__dprint(small[4])
+__dprint(small[-4])
+__dprint(small[-1])
+
+var big = "biggerThan5"
+__dprint(big[0])
+__dprint(big[7])
+__dprint(big[-1])
+
+{
+    var local = "longLocal"
+    __dprint(local[0])
+    __dprint(local[5])
+    __dprint(local[-1])
+
+    var onStack = "on" + "stack"
+
+    __dprint(onStack[0])
+    __dprint(onStack[5])
+    __dprint(onStack[-1])
+}

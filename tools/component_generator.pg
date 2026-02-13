@@ -5,359 +5,7 @@ import "string"
 import "file"
 import "algorithm"
 
-// ============================================================================
-// YAML Parser
-// ============================================================================
-
-class YamlParser
-{
-    init()
-    {
-        this.indentStack = []
-    }
-
-    parse(content)
-    {
-        log("Parse: splitting lines...")
-        var lines = splitLines(content)
-        log("Parse: split into " + toString(len(lines)) + " lines")
-
-        var result = {}
-        var currentSection = ""
-        var currentArray = []
-        var currentItem = {}
-
-        log("Parse: starting line iteration...")
-
-        for (var i = 0; i < len(lines); i++)
-        {
-            var line = lines[i]
-            var trimmed = trim(line)
-            log("Line " + toString(i) + ": '" + trimmed + "'")
-
-            // Skip empty lines and comments
-            if (len(trimmed) > 0 and not startsWith(trimmed, "#"))
-            {
-                var indent = this.getIndent(line)
-                // log("  indent=" + toString(indent))
-
-                if (startsWith(trimmed, "-"))
-                {
-                    log("  -> array item")
-                    // Array item - save previous item if exists
-                    if (contain(currentItem, "name") or contain(currentItem, "params"))
-                    {
-                        push(currentArray, currentItem)
-                    }
-
-                    currentItem = {}
-
-                    // Parse the line after the dash
-                    var afterDash = trim(substring(trimmed, 1, len(trimmed)))
-
-                    if (contains(afterDash, ":"))
-                    {
-                        // Array item with key-value (e.g., "- name: value")
-                        var parts = this.splitFirst(afterDash, ":")
-                        var key = trim(parts[0])
-                        var value = trim(parts[1])
-                        currentItem[key] = this.parseValue(value)
-                    }
-                    else if (len(afterDash) > 0)
-                    {
-                        // Simple array item (e.g., "- <cstdint>" or "- \"file.h\"")
-                        // For includes and methods, keep the value as-is without parsing
-                        if (currentSection == "includes")
-                        {
-                            push(currentArray, afterDash)
-                        }
-                        else
-                        {
-                            push(currentArray, this.parseValue(afterDash))
-                        }
-
-                        currentItem = {}
-                    }
-                }
-                else if (contains(trimmed, ":"))
-                {
-                    log("  -> key-value pair")
-                    // Key-value pair
-                    var parts = this.splitFirst(trimmed, ":")
-                    var key = trim(parts[0])
-                    var value = trim(parts[1])
-                    log("  key='" + key + "' value='" + value + "'")
-
-                    if (indent == 0)
-                    {
-                        log("  -> top-level")
-                        // Top-level key
-                        if (len(value) == 0)
-                        {
-                            log("  -> section start: " + key)
-                            // Start of array or object section
-                            if (len(currentArray) > 0 or contain(currentItem, "name") or contain(currentItem, "params"))
-                            {
-                                // Save previous array
-                                if (contain(currentItem, "name") or contain(currentItem, "params"))
-                                {
-                                    push(currentArray, currentItem)
-                                    currentItem = {}
-                                }
-
-                                log("  -> saving section '" + currentSection + "' with " + toString(len(currentArray)) + " items")
-                                result[currentSection] = currentArray
-                                currentArray = []
-                            }
-                            currentSection = key
-                        }
-                        else
-                        {
-                            log("  -> simple key-value: " + key + " = " + value)
-                            // Simple key-value
-                            result[key] = this.parseValue(value)
-                        }
-                    }
-                    else
-                    {
-                        log("  -> indented key-value")
-                        // Indented key - part of current item
-                        if (len(value) > 0)
-                        {
-                            log("  -> about to parse value for key: " + key)
-                            log("  -> checking if currentItem already has a key...")
-
-                            if (contain(currentItem, "name"))
-                            {
-                                log("  -> currentItem has 'name' key, seems valid")
-                            }
-                            else
-                            {
-                                log("  -> currentItem does NOT have 'name' key yet")
-                            }
-
-                            // Check if this is a multi-line string value
-                            var startsWithQuote = len(value) > 0 and substring(value, 0, 1) == "\""
-                            var endsWithQuote = len(value) > 0 and substring(value, len(value) - 1, len(value)) == "\""
-
-                            if (startsWithQuote and not endsWithQuote)
-                            {
-                                // Multi-line string - accumulate lines until closing quote
-                                // Start with the value after the opening quote
-                                var multiLineValue = substring(value, 1, len(value))
-
-                                // Read subsequent lines directly without going through normal parsing
-                                var j = i + 1
-                                while (j < len(lines))
-                                {
-                                    var nextLine = lines[j]
-                                    var trimmedNext = trim(nextLine)
-
-                                    // Check if this line ends the string
-                                    var lineEndsWithQuote = len(trimmedNext) > 0 and substring(trimmedNext, len(trimmedNext) - 1, len(trimmedNext)) == "\""
-
-                                    if (lineEndsWithQuote)
-                                    {
-                                        // Add everything except the closing quote
-                                        // Find where the closing quote is in the original line
-                                        var quotePos = len(nextLine) - 1
-                                        while (quotePos >= 0 and substring(nextLine, quotePos, quotePos + 1) != "\"")
-                                        {
-                                            quotePos = quotePos - 1
-                                        }
-                                        multiLineValue = multiLineValue + "\n" + substring(nextLine, 0, quotePos)
-                                        break
-                                    }
-                                    else
-                                    {
-                                        multiLineValue = multiLineValue + "\n" + nextLine
-                                    }
-                                    j = j + 1
-                                }
-
-                                // Update i to skip all the lines we just processed
-                                i = j
-
-                                currentItem[key] = multiLineValue
-                            }
-                            else
-                            {
-                                var parsedValue = this.parseValue(value)
-                                log("  -> parsed value successfully")
-                                log("  -> about to assign to currentItem")
-                                currentItem[key] = parsedValue
-                                log("  -> assignment complete")
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Save last item/array
-        if (contain(currentItem, "name") or contain(currentItem, "params"))
-        {
-            push(currentArray, currentItem)
-        }
-
-        if (len(currentArray) > 0)
-        {
-            result[currentSection] = currentArray
-        }
-
-        log("Parse: complete, returning result")
-        return result
-    }
-
-    parseArrayItem(value)
-    {
-        if (contains(value, ":"))
-        {
-            // It's an object
-            var obj = {}
-            var parts = this.splitFirst(value, ":")
-            var key = trim(parts[0])
-            var val = trim(parts[1])
-            obj[key] = this.parseValue(val)
-            return obj
-        }
-
-        return this.parseValue(value)
-    }
-
-    parseValue(value)
-    {
-        log("    Parsing value: '" + value + "'")
-
-        // Parse inline arrays [item1, item2, item3]
-        if (startsWith(value, "[") and endsWith(value, "]"))
-        {
-            var innerContent = substring(value, 1, len(value) - 1)
-            var items = split(innerContent, ",")
-            var result = []
-
-            for (var i = 0; i < len(items); i = i + 1)
-            {
-                push(result, trim(items[i]))
-            }
-
-            return result
-        }
-
-        // Parse inline objects {key1: value1, key2: value2}
-        if (startsWith(value, "{") and endsWith(value, "}"))
-        {
-            var innerContent = substring(value, 1, len(value) - 1)
-            var result = {}
-
-            // Simple parser: split by comma, but respect quotes
-            var currentKey = ""
-            var currentVal = ""
-            var inQuote = false
-            var parsingKey = true
-
-            for (var i = 0; i < len(innerContent); i = i + 1)
-            {
-                var c = substring(innerContent, i, i + 1)
-
-                if (c == "\"")
-                {
-                    inQuote = not inQuote
-                    if (not parsingKey)
-                    {
-                        currentVal = currentVal + c
-                    }
-                }
-                else if (c == ":" and not inQuote and parsingKey)
-                {
-                    parsingKey = false
-                }
-                else if (c == "," and not inQuote)
-                {
-                    // End of key-value pair
-                    if (currentKey != "")
-                    {
-                        result[trim(currentKey)] = trim(currentVal)
-                    }
-                    currentKey = ""
-                    currentVal = ""
-                    parsingKey = true
-                }
-                else
-                {
-                    if (parsingKey)
-                    {
-                        currentKey = currentKey + c
-                    }
-                    else
-                    {
-                        currentVal = currentVal + c
-                    }
-                }
-            }
-
-            // Save the last pair
-            if (currentKey != "")
-            {
-                result[trim(currentKey)] = trim(currentVal)
-            }
-
-            return result
-        }
-
-        // Remove quotes if present
-        if (startsWith(value, "\"") and endsWith(value, "\""))
-        {
-            return substring(value, 1, len(value) - 1)
-        }
-
-        if (startsWith(value, "'") and endsWith(value, "'"))
-        {
-            return substring(value, 1, len(value) - 1)
-        }
-
-        // Parse boolean
-        if (value == "true") return true
-
-        if (value == "false") return false
-
-        return value
-    }
-
-    getIndent(line)
-    {
-        var count = 0
-        var done = false
-
-        for (var i = 0; i < len(line) and not done; i++)
-        {
-            var ch = charAt(line, i)
-
-            if (ch == " ")
-            {
-                count = count + 1
-            }
-            else
-            {
-                done = true
-            }
-        }
-
-        return count
-    }
-
-    splitFirst(str, delimiter)
-    {
-        var idx = indexOf(str, delimiter)
-
-        if (idx == -1)
-        {
-            return [str, ""]
-        }
-
-        return [substring(str, 0, idx), substring(str, idx + 1, len(str))]
-    }
-}
+import "yaml_parser"
 
 // ============================================================================
 // Component Schema
@@ -680,6 +328,296 @@ class HeaderGenerator
     }
 }
 
+class ProxyMetadataGenerator
+{
+    generate(schema)
+    {
+        var code = ""
+
+        // Generate metadata registration inside anonymous namespace
+        code += "// ============================================================================\n"
+        code += "// Component Proxy Metadata Registration (Zero-Copy System)\n"
+        code += "// ============================================================================\n\n"
+
+        // Namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "namespace " + schema["namespace"] + "\n{\n\n"
+        }
+
+        code += "struct " + schema.name + "ProxyMetadataRegistrar\n{\n"
+        code += "    " + schema.name + "ProxyMetadataRegistrar()\n    {\n"
+        code += "        pg::ComponentProxyMetadata metadata;\n"
+        code += "        metadata.componentTypeName = \"" + schema.name + "\";\n"
+        code += "        metadata.componentSize = sizeof(" + schema.name + ");\n\n"
+
+        // Generate property metadata for each field
+        for (var i = 0; i < len(schema.fields); i += 1)
+        {
+            log("Generating proxy metadata for field " + toString(i) + " of component " + schema.name)
+            var field = schema.fields[i]
+            var fieldName = field["name"]
+            var fieldType = field["type"]
+
+            // Skip fields that shouldn't be exposed
+            if (contain(field, "serialize") and field["serialize"] == false)
+            {
+                continue
+            }
+
+            // Determine PropertyType enum value
+            var propType = this.mapTypeToPropertyType(fieldType)
+
+            // Determine if writable (has a setter that's not "none")
+            var writable = false
+            if (contain(field, "setter") and field["setter"] != "none")
+            {
+                writable = true
+            }
+
+            code += "        // Property: " + fieldName + "\n"
+            code += "        metadata.properties.emplace(\"" + fieldName + "\", PropertyMetadata{\n"
+            code += "            \"" + fieldName + "\",\n"
+            code += "            pg::PropertyType::" + propType + ",\n"
+
+            code += "            [](void* comp, VM* vm) -> Value {\n"
+            code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
+            code += this.generateGetterCall(schema.name, field);
+            code += "            },\n"
+
+            code += "            " + toString(writable) + ",\n"
+
+            // Generate setter lambda if writable
+            if (writable)
+            {
+                code += "            [](void* comp, VM* vm, Value val) {\n"
+                code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
+                code += this.generateSetterCall(schema.name, field)
+                code += "            }\n"
+            }
+            else
+            {
+                code += "            nullptr\n"
+            }
+
+            code += "        });\n\n"
+        }
+
+        code += "        pg::ComponentProxyRegistry::instance().registerMetadata(metadata);\n"
+        code += "        LOG_INFO(\"ComponentProxy\", \"Registered proxy metadata for " + schema.name + "\");\n"
+        code += "    }\n"
+        code += "};\n\n"
+        code += "static " + schema.name + "ProxyMetadataRegistrar s_" + lowerize(schema.name) + "ProxyMetadataRegistrar;\n\n"
+
+        // Close namespace
+        if (contain(schema, "namespace"))
+        {
+            code += "} // namespace " + schema.namespace + "\n\n"
+        }
+
+        return code
+    }
+
+    mapTypeToPropertyType(cppType)
+    {
+        if (cppType == "float") return "Float"
+        if (cppType == "double") return "Double"
+        if (cppType == "int") return "Int"
+        if (cppType == "bool") return "Bool"
+        if (cppType == "std::string") return "String"
+        if (cppType == "_unique_id") return "UniqueId"
+        if (cppType == "unsigned int" or cppType == "size_t") return "UnsignedInt"
+
+        // Default to Int for unknown types
+        return "Int"
+    }
+
+    generateGetterCall(componentName, field)
+    {
+        var fieldName = field["name"]
+        var fieldType = field["type"]
+        var getterName = "get" + capitalize(fieldName)
+        var code = ""
+
+        // Track which parameters are used to add (void) casts for unused ones
+        var usesVm = false
+        var usesVal = true  // val is always used
+
+        if (fieldType == "float")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeFloatValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "double")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeDoubleValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "int")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeIntValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "_unique_id")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeIntValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "unsigned int" or fieldType == "size_t")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeIntValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "bool")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                return makeBoolValue(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "std::string")
+        {
+            usesVm = true
+            code += "                return vm->createString(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            usesVm = true
+            code += "                // Convert Vector3D to table\n"
+            code += "                auto it = vm->globals.find(\"__Table\");\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                Value tableValue = vm->createInstance(tableClass);\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
+            code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
+            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
+            code += "                return tableValue;\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            usesVm = true
+            code += "                // Convert Vector4D to table\n"
+            code += "                auto it = vm->globals.find(\"__Table\");\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                Klass* tableClass = vm->asClass(it->second);\n"
+            code += "                Value tableValue = vm->createInstance(tableClass);\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
+            code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
+            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
+            code += "                table->setField(\"w\", makeFloatValue(vec.w), vm, true);\n"
+            code += "                return tableValue;\n"
+        }
+        else
+        {
+            // Fallback for unknown types
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                // TODO: Handle getter for type " + fieldType + "\n"
+            code += "                return INT_VAL(-1);\n"
+        }
+
+        return code
+    }
+
+    generateSetterCall(componentName, field)
+    {
+        var fieldName = field["name"]
+        var fieldType = field["type"]
+        var setterName = "set" + capitalize(fieldName)
+        var code = ""
+
+        // Track which parameters are used to add (void) casts for unused ones
+        var usesVm = false
+        var usesVal = true  // val is always used
+
+        if (fieldType == "float")
+        {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));\n"
+            code += "                    c->" + setterName + "(v);\n"
+        }
+        else if (fieldType == "double")
+        {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    double v = IS_DOUBLE(val) ? AS_DOUBLE(val) : static_cast<double>(AS_INT(val));\n"
+            code += "                    c->" + setterName + "(v);\n"
+        }
+        else if (fieldType == "int")
+        {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    c->" + setterName + "(static_cast<int>(AS_INT(val)));\n"
+        }
+        else if (fieldType == "_unique_id")
+        {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    c->" + setterName + "(static_cast<_unique_id>(AS_INT(val)));\n"
+        }
+        else if (fieldType == "unsigned int" or fieldType == "size_t")
+        {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    c->" + setterName + "(static_cast<unsigned int>(AS_INT(val)));\n"
+        }
+        else if (fieldType == "bool")
+        {
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    c->" + setterName + "(AS_BOOL(val));\n"
+        }
+        else if (fieldType == "std::string")
+        {
+            usesVm = true
+            code += "                    c->" + setterName + "(vm->asString(val));\n"
+        }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            usesVm = true
+            code += "                    // Convert table or vector to Vector3D\n"
+            code += "                    if (IS_INSTANCE(val)) {\n"
+            code += "                        ObjInstance* table = vm->asInstance(val);\n"
+            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
+            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                    } else if (IS_VECTOR(val)) {\n"
+            code += "                        ObjVector* vec = vm->asVector(val);\n"
+            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
+            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                    }\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            usesVm = true
+            code += "                    // Convert table or vector to Vector4D\n"
+            code += "                    if (IS_INSTANCE(val)) {\n"
+            code += "                        ObjInstance* table = vm->asInstance(val);\n"
+            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
+            code += "                        float w = static_cast<float>(AS_DOUBLE(table->getField(\"w\")));\n"
+            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                    } else if (IS_VECTOR(val)) {\n"
+            code += "                        ObjVector* vec = vm->asVector(val);\n"
+            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
+            code += "                        float w = vec->fields.size() > 3 ? static_cast<float>(AS_DOUBLE(vec->fields[3])) : 0.0f;\n"
+            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                    }\n"
+        }
+        else
+        {
+            // Fallback for unknown types
+            code += "                    (void)vm; // Suppress unused parameter warning\n"
+            code += "                    (void)val; // Suppress unused parameter warning\n"
+            code += "                    // TODO: Handle setter for type " + fieldType + "\n"
+        }
+
+        return code
+    }
+}
+
 class SerializationGenerator
 {
     generate(schema)
@@ -866,7 +804,17 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            code += "    comp->" + fieldName + " = " + fieldName + ";\n"
+            var setterName = "set" + capitalize(fieldName)
+
+            // Use setter if available, otherwise direct assignment
+            if (contain(field, "setter") and field["setter"] != "none")
+            {
+                code += "    comp->" + setterName + "(" + fieldName + ");\n"
+            }
+            else
+            {
+                code += "    comp->" + fieldName + " = " + fieldName + ";\n"
+            }
         }
 
         code += "\n    LOG_INFO(\"ECS Serialization\", \"Attached " + schema.name + " to entity \" << entity->id);\n\n"
@@ -897,6 +845,12 @@ class SerializationGenerator
             code += "} // namespace " + schema.namespace + "\n\n"
         }
 
+        log("Generating proxy metadata registration for " + schema.name)
+        // Generate proxy metadata registration (OUTSIDE namespace to access pg::)
+        var proxyGen = ProxyMetadataGenerator()
+        code += proxyGen.generate(schema)
+        log("Completed proxy metadata registration for " + schema.name)
+
         // Add the init function that forces this file to be linked
         code += "// Initialization function referenced from .generated.h\n"
         code += "// This ensures this .serialization.cpp is linked and static initializers run\n"
@@ -915,6 +869,7 @@ class CppGenerator
         var code = ""
 
         // Include the header
+        code += "#include \"stdafx.h\"\n\n"
         code += "#include \"" + schema.name + ".generated.h\"\n\n"
         code += "#include \"ECS/entitysystem.h\"\n\n"
 

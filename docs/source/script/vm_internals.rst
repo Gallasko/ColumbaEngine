@@ -318,13 +318,138 @@ Core Instructions
     OP_Return                # Return from current function
     OP_Closure <funcIdx>     # Create closure from function
 
-**Classes**::
+**Classes and Objects**::
 
     OP_Class <nameIdx>       # Define new class
     OP_Get_Property <name>   # Get instance property
     OP_Set_Property <name>   # Set instance property
     OP_Method <nameIdx>      # Define method on class
     OP_Invoke <name><argc>   # Optimized method call
+
+Metamethods
+~~~~~~~~~~~
+
+The VM supports metamethods that allow customization of property access behavior. Metamethods are special methods that intercept property operations.
+
+**Supported Metamethods**:
+
+``__get(self, propertyName)``
+  Called when accessing a non-existent property. Returns the value to use.
+
+``__set(self, propertyName, value)``
+  Called when setting a property. Should return the value that was set.
+
+**Metamethod Types**
+
+Metamethods can be defined in two ways:
+
+1. **Class Methods**: Defined on the class, available to all instances
+2. **Dynamic Metamethods**: Stored as instance fields, allows per-instance customization
+
+**Implementation Details**
+
+Property Access (``OP_Get_Property``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When accessing a property (``instance.property``):
+
+1. **Check real fields first**: If property exists in instance fields, return it immediately
+2. **Check for ``__get``**: Look in class methods, then instance fields
+3. **Call metamethod**: If found, invoke ``__get(instance, propertyName)``
+4. **Check class methods**: Try to bind a class method
+5. **Error**: If nothing found, runtime error
+
+Property Assignment (``OP_Set_Property``)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+When setting a property (``instance.property = value``):
+
+1. **Internal field bypass**: Fields starting with ``__`` bypass metamethods
+2. **Internal access detection**: Direct field access from bound methods bypasses metamethods
+3. **Check for ``__set``**: Look in class methods, then instance fields
+4. **Call metamethod**: If found, invoke ``__set(instance, propertyName, value)``
+5. **Direct assignment**: If no metamethod, store directly in instance fields
+
+**Double-Underscore Convention**
+
+Fields starting with ``__`` (double underscore) are treated as "internal" and **always bypass metamethods**. This convention prevents infinite recursion in metamethod implementations.
+
+Example::
+
+    class ProxyClass
+    {
+        init(x, y)
+        {
+            this.__data_x = x  // Direct field access, no __set called
+            this.__data_y = y
+        }
+    }
+
+    fun createProxy()
+    {
+        return fun(self, prop, value) {
+            // Store data internally without triggering __set recursion
+            if (prop == "x")
+            {
+                self.__data_x = value  // Bypasses __set
+            }
+        }
+    }
+
+    var obj = ProxyClass(10, 20)
+    obj.__set = createProxy()
+    obj.x = 100  // Calls __set, which stores to __data_x
+
+**Internal Access Detection**
+
+The VM detects when property access occurs from within a bound method of the same instance. In this case, metamethods are bypassed to allow direct field manipulation.
+
+Detection criteria:
+
+* Current frame is a bound method call (``stackBase == slots``)
+* The accessed instance matches ``slots[0]`` (the receiver)
+* Frame count > 1 (not the global script)
+
+This allows methods to directly access their own instance fields without metamethod interception::
+
+    class MyClass {
+        init() {
+            this.value = 0
+        }
+
+        increment() {
+            this.value = this.value + 1  // Direct access, no __set called
+        }
+    }
+
+**Stack Layout for Dynamic Metamethods**
+
+When calling a dynamic metamethod (stored in instance field), the VM sets up the stack as::
+
+    [closure] [instance] [arg1] [arg2] ...
+
+For ``__get(self, propertyName)``:
+  Stack: ``[__get_closure] [instance] [propertyName]``
+
+For ``__set(self, propertyName, value)``:
+  Stack: ``[__set_closure] [instance] [propertyName] [value]``
+
+This differs from class method metamethods which use bound method calls.
+
+**Index Operations**
+
+Index operations (``instance[key]`` and ``instance[key] = value``) also support metamethods:
+
+* ``OP_Get_Index``: Checks for ``__get`` metamethod if key not found
+* ``OP_Set_Index``: Checks for ``__set`` metamethod before assignment
+* Same double-underscore bypass rules apply
+
+**Performance Considerations**
+
+* Real fields are checked before metamethods (O(1) hash lookup)
+* Metamethod lookup requires two hash lookups (class methods, then instance fields)
+* Internal field access (``__`` prefix) is fastest (single hash lookup, no metamethod check)
+* Bound method internal access bypasses metamethod checks entirely
 
 **Tables**::
 

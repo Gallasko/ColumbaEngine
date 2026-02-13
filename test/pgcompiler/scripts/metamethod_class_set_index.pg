@@ -1,0 +1,34 @@
+import "string"
+
+class Test
+{
+    init()
+    {
+        this.data = {};
+    }
+
+    __set(key, value)
+    {
+        __dprint("__set[" + key + "] = " + toString(value));
+
+        if (key == "x" || key == "name" || key == "active")
+        {
+            __dprint("Setting property: " + key);
+        }
+        else
+        {
+            __dprint("Unknown property set: " + key);
+        }
+
+        return value;
+    }
+}
+
+var testInstance = Test();
+
+// Test index setting via bracket notation
+testInstance["x"] = 42;
+testInstance["name"] = "Alice";
+testInstance["active"] = true;
+
+__dprint("Done setting via brackets");

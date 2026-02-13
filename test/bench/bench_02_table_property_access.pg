@@ -1,0 +1,35 @@
+// Benchmark 2: Table property access
+// This tests the performance of accessing fields in tables (like old entity serialization)
+
+// var count = 2000
+
+// Create tables with properties (simulating old serialized components)
+var tables = []
+for (var i = 0; i < count; i = i + 1)
+{
+    var table = {
+        "x": 100,
+        "y": 200,
+        "z": 0,
+        "width": 50,
+        "height": 50,
+        "rotation": 0,
+        "visible": true,
+        "observable": true
+    }
+    tables[i] = table
+}
+
+// Benchmark: iterate and read+write properties
+for (var i = 0; i < count; i = i + 1)
+{
+    var t = tables[i]
+
+    // Read properties
+    var x = t.x
+    var y = t.y
+
+    // Write properties
+    t.x = x + 1
+    t.y = y + 1
+}

@@ -13,4 +13,6 @@ addFilterScope("ECS", "ECS")
 addFilterScope("Component Registry", "Component Registry")
 addFilterScope("Component Set", "Component Set")
 addFilterScope("Serializer", "Serializer", false)
+
+setVerboseLogs(false)
 //addFilterScope("ECS Serialization", "ECS Serialization")

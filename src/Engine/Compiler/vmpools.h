@@ -15,14 +15,18 @@
  * - Fast reference counting using vector indices
  */
 
-#include "value_nanbox.h"
-#include "object.h"
-#include "../../src/Engine/Memory/memorypool.h"
 #include <vector>
 #include <cstdint>
 #include <stdexcept>
 #include <unordered_map>
 #include <string>
+
+#include "value_nanbox.h"
+#include "object.h"
+
+#include "../Memory/memorypool.h"
+
+#include "ECS/uniqueid.h"
 
 namespace pg
 {
@@ -40,7 +44,7 @@ namespace pg
         // ====================================================================
 
         /** Pool for string objects (ElementType) */
-        AllocatorPool<ElementType, 64> stringPool;
+        AllocatorPool<std::string, 64> stringPool;
 
         /** String interning map - maps string content to pool index for deduplication */
         std::unordered_map<std::string, uint32_t> internedStrings;
@@ -68,6 +72,9 @@ namespace pg
 
         /** Pool for vector objects */
         AllocatorPool<ObjVector, 32> vectorPool;
+
+        /** Pool for custom pointer types (void*) */
+        std::unordered_map<_unique_id, std::vector<void *>> customPointerPool;
 
         // ====================================================================
         // Reference Count Vectors
@@ -106,31 +113,31 @@ namespace pg
         // ====================================================================
 
         /** Max constant index for string pool (all indices <= this are constants) */
-        uint32_t maxConstantStringIndex = 0;
+        uint32_t maxConstantStringIndex = UINT32_MAX;
 
         /** Max constant index for closure pool */
-        uint32_t maxConstantClosureIndex = 0;
+        uint32_t maxConstantClosureIndex = UINT32_MAX;
 
         /** Max constant index for function pool */
-        uint32_t maxConstantFunctionIndex = 0;
+        uint32_t maxConstantFunctionIndex = UINT32_MAX;
 
         /** Max constant index for upvalue pool */
-        uint32_t maxConstantUpvalueIndex = 0;
+        uint32_t maxConstantUpvalueIndex = UINT32_MAX;
 
         /** Max constant index for class pool */
-        uint32_t maxConstantClassIndex = 0;
+        uint32_t maxConstantClassIndex = UINT32_MAX;
 
         /** Max constant index for native function pool */
-        uint32_t maxConstantNativeFuncIndex = 0;
+        uint32_t maxConstantNativeFuncIndex = UINT32_MAX;
 
         /** Max constant index for instance pool */
-        uint32_t maxConstantInstanceIndex = 0;
+        uint32_t maxConstantInstanceIndex = UINT32_MAX;
 
         /** Max constant index for bound method pool */
-        uint32_t maxConstantBoundMethodIndex = 0;
+        uint32_t maxConstantBoundMethodIndex = UINT32_MAX;
 
         /** Max constant index for vector pool */
-        uint32_t maxConstantVectorIndex = 0;
+        uint32_t maxConstantVectorIndex = UINT32_MAX;
 
         // ====================================================================
         // Public API
@@ -208,25 +215,58 @@ namespace pg
          */
         inline bool isConstant(Value v) const
         {
-            if (IS_STRING(v)) {
+            // Interned strings are ALWAYS constants (they live in VM's constantStrings vector)
+            if (IS_INTERNED_STRING(v))
+            {
+                return true;
+            }
+            else if (IS_STRING(v))  // Long or small strings
+            {
+                // UINT32_MAX is sentinel value meaning "constants not frozen yet"
+                if (maxConstantStringIndex == UINT32_MAX) return false;
                 return AS_STRING_INDEX(v) <= maxConstantStringIndex;
-            } else if (IS_CLOSURE(v)) {
+            }
+            else if (IS_CLOSURE(v))
+            {
+                if (maxConstantClosureIndex == UINT32_MAX) return false;
                 return AS_CLOSURE_INDEX(v) <= maxConstantClosureIndex;
-            } else if (IS_FUNC(v)) {
+            }
+            else if (IS_FUNC(v))
+            {
+                if (maxConstantFunctionIndex == UINT32_MAX) return false;
                 return AS_FUNCTION_INDEX(v) <= maxConstantFunctionIndex;
-            } else if (IS_UPVALUE(v)) {
+            }
+            else if (IS_UPVALUE(v))
+            {
+                if (maxConstantUpvalueIndex == UINT32_MAX) return false;
                 return AS_UPVALUE_INDEX(v) <= maxConstantUpvalueIndex;
-            } else if (IS_CLASS(v)) {
+            }
+            else if (IS_CLASS(v))
+            {
+                if (maxConstantClassIndex == UINT32_MAX) return false;
                 return AS_CLASS_INDEX(v) <= maxConstantClassIndex;
-            } else if (IS_NAT_FUNC(v)) {
+            }
+            else if (IS_NAT_FUNC(v))
+            {
+                if (maxConstantNativeFuncIndex == UINT32_MAX) return false;
                 return AS_NATIVE_INDEX(v) <= maxConstantNativeFuncIndex;
-            } else if (IS_INSTANCE(v)) {
+            }
+            else if (IS_INSTANCE(v))
+            {
+                if (maxConstantInstanceIndex == UINT32_MAX) return false;
                 return AS_INSTANCE_INDEX(v) <= maxConstantInstanceIndex;
-            } else if (IS_BOUND_METHOD(v)) {
+            }
+            else if (IS_BOUND_METHOD(v))
+            {
+                if (maxConstantBoundMethodIndex == UINT32_MAX) return false;
                 return AS_BOUND_METHOD_INDEX(v) <= maxConstantBoundMethodIndex;
-            } else if (IS_VECTOR(v)) {
+            }
+            else if (IS_VECTOR(v))
+            {
+                if (maxConstantVectorIndex == UINT32_MAX) return false;
                 return AS_VECTOR_INDEX(v) <= maxConstantVectorIndex;
             }
+
             return false;
         }
 
@@ -238,15 +278,32 @@ namespace pg
          */
         std::vector<uint32_t>& getRefCountVector(Value v)
         {
-            if (IS_STRING(v)) return stringRefCounts;
-            if (IS_CLOSURE(v)) return closureRefCounts;
-            if (IS_FUNC(v)) return functionRefCounts;
-            if (IS_UPVALUE(v)) return upvalueRefCounts;
-            if (IS_CLASS(v)) return classRefCounts;
-            if (IS_NAT_FUNC(v)) return nativeFuncRefCounts;
-            if (IS_INSTANCE(v)) return instanceRefCounts;
-            if (IS_BOUND_METHOD(v)) return boundMethodRefCounts;
-            if (IS_VECTOR(v)) return vectorRefCounts;
+            if (IS_STRING(v))
+                return stringRefCounts;
+
+            if (IS_CLOSURE(v))
+                return closureRefCounts;
+
+            if (IS_FUNC(v))
+                return functionRefCounts;
+
+            if (IS_UPVALUE(v))
+                return upvalueRefCounts;
+
+            if (IS_CLASS(v))
+                return classRefCounts;
+
+            if (IS_NAT_FUNC(v))
+                return nativeFuncRefCounts;
+
+            if (IS_INSTANCE(v))
+                return instanceRefCounts;
+
+            if (IS_BOUND_METHOD(v))
+                return boundMethodRefCounts;
+
+            if (IS_VECTOR(v))
+                return vectorRefCounts;
 
             throw std::runtime_error("Invalid value type for refcount");
         }
@@ -260,7 +317,9 @@ namespace pg
         inline void ensureRefCountCapacity(Value v, uint32_t index)
         {
             auto& refCounts = getRefCountVector(v);
-            if (index >= refCounts.size()) {
+
+            if (index >= refCounts.size())
+            {
                 refCounts.resize(index + 1, 0);
             }
         }
@@ -272,7 +331,7 @@ namespace pg
         /**
          * @brief Get string object from pool
          */
-        inline ElementType* getString(Value v)
+        inline std::string* getString(Value v)
         {
             return stringPool.getElement(AS_STRING_INDEX(v));
         }
@@ -341,6 +400,15 @@ namespace pg
             return vectorPool.getElement(AS_VECTOR_INDEX(v));
         }
 
+        inline void* getCustomPointer(Value v)
+        {
+            auto typeId = AS_CUSTOM_PTR_TYPE(v);
+
+            const auto& pool = customPointerPool.at(typeId);
+
+            return pool[AS_CUSTOM_PTR_INDEX(v)];
+        }
+
         // ====================================================================
         // Generic Template Access (for advanced usage)
         // ====================================================================
@@ -360,23 +428,40 @@ namespace pg
          */
         void releaseToPool(Value v)
         {
-            if (IS_STRING(v)) {
+            if (IS_STRING(v))
+            {
                 stringPool.release(getString(v));
-            } else if (IS_CLOSURE(v)) {
+            }
+            else if (IS_CLOSURE(v))
+            {
                 closurePool.release(getClosure(v));
-            } else if (IS_FUNC(v)) {
+            }
+            else if (IS_FUNC(v))
+            {
                 functionPool.release(getFunction(v));
-            } else if (IS_UPVALUE(v)) {
+            }
+            else if (IS_UPVALUE(v))
+            {
                 upvaluePool.release(getUpvalue(v));
-            } else if (IS_CLASS(v)) {
+            }
+            else if (IS_CLASS(v))
+            {
                 classPool.release(getClass(v));
-            } else if (IS_NAT_FUNC(v)) {
+            }
+            else if (IS_NAT_FUNC(v))
+            {
                 nativeFuncPool.release(getNativeFunc(v));
-            } else if (IS_INSTANCE(v)) {
+            }
+            else if (IS_INSTANCE(v))
+            {
                 instancePool.release(getInstance(v));
-            } else if (IS_BOUND_METHOD(v)) {
+            }
+            else if (IS_BOUND_METHOD(v))
+            {
                 boundMethodPool.release(getBoundMethod(v));
-            } else if (IS_VECTOR(v)) {
+            }
+            else if (IS_VECTOR(v))
+            {
                 vectorPool.release(getVector(v));
             }
         }
@@ -408,7 +493,7 @@ namespace pg
     // ====================================================================
 
     template<>
-    inline ElementType* VMPools::getPoolObject<ElementType>(Value v)
+    inline std::string* VMPools::getPoolObject<std::string>(Value v)
     {
         return getString(v);
     }

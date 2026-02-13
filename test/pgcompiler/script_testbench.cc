@@ -587,6 +587,11 @@ TEST_F(ScriptTestBench, StringLiterals)
     testScript("string_literals");
 }
 
+TEST_F(ScriptTestBench, StringIndexing)
+{
+    testScript("string_indexing");
+}
+
 TEST_F(ScriptTestBench, StringConcatenation)
 {
     testScript("string_concatenation");
@@ -897,6 +902,101 @@ TEST_F(ScriptTestBench, AdventOfCode2025Day3Part2)
 // {
 //     testScriptError("testFuncFailed", InterpretResult::RUNTIME_ERROR);
 // }
+
+// ============================================================================
+// Metamethod Tests (__get and __set)
+// ============================================================================
+
+TEST_F(ScriptTestBench, MetamethodClassGetBasic)
+{
+    testScript("metamethod_class_get_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodClassSetBasic)
+{
+    testScript("metamethod_class_set_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodGetBasic)
+{
+    testScript("metamethod_get_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodSetBasic)
+{
+    testScript("metamethod_set_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodClassGetIndex)
+{
+    testScript("metamethod_class_get_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodGetIndex)
+{
+    testScript("metamethod_get_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodClassSetIndex)
+{
+    testScript("metamethod_class_set_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodSetIndex)
+{
+    testScript("metamethod_set_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodFieldsPriority)
+{
+    testScript("metamethod_fields_priority");
+}
+
+TEST_F(ScriptTestBench, MetamethodProxySimulation)
+{
+    testScript("metamethod_proxy_simulation");
+}
+
+// Memory Management Tests
+TEST_F(ScriptTestBench, VMMemoryPoolReserve)
+{
+    // Test that VM can be created and destroyed without crashes
+    // This specifically tests the pools.reserve() issue
+    VM* testVm = new VM();
+    delete testVm;
+
+    // Create another VM to ensure pools are properly cleaned up
+    testVm = new VM();
+    delete testVm;
+}
+
+TEST_F(ScriptTestBench, VMMultipleCreationDestruction)
+{
+    // Test multiple VM creation/destruction cycles
+    for (int i = 0; i < 10; i++)
+    {
+        VM* testVm = new VM();
+        // Run a simple script
+        testVm->interpretFromText("var x = 1 + 2;", false);
+        delete testVm;
+    }
+}
+
+TEST_F(ScriptTestBench, VMStringMemoryHandling)
+{
+    // Test that string creation and destruction works correctly
+    VM* testVm = new VM();
+
+    // Create various string types
+    testVm->interpretFromText(R"(
+        var smallStr = "abc";          // Small string (inline)
+        var longStr = "this is a very long string";  // Heap string
+        var str1 = "test";
+        var str2 = "test";  // Should reuse interned string
+    )", false);
+
+    delete testVm;
+}
 
 } // namespace test
 } // namespace pg

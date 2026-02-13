@@ -131,8 +131,8 @@ if(CMAKE_BUILD_TYPE MATCHES Debug)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -DDEBUG")
     else()
         # set(CMAKE_CXX_FLAGS_DEBUG "-Wall -Wextra -g -pthread -Wa,-mbig-obj -O0 -ggdb -DDEBUG")
-        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O0 -DDEBUG")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O0 -DDEBUG")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g -O1 -DDEBUG")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -O1 -DDEBUG")
     endif()
 elseif(CMAKE_BUILD_TYPE MATCHES Release)
     if(${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
@@ -152,9 +152,13 @@ message("Current c++ release flags used: '${CMAKE_CXX_FLAGS}'")
 set(MINIMAL_ENGINESOURCE
     # Core compiler/VM files
     src/Engine/Compiler/compiler_debug.cpp
-    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_core.cpp
+    src/Engine/Compiler/vm_helpers.cpp
+    src/Engine/Compiler/vm_binary_op.cpp
+    src/Engine/Compiler/vm_struct_op.cpp
     src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/decoded_chunk.cpp
     src/Engine/Compiler/object.cpp
     src/Engine/Compiler/cparser.cpp
     src/Engine/Compiler/bytecode_pass.cpp
@@ -164,6 +168,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/Compiler/pass/constant_folding.cpp
+    src/Engine/Compiler/ecsserialization.cpp
     # Minimal interpreter (only lexer and token for parsing)
     src/Engine/Interpreter/lexer.cpp
     src/Engine/Interpreter/token.cpp
@@ -172,6 +177,7 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
     src/Engine/ECS/entitysystem.cpp
+    src/Engine/ECS/entitysystem_minimal.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
     src/Engine/ECS/sparseset.cpp
@@ -205,9 +211,13 @@ set(ENGINESOURCE
     src/Engine/2D/texture.cpp
     src/Engine/Audio/audiosystem.cpp
     src/Engine/Compiler/compiler_debug.cpp
-    src/Engine/Compiler/vm.cpp
+    src/Engine/Compiler/vm_core.cpp
+    src/Engine/Compiler/vm_helpers.cpp
+    src/Engine/Compiler/vm_binary_op.cpp
+    src/Engine/Compiler/vm_struct_op.cpp
     src/Engine/Compiler/vm_profiler.cpp
     src/Engine/Compiler/compiler.cpp
+    src/Engine/Compiler/decoded_chunk.cpp
     src/Engine/Compiler/ecsserialization.cpp
     src/Engine/Compiler/object.cpp
     src/Engine/Compiler/cparser.cpp
@@ -222,6 +232,7 @@ set(ENGINESOURCE
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp
     src/Engine/ECS/entitysystem.cpp
+    src/Engine/ECS/entitysystem_full.cpp
     src/Engine/ECS/group.cpp
     src/Engine/ECS/savemanager.cpp
     src/Engine/ECS/sparseset.cpp
@@ -725,6 +736,22 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+
+        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+
+        target_sources(RenderingTest PRIVATE
+            exemples/RenderingTest/application.cpp
+        )
+
+        target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
+
+        set_target_properties(RenderingTest
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
         add_executable(Asteroid exemples/Asteroid/main.cpp)
 
         target_include_directories(Asteroid PUBLIC exemples/Asteroid)
@@ -903,6 +930,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+
+        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+
+        target_sources(RenderingTest PRIVATE
+            exemples/RenderingTest/application.cpp
+        )
+
+        target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(Asteroid exemples/Asteroid/main.cpp)
 
         target_include_directories(Asteroid PUBLIC exemples/Asteroid)
@@ -1061,21 +1100,27 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_sources(bench PRIVATE
             benchmark/memorypool.cc
+            benchmark/serialization.cc
+            benchmark/script_performance.cc
         )
 
         target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)
+
+        add_custom_command(TARGET bench PRE_BUILD
+                           COMMAND ${CMAKE_COMMAND} -E copy_directory
+                           ${CMAKE_SOURCE_DIR}/test/bench $<TARGET_FILE_DIR:bench>/test/bench)
 
         # ===============================================
         # COMPILER TEST TARGET (simple script-based testbench)
         # ===============================================
 
-        # PgCompiler source files (needed for testing)
-        set(PGCOMPILER_SOURCES)
-
         # Create the compiler test executable with simple script testbench
         add_executable(test_compiler test/pgcompiler/script_testbench.cc)
 
-        target_sources(test_compiler PRIVATE ${PGCOMPILER_SOURCES})
+        target_sources(test_compiler PRIVATE
+            test/pgcompiler/unit/test_vm_memory.cc
+            test/pgcompiler/unit/test_register_ops.cc
+        )
 
         # Include directories for compiler tests
         target_include_directories(test_compiler PRIVATE
@@ -1086,7 +1131,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         target_link_libraries(test_compiler PRIVATE
             gtest
             gtest_main
-            ColumbaEngine
+            ColumbaEngineMinimal
         )
 
         # Add DEBUG_CHECK_STACK define for test_compiler target
