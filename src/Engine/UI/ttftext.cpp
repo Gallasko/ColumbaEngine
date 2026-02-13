@@ -57,7 +57,15 @@ namespace pg
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE(DOM, "Add entity " << entity->id << " to ui - ttf group !");
 
-            textUpdateQueue.push(entity->id);
+            auto ui = entity->get<PositionComponent>();
+            auto obj = entity->get<TTFText>();
+
+            if (ui and obj)
+            {
+                entityRenderCalls[entity->id] = createRenderCall(ui, obj);
+                entitiesInRenderGroup.push_back(entity->id);
+                std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
+            }
 
             changed = true;
         });
@@ -65,10 +73,11 @@ namespace pg
         group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
             LOG_MILE(DOM, "Remove entity " << id << " of ui - ttf group !");
 
-            auto entity = ecsRef->getEntity(id);
-
-            if (entity->has<TTFTextCall>())
-                ecsRef->detach<TTFTextCall>(entity);
+            entityRenderCalls.erase(id);
+            entitiesInRenderGroup.erase(
+                std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id),
+                entitiesInRenderGroup.end()
+            );
 
             changed = true;
         });
@@ -212,12 +221,7 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto entity = ecsRef->getEntity(entityId);
-
-        if (not entity or not entity->has<TTFTextCall>())
-            return;
-
-        textUpdateQueue.push(entityId);
+        textUpdateSet.insert(entityId);
 
         changed = true;
     }
@@ -227,54 +231,50 @@ namespace pg
         if (not changed)
             return;
 
-        renderCallList.clear();
-        currentLoadedMaterialId.clear();
+        // Build update queue using set intersection (like texture system)
+        std::vector<_unique_id> updateQueue;
+        std::vector<_unique_id> temp;
 
-        const auto& renderCallView = view<TTFTextCall>();
+        temp.assign(textUpdateSet.begin(), textUpdateSet.end());
+        std::sort(temp.begin(), temp.end());
 
-        renderCallList.reserve(renderCallView.nbComponents());
+        std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(),
+                              temp.begin(), temp.end(),
+                              std::back_inserter(updateQueue));
 
-        for (const auto& renderCall : renderCallView)
+        // Clear the update set after processing
+        textUpdateSet.clear();
+
+        // Update render calls for entities that need it
+        for (const auto& entityId : updateQueue)
         {
-            renderCallList.insert(renderCallList.end(), renderCall->calls.begin(), renderCall->calls.end());
-        }
-
-        // LOG_INFO(DOM, "Updating " << textUpdateQueue.size() << " TTFTexts...");
-
-        if (textUpdateQueue.empty())
-        {
-            finishChanges();
-
-            return;
-        }
-
-        while (not textUpdateQueue.empty())
-        {
-            auto entityId = textUpdateQueue.front();
-
             auto entity = ecsRef->getEntity(entityId);
 
             if (not entity)
-            {
-                textUpdateQueue.pop();
                 continue;
-            }
 
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<TTFText>();
 
-            LOG_MILE("TTFText", "Updating entity " << entityId << ", with text: " << obj->text);
+            LOG_MILE(DOM, "Updating entity " << entityId << ", with text: " << obj->text);
 
-            if (entity->has<TTFTextCall>())
-            {
-                entity->get<TTFTextCall>()->calls = createRenderCall(ui, obj);
-            }
-            else
-            {
-                ecsRef->_attach<TTFTextCall>(entity, createRenderCall(ui, obj));
-            }
+            entityRenderCalls[entityId] = createRenderCall(ui, obj);
+        }
 
-            textUpdateQueue.pop();
+        // Build render call list from system map
+        renderCallList.clear();
+
+        // Reserve space to avoid reallocations during iteration
+        size_t totalCalls = 0;
+        for (const auto& [entityId, calls] : entityRenderCalls)
+        {
+            totalCalls += calls.size();
+        }
+        renderCallList.reserve(totalCalls);
+
+        for (const auto& [entityId, calls] : entityRenderCalls)
+        {
+            renderCallList.insert(renderCallList.end(), calls.begin(), calls.end());
         }
 
         finishChanges();
@@ -585,7 +585,8 @@ namespace pg
             i++;
         }
         // Flush remaining text.
-        if (not currentSegment.empty()) {
+        if (not currentSegment.empty())
+        {
             TTFText seg = original;
             seg.text = currentSegment;
             seg.colors = currentColor;

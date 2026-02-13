@@ -1,0 +1,52 @@
+// Benchmark 3: Struct with __get/__set metamethods
+// This tests the performance of metamethod calls (similar to proxies)
+
+// Create a struct class with metamethods
+class ProxyStruct
+{
+    init()
+    {
+        this.__x = 100
+        this.__y = 200
+    }
+
+    __get(propName)
+    {
+        if (propName == "x")
+            return this.__x
+        if (propName == "y")
+            return this.__y
+        return 0
+    }
+
+    __set(propName, value)
+    {
+        if (propName == "x")
+            this.__x = value
+        else if (propName == "y")
+            this.__y = value
+    }
+}
+
+// var count = 2000
+
+// Create proxy structs
+var structs = []
+for (var i = 0; i < count; i = i + 1)
+{
+    structs[i] = ProxyStruct()
+}
+
+// Benchmark: iterate and read+write via metamethods
+for (var i = 0; i < count; i = i + 1)
+{
+    var s = structs[i]
+
+    // Read via __get
+    var x = s.x
+    var y = s.y
+
+    // Write via __set
+    s.x = x + 1
+    s.y = y + 1
+}

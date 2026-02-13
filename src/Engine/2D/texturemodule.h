@@ -65,7 +65,7 @@ namespace pg
                     height = static_cast<int>(AS_INT(args[2]));
                 }
 
-                auto tex = makeUiTexture(ecsRefCopy, width, height, filePath);
+                auto tex = make2DTexture(ecsRefCopy, width, height, filePath);
 
                 return serializeEntityToTable(vm, ecsRefCopy, tex);
             });

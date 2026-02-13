@@ -1,0 +1,31 @@
+// Benchmark 6: Native metamethod (C++ function calls)
+// This tests the performance of calling native __get/__set from C++
+// Create some test entities to use real component proxies
+
+// import "ecs"
+// import "sys"
+
+// // Create test entities with PositionComponent
+// // var count = 2000
+
+// for (var i = 0; i < count; i = i + 1)
+// {
+//     var entity = ecs.createEntity()
+//     entity.attachComp("Position", 100, 200, 0, 50, 50, 0, true, true)
+// }
+
+// // Benchmark: iterate using sys.getEntities (returns proxies)
+// var entities = sys.getEntities("Position")
+
+// for (var entity : entities)
+// {
+//     var pos = entity.PositionComponent
+
+//     // Read properties via native __get
+//     var x = pos.x
+//     var y = pos.y
+
+//     // Write properties via native __set
+//     pos.x = x + 1
+//     pos.y = y + 1
+// }

@@ -46,7 +46,7 @@ for (var asteroid : asteroids)
     // Update rotation
     var newRot = pos.rotation + rotSpeed * deltaTime
 
-    pos.setX(newX)
-    pos.setY(newY)
-    pos.setRotation(newRot)
+    pos.x = newX
+    pos.y = newY
+    pos.rotation = newRot
 }

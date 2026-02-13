@@ -32,53 +32,31 @@ namespace pg
         }
     }
 
-    template <>
-    void serialize(Archive& archive, const Texture2DComponent& value)
+    void Texture2DComponent::setTexture(const std::string& textureName)
     {
-        LOG_THIS(DOM);
+        if (this->textureName != textureName)
+        {
+            this->textureName = textureName;
 
-        archive.startSerialization(Texture2DComponent::getType());
-
-        serialize(archive, "textureName", value.textureName);
-        serialize(archive, "opacity", value.opacity);
-        serialize(archive, "overlappingColor", value.overlappingColor);
-        serialize(archive, "overlappingRatio", value.overlappingColorRatio);
-
-        archive.endSerialization();
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(TextureChangedEvent{entityId});
+            }
+        }
     }
 
-    template <>
-    Texture2DComponent deserialize(const UnserializedObject& serializedString)
+    void Texture2DComponent::setOverlappingColor(const constant::Vector3D& color, float ratio)
     {
-        LOG_THIS(DOM);
-
-        std::string type = "";
-
-        if (serializedString.isNull())
+        if (areNotAlmostEqual(ratio, overlappingColorRatio) or overlappingColor != color)
         {
-            LOG_ERROR(DOM, "Element is null");
+            this->overlappingColor = color;
+            this->overlappingColorRatio = ratio;
+
+            if (ecsRef)
+            {
+                ecsRef->sendEvent(TextureChangedEvent{entityId});
+            }
         }
-        else
-        {
-            LOG_INFO(DOM, "Deserializing an Texture2DComponent");
-
-            auto textureName = deserialize<std::string>(serializedString["textureName"]);
-
-            auto opacity = deserialize<float>(serializedString["opacity"]);
-
-            auto overlappingColor = deserialize<constant::Vector3D>(serializedString["overlappingColor"]);
-            auto overlappingColorRatio = deserialize<float>(serializedString["overlappingRatio"]);
-
-            auto texture = Texture2DComponent{textureName};
-
-            texture.opacity = opacity;
-            texture.overlappingColor = overlappingColor;
-            texture.overlappingColorRatio = overlappingColorRatio;
-
-            return texture;
-        }
-
-        return Texture2DComponent{""};
     }
 
     void Texture2DComponentSystem::init()
@@ -106,18 +84,23 @@ namespace pg
         group->addOnGroup([this](EntityRef entity) {
             LOG_MILE("Texture 2D System", "Add entity " << entity->id << " to ui - texture 2D group !");
 
-            textureUpdateQueue.push(entity.id);
+            auto pos = entity->get<PositionComponent>();
+            auto tex = entity->get<Texture2DComponent>();
+
+            entityRenderCalls[entity->id] = createRenderCall(pos, tex);
+            entitiesInRenderGroup.push_back(entity->id);
+
+            std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
 
             changed = true;
         });
 
         group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_MILE("Texture 2D System", "Remove entity " << id << " of ui - texture 2D group !");
+            LOG_INFO("Texture 2D System", "Remove entity " << id << " of ui - texture 2D group !");
 
-            auto entity = ecsRef->getEntity(id);
-
-            if (entity->has<TextureRenderCall>())
-                ecsRef->detach<TextureRenderCall>(entity);
+            // Remove render call from the map
+            entityRenderCalls.erase(id);
+            entitiesInRenderGroup.erase(std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id), entitiesInRenderGroup.end());
 
             changed = true;
         });
@@ -126,44 +109,65 @@ namespace pg
     void Texture2DComponentSystem::execute()
     {
         if (not changed)
-            return;
-
-        while (not textureUpdateQueue.empty())
         {
-            auto entityId = textureUpdateQueue.front();
+            return;
+        }
+
+        std::vector<_unique_id> updateQueue;
+        std::vector<_unique_id> temp;
+
+        temp.assign(textureUpdateSet.begin(), textureUpdateSet.end());
+
+        std::sort(temp.begin(), temp.end());
+
+        std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), temp.begin(), temp.end(),
+                          std::back_inserter(updateQueue));
+
+        // Clear the update set after processing
+        textureUpdateSet.clear();
+
+        int processedCount = 0;
+        int failedCount = 0;
+
+        for (const auto& entityId : updateQueue)
+        {
+            LOG_MILE(DOM, "Processing entity ID: " << entityId);
 
             auto entity = ecsRef->getEntity(entityId);
 
             if (not entity)
             {
-                textureUpdateQueue.pop();
+                LOG_WARNING(DOM, "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
+                failedCount++;
                 continue;
             }
+
+            LOG_MILE(DOM, "Entity " << entityId << " found successfully");
 
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<Texture2DComponent>();
 
-            if (entity->has<TextureRenderCall>())
-            {
-                entity->get<TextureRenderCall>()->call = createRenderCall(ui, obj);
-            }
-            else
-            {
-                ecsRef->_attach<TextureRenderCall>(entity, createRenderCall(ui, obj));
-            }
+            LOG_MILE(DOM, "Position - x: " << ui->x << ", y: " << ui->y
+                     << ", width: " << ui->width << ", height: " << ui->height
+                     << ", visible: " << ui->visible);
+            LOG_MILE(DOM, "Texture name: " << obj->textureName);
 
-            textureUpdateQueue.pop();
+            // Store render call directly in the system's map (no component needed!)
+            entityRenderCalls[entityId] = createRenderCall(ui, obj);
+
+            processedCount++;
         }
 
         renderCallList.clear();
 
-        const auto& renderCallView = view<TextureRenderCall>();
+        // Build render call list from the system's map
+        renderCallList.reserve(entityRenderCalls.size());
 
-        renderCallList.reserve(renderCallView.nbComponents());
+        LOG_MILE(DOM, "Building render call list from " << entityRenderCalls.size() << " stored render calls");
 
-        for (const auto& renderCall : renderCallView)
+        for (const auto& [entityId, renderCall] : entityRenderCalls)
         {
-            renderCallList.push_back(renderCall->call);
+            renderCallList.push_back(renderCall);
         }
 
         finishChanges();
@@ -283,7 +287,14 @@ namespace pg
         return call;
     }
 
-    void Texture2DComponentSystem::onEvent(const EntityChangedEvent& event)
+    void Texture2DComponentSystem::onEvent(const PositionComponentChangedEvent& event)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        onEventUpdate(event.id);
+    }
+
+    void Texture2DComponentSystem::onEvent(const TextureChangedEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -294,64 +305,8 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        auto entity = ecsRef->getEntity(entityId);
-
-        if (not entity or not entity->has<TextureRenderCall>())
-            return;
-
-        textureUpdateQueue.push(entityId);
+        textureUpdateSet.insert(entityId);
 
         changed = true;
     }
-
-    // ============================================================================
-    // Texture2DComponent Serializer with Setter Generation
-    // ============================================================================
-
-    /**
-     * @brief Generate setters for Texture2DComponent
-     *
-     * This function adds dynamic setter methods to a Texture2DComponent table that
-     * call the component's C++ setter methods which automatically trigger EntityChangedEvent.
-     */
-    void serializeTexture2DComponentWithSetters(VM* vm, ObjInstance* table, Texture2DComponent* component)
-    {
-        // Get component context
-        _unique_id entityId = component->entityId;
-
-        LOG_MILE("ECS Serialization", "Generating setters for Texture2DComponent on entity " << entityId);
-
-        REGISTER_STRING_SETTER(vm, table, component, setTexture);
-        REGISTER_FLOAT_SETTER(vm, table, component, setOpacity);
-        REGISTER_INT_SETTER(vm, table, component, setViewport);
-
-        // Add special setter for overlappingColor (takes 4 args: r, g, b, ratio)
-        // Create native function directly without polluting globals
-        NativeFn overlappingColorSetterFunc = [component](VM*, int argCount, Value* args) -> Value {
-            if (argCount != 4) return INT_VAL(0); // Expecting r, g, b, ratio
-
-            float r = 0.0f, g = 0.0f, b = 0.0f, ratio = 0.0f;
-
-            if (IS_DOUBLE(args[0])) r = static_cast<float>(AS_DOUBLE(args[0]));
-            else if (IS_INT(args[0])) r = static_cast<float>(AS_INT(args[0]));
-
-            if (IS_DOUBLE(args[1])) g = static_cast<float>(AS_DOUBLE(args[1]));
-            else if (IS_INT(args[1])) g = static_cast<float>(AS_INT(args[1]));
-
-            if (IS_DOUBLE(args[2])) b = static_cast<float>(AS_DOUBLE(args[2]));
-            else if (IS_INT(args[2])) b = static_cast<float>(AS_INT(args[2]));
-
-            if (IS_DOUBLE(args[3])) ratio = static_cast<float>(AS_DOUBLE(args[3]));
-            else if (IS_INT(args[3])) ratio = static_cast<float>(AS_INT(args[3]));
-
-            component->setOverlappingColor(constant::Vector3D{r, g, b}, ratio);
-            return INT_VAL(0);
-        };
-
-        // Create native function and add directly to table without going through globals
-        table->fields["setOverlappingColor"] = vm->createNativeFunction(overlappingColorSetterFunc);
-    }
-
-    // Register Texture2DComponent serializer at static initialization time
-    REGISTER_COMPONENT_SERIALIZER(Texture2DComponent, serializeTexture2DComponentWithSetters);
 }

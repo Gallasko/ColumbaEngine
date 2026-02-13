@@ -24,6 +24,8 @@
 #include <algorithm>
 #include <setjmp.h>
 
+#include "ECS/uniqueid.h"
+
 #ifdef DEBUG_RUNTIME_MEMORY
 #include <iostream>
 #endif
@@ -36,16 +38,44 @@ namespace pg
 
     // Forward declaration for VM
     struct VM;
+    struct DecodedInstruction;
 
     // Function pointer type for operation handlers
     typedef void (*OpHandler)(VM* vm);
+    typedef void (*OpDecodedHandler)(VM* vm, const DecodedInstruction& instr);
 
     // Operation information structure
-    struct OpCodeInfo {
+    struct OpCodeInfo
+    {
         OpHandler handler;
+        OpDecodedHandler decodedHandler = nullptr;
 
-        OpCodeInfo() : handler(nullptr) {}
-        OpCodeInfo(OpHandler h) : handler(h) {}
+        // NEW: Metadata for pre-decoding and batching optimization
+        uint8_t flags;           // Instruction properties
+        uint8_t operandBytes;    // Number of operand bytes (0-4) - inferred from getInstructionSize if 0
+        int8_t stackEffect;      // Net stack change (-128 to +127) - not used yet
+
+        // Flags for instruction properties
+        static constexpr uint8_t PURE         = 0x01;  // No side effects
+        static constexpr uint8_t CONST_TIME   = 0x02;  // Always same execution time
+        static constexpr uint8_t NO_CALL      = 0x04;  // Doesn't call functions
+        static constexpr uint8_t NO_BRANCH    = 0x08;  // Doesn't change control flow
+        static constexpr uint8_t NO_MEMORY    = 0x10;  // Doesn't allocate/free memory
+        static constexpr uint8_t BATCHABLE    = 0x20;  // Safe for batch execution
+        static constexpr uint8_t LOCAL_ONLY   = 0x40;  // Only touches locals/stack
+
+        // Common flag combinations
+        static constexpr uint8_t PURE_BATCH   = PURE | BATCHABLE;  // Pure and batchable (most common)
+
+        OpCodeInfo() : handler(nullptr), flags(0), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo(OpHandler h) : handler(h), flags(0), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo(OpHandler h, uint8_t f) : handler(h), flags(f), operandBytes(0), stackEffect(0) {}
+        OpCodeInfo(OpHandler h, uint8_t f, OpDecodedHandler dh) : handler(h), decodedHandler(dh), flags(f), operandBytes(0), stackEffect(0) {}
+
+        bool isPure() const { return (flags & PURE) != 0; }
+        bool isBatchable() const { return (flags & BATCHABLE) != 0; }
+        bool isConstTime() const { return (flags & CONST_TIME) != 0; }
+        bool noBranch() const { return (flags & NO_BRANCH) != 0; }
     };
 
     // Forward declare VM for helper functions
@@ -117,40 +147,109 @@ namespace pg
         }
     };
 
+    // Forward declarations for operation handlers
+    void op_return(VM* vm);
+    void op_constant(VM* vm);
+    void op_constant_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_long_constant(VM* vm);
+    void op_long_constant_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_add(VM* vm);
+    void op_subtract(VM* vm);
+    void op_multiply(VM* vm);
+    void op_divide(VM* vm);
+    void op_modulo(VM* vm);
+    void op_negate(VM* vm);
+    void op_equal(VM* vm);
+    void op_not_equal(VM* vm);
+    void op_greater(VM* vm);
+    void op_greater_equal(VM* vm);
+    void op_less(VM* vm);
+    void op_less_equal(VM* vm);
+    void op_true(VM* vm);
+    void op_false(VM* vm);
+    void op_not(VM* vm);
+    void op_and(VM* vm);
+    void op_or(VM* vm);
+    void op_pop(VM* vm);
+    void op_get_local(VM* vm);
+    void op_get_local_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_set_local(VM* vm);
+    void op_set_local_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_get_global(VM* vm);
+    void op_define_global(VM* vm);
+    void op_set_global(VM* vm);
+    void op_jump(VM* vm);
+    void op_jump_if_false(VM* vm);
+    void op_loop(VM* vm);
+    void op_long_jump(VM* vm);
+    void op_long_jump_if_false(VM* vm);
+    void op_long_loop(VM* vm);
+    void op_call(VM* vm);
+    void op_invoke(VM* vm);
+    void op_closure(VM* vm);
+    void op_get_upvalue(VM* vm);
+    void op_set_upvalue(VM* vm);
+    void op_close_upvalue(VM* vm);
+    void op_debug_print(VM* vm);
+    void op_post_incr_global(VM* vm);
+    void op_incr_global(VM* vm);
+    void op_post_decr_global(VM* vm);
+    void op_decr_global(VM* vm);
+    void op_post_incr_local(VM* vm);
+    void op_incr_local(VM* vm);
+    void op_post_decr_local(VM* vm);
+    void op_decr_local(VM* vm);
+    void op_class(VM* vm);
+    void op_get_property(VM* vm);
+    void op_set_property(VM* vm);
+    void op_method(VM* vm);
+    void op_short_int(VM* vm);
+
+    void op_pop_n(VM* vm);
+
+    void op_define_constant_global(VM* vm);
+    void op_define_constant_global_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_get_constant_global(VM* vm);
+    void op_set_constant_global(VM* vm);
+
+    void op_add_ll(VM* vm);
+    void op_subtract_ll(VM* vm);
+
+    void op_subtract_lc(VM* vm);
+    void op_subtract_cl(VM* vm);
+
+    // Table operations
+    void op_build_vector(VM* vm);
+    void op_build_table(VM* vm);
+    void op_get_index(VM* vm);
+    void op_set_index(VM* vm);
+
+    // Iterator operations
+    void op_get_iterator(VM* vm);
+    void op_iterator_next(VM* vm);
+    void op_table_size(VM* vm);
+    void op_table_at(VM* vm);
+
+    void op_define_global_non_popping(VM *vm);
+
+    // Module operations
+    void op_import(VM* vm);
+
+    // Register-based operations
+    void op_load_constant_r(VM* vm);
+    void op_move_r(VM* vm);
+    void op_add_rrr(VM* vm);
+    void op_less_rr(VM* vm);
+    void op_incr_r(VM* vm);
+    void op_less_rrr(VM* vm);
+    void op_jump_if_false_r(VM* vm);
+
     struct VM
     {
         VM();
 
         // Destructor to properly clean up globals map and stack
-        ~VM()
-        {
-            // Free all Values stored in globals before destruction
-            for (auto& pair : globals)
-            {
-                releaseAndDelete(pair.second);
-            }
-            // Clean up any remaining Values on the stack
-            while (!stack.empty())
-            {
-                auto value = stack.pop();
-                releaseAndDelete(value);
-            }
-
-            // Destroy all remaining objects in pools (including constants)
-            // This is necessary to properly cleanup objects with complex destructors like ElementType
-            pools.stringPool.destroyAll();
-            pools.closurePool.destroyAll();
-            pools.functionPool.destroyAll();
-            pools.upvaluePool.destroyAll();
-            pools.classPool.destroyAll();
-            pools.nativeFuncPool.destroyAll();
-            pools.instancePool.destroyAll();
-            pools.boundMethodPool.destroyAll();
-            pools.vectorPool.destroyAll();
-
-            // Clear the interned strings map
-            pools.internedStrings.clear();
-        }
+        ~VM();
 
         void reset()
         {
@@ -163,7 +262,7 @@ namespace pg
             globals.clear();
 
             // Clean up any remaining Values on the stack
-            while (!stack.empty())
+            while (not stack.empty())
             {
                 auto value = stack.pop();
                 releaseAndDelete(value);
@@ -237,6 +336,7 @@ namespace pg
         InterpretResult interpretFromCachedBytecode(const std::vector<char>& cachedBytecode, int argCount = 0);
 
         InterpretResult run();
+        InterpretResult runDecoded();  // Execute from pre-decoded chunks (faster)
 
         // Core Value operations for performance
         inline void push(Value value)  // Pass by value (64-bit in register)
@@ -368,7 +468,7 @@ namespace pg
         // ====================================================================
 
         // Get heap objects from pools (returns pointer to actual object)
-        inline ElementType* asStringPtr(Value v)      { return pools.getString(v); }
+        inline std::string* asStringPtr(Value v)      { return pools.getString(v); }
         inline Closure* asClosure(Value v)            { return pools.getClosure(v); }
         inline ObjFunction* asFunction(Value v)       { return pools.getFunction(v); }
         inline ObjUpvalue* asUpvalue(Value v)         { return pools.getUpvalue(v); }
@@ -378,13 +478,45 @@ namespace pg
         inline ObjBoundMethod* asBoundMethod(Value v) { return pools.getBoundMethod(v); }
         inline ObjVector* asVector(Value v)           { return pools.getVector(v); }
 
-        // Helper to get string content from either long or small strings
-        inline std::string asString(Value v) {
-            return IS_SMALL_STRING(v) ? AS_SMALL_STRING(v) : asStringPtr(v)->toString();
+        template <typename Type>
+        inline Type* asCustomPtr(Value v)
+        {
+            return static_cast<Type*>(pools.getCustomPointer(v));
+        }
+
+        // Helper to get string content from long, small, or interned strings
+        inline std::string asString(Value v)
+        {
+            if (IS_SMALL_STRING(v))
+                return AS_SMALL_STRING(v);
+            else if (IS_INTERNED_STRING(v))
+            {
+                uint32_t index = AS_INTERNED_STRING_INDEX(v);
+                return currentFrame->closure->function->chunk.constantStrings[index];
+            }
+            else
+                return *asStringPtr(v);
+        }
+
+        // Overload for explicit chunk specification
+        inline std::string asString(Value v, const Chunk& chunk)
+        {
+            if (IS_SMALL_STRING(v))
+                return AS_SMALL_STRING(v);
+            else if (IS_INTERNED_STRING(v))
+            {
+                // Get the string from the specified chunk's constantStrings
+                uint32_t index = AS_INTERNED_STRING_INDEX(v);
+                return chunk.constantStrings[index];
+            }
+            else
+                return *asStringPtr(v);
         }
 
         // Create new heap objects and return tracked Values
         Value createString(const ElementType& element);
+        Value createString(const std::string& stringContent);
+        Value createString(const char* cstr) { return createString(std::string(cstr)); }
         Value createClosure(ObjFunction* function);
         Value createFunction();
         Value createUpvalue(Value* slot);
@@ -392,6 +524,21 @@ namespace pg
         Value createInstance(Klass* klass);
         Value createBoundMethod(const Value& receiver, Closure* method);
         Value createVector();
+
+        template <typename Type>
+        Value createCustomPtr(Type* ptr)
+        {
+            const auto& id = getTypeId<Type>();
+
+            auto& pool = pools.customPointerPool[id];
+            pool.push_back(static_cast<void*>(ptr));
+
+            uint32_t index = static_cast<uint32_t>(pool.size() - 1);
+
+            Value val = makeCustomPtrValue(id, index);
+
+            return val;
+        }
 
         // Convert between Value and ElementType
         Value elementToValue(const ElementType& element);
@@ -433,9 +580,11 @@ namespace pg
         std::unordered_map<std::string, Value> globals;
 
         // Native module registry (per VM instance)
-        struct NativeModuleData {
+        struct NativeModuleData
+        {
             std::map<std::string, NativeFn> functions;
             std::map<std::string, ElementType> variables;
+            std::function<void(VM*)> init;
         };
 
         std::unordered_map<std::string, NativeModuleData> nativeModules;
@@ -578,12 +727,58 @@ namespace pg
             globals[name] = createNativeFunction(function);
         }
 
-        // Native module system - per VM instance
-        void addNativeModule(const std::string& moduleName, const NativeModule& moduleData)
+        /**
+         * @brief Add a native method to a class
+         *
+         * This helper function adds a C++ native function as a method to a class.
+         * The native function receives the receiver instance as args[0].
+         *
+         * @param classValue The class Value to add the method to
+         * @param methodName The name of the method
+         * @param function The native function implementation
+         *
+         * @example
+         * Value myClass = vm->createClass("MyClass");
+         * vm->addNativeMethod(myClass, "greet", [](VM* vm, int argCount, Value* args) -> Value {
+         *     // args[0] is the receiver (instance)
+         *     // args[1..n] are the method arguments
+         *     ObjInstance* instance = vm->asInstance(args[0]);
+         *
+         *     if (argCount > 1) {
+         *         std::string name = vm->asString(args[1]);
+         *         std::cout << "Hello, " << name << "!" << std::endl;
+         *     }
+         *
+         *     return makeIntValue(-1); // Return value
+         * });
+         *
+         * // Usage in script:
+         * // var obj = MyClass();
+         * // obj.greet("World");  // argCount=2: args[0]=obj, args[1]="World"
+         */
+        void addNativeMethod(Value classValue, const std::string& methodName, NativeFn function)
         {
+            if (not IS_CLASS(classValue))
+            {
+                throw std::runtime_error("addNativeMethod: first argument must be a class");
+            }
+
+            Klass* klass = asClass(classValue);
+            Value nativeFunc = createNativeFunction(function);
+            klass->methods[methodName] = nativeFunc;
+        }
+
+        // Native module system - per VM instance
+        template<typename T>
+        void addNativeModule(const std::string& moduleName, const T& moduleData)
+        {
+            static_assert(std::is_base_of<NativeModule, T>::value, "Module must derive from NativeModule");
+
             NativeModuleData data;
             data.functions = moduleData.exportedFunctions;
             data.variables = moduleData.exportedVariables;
+            // Capture the full derived type, not just the base class
+            data.init = [moduleData](VM* vm) { moduleData.init(vm); };
             nativeModules[moduleName] = data;
 
             // Note: Module is registered but not loaded into global scope
@@ -595,6 +790,7 @@ namespace pg
             auto it = nativeModules.find(moduleName);
             if (it == nativeModules.end())
             {
+                LOG_WARNING("VM", "Native module '" << moduleName << "' not found");
                 return false;
             }
 
@@ -614,28 +810,71 @@ namespace pg
                 }
             }
 
+            it->second.init(this);
+
             return true;
         }
+
+        template <typename Type>
+        _unique_id getGlobalGenericId() const noexcept
+        {
+            static const _unique_id id = globalIdGenerator.generateId();
+            return id;
+        }
+
+        template <typename Type>
+        _unique_id getTypeId() const noexcept
+        {
+            auto globalId = getGlobalGenericId<Type>();
+
+            auto it = idMap.find(globalId);
+
+            // Todo add a variable to keep track of the running state of the ECS
+            if (it == idMap.end())
+            {
+                LOG_MILE("ID", "Generating a new id (in compiler) for " << typeid(Type).name());
+
+                return idMap[globalId] = idGenerator.generateId();
+            }
+
+            return it->second;
+
+            // This can't work as the static make this id the same through all the different object
+            // static const _unique_id id = idGenerator.generateId();
+            // return id;
+        }
+
+        static UniqueIdGenerator globalIdGenerator;
+        mutable UniqueIdGenerator idGenerator;
+        mutable std::unordered_map<_unique_id, _unique_id> idMap;
 
         // Test helper: Set up VM with a specific chunk for testing
         void setupTestChunk(const Chunk& chunk)
         {
             // Create a temporary function object for testing
-            if (frameCount > 0 && frames[0].closure->function != nullptr)
-            {
-                delete frames[0].closure->function;
-            }
-
             auto* testFunction = new ObjFunction();
             testFunction->chunk = chunk;
             testFunction->name = "test";
             testFunction->arity = 0;
 
+            // Create a closure for the function
+            Value closureValue = createClosure(testFunction);
+            Closure* closure = asClosure(closureValue);
+
+            // Push the closure onto the stack (this is what the VM normally does)
+            push(closureValue);
+
+            // Set up the first frame
             frameCount = 1;
-            frames[0].closure->function = testFunction;
+            frames[0].closure = closure;
             frames[0].ip = testFunction->chunk.code.data();
-            frames[0].slots = stack.data();  // For tests, start at beginning
+            // slots should point PAST the closure (where local variables start)
+            frames[0].slots = stack.data() + 1;  // Skip the closure at stack[0]
+            frames[0].stackBase = stack.data();
             currentFrame = &frames[0];
+
+            // Update chunk data cache
+            updateChunkCache();
         }
 
         // Helper methods for interpreting bytecode
@@ -646,6 +885,8 @@ namespace pg
         void vm_return(InterpretResult result);
         static void register_builtin_operations();
         static void register_operation(uint8_t opcode, OpHandler handler);
+        static void register_operation(uint8_t opcode, OpHandler handler, uint8_t flags);
+        static void register_operation(uint8_t opcode, OpHandler handler, OpDecodedHandler decodedHandler, uint8_t flags = 0);
         void initialize_builtin_classes();
 
         std::string currentFileName;
@@ -660,7 +901,7 @@ namespace pg
     inline Value VM::retainValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need refcounting
-        if (!requiresRefCount(v))
+        if (not requiresRefCount(v))
             return v;
 
         // Constants are never ref-counted (they live forever in the constant table)
@@ -671,7 +912,8 @@ namespace pg
         uint32_t index = GET_INDEX(v);
         auto& refCounts = pools.getRefCountVector(v);
 
-        if (index < refCounts.size()) {
+        if (index < refCounts.size())
+        {
             refCounts[index]++;
 
 #ifdef DEBUG_RUNTIME_MEMORY
@@ -685,7 +927,7 @@ namespace pg
     inline bool VM::releaseValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need cleanup
-        if (!requiresRefCount(v))
+        if (not requiresRefCount(v))
             return false;
 
         // Constants are never released (they live forever in the constant table)
@@ -696,12 +938,13 @@ namespace pg
         uint32_t index = GET_INDEX(v);
         auto& refCounts = pools.getRefCountVector(v);
 
-        if (index >= refCounts.size() || refCounts[index] == 0)
+        if (index >= refCounts.size() or refCounts[index] == 0)
             return false;
 
         refCounts[index]--;
 
-        if (refCounts[index] == 0) {
+        if (refCounts[index] == 0)
+        {
 #ifdef DEBUG_RUNTIME_MEMORY
             std::cout << "Releasing " << valueTypeName(v) << "[" << index << "]" << std::endl;
 #endif
@@ -714,7 +957,7 @@ namespace pg
     inline Value VM::trackNewValue(const Value& v)
     {
         // Fast path: primitives and doubles don't need tracking
-        if (!requiresRefCount(v))
+        if (not requiresRefCount(v))
             return v;
 
         // For newly created objects, start with refcount=1

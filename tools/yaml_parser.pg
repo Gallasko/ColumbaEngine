@@ -1,0 +1,405 @@
+import "string"
+import "file"
+import "algorithm"
+
+// ============================================================================
+// YAML Parser
+// ============================================================================
+
+class YamlParser
+{
+    init()
+    {
+        this.indentStack = []
+    }
+
+    parse(content)
+    {
+        log("Parse: splitting lines...")
+        var lines = splitLines(content)
+        log("Parse: split into " + toString(len(lines)) + " lines")
+
+        var result = {}
+        var currentSection = ""
+        var currentArray = []
+        var currentItem = {}
+
+        log("Parse: starting line iteration...")
+
+        for (var i = 0; i < len(lines); i++)
+        {
+            var line = lines[i]
+            var trimmed = trim(line)
+            log("Line " + toString(i) + ": '" + trimmed + "'")
+
+            // Skip empty lines and comments
+            if (len(trimmed) > 0 and not startsWith(trimmed, "#"))
+            {
+                var indent = this.getIndent(line)
+                // log("  indent=" + toString(indent))
+
+                if (startsWith(trimmed, "-"))
+                {
+                    log("  -> array item")
+                    // Array item - save previous item if exists
+                    if (contain(currentItem, "name") or contain(currentItem, "params"))
+                    {
+                        push(currentArray, currentItem)
+                    }
+
+                    currentItem = {}
+
+                    // Parse the line after the dash
+                    var afterDash = trim(substring(trimmed, 1, len(trimmed)))
+
+                    // Check if it's a quoted string - if so, treat as simple value
+                    var isQuotedString = len(afterDash) > 0 and (substring(afterDash, 0, 1) == "\"" or substring(afterDash, 0, 1) == "'")
+
+                    if (not isQuotedString and contains(afterDash, ":"))
+                    {
+                        // Array item with key-value (e.g., "- name: value")
+                        var parts = this.splitFirst(afterDash, ":")
+                        var key = trim(parts[0])
+                        var value = trim(parts[1])
+                        currentItem[key] = this.parseValue(value)
+                    }
+                    else if (len(afterDash) > 0)
+                    {
+                        // Simple array item (e.g., "- <cstdint>" or "- \"file.h\"")
+                        // For includes and methods, keep the value as-is without parsing
+                        if (currentSection == "includes")
+                        {
+                            push(currentArray, afterDash)
+                        }
+                        else
+                        {
+                            push(currentArray, this.parseValue(afterDash))
+                        }
+
+                        currentItem = {}
+                    }
+                }
+                else if (contains(trimmed, ":"))
+                {
+                    log("  -> key-value pair")
+                    // Key-value pair
+                    var parts = this.splitFirst(trimmed, ":")
+                    var key = trim(parts[0])
+                    var value = trim(parts[1])
+                    log("  key='" + key + "' value='" + value + "'")
+
+                    if (indent == 0)
+                    {
+                        log("  -> top-level")
+                        // Top-level key
+                        if (len(value) == 0)
+                        {
+                            log("  -> section start: " + key)
+                            // Start of array or object section
+                            if (len(currentArray) > 0 or contain(currentItem, "name") or contain(currentItem, "params"))
+                            {
+                                // Save previous array
+                                if (contain(currentItem, "name") or contain(currentItem, "params"))
+                                {
+                                    push(currentArray, currentItem)
+                                    currentItem = {}
+                                }
+
+                                log("  -> saving section '" + currentSection + "' with " + toString(len(currentArray)) + " items")
+                                result[currentSection] = currentArray
+                                currentArray = []
+                            }
+                            currentSection = key
+                        }
+                        else
+                        {
+                            log("  -> simple key-value: " + key + " = " + value)
+                            // Simple key-value
+                            result[key] = this.parseValue(value)
+                        }
+                    }
+                    else
+                    {
+                        log("  -> indented key-value")
+                        // Indented key - part of current item
+                        if (len(value) > 0)
+                        {
+                            log("  -> about to parse value for key: " + key)
+                            log("  -> checking if currentItem already has a key...")
+
+                            if (contain(currentItem, "name"))
+                            {
+                                log("  -> currentItem has 'name' key, seems valid")
+                            }
+                            else
+                            {
+                                log("  -> currentItem does NOT have 'name' key yet")
+                            }
+
+                            // Check if this is a multi-line string value
+                            var startsWithQuote = len(value) > 0 and substring(value, 0, 1) == "\""
+                            var endsWithQuote = len(value) > 0 and substring(value, len(value) - 1, len(value)) == "\""
+
+                            if (startsWithQuote and not endsWithQuote)
+                            {
+                                // Multi-line string - accumulate lines until closing quote
+                                // Start with the value after the opening quote
+                                var multiLineValue = substring(value, 1, len(value))
+
+                                // Read subsequent lines directly without going through normal parsing
+                                var j = i + 1
+                                while (j < len(lines))
+                                {
+                                    var nextLine = lines[j]
+                                    var trimmedNext = trim(nextLine)
+
+                                    // Check if this line ends the string
+                                    var lineEndsWithQuote = len(trimmedNext) > 0 and substring(trimmedNext, len(trimmedNext) - 1, len(trimmedNext)) == "\""
+
+                                    if (lineEndsWithQuote)
+                                    {
+                                        // Add everything except the closing quote
+                                        // Find where the closing quote is in the original line
+                                        var quotePos = len(nextLine) - 1
+                                        while (quotePos >= 0 and substring(nextLine, quotePos, quotePos + 1) != "\"")
+                                        {
+                                            quotePos = quotePos - 1
+                                        }
+                                        multiLineValue = multiLineValue + "\n" + substring(nextLine, 0, quotePos)
+                                        break
+                                    }
+                                    else
+                                    {
+                                        multiLineValue = multiLineValue + "\n" + nextLine
+                                    }
+                                    j = j + 1
+                                }
+
+                                // Update i to skip all the lines we just processed
+                                i = j
+
+                                // Properly escape all quotes in the multiline value
+                                currentItem[key] = this.escapeQuotesInMultiline(multiLineValue)
+                            }
+                            else
+                            {
+                                var parsedValue = this.parseValue(value)
+                                log("  -> parsed value successfully")
+                                log("  -> about to assign to currentItem")
+                                currentItem[key] = parsedValue
+                                log("  -> assignment complete")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Save last item/array
+        if (contain(currentItem, "name") or contain(currentItem, "params"))
+        {
+            push(currentArray, currentItem)
+        }
+
+        if (len(currentArray) > 0)
+        {
+            result[currentSection] = currentArray
+        }
+
+        log("Parse: complete, returning result")
+        return result
+    }
+
+    parseArrayItem(value)
+    {
+        if (contains(value, ":"))
+        {
+            // It's an object
+            var obj = {}
+            var parts = this.splitFirst(value, ":")
+            var key = trim(parts[0])
+            var val = trim(parts[1])
+            obj[key] = this.parseValue(val)
+            return obj
+        }
+
+        return this.parseValue(value)
+    }
+
+    parseValue(value)
+    {
+        log("    Parsing value: '" + value + "'")
+
+        // Parse inline arrays [item1, item2, item3]
+        if (startsWith(value, "[") and endsWith(value, "]"))
+        {
+            var innerContent = substring(value, 1, len(value) - 1)
+            var items = split(innerContent, ",")
+            var result = []
+
+            for (var i = 0; i < len(items); i = i + 1)
+            {
+                push(result, trim(items[i]))
+            }
+
+            return result
+        }
+
+        // Parse inline objects {key1: value1, key2: value2}
+        if (startsWith(value, "{") and endsWith(value, "}"))
+        {
+            var innerContent = substring(value, 1, len(value) - 1)
+            var result = {}
+
+            // Simple parser: split by comma, but respect quotes
+            var currentKey = ""
+            var currentVal = ""
+            var inQuote = false
+            var parsingKey = true
+
+            for (var i = 0; i < len(innerContent); i = i + 1)
+            {
+                var c = substring(innerContent, i, i + 1)
+
+                if (c == "\"")
+                {
+                    inQuote = not inQuote
+                    if (not parsingKey)
+                    {
+                        currentVal = currentVal + c
+                    }
+                }
+                else if (c == ":" and not inQuote and parsingKey)
+                {
+                    parsingKey = false
+                }
+                else if (c == "," and not inQuote)
+                {
+                    // End of key-value pair
+                    if (currentKey != "")
+                    {
+                        result[trim(currentKey)] = trim(currentVal)
+                    }
+                    currentKey = ""
+                    currentVal = ""
+                    parsingKey = true
+                }
+                else
+                {
+                    if (parsingKey)
+                    {
+                        currentKey = currentKey + c
+                    }
+                    else
+                    {
+                        currentVal = currentVal + c
+                    }
+                }
+            }
+
+            // Save the last pair
+            if (currentKey != "")
+            {
+                result[trim(currentKey)] = trim(currentVal)
+            }
+
+            return result
+        }
+
+        // Remove quotes if present
+        if (startsWith(value, "\"") and endsWith(value, "\""))
+        {
+            return substring(value, 1, len(value) - 1)
+        }
+
+        if (startsWith(value, "'") and endsWith(value, "'"))
+        {
+            return substring(value, 1, len(value) - 1)
+        }
+
+        // Parse boolean
+        if (value == "true") return true
+
+        if (value == "false") return false
+
+        return value
+    }
+
+    getIndent(line)
+    {
+        var count = 0
+        var done = false
+
+        for (var i = 0; i < len(line) and not done; i++)
+        {
+            var ch = charAt(line, i)
+
+            if (ch == " ")
+            {
+                count = count + 1
+            }
+            else
+            {
+                done = true
+            }
+        }
+
+        return count
+    }
+
+    splitFirst(str, delimiter)
+    {
+        var idx = indexOf(str, delimiter)
+
+        if (idx == -1)
+        {
+            return [str, ""]
+        }
+
+        return [substring(str, 0, idx), substring(str, idx + 1, len(str))]
+    }
+
+    escapeQuotesInMultiline(str)
+    {
+        // Escapes all double quotes in a multiline string for proper C++ code generation
+        // Replaces \" with " so the generated code has proper quote
+        var result = ""
+        var i = 0
+
+        while (i < len(str))
+        {
+            var ch = str[i]
+
+            if (ch == "\\")
+            {
+                if (i + 1 < len(str))
+                {
+                    var nextCh = str[i + 1]
+
+                    if (nextCh == "\"")
+                    {
+                        log("Found escaped quote at position " + toString(i))
+                        result = result + "\""
+                        i = i + 1  // Skip the next quote
+                    }
+                    else
+                    {
+                        result = result + "\\"
+                    }
+                }
+                else
+                {
+                    result = result + "\\"
+                }
+            }
+            else
+            {
+                result = result + ch
+            }
+
+            i = i + 1
+        }
+
+        return result
+    }
+}

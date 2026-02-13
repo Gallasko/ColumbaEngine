@@ -59,18 +59,18 @@ StandardSystemImpl* createAsteroidSpawnTimerSystem()
         .build();
 }
 
-StandardSystemImpl* createAsteroidSystem()
-{
-    return createStandardSystem("AsteroidSystem")
-        .onInit([](StandardSystemHandle* sys)
-        {
-            LOG_MILE(DOM, "AsteroidSystem initialized");
-        })
-        .ownComponent("Asteroid")
-        .onEvent("SpawnAsteroid", "res/asteroid/spawn_single_asteroid.pg")
-        .onDelta("res/asteroid/update_asteroids.pg")
-        .build();
-}
+// StandardSystemImpl* createAsteroidSystem()
+// {
+//     return createStandardSystem("AsteroidSystem")
+//         .onInit([](StandardSystemHandle* sys)
+//         {
+//             LOG_MILE(DOM, "AsteroidSystem initialized");
+//         })
+//         .ownComponent("Asteroid")
+//         .onEvent("SpawnAsteroid", "res/asteroid/spawn_single_asteroid.pg")
+//         .onDelta("res/asteroid/update_asteroids.pg")
+//         .build();
+// }
 
 StandardSystemImpl* createBulletSystem()
 {
@@ -190,10 +190,15 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
+        VM vm;
+        ecs.setupVm(vm);
+
+        auto result = vm.interpretFromFile("res/init.pg");
+
         ecs.registerSystem(createPlayerSystem());
 
         ecs.registerSystem(createAsteroidSpawnTimerSystem());
-        ecs.registerSystem(createAsteroidSystem());
+        // ecs.registerSystem(createAsteroidSystem());
 
         ecs.registerSystem(createBulletSystem());
 

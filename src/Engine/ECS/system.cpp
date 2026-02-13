@@ -118,7 +118,7 @@ namespace pg
                 // Copy all C++ ElementMap entries to VM table
                 for (const auto& [key, elemValue] : sysData)
                 {
-                    dataTable->fields[key] = vm.retainValue(vm.elementToValue(elemValue));
+                    dataTable->setField(key, vm.retainValue(vm.elementToValue(elemValue)));
                 }
 
                 vm.globals["sysData"] = dataTableValue;
@@ -134,21 +134,23 @@ namespace pg
         // After script execution, any changes made to sysData table are copied
         // back to the C++ ElementMap so they persist across script invocations
         // ========================================================================
-        if (sys->_internalSystemPtr && result == InterpretResult::OK)
+        if (sys->_internalSystemPtr and result == InterpretResult::OK)
         {
             ElementMap& sysData = sys->_internalSystemPtr->getSystemData();
 
             auto it = vm.globals.find("sysData");
-            if (it != vm.globals.end() && IS_INSTANCE(it->second))
+            if (it != vm.globals.end() and IS_INSTANCE(it->second))
             {
                 ObjInstance* dataTable = vm.asInstance(it->second);
 
                 // Copy all fields from VM table back to C++ ElementMap
                 // This overwrites existing keys and adds new ones
-                for (const auto& [key, vmValue] : dataTable->fields)
+                for (const auto& [key, v] : dataTable->internedFields)
                 {
+                    auto vmValue = dataTable->fieldValues[v];
+
                     // Skip internal VM fields
-                    if (key != "__className" && !key.empty())
+                    if (key != "__className" and not key.empty())
                     {
                         sysData[key] = vm.valueToElement(vmValue);
                     }

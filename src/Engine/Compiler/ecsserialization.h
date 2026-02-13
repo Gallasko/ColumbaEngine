@@ -78,6 +78,127 @@ namespace pg
         std::unordered_map<std::string, ComponentAttachFunc> handlers_;
     };
 
+    // ============================================================================
+    // Component Proxy System (Zero-Copy Direct Memory Access)
+    // ============================================================================
+
+    /**
+     * @brief Enum for supported property types in component proxies
+     */
+    enum class PropertyType
+    {
+        Float,
+        Double,
+        Int,
+        Bool,
+        String,
+        UnsignedInt,
+        UniqueId
+    };
+
+    /**
+     * @brief Metadata for a single property in a component
+     *
+     * Contains all information needed to read/write a property via metamethods.
+     * Uses offset-based memory access for zero-copy performance.
+     */
+    struct PropertyMetadata
+    {
+        std::string name;
+        PropertyType type;
+
+        using GetterFn = std::function<Value(void* component, VM* vm)>;
+        GetterFn getter = nullptr; // Optional getter function for custom access logic (e.g., computed properties)
+
+        bool writable;
+
+        // Setter function that calls the component's setter method (which may fire events)
+        // ALWAYS provided for writable properties to ensure events are fired correctly
+        using SetterFn = std::function<void(void* component, VM* vm, Value value)>;
+        SetterFn setter = nullptr; // Required for writable properties
+    };
+
+    /**
+     * @brief Complete metadata for a component type
+     *
+     * Contains all properties and provides fast lookup for the single ComponentProxy class.
+     */
+    struct ComponentProxyMetadata
+    {
+        std::string componentTypeName;
+        size_t componentSize;
+
+        std::unordered_map<std::string, PropertyMetadata> properties;
+    };
+
+    /**
+     * @brief Registry for component proxy metadata
+     *
+     * Stores metadata for all components that support the zero-copy proxy system.
+     * Used by the single ComponentProxy class to dynamically access component properties.
+     */
+    class ComponentProxyRegistry
+    {
+    public:
+        static ComponentProxyRegistry& instance()
+        {
+            static ComponentProxyRegistry registry;
+            return registry;
+        }
+
+        void registerMetadata(const ComponentProxyMetadata& metadata)
+        {
+            metadata_[metadata.componentTypeName] = metadata;
+        }
+
+        const ComponentProxyMetadata& getMetadata(const std::string& typeName) const
+        {
+            auto it = metadata_.find(typeName);
+
+            if (it == metadata_.end())
+            {
+                throw std::runtime_error("No proxy metadata for component: " + typeName);
+            }
+
+            return it->second;
+        }
+
+        bool hasMetadata(const std::string& typeName) const
+        {
+            return metadata_.find(typeName) != metadata_.end();
+        }
+
+    private:
+        std::unordered_map<std::string, ComponentProxyMetadata> metadata_;
+    };
+
+    /**
+     * @brief Single universal proxy class for all components
+     *
+     * Uses metadata-driven property access via __get and __set metamethods.
+     * Provides zero-copy direct memory access to C++ component fields.
+     */
+    class ComponentProxy
+    {
+    public:
+        /**
+         * @brief Register the ComponentProxy class with the VM
+         *
+         * Called once at VM startup. Creates the class and installs __get and __set metamethods.
+         */
+        static void registerWithVM(VM* vm);
+
+        /**
+         * @brief Create a proxy instance for a component
+         *
+         * @param vm VM instance
+         * @param typeName Component type name (e.g., "PositionComponent")
+         * @param componentPtr Pointer to the C++ component
+         * @return Value containing the proxy instance
+         */
+        static Value createProxy(VM* vm, const std::string& typeName, void* componentPtr);
+    };
+
     namespace detail
     {
         // Helper functions for extracting arguments from VM values
@@ -208,13 +329,13 @@ namespace pg
                 Value value = detail::extractElementTypeValue(vm, node);
                 if (retainValues)
                 {
-                    currentTable->fields[node.name] = vm->retainValue(value);
+                    currentTable->setField(node.name, vm->retainValue(value));
                     if (IS_STRING(value))
                         vm->releaseAndDelete(value);
                 }
                 else
                 {
-                    currentTable->fields[node.name] = value;
+                    currentTable->setField(node.name, value);
                 }
                 return;
             }
@@ -226,13 +347,13 @@ namespace pg
 
                 if (retainValues)
                 {
-                    currentTable->fields[node.name] = vm->retainValue(value);
+                    currentTable->setField(node.name, vm->retainValue(value));
                     if (IS_STRING(value))
                         vm->releaseAndDelete(value);
                 }
                 else
                 {
-                    currentTable->fields[node.name] = value;
+                    currentTable->setField(node.name, value);
                 }
             }
 
@@ -270,30 +391,28 @@ namespace pg
 
                         if (retainValues)
                         {
-                            nestedTable->fields[std::to_string(i)] = vm->retainValue(elementValue);
+                            nestedTable->setField(std::to_string(i), vm->retainValue(elementValue));
                             if (IS_STRING(elementValue))
                                 vm->releaseAndDelete(elementValue);
                         }
                         else
                         {
-                            nestedTable->fields[std::to_string(i)] = elementValue;
+                            nestedTable->setField(std::to_string(i), elementValue);
                         }
                     }
 
                     if (retainValues)
                     {
-                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
                         vm->releaseAndDelete(nestedTableValue);
                     }
                     else
                     {
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        currentTable->fields[node.name] = nestedTableValue;
+                        currentTable->setField(node.name, nestedTableValue, vm, true);
                     }
                 }
                 // Check if this is an UnorderedMap
-                else if (node.className == "UnorderedMap" && !node.name.empty())
+                else if (node.className == "UnorderedMap" and not node.name.empty())
                 {
                     Value nestedTableValue = vm->createInstance(tableClass);
                     ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
@@ -351,27 +470,25 @@ namespace pg
                         {
                             if (retainValues)
                             {
-                                nestedTable->fields[actualKey] = vm->retainValue(actualValue);
+                                nestedTable->setField(actualKey, vm->retainValue(actualValue));
                                 if (IS_STRING(actualValue))
                                     vm->releaseAndDelete(actualValue);
                             }
                             else
                             {
-                                nestedTable->fields[actualKey] = actualValue;
+                                nestedTable->setField(actualKey, actualValue);
                             }
                         }
                     }
 
                     if (retainValues)
                     {
-                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
                         vm->releaseAndDelete(nestedTableValue);
                     }
                     else
                     {
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        currentTable->fields[node.name] = nestedTableValue;
+                        currentTable->setField(node.name, nestedTableValue, vm, true);
                     }
                 }
                 // If the node has a name, create a nested table for the children
@@ -387,14 +504,12 @@ namespace pg
 
                     if (retainValues)
                     {
-                        currentTable->fields[node.name] = vm->retainValue(nestedTableValue);
+                        currentTable->setField(node.name, vm->retainValue(nestedTableValue));
                         vm->releaseAndDelete(nestedTableValue);
                     }
                     else
                     {
-                        if (currentTable->fields.find(node.name) != currentTable->fields.end())
-                            vm->releaseAndDelete(currentTable->fields[node.name]);
-                        currentTable->fields[node.name] = nestedTableValue;
+                        currentTable->setField(node.name, nestedTableValue, vm, true);
                     }
                 }
                 else
@@ -422,7 +537,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     // Macro to create and register a bool setter function
@@ -435,7 +550,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     // Macro to create and register an int setter function
@@ -448,7 +563,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     // Macro to create and register a string setter function
@@ -461,7 +576,7 @@ namespace pg
                 component->methodName(value); \
                 return INT_VAL(0); \
             }; \
-            table->fields[#methodName] = vm->createNativeFunction(setterFunc); \
+            table->setField(#methodName, vm->createNativeFunction(setterFunc)); \
         } while(0)
 
     /**
@@ -647,10 +762,9 @@ namespace pg
         // Get the class name (component type)
         std::string typeName = Type::getType();
 
-        auto classNameIt = objTable->fields.find("__className");
-        if (classNameIt != objTable->fields.end() && IS_STRING(classNameIt->second))
+        if (objTable->hasField("__className"))
         {
-            typeName = vm->asString(classNameIt->second);
+            typeName = vm->asString(objTable->getField("__className"));
         }
 
         // Create the root unserialized object
@@ -661,11 +775,13 @@ namespace pg
         // Helper function to convert table fields to UnserializedObject
         std::function<void(ObjInstance*, UnserializedObject&)> processTable;
         processTable = [&](ObjInstance* currentTable, UnserializedObject& currentObj) {
-            for (const auto& [key, value] : currentTable->fields)
+            for (const auto& [key, v] : currentTable->internedFields)
             {
                 // Skip special fields
                 if (key == "__className")
                     continue;
+
+                auto value = currentTable->fieldValues[v];
 
                 if (IS_INSTANCE(value))
                 {
@@ -759,7 +875,7 @@ namespace pg
 
         // Helper function to add field to table
         auto addField = [&](const std::string& key, Value value) {
-            table->fields[key] = vm->retainValue(value);
+            table->setField(key, vm->retainValue(value));
         };
 
         // Parse the archive and populate the table
@@ -817,7 +933,7 @@ namespace pg
 
         // Helper function to add field to table
         auto addField = [&](const std::string& key, Value value) {
-            table->fields[key] = vm->retainValue(value);
+            table->setField(key, vm->retainValue(value));
         };
 
         // Parse the archive and populate the table
@@ -865,21 +981,48 @@ namespace pg
          * @brief Helper function to serialize a single component from CompList to entity table
          */
         template <typename Comp, typename... Comps>
-        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList)
+        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList, EntitySystem* ecsRef)
         {
             // Get the component from the CompList
             CompRef<Comp> comp = compList.template get<Comp>();
 
             if (comp)
             {
-                // Serialize the component to a table
-                Value componentTableValue = serializeToTable(vm, *comp);
-
                 // Get the component type name
                 std::string componentTypeName = Comp::getType();
 
+                Value componentTableValue;
+
+                // Check if this component has proxy metadata registered
+                auto& proxyRegistry = ComponentProxyRegistry::instance();
+
+                if (proxyRegistry.hasMetadata(componentTypeName))
+                {
+                    LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName);
+
+                    // Get the component pointer directly from the CompRef
+                    void* componentPtr = comp.operator->();
+
+                    if (componentPtr)
+                    {
+                        // Create a proxy instead of a table copy
+                        componentTableValue = ComponentProxy::createProxy(vm, componentTypeName, componentPtr);
+                    }
+                    else
+                    {
+                        LOG_WARNING("ECS Serialization", "Could not retrieve component pointer for proxy, falling back to table");
+                        // Fallback to table serialization
+                        componentTableValue = serializeToTable(vm, *comp);
+                    }
+                }
+                else
+                {
+                    // No proxy metadata registered, use traditional table serialization
+                    componentTableValue = serializeToTable(vm, *comp);
+                }
+
                 // Add to entity table
-                entityTable->fields[componentTypeName] = componentTableValue;
+                entityTable->setField(componentTypeName, componentTableValue);
 
                 LOG_INFO("ECS Serialization", "Serialized component: " << componentTypeName);
             }
@@ -926,17 +1069,18 @@ namespace pg
 
         // Add the entity ID
         Value idValue = makeIntValue(static_cast<int64_t>(compList.id));
-        entityTable->fields["__entityId"] = idValue;
+        entityTable->setField("__entityId", idValue);
 
         // Add native attachComp function that holds the entity pointer
         // This allows scripts to attach components immediately without entity lookup
         Entity* entityPtr = compList.entity.entity;
         EntitySystem* ecsRef = entityPtr->world();
         Value attachCompFuncValue = vm->createNativeFunction(detail::createAttachCompFunction(entityPtr, ecsRef));
-        entityTable->fields["attachComp"] = attachCompFuncValue;
+        entityTable->setField("attachComp", attachCompFuncValue);
 
         // Serialize each component in the CompList using fold expression
-        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);
+        // Pass ecsRef to enable proxy-aware serialization
+        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList, ecsRef), ...);
 
         return entityTableValue;
     }

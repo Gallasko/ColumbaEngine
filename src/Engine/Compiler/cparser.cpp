@@ -2,13 +2,14 @@
 
 #include "cparser.h"
 
+#include <unordered_map>
+
 #include "compiler.h"
 #include "vm.h"
 
 #include "Interpreter/lexer.h"
 #include "logger.h"
 #include "chunk_serializer.h"
-#include <unordered_map>
 
 namespace pg
 {
@@ -508,28 +509,52 @@ namespace pg
         parser.consume("Expect property name after '.'.", TokenType::EXPRESSION);
 
         auto propertyName = parser.previousToken.text;
-        auto value = parser.vm->createString(propertyName); // Ensure string is created in VM
-        uint8_t constantIndex = Compiler::current->getCurrentChunk().addConstantIndex(value);
+
+        // Add to current chunk's constantStrings
+        auto& chunk = Compiler::current->getCurrentChunk();
+        uint8_t stringIndex;
+        bool found = false;
+        for (size_t i = 0; i < chunk.constantStrings.size(); i++)
+        {
+            if (chunk.constantStrings[i] == propertyName)
+            {
+                stringIndex = static_cast<uint8_t>(i);
+                found = true;
+                break;
+            }
+        }
+
+        if (not found)
+        {
+            if (chunk.constantStrings.size() >= 256)
+            {
+                parser.errorAt(parser.previousToken, "Too many constant strings in chunk.");
+                return;
+            }
+
+            stringIndex = static_cast<uint8_t>(chunk.constantStrings.size());
+            chunk.constantStrings.push_back(propertyName);
+        }
 
         if (canAssign and parser.match(TokenType::EQUAL))
         {
             parser.expression();
             parser.writeByte(OpCode::OP_Set_Property);
-            parser.writeByte(constantIndex);
+            parser.writeByte(stringIndex);
         }
         else if (parser.match(TokenType::PENTER))
         {
-            // Method call
+            // Method call - use interned string index
             auto argCount = argumentList(parser);
-            parser.emitBytes(OpCode::OP_Invoke, constantIndex);
+            parser.emitBytes(OpCode::OP_Invoke, stringIndex);
             parser.writeByte(argCount);
         }
         else
         {
             parser.writeByte(OpCode::OP_Get_Property);
-            parser.writeByte(constantIndex);
+            parser.writeByte(stringIndex);
         }
-        // TODO: Add support for obj.prop += expr and obj.prop -= expr
+        // TODO: Add support for obj.prop += expr and obj.prop += expr
         // This requires either a DUP opcode or re-evaluating the left side
     }
 
@@ -1251,6 +1276,9 @@ namespace pg
             emitLoop(loopStart);
             loopStart = incrementStart;
 
+            // Update the loop context so continue jumps to the increment, not the condition
+            Compiler::current->loopContexts.back().loopStart = incrementStart;
+
             patchJump(bodyJump);
         }
 
@@ -1452,6 +1480,17 @@ namespace pg
 
     bool CParser::parseImportFile(const std::string& moduleName)
     {
+        // Extract the directory path from the current file being parsed
+        std::string baseDir = "";
+        if (not vm->currentFileName.empty())
+        {
+            size_t lastSlash = vm->currentFileName.find_last_of("/\\");
+            if (lastSlash != std::string::npos)
+            {
+                baseDir = vm->currentFileName.substr(0, lastSlash + 1);
+            }
+        }
+
         // Add .pg extension if not present
         std::string fileName = moduleName;
         if (fileName.find(".pg") == std::string::npos)
@@ -1459,26 +1498,29 @@ namespace pg
             fileName += ".pg";
         }
 
+        // Prepend base directory to make path relative to current script file
+        std::string fullPath = baseDir + fileName;
+
         // Determine the compiled file name based on what exists
         std::string compiledFileName;
-        if (fileName.find(".pgc") != std::string::npos)
+        if (fullPath.find(".pgc") != std::string::npos)
         {
-            compiledFileName = fileName;
+            compiledFileName = fullPath;
         }
-        else if (UniversalFileAccessor::exists(fileName + "c"))
+        else if (UniversalFileAccessor::exists(fullPath + "c"))
         {
-            compiledFileName = fileName + "c";
+            compiledFileName = fullPath + "c";
         }
-        else if (UniversalFileAccessor::exists(fileName + ".pgc"))
+        else if (UniversalFileAccessor::exists(fullPath + ".pgc"))
         {
-            compiledFileName = fileName + ".pgc";
+            compiledFileName = fullPath + ".pgc";
         }
         else
         {
-            compiledFileName = fileName.substr(0, fileName.find_last_of(".")) + ".pgc";
+            compiledFileName = fullPath.substr(0, fullPath.find_last_of(".")) + ".pgc";
         }
 
-        if (fileName.find(".pgc") != std::string::npos or UniversalFileAccessor::exists(fileName + "c") or UniversalFileAccessor::exists(fileName + ".pgc"))
+        if (fullPath.find(".pgc") != std::string::npos or UniversalFileAccessor::exists(fullPath + "c") or UniversalFileAccessor::exists(fullPath + ".pgc"))
         {
             // .pgc file exists - load from serialized bytecode
             try
@@ -1488,7 +1530,7 @@ namespace pg
                 // Load the chunk from the .pgc file
                 Chunk chunk;
                 ChunkSerializer serializer;
-                if (!serializer.deserializeFromFile(chunk, compiledFileName, vm))
+                if (not serializer.deserializeFromFile(chunk, compiledFileName, vm))
                 {
                     error("Failed to load compiled module '" + moduleName + "' from " + compiledFileName);
                     return true; // File exists but failed to deserialize - don't fallback to native module
@@ -1531,7 +1573,7 @@ namespace pg
         }
 
         // Check if .pg file exists
-        if (!UniversalFileAccessor::exists(fileName))
+        if (not UniversalFileAccessor::exists(fullPath))
         {
             // File doesn't exist - return false to allow fallback to native module
             return false;
@@ -1542,7 +1584,7 @@ namespace pg
         {
             // Use the Lexer to read and tokenize the file
             Lexer lexer;
-            lexer.readFromFile(fileName);
+            lexer.readFromFile(fullPath);
             auto importTokens = lexer.getTokens();
 
             // Create a nested compiler for the imported module
@@ -1747,6 +1789,9 @@ namespace pg
 
     void CParser::writeConstant(const ElementType& constant)
     {
+        // String literals are added as heap strings (not interned strings)
+        // Only property names/method names should be interned, not regular string constants
+        // This allows string values to be freely passed between chunks (upvalues, function args, etc.)
         Compiler::current->getCurrentChunk().addConstant(vm->elementToValue(constant), previousToken.line);
     }
 

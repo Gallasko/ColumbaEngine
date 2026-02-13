@@ -4,6 +4,8 @@
 #include "Input/input.h"
 #include <SDL_scancode.h>
 
+#include "Compiler/vm.h"
+
 namespace pg
 {
     /**

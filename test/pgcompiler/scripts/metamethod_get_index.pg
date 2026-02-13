@@ -1,0 +1,35 @@
+import "string"
+
+// Test __get metamethod with bracket notation (index access)
+
+class ProxyClass {
+    init() {
+        // Nothing to initialize
+    }
+}
+
+// Create a native function to act as __get
+fun createGetMethod() {
+    return fun(self, key) {
+        __dprint("__get[" + key + "] called")
+        if (key == "first") {
+            return 10
+        }
+        if (key == "second") {
+            return 20
+        }
+        return 0
+    }
+}
+
+var obj = ProxyClass()
+obj.__get = createGetMethod()
+
+// Test index access via bracket notation
+var a = obj["first"]
+var b = obj["second"]
+var c = obj["third"]
+
+__dprint("a = " + toString(a))
+__dprint("b = " + toString(b))
+__dprint("c = " + toString(c))
