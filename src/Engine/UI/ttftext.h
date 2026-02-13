@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <unordered_set>
 
 #include "2D/position.h"
 #include "Renderer/renderer.h"
@@ -13,14 +14,7 @@
 
 namespace pg
 {
-    struct TTFTextCall
-    {
-        TTFTextCall(const std::vector<RenderCall>& calls) : calls(calls) {}
-
-        std::vector<RenderCall> calls;
-    };
-
-    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Own<TTFTextCall>, Ref<PositionComponent>,
+    struct TTFTextSystem : public AbstractRenderer, System<Own<TTFText>, Ref<PositionComponent>,
         Listener<PositionComponentChangedEvent>, Listener<TTFTextChangedEvent>, InitSys>
     {
         struct Character
@@ -58,7 +52,9 @@ namespace pg
 
         std::unordered_map<std::string, std::unordered_map<char, Character>> charactersMap;
 
-        std::queue<_unique_id> textUpdateQueue;
+        std::unordered_map<_unique_id, std::vector<RenderCall>> entityRenderCalls;
+        std::vector<_unique_id> entitiesInRenderGroup;
+        std::unordered_set<_unique_id> textUpdateSet;
 
     private:
         // Render call helpers
