@@ -123,6 +123,9 @@ namespace pg
         std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), temp.begin(), temp.end(),
                           std::back_inserter(updateQueue));
 
+        // Clear the update set after processing
+        textureUpdateSet.clear();
+
         int processedCount = 0;
         int failedCount = 0;
 

@@ -40,7 +40,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/ColumbaEngineEditor"
+                "program": "${workspaceFolder}/build/ColumbaEngineEditor"
             },
             "osx": {
                 "MIMode": "lldb",
@@ -132,8 +132,31 @@
                 "miDebuggerPath": "gdb.exe",
                 "program": "${workspaceFolder}/debug/GameOff.exe"
             }
-            // },
-            // "preLaunchTask": "build"
+        },
+        {
+            "name": "AsteroidTest",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/release/Asteroid"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
         },
     ]
 }
