@@ -161,6 +161,10 @@ namespace pg
 
             if (index >= size) reserve(index);
 
+            // Track high-water mark for destructor cleanup
+            if (index > maxAllocatedIndex)
+                maxAllocatedIndex = index;
+
             // Todo Check if the chunk was created before creating a new element
             PGMemChunk<T>* chunk = getChunk(index);
 

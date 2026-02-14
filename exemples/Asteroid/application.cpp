@@ -29,6 +29,7 @@ StandardSystemImpl* createPlayerSystem()
         .onEvent("OnSDLScanCode", "res/asteroid/move_player.pg")
         .onEvent("OnSDLScanCodeReleased", "res/asteroid/release_player.pg")
         .onEvent("PlayerHit", "res/asteroid/handle_player_hit.pg")
+        .onEvent("RespawnPlayer", "res/asteroid/respawn_player.pg")
         .onDelta("res/asteroid/update_player.pg")  // Update physics every frame
         .build();
 }
@@ -161,7 +162,6 @@ StandardSystemImpl* createGameOverSystem()
     return createStandardSystem("GameOverSystem")
         .onInit("res/asteroid/init_gameover.pg")
         .onEvent("GameOver", "res/asteroid/handle_gameover.pg")
-        .onEvent("RespawnPlayer", "res/asteroid/respawn_player.pg")
         .onEvent("OnSDLScanCode", "res/asteroid/handle_restart.pg")
         .build();
 }
