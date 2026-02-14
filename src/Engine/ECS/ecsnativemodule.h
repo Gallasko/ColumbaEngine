@@ -15,6 +15,7 @@ namespace pg
      *
      * - removeEntity(entityId or entityInstance): Remove an entity from the ECS
      * - getEntity(entityId): Get entity data as a table
+     * - getEntities(componentName): Get all entities with the specified component as a table of entity tables
      * - sendEvent(eventName, key1, value1, key2, value2, ...): Send an event
      * - attachComponent(entityId or entityInstance, componentName, prop1, value1, prop2, value2, ...):
      *   Attach a StandardComponent to an entity with properties
@@ -47,6 +48,12 @@ namespace pg
      *
      * // Remove an entity
      * ecs.removeEntity(playerId)
+     *
+     * // Get all entities with a specific component
+     * var allPlayers = ecs.getEntities("Player")
+     * for (var player : allPlayers) {
+     *     __dprint("Player entity: " + player.__entityId)
+     * }
      *
      * // ========== Creating Systems from Scripts ==========
      *
@@ -648,6 +655,52 @@ namespace pg
                 LOG_MILE("Ecs Compiled Module", "Created system builder for '" << systemName << "'");
 
                 return inst;
+            });
+
+            addNativeFunction("getEntities", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount != 1)
+                {
+                    throw std::runtime_error("getEntities expects exactly 1 argument (componentName)");
+                }
+
+                if (!IS_STRING(args[0]))
+                {
+                    throw std::runtime_error("getEntities expects a string component name");
+                }
+
+                auto componentName = vm->asString(args[0]);
+
+                // Create a vector to hold all entity tables
+                Value vectorValue = vm->createVector();
+                ObjVector* vector = vm->asVector(vectorValue);
+
+                // Get the component owner from the registry
+                auto* owner = ecsRefCopy->getComponentRegistry()->retrieveStandardComponent(componentName);
+
+                if (!owner)
+                {
+                    throw std::runtime_error("getEntities: Standard Component '" + componentName + "' not found in ECS");
+                }
+
+                // Get all components of this type from the owner
+                auto componentView = owner->view();
+
+                for (auto* component : componentView)
+                {
+                    // Get the full entity with ALL components, not just the requested one
+                    auto* entity = ecsRefCopy->getEntity(component->entityId);
+                    if (entity)
+                    {
+                        // Serialize the complete entity with all its components
+                        Value entityTable = serializeEntityToTable(vm, ecsRefCopy, entity);
+                        vector->fields.push_back(vm->retainValue(entityTable));
+                    }
+                }
+
+                LOG_MILE("Ecs Compiled Module", "getEntities(\"" << componentName << "\") returned "
+                         << vector->fields.size() << " entities");
+
+                return vectorValue;
             });
 
         }

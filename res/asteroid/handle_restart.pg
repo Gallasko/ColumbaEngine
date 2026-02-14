@@ -32,6 +32,12 @@ if (sysData["restartTextId"] != 0)
     sysData["restartTextId"] = 0
 }
 
+if (sysData["reasonTextId"] != 0)
+{
+    removeEntity(sysData["reasonTextId"])
+    sysData["reasonTextId"] = 0
+}
+
 // Clear all asteroids
 var asteroids = getEntities("Asteroid")
 for (var asteroid : asteroids)
