@@ -9,12 +9,17 @@ var screenWidth = 800
 var screenHeight = 600
 
 // Create new player entity
-var player = createTexture("Ship", 32, 32)
+var player = createTexture("I", 32, 32)
+
+player.attachComp("Player")
+player.attachComp("Collision", "scale", 0.5)
 
 // Position in center of screen
-player["PositionComponent"].setX(screenWidth / 2)
-player["PositionComponent"].setY(screenHeight / 2)
-player["PositionComponent"].setRotation(0.0)
+player["PositionComponent"].x = screenWidth / 2
+player["PositionComponent"].y = screenHeight / 2
+player["PositionComponent"].rotation = 0.0
+
+sysData["playerId"] = player.__entityId
 
 // // Attach Player component with physics variables
 // player.attachComp("Player",
