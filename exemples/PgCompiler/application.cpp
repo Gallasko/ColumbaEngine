@@ -306,7 +306,7 @@ void CompilerApp::runFile(bool needCompile)
         // vm->addOptimizationPass(std::make_uniqueh
 
         vm->enableBytecodeOptimization();
-        vm->enableOptimizationDebugging();
+        // vm->enableOptimizationDebugging();
 
         // vm->disableBytecodeOptimization();
 

@@ -178,12 +178,14 @@ namespace pg
     void op_get_global(VM* vm);
     void op_define_global(VM* vm);
     void op_set_global(VM* vm);
-    void op_jump(VM* vm);
     void op_jump_if_false(VM* vm);
-    void op_loop(VM* vm);
-    void op_long_jump(VM* vm);
     void op_long_jump_if_false(VM* vm);
+    void op_jump(VM* vm);
+    void op_long_jump(VM* vm);
+    void op_jump_decoded(VM* vm, const DecodedInstruction& instr);
+    void op_loop(VM* vm);
     void op_long_loop(VM* vm);
+    void op_loop_decoded(VM* vm, const DecodedInstruction& instr);
     void op_call(VM* vm);
     void op_invoke(VM* vm);
     void op_closure(VM* vm);
@@ -384,7 +386,7 @@ namespace pg
         // Update cached chunk data pointer when switching functions
         inline void updateChunkCache()
         {
-            if (currentFrame && currentFrame->closure)
+            if (currentFrame and currentFrame->closure)
             {
                 auto& chunk = currentFrame->closure->function->chunk.code;
                 chunkData = chunk.data();
@@ -395,7 +397,7 @@ namespace pg
         inline void resetStack()
         {
             // Use VM's reference counting instead of IndexableStack's clear()
-            while (!stack.empty())
+            while (not stack.empty())
             {
                 auto value = stack.pop();
                 releaseAndDelete(value);
