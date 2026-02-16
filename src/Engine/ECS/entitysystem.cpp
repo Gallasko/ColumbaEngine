@@ -53,6 +53,7 @@ namespace
 
 // Include for vm optimization pass
 #include "Compiler/pass/long_jump_optimization_pass.h"
+#include "Compiler/pass/popping_jump_pass.h"
 #include "Compiler/pass/basic_operator_local_indexing.h"
 #include "Compiler/pass/remove_def_get_global_redunduncy.h"
 #include "Compiler/pass/constant_var_access.h"
@@ -684,6 +685,7 @@ namespace pg
 
             vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
             vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
+            vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
             vm.addOptimizationPass(std::make_unique<FuseOpPop>());
 

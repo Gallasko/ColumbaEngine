@@ -180,6 +180,8 @@ namespace pg
     void op_set_global(VM* vm);
     void op_jump_if_false(VM* vm);
     void op_long_jump_if_false(VM* vm);
+    void op_jump_if_false_popping(VM* vm);
+    void op_long_jump_if_false_popping(VM* vm);
     void op_jump(VM* vm);
     void op_long_jump(VM* vm);
     void op_jump_decoded(VM* vm, const DecodedInstruction& instr);

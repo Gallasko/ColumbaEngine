@@ -4,7 +4,8 @@
 #include "logger.h"
 #include <algorithm>
 
-namespace pg {
+namespace pg
+{
 
     void BytecodeRewriter::addRule(const std::vector<OpCode>& pattern, const std::vector<OpCode>& replacement)
     {
@@ -381,8 +382,10 @@ namespace pg {
     }
 
     std::optional<std::pair<std::vector<CapturedInstruction>, size_t>>
-    BytecodeRewriter::matchesAdvancedPattern(const Chunk& chunk, size_t offset, const std::vector<PatternElement>& pattern) {
-        if (offset >= chunk.code.size()) {
+    BytecodeRewriter::matchesAdvancedPattern(const Chunk& chunk, size_t offset, const std::vector<PatternElement>& pattern)
+    {
+        if (offset >= chunk.code.size())
+        {
             return std::nullopt;
         }
 
@@ -390,32 +393,38 @@ namespace pg {
         std::vector<CapturedInstruction> captured;
         size_t totalPatternSize = 0;
 
-        for (const auto& element : pattern) {
-            if (currentOffset >= chunk.code.size()) {
+        for (const auto& element : pattern)
+        {
+            if (currentOffset >= chunk.code.size())
+            {
                 return std::nullopt;
             }
 
-            if (jumpTargets.find(currentOffset) != jumpTargets.end()) {
+            if (jumpTargets.find(currentOffset) != jumpTargets.end())
+            {
                 return std::nullopt;
             }
 
             OpCode currentOpcode = static_cast<OpCode>(chunk.code[currentOffset]);
 
             // Check if the pattern element matches
-            if (!element.matches(currentOpcode)) {
+            if (not element.matches(currentOpcode))
+            {
                 return std::nullopt;
             }
 
             size_t instructionSize = pg::getInstructionSize(currentOpcode);
 
             // Capture instruction if requested
-            if (element.capture) {
+            if (element.capture)
+            {
                 CapturedInstruction captured_inst;
                 captured_inst.opcode = currentOpcode;
                 captured_inst.offset = currentOffset;
 
                 // Extract operand bytes
-                if (instructionSize > 1 && currentOffset + instructionSize <= chunk.code.size()) {
+                if (instructionSize > 1 and currentOffset + instructionSize <= chunk.code.size())
+                {
                     captured_inst.operands.assign(
                         chunk.code.begin() + currentOffset + 1,
                         chunk.code.begin() + currentOffset + instructionSize
@@ -432,23 +441,29 @@ namespace pg {
         return std::make_pair(captured, totalPatternSize);
     }
 
-    bool BytecodeRewriter::matchesPattern(const Chunk& chunk, size_t offset, const std::vector<OpCode>& pattern) {
-        if (offset >= chunk.code.size()) {
+    bool BytecodeRewriter::matchesPattern(const Chunk& chunk, size_t offset, const std::vector<OpCode>& pattern)
+    {
+        if (offset >= chunk.code.size())
+        {
             return false;
         }
 
         size_t currentOffset = offset;
 
-        for (OpCode expectedOpcode : pattern) {
-            if (currentOffset >= chunk.code.size()) {
+        for (OpCode expectedOpcode : pattern)
+        {
+            if (currentOffset >= chunk.code.size())
+            {
                 return false;
             }
 
-            if (jumpTargets.find(currentOffset) != jumpTargets.end()) {
+            if (jumpTargets.find(currentOffset) != jumpTargets.end())
+            {
                 return false;
             }
 
-            if (static_cast<OpCode>(chunk.code[currentOffset]) != expectedOpcode) {
+            if (static_cast<OpCode>(chunk.code[currentOffset]) != expectedOpcode)
+            {
                 return false;
             }
 
@@ -458,7 +473,8 @@ namespace pg {
         return true;
     }
 
-    void BytecodeRewriter::applyRewrite(Chunk& chunk, size_t offset, const RewriteRule& rule) {
+    void BytecodeRewriter::applyRewrite(Chunk& chunk, size_t offset, const RewriteRule& rule)
+    {
         size_t patternByteSize = getPatternByteSize(rule.pattern);
         // size_t replacementByteSize = getReplacementByteSize(rule.replacement);
 
@@ -468,7 +484,8 @@ namespace pg {
 
         // Insert replacement bytes
         size_t insertPos = offset;
-        for (OpCode opcode : rule.replacement) {
+        for (OpCode opcode : rule.replacement)
+        {
             int line = (insertPos < chunk.lines.size()) ? chunk.lines[insertPos] : 0;
 
             chunk.code.insert(chunk.code.begin() + insertPos, static_cast<uint8_t>(opcode));
@@ -477,7 +494,8 @@ namespace pg {
 
             // Add operand bytes for multi-byte instructions
             size_t instSize = pg::getInstructionSize(opcode);
-            for (size_t i = 1; i < instSize; ++i) {
+            for (size_t i = 1; i < instSize; ++i)
+            {
                 chunk.code.insert(chunk.code.begin() + insertPos, 0); // Placeholder for operand
                 chunk.lines.insert(chunk.lines.begin() + insertPos, line);
                 insertPos++;
@@ -488,14 +506,16 @@ namespace pg {
     void BytecodeRewriter::applyAdvancedRewrite(Chunk& chunk, size_t offset, size_t patternSize, const std::vector<uint8_t>& replacement) {
         // Store original lines for replacement
         std::vector<int> originalLines;
-        if (offset < chunk.lines.size()) {
+        if (offset < chunk.lines.size())
+        {
             size_t linesToCopy = std::min(patternSize, chunk.lines.size() - offset);
             originalLines.assign(chunk.lines.begin() + offset, chunk.lines.begin() + offset + linesToCopy);
         }
 
         // Remove original pattern bytes and lines
         chunk.code.erase(chunk.code.begin() + offset, chunk.code.begin() + offset + patternSize);
-        if (offset < chunk.lines.size()) {
+        if (offset < chunk.lines.size())
+        {
             size_t linesToRemove = std::min(patternSize, chunk.lines.size() - offset);
             chunk.lines.erase(chunk.lines.begin() + offset, chunk.lines.begin() + offset + linesToRemove);
         }
@@ -505,97 +525,126 @@ namespace pg {
 
         // Insert corresponding line numbers
         int line = originalLines.empty() ? 0 : originalLines[0];
-        for (size_t i = 0; i < replacement.size(); ++i) {
+        for (size_t i = 0; i < replacement.size(); ++i)
+        {
             chunk.lines.insert(chunk.lines.begin() + offset + i, line);
         }
 
         LOG_MILE("BytecodeRewriter", "Applied advanced rewrite: " << patternSize << " bytes -> " << replacement.size() << " bytes");
     }
 
-    size_t BytecodeRewriter::getPatternByteSize(const std::vector<OpCode>& pattern) const {
+    size_t BytecodeRewriter::getPatternByteSize(const std::vector<OpCode>& pattern) const
+    {
         size_t totalSize = 0;
-        for (OpCode opcode : pattern) {
+
+        for (OpCode opcode : pattern)
+        {
             totalSize += pg::getInstructionSize(opcode);
         }
+
         return totalSize;
     }
 
-    size_t BytecodeRewriter::getReplacementByteSize(const std::vector<OpCode>& replacement) const {
+    size_t BytecodeRewriter::getReplacementByteSize(const std::vector<OpCode>& replacement) const
+    {
         size_t totalSize = 0;
-        for (OpCode opcode : replacement) {
+
+        for (OpCode opcode : replacement)
+        {
             totalSize += pg::getInstructionSize(opcode);
         }
+
         return totalSize;
     }
 
-    bool BytecodeRewriter::isJumpInstruction(OpCode opcode) const {
-        return isLongJumpInstruction(opcode) || isShortJumpInstruction(opcode);
+    bool BytecodeRewriter::isJumpInstruction(OpCode opcode) const
+    {
+        return isLongJumpInstruction(opcode) or isShortJumpInstruction(opcode);
     }
 
-    bool BytecodeRewriter::isLongJumpInstruction(OpCode opcode) const {
-        return opcode == OpCode::OP_Long_Jump ||
-               opcode == OpCode::OP_Long_Jump_If_False ||
-               opcode == OpCode::OP_Long_Loop;
+    bool BytecodeRewriter::isLongJumpInstruction(OpCode opcode) const
+    {
+        return opcode == OpCode::OP_Long_Jump or
+            opcode == OpCode::OP_Long_Jump_If_False or
+            opcode == OpCode::OP_Long_Jump_If_False_Popping or
+            opcode == OpCode::OP_Long_Loop;
     }
 
-    bool BytecodeRewriter::isShortJumpInstruction(OpCode opcode) const {
-        return opcode == OpCode::OP_Jump ||
-               opcode == OpCode::OP_Jump_If_False ||
-               opcode == OpCode::OP_Loop;
+    bool BytecodeRewriter::isShortJumpInstruction(OpCode opcode) const
+    {
+        return opcode == OpCode::OP_Jump or
+            opcode == OpCode::OP_Jump_If_False or
+            opcode == OpCode::OP_Jump_If_False_Popping or
+            opcode == OpCode::OP_Loop;
     }
 
-    uint32_t BytecodeRewriter::extractLongJumpOffset(const Chunk& chunk, size_t offset) const {
-        if (offset + 4 >= chunk.code.size()) {
+    uint32_t BytecodeRewriter::extractLongJumpOffset(const Chunk& chunk, size_t offset) const
+    {
+        if (offset + 4 >= chunk.code.size())
+        {
             return 0;
         }
 
         return (static_cast<uint32_t>(chunk.code[offset + 1]) << 24) |
                (static_cast<uint32_t>(chunk.code[offset + 2]) << 16) |
-               (static_cast<uint32_t>(chunk.code[offset + 3]) << 8) |
+               (static_cast<uint32_t>(chunk.code[offset + 3]) << 8)  |
                static_cast<uint32_t>(chunk.code[offset + 4]);
     }
 
-    uint16_t BytecodeRewriter::extractShortJumpOffset(const Chunk& chunk, size_t offset) const {
-        if (offset + 2 >= chunk.code.size()) {
+    uint16_t BytecodeRewriter::extractShortJumpOffset(const Chunk& chunk, size_t offset) const
+    {
+        if (offset + 2 >= chunk.code.size())
+        {
             return 0;
         }
 
         return (static_cast<uint16_t>(chunk.code[offset + 1]) << 8) |
-               static_cast<uint16_t>(chunk.code[offset + 2]);
+                static_cast<uint16_t>(chunk.code[offset + 2]);
     }
 
-    void BytecodeRewriter::writeLongJumpOffset(Chunk& chunk, size_t offset, uint32_t jumpOffset) const {
-        if (offset + 4 < chunk.code.size()) {
+    void BytecodeRewriter::writeLongJumpOffset(Chunk& chunk, size_t offset, uint32_t jumpOffset) const
+    {
+        if (offset + 4 < chunk.code.size())
+        {
             chunk.code[offset + 1] = (jumpOffset >> 24) & 0xFF;
             chunk.code[offset + 2] = (jumpOffset >> 16) & 0xFF;
-            chunk.code[offset + 3] = (jumpOffset >> 8) & 0xFF;
+            chunk.code[offset + 3] = (jumpOffset >> 8)  & 0xFF;
             chunk.code[offset + 4] = jumpOffset & 0xFF;
         }
     }
 
-    void BytecodeRewriter::writeShortJumpOffset(Chunk& chunk, size_t offset, uint16_t jumpOffset) const {
-        if (offset + 2 < chunk.code.size()) {
+    void BytecodeRewriter::writeShortJumpOffset(Chunk& chunk, size_t offset, uint16_t jumpOffset) const
+    {
+        if (offset + 2 < chunk.code.size())
+        {
             chunk.code[offset + 1] = (jumpOffset >> 8) & 0xFF;
             chunk.code[offset + 2] = jumpOffset & 0xFF;
         }
     }
 
-    size_t BytecodeRewriter::calculateJumpTarget(const Chunk& chunk, size_t jumpOffset, OpCode jumpOpcode) const {
+    size_t BytecodeRewriter::calculateJumpTarget(const Chunk& chunk, size_t jumpOffset, OpCode jumpOpcode) const
+    {
         size_t instructionEnd;
         uint32_t distance;
 
-        if (isLongJumpInstruction(jumpOpcode)) {
+        if (isLongJumpInstruction(jumpOpcode))
+        {
             instructionEnd = jumpOffset + 5;
             distance = extractLongJumpOffset(chunk, jumpOffset);
-        } else {
+        }
+        else
+        {
             instructionEnd = jumpOffset + 3;
             distance = extractShortJumpOffset(chunk, jumpOffset);
         }
 
-        if (jumpOpcode == OpCode::OP_Loop || jumpOpcode == OpCode::OP_Long_Loop) {
+        if (jumpOpcode == OpCode::OP_Loop or jumpOpcode == OpCode::OP_Long_Loop)
+        {
             // Backward jump
             return (distance <= instructionEnd) ? (instructionEnd - distance) : 0;
-        } else {
+        }
+        else
+        {
             // Forward jump
             return instructionEnd + distance;
         }

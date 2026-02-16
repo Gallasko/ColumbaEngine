@@ -164,10 +164,11 @@ set(MINIMAL_ENGINESOURCE
     src/Engine/Compiler/bytecode_pass.cpp
     src/Engine/Compiler/bytecode_rewriter.cpp
     src/Engine/Compiler/chunk_serializer.cpp
-    src/Engine/Compiler/pass/bytecode_pass_module.cpp
-    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/bytecode_pass_module.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/Compiler/pass/constant_folding.cpp
+    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/Compiler/ecsserialization.cpp
     # Minimal interpreter (only lexer and token for parsing)
     src/Engine/Interpreter/lexer.cpp
@@ -224,10 +225,11 @@ set(ENGINESOURCE
     src/Engine/Compiler/bytecode_pass.cpp
     src/Engine/Compiler/bytecode_rewriter.cpp
     src/Engine/Compiler/chunk_serializer.cpp
-    src/Engine/Compiler/pass/bytecode_pass_module.cpp
-    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/bytecode_pass_module.cpp
     src/Engine/Compiler/pass/basic_operator_local_indexing.cpp
     src/Engine/Compiler/pass/constant_folding.cpp
+    src/Engine/Compiler/pass/long_jump_optimization_pass.cpp
+    src/Engine/Compiler/pass/popping_jump_pass.cpp
     src/Engine/ECS/commanddispatcher.cpp
     src/Engine/ECS/componentregistry.cpp
     src/Engine/ECS/entity.cpp

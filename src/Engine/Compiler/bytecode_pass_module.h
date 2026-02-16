@@ -1,8 +1,8 @@
 #pragma once
 
-#include "../bytecode_pass.h"
-#include "../bytecode_rewriter.h"
-#include "../native_module.h"
+#include "bytecode_pass.h"
+#include "bytecode_rewriter.h"
+#include "native_module.h"
 #include <memory>
 #include <vector>
 

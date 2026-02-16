@@ -100,7 +100,7 @@ namespace pg
 
         static PatternElement conditionalJump(bool cap = false)
         {
-            return anyOf({OpCode::OP_Jump_If_False, OpCode::OP_Long_Jump_If_False}, cap);
+            return anyOf({OpCode::OP_Jump_If_False, OpCode::OP_Long_Jump_If_False, OpCode::OP_Jump_If_False_Popping, OpCode::OP_Long_Jump_If_False_Popping}, cap);
         }
 
         static PatternElement loop(bool cap = false)
