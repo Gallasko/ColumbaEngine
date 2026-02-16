@@ -3,9 +3,9 @@
         {
             "name": "Linux",
             "includePath": [
-                "${workspaceFolder}/**",
+                // "${workspaceFolder}/**",
                 "${workspaceFolder}/src/**",
-                "${workspaceFolder}/import/**"
+                // "${workspaceFolder}/import/**"
             ],
             "defines": [
                 "_DEBUG",
@@ -16,8 +16,7 @@
             "cStandard": "c17",
             "cppStandard": "c++17",
             "intelliSenseMode": "linux-gcc-x64",
-            "compileCommands": "${workspaceFolder}/build/compile_commands.json",
-            "configurationProvider": "ms-vscode.cmake-tools"
+            "compileCommands": "${workspaceFolder}/build/compile_commands.json"
         }
     ],
     "version": 4
