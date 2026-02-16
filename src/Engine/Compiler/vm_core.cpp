@@ -661,18 +661,6 @@ namespace pg
                 OpCode opcode = static_cast<OpCode>(instr.originalOpcode);
 
                 // Check for jump instructions that modify IP
-                // if (opcode == OpCode::OP_Jump || opcode == OpCode::OP_Jump_If_False || opcode == OpCode::OP_Loop ||
-                //     opcode == OpCode::OP_Long_Jump || opcode == OpCode::OP_Long_Jump_If_False || opcode == OpCode::OP_Long_Loop)
-                // {
-                //     // IP was modified by jump - find the new instruction index
-                //     size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
-                //     instructionIndex = decoded->findInstructionIndex(currentIpOffset);
-
-                //     std::cout << opcodeToString(opcode) << ": " << currentIpOffset << " - " << instructionIndex << std::endl;
-                //     continue;
-                // }
-
-                // Check for jump instructions that modify IP
                 if (opcode == OpCode::OP_Jump or opcode == OpCode::OP_Loop or
                     opcode == OpCode::OP_Long_Jump or opcode == OpCode::OP_Long_Loop)
                 {
@@ -681,7 +669,8 @@ namespace pg
                     continue;
                 }
 
-                if (opcode == OpCode::OP_Long_Jump_If_False or opcode == OpCode::OP_Jump_If_False)
+                if (opcode == OpCode::OP_Long_Jump_If_False or opcode == OpCode::OP_Jump_If_False or
+                    opcode == OpCode::OP_Long_Jump_If_False_Popping or opcode == OpCode::OP_Jump_If_False_Popping)
                 {
                     // IP was modified by jump - find the new instruction index
                     size_t currentIpOffset = currentFrame->ip - startingIp;
@@ -939,21 +928,6 @@ namespace pg
         // Release old value if it's a heap object (after assignment to avoid use-after-free if old == new)
         if (requiresRefCount(oldValue)) {
             vm->releaseAndDelete(oldValue);
-        }
-    }
-
-    void op_long_jump_if_false(VM* vm)
-    {
-        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-        Value condition = vm->peek();
-
-        if (!isValueTrue(condition))
-        {
-            vm->currentFrame->ip += offset;
         }
     }
 
@@ -1285,6 +1259,49 @@ namespace pg
         Value condition = vm->peek();
 
         if (not isValueTrue(condition, vm))  // Pass VM for proper string evaluation
+        {
+            vm->currentFrame->ip += offset;
+        }
+    }
+
+    void op_jump_if_false_popping(VM* vm)
+    {
+        uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
+
+        Value condition = vm->pop();
+
+        if (not isValueTrue(condition, vm))  // Pass VM for proper string evaluation
+        {
+            vm->currentFrame->ip += offset;
+        }
+    }
+
+    void op_long_jump_if_false(VM* vm)
+    {
+        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
+
+        Value condition = vm->peek();
+
+        if (not isValueTrue(condition))
+        {
+            vm->currentFrame->ip += offset;
+        }
+    }
+
+    void op_long_jump_if_false_popping(VM* vm)
+    {
+        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
+
+        Value condition = vm->pop();
+
+        if (not isValueTrue(condition))
         {
             vm->currentFrame->ip += offset;
         }

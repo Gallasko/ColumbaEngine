@@ -21,7 +21,7 @@
 
 namespace pg
 {
-    class LongJumpOptimizationPass : public BytecodePass
+    class PoppingJumpPass : public BytecodePass
     {
         struct JumpInfo
         {
@@ -37,7 +37,7 @@ namespace pg
         };
 
     public:
-        std::string getName() const override { return "LongJumpOptimization"; }
+        std::string getName() const override { return "PoppingJumpOptimization"; }
 
         bool runPass(Chunk& chunk, BytecodeRewriter* rewriter = nullptr) override;
 
@@ -51,11 +51,10 @@ namespace pg
 
         // Helper methods
         uint32_t extractLongJumpOffset(const Chunk& chunk, size_t offset);
-        OpCode getShortJumpEquivalent(OpCode longJump);
-        bool isLongJumpInstruction(OpCode opcode);
-
-        // Constants
-        static constexpr uint32_t MAX_SHORT_JUMP_DISTANCE = 65535; // 16-bit max
+        uint16_t extractShortJumpOffset(const Chunk& chunk, size_t offset);
+        uint32_t extractJumpOffset(const OpCode& code, const Chunk& chunk, size_t offset);
+        OpCode getPoppingJumpReplacement(const OpCode& opcode);
+        std::vector<uint8_t> createReplacement(const OpCode& originalOpcode, uint32_t jumpDistance);
     };
 
 }

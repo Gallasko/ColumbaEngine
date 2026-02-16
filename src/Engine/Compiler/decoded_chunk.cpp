@@ -223,6 +223,7 @@ namespace pg
                 {
                     case OpCode::OP_Jump:
                     case OpCode::OP_Jump_If_False:
+                    case OpCode::OP_Jump_If_False_Popping:
                         // Regular jumps use 2-byte operands (big-endian, signed)
                         targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
                                                static_cast<int16_t>((instr.operands.indexed.byte1 << 8) |
@@ -237,6 +238,7 @@ namespace pg
 
                     case OpCode::OP_Long_Jump:
                     case OpCode::OP_Long_Jump_If_False:
+                    case OpCode::OP_Long_Jump_If_False_Popping:
                         // Long jumps use 4-byte operands (big-endian, signed)
                         targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
                         static_cast<int32_t>((instr.operands.indexed.byte1 << 24) |
