@@ -53,6 +53,8 @@ namespace pg
         // Optimize: pre-resolve constant pointers
         resolveConstantPointers(decoded, chunk);
 
+        resolveJumpTargets(decoded);
+
         // TODO Future: analyze pure batches for instruction fusion
         // This will allow us to detect patterns like GET_LOCAL + GET_LOCAL + ADD
         // and replace them with fused instructions like ADD_LL
@@ -197,6 +199,70 @@ namespace pg
                 if (constantIndex < chunk.constants.size())
                 {
                     instr.constantPtr = const_cast<Value*>(&chunk.constants[constantIndex]);
+                }
+            }
+        }
+    }
+
+    void ChunkDecoder::resolveJumpTargets(DecodedChunk* decoded)
+    {
+        // For control flow instructions (jumps and loops), resolve target instruction index
+        // This allows us to jump directly to the correct instruction in the decoded array
+        // without needing to map bytecode offsets at runtime
+
+        for (auto& instr : decoded->instructions)
+        {
+            if (instr.hasControlFlow())
+            {
+                size_t targetBytecodeOffset = 0;
+
+                // Determine target bytecode offset based on opcode and operands
+                // Jump offsets are stored relative to the end of the instruction
+                // So target = bytecodeOffset + instructionSize + signedOffset
+                switch (static_cast<OpCode>(instr.originalOpcode))
+                {
+                    case OpCode::OP_Jump:
+                    case OpCode::OP_Jump_If_False:
+                        // Regular jumps use 2-byte operands (big-endian, signed)
+                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
+                                               static_cast<int16_t>((instr.operands.indexed.byte1 << 8) |
+                                                                     instr.operands.indexed.byte2);
+                        break;
+                    case OpCode::OP_Loop:
+                        // Regular loops use 2-byte operands (big-endian, signed)
+                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes -
+                                               static_cast<uint16_t>((instr.operands.indexed.byte1 << 8) |
+                                                                     instr.operands.indexed.byte2);
+                        break;
+
+                    case OpCode::OP_Long_Jump:
+                    case OpCode::OP_Long_Jump_If_False:
+                        // Long jumps use 4-byte operands (big-endian, signed)
+                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes +
+                        static_cast<int32_t>((instr.operands.indexed.byte1 << 24) |
+                                             (instr.operands.indexed.byte2 << 16) |
+                                             (instr.operands.indexed.byte3 << 8)  |
+                                              instr.operands.indexed.byte4);
+                        break;
+
+                    case OpCode::OP_Long_Loop:
+                        // Long loops use 4-byte operands (big-endian, signed)
+                        targetBytecodeOffset = instr.bytecodeOffset + 1 + instr.operandBytes -
+                                               static_cast<uint32_t>((instr.operands.indexed.byte1 << 24) |
+                                                                     (instr.operands.indexed.byte2 << 16) |
+                                                                     (instr.operands.indexed.byte3 << 8)  |
+                                                                      instr.operands.indexed.byte4);
+                        break;
+
+                    default:
+                        continue;  // Not a control flow instruction
+                }
+
+                // Find corresponding instruction index in decoded chunk
+                auto it = decoded->jumpTargets.find(targetBytecodeOffset);
+                if (it != decoded->jumpTargets.end())
+                {
+                    instr.nextInstuctionIndex = it->second;
                 }
             }
         }

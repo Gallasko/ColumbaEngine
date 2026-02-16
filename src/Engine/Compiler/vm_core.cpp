@@ -564,7 +564,7 @@ namespace pg
         // Get the decoded chunk for the current function
         DecodedChunk* decoded = currentFrame->closure->function->decodedChunk;
 
-        if (decoded == nullptr || decoded->instructions.empty())
+        if (decoded == nullptr or decoded->instructions.empty())
         {
             // Fallback to bytecode execution
             return run();
@@ -581,16 +581,18 @@ namespace pg
             instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
         }
 
+        auto startingIp = currentFrame->closure->function->chunk.code.data();
+
         // Execute with longjmp support
         if (setjmp(exit_jump) == 0)
         {
             while (instructionIndex < decoded->instructions.size())
             {
-                DecodedInstruction& instr = decoded->instructions[instructionIndex];
+                const DecodedInstruction& instr = decoded->instructions[instructionIndex];
 
 #ifdef DEBUG_TRACE_EXECUTION
                 // Update currentFrame->ip for debug output
-                currentFrame->ip = currentFrame->closure->function->chunk.code.data() + instr.bytecodeOffset;
+                currentFrame->ip = startingIp + instr.bytecodeOffset;
 
                 std::cout << "          ";
                 for (size_t i = 0; i < stack.size(); ++i)
@@ -602,11 +604,6 @@ namespace pg
                 std::cout << std::endl;
                 disassembleInstruction(this, currentFrame->closure->function->chunk, instr.bytecodeOffset);
 #endif
-
-                // Update currentFrame->ip to point past the opcode to the operands
-                // This allows handlers that read operands via *ip++ to work correctly
-                currentFrame->ip = currentFrame->closure->function->chunk.code.data() + instr.bytecodeOffset + 1;
-
                 // Save the current frame and decoded chunk before executing
                 // (needed to detect frame changes from OP_Call/OP_Return)
                 CallFrame* frameBeforeExecution = currentFrame;
@@ -629,6 +626,10 @@ namespace pg
                     }
                     else
                     {
+                        // Update currentFrame->ip to point past the opcode to the operands
+                        // This allows handlers that read operands via *ip++ to work correctly
+                        currentFrame->ip = startingIp + instr.bytecodeOffset + 1;
+
                         instr.handler(this);
                     }
 
@@ -647,6 +648,10 @@ namespace pg
                     }
                     else
                     {
+                        // Update currentFrame->ip to point past the opcode to the operands
+                        // This allows handlers that read operands via *ip++ to work correctly
+                        currentFrame->ip = startingIp + instr.bytecodeOffset + 1;
+
                         instr.handler(this);
                     }
 
@@ -656,11 +661,30 @@ namespace pg
                 OpCode opcode = static_cast<OpCode>(instr.originalOpcode);
 
                 // Check for jump instructions that modify IP
-                if (opcode == OpCode::OP_Jump || opcode == OpCode::OP_Jump_If_False || opcode == OpCode::OP_Loop ||
-                    opcode == OpCode::OP_Long_Jump || opcode == OpCode::OP_Long_Jump_If_False || opcode == OpCode::OP_Long_Loop)
+                // if (opcode == OpCode::OP_Jump || opcode == OpCode::OP_Jump_If_False || opcode == OpCode::OP_Loop ||
+                //     opcode == OpCode::OP_Long_Jump || opcode == OpCode::OP_Long_Jump_If_False || opcode == OpCode::OP_Long_Loop)
+                // {
+                //     // IP was modified by jump - find the new instruction index
+                //     size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                //     instructionIndex = decoded->findInstructionIndex(currentIpOffset);
+
+                //     std::cout << opcodeToString(opcode) << ": " << currentIpOffset << " - " << instructionIndex << std::endl;
+                //     continue;
+                // }
+
+                // Check for jump instructions that modify IP
+                if (opcode == OpCode::OP_Jump or opcode == OpCode::OP_Loop or
+                    opcode == OpCode::OP_Long_Jump or opcode == OpCode::OP_Long_Loop)
                 {
                     // IP was modified by jump - find the new instruction index
-                    size_t currentIpOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                    instructionIndex = instr.nextInstuctionIndex;
+                    continue;
+                }
+
+                if (opcode == OpCode::OP_Long_Jump_If_False or opcode == OpCode::OP_Jump_If_False)
+                {
+                    // IP was modified by jump - find the new instruction index
+                    size_t currentIpOffset = currentFrame->ip - startingIp;
                     instructionIndex = decoded->findInstructionIndex(currentIpOffset);
                     continue;
                 }
@@ -676,6 +700,10 @@ namespace pg
                     // Frame changed if currentFrame is different from what it was before execution
                     if (currentFrame != frameBeforeExecution)
                     {
+                        // Reset starting ip pointer for new frame's function
+                        startingIp = currentFrame->closure->function->chunk.code.data();
+                        updateChunkCache();
+
                         // Switched to a different function - check if it has decoded chunk
                         if (currentFrame->closure->function->decodedChunk != nullptr)
                         {
@@ -683,9 +711,9 @@ namespace pg
                             instructionIndex = 0;  // Start from beginning of new function
 
                             // If IP was set to middle of function, find the right index
-                            if (currentFrame->ip != currentFrame->closure->function->chunk.code.data())
+                            if (currentFrame->ip != startingIp)
                             {
-                                size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                                size_t bytecodeOffset = currentFrame->ip - startingIp;
                                 instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
                             }
                             continue;
@@ -693,7 +721,6 @@ namespace pg
                         else
                         {
                             // New function doesn't have decoded chunk, fall back to bytecode
-                            updateChunkCache();
                             return run();
                         }
                     }
@@ -704,8 +731,11 @@ namespace pg
                 {
                     // After return, check if we've returned to a different frame
                     // op_return has already updated currentFrame to point to the caller
-                    if (frameCount > 0 && currentFrame != frameBeforeExecution)
+                    if (frameCount > 0 and currentFrame != frameBeforeExecution)
                     {
+                        startingIp = currentFrame->closure->function->chunk.code.data();
+                        updateChunkCache();
+
                         // Check if the caller has a decoded chunk
                         DecodedChunk* newDecoded = currentFrame->closure->function->decodedChunk;
                         if (newDecoded != nullptr)
@@ -714,13 +744,12 @@ namespace pg
 
                             // Find where we are in the caller's decoded chunk
                             // The IP should be pointing right after the OP_Call instruction
-                            size_t bytecodeOffset = currentFrame->ip - currentFrame->closure->function->chunk.code.data();
+                            size_t bytecodeOffset = currentFrame->ip - startingIp;
                             instructionIndex = decoded->findInstructionIndex(bytecodeOffset);
                             continue;
                         }
                         else
                         {
-                            updateChunkCache();
                             return run();
                         }
                     }
@@ -928,16 +957,6 @@ namespace pg
         }
     }
 
-    void op_long_loop(VM* vm)
-    {
-        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-        vm->currentFrame->ip -= offset;
-    }
-
     void op_return(VM* vm)
     {
 #ifdef DEBUG_CHECK_STACK
@@ -1113,16 +1132,6 @@ namespace pg
         vm->releaseAndDelete(nameValue);
     }
 
-    void op_long_jump(VM* vm)
-    {
-        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
-        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
-        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
-
-        vm->currentFrame->ip += offset;
-    }
-
     void op_call(VM* vm)
     {
         int argCount = *vm->currentFrame->ip++;
@@ -1289,12 +1298,42 @@ namespace pg
         vm->currentFrame->ip += offset;
     }
 
+    void op_long_jump(VM* vm)
+    {
+        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
+
+        vm->currentFrame->ip += offset;
+    }
+
+    void op_jump_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        vm->currentFrame->ip = vm->chunkData + instr.bytecodeOffset;
+    }
+
     void op_loop(VM* vm)
     {
         uint16_t offset = (static_cast<uint16_t>(*vm->currentFrame->ip++) << 8);
         offset |= static_cast<uint16_t>(*vm->currentFrame->ip++);
 
         vm->currentFrame->ip -= offset;
+    }
+
+    void op_long_loop(VM* vm)
+    {
+        uint32_t offset = (static_cast<uint32_t>(*vm->currentFrame->ip++) << 24);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 16);
+        offset |= (static_cast<uint32_t>(*vm->currentFrame->ip++) << 8);
+        offset |= static_cast<uint32_t>(*vm->currentFrame->ip++);
+
+        vm->currentFrame->ip -= offset;
+    }
+
+    void op_loop_decoded(VM* vm, const DecodedInstruction& instr)
+    {
+        vm->currentFrame->ip = vm->chunkData - instr.bytecodeOffset;
     }
 
     void op_get_upvalue(VM* vm)
@@ -1415,7 +1454,6 @@ namespace pg
 
         vm->globals[name.toString()] = vm->retainValue(value1);
     }
-
 
     void op_get_constant_global(VM* vm)
     {

@@ -57,6 +57,7 @@ namespace pg
 
         // Original bytecode offset (needed for jump target resolution)
         size_t bytecodeOffset;
+        size_t nextInstuctionIndex = 0; // Filled in during decoding for quick jump target mapping
 
         // Flag checks (matching OpCodeInfo flags)
         bool isPure() const { return (flags & 0x01) != 0; }
@@ -161,6 +162,8 @@ namespace pg
 
         // Optimize: pre-resolve constant pointers
         void resolveConstantPointers(DecodedChunk* decoded, const Chunk& chunk);
+
+        void resolveJumpTargets(DecodedChunk* decoded);
     };
 
 } // namespace pg
