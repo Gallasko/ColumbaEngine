@@ -1,3 +1,5 @@
+import "string"
+
 // Test string interning with release and retrack
 // This tests that when a string is released and its pool slot is reused,
 // the internedStrings map is properly cleared so we don't get stale references
@@ -28,25 +30,25 @@
 
 // Phase 4: Test with numeric strings that are more likely to have collisions
 var x = 123
-var str1 = "value_" + __toString(x)
+var str1 = "value_" + toString(x)
 __dprint(str1)
 
 // Release str1 by going out of scope
 {
   var y = 456
-  var str_temp = "value_" + __toString(y)
+  var str_temp = "value_" + toString(y)
   // str_temp released here
 }
 
 // Recreate a string with same content as str1
 var z = 123
-var str2 = "value_" + __toString(z)
+var str2 = "value_" + toString(z)
 __dprint(str2)
 
 // Final test with loop creating and releasing many strings
 for (var i = 0; i < 3; i++)
 {
-  var msg = "iter_" + __toString(i)
+  var msg = "iter_" + toString(i)
   __dprint(msg)
 }
 

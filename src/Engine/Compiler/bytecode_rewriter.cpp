@@ -1,8 +1,11 @@
 #include "stdafx.h"
 
-#include "bytecode_rewriter.h"
-#include "logger.h"
 #include <algorithm>
+
+#include "bytecode_rewriter.h"
+#include "compiler_debug.h"
+
+#include "logger.h"
 
 namespace pg
 {
@@ -229,6 +232,8 @@ namespace pg
         LOG_MILE("BytecodeRewriter", "Removing " << count << " bytes starting at index " << index);
 
         // Remove bytes and corresponding lines
+        chunk.code.erase(chunk.code.begin() + index, chunk.code.begin() + index + count);
+
         if (index < chunk.lines.size())
         {
             size_t linesToRemove = std::min(count, chunk.lines.size() - index);
@@ -665,15 +670,17 @@ namespace pg
 
                 if (opcode == OpCode::OP_Loop or opcode == OpCode::OP_Long_Loop)
                 {
+                    auto oldPos = sizeDelta < 0 ? i - sizeDelta : i;
+
                     // Backward jump: adjust if the jump instruction is after the rewrite point
                     // AND the target is before the rewrite point (target didn't move, but jump moved)
-                    needsAdjustment = (i > rewriteIndex && currentTarget < rewriteIndex);
+                    needsAdjustment = (oldPos > rewriteIndex and currentTarget < rewriteIndex);
                 }
                 else
                 {
                     // Forward jump: adjust if the target is after the rewrite point
                     // AND the jump instruction is before or at the rewrite point (jump didn't move, but target moved)
-                    needsAdjustment = (currentTarget > rewriteIndex && i <= rewriteIndex);
+                    needsAdjustment = (currentTarget > rewriteIndex and i <= rewriteIndex);
                 }
 
                 if (needsAdjustment)
@@ -729,6 +736,11 @@ namespace pg
                             // Keep original index rather than converting to long jump
                         }
                     }
+                }
+                else
+                {
+                    LOG_MILE("BytecodeRewriter", "Not Adjusting jump at " << i << " (opcode=" << opcodeToString(static_cast<OpCode>(opcode))
+                             << ", currentTarget=" << currentTarget << ", rewriteIndex=" << rewriteIndex << ", sizeDelta=" << sizeDelta << ")");
                 }
             }
 
