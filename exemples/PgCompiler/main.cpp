@@ -55,8 +55,10 @@ int main(int argc, char *argv[])
             std::cout << "Usage: " << argv[0] << " [options] <script.pg>" << std::endl;
             std::cout << "Options:" << std::endl;
             std::cout << "  --profile, -p    Enable profiling" << std::endl;
+            std::cout << "  --compile-only, -c  Compile the script without executing" << std::endl;
             std::cout << "  --help, -h       Show this help message" << std::endl;
             std::cout << "  --info, -i       Show info logs" << std::endl;
+            std::cout << "  --O0, -O1, -O2, -O3  Set optimization level (default: O3)" << std::endl;
             return 0;
         }
         else if (fileName.empty())
