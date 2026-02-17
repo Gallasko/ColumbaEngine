@@ -1,0 +1,33 @@
+// Test 07: Conditional setter/getter generation (from lines 803-817)
+// Tests the field iteration with conditional setter use
+
+import "string"
+import "algorithm"
+
+var fields = [
+    {"name": "textureName", "type": "std::string", "setter": "basic"},
+    {"name": "opacity", "type": "float", "setter": "event"},
+    {"name": "width", "type": "int", "setter": "none"},
+    {"name": "visible", "type": "bool"}
+];
+
+var code = "";
+
+for (var i = 0; i < len(fields); i = i + 1)
+{
+    var field = fields[i];
+    var fieldName = field["name"];
+    var setterName = "set" + capitalize(fieldName);
+
+    // Use setter if available, otherwise direct assignment
+    if (contain(field, "setter") and field["setter"] != "none")
+    {
+        code = code + "    comp->" + setterName + "(" + fieldName + ");\n";
+    }
+    else
+    {
+        code = code + "    comp->" + fieldName + " = " + fieldName + ";\n";
+    }
+}
+
+__dprint(code);

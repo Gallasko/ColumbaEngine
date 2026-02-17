@@ -1,0 +1,36 @@
+// Test 03: Inline array parsing (from lines 234-246)
+// Tests parsing of [item1, item2, item3] format
+
+import "string"
+import "algorithm"
+
+fun parseInlineArray(value) {
+    if (startsWith(value, "[") and endsWith(value, "]")) {
+        var innerContent = substring(value, 1, len(value) - 1);
+        var items = split(innerContent, ",");
+        var result = [];
+
+        for (var i = 0; i < len(items); i = i + 1) {
+            push(result, trim(items[i]));
+        }
+
+        return result;
+    }
+
+    return value;
+}
+
+var test1 = parseInlineArray("[item1, item2, item3]");
+__dprint("Array 1 length: " + toString(len(test1)));
+for (var i = 0; i < len(test1); i = i + 1) {
+    __dprint("  Item " + toString(i) + ": " + test1[i]);
+}
+
+var test2 = parseInlineArray("[textureName, opacity, width]");
+__dprint("Array 2 length: " + toString(len(test2)));
+for (var i = 0; i < len(test2); i = i + 1) {
+    __dprint("  Item " + toString(i) + ": " + test2[i]);
+}
+
+var test3 = parseInlineArray("notAnArray");
+__dprint("Not an array: " + test3);

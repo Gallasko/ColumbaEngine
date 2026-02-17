@@ -1,0 +1,49 @@
+// Test 08: Escape sequence handling (from lines 362-404)
+// Tests converting \" to " in multiline strings
+
+import "algorithm"
+
+fun escapeQuotesInMultiline(str) {
+    var result = "";
+    var i = 0;
+
+    while (i < len(str)) {
+        var ch = str[i];
+
+        if (ch == "\\") {
+            if (i + 1 < len(str)) {
+                var nextCh = str[i + 1];
+
+                if (nextCh == "\"") {
+                    result = result + "\"";
+                    i = i + 1;  // Skip the next quote
+                } else {
+                    result = result + "\\";
+                }
+            } else {
+                result = result + "\\";
+            }
+        } else {
+            result = result + ch;
+        }
+
+        i = i + 1;
+    }
+
+    return result;
+}
+
+var test1 = "Simple string";
+__dprint("Test 1: " + escapeQuotesInMultiline(test1));
+
+var test2 = "String with \\\"escaped quotes\\\"";
+__dprint("Test 2: " + escapeQuotesInMultiline(test2));
+
+var test3 = "Backslash at end\\";
+__dprint("Test 3: " + escapeQuotesInMultiline(test3));
+
+var test4 = "\\\"Start and end\\\"";
+__dprint("Test 4: " + escapeQuotesInMultiline(test4));
+
+var test5 = "Other escape\\nsequences";
+__dprint("Test 5: " + escapeQuotesInMultiline(test5));

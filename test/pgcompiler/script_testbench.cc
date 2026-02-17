@@ -1107,6 +1107,108 @@ TEST_F(ScriptTestBench, PoppingJump_NestedIfWithCounter)
     testScript("popping_jump_tests/16_nested_if_with_counter");
 }
 
+// Component Generator Pattern Tests
+TEST_F(ScriptTestBench, ComponentGen_CounterWithCommaInsertion)
+{
+    testScript("component_gen_tests/01_counter_with_comma_insertion");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_LoopStringConcatWithIndex)
+{
+    testScript("component_gen_tests/02_loop_string_concat_with_index");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_NestedLoopFieldMatching)
+{
+    testScript("component_gen_tests/03_nested_loop_field_matching");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_SubstringQuoteStripping)
+{
+    testScript("component_gen_tests/04_substring_quote_stripping");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_ConditionalDefaultValue)
+{
+    testScript("component_gen_tests/05_conditional_default_value");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_TypeBasedExtractionDispatch)
+{
+    testScript("component_gen_tests/06_type_based_extraction_dispatch");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_SetterConditionalGeneration)
+{
+    testScript("component_gen_tests/07_setter_conditional_generation");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_MacroTypeMapping)
+{
+    testScript("component_gen_tests/08_macro_type_mapping");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_ShortnameExtraction)
+{
+    testScript("component_gen_tests/09_shortname_extraction");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_CompleteConstructorGeneration)
+{
+    testScript("component_gen_tests/10_complete_constructor_generation");
+}
+
+// YAML Parser Pattern Tests
+TEST_F(ScriptTestBench, YamlParser_IndentCountingEarlyExit)
+{
+    testScript("yaml_parser_tests/01_indent_counting_early_exit");
+}
+
+TEST_F(ScriptTestBench, YamlParser_SplitFirstWithSubstring)
+{
+    testScript("yaml_parser_tests/02_split_first_with_substring");
+}
+
+TEST_F(ScriptTestBench, YamlParser_InlineArrayParsing)
+{
+    testScript("yaml_parser_tests/03_inline_array_parsing");
+}
+
+TEST_F(ScriptTestBench, YamlParser_InlineObjectWithQuoteTracking)
+{
+    testScript("yaml_parser_tests/04_inline_object_with_quote_tracking");
+}
+
+TEST_F(ScriptTestBench, YamlParser_QuoteStrippingConditional)
+{
+    testScript("yaml_parser_tests/05_quote_stripping_conditional");
+}
+
+TEST_F(ScriptTestBench, YamlParser_MultilineStringAccumulation)
+{
+    testScript("yaml_parser_tests/06_multiline_string_accumulation");
+}
+
+TEST_F(ScriptTestBench, YamlParser_BackwardQuoteSearch)
+{
+    testScript("yaml_parser_tests/07_backward_quote_search");
+}
+
+TEST_F(ScriptTestBench, YamlParser_EscapeSequenceHandling)
+{
+    testScript("yaml_parser_tests/08_escape_sequence_handling");
+}
+
+TEST_F(ScriptTestBench, YamlParser_NestedContainChecks)
+{
+    testScript("yaml_parser_tests/09_nested_contain_checks");
+}
+
+TEST_F(ScriptTestBench, YamlParser_StatefulCharIteration)
+{
+    testScript("yaml_parser_tests/10_stateful_char_iteration");
+}
+
 } // namespace test
 } // namespace pg
 

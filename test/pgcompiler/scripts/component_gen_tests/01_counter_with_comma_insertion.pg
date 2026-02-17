@@ -1,0 +1,59 @@
+// Test 01: Counter-based comma insertion pattern (from line 237)
+// This is the exact pattern that appears in initializer list generation
+import "string"
+
+var code = "";
+var initCount = 0;
+var fieldExists = true;
+var paramName = "textureName";
+
+// First iteration - initCount is 0, no comma
+if (fieldExists)
+{
+    if (initCount > 0)
+    {
+        code = code + ", ";
+    }
+
+    code = code + paramName + "(" + paramName + ")";
+    initCount = initCount + 1;
+}
+
+__dprint(code);
+__dprint("Count: " + toString(initCount));
+
+// Second iteration - initCount is 1, should add comma
+paramName = "opacity";
+fieldExists = true;
+
+if (fieldExists)
+{
+    if (initCount > 0)
+    {
+        code = code + ", ";
+    }
+
+    code = code + paramName + "(" + paramName + ")";
+    initCount = initCount + 1;
+}
+
+__dprint(code);
+__dprint("Count: " + toString(initCount));
+
+// Third iteration
+paramName = "width";
+fieldExists = true;
+
+if (fieldExists)
+{
+    if (initCount > 0)
+    {
+        code = code + ", ";
+    }
+
+    code = code + paramName + "(" + paramName + ")";
+    initCount = initCount + 1;
+}
+
+__dprint(code);
+__dprint("Count: " + toString(initCount));

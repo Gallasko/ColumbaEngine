@@ -1,0 +1,47 @@
+// Test 06: Multi-line string accumulation with quote search (from lines 143-183)
+// Tests accumulating lines until closing quote is found
+
+import "string"
+import "algorithm"
+
+fun parseMultilineString(lines, startIdx, startValue) {
+    // Start value should be after the opening quote
+    var multiLineValue = startValue;
+    var j = startIdx + 1;
+
+    while (j < len(lines)) {
+        var nextLine = lines[j];
+        var trimmedNext = trim(nextLine);
+
+        // Check if this line ends the string
+        var lineEndsWithQuote = len(trimmedNext) > 0 and substring(trimmedNext, len(trimmedNext) - 1, len(trimmedNext)) == "\"";
+
+        if (lineEndsWithQuote) {
+            // Add everything except the closing quote
+            // Find where the closing quote is in the original line
+            var quotePos = len(nextLine) - 1;
+            while (quotePos >= 0 and substring(nextLine, quotePos, quotePos + 1) != "\"") {
+                quotePos = quotePos - 1;
+            }
+            multiLineValue = multiLineValue + "\n" + substring(nextLine, 0, quotePos);
+            break;
+        } else {
+            multiLineValue = multiLineValue + "\n" + nextLine;
+        }
+        j = j + 1;
+    }
+
+    return multiLineValue;
+}
+
+var lines = [
+    "key: \"Line one",
+    "    Line two",
+    "    Line three\""
+];
+
+var value = substring("\"Line one", 1, len("\"Line one"));
+var result = parseMultilineString(lines, 0, value);
+
+__dprint("Result:");
+__dprint(result);

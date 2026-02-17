@@ -1,0 +1,48 @@
+// Test 03: Nested loop with field matching (from lines 166-190)
+// Tests parameter type lookup pattern with nested loops
+
+import "string"
+import "algorithm"
+
+var params = ["textureName", "opacity", "width", "invalid"];
+var fields = [
+    {"name": "textureName", "type": "std::string"},
+    {"name": "opacity", "type": "float"},
+    {"name": "width", "type": "int"}
+];
+
+var code = "";
+var validParamCount = 0;
+
+for (var paramIdx = 0; paramIdx < len(params); paramIdx = paramIdx + 1)
+{
+    var paramName = params[paramIdx];
+    var fieldType = "";
+
+    // Find the field type
+    for (var fieldIdx = 0; fieldIdx < len(fields); fieldIdx = fieldIdx + 1)
+    {
+        if (fields[fieldIdx]["name"] == paramName)
+        {
+            fieldType = fields[fieldIdx]["type"];
+            break;
+        }
+    }
+
+    if (fieldType == "")
+    {
+        continue;
+    }
+
+    // Add parameter
+    if (validParamCount > 0)
+    {
+        code = code + ", ";
+    }
+
+    code = code + "const " + fieldType + "& " + paramName;
+    validParamCount = validParamCount + 1;
+}
+
+__dprint(code);
+__dprint("Valid params: " + toString(validParamCount));

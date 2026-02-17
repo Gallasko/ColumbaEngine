@@ -1,0 +1,2 @@
+    TestComponent(const std::string& textureName, const float& opacity = 1.0f, const int& width) : textureName(textureName), opacity(opacity), width(width) {}
+

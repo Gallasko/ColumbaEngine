@@ -1,0 +1,64 @@
+// Test 04: Inline object parsing with quote tracking (from lines 248-307)
+// Tests parsing of {key1: value1, key2: value2} with quote awareness
+
+import "string"
+import "algorithm"
+
+fun parseInlineObject(value) {
+    if (not (startsWith(value, "{") and endsWith(value, "}"))) {
+        return value;
+    }
+
+    var innerContent = substring(value, 1, len(value) - 1);
+    var result = {};
+
+    // Simple parser: split by comma, but respect quotes
+    var currentKey = "";
+    var currentVal = "";
+    var inQuote = false;
+    var parsingKey = true;
+
+    for (var i = 0; i < len(innerContent); i = i + 1) {
+        var c = substring(innerContent, i, i + 1);
+
+        if (c == "\"") {
+            inQuote = not inQuote;
+            if (not parsingKey) {
+                currentVal = currentVal + c;
+            }
+        } else if (c == ":" and not inQuote and parsingKey) {
+            parsingKey = false;
+        } else if (c == "," and not inQuote) {
+            // End of key-value pair
+            if (currentKey != "") {
+                result[trim(currentKey)] = trim(currentVal);
+            }
+            currentKey = "";
+            currentVal = "";
+            parsingKey = true;
+        } else {
+            if (parsingKey) {
+                currentKey = currentKey + c;
+            } else {
+                currentVal = currentVal + c;
+            }
+        }
+    }
+
+    // Save the last pair
+    if (currentKey != "") {
+        result[trim(currentKey)] = trim(currentVal);
+    }
+
+    return result;
+}
+
+var test1 = parseInlineObject("{opacity: \"1.0f\"}");
+__dprint("Test 1 - opacity: " + test1["opacity"]);
+
+var test2 = parseInlineObject("{name: \"Test, Component\", type: basic}");
+__dprint("Test 2 - name: " + test2["name"]);
+__dprint("Test 2 - type: " + test2["type"]);
+
+var test3 = parseInlineObject("notAnObject");
+__dprint("Not an object: " + test3);

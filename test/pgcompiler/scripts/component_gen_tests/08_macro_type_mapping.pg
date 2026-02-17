@@ -1,0 +1,63 @@
+// Test 08: Type-to-macro name mapping (from lines 648-696)
+// Tests the complex if-else chain for macro selection
+
+import "string"
+import "algorithm"
+
+var fields = [
+    {"name": "opacity", "type": "float", "setter": "basic"},
+    {"name": "visible", "type": "bool", "setter": "event"},
+    {"name": "count", "type": "int", "setter": "basic"},
+    {"name": "ratio", "type": "double", "setter": "basic"},
+    {"name": "name", "type": "std::string", "setter": "basic"},
+    {"name": "id", "type": "_unique_id", "setter": "basic"},
+    {"name": "unknown", "type": "CustomType", "setter": "basic"}
+];
+
+var code = "";
+
+for (var i = 0; i < len(fields); i = i + 1)
+{
+    var field = fields[i];
+    var fieldName = field["name"];
+    var fieldType = field["type"];
+    var setterName = "set" + capitalize(fieldName);
+
+    if (contain(field, "setter") and field["setter"] != "none")
+    {
+        var macroName = "";
+
+        // Determine the appropriate macro based on field type
+        if (fieldType == "float")
+        {
+            macroName = "REGISTER_FLOAT_SETTER";
+        }
+        else if (fieldType == "bool")
+        {
+            macroName = "REGISTER_BOOL_SETTER";
+        }
+        else if (fieldType == "int" or fieldType == "_unique_id" or fieldType == "size_t")
+        {
+            macroName = "REGISTER_INT_SETTER";
+        }
+        else if (fieldType == "double")
+        {
+            macroName = "REGISTER_DOUBLE_SETTER";
+        }
+        else if (fieldType == "std::string")
+        {
+            macroName = "REGISTER_STRING_SETTER";
+        }
+        else
+        {
+            // For other types, use a generic comment
+            code = code + "    // TODO: Add setter registration for " + fieldName + " (" + fieldType + ")\n";
+        }
+
+        if (len(macroName) > 0) {
+            code = code + "    " + macroName + "(vm, table, component, " + setterName + ");\n";
+        }
+    }
+}
+
+__dprint(code);

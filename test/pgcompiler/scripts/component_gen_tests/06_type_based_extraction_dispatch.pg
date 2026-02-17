@@ -1,0 +1,52 @@
+// Test 06: Type-based extraction function dispatch (from lines 760-795)
+// Tests the if-else chain for selecting extraction functions
+
+import "algorithm"
+
+var fields = [
+    {"name": "opacity", "type": "float"},
+    {"name": "visible", "type": "bool"},
+    {"name": "count", "type": "int"},
+    {"name": "ratio", "type": "double"}
+];
+
+var code = "";
+var firstField = true;
+
+for (var i = 0; i < len(fields); i = i + 1)
+{
+    var field = fields[i];
+    var fieldName = field["name"];
+    var fieldType = field["type"];
+
+    var extractFunc = "";
+    if (fieldType == "float" or fieldType == "double")
+    {
+        extractFunc = "detail::extractFloatArg";
+    }
+    else if (fieldType == "bool")
+    {
+        extractFunc = "detail::extractBoolArg";
+    }
+    else if (fieldType == "int" or fieldType == "_unique_id")
+    {
+        extractFunc = "detail::extractIntArg";
+    }
+
+    if (len(extractFunc) > 0)
+    {
+        if (firstField)
+        {
+            code = code + "        if (key == \"" + fieldName + "\")\n";
+            firstField = false;
+        }
+        else
+        {
+            code = code + "        else if (key == \"" + fieldName + "\")\n";
+        }
+
+        code = code + "            " + fieldName + " = " + extractFunc + "(args, i + 1);\n";
+    }
+}
+
+__dprint(code);

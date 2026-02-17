@@ -1,0 +1,5 @@
+Test 1 - key1: value1
+Test 1 - key2: value2
+Test 2 - name: "Test, Component"
+Test 2 - type: basic
+Test 3 - opacity: "1.0f"
