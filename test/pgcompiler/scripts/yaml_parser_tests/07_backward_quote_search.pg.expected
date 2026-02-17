@@ -1,0 +1,4 @@
+Test 1: '    some text"' quote at position 14
+Test 2: '  "quoted" value"' last quote at position 16
+Test 3: 'no quotes here' quote at position -1
+Test 4: single quote at position 0

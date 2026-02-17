@@ -1,0 +1,2 @@
+const std::string& textureName, const float& opacity, const int& width
+Valid params: 3

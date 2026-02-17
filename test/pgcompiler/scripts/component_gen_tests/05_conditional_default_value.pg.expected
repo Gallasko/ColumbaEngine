@@ -1,0 +1,5 @@
+    std::string textureName = "default.png";
+    float opacity = 1;
+    int width = 100;
+    bool visible;
+

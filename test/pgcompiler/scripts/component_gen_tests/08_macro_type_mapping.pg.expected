@@ -1,0 +1,8 @@
+    REGISTER_FLOAT_SETTER(vm, table, component, setOpacity);
+    REGISTER_BOOL_SETTER(vm, table, component, setVisible);
+    REGISTER_INT_SETTER(vm, table, component, setCount);
+    REGISTER_DOUBLE_SETTER(vm, table, component, setRatio);
+    REGISTER_STRING_SETTER(vm, table, component, setName);
+    REGISTER_INT_SETTER(vm, table, component, setId);
+    // TODO: Add setter registration for unknown (CustomType)
+

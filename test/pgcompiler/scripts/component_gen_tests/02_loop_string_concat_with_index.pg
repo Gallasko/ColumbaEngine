@@ -1,0 +1,14 @@
+// Test 02: Loop with string concatenation and array indexing (from lines 59-63)
+// Tests the include generation pattern
+
+import "algorithm"
+
+var includes = ["<string>", "<vector>", "\"component.h\"", "\"system.h\""];
+var code = "";
+
+for (var i = 0; i < len(includes); i = i + 1)
+{
+    code = code + "#include " + includes[i] + "\n";
+}
+
+__dprint(code);

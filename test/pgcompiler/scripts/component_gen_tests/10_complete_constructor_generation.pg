@@ -1,0 +1,128 @@
+// Test 10: Complete constructor generation flow (from lines 135-251)
+// This tests the full constructor generation logic with all its nested loops and counters
+
+import "string"
+import "algorithm"
+
+var schema = {
+    "name": "TestComponent",
+    "constructors": [
+        {
+            "params": ["textureName", "opacity", "width"],
+            "defaults": {
+                "opacity": "1"
+            }
+        }
+    ],
+    "fields": [
+        {"name": "textureName", "type": "std::string"},
+        {"name": "opacity", "type": "float"},
+        {"name": "width", "type": "int"}
+    ]
+};
+
+var code = "";
+
+for (var ctorIdx = 0; ctorIdx < len(schema["constructors"]); ctorIdx = ctorIdx + 1)
+{
+    var ctor = schema["constructors"][ctorIdx];
+    var params = ctor["params"];
+
+    if (typeOf(params) != "array")
+    {
+        continue;
+    }
+
+    // Check if there are custom defaults specified
+    var ctorDefaults = {};
+    if (contain(ctor, "defaults"))
+    {
+        ctorDefaults = ctor["defaults"];
+    }
+
+    // Build parameter list
+    code = code + "    " + schema["name"] + "(";
+
+    var validParamCount = 0;
+    for (var paramIdx = 0; paramIdx < len(params); paramIdx = paramIdx + 1)
+    {
+        var paramName = params[paramIdx];
+
+        // Find the field type and default
+        var fieldType = "";
+        var paramDefault = "";
+
+        for (var fieldIdx = 0; fieldIdx < len(schema["fields"]); fieldIdx = fieldIdx + 1) {
+            if (schema["fields"][fieldIdx]["name"] == paramName)
+            {
+                fieldType = schema["fields"][fieldIdx]["type"];
+
+                // Check if there's a custom default for this param in the constructor
+                if (contain(ctorDefaults, paramName))
+                {
+                    paramDefault = ctorDefaults[paramName];
+                }
+
+                break;
+            }
+        }
+
+        if (fieldType == "")
+        {
+            continue;
+        }
+
+        // Add parameter
+        if (validParamCount > 0)
+        {
+            code = code + ", ";
+        }
+
+        code = code + "const " + fieldType + "& " + paramName;
+
+        if (paramDefault != "")
+        {
+            code = code + " = " + paramDefault;
+        }
+
+        validParamCount = validParamCount + 1;
+    }
+
+    code = code + ")";
+
+    // Initializer list
+    if (validParamCount > 0)
+    {
+        code = code + " : ";
+        var initCount = 0;
+        for (var paramIdx = 0; paramIdx < len(params); paramIdx = paramIdx + 1)
+        {
+            var paramName = params[paramIdx];
+
+            // Verify this field exists
+            var fieldExists = false;
+            for (var fieldIdx = 0; fieldIdx < len(schema["fields"]); fieldIdx = fieldIdx + 1)
+            {
+                if (schema["fields"][fieldIdx]["name"] == paramName)
+                {
+                    fieldExists = true;
+                    break;
+                }
+            }
+
+            if (fieldExists)
+            {
+                if (initCount > 0)
+                {
+                    code = code + ", ";
+                }
+                code = code + paramName + "(" + paramName + ")";
+                initCount = initCount + 1;
+            }
+        }
+    }
+
+    code = code + " {}\n";
+}
+
+__dprint(code);
