@@ -1,0 +1,13 @@
+// Test 10: Condition result used as value - should NOT optimize
+// The comparison result is used, not just tested
+
+var x = 5;
+var isSmall = x < 10;  // Result of comparison stored
+
+if (isSmall) {
+    __dprint("small");
+}
+
+// Using comparison directly in expression
+var result = (x > 0);  // This would cause type error if bool is left on stack incorrectly
+__dprint(result);

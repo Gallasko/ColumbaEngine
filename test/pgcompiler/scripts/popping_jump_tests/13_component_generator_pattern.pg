@@ -1,0 +1,45 @@
+// Test 13: Pattern from component generator - complex if-else-if chain with string operations
+// This mimics the pattern that causes the error in component_generator.pg
+
+fun generateCode(fieldType, fieldName)
+{
+    var code = "";
+
+    // Multiple if-else-if chain (common pattern in generator)
+    if (fieldType == "float")
+    {
+        code = code + "    float " + fieldName + ";\n";
+    }
+    else if (fieldType == "double")
+    {
+        code = code + "    double " + fieldName + ";\n";
+    }
+    else if (fieldType == "int")
+    {
+        code = code + "    int " + fieldName + ";\n";
+    }
+    else if (fieldType == "bool")
+    {
+        code = code + "    bool " + fieldName + ";\n";
+    }
+    else if (fieldType == "std::string")
+    {
+        code = code + "    std::string " + fieldName + ";\n";
+    }
+    else
+    {
+        code = code + "    // Unknown type\n";
+    }
+
+    return code;
+}
+
+// Test with various types
+var result1 = generateCode("float", "opacity");
+__dprint(result1);
+
+var result2 = generateCode("bool", "isActive");
+__dprint(result2);
+
+var result3 = generateCode("std::string", "textureName");
+__dprint(result3);

@@ -289,6 +289,15 @@ namespace pg
         {
             LOG_ERROR("VM", e.what());
 
+            std::cout << "          ";
+                for (size_t i = 0; i < stack.size(); ++i)
+                {
+                    std::cout << "[";
+                    printValue(this, stack[i]);
+                    std::cout << "] ";
+                }
+                std::cout << std::endl;
+
             return InterpretResult::RUNTIME_ERROR;
         }
 

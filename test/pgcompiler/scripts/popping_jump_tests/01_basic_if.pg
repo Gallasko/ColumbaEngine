@@ -1,0 +1,11 @@
+// Test 1: Basic if statement - should optimize
+// Pattern: condition -> jump_if_false -> pop (not taken) -> ... -> pop (target)
+
+var x = 5;
+
+if (x < 10)
+{
+    __dprint("x is less than 10");
+}
+
+__dprint("done");

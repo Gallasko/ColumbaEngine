@@ -1,0 +1,11 @@
+// Test 6: If statement with return - edge case where pop after jump may not exist
+
+fun test(x) {
+    if (x < 10) {
+        return x * 2;
+    }
+    return x;
+}
+
+var result = test(5);
+__dprint(result);

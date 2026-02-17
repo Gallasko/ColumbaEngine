@@ -1,0 +1,12 @@
+// Test 3: Nested if statements - multiple optimization opportunities
+
+var x = 5;
+var y = 10;
+
+if (x < 10) {
+    if (y > 5) {
+        __dprint("both conditions true");
+    }
+}
+
+__dprint("done");

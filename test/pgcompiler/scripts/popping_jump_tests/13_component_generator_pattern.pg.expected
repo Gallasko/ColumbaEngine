@@ -1,0 +1,6 @@
+    float opacity;
+
+    bool isActive;
+
+    std::string textureName;
+

@@ -1,0 +1,8 @@
+#pragma once
+
+struct TextureChangedEvent
+{
+    _unique_id id = 0;
+};
+
+Condition is: true

@@ -1,0 +1,14 @@
+// Test 7: Complex boolean expression - may create multiple jumps
+
+var x = 5;
+var y = 10;
+
+if (x < 10 and y > 5) {
+    __dprint("both true");
+}
+
+if (x == 5 or y == 15) {
+    __dprint("at least one true");
+}
+
+__dprint("done");

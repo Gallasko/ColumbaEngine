@@ -1,0 +1,17 @@
+// Test 4: Multiple sequential if statements
+
+var x = 5;
+
+if (x < 10) {
+    __dprint("first condition");
+}
+
+if (x > 0) {
+    __dprint("second condition");
+}
+
+if (x == 5) {
+    __dprint("third condition");
+}
+
+__dprint("done");

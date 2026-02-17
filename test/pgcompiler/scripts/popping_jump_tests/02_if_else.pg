@@ -1,0 +1,15 @@
+// Test 2: If-else statement - should optimize the jump
+// The jump from if condition to else block should be optimizable
+
+var x = 5;
+
+if (x < 10)
+{
+    __dprint("less than 10");
+}
+else
+{
+    __dprint("10 or more");
+}
+
+__dprint("done");

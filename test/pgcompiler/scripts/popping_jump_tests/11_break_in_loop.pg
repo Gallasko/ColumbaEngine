@@ -1,0 +1,15 @@
+// Test 11: Break statement with condition in loop
+
+var i = 0;
+while (i < 10)
+{
+    if (i == 5)
+    {
+        break;
+    }
+
+    __dprint(i);
+    i = i + 1;
+}
+
+__dprint("done");
