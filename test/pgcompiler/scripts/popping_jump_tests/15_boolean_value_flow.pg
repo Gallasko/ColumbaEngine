@@ -1,0 +1,43 @@
+// Test 15: Boolean value flow through conditionals
+// This tests if boolean values are correctly managed on the stack
+
+fun checkType(value)
+{
+    var isNumber = (value > 0);  // Boolean value created
+
+    // Use boolean in condition
+    if (isNumber) {
+        return "positive number";
+    }
+
+    return "not positive";
+}
+
+// Test cases
+var result1 = checkType(5);
+__dprint(result1);
+
+var result2 = checkType(-3);
+__dprint(result2);
+
+// Edge case: boolean result used in expression after if
+fun problematicPattern()
+{
+    var x = 10;
+    var condition = (x > 5);  // Boolean
+
+    if (x > 0)
+    {
+        // If optimization incorrectly pops, 'condition' might be lost or corrupted
+        var text = "Value: ";
+        __dprint(text);
+    }
+
+    // Use the boolean here
+    if (condition)
+    {
+        __dprint("condition was true");
+    }
+}
+
+problematicPattern();

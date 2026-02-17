@@ -171,16 +171,8 @@ protected:
         return buffer.str();
     }
 
-    /**
-     * Test a script file
-     */
-    void testScript(const std::string& scriptName)
+    void executeScript(const std::string& scriptPath, const std::string& expectedPath, const std::string& scriptName)
     {
-        std::string scriptPath = getScriptPath(scriptName);
-        std::string expectedPath = getExpectedPath(scriptName);
-
-        ASSERT_TRUE(std::filesystem::exists(scriptPath)) << "Script file not found: " << scriptPath;
-
         InterpretResult result, compiledResult;
         std::string output = runScript(scriptPath, result);
 
@@ -254,6 +246,19 @@ protected:
     }
 
     /**
+     * Test a script file
+     */
+    void testScript(const std::string& scriptName)
+    {
+        std::string scriptPath = getScriptPath(scriptName);
+        std::string expectedPath = getExpectedPath(scriptName);
+
+        ASSERT_TRUE(std::filesystem::exists(scriptPath)) << "Script file not found: " << scriptPath;
+
+        executeScript(scriptPath, expectedPath, scriptName);
+    }
+
+    /**
      * Test an example file
      */
     void testExample(const std::string& exampleFolder, const std::string& scriptName)
@@ -264,42 +269,7 @@ protected:
         ASSERT_TRUE(std::filesystem::exists(scriptPath))
             << "Script file not found: " << scriptPath;
 
-        InterpretResult result, compiledResult;
-        std::string output = runScript(scriptPath, result);
-
-        // Check if expected file exists
-        if (std::filesystem::exists(expectedPath))
-        {
-            std::string expected = loadExpectedOutput(expectedPath);
-
-            // Normalize line endings and trim
-            output = trim(output);
-            expected = trim(expected);
-
-            EXPECT_EQ(output, expected)
-                << "Script: " << scriptName << "\n"
-                << "Output mismatch!\n"
-                << "Expected:\n" << expected << "\n"
-                << "Got:\n" << output;
-
-            // Try to run the compiled bytecode version as well
-            output = runScript(scriptPath + ".compiled.pgc", compiledResult);
-
-            output = trim(output);
-
-            EXPECT_EQ(output, expected)
-                << "Script (compiled): " << scriptName << "\n"
-                << "Output mismatch!\n"
-                << "Expected:\n" << expected << "\n"
-                << "Got:\n" << output;
-
-            EXPECT_EQ(compiledResult, InterpretResult::OK)
-                << "Script (compiled):" << scriptName << " failed to execute";
-        }
-
-        // Always check for successful execution
-        EXPECT_EQ(result, InterpretResult::OK)
-            << "Script " << scriptName << " failed to execute";
+        executeScript(scriptPath, expectedPath, scriptName);
     }
 
     /**
@@ -1051,6 +1021,90 @@ TEST_F(ScriptTestBench, VMStringMemoryHandling)
     )", false);
 
     delete testVm;
+}
+
+// ============================================================================
+// Popping Jump Optimization Pass Tests
+// ============================================================================
+
+TEST_F(ScriptTestBench, PoppingJump_BasicIf)
+{
+    testScript("popping_jump_tests/01_basic_if");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfElse)
+{
+    testScript("popping_jump_tests/02_if_else");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_NestedIf)
+{
+    testScript("popping_jump_tests/03_nested_if");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_MultipleConditions)
+{
+    testScript("popping_jump_tests/04_multiple_conditions");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfWithLoop)
+{
+    testScript("popping_jump_tests/05_if_with_loop");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfWithReturn)
+{
+    testScript("popping_jump_tests/06_if_with_return");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ComplexExpression)
+{
+    testScript("popping_jump_tests/07_complex_expression");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_StringBooleanOp)
+{
+    testScript("popping_jump_tests/08_string_boolean_op");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfElseChain)
+{
+    testScript("popping_jump_tests/09_if_else_chain");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ConditionAsExpression)
+{
+    testScript("popping_jump_tests/10_condition_as_expression");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_BreakInLoop)
+{
+    testScript("popping_jump_tests/11_break_in_loop");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ContinueInLoop)
+{
+    testScript("popping_jump_tests/12_continue_in_loop");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ComponentGeneratorPattern)
+{
+    testScript("popping_jump_tests/13_component_generator_pattern");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_NestedStringConcat)
+{
+    testScript("popping_jump_tests/14_nested_string_concat");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_BooleanValueFlow)
+{
+    testScript("popping_jump_tests/15_boolean_value_flow");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_NestedIfWithCounter)
+{
+    testScript("popping_jump_tests/16_nested_if_with_counter");
 }
 
 } // namespace test

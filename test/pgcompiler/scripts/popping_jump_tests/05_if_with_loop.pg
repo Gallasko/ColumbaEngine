@@ -1,0 +1,11 @@
+// Test 5: If statement inside a loop - edge case
+
+var i = 0;
+while (i < 5) {
+    if (i == 2) {
+        __dprint("found 2");
+    }
+    i = i + 1;
+}
+
+__dprint("done");

@@ -1,0 +1,15 @@
+// Test 9: If-else-if chain - multiple optimization points
+
+var x = 5;
+
+if (x < 0) {
+    __dprint("negative");
+} else if (x == 0) {
+    __dprint("zero");
+} else if (x < 10) {
+    __dprint("small positive");
+} else {
+    __dprint("large positive");
+}
+
+__dprint("done");

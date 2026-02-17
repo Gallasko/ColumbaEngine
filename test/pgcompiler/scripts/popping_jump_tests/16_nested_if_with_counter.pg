@@ -1,0 +1,31 @@
+// Test 16: Nested if with counter pattern (from component_generator.pg line 237)
+// This reproduces the exact pattern that causes the error
+
+var code = "";
+var fieldExists = true;
+var initCount = 0;
+var paramName = "textureName";
+
+if (fieldExists) {
+    if (initCount > 0) {
+        code = code + ", ";
+    }
+    code = code + paramName + "(" + paramName + ")";
+    initCount = initCount + 1;
+}
+
+__dprint(code);
+
+// Second iteration with initCount > 0
+fieldExists = true;
+paramName = "opacity";
+
+if (fieldExists) {
+    if (initCount > 0) {
+        code = code + ", ";
+    }
+    code = code + paramName + "(" + paramName + ")";
+    initCount = initCount + 1;
+}
+
+__dprint(code);
