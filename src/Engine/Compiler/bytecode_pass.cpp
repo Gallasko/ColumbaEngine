@@ -63,7 +63,7 @@ namespace pg {
                 changed = pass->runPass(chunk, rewriter.get());
                 iterations++;
 
-                if (changed && enableDebugOutput)
+                if (changed and enableDebugOutput)
                 {
                     LOG_INFO("PassManager", "Pass " << pass->getName() << " made changes (iteration " << iterations << ")");
                 }

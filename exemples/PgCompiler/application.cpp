@@ -100,6 +100,26 @@ void CompilerApp::setLoggerSink()
         {
             needInfo = true;
         }
+        else if (arg == "--compile-only" or arg == "-c")
+        {
+            needCompileOnly = true;
+        }
+        else if (arg == "-O0")
+        {
+            optimizationLevel = VmOptimizationLevel::O0;
+        }
+        else if (arg == "-O1")
+        {
+            optimizationLevel = VmOptimizationLevel::O1;
+        }
+        else if (arg == "-O2")
+        {
+            optimizationLevel = VmOptimizationLevel::O2;
+        }
+        else if (arg == "-O3")
+        {
+            optimizationLevel = VmOptimizationLevel::O3;
+        }
     }
 
     if (not needInfo)
@@ -255,7 +275,7 @@ void CompilerApp::runFile(bool needCompile)
 
     EntitySystem ecs;
 
-    ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+    ecs.setVMOptimizationLevel(optimizationLevel);
 
     std::unique_ptr<VM> vm(new VM());
 
@@ -305,8 +325,11 @@ void CompilerApp::runFile(bool needCompile)
     {
         // vm->addOptimizationPass(std::make_uniqueh
 
-        vm->enableBytecodeOptimization();
-        vm->enableOptimizationDebugging();
+        if (optimizationLevel != VmOptimizationLevel::O0)
+        {
+            vm->enableBytecodeOptimization();
+            vm->enableOptimizationDebugging();
+        }
 
         // vm->disableBytecodeOptimization();
 
@@ -332,7 +355,7 @@ void CompilerApp::runFile(bool needCompile)
 
         vm->currentFileName = fileName;
 
-        result = vm->interpret(tokens, false, "temp.pgc");
+        result = vm->interpret(tokens, needCompileOnly, "temp.pgc");
     }
     else
     {
