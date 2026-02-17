@@ -6,6 +6,8 @@
 #include "Helpers/stringmodule.h"
 #include "Helpers/algorithmmodule.h"
 
+#include "ECS/entitysystem.h"
+
 #include "../mocklogger.h"
 
 #include <filesystem>
@@ -82,7 +84,8 @@ protected:
         registerNativeFunctions(vm);
     }
 
-    void TearDown() override {
+    void TearDown() override
+    {
         // Clean up
         delete vm;
     }
@@ -116,11 +119,40 @@ protected:
         else
             result = vm->interpretFromText(source, false, scriptPath + ".compiled.pgc");
 
-        // Use VM's built-in interpretFromText method
-
-
         // Return captured output from __dprint
         return vm->testOutput;
+    }
+
+     /**
+     * Run a script and return its output from __dprint
+     */
+    std::string runOptScript(const std::string& scriptPath, InterpretResult& result)
+    {
+        // Read the script file
+        std::ifstream file(scriptPath);
+        if (not file.is_open())
+        {
+            throw std::runtime_error("Failed to open script file: " + scriptPath);
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string source = buffer.str();
+
+        EntitySystem ecs;
+        VM optimizedVM;
+
+        ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+        ecs.setupVm(optimizedVM);
+
+        // Clear previous test output
+        if (scriptPath.find(".pgc") != std::string::npos)
+            result = optimizedVM.interpretFromBytecodeFile(scriptPath);
+        else
+            result = optimizedVM.interpretFromText(source, false, scriptPath + ".compiled.pgc");
+
+        // Return captured output from __dprint
+        return optimizedVM.testOutput;
     }
 
     /**
@@ -147,8 +179,7 @@ protected:
         std::string scriptPath = getScriptPath(scriptName);
         std::string expectedPath = getExpectedPath(scriptName);
 
-        ASSERT_TRUE(std::filesystem::exists(scriptPath))
-            << "Script file not found: " << scriptPath;
+        ASSERT_TRUE(std::filesystem::exists(scriptPath)) << "Script file not found: " << scriptPath;
 
         InterpretResult result, compiledResult;
         std::string output = runScript(scriptPath, result);
@@ -179,13 +210,47 @@ protected:
                 << "Expected:\n" << expected << "\n"
                 << "Got:\n" << output;
 
-            EXPECT_EQ(compiledResult, InterpretResult::OK)
-                << "Script (compiled):" << scriptName << " failed to execute";
+            EXPECT_EQ(compiledResult, InterpretResult::OK) <<
+                "Script (compiled):" << scriptName << " failed to execute";
         }
 
         // Always check for successful execution
-        EXPECT_EQ(result, InterpretResult::OK)
-            << "Script " << scriptName << " failed to execute";
+        EXPECT_EQ(result, InterpretResult::OK) << "Script " << scriptName << " failed to execute";
+
+        output = runOptScript(scriptPath, result);
+
+        // Check if expected file exists
+        if (std::filesystem::exists(expectedPath))
+        {
+            std::string expected = loadExpectedOutput(expectedPath);
+
+            // Normalize line endings and trim
+            output = trim(output);
+            expected = trim(expected);
+
+            EXPECT_EQ(output, expected)
+                << "Script [O3]: " << scriptName << "\n"
+                << "Output mismatch!\n"
+                << "Expected:\n" << expected << "\n"
+                << "Got:\n" << output;
+
+            // Try to run the compiled bytecode version as well
+            output = runOptScript(scriptPath + ".compiled.pgc", compiledResult);
+
+            output = trim(output);
+
+            EXPECT_EQ(output, expected)
+                << "Script [O3] (compiled): " << scriptName << "\n"
+                << "Output mismatch!\n"
+                << "Expected:\n" << expected << "\n"
+                << "Got:\n" << output;
+
+            EXPECT_EQ(compiledResult, InterpretResult::OK) <<
+                "Script [O3] (compiled):" << scriptName << " failed to execute";
+        }
+
+        // Always check for successful execution
+        EXPECT_EQ(result, InterpretResult::OK) << "Script [O3] " << scriptName << " failed to execute";
     }
 
     /**

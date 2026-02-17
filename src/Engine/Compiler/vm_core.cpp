@@ -1275,6 +1275,11 @@ namespace pg
         {
             vm->currentFrame->ip += offset;
         }
+
+        if (requiresRefCount(condition))
+        {
+            vm->releaseAndDelete(condition);
+        }
     }
 
     void op_long_jump_if_false(VM* vm)
@@ -1304,6 +1309,11 @@ namespace pg
         if (not isValueTrue(condition))
         {
             vm->currentFrame->ip += offset;
+        }
+
+        if (requiresRefCount(condition))
+        {
+            vm->releaseAndDelete(condition);
         }
     }
 

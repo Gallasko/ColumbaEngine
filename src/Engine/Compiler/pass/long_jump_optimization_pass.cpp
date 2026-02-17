@@ -54,7 +54,7 @@ namespace pg
             // Need to adjust jump distance for size change
             int diff = 2;
             if (shortOpcode == OpCode::OP_Loop)
-                diff = -2; // Loop jumps backward, so size decreases by 2 bytes
+                diff = 0; // Loop jumps backward, so size decreases by 2 bytes
 
             // Use the same jump distance as the original instruction
             // The BytecodeRewriter will automatically adjust for size changes
