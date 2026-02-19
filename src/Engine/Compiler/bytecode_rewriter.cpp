@@ -117,6 +117,14 @@ namespace pg
         // Insert replacement opcodes
         size_t insertPos = index;
         size_t lineIndex = 0;
+
+        // Adjust jump offsets if size changed
+        if (sizeDelta != 0)
+        {
+            LOG_MILE("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
+            adjustJumpOffsetsBeforeRewrite(chunk, index, size, sizeDelta);
+        }
+
         for (OpCode opcode : replacement)
         {
             int line = (lineIndex < originalLines.size()) ? originalLines[lineIndex % originalLines.size()] : 0;
@@ -135,13 +143,6 @@ namespace pg
             }
 
             lineIndex++;
-        }
-
-        // Adjust jump offsets if size changed
-        if (sizeDelta != 0)
-        {
-            LOG_MILE("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
-            adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
         }
 
         LOG_MILE("BytecodeRewriter", "Direct rewrite completed successfully");
@@ -172,6 +173,12 @@ namespace pg
 
         int sizeDelta = static_cast<int>(replacement.size()) - static_cast<int>(size);
 
+        // Adjust jump offsets BEFORE modifying bytecode (with stable offsets)
+        if (sizeDelta != 0)
+        {
+            adjustJumpOffsetsBeforeRewrite(chunk, index, size, sizeDelta);
+        }
+
         // Store original lines for replacement
         std::vector<int> originalLines;
         if (index < chunk.lines.size())
@@ -198,13 +205,7 @@ namespace pg
             chunk.lines.insert(chunk.lines.begin() + index + i, line);
         }
 
-        // Adjust jump offsets if size changed
-        if (sizeDelta != 0)
-        {
-            LOG_MILE("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
-            adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
-        }
-
+        // Jump offsets were already adjusted BEFORE the rewrite
         LOG_MILE("BytecodeRewriter", "Raw rewrite completed successfully");
         return true;
     }
@@ -231,6 +232,10 @@ namespace pg
 
         LOG_MILE("BytecodeRewriter", "Removing " << count << " bytes starting at index " << index);
 
+        // Adjust jump offsets BEFORE removing bytes (with stable offsets)
+        int sizeDelta = -static_cast<int>(count);
+        adjustJumpOffsetsBeforeRewrite(chunk, index, count, sizeDelta);
+
         // Remove bytes and corresponding lines
         chunk.code.erase(chunk.code.begin() + index, chunk.code.begin() + index + count);
 
@@ -239,11 +244,6 @@ namespace pg
             size_t linesToRemove = std::min(count, chunk.lines.size() - index);
             chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
         }
-
-        // Adjust jump offsets since we removed bytes
-        int sizeDelta = -static_cast<int>(count);
-        LOG_MILE("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
-        adjustJumpOffsetsAfterRewrite(chunk, index, sizeDelta);
 
         LOG_MILE("BytecodeRewriter", "Successfully removed " << count << " bytes");
         return true;
@@ -289,13 +289,13 @@ namespace pg
 
                     int sizeDelta = static_cast<int>(replacement.size()) - static_cast<int>(patternByteSize);
 
-                    applyAdvancedRewrite(chunk, i, patternByteSize, replacement);
-
                     // Adjust jump offsets immediately if size changed
                     if (sizeDelta != 0)
                     {
-                        adjustJumpOffsetsAfterRewrite(chunk, i, sizeDelta);
+                        adjustJumpOffsetsBeforeRewrite(chunk, i, patternByteSize, sizeDelta);
                     }
+
+                    applyAdvancedRewrite(chunk, i, patternByteSize, replacement);
 
                     foundMatch = true;
                     anyChanges = true;
@@ -354,16 +354,16 @@ namespace pg
                     size_t replacementSize = getReplacementByteSize(rule.replacement);
                     int sizeDelta = static_cast<int>(replacementSize) - static_cast<int>(patternSize);
 
+                    // Adjust jump offsets immediately if size changed
+                    if (sizeDelta != 0)
+                    {
+                        adjustJumpOffsetsBeforeRewrite(chunk, i, patternSize, sizeDelta);
+                    }
+
                     applyRewrite(chunk, i, rule);
 
                     LOG_MILE("BytecodeRewriter", "Applied rewrite at offset " << i <<
                              " (size change: " << sizeDelta << ")");
-
-                    // Adjust jump offsets immediately if size changed
-                    if (sizeDelta != 0)
-                    {
-                        adjustJumpOffsetsAfterRewrite(chunk, i, sizeDelta);
-                    }
 
                     foundMatch = true;
                     anyChanges = true;
@@ -655,9 +655,10 @@ namespace pg
         }
     }
 
-    void BytecodeRewriter::adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta)
+    void BytecodeRewriter::adjustJumpOffsetsBeforeRewrite(Chunk& chunk, size_t rewriteIndex, size_t rewriteSize, int sizeDelta)
     {
-        LOG_MILE("BytecodeRewriter", "Adjusting jump offsets: rewrite at " << rewriteIndex << ", delta=" << sizeDelta);
+        LOG_MILE("BytecodeRewriter", "Adjusting jump offsets BEFORE rewrite: at " << rewriteIndex
+                 << ", size=" << rewriteSize << ", delta=" << sizeDelta);
 
         for (size_t i = 0; i < chunk.code.size();)
         {
@@ -665,22 +666,26 @@ namespace pg
 
             if (isJumpInstruction(opcode))
             {
+                // Exclude jumps that are within the rewrite region (they will be replaced)
+                if (i >= rewriteIndex and i < rewriteIndex + rewriteSize)
+                {
+                    LOG_MILE("BytecodeRewriter", "Skipping jump at " << i << " (in rewrite region)");
+                    i += pg::getInstructionSize(opcode);
+                    continue;
+                }
+
                 size_t currentTarget = calculateJumpTarget(chunk, i, opcode);
                 bool needsAdjustment = false;
 
                 if (opcode == OpCode::OP_Loop or opcode == OpCode::OP_Long_Loop)
                 {
-                    auto oldPos = sizeDelta < 0 ? i - sizeDelta : i;
-
-                    // Backward jump: adjust if the jump instruction is after the rewrite point
-                    // AND the target is before the rewrite point (target didn't move, but jump moved)
-                    needsAdjustment = (oldPos > rewriteIndex and currentTarget < rewriteIndex);
+                    // Backward jump: adjust ONLY if target < rewriteIndex < jump
+                    needsAdjustment = (currentTarget < rewriteIndex and i > rewriteIndex);
                 }
                 else
                 {
-                    // Forward jump: adjust if the target is after the rewrite point
-                    // AND the jump instruction is before or at the rewrite point (jump didn't move, but target moved)
-                    needsAdjustment = (currentTarget > rewriteIndex and i <= rewriteIndex);
+                    // Forward jump: adjust ONLY if jump < rewriteIndex < target
+                    needsAdjustment = (i < rewriteIndex and currentTarget > rewriteIndex);
                 }
 
                 if (needsAdjustment)
