@@ -180,6 +180,8 @@ namespace pg
 
         size_t getRuleCount() const { return rules.size(); }
 
+        size_t getActualInstructionSize(const Chunk& chunk, size_t offset) const;
+
     private:
         void collectJumpTargets(const Chunk& chunk);
 
