@@ -61,6 +61,7 @@ namespace
 #include "Compiler/pass/constant_folding.h"
 #include "Compiler/pass/increment_optimization_pass.h"
 #include "Compiler/pass/simplify_constant_pass.h"
+#include "Compiler/pass/remove_useless_jump_pass.h"
 
 namespace pg
 {
@@ -686,6 +687,8 @@ namespace pg
             vm.addOptimizationPass(std::make_unique<BasicOperatorLocalIndexingPass>());
             vm.addOptimizationPass(std::make_unique<LongJumpOptimizationPass>());
             vm.addOptimizationPass(std::make_unique<PoppingJumpPass>());
+            vm.addOptimizationPass(std::make_unique<RemoveUselessJumpPass>());
+
             vm.addOptimizationPass(std::make_unique<RemoveDefGetGlobalRedunduncy>());
             vm.addOptimizationPass(std::make_unique<FuseOpPop>());
 
