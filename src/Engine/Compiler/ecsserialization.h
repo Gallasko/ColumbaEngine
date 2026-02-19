@@ -981,7 +981,7 @@ namespace pg
          * @brief Helper function to serialize a single component from CompList to entity table
          */
         template <typename Comp, typename... Comps>
-        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList, EntitySystem* ecsRef)
+        void serializeCompListComponent(VM* vm, ObjInstance* entityTable, const CompList<Comps...>& compList)
         {
             // Get the component from the CompList
             CompRef<Comp> comp = compList.template get<Comp>();
@@ -1080,7 +1080,7 @@ namespace pg
 
         // Serialize each component in the CompList using fold expression
         // Pass ecsRef to enable proxy-aware serialization
-        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList, ecsRef), ...);
+        (detail::serializeCompListComponent<Comps>(vm, entityTable, compList), ...);
 
         return entityTableValue;
     }
