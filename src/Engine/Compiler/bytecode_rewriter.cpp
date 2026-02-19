@@ -202,7 +202,6 @@ namespace pg
     {
         bool anyChanges = false;
 
-        jumpTargets.clear();
         collectJumpTargets(chunk);
 
         for (size_t i = 0; i < chunk.code.size();)
@@ -240,6 +239,9 @@ namespace pg
 
                     applyAdvancedRewrite(chunk, i, patternByteSize, replacement);
 
+                    // Recollect jump targets after rewrite since bytecode has shifted
+                    collectJumpTargets(chunk);
+
                     foundMatch = true;
                     anyChanges = true;
                     i += replacement.size();
@@ -263,6 +265,8 @@ namespace pg
 
     void BytecodeRewriter::collectJumpTargets(const Chunk& chunk)
     {
+        jumpTargets.clear();
+
         for (size_t i = 0; i < chunk.code.size();)
         {
             OpCode opcode = static_cast<OpCode>(chunk.code[i]);
@@ -282,7 +286,6 @@ namespace pg
     {
         bool anyChanges = false;
 
-        jumpTargets.clear();
         collectJumpTargets(chunk);
 
         for (size_t i = 0; i < chunk.code.size();)
@@ -304,6 +307,9 @@ namespace pg
                     }
 
                     applyRewrite(chunk, i, rule);
+
+                    // Recollect jump targets after rewrite since bytecode has shifted
+                    collectJumpTargets(chunk);
 
                     LOG_MILE("BytecodeRewriter", "Applied rewrite at offset " << i <<
                              " (size change: " << sizeDelta << ")");
@@ -695,7 +701,6 @@ namespace pg
             i += getActualInstructionSize(chunk, i);
         }
 
-        jumpTargets.clear();
         collectJumpTargets(chunk);
 
         LOG_MILE("BytecodeRewriter", "Jump offset adjustment completed");
