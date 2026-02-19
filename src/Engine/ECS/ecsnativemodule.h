@@ -13,6 +13,7 @@ namespace pg
      *
      * Provides native functions for working with the ECS from scripts:
      *
+     * - createEntity(name?): Create a new entity with an optional name, returns entity table
      * - removeEntity(entityId or entityInstance): Remove an entity from the ECS
      * - getEntity(entityId): Get entity data as a table
      * - getEntities(componentName): Get all entities with the specified component as a table of entity tables
@@ -398,6 +399,36 @@ namespace pg
                 }
 
                 throw std::runtime_error("removeEntity expects an integer id or an entity instance");
+            });
+
+            addNativeFunction("createEntity", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount > 1)
+                {
+                    throw std::runtime_error("createEntity expects 0 or 1 arguments (optional entity name)");
+                }
+
+                EntityRef entityRef;
+
+                if (argCount == 1)
+                {
+                    if (not IS_STRING(args[0]))
+                    {
+                        throw std::runtime_error("createEntity expects entity name to be a string");
+                    }
+
+                    auto entityName = vm->asString(args[0]);
+                    entityRef = ecsRefCopy->createEntity(entityName);
+
+                    LOG_MILE("Ecs Compiled Module", "Created entity with name '" << entityName << "' and id " << entityRef->id);
+                }
+                else
+                {
+                    entityRef = ecsRefCopy->createEntity();
+                    LOG_MILE("Ecs Compiled Module", "Created entity with id " << entityRef->id);
+                }
+
+                // Return the serialized entity table (similar to getEntity)
+                return serializeEntityToTable(vm, ecsRefCopy, entityRef.entity);
             });
 
             addNativeFunction("getEntity", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {

@@ -18,6 +18,8 @@
 
 #include "../test/mocklogger.h"
 
+#include "2D/position.h"
+
 namespace pg
 {
     namespace benchmark
@@ -156,6 +158,8 @@ namespace pg
             for (int count : smallCounts)
             {
                 EntitySystem ecs("bench_native");
+                ecs.createSystem<PositionComponentSystem>();
+
                 VM vm;
                 ecs.setupVm(vm);
 
