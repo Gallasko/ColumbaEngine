@@ -110,10 +110,12 @@ namespace pg {
 
         // First pass: collect all constant references
         size_t codeOffset = 0;
-        while (codeOffset < chunk.code.size()) {
+        while (codeOffset < chunk.code.size())
+        {
             OpCode opcode = static_cast<OpCode>(chunk.code[codeOffset]);
 
-            if (opcode == OpCode::OP_Constant) {
+            if (opcode == OpCode::OP_Constant)
+            {
                 if (codeOffset + 1 >= chunk.code.size()) break;
 
                 size_t originalIndex = chunk.code[codeOffset + 1];
@@ -124,7 +126,9 @@ namespace pg {
                 }
                 codeOffset += 2;
 
-            } else if (opcode == OpCode::OP_LongConstant) {
+            }
+            else if (opcode == OpCode::OP_LongConstant)
+            {
                 if (codeOffset + 3 >= chunk.code.size()) break;
 
                 size_t originalIndex = (chunk.code[codeOffset + 1] << 16) |
@@ -138,8 +142,10 @@ namespace pg {
                 }
                 codeOffset += 4;
 
-            } else {
-                codeOffset += pg::getInstructionSize(opcode);
+            }
+            else
+            {
+                codeOffset += rewriter->getActualInstructionSize(chunk, codeOffset);
             }
         }
 

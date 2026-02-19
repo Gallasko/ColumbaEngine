@@ -4,6 +4,7 @@
 
 #include "bytecode_rewriter.h"
 #include "compiler_debug.h"
+#include "vm.h"
 
 #include "logger.h"
 
@@ -152,6 +153,51 @@ namespace pg
         advancedRules.clear();
     }
 
+    size_t BytecodeRewriter::getActualInstructionSize(const Chunk& chunk, size_t offset) const
+    {
+        if (offset >= chunk.code.size())
+        {
+            return 0;
+        }
+
+        OpCode opcode = static_cast<OpCode>(chunk.code[offset]);
+
+        // Handle variable-length OP_Closure instruction
+        if (opcode == OpCode::OP_Closure)
+        {
+            // OP_Closure format: opcode + 1 byte constant index + 2 bytes per upvalue
+            size_t baseSize = 2; // opcode + constant index
+
+            // Get the function from the constant pool
+            if (offset + 1 < chunk.code.size())
+            {
+                uint8_t constantIndex = chunk.code[offset + 1];
+
+                if (constantIndex < chunk.constants.size())
+                {
+                    const Value& constant = chunk.constants[constantIndex];
+
+                    if (IS_FUNC(constant) and vm != nullptr)
+                    {
+                        ObjFunction* function = vm->asFunction(constant);
+                        if (function != nullptr)
+                        {
+                            // Each upvalue takes 2 bytes (isLocal + index)
+                            return baseSize + (function->upvalueCount * 2);
+                        }
+                    }
+                }
+            }
+
+            // If we can't determine upvalue count, return base size
+            LOG_WARNING("BytecodeRewriter", "Cannot determine upvalue count for OP_Closure at offset " << offset);
+            return baseSize;
+        }
+
+        // For all other instructions, use the standard size lookup
+        return pg::getInstructionSize(opcode);
+    }
+
     bool BytecodeRewriter::findAndApplyAdvancedRewrites(Chunk& chunk)
     {
         bool anyChanges = false;
@@ -203,7 +249,7 @@ namespace pg
 
             if (not foundMatch)
             {
-                i += pg::getInstructionSize(static_cast<OpCode>(chunk.code[i]));
+                i += getActualInstructionSize(chunk, i);
             }
         }
 
@@ -228,7 +274,7 @@ namespace pg
                 jumpTargets.insert(target);
             }
 
-            i += pg::getInstructionSize(opcode);
+            i += getActualInstructionSize(chunk, i);
         }
     }
 
@@ -271,7 +317,7 @@ namespace pg
 
             if (not foundMatch)
             {
-                i += pg::getInstructionSize(static_cast<OpCode>(chunk.code[i]));
+                i += getActualInstructionSize(chunk, i);
             }
         }
 
@@ -646,7 +692,7 @@ namespace pg
                 }
             }
 
-            i += pg::getInstructionSize(opcode);
+            i += getActualInstructionSize(chunk, i);
         }
 
         jumpTargets.clear();
