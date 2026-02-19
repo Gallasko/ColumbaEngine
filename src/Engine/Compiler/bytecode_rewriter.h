@@ -196,7 +196,7 @@ namespace pg
 
         void applyAdvancedRewrite(Chunk& chunk, size_t offset, size_t patternSize, const std::vector<uint8_t>& replacement);
 
-        void adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta);
+        void adjustJumpOffsetsBeforeRewrite(Chunk& chunk, size_t rewriteIndex, size_t rewriteSize, int sizeDelta);
 
         size_t getPatternByteSize(const std::vector<OpCode>& pattern) const;
 
