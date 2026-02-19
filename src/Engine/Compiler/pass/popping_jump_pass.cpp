@@ -23,80 +23,57 @@ namespace pg
 
         LOG_MILE("PoppingJumpPass", "Starting popping jump optimization pass");
 
-        bool globalChanged = false;
-        int iterationCount = 0;
-        const int maxIterations = 100000; // Prevent infinite loops
+        // Find optimizable jumps in the current state of the chunk
+        auto candidate = findFirstOptimizableJumps(chunk);
 
-        // Keep optimizing until no more changes are possible
-        while (iterationCount < maxIterations)
+        if (not candidate.has_value())
         {
-            iterationCount++;
-
-            // Find optimizable jumps in the current state of the chunk
-            auto candidate = findFirstOptimizableJumps(chunk);
-
-            if (not candidate.has_value())
-            {
-                LOG_MILE("PoppingJumpPass", "No more popping jumps can be optimized (iteration " << iterationCount << ")");
-                break;
-            }
-
-            // Optimize the first candidate (this maintains simpler logic)
-            const auto& jump = candidate.value();
-
-            // Get the short jump equivalent
-            OpCode poppingOpcode = getPoppingJumpReplacement(jump.opcode);
-
-            if (poppingOpcode == jump.opcode)
-            {
-                LOG_WARNING("PoppingJumpPass", "No popping equivalent found for opcode at offset " << jump.instructionOffset);
-                break;
-            }
-
-            // Strategy: We need to do two separate rewrites because the pops are not adjacent
-            // 1. Replace the jump + following pop with a popping jump
-            // 2. Remove the target pop
-            //
-            // The rewriter will automatically adjust jump offsets after each rewrite,
-            // but we need to ensure the jump distance accounts for BOTH removed pops.
-
-            // After removing the first pop, the target will shift back by 1 byte
-            // After removing the target pop, we want to land to the instruction after the pop
-            // So we need to increase the jump distance by 1
-            uint32_t adjustedJumpDistance = jump.jumpDistance + 1;
-
-            // First, replace the jump instruction with the popping jump and remove the following pop
-            bool success = rewriter->rewriteAtRaw(chunk, jump.instructionOffset, pg::getInstructionSize(jump.opcode) + 1, createReplacement(jump.opcode, adjustedJumpDistance));
-
-            // Then, remove the target pop instruction
-            success &= rewriter->removeInstructions(chunk, jump.targetOffset - 1, 1);
-
-            if (success)
-            {
-                LOG_MILE("PoppingJumpPass", "Optimized popping jump at offset " << jump.instructionOffset
-                         << " (distance: " << jump.jumpDistance << ")");
-                globalChanged = true;
-            }
-            else
-            {
-                LOG_WARNING("PoppingJumpPass", "Failed to optimize jump at offset " << jump.instructionOffset);
-                break;
-            }
-
-            LOG_MILE("PoppingJumpPass", " -------------------- ");
+            LOG_MILE("PoppingJumpPass", "No more popping jumps can be optimized");
+            return false;
         }
 
-        if (iterationCount >= maxIterations)
+        // Optimize the first candidate (this maintains simpler logic)
+        const auto& jump = candidate.value();
+
+        // Get the short jump equivalent
+        OpCode poppingOpcode = getPoppingJumpReplacement(jump.opcode);
+
+        if (poppingOpcode == jump.opcode)
         {
-            LOG_WARNING("PoppingJumpPass", "Reached maximum iterations, stopping optimization");
+            LOG_WARNING("PoppingJumpPass", "No popping equivalent found for opcode at offset " << jump.instructionOffset);
+            return false;
         }
 
-        if (globalChanged)
+        // Strategy: We need to do two separate rewrites because the pops are not adjacent
+        // 1. Replace the jump + following pop with a popping jump
+        // 2. Remove the target pop
+        //
+        // The rewriter will automatically adjust jump offsets after each rewrite,
+        // but we need to ensure the jump distance accounts for BOTH removed pops.
+
+        // After removing the first pop, the target will shift back by 1 byte
+        // After removing the target pop, we want to land to the instruction after the pop
+        // So we need to increase the jump distance by 1
+        uint32_t adjustedJumpDistance = jump.jumpDistance + 1;
+
+        // First, replace the jump instruction with the popping jump and remove the following pop
+        bool success = rewriter->rewriteAtRaw(chunk, jump.instructionOffset, pg::getInstructionSize(jump.opcode) + 1, createReplacement(jump.opcode, adjustedJumpDistance));
+
+        // Then, remove the target pop instruction
+        success &= rewriter->removeInstructions(chunk, jump.targetOffset - 1, 1);
+
+        if (success)
         {
-            LOG_MILE("PoppingJumpPass", "Successfully completed optimization after " << iterationCount << " iterations");
+            LOG_MILE("PoppingJumpPass", "Optimized popping jump at offset " << jump.instructionOffset
+                        << " (distance: " << jump.jumpDistance << ")");
+            return true;
+        }
+        else
+        {
+            LOG_WARNING("PoppingJumpPass", "Failed to optimize jump at offset " << jump.instructionOffset);
         }
 
-        return globalChanged;
+        return false;
     }
 
     std::optional<PoppingJumpPass::JumpInfo> PoppingJumpPass::findFirstOptimizableJumps(const Chunk& chunk)

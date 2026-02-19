@@ -21,78 +21,57 @@ namespace pg
 
         LOG_MILE("LongJumpOptimization", "Starting long jump optimization pass");
 
-        bool globalChanged = false;
-        int iterationCount = 0;
-        const int maxIterations = 100000; // Prevent infinite loops
+        // Find optimizable jumps in the current state of the chunk
+        auto candidate = findFirstOptimizableJumps(chunk);
 
-        // Keep optimizing until no more changes are possible
-        while (iterationCount < maxIterations)
+        if (not candidate.has_value())
         {
-            iterationCount++;
-
-            // Find optimizable jumps in the current state of the chunk
-            auto candidate = findFirstOptimizableJumps(chunk);
-
-            if (not candidate.has_value())
-            {
-                LOG_MILE("LongJumpOptimization", "No more long jumps can be optimized (iteration " << iterationCount << ")");
-                break;
-            }
-
-            // Optimize the first candidate (this maintains simpler logic)
-            const auto& jump = candidate.value();
-
-            // Get the short jump equivalent
-            OpCode shortOpcode = getShortJumpEquivalent(jump.opcode);
-
-            if (shortOpcode == jump.opcode)
-            {
-                LOG_WARNING("LongJumpOptimization", "No short equivalent found for opcode at offset " << jump.instructionOffset);
-                break;
-            }
-
-            // // Need to adjust jump distance for size change
-            int diff = 0;
-            if (shortOpcode == OpCode::OP_Loop)
-                diff = -2; // Loop jumps backward, so size decreases by 2 bytes
-
-            // Use the same jump distance as the original instruction
-            // The BytecodeRewriter will automatically adjust for size changes
-            uint16_t shortDistance = static_cast<uint16_t>(jump.jumpDistance + diff);
-
-            // Create the complete short jump instruction: opcode + high byte + low byte
-            uint8_t highByte = static_cast<uint8_t>(shortDistance >> 8);
-            uint8_t lowByte = static_cast<uint8_t>(shortDistance & 0xFF);
-
-            // Use rewriter to replace long jump (5 bytes) with short jump (3 bytes)
-            // Use the raw interface to pass complete instruction bytes
-            bool success = rewriter->rewriteAtRaw(chunk, jump.instructionOffset, 5,
-                                                {static_cast<uint8_t>(shortOpcode), highByte, lowByte});
-
-            if (success)
-            {
-                LOG_MILE("LongJumpOptimization", "Optimized long jump at offset " << jump.instructionOffset
-                         << " (distance: " << shortDistance << ")");
-                globalChanged = true;
-            }
-            else
-            {
-                LOG_WARNING("LongJumpOptimization", "Failed to optimize jump at offset " << jump.instructionOffset);
-                break;
-            }
+            LOG_MILE("LongJumpOptimization", "No more long jumps can be optimized");
+            return false;
         }
 
-        if (iterationCount >= maxIterations)
+        // Optimize the first candidate (this maintains simpler logic)
+        const auto& jump = candidate.value();
+
+        // Get the short jump equivalent
+        OpCode shortOpcode = getShortJumpEquivalent(jump.opcode);
+
+        if (shortOpcode == jump.opcode)
         {
-            LOG_WARNING("LongJumpOptimization", "Reached maximum iterations, stopping optimization");
+            LOG_WARNING("LongJumpOptimization", "No short equivalent found for opcode at offset " << jump.instructionOffset);
+            return false;
         }
 
-        if (globalChanged)
+        // // Need to adjust jump distance for size change
+        int diff = 0;
+        if (shortOpcode == OpCode::OP_Loop)
+            diff = -2; // Loop jumps backward, so size decreases by 2 bytes
+
+        // Use the same jump distance as the original instruction
+        // The BytecodeRewriter will automatically adjust for size changes
+        uint16_t shortDistance = static_cast<uint16_t>(jump.jumpDistance + diff);
+
+        // Create the complete short jump instruction: opcode + high byte + low byte
+        uint8_t highByte = static_cast<uint8_t>(shortDistance >> 8);
+        uint8_t lowByte = static_cast<uint8_t>(shortDistance & 0xFF);
+
+        // Use rewriter to replace long jump (5 bytes) with short jump (3 bytes)
+        // Use the raw interface to pass complete instruction bytes
+        bool success = rewriter->rewriteAtRaw(chunk, jump.instructionOffset, 5,
+                                            {static_cast<uint8_t>(shortOpcode), highByte, lowByte});
+
+        if (success)
         {
-            LOG_MILE("LongJumpOptimization", "Successfully completed optimization after " << iterationCount << " iterations");
+            LOG_MILE("LongJumpOptimization", "Optimized long jump at offset " << jump.instructionOffset
+                        << " (distance: " << shortDistance << ")");
+            return true;
+        }
+        else
+        {
+            LOG_WARNING("LongJumpOptimization", "Failed to optimize jump at offset " << jump.instructionOffset);
         }
 
-        return globalChanged;
+        return false;
     }
 
     std::optional<LongJumpOptimizationPass::JumpInfo> LongJumpOptimizationPass::findFirstOptimizableJumps(const Chunk& chunk)
