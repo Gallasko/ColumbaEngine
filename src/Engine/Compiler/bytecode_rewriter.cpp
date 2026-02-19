@@ -72,83 +72,6 @@ namespace pg
         return anyChanges;
     }
 
-    bool BytecodeRewriter::rewriteAt(Chunk& chunk, size_t index, size_t size, const std::vector<OpCode>& replacement)
-    {
-        if (index >= chunk.code.size())
-        {
-            LOG_WARNING("BytecodeRewriter", "Rewrite index " << index << " is out of bounds (chunk size: " << chunk.code.size() << ")");
-            return false;
-        }
-
-        if (index + size > chunk.code.size())
-        {
-            LOG_WARNING("BytecodeRewriter", "Rewrite range [" << index << ", " << (index + size) << ") exceeds chunk bounds");
-            return false;
-        }
-
-        if (size == 0)
-        {
-            LOG_WARNING("BytecodeRewriter", "Cannot rewrite zero-sized region");
-            return false;
-        }
-
-        LOG_MILE("BytecodeRewriter", "Direct rewrite at index " << index << " (size " << size << " -> " << replacement.size() << " opcodes)");
-
-        // Calculate replacement byte size
-        size_t replacementByteSize = getReplacementByteSize(replacement);
-        int sizeDelta = static_cast<int>(replacementByteSize) - static_cast<int>(size);
-
-        // Store original lines for replacement
-        std::vector<int> originalLines;
-        if (index < chunk.lines.size())
-        {
-            size_t linesToCopy = std::min(size, chunk.lines.size() - index);
-            originalLines.assign(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToCopy);
-        }
-
-        // Remove original bytes and lines
-        chunk.code.erase(chunk.code.begin() + index, chunk.code.begin() + index + size);
-        if (index < chunk.lines.size())
-        {
-            size_t linesToRemove = std::min(size, chunk.lines.size() - index);
-            chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
-        }
-
-        // Insert replacement opcodes
-        size_t insertPos = index;
-        size_t lineIndex = 0;
-
-        // Adjust jump offsets if size changed
-        if (sizeDelta != 0)
-        {
-            LOG_MILE("BytecodeRewriter", "Size changed by " << sizeDelta << " bytes, adjusting affected jump offsets");
-            adjustJumpOffsetsBeforeRewrite(chunk, index, size, sizeDelta);
-        }
-
-        for (OpCode opcode : replacement)
-        {
-            int line = (lineIndex < originalLines.size()) ? originalLines[lineIndex % originalLines.size()] : 0;
-
-            chunk.code.insert(chunk.code.begin() + insertPos, static_cast<uint8_t>(opcode));
-            chunk.lines.insert(chunk.lines.begin() + insertPos, line);
-            insertPos++;
-
-            // Add operand bytes for multi-byte instructions
-            size_t instSize = pg::getInstructionSize(opcode);
-            for (size_t i = 1; i < instSize; ++i)
-            {
-                chunk.code.insert(chunk.code.begin() + insertPos, 0); // Placeholder for operand
-                chunk.lines.insert(chunk.lines.begin() + insertPos, line);
-                insertPos++;
-            }
-
-            lineIndex++;
-        }
-
-        LOG_MILE("BytecodeRewriter", "Direct rewrite completed successfully");
-        return true;
-    }
-
     bool BytecodeRewriter::rewriteAtRaw(Chunk& chunk, size_t index, size_t size, const std::vector<uint8_t>& replacement)
     {
         if (index >= chunk.code.size())
@@ -212,41 +135,15 @@ namespace pg
 
     bool BytecodeRewriter::removeInstructions(Chunk& chunk, size_t index, size_t count)
     {
-        if (index >= chunk.code.size())
-        {
-            LOG_WARNING("BytecodeRewriter", "Remove index " << index << " is out of bounds (chunk size: " << chunk.code.size() << ")");
-            return false;
-        }
+        // Use rewriteAtRaw with empty replacement (removal)
+        std::vector<uint8_t> empty;
+        return rewriteAtRaw(chunk, index, count, empty);
+    }
 
-        if (count == 0)
-        {
-            LOG_WARNING("BytecodeRewriter", "Cannot remove zero instructions");
-            return false;
-        }
-
-        if (index + count > chunk.code.size())
-        {
-            LOG_WARNING("BytecodeRewriter", "Remove range [" << index << ", " << (index + count) << ") exceeds chunk bounds");
-            return false;
-        }
-
-        LOG_MILE("BytecodeRewriter", "Removing " << count << " bytes starting at index " << index);
-
-        // Adjust jump offsets BEFORE removing bytes (with stable offsets)
-        int sizeDelta = -static_cast<int>(count);
-        adjustJumpOffsetsBeforeRewrite(chunk, index, count, sizeDelta);
-
-        // Remove bytes and corresponding lines
-        chunk.code.erase(chunk.code.begin() + index, chunk.code.begin() + index + count);
-
-        if (index < chunk.lines.size())
-        {
-            size_t linesToRemove = std::min(count, chunk.lines.size() - index);
-            chunk.lines.erase(chunk.lines.begin() + index, chunk.lines.begin() + index + linesToRemove);
-        }
-
-        LOG_MILE("BytecodeRewriter", "Successfully removed " << count << " bytes");
-        return true;
+    bool BytecodeRewriter::insertInstructions(Chunk& chunk, size_t index, const std::vector<uint8_t>& instructions)
+    {
+        // Use rewriteAtRaw with size 0 (insertion, not replacement)
+        return rewriteAtRaw(chunk, index, 0, instructions);
     }
 
     void BytecodeRewriter::clearRules()

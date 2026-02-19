@@ -695,7 +695,8 @@ namespace pg
 
             vm.addOptimizationPass(std::make_unique<IncrementOptimizationPass>());
 
-            vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
+            // This doesn't work if there is a closure capturing the constant variable.
+            // vm.addOptimizationPass(std::make_unique<SimplifyConstantToShort>());
         }
         else if (vmOptimizationLevel == VmOptimizationLevel::O0)
         {

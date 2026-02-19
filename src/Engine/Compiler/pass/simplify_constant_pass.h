@@ -13,6 +13,8 @@
  *   - Smaller bytecode
  *   - Faster execution for small integers
  *   - Reduced constant pool pressure
+ * @warning:
+ *   This doesn't work if there is a closure capturing the constant variable.
  * @end_pass_doc
  */
 
@@ -67,7 +69,7 @@ namespace pg
             return rewriter->rewrite(chunk);
         }
 
-        bool changesSize() const override { return false; }
+        bool changesSize() const override { return true; }
 
         bool requiresMultiplePasses() const override { return false; }
     };
