@@ -2,6 +2,7 @@
 // Tests the splitFirst function that splits on first occurrence only
 
 import "algorithm"
+import "string"
 
 fun splitFirst(str, delimiter) {
     var idx = indexOf(str, delimiter);

@@ -2,6 +2,7 @@
 // Tests the pattern of checking multiple conditions to save array sections
 
 import "algorithm"
+import "string"
 
 var currentArray = ["item1", "item2"];
 var currentItem = {"name": "item3"};
