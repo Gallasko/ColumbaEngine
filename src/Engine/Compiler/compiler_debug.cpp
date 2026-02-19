@@ -228,7 +228,7 @@ namespace pg
             uint16_t jump = (static_cast<uint16_t>(chunk.code[offset + 1]) << 8) |
                             (static_cast<uint16_t>(chunk.code[offset + 2]));
 
-            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 3 + sign * jump) << std::endl;
+            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 3 + sign * jump) << " (dist: " << jump << ")" << std::endl;
 
             return offset + 3;
         }
@@ -240,7 +240,7 @@ namespace pg
                             (static_cast<uint32_t>(chunk.code[offset + 3]) << 8) |
                             (static_cast<uint32_t>(chunk.code[offset + 4]));
 
-            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 5 + sign * jump) << std::endl;
+            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 5 + sign * jump) << " (dist: " << jump << ")" << std::endl;
 
             return offset + 5;
         }
