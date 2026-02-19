@@ -114,7 +114,7 @@ namespace pg
             rewriter->addAdvancedRule(unconditionalPattern, transformUnconditionalJump, isUselessJump);
 
             // For conditional jumps (jump-if-false), replace with OP_Pop since we need to pop the condition
-            auto transformConditionalJump = [](const std::vector<CapturedInstruction>& captured) -> std::vector<uint8_t> {
+            auto transformConditionalJump = [](const std::vector<CapturedInstruction>&) -> std::vector<uint8_t> {
                 return std::vector<uint8_t>{static_cast<uint8_t>(OpCode::OP_Pop)};
             };
 
