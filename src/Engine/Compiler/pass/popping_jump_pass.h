@@ -2,15 +2,21 @@
 
 /**
  * @pass_doc
- * @name: Long Jump Optimization Pass
- * @purpose: Converts between short and long jump instructions based on offset requirements
+ * @name: Popping Jump Optimization Pass
+ * @purpose: Optimizes jump-if-false instructions followed by pops at both locations into specialized popping jump instructions
  * @category: control_flow
  * @example_before:
- *   OP_Long_Jump <small offset>
+ *   OP_Jump_If_False <offset>
+ *   OP_Pop
+ *   ...
+ *   OP_Pop  ; at jump target
  * @example_after:
- *   OP_Jump <small offset>
+ *   OP_Jump_If_False_Popping <offset>
+ *   ...
+ *   ; (both pops eliminated)
  * @benefits:
- *   - Reduce bytecode size by using short jumps when possible
+ *   - Reduce bytecode size by eliminating redundant pop instructions
+ *   - Improve execution performance by combining jump and pop operations
  * @end_pass_doc
  */
 

@@ -416,7 +416,7 @@ def main():
     if args.verbose:
         print(f"Found {len(passes)} passes:")
         for p in passes:
-            status = "✓ documented" if p.purpose != f"Auto-extracted pass: {p.name}" else "⚠ auto-extracted"
+            status = "documented" if p.purpose != f"Auto-extracted pass: {p.name}" else "!!! auto-extracted"
             print(f"  - {p.name} ({status})")
 
     # Generate RST
@@ -434,7 +434,7 @@ def main():
     print(f"  Fully documented: {documented}/{len(passes)}")
 
     if documented < len(passes):
-        print("\n⚠ Some passes are missing @pass_doc blocks")
+        print("\n!!! Some passes are missing @pass_doc blocks")
         print("  Add documentation blocks to improve the generated docs")
 
     return 0

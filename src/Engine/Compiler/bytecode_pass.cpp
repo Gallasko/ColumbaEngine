@@ -52,33 +52,20 @@ namespace pg {
             }
 
             bool changed = false;
-            int iterations = 0;
-            const int maxIterations = 10; // Prevent infinite loops
 
-            do
+            // Clear rewriter rules before each pass execution
+            rewriter->clearRules();
+
+            changed = pass->runPass(chunk, rewriter.get());
+
+            if (changed and enableDebugOutput)
             {
-                // Clear rewriter rules before each pass execution
-                rewriter->clearRules();
-
-                changed = pass->runPass(chunk, rewriter.get());
-                iterations++;
-
-                if (changed and enableDebugOutput)
-                {
-                    LOG_INFO("PassManager", "Pass " << pass->getName() << " made changes (iteration " << iterations << ")");
-                }
-
-                if (iterations >= maxIterations)
-                {
-                    LOG_WARNING("PassManager", "Pass " << pass->getName() << " reached maximum iterations (" << maxIterations << ")");
-                    break;
-                }
-
-            } while (changed and pass->requiresMultiplePasses());
+                LOG_INFO("PassManager", "Pass " << pass->getName() << " made changes !");
+            }
 
             if (enableDebugOutput)
             {
-                LOG_INFO("PassManager", "Pass " << pass->getName() << " completed in " << iterations << " iteration(s)");
+                LOG_INFO("PassManager", "Pass " << pass->getName() << " completed");
 
                 // Print bytecode after this pass
                 std::cout << "\n=== BYTECODE AFTER " << pass->getName() << " ===" << std::endl;

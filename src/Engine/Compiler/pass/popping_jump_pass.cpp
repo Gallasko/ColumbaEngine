@@ -114,7 +114,7 @@ namespace pg
                 auto nextInstr = static_cast<OpCode>(chunk.code[nextInstroffset]);
                 auto jumpInstr = static_cast<OpCode>(chunk.code[nextInstroffset + jumpDistance]);
 
-                LOG_INFO("PoppingJumpPass", "Found jump at offset " << i << " with distance " << jumpDistance <<
+                LOG_MILE("PoppingJumpPass", "Found jump at offset " << i << " with distance " << jumpDistance <<
                          ", next instruction: " << opcodeToString(nextInstr) << " at " << nextInstroffset <<
                          ", jump target instruction: " << opcodeToString(jumpInstr) << " at " << nextInstroffset + jumpDistance);
 
@@ -123,7 +123,7 @@ namespace pg
                     JumpInfo jumpInfo(i, opcode, jumpDistance, nextInstroffset + jumpDistance);
                     jumpInfo.canOptimize = true;
 
-                    LOG_INFO("PoppingJumpPass", "Popping jump at offset " << i <<
+                    LOG_MILE("PoppingJumpPass", "Popping jump at offset " << i <<
                              " with distance " << jumpDistance << " can be optimized");
 
                     return jumpInfo;
