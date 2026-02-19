@@ -2,6 +2,7 @@
 // Tests the getIndent function pattern
 
 import "algorithm"
+import "string"
 
 fun getIndent(line) {
     var count = 0;

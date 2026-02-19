@@ -128,6 +128,9 @@ TEST_F(BytecodeRewriterTest, RemoveBytesAtTarget_AdjustsTarget)
 {
     Chunk chunk = createSimpleForwardJumpChunk();
 
+    uint16_t distance = extractJumpDistance(chunk, 2);
+    EXPECT_EQ(distance, 6);
+
     // Remove OP_Pop at offset 11 (the target of the first jump)
     bool success = rewriter->removeInstructions(chunk, 11, 1);
 
@@ -138,7 +141,7 @@ TEST_F(BytecodeRewriterTest, RemoveBytesAtTarget_AdjustsTarget)
     ASSERT_EQ(chunk.code[2], static_cast<uint8_t>(OpCode::OP_Jump_If_False));
 
     // Jump distance should decrease by 1: was 6, now 5
-    uint16_t distance = extractJumpDistance(chunk, 2);
+    distance = extractJumpDistance(chunk, 2);
     EXPECT_EQ(distance, 5);
 }
 
