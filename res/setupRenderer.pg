@@ -13,6 +13,7 @@ loadShader("2DShapes", "shader/simpleshapes.vs", "shader/simpleshapes.fs");
 loadShader("progressBar", "shader/progressbar.vs", "shader/progressbar.fs");
 loadShader("lineShader", "shader/lineshader.vs", "shader/lineshader.fs");
 loadShader("polygonShader", "shader/polygonshader.vs", "shader/polygonshader.fs");
+loadShader("RoundedRect", "shader/roundedrect.vs", "shader/roundedrect.fs");
 
 print("Shaders loaded successfully.")
 
