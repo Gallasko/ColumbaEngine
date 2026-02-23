@@ -423,6 +423,8 @@ namespace pg
 
         ecs->createSystem<Simple2DObjectSystem>(masterRenderer);
 
+        ecs->createSystem<RoundedRect2DObjectSystem>(masterRenderer);
+
         ecs->createSystem<Texture2DComponentSystem>(masterRenderer);
 
         ecs->createSystem<ProgressBarComponentSystem>(masterRenderer);
@@ -475,6 +477,7 @@ namespace pg
 
         // Todo make all derived class from AbstractRenderer automaticly run before MasterRenderer
         ecs->succeed<MasterRenderer, Simple2DObjectSystem>();
+        ecs->succeed<MasterRenderer, RoundedRect2DObjectSystem>();
         ecs->succeed<MasterRenderer, Texture2DComponentSystem>();
         // ecs->succeed<MasterRenderer, SentenceSystem>();
         ecs->succeed<MasterRenderer, ProgressBarComponentSystem>();

@@ -264,4 +264,172 @@ namespace pg
 
         changed = true;
     }
+
+    // ---------------------------------------------------------------------------
+    // RoundedRect2DObject serialize / deserialize
+    // ---------------------------------------------------------------------------
+
+    template <>
+    void serialize(Archive& archive, const RoundedRect2DObject& value)
+    {
+        LOG_THIS(DOM);
+
+        archive.startSerialization(RoundedRect2DObject::getType());
+
+        serialize(archive, "cornerRadius", value.cornerRadius);
+        serialize(archive, "colors", value.colors);
+
+        archive.endSerialization();
+    }
+
+    template <>
+    RoundedRect2DObject deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS(DOM);
+
+        if (serializedString.isNull())
+        {
+            LOG_ERROR(DOM, "Element is null");
+            return RoundedRect2DObject{};
+        }
+
+        LOG_INFO(DOM, "Deserializing a RoundedRect2DObject");
+
+        auto cornerRadius = deserialize<float>(serializedString["cornerRadius"]);
+        auto colors = deserialize<constant::Vector4D>(serializedString["colors"]);
+
+        return RoundedRect2DObject{cornerRadius, colors};
+    }
+
+    // ---------------------------------------------------------------------------
+    // RoundedRect2DObjectSystem
+    // ---------------------------------------------------------------------------
+
+    void RoundedRect2DObjectSystem::init()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        Material mat;
+
+        mat.shader = masterRenderer->getShader("RoundedRect");
+
+        mat.nbTextures = 0;
+
+        mat.uniformMap.emplace("sWidth", "ScreenWidth");
+        mat.uniformMap.emplace("sHeight", "ScreenHeight");
+
+        // Instance layout: worldPos(3), size(2), rotation(1), color(4), cornerRadius(1) = 11 floats
+        mat.setSimpleMesh({3, 2, 1, 4, 1});
+
+        materialId = masterRenderer->registerMaterial(mat);
+
+        auto group = registerGroup<PositionComponent, RoundedRect2DObject>();
+
+        group->addOnGroup([this](EntityRef entity) {
+            LOG_MILE("Rounded Rect 2D System", "Add entity " << entity->id << " to rounded rect group!");
+            updateQueue.push(entity->id);
+            changed = true;
+        });
+
+        group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
+            LOG_MILE("Rounded Rect 2D System", "Remove entity " << id << " from rounded rect group!");
+            auto entity = ecsRef->getEntity(id);
+            ecsRef->detach<RoundedRect2DRenderCall>(entity);
+            changed = true;
+        });
+    }
+
+    void RoundedRect2DObjectSystem::execute()
+    {
+        if (not changed)
+            return;
+
+        while (not updateQueue.empty())
+        {
+            auto entityId = updateQueue.front();
+
+            auto entity = ecsRef->getEntity(entityId);
+
+            if (not entity)
+            {
+                updateQueue.pop();
+                continue;
+            }
+
+            auto ui  = entity->get<PositionComponent>();
+            auto obj = entity->get<RoundedRect2DObject>();
+
+            if (entity->has<RoundedRect2DRenderCall>())
+            {
+                entity->get<RoundedRect2DRenderCall>()->call = createRenderCall(ui, obj);
+            }
+            else
+            {
+                ecsRef->_attach<RoundedRect2DRenderCall>(entity, createRenderCall(ui, obj));
+            }
+
+            updateQueue.pop();
+        }
+
+        renderCallList.clear();
+
+        const auto& renderCallView = view<RoundedRect2DRenderCall>();
+
+        renderCallList.reserve(renderCallView.nbComponents());
+
+        for (const auto& renderCall : renderCallView)
+        {
+            renderCallList.push_back(renderCall->call);
+        }
+
+        finishChanges();
+    }
+
+    RenderCall RoundedRect2DObjectSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<RoundedRect2DObject> obj)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        RenderCall call;
+
+        call.processPositionComponent(ui);
+
+        call.setOpacity(OpacityType::Additive);
+
+        call.setRenderStage(renderStage);
+
+        call.setMaterial(materialId);
+
+        call.setViewport(obj->viewport);
+
+        // 11 floats: x, y, z, width, height, rotation, r, g, b, a, cornerRadius
+        call.data.resize(11);
+
+        call.data[0]  = ui->x;
+        call.data[1]  = ui->y;
+        call.data[2]  = ui->z;
+        call.data[3]  = ui->width;
+        call.data[4]  = ui->height;
+        call.data[5]  = ui->rotation;
+        call.data[6]  = obj->colors.x;
+        call.data[7]  = obj->colors.y;
+        call.data[8]  = obj->colors.z;
+        call.data[9]  = obj->colors.w;
+        call.data[10] = obj->cornerRadius;
+
+        return call;
+    }
+
+    void RoundedRect2DObjectSystem::onEvent(const EntityChangedEvent& event)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        auto entity = ecsRef->getEntity(event.id);
+
+        if (not entity or not entity->has<RoundedRect2DObject>())
+            return;
+
+        updateQueue.push(event.id);
+
+        changed = true;
+    }
 }

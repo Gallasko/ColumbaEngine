@@ -105,7 +105,8 @@ namespace editor
                        "Add Button",    makeCallable<CreateElement>(UiComponentType::BUTTON),
                        "Add TextInput", makeCallable<CreateElement>(UiComponentType::TEXTINPUT),
                        "Add List",      makeCallable<CreateElement>(UiComponentType::LIST),
-                       "Add Prefab",    makeCallable<CreateElement>(UiComponentType::PREFAB));
+                    //    "Add Prefab",    makeCallable<CreateElement>(UiComponentType::PREFAB),
+                       "Add RoundRect", makeCallable<CreateElement>(UiComponentType::ROUNDEDRECT));
 
         hide();
     }
@@ -230,6 +231,20 @@ namespace editor
             {
                 ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
                     auto newElement = makeTTFTextInput(ecsRef, 50, 50, StandardEvent("nocallback"), {"TabTexture"});
+
+                    return newElement;
+                }});
+
+                break;
+            }
+
+            case UiComponentType::ROUNDEDRECT:
+            {
+                LOG_INFO(DOM, "Create rounded rect at (" << cX << ", " << cY << ")");
+                ecsRef->sendEvent(CreateInspectorEntityEvent{[cX, cY](EntitySystem* ecsRef) -> EntityRef {
+                    auto newElement = makeRoundedRect2DShape(ecsRef, 10, 50, 50);
+                    newElement.get<PositionComponent>()->setX(cX);
+                    newElement.get<PositionComponent>()->setY(cY);
 
                     return newElement;
                 }});
