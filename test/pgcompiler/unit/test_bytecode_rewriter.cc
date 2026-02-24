@@ -140,9 +140,11 @@ TEST_F(BytecodeRewriterTest, RemoveBytesAtTarget_AdjustsTarget)
     // Jump at offset 2 stays at offset 2
     ASSERT_EQ(chunk.code[2], static_cast<uint8_t>(OpCode::OP_Jump_If_False));
 
-    // Jump distance should decrease by 1: was 6, now 5
+    // Jump distance should stay the same: was 6, still 6
+    // Removal is AT the target offset: bytes at 12+ shift left by 1, but the
+    // absolute target address (11) still holds the next instruction, so no adjustment.
     distance = extractJumpDistance(chunk, 2);
-    EXPECT_EQ(distance, 5);
+    EXPECT_EQ(distance, 6);
 }
 
 TEST_F(BytecodeRewriterTest, RemoveBytesAfterTarget_NoAdjustment)
@@ -205,12 +207,15 @@ TEST_F(BytecodeRewriterTest, MultipleSequentialRemovals_CumulativeAdjustment)
     EXPECT_EQ(distance1, 5);
 
     // Second removal: remove OP_Pop at offset 10 (was at 11, shifted by first removal)
+    // Offset 10 is exactly the target (jump end=5, distance=5, target=10).
+    // Removal AT the target keeps the distance unchanged (same absolute offset now
+    // holds the next instruction).
     bool success2 = rewriter->removeInstructions(chunk, 10, 1);
     ASSERT_TRUE(success2);
 
-    // Jump at offset 2, distance should be 4 now (was 5)
+    // Jump at offset 2, distance should stay 5 (removal was at the target, not before it)
     uint16_t distance2 = extractJumpDistance(chunk, 2);
-    EXPECT_EQ(distance2, 4);
+    EXPECT_EQ(distance2, 5);
 }
 
 TEST_F(BytecodeRewriterTest, PoppingJumpOptimizationPattern_FirstJump)
