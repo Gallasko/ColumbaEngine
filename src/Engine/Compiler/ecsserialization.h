@@ -51,26 +51,34 @@ namespace pg
      * REGISTER_COMPONENT_ATTACH_HANDLER("Position", attachPositionComponent);
      * ```
      */
-    class ComponentAttachRegistry {
+    class ComponentAttachRegistry
+    {
     public:
-        static ComponentAttachRegistry& instance() {
+        static ComponentAttachRegistry& instance()
+        {
             static ComponentAttachRegistry registry;
             return registry;
         }
 
-        void registerHandler(const std::string& componentName, ComponentAttachFunc handler) {
+        void registerHandler(const std::string& componentName, ComponentAttachFunc handler)
+        {
             handlers_[componentName] = handler;
         }
 
-        bool hasHandler(const std::string& componentName) const {
+        bool hasHandler(const std::string& componentName) const
+        {
             return handlers_.find(componentName) != handlers_.end();
         }
 
-        ComponentAttachFunc getHandler(const std::string& componentName) const {
+        ComponentAttachFunc getHandler(const std::string& componentName) const
+        {
             auto it = handlers_.find(componentName);
-            if (it != handlers_.end()) {
+
+            if (it != handlers_.end())
+            {
                 return it->second;
             }
+
             return nullptr;
         }
 
@@ -111,15 +119,23 @@ namespace pg
         std::string name;
         PropertyType type;
 
+        bool writable;
+
         using GetterFn = std::function<Value(void* component, VM* vm)>;
         GetterFn getter = nullptr; // Optional getter function for custom access logic (e.g., computed properties)
-
-        bool writable;
 
         // Setter function that calls the component's setter method (which may fire events)
         // ALWAYS provided for writable properties to ensure events are fired correctly
         using SetterFn = std::function<void(void* component, VM* vm, Value value)>;
         SetterFn setter = nullptr; // Required for writable properties
+
+        // String Getter / Setter for properties
+        using SGetterFn = std::function<std::string(void* component)>;
+        SGetterFn sGetter = nullptr; // Optional getter function for custom access logic (e.g., computed properties)
+
+        using SSetterFn = std::function<void(void* component, const std::string&)>;
+        SSetterFn sSetter = nullptr; // Required for writable properties
+
     };
 
     /**
@@ -264,15 +280,20 @@ namespace pg
          */
         inline bool isElementType(const SerializedInfoHolder& node)
         {
-            if (node.className != "ElementType") return false;
+            if (node.className != "ElementType")
+                return false;
+
             bool hasType = false;
             bool hasData = false;
+
             for (const auto& child : node.children)
             {
-                if (child.name == "type") hasType = true;
-                if (child.name == "data") hasData = true;
+                if (child.name == "type")
+                    hasType = true;
+                if (child.name == "data")
+                    hasData = true;
             }
-            return hasType && hasData;
+            return hasType and hasData;
         }
 
         /**
@@ -282,15 +303,15 @@ namespace pg
         {
             for (const auto& child : node.children)
             {
-                if (child.name == "data" && !child.value.empty())
+                if (child.name == "data" and not child.value.empty())
                 {
                     if (child.type == "int")
                         return makeIntValue(std::stoi(child.value));
                     else if (child.type == "bool")
                         return makeBoolValue(child.value == "true");
-                    else if (child.type == "float" || child.type == "double")
+                    else if (child.type == "float" or child.type == "double")
                         return makeDoubleValue(std::stod(child.value));
-                    else if (child.type == "size_t" || child.type == "unsigned int")
+                    else if (child.type == "size_t" or child.type == "unsigned int")
                         return makeIntValue(std::stoull(child.value));
                     else if (child.type == "string")
                         return vm->createString(child.value);
@@ -298,6 +319,7 @@ namespace pg
                         return vm->createString(child.value);
                 }
             }
+
             return makeIntValue(0); // Default
         }
 
@@ -310,9 +332,9 @@ namespace pg
                 return makeIntValue(std::stoi(node.value));
             else if (node.type == "bool")
                 return makeBoolValue(node.value == "true");
-            else if (node.type == "float" || node.type == "double")
+            else if (node.type == "float" or node.type == "double")
                 return makeDoubleValue(std::stod(node.value));
-            else if (node.type == "size_t" || node.type == "unsigned int")
+            else if (node.type == "size_t" or node.type == "unsigned int")
                 return makeIntValue(std::stoull(node.value));
             else if (node.type == "string")
                 return vm->createString(node.value);
@@ -328,7 +350,7 @@ namespace pg
             ObjInstance* currentTable, bool retainValues = false)
         {
             // Check if this is an ElementType - flatten it to just the data value
-            if (detail::isElementType(node) && !node.name.empty())
+            if (detail::isElementType(node) and not node.name.empty())
             {
                 Value value = detail::extractElementTypeValue(vm, node);
                 if (retainValues)
@@ -345,7 +367,7 @@ namespace pg
             }
 
             // If this node has a value (it's a leaf property), add it
-            if (!node.value.empty() && !node.name.empty())
+            if (not node.value.empty() and not node.name.empty())
             {
                 Value value = detail::convertPrimitiveToValue(vm, node);
 
@@ -365,7 +387,7 @@ namespace pg
             if (node.children.size() > 0)
             {
                 // Check if this is a Vector (array-like structure)
-                if (node.className == "Vector" && !node.name.empty())
+                if (node.className == "Vector" and not node.name.empty())
                 {
                     Value nestedTableValue = vm->createInstance(tableClass);
                     ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
@@ -380,7 +402,7 @@ namespace pg
                         {
                             elementValue = detail::extractElementTypeValue(vm, child);
                         }
-                        else if (!child.value.empty())
+                        else if (not child.value.empty())
                         {
                             elementValue = detail::convertPrimitiveToValue(vm, child);
                         }
@@ -425,7 +447,7 @@ namespace pg
                     size_t nbElements = 0;
                     for (const auto& child : node.children)
                     {
-                        if (child.name == "nbElements" && !child.value.empty())
+                        if (child.name == "nbElements" and not child.value.empty())
                         {
                             nbElements = std::stoull(child.value);
                             break;
@@ -444,7 +466,7 @@ namespace pg
                         // Find the key and value in children
                         for (const auto& child : node.children)
                         {
-                            if (child.name == keyName && !child.value.empty())
+                            if (child.name == keyName and not child.value.empty())
                             {
                                 actualKey = child.value;
                             }
@@ -455,7 +477,7 @@ namespace pg
                                 {
                                     actualValue = detail::extractElementTypeValue(vm, child);
                                 }
-                                else if (!child.value.empty())
+                                else if (not child.value.empty())
                                 {
                                     actualValue = detail::convertPrimitiveToValue(vm, child);
                                 }
@@ -470,7 +492,7 @@ namespace pg
                             }
                         }
 
-                        if (!actualKey.empty())
+                        if (not actualKey.empty())
                         {
                             if (retainValues)
                             {
@@ -496,7 +518,7 @@ namespace pg
                     }
                 }
                 // If the node has a name, create a nested table for the children
-                else if (!node.name.empty())
+                else if (not node.name.empty())
                 {
                     Value nestedTableValue = vm->createInstance(tableClass);
                     ObjInstance* nestedTable = vm->asInstance(nestedTableValue);
@@ -755,7 +777,7 @@ namespace pg
     template <typename Type>
     Type deserializeTo(VM* vm, Value table)
     {
-        if (!IS_INSTANCE(table))
+        if (not IS_INSTANCE(table))
         {
             LOG_ERROR("ECS Serialization", "Table value is not an instance");
             return Type{};
@@ -889,7 +911,7 @@ namespace pg
             auto& compNode = archive.mainNode.children[0];
 
             // Add the class name (component type)
-            if (!compNode.className.empty())
+            if (not compNode.className.empty())
             {
                 componentTypeName = compNode.className;
                 Value classNameKey = vm->createString("__className");
@@ -946,7 +968,7 @@ namespace pg
             auto& compNode = archive.mainNode.children[0];
 
             // Add the class name (component type)
-            if (!compNode.className.empty())
+            if (not compNode.className.empty())
             {
                 Value classNameKey = vm->createString("__className");
                 Value classNameValue = vm->createString(compNode.className);

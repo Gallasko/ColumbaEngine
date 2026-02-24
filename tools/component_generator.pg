@@ -393,13 +393,12 @@ class ProxyMetadataGenerator
             code += "        metadata.properties.emplace(\"" + fieldName + "\", PropertyMetadata{\n"
             code += "            \"" + fieldName + "\",\n"
             code += "            pg::PropertyType::" + propType + ",\n"
+            code += "            " + toString(writable) + ",\n"
 
             code += "            [](void* comp, VM* vm) -> Value {\n"
             code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
             code += this.generateGetterCall(schema.name, field);
             code += "            },\n"
-
-            code += "            " + toString(writable) + ",\n"
 
             // Generate setter lambda if writable
             if (writable)
@@ -407,6 +406,23 @@ class ProxyMetadataGenerator
                 code += "            [](void* comp, VM* vm, Value val) {\n"
                 code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
                 code += this.generateSetterCall(schema.name, field)
+                code += "            },\n"
+            }
+            else
+            {
+                code += "            nullptr,\n"
+            }
+
+            code += "            [](void* comp) -> std::string {\n"
+            code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
+            code += this.generateSGetterCall(schema.name, field);
+            code += "            },\n"
+
+            if (writable)
+            {
+                code += "            [](void* comp, const std::string& val) {\n"
+                code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
+                code += this.generateSSetterCall(schema.name, field)
                 code += "            }\n"
             }
             else
@@ -455,10 +471,6 @@ class ProxyMetadataGenerator
         var getterName = "get" + capitalize(fieldName)
         var code = ""
 
-        // Track which parameters are used to add (void) casts for unused ones
-        var usesVm = false
-        var usesVal = true  // val is always used
-
         if (fieldType == "float")
         {
             code += "                (void)vm; // Suppress unused parameter warning\n"
@@ -491,38 +503,35 @@ class ProxyMetadataGenerator
         }
         else if (fieldType == "std::string" or fieldType == "string")
         {
-            usesVm = true
             code += "                return vm->createString(c->" + getterName + "());\n"
         }
         else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
         {
-            usesVm = true
             code += "                // Convert Vector3D to table\n"
             code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
             code += "                Klass* tableClass = vm->asClass(it->second);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
-            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
-            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
+            code += "                auto vec = c->" + getterName + "();\n\n"
             code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
             code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
-            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
+            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n\n"
             code += "                return tableValue;\n"
         }
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
-            usesVm = true
             code += "                // Convert Vector4D to table\n"
             code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
             code += "                Klass* tableClass = vm->asClass(it->second);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
-            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
-            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
+            code += "                auto vec = c->" + getterName + "();\n\n"
             code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
             code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
             code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
-            code += "                table->setField(\"w\", makeFloatValue(vec.w), vm, true);\n"
+            code += "                table->setField(\"w\", makeFloatValue(vec.w), vm, true);\n\n"
             code += "                return tableValue;\n"
         }
         else
@@ -536,6 +545,61 @@ class ProxyMetadataGenerator
         return code
     }
 
+    generateSGetterCall(componentName, field)
+    {
+        var fieldName = field["name"]
+        var fieldType = getFieldType(field)
+        var getterName = "get" + capitalize(fieldName)
+        var code = ""
+
+        if (fieldType == "float")
+        {
+            code += "                return std::to_string(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "double")
+        {
+            code += "                return std::to_string(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "int")
+        {
+            code += "                return std::to_string(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "_unique_id")
+        {
+            code += "                return std::to_string(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "unsigned int" or fieldType == "size_t")
+        {
+            code += "                return std::to_string(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "bool")
+        {
+            code += "                return std::to_string(c->" + getterName + "());\n"
+        }
+        else if (fieldType == "std::string" or fieldType == "string")
+        {
+            code += "                return c->" + getterName + "();\n"
+        }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                return std::to_string(vec.x) + \",\" + std::to_string(vec.y) + \",\" + std::to_string(vec.z);\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                return std::to_string(vec.x) + \",\" + std::to_string(vec.y) + \",\" + std::to_string(vec.z); + \",\" + std::to_string(vec.w);\n"
+        }
+        else
+        {
+            // Fallback for unknown types
+            code += "                // TODO: Handle getter for type " + fieldType + "\n"
+            code += "                return \"\";\n"
+        }
+
+        return code
+    }
+
     generateSetterCall(componentName, field)
     {
         var fieldName = field["name"]
@@ -543,91 +607,152 @@ class ProxyMetadataGenerator
         var setterName = "set" + capitalize(fieldName)
         var code = ""
 
-        // Track which parameters are used to add (void) casts for unused ones
-        var usesVm = false
-        var usesVal = true  // val is always used
-
         if (fieldType == "float")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));\n"
-            code += "                    c->" + setterName + "(v);\n"
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));\n"
+            code += "                c->" + setterName + "(v);\n"
         }
         else if (fieldType == "double")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    double v = IS_DOUBLE(val) ? AS_DOUBLE(val) : static_cast<double>(AS_INT(val));\n"
-            code += "                    c->" + setterName + "(v);\n"
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                double v = IS_DOUBLE(val) ? AS_DOUBLE(val) : static_cast<double>(AS_INT(val));\n"
+            code += "                c->" + setterName + "(v);\n"
         }
         else if (fieldType == "int")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(static_cast<int>(AS_INT(val)));\n"
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(static_cast<int>(AS_INT(val)));\n"
         }
         else if (fieldType == "_unique_id")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(static_cast<_unique_id>(AS_INT(val)));\n"
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(static_cast<_unique_id>(AS_INT(val)));\n"
         }
         else if (fieldType == "unsigned int" or fieldType == "size_t")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(static_cast<unsigned int>(AS_INT(val)));\n"
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(static_cast<unsigned int>(AS_INT(val)));\n"
         }
         else if (fieldType == "bool")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(AS_BOOL(val));\n"
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(AS_BOOL(val));\n"
         }
         else if (fieldType == "std::string" or fieldType == "string")
         {
-            usesVm = true
-            code += "                    c->" + setterName + "(vm->asString(val));\n"
+            code += "                c->" + setterName + "(vm->asString(val));\n"
         }
         else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
         {
-            usesVm = true
-            code += "                    // Convert table or vector to Vector3D\n"
-            code += "                    if (IS_INSTANCE(val)) {\n"
-            code += "                        ObjInstance* table = vm->asInstance(val);\n"
-            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
-            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
-            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
-            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
-            code += "                    } else if (IS_VECTOR(val)) {\n"
-            code += "                        ObjVector* vec = vm->asVector(val);\n"
-            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
-            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
-            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
-            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
-            code += "                    }\n"
+            code += "                // Convert table or vector to Vector3D\n"
+            code += "                if (IS_INSTANCE(val))\n                {\n"
+            code += "                    ObjInstance* table = vm->asInstance(val);\n\n"
+            code += "                    float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                    float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                    float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n\n"
+            code += "                    c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                }\n                else if (IS_VECTOR(val))\n                {\n"
+            code += "                    ObjVector* vec = vm->asVector(val);\n\n"
+            code += "                    float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                    float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                    float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n\n"
+            code += "                    c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                }\n"
         }
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
-            usesVm = true
-            code += "                    // Convert table or vector to Vector4D\n"
-            code += "                    if (IS_INSTANCE(val)) {\n"
-            code += "                        ObjInstance* table = vm->asInstance(val);\n"
-            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
-            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
-            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
-            code += "                        float w = static_cast<float>(AS_DOUBLE(table->getField(\"w\")));\n"
-            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
-            code += "                    } else if (IS_VECTOR(val)) {\n"
-            code += "                        ObjVector* vec = vm->asVector(val);\n"
-            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
-            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
-            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
-            code += "                        float w = vec->fields.size() > 3 ? static_cast<float>(AS_DOUBLE(vec->fields[3])) : 0.0f;\n"
-            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
-            code += "                    }\n"
+            code += "                // Convert table or vector to Vector4D\n"
+            code += "                if (IS_INSTANCE(val))\n                {\n"
+            code += "                    ObjInstance* table = vm->asInstance(val);\n\n"
+            code += "                    float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                    float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                    float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
+            code += "                    float w = static_cast<float>(AS_DOUBLE(table->getField(\"w\")));\n\n"
+            code += "                    c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                }\n                else if (IS_VECTOR(val))\n                {\n"
+            code += "                    ObjVector* vec = vm->asVector(val);\n\n"
+            code += "                    float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                    float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                    float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
+            code += "                    float w = vec->fields.size() > 3 ? static_cast<float>(AS_DOUBLE(vec->fields[3])) : 0.0f;\n\n"
+            code += "                    c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                }\n"
         }
         else
         {
             // Fallback for unknown types
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    (void)val; // Suppress unused parameter warning\n"
-            code += "                    // TODO: Handle setter for type " + fieldType + "\n"
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                (void)val; // Suppress unused parameter warning\n"
+            code += "                // TODO: Handle setter for type " + fieldType + "\n"
+        }
+
+        return code
+    }
+
+    generateSSetterCall(componentName, field)
+    {
+        var fieldName = field["name"]
+        var fieldType = getFieldType(field)
+        var setterName = "set" + capitalize(fieldName)
+        var code = ""
+
+        if (fieldType == "float")
+        {
+            code += "                c->" + setterName + "(std::stof(val));\n"
+        }
+        else if (fieldType == "double")
+        {
+            code += "                c->" + setterName + "(std::stod(val));\n"
+        }
+        else if (fieldType == "int")
+        {
+            code += "                c->" + setterName + "(std::stoi(val));\n"
+        }
+        else if (fieldType == "_unique_id")
+        {
+            code += "                c->" + setterName + "(static_cast<_unique_id>(std::stoull(val)));\n"
+        }
+        else if (fieldType == "unsigned int" or fieldType == "size_t")
+        {
+            code += "                c->" + setterName + "(static_cast<unsigned int>(std::stoul(val)));\n"
+        }
+        else if (fieldType == "bool")
+        {
+            code += "                c->" + setterName + "(val == \"true\" or val == \"1\");\n"
+        }
+        else if (fieldType == "std::string" or fieldType == "string")
+        {
+            code += "                c->" + setterName + "(val);\n"
+        }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            code += "                // Parse comma-separated \"x,y,z\"\n"
+            code += "                float x = 0.0f, y = 0.0f, z = 0.0f;\n\n"
+            code += "                std::istringstream ss(val);\n"
+            code += "                std::string tok;\n"
+            code += "                if (std::getline(ss, tok, ',')) x = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) y = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) z = std::stof(tok);\n\n"
+            code += "                c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            code += "                // Parse comma-separated \"x,y,z,w\"\n"
+            code += "                float x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;\n\n"
+            code += "                std::istringstream ss(val);\n"
+            code += "                std::string tok;\n"
+            code += "                if (std::getline(ss, tok, ',')) x = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) y = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) z = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) w = std::stof(tok);\n\n"
+            code += "                c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+        }
+        else
+        {
+            // Fallback for unknown types
+            code += "                (void)val;\n"
+            code += "                // TODO: Handle string setter for type " + fieldType + "\n"
         }
 
         return code
@@ -643,6 +768,7 @@ class SerializationGenerator
         // Include necessary headers
         code += "#include \"stdafx.h\"\n\n"
         code += "#include \"" + schema.name + ".generated.h\"\n\n"
+        code += "#include <sstream>\n\n"
         code += "#include \"Compiler/ecsserialization.h\"\n"
         code += "#include \"ECS/entitysystem.h\"\n\n"
 
@@ -771,7 +897,7 @@ class SerializationGenerator
         code += "    for (int i = 0; i < argCount; i += 2)\n"
         code += "    {\n"
         code += "        if (i + 1 >= argCount) break;\n\n"
-        code += "        if (!IS_STRING(args[i]))\n"
+        code += "        if (not IS_STRING(args[i]))\n"
         code += "        {\n"
         code += "            LOG_ERROR(\"ECS Serialization\", \"attachComp expects string keys for properties\");\n"
         code += "            continue;\n"
