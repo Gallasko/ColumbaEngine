@@ -50,12 +50,31 @@ namespace pg
                     }
                 }
             }
+
+            static void* getRawComponentPtr(EntitySystem* ecs, _unique_id entityId, const std::string& typeName)
+            {
+                auto& reg = ComponentSerializerRegistry::instance();
+
+                if (reg.hasSerializer(typeName))
+                {
+                    auto fn = reg.getRetriever(typeName);
+                    if (fn)
+                        return fn(ecs, entityId);
+                }
+
+                auto* owner = ecs->getComponentRegistry()->retrieveStandardComponent(typeName);
+
+                if (owner)
+                    return owner->getComponent(entityId);
+
+                return nullptr;
+            }
         }
 
         std::map<EditorKeyConfig, DefaultScancode> scancodeMap = {
             {EditorKeyConfig::Undo,   {"Undo", SDL_SCANCODE_Z, KMOD_CTRL}},
             {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
-            };
+        };
 
         void DraggingCommand::execute()
         {

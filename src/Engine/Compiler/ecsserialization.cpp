@@ -97,6 +97,28 @@ namespace pg
         }
     }
 
+    namespace
+    {
+        static void* getRawComponentPtr(EntitySystem* ecs, _unique_id entityId, const std::string& typeName)
+        {
+            auto& reg = ComponentSerializerRegistry::instance();
+
+            if (reg.hasSerializer(typeName))
+            {
+                auto fn = reg.getRetriever(typeName);
+                if (fn)
+                    return fn(ecs, entityId);
+            }
+
+            auto* owner = ecs->getComponentRegistry()->retrieveStandardComponent(typeName);
+
+            if (owner)
+                return owner->getComponent(entityId);
+
+            return nullptr;
+        }
+    }
+
     // ============================================================================
     // Registered Component Serializers
     // ============================================================================
@@ -286,33 +308,7 @@ namespace pg
             LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName);
 
             // Get the component pointer
-            void* componentPtr = nullptr;
-
-            if (componentTypeName == "StandardComponent")
-            {
-                // StandardComponent requires special handling
-                if (not actualTypeName.empty())
-                {
-                    auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(actualTypeName);
-                    if (owner)
-                    {
-                        componentPtr = owner->getComponent(entity->id);
-                    }
-                }
-            }
-            else
-            {
-                // For all other components, use the registered retriever
-                auto& registry = ComponentSerializerRegistry::instance();
-                if (registry.hasSerializer(componentTypeName))
-                {
-                    auto retrieverFunc = registry.getRetriever(componentTypeName);
-                    if (retrieverFunc)
-                    {
-                        componentPtr = retrieverFunc(ecsRef, entity->id);
-                    }
-                }
-            }
+            void* componentPtr = getRawComponentPtr(ecsRef, entity->id, componentTypeName);
 
             if (componentPtr)
             {
@@ -368,30 +364,7 @@ namespace pg
                 LOG_MILE("ECS Serialization", "Using registered serializer for " << componentTypeName);
 
                 // Get the component pointer using the registered retriever function
-                void* componentPtr = nullptr;
-
-                if (componentTypeName == "StandardComponent")
-                {
-                    // StandardComponent requires special handling - use actualTypeName we already have
-                    if (not actualTypeName.empty())
-                    {
-                        auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(actualTypeName);
-
-                        if (owner)
-                        {
-                            componentPtr = owner->getComponent(entity->id);
-                        }
-                    }
-                }
-                else
-                {
-                    // For all other components, use the registered retriever
-                    auto retrieverFunc = registry.getRetriever(componentTypeName);
-                    if (retrieverFunc)
-                    {
-                        componentPtr = retrieverFunc(ecsRef, entity->id);
-                    }
-                }
+                void* componentPtr = getRawComponentPtr(ecsRef, entity->id, componentTypeName);
 
                 if (componentPtr)
                 {
