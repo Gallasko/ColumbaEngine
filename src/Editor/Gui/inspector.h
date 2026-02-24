@@ -299,8 +299,6 @@ namespace pg
             {
                 attachableComponentMap.emplace(name, [this, args...](EntityRef ent) {
                     ecsRef->template attach<Comp>(ent, args...);
-
-                    ecsRef->sendEvent(EntityChangedEvent{ent->id});
                 });
             }
 

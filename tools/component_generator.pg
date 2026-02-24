@@ -690,8 +690,13 @@ class SerializationGenerator
             }
             else if (contain(field, "customSerializationSetter"))
             {
+                code += "    auto " + fieldName + "CustomSetter = [component](VM* vm, int argCount, Value* args) -> Value {\n"
+
                 var customCode = field["customSerializationSetter"]
                 code += "    " + customCode + "\n"
+
+                code += "    };\n"
+                code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "CustomSetter));\n"
             }
         }
 

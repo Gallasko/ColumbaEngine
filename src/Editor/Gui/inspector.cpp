@@ -205,7 +205,7 @@ namespace pg
             toggleButtonUi->setLeftMargin(-25); // Position outside the inspector panel
 
             // Create toggle button text
-            auto toggleText = makeEditorText(ecsRef, themeManager, 0, 0, 12.0f, "light", "◀", 0.5);
+            auto toggleText = makeEditorText(ecsRef, themeManager, 0, 0, 12.0f, "light", "<", 0.5);
             toggleButtonText = toggleText.entity;
 
             auto toggleTextPos = toggleText.get<PositionComponent>();
