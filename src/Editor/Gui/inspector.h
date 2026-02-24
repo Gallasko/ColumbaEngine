@@ -6,6 +6,8 @@
 #include "UI/textinput.h"
 #include "Input/keyconfig.h"
 
+#include "Compiler/ecsserialization.h"
+
 namespace pg
 {
     struct NewSceneLoaded;
@@ -207,6 +209,37 @@ namespace pg
             std::function<EntityRef(EntitySystem *)> callback;
         };
 
+        struct InspectorPropertyWidget
+        {
+            std::string propertyName;
+            PropertyType type;
+
+            std::vector<_unique_id> inputIds;
+        };
+
+        struct InspectorComponentPanel
+        {
+            std::string typeName;
+
+            EntityRef foldCard;                        // foldable card root
+            CompRef<VerticalLayout> layout;            // inner layout
+
+            std::vector<InspectorPropertyWidget> widgets;
+            bool initialized = false;
+        };
+
+        struct ActiveBinding
+        {
+            std::string componentType;
+            std::string propertyName;
+
+            PropertyType type;
+
+            std::vector<_unique_id> inputIds;
+
+            void* componentPtr;
+        };
+
         struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, QueuedListener<EndRotation>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
@@ -214,10 +247,6 @@ namespace pg
             virtual void init() override;
 
             CompRef<VerticalLayout> addNewText(const std::string& text, CompRef<VerticalLayout> currentView);
-
-            void addNewAttribute(const std::string& text, std::string& value, CompRef<VerticalLayout> currentView);
-
-            void printChildren(SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView);
 
             virtual void onProcessEvent(const EntityChangedEvent& event) override;
 
@@ -314,25 +343,22 @@ namespace pg
 
             void processEntityChanged(const EntityChangedEvent& event);
 
-            void deserializeCurrentEntity();
-
             void toggleInspectorVisibility();
+
+            void buildPanel(const std::string& typeName);
+            void showPanel (const std::string& typeName, void* componentPtr);
+            void hideAllPanels();
 
             InspectorCommandHistory history;
 
-            InspectorArchive archive;
-
-            std::vector<InspectedText> inspectorText;
+            std::map<std::string, InspectorComponentPanel> componentPanels;
+            std::vector<ActiveBinding> activeBindings;
 
             CompRef<VerticalLayout> view;
 
             InspectEvent event;
 
             bool eventRequested = false;
-
-            bool needDeserialization = false;
-
-            bool needUpdateEntity = false;
 
             bool needClear = false;
 
@@ -361,16 +387,7 @@ namespace pg
         class InspectorWidgets
         {
         public:
-            /**
-             * Creates a labeled text-input row and adds it to the given vertical layout.
-             *
-             * @param ecs         Pointer to the EntitySystem
-             * @param parentLayout   The Inspector's VerticalLayout to which to add this row
-             * @param labelText   The label to display on the left
-             * @param boundValue  Reference to the underlying std::string that backs the TextInputComponent
-             * @param onChange    StandardEvent to fire when the user commits a change
-             */
-            static void makeLabeledTextInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, std::string& boundValue, InspectorSystem* sys);
+            static _unique_id makeScalarInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, const std::string& key, const std::string& baseValue);
         };
     }
 

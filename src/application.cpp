@@ -573,67 +573,67 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         auto inspector = ecs.createSystem<InspectorSystem>();
 
-        inspector->registerCustomDrawer("Entity", [](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
-            LOG_INFO("Inspector", "Custom drawer for Entity");
+        // inspector->registerCustomDrawer("Entity", [](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
+        //     LOG_INFO("Inspector", "Custom drawer for Entity");
 
-            for (auto& child : parent.children)
-            {
-                if (child.className != "")
-                {
-                    sys->printChildren(child, view);
-                }
-                else
-                {
-                    LOG_INFO("Inspector", "Entity: " << child.name);
-                }
-            }
-        });
+        //     for (auto& child : parent.children)
+        //     {
+        //         if (child.className != "")
+        //         {
+        //             sys->printChildren(child, view);
+        //         }
+        //         else
+        //         {
+        //             LOG_INFO("Inspector", "Entity: " << child.name);
+        //         }
+        //     }
+        // });
 
-        inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>) {
-            LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
-        });
+        // inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>) {
+        //     LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
+        // });
 
-        inspector->registerCustomDrawer<NamedUiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
-            // If no class name then we got an attribute
-            if (parent.className == "")
-            {
-                sys->addNewAttribute(parent.name, parent.value, view);
-            }
-            // We got a class name then it is a class ! So no type nor value
-            else
-            {
-                view = sys->addNewText(parent.className, view);
-            }
+        // inspector->registerCustomDrawer<NamedUiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
+        //     // If no class name then we got an attribute
+        //     if (parent.className == "")
+        //     {
+        //         sys->addNewAttribute(parent.name, parent.value, view);
+        //     }
+        //     // We got a class name then it is a class ! So no type nor value
+        //     else
+        //     {
+        //         view = sys->addNewText(parent.className, view);
+        //     }
 
-            // auto ent = make9squarePrefab(sys->ecsRef);
+        //     // auto ent = make9squarePrefab(sys->ecsRef);
 
-            // sys->view->addEntity(makeFoldableCard(sys->ecsRef));
+        //     // sys->view->addEntity(makeFoldableCard(sys->ecsRef));
 
-            // LOG_INFO("Inspector", "Ent: " << ent.id);
+        //     // LOG_INFO("Inspector", "Ent: " << ent.id);
 
-            // sys->view->addEntity(ent);
+        //     // sys->view->addEntity(ent);
 
-            // Process children but skip internal flags
-            for (auto& child : parent.children)
-            {
-                // Skip all the internal has* flags
-                if (child.name == "hasTopAnchor"        or
-                    child.name == "hasLeftAnchor"       or
-                    child.name == "hasRightAnchor"      or
-                    child.name == "hasBottomAnchor"     or
-                    child.name == "hasVerticalCenter"   or
-                    child.name == "hasHorizontalCenter" or
-                    child.name == "hasWidthConstrain"   or
-                    child.name == "hasHeightConstrain"  or
-                    child.name == "hasZConstrain")
-                {
-                    continue; // Skip these internal flags
-                }
+        //     // Process children but skip internal flags
+        //     for (auto& child : parent.children)
+        //     {
+        //         // Skip all the internal has* flags
+        //         if (child.name == "hasTopAnchor"        or
+        //             child.name == "hasLeftAnchor"       or
+        //             child.name == "hasRightAnchor"      or
+        //             child.name == "hasBottomAnchor"     or
+        //             child.name == "hasVerticalCenter"   or
+        //             child.name == "hasHorizontalCenter" or
+        //             child.name == "hasWidthConstrain"   or
+        //             child.name == "hasHeightConstrain"  or
+        //             child.name == "hasZConstrain")
+        //         {
+        //             continue; // Skip these internal flags
+        //         }
 
-                // Draw everything else normally
-                sys->printChildren(child, view);
-            }
-        });
+        //         // Draw everything else normally
+        //         sys->printChildren(child, view);
+        //     }
+        // });
 
         // mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
         ecs.succeed<MasterRenderer, TTFTextSystem>();
