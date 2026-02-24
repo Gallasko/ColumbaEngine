@@ -93,7 +93,11 @@ namespace pg
         Bool,
         String,
         UnsignedInt,
-        UniqueId
+        Vector3D,
+        Vector4D,
+        UniqueId,
+        Enum,
+        Custom
     };
 
     /**

@@ -42,6 +42,18 @@ class ComponentSchema
 // Code Generators
 // ============================================================================
 
+fun getFieldType(field)
+{
+    var fieldType = field["type"]
+
+    if (fieldType == "string")
+    {
+        return "std::string"
+    }
+
+    return fieldType
+}
+
 class HeaderGenerator
 {
     generate(schema)
@@ -110,13 +122,15 @@ class HeaderGenerator
         for (var i = 0; i < len(schema.fields); i = i + 1)
         {
             var field = schema.fields[i]
-            code += "    " + field["type"] + " " + field["name"]
+            var fieldType = getFieldType(field)
+
+            code += "    " + fieldType + " " + field["name"]
 
             if (contain(field, "default"))
             {
                 var defaultValue = field["default"]
                 // For string types, ensure quotes are preserved
-                if (contains(field["type"], "string") and typeOf(defaultValue) == "string")
+                if (fieldType == "std::string" and typeOf(defaultValue) == "string")
                 {
                     code += " = \"" + defaultValue + "\""
                 }
@@ -167,7 +181,7 @@ class HeaderGenerator
                     {
                         if (schema.fields[fieldIdx]["name"] == paramName)
                         {
-                            fieldType = schema.fields[fieldIdx]["type"]
+                            fieldType = getFieldType(schema.fields[fieldIdx])
 
                             // Check if there's a custom default for this param in the constructor
                             if (contain(ctorDefaults, paramName))
@@ -255,7 +269,7 @@ class HeaderGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var getterName = "get" + capitalize(fieldName)
 
             code += "    " + fieldType + " " + getterName + "() const { return " + fieldName + "; }\n"
@@ -268,7 +282,7 @@ class HeaderGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var setterName = "set" + capitalize(fieldName)
 
             if (contain(field, "setter"))
@@ -357,7 +371,7 @@ class ProxyMetadataGenerator
             log("Generating proxy metadata for field " + toString(i) + " of component " + schema.name)
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
 
             // Skip fields that shouldn't be exposed
             if (contain(field, "serialize") and field["serialize"] == false)
@@ -424,18 +438,20 @@ class ProxyMetadataGenerator
         if (cppType == "double") return "Double"
         if (cppType == "int") return "Int"
         if (cppType == "bool") return "Bool"
-        if (cppType == "std::string") return "String"
+        if (cppType == "std::string" or cppType == "string") return "String"
         if (cppType == "_unique_id") return "UniqueId"
         if (cppType == "unsigned int" or cppType == "size_t") return "UnsignedInt"
+        if (cppType == "constant::Vector3D" or cppType == "pg::constant::Vector3D") return "Vector3D"
+        if (cppType == "constant::Vector4D" or cppType == "pg::constant::Vector4D") return "Vector4D"
 
-        // Default to Int for unknown types
-        return "Int"
+        // Default to Custom for unknown types
+        return "Custom"
     }
 
     generateGetterCall(componentName, field)
     {
         var fieldName = field["name"]
-        var fieldType = field["type"]
+        var fieldType = getFieldType(field)
         var getterName = "get" + capitalize(fieldName)
         var code = ""
 
@@ -473,7 +489,7 @@ class ProxyMetadataGenerator
             code += "                (void)vm; // Suppress unused parameter warning\n"
             code += "                return makeBoolValue(c->" + getterName + "());\n"
         }
-        else if (fieldType == "std::string")
+        else if (fieldType == "std::string" or fieldType == "string")
         {
             usesVm = true
             code += "                return vm->createString(c->" + getterName + "());\n"
@@ -523,7 +539,7 @@ class ProxyMetadataGenerator
     generateSetterCall(componentName, field)
     {
         var fieldName = field["name"]
-        var fieldType = field["type"]
+        var fieldType = getFieldType(field)
         var setterName = "set" + capitalize(fieldName)
         var code = ""
 
@@ -563,7 +579,7 @@ class ProxyMetadataGenerator
             code += "                    (void)vm; // Suppress unused parameter warning\n"
             code += "                    c->" + setterName + "(AS_BOOL(val));\n"
         }
-        else if (fieldType == "std::string")
+        else if (fieldType == "std::string" or fieldType == "string")
         {
             usesVm = true
             code += "                    c->" + setterName + "(vm->asString(val));\n"
@@ -649,7 +665,7 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var setterName = "set" + capitalize(fieldName)
 
             if (contain(field, "setter") and field["setter"] != "none" and not contain(field, "customSerializationSetter"))
@@ -673,7 +689,7 @@ class SerializationGenerator
                 {
                     macroName = "REGISTER_DOUBLE_SETTER"
                 }
-                else if (fieldType == "std::string")
+                else if (fieldType == "std::string" or fieldType == "string")
                 {
                     macroName = "REGISTER_STRING_SETTER"
                 }
@@ -715,7 +731,7 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var defaultValue = ""
 
             if (contain(field, "default"))
@@ -768,7 +784,7 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
 
             var extractFunc = ""
             if (fieldType == "float" or fieldType == "double")
@@ -889,7 +905,7 @@ class CppGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var setterName = "set" + capitalize(fieldName)
 
             if (contain(field, "setter"))

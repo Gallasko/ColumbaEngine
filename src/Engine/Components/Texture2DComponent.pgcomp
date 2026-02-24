@@ -9,7 +9,7 @@ includes:
 
 fields:
   - name: textureName
-    type: std::string
+    type: string
     default: ""
     setter: event
 

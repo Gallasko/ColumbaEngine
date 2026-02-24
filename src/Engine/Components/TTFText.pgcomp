@@ -10,7 +10,7 @@ includes:
 
 fields:
   - name: text
-    type: std::string
+    type: string
     default: ""
     setter: event
 
@@ -25,7 +25,7 @@ fields:
     serialize: false
 
   - name: fontPath
-    type: std::string
+    type: string
     default: ""
     setter: event
 
