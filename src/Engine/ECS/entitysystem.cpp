@@ -515,6 +515,12 @@ namespace pg
         // Setup full build modules (implemented in entitysystem_full.cpp or entitysystem_minimal.cpp)
         setupVmFullModules(vm);
 
+        // Register any custom VM modules that were added via registerCustomVmModule
+        for (const auto& registerModule : customVmModules)
+        {
+            registerModule(vm);
+        }
+
         // Print function - outputs to stdout
         vm.registerNative("print", [](VM *vm, int argCount, Value* args) -> Value {
             for (int i = 0; i < argCount; i++)

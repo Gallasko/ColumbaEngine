@@ -662,6 +662,29 @@ namespace pg
 
         void setupVm(VM& vm);
 
+        /**
+         * @brief Register a custom VM module that will be added to all VMs created by this ECS
+         *
+         * This allows game-specific native modules to be available in all scripts (systems, events, etc.)
+         * The module must be movable or copyable.
+         *
+         * @param name The name to import the module as (e.g., "particle" for import "particle")
+         * @param module The native module instance (must be movable/copyable)
+         *
+         * Example:
+         * @code
+         * ecs.registerCustomVmModule("particle", ParticleModule{&ecs});
+         * @endcode
+         */
+        template<typename ModuleType>
+        void registerCustomVmModule(const std::string& name, ModuleType&& module);
+
+        // Helper for storing module registration
+        void addCustomVmModuleRegistrar(std::function<void(VM&)>&& registrar)
+        {
+            customVmModules.push_back(std::move(registrar));
+        }
+
     private:
         // Todo maybe
         // friend void serialize<>(Archive& archive, const EntitySystem& ecs);
@@ -822,6 +845,9 @@ namespace pg
         /** Pimpl for taskflow types to reduce header compilation time */
         struct TaskflowImpl;
         std::unique_ptr<TaskflowImpl> taskflowImpl;
+
+        /** Custom VM modules to be added to all VMs created by this ECS */
+        std::vector<std::function<void(VM&)>> customVmModules;
     };
 
     template <typename Comp>
