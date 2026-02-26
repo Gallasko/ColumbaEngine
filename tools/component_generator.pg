@@ -25,6 +25,7 @@ class ComponentSchema
         this.baseClass = data["base_class"]
         this.shortname = data["shortname"]
         this.constructors = data["constructors"]
+        this.enums = data["enums"]
     }
 
     getField(index)
@@ -54,6 +55,45 @@ fun getFieldType(field)
     return fieldType
 }
 
+// Returns true if typeName is one of the enums declared in the schema
+fun isEnumType(schema, typeName)
+{
+    if (not contain(schema, "enums") or typeOf(schema["enums"]) != "array")
+    {
+        return false
+    }
+
+    for (var i = 0; i < len(schema["enums"]); i = i + 1)
+    {
+        if (schema["enums"][i]["name"] == typeName)
+        {
+            return true
+        }
+    }
+
+    return false
+}
+
+// Returns the first field name of the given enum type (used as default value)
+fun getEnumFirstField(schema, typeName)
+{
+    if (not contain(schema, "enums") or typeOf(schema["enums"]) != "array")
+    {
+        return ""
+    }
+
+    for (var i = 0; i < len(schema["enums"]); i = i + 1)
+    {
+        var enumDef = schema["enums"][i]
+        if (enumDef["name"] == typeName and contain(enumDef, "fields") and len(enumDef["fields"]) > 0)
+        {
+            return enumDef["fields"][0]
+        }
+    }
+
+    return ""
+}
+
 class HeaderGenerator
 {
     generate(schema)
@@ -72,6 +112,11 @@ class HeaderGenerator
             {
                 code += "#include " + schema["includes"][i] + "\n"
             }
+
+            if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+            {
+                code += "#include \"Helpers/helpers.h\"\n"
+            }
             code += "\n"
         }
 
@@ -88,6 +133,43 @@ class HeaderGenerator
                 code += schema["forwards"][i] + "\n"
             }
             code += "\n"
+        }
+
+        // Enum declarations + string conversion maps
+        if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+        {
+            for (var ei = 0; ei < len(schema["enums"]); ei = ei + 1)
+            {
+                var enumDef = schema["enums"][ei]
+                var enumName = enumDef["name"]
+                var enumFields = enumDef["fields"]
+
+                // enum class declaration
+                code += "enum class " + enumName + " : uint8_t\n{\n"
+                for (var fi = 0; fi < len(enumFields); fi = fi + 1)
+                {
+                    code += "    " + enumFields[fi]
+                    if (fi == 0)
+                    {
+                        code += " = 0"
+                    }
+                    code += ",\n"
+                }
+                code += "};\n\n"
+
+                // EnumName -> string map  (e.g. shapeToString)
+                var mapName = lowerize(enumName) + "ToString"
+                code += "const static std::unordered_map<" + enumName + ", std::string> " + mapName + " = {\n"
+                for (var fi = 0; fi < len(enumFields); fi = fi + 1)
+                {
+                    code += "    {" + enumName + "::" + enumFields[fi] + ", \"" + enumFields[fi] + "\"},\n"
+                }
+                code += "};\n\n"
+
+                // string -> EnumName map  (e.g. stringToShape)
+                var revMapName = "stringTo" + enumName
+                code += "const static auto " + revMapName + " = invertMap(" + mapName + ");\n\n"
+            }
         }
 
         // Event structs
@@ -134,9 +216,23 @@ class HeaderGenerator
                 {
                     code += " = \"" + defaultValue + "\""
                 }
+                else if (isEnumType(schema, fieldType))
+                {
+                    // Enum default: must be qualified with EnumName::
+                    code += " = " + fieldType + "::" + toString(defaultValue)
+                }
                 else
                 {
                     code += " = " + toString(defaultValue)
+                }
+            }
+            else if (isEnumType(schema, fieldType))
+            {
+                // No default provided: use the first enum field (value = 0)
+                var firstField = getEnumFirstField(schema, fieldType)
+                if (firstField != "")
+                {
+                    code += " = " + fieldType + "::" + firstField
                 }
             }
 
@@ -346,6 +442,8 @@ class ProxyMetadataGenerator
 {
     generate(schema)
     {
+        this.schema = schema  // store for use in helper methods
+
         var code = ""
 
         // Generate metadata registration inside anonymous namespace
@@ -460,6 +558,9 @@ class ProxyMetadataGenerator
         if (cppType == "constant::Vector3D" or cppType == "pg::constant::Vector3D") return "Vector3D"
         if (cppType == "constant::Vector4D" or cppType == "pg::constant::Vector4D") return "Vector4D"
 
+        // Enum types are represented as strings in the proxy
+        if (isEnumType(this.schema, cppType)) return "String"
+
         // Default to Custom for unknown types
         return "Custom"
     }
@@ -534,6 +635,12 @@ class ProxyMetadataGenerator
             code += "                table->setField(\"w\", makeFloatValue(vec.w), vm, true);\n\n"
             code += "                return tableValue;\n"
         }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var mapName = lowerize(fieldType) + "ToString"
+            code += "                (void)vm;\n"
+            code += "                return vm->createString(" + mapName + ".at(c->" + getterName + "()));\n"
+        }
         else
         {
             // Fallback for unknown types
@@ -589,6 +696,11 @@ class ProxyMetadataGenerator
         {
             code += "                auto vec = c->" + getterName + "();\n"
             code += "                return std::to_string(vec.x) + \",\" + std::to_string(vec.y) + \",\" + std::to_string(vec.z); + \",\" + std::to_string(vec.w);\n"
+        }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var mapName = lowerize(fieldType) + "ToString"
+            code += "                return " + mapName + ".at(c->" + getterName + "());\n"
         }
         else
         {
@@ -679,6 +791,12 @@ class ProxyMetadataGenerator
             code += "                    c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
             code += "                }\n"
         }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var revMapName = "stringTo" + fieldType
+            code += "                auto enumIt = " + revMapName + ".find(vm->asString(val));\n"
+            code += "                if (enumIt != " + revMapName + ".end()) c->" + setterName + "(enumIt->second);\n"
+        }
         else
         {
             // Fallback for unknown types
@@ -747,6 +865,12 @@ class ProxyMetadataGenerator
             code += "                if (std::getline(ss, tok, ',')) z = std::stof(tok);\n"
             code += "                if (std::getline(ss, tok, ',')) w = std::stof(tok);\n\n"
             code += "                c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+        }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var revMapName = "stringTo" + fieldType
+            code += "                auto enumIt = " + revMapName + ".find(val);\n"
+            code += "                if (enumIt != " + revMapName + ".end()) c->" + setterName + "(enumIt->second);\n"
         }
         else
         {
@@ -829,6 +953,19 @@ class SerializationGenerator
                 {
                     code += "    " + macroName + "(vm, table, component, " + setterName + ");\n"
                 }
+                else if (isEnumType(schema, fieldType))
+                {
+                    // Enum: generate a custom VM setter that converts string -> enum
+                    var revMapName = "stringTo" + fieldType
+                    code += "    auto " + fieldName + "EnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {\n"
+                    code += "        if (argCount > 0 && IS_STRING(args[0])) {\n"
+                    code += "            auto it = " + revMapName + ".find(vm->asString(args[0]));\n"
+                    code += "            if (it != " + revMapName + ".end()) component->" + setterName + "(it->second);\n"
+                    code += "        }\n"
+                    code += "        return INT_VAL(0);\n"
+                    code += "    };\n"
+                    code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "EnumSetter));\n"
+                }
             }
             else if (contain(field, "customSerializationSetter"))
             {
@@ -868,6 +1005,10 @@ class SerializationGenerator
                 {
                     defaultValue = " = \"" + defVal + "\""
                 }
+                else if (isEnumType(schema, fieldType))
+                {
+                    defaultValue = " = " + fieldType + "::" + toString(defVal)
+                }
                 else
                 {
                     defaultValue = " = " + toString(defVal)
@@ -887,6 +1028,14 @@ class SerializationGenerator
                 else if (fieldType == "bool")
                 {
                     defaultValue = " = false"
+                }
+                else if (isEnumType(schema, fieldType))
+                {
+                    var firstField = getEnumFirstField(schema, fieldType)
+                    if (firstField != "")
+                    {
+                        defaultValue = " = " + fieldType + "::" + firstField
+                    }
                 }
             }
 
@@ -938,6 +1087,25 @@ class SerializationGenerator
                     code += "        else if (key == \"" + fieldName + "\")\n"
                 }
                 code += "            " + fieldName + " = " + extractFunc + "(args, i + 1);\n"
+            }
+            else if (isEnumType(schema, fieldType))
+            {
+                var revMapName = "stringTo" + fieldType
+                if (firstField)
+                {
+                    code += "        if (key == \"" + fieldName + "\")\n"
+                    firstField = false
+                }
+                else
+                {
+                    code += "        else if (key == \"" + fieldName + "\")\n"
+                }
+                code += "        {\n"
+                code += "            if (IS_STRING(args[i + 1])) {\n"
+                code += "                auto " + fieldName + "EnumIt = " + revMapName + ".find(vm->asString(args[i + 1]));\n"
+                code += "                if (" + fieldName + "EnumIt != " + revMapName + ".end()) " + fieldName + " = " + fieldName + "EnumIt->second;\n"
+                code += "            }\n"
+                code += "        }\n"
             }
         }
 
@@ -1144,7 +1312,15 @@ class CppGenerator
 
             if (shouldSerialize)
             {
-                code += "    serialize(archive, \"" + fieldName + "\", value." + fieldName + ");\n"
+                if (isEnumType(schema, getFieldType(field)))
+                {
+                    var mapName = lowerize(getFieldType(field)) + "ToString"
+                    code += "    serialize(archive, \"" + fieldName + "\", " + mapName + ".at(value." + fieldName + "));\n"
+                }
+                else
+                {
+                    code += "    serialize(archive, \"" + fieldName + "\", value." + fieldName + ");\n"
+                }
             }
         }
 
@@ -1173,7 +1349,20 @@ class CppGenerator
 
             if (shouldSerialize)
             {
-                code += "    defaultDeserialize(serializedString, \"" + fieldName + "\", data." + fieldName + ");\n"
+                if (isEnumType(schema, getFieldType(field)))
+                {
+                    var revMapName = "stringTo" + getFieldType(field)
+                    code += "    {\n"
+                    code += "        std::string " + fieldName + "Str;\n"
+                    code += "        defaultDeserialize(serializedString, \"" + fieldName + "\", " + fieldName + "Str);\n"
+                    code += "        auto " + fieldName + "It = " + revMapName + ".find(" + fieldName + "Str);\n"
+                    code += "        if (" + fieldName + "It != " + revMapName + ".end()) data." + fieldName + " = " + fieldName + "It->second;\n"
+                    code += "    }\n"
+                }
+                else
+                {
+                    code += "    defaultDeserialize(serializedString, \"" + fieldName + "\", data." + fieldName + ");\n"
+                }
             }
         }
 
