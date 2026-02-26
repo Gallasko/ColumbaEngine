@@ -169,6 +169,12 @@ class HeaderGenerator
                 // string -> EnumName map  (e.g. stringToShape)
                 var revMapName = "stringTo" + enumName
                 code += "const static auto " + revMapName + " = invertMap(" + mapName + ");\n\n"
+
+                // Serialization template declarations for this enum
+                code += "template <>\n"
+                code += "void serialize(Archive& archive, const " + enumName + "& value);\n\n"
+                code += "template <>\n"
+                code += enumName + " deserialize(const UnserializedObject& serializedString);\n\n"
             }
         }
 
@@ -1192,6 +1198,34 @@ class CppGenerator
         if (contain(schema, "namespace"))
         {
             code += "namespace " + schema.namespace + "\n{\n\n"
+        }
+
+        // Enum serialize / deserialize implementations
+        if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+        {
+            for (var ei = 0; ei < len(schema["enums"]); ei = ei + 1)
+            {
+                var enumDef = schema["enums"][ei]
+                var enumName = enumDef["name"]
+                var enumFields = enumDef["fields"]
+                var mapName = lowerize(enumName) + "ToString"
+                var revMapName = "stringTo" + enumName
+
+                // serialize specialization
+                code += "template <>\n"
+                code += "void serialize(Archive& archive, const " + enumName + "& value)\n{\n"
+                code += "    serialize(archive, " + mapName + ".at(value));\n"
+                code += "}\n\n"
+
+                // deserialize specialization
+                code += "template <>\n"
+                code += enumName + " deserialize(const UnserializedObject& serializedString)\n{\n"
+                code += "    auto str = deserialize<std::string>(serializedString);\n"
+                code += "    auto it = " + revMapName + ".find(str);\n"
+                code += "    if (it != " + revMapName + ".end()) return it->second;\n"
+                code += "    return " + enumName + "::" + enumFields[0] + "; // fallback to first value\n"
+                code += "}\n\n"
+            }
         }
 
         // Setter implementations
