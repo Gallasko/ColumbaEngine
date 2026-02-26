@@ -4,6 +4,7 @@
 #include "ECS/system.h"
 #include "UI/sizer.h"
 #include "UI/textinput.h"
+#include "UI/prefab.h"
 #include "Input/keyconfig.h"
 
 #include "Compiler/ecsserialization.h"
@@ -345,7 +346,7 @@ namespace pg
 
             void toggleInspectorVisibility();
 
-            void buildPanel(const std::string& typeName);
+            CompList<Prefab, UiAnchor, VerticalLayout> getOrBuildPanel(const std::string& typeName);
             void showPanel (const std::string& typeName, void* componentPtr);
             void hideAllPanels();
 

@@ -299,7 +299,6 @@ namespace pg
                 void* ptr = getRawComponentPtr(ecsRef, currentId, typeName);
                 if (not ptr) continue;
 
-                buildPanel(typeName);
                 showPanel(typeName, ptr);
             }
 
@@ -532,11 +531,20 @@ namespace pg
             ecsRef->sendEvent(EntityChangedEvent{inspectorPanel.id});
         }
 
-        void InspectorSystem::buildPanel(const std::string& typeName)
+        CompList<Prefab, UiAnchor, VerticalLayout> InspectorSystem::getOrBuildPanel(const std::string& typeName)
         {
             auto& panel = componentPanels[typeName];
+
+            // If already initialized, return the existing panel prefab
             if (panel.initialized)
-                return;
+            {
+                return CompList<Prefab, UiAnchor, VerticalLayout>(
+                    panel.foldCard,
+                    panel.foldCard.get<Prefab>(),
+                    panel.foldCard.get<UiAnchor>(),
+                    panel.foldCard.get<VerticalLayout>()
+                );
+            }
 
             panel.typeName = typeName;
 
@@ -545,7 +553,7 @@ namespace pg
             view->addEntity(fold);
             panel.foldCard = fold.entity;
             panel.layout   = fold.get<VerticalLayout>();
-            panel.foldCard.get<PositionComponent>()->setVisibility(false);
+            fold.get<Prefab>()->setVisibility(false);
 
             // check for custom drawer (takes over whole panel)
             // auto customIt = customDrawers.find(typeName);
@@ -553,7 +561,7 @@ namespace pg
             // {
             //     customIt->second(this, ComponentProxyRegistry::instance().getMetadata(typeName), panel.layout);
             //     panel.initialized = true;
-            //     return;
+            //     return fold;
             // }
 
             auto& meta = ComponentProxyRegistry::instance().getMetadata(typeName);
@@ -564,8 +572,10 @@ namespace pg
                 widget.propertyName = propName;
                 widget.type = propMeta.type;
 
+                auto name = propName;
+
                 auto key = [&](int slot) {
-                    return typeName + ":" + propName + ":" + std::to_string(slot);
+                    return typeName + ":" + name + ":" + std::to_string(slot);
                 };
 
                 switch (propMeta.type)
@@ -592,12 +602,17 @@ namespace pg
             }
 
             panel.initialized = true;
+
+            return fold;
         }
 
         void InspectorSystem::showPanel(const std::string& typeName, void* componentPtr)
         {
+            // Get or build the panel, ensuring it's fully initialized
+            auto fold = getOrBuildPanel(typeName);
+
             auto& panel = componentPanels[typeName];
-            panel.foldCard.get<PositionComponent>()->setVisibility(true);
+            fold.get<Prefab>()->setVisibility(true);
 
             auto& meta = ComponentProxyRegistry::instance().getMetadata(typeName);
 
