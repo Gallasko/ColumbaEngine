@@ -355,7 +355,9 @@ namespace pg
             std::map<std::string, InspectorComponentPanel> componentPanels;
             std::vector<ActiveBinding> activeBindings;
 
-            CompRef<VerticalLayout> view;
+            CompRef<VerticalLayout> mainView;
+            CompRef<VerticalLayout> compView;
+            CompRef<VerticalLayout> addView;
 
             InspectEvent event;
 

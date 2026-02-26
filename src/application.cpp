@@ -265,14 +265,14 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
                 if (anchor)
                 {
                     // If top or bottom anchor is set, lock Y movement
-                    if (anchor->hasTopAnchor || anchor->hasBottomAnchor)
+                    if (anchor->hasTopAnchor or anchor->hasBottomAnchor)
                     {
                         lockY = true;
                         LOG_INFO(DOM, "Y-axis locked due to top/bottom anchor");
                     }
 
                     // If left or right anchor is set, lock X movement
-                    if (anchor->hasLeftAnchor || anchor->hasRightAnchor)
+                    if (anchor->hasLeftAnchor or anchor->hasRightAnchor)
                     {
                         lockX = true;
                         LOG_INFO(DOM, "X-axis locked due to left/right anchor");
@@ -319,7 +319,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         pos->setY(newY);
 
         auto ent = ecsRef->getEntity("SelectionOutline");
-        if (not ent) return;
+        if (not ent)
+            return;
 
         if (ent->get<SelectedEntity>()->id == draggingEntity)
         {
@@ -393,7 +394,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
         // Enforce minimum size
         constexpr float minSize = 10.0f;
-        if (newWidth < minSize || newHeight < minSize)
+        if (newWidth < minSize or newHeight < minSize)
             return;
 
         pos->setX(newX);
@@ -403,7 +404,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
         // Update selection outline
         auto ent = ecsRef->getEntity("SelectionOutline");
-        if (ent && ent->get<SelectedEntity>()->id == resizingEntity)
+        if (ent and ent->get<SelectedEntity>()->id == resizingEntity)
         {
             auto outlinePos = ent->get<PositionComponent>();
             outlinePos->setX(newX - 2.f);
@@ -438,14 +439,16 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         float newRotation = rotationStartAngle + angleDelta;
 
         // Normalize rotation to 0-360 degrees
-        while (newRotation < 0.0f) newRotation += 360.0f;
-        while (newRotation >= 360.0f) newRotation -= 360.0f;
+        while (newRotation < 0.0f)
+            newRotation += 360.0f;
+        while (newRotation >= 360.0f)
+            newRotation -= 360.0f;
 
         pos->setRotation(newRotation);
 
         // Update selection outline rotation
         auto ent = ecsRef->getEntity("SelectionOutline");
-        if (ent && ent->get<SelectedEntity>()->id == rotatingEntity)
+        if (ent and ent->get<SelectedEntity>()->id == rotatingEntity)
         {
             auto outlinePos = ent->get<PositionComponent>();
             outlinePos->setRotation(newRotation);
@@ -494,7 +497,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         if (draggingEntity != 0)
         {
             auto pos = ecsRef->getComponent<PositionComponent>(draggingEntity);
-            if (not pos) return;
+            if (not pos)
+                return;
 
             // send event to notify that dragging has ended
             ecsRef->sendEvent(EndDragging{ draggingEntity, startX, startY, pos->x, pos->y });

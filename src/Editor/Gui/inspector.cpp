@@ -168,6 +168,56 @@ namespace pg
             {
                 LOG_INFO("Inspector", "Received event named: " << event.name << ", return value: " << event.values.at("return"));
             }
+
+            auto key    = event.values.at("key").toString();     // "Type:prop:slot"
+            auto newVal = event.values.at("return").toString();
+
+            // Parse key
+            auto sep1     = key.find(':');
+            auto sep2     = key.rfind(':');
+            std::string compType = key.substr(0, sep1);
+            std::string propName = key.substr(sep1 + 1, sep2 - sep1 - 1);
+            int slot             = std::stoi(key.substr(sep2 + 1));
+
+            for (auto& binding : activeBindings)
+            {
+                if (binding.componentType != compType)
+                    continue;
+
+                if (binding.propertyName  != propName)
+                    continue;
+
+                auto& propMeta = ComponentProxyRegistry::instance().getMetadata(compType).properties.at(propName);
+                if (not propMeta.sSetter)
+                    break;
+
+                if (binding.inputIds.size() == 1)
+                {
+                    // Scalar: just call with the new value directly
+                    propMeta.sSetter(binding.componentPtr, newVal);
+                }
+                else
+                {
+                    // Vec3/Vec4: collect all current values, combine, call once
+                    std::string combined;
+                    for (size_t i = 0; i < binding.inputIds.size(); i++)
+                    {
+                        auto tc = ecsRef->getComponent<TextInputComponent>(binding.inputIds[i]);
+
+                        std::string v = tc ? tc->text : "0";
+
+                        if (static_cast<int>(i) == slot)
+                            v = newVal;  // use the just-typed value
+
+                        if (i > 0)
+                            combined += ",";
+                        combined += v;
+                    }
+
+                    propMeta.sSetter(binding.componentPtr, combined);
+                }
+                break;
+            }
         };
 
         void InspectorSystem::init()
@@ -197,7 +247,29 @@ namespace pg
             auto listViewBackgroundUi = listViewBackground.get<UiAnchor>();
             listViewBackgroundUi->fillIn(listViewUi);
 
-            view = listView.get<VerticalLayout>();
+            mainView = listView.get<VerticalLayout>();
+
+            auto compViewLayout = makeVerticalLayout(ecsRef, 1, 1, 300, 1);
+            compView = compViewLayout.get<VerticalLayout>();
+            compViewLayout.get<PositionComponent>()->setZ(2);
+
+            auto compViewUi = compViewLayout.get<UiAnchor>();
+
+            compViewUi->setLeftAnchor(listViewUi->left);
+            compViewUi->setRightAnchor(listViewUi->right);
+
+            mainView->addEntity(compViewLayout.entity);
+
+            auto addViewLayout = makeVerticalLayout(ecsRef, 1, 1, 300, 1);
+            addView = addViewLayout.get<VerticalLayout>();
+            addViewLayout.get<PositionComponent>()->setZ(2);
+
+            auto addViewUi = addViewLayout.get<UiAnchor>();
+
+            addViewUi->setLeftAnchor(listViewUi->left);
+            addViewUi->setRightAnchor(listViewUi->right);
+
+            mainView->addEntity(addViewLayout.entity);
 
             // Store reference to the inspector panel for visibility toggling
             inspectorPanel = listView.entity;
@@ -230,6 +302,50 @@ namespace pg
             registerAttachableComponent<PositionComponent>();
             registerAttachableComponent<UiAnchor>();
             registerAttachableComponent<Simple2DObject>(Shape2D::Square);
+
+            // Add Component
+
+            auto row = makeHorizontalLayout(ecsRef, 0, 0, 300, 30, true);
+            row.get<HorizontalLayout>()->fitToAxis = true;
+            row.get<HorizontalLayout>()->spacing  = 8.f;
+
+            // label
+            auto label = makeEditorHeaderText(ecsRef, themeManager, 0, 0, 1, "bold", "Add Component", 0.4f);
+            addView->addEntity(label.entity);
+//
+            // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
+                // if (ev.button == SDL_BUTTON_LEFT) showAttachMenu = not showAttachMenu;
+            // };
+
+            // hook its click
+            // ecsRef->attach<OnEventComponent>(label.entity, f);
+
+            addView->addEntity(row.entity);
+
+            // if (showAttachMenu)
+            // {
+                // clean up from last frame
+            for (auto e : attachMenuItems)
+                ecsRef->removeEntity(e);
+
+            attachMenuItems.clear();
+
+            for (const auto& pair : attachableComponentMap)
+            {
+                const auto& name = pair.first;
+
+                auto item = makeEditorText(ecsRef, themeManager, 0, 0, 1, "light", name, 0.35f);
+                // indent it a bit
+                // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
+
+                // clicking this line attaches that component
+
+                ecsRef->attach<MouseLeftClickComponent>(item.entity, makeCallable<EditorAttachComponent>(name, currentId));
+
+                addView->addEntity(item.entity);
+                attachMenuItems.push_back(item.entity);
+            }
+            // }
         }
 
         CompRef<VerticalLayout> InspectorSystem::addNewText(const std::string& text, CompRef<VerticalLayout> currentView)
@@ -271,7 +387,7 @@ namespace pg
 
         void InspectorSystem::execute()
         {
-            if (eventRequested or needClear)
+            if (needClear)
             {
                 hideAllPanels();
                 activeBindings.clear();
@@ -280,24 +396,31 @@ namespace pg
 
                 needClear = false;
             }
-
-            if (not eventRequested)
+            else if (not eventRequested)
+            {
                 return;
+            }
 
             currentId = event.entity.id;
             hideAllPanels();
             activeBindings.clear();
 
             auto ent = ecsRef->getEntity(currentId);
-            if (not ent) { eventRequested = false; return; }
+            if (not ent)
+            {
+                eventRequested = false;
+                return;
+            }
 
             for (const auto& compRef : ent->componentList)
             {
                 auto typeName = ecsRef->getComponentRegistry()->getComponentTypeName(compRef.getId());
-                if (not ComponentProxyRegistry::instance().hasMetadata(typeName)) continue;
+                if (not ComponentProxyRegistry::instance().hasMetadata(typeName))
+                    continue;
 
                 void* ptr = getRawComponentPtr(ecsRef, currentId, typeName);
-                if (not ptr) continue;
+                if (not ptr)
+                    continue;
 
                 showPanel(typeName, ptr);
             }
@@ -307,49 +430,6 @@ namespace pg
             currentId = event.entity.id;
 
             eventRequested = false;
-
-            auto row = makeHorizontalLayout(ecsRef, 0, 0, 300, 30, true);
-            row.get<HorizontalLayout>()->fitToAxis = true;
-            row.get<HorizontalLayout>()->spacing  = 8.f;
-
-            // label
-            auto themeManager = ecsRef->getSystem<ThemeManager>();
-            auto label = makeEditorHeaderText(ecsRef, themeManager, 0, 0, 1, "bold", "Add Component", 0.4f);
-            view->addEntity(label.entity);
-//
-            // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
-                // if (ev.button == SDL_BUTTON_LEFT) showAttachMenu = not showAttachMenu;
-            // };
-
-            // hook its click
-            // ecsRef->attach<OnEventComponent>(label.entity, f);
-
-            view->addEntity(row.entity);
-
-            // if (showAttachMenu)
-            // {
-                // clean up from last frame
-                for (auto e : attachMenuItems)
-                    ecsRef->removeEntity(e);
-
-                attachMenuItems.clear();
-
-                for (const auto& pair : attachableComponentMap)
-                {
-                    const auto& name = pair.first;
-
-                    auto item = makeEditorText(ecsRef, themeManager, 0, 0, 1, "light", name, 0.35f);
-                    // indent it a bit
-                    // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
-
-                    // clicking this line attaches that component
-
-                    ecsRef->attach<MouseLeftClickComponent>(item.entity, makeCallable<EditorAttachComponent>(name, currentId));
-
-                    view->addEntity(item.entity);
-                    attachMenuItems.push_back(item.entity);
-                }
-            // }
         }
 
         _unique_id InspectorWidgets::makeScalarInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, const std::string& key, const std::string& baseValue)
@@ -550,7 +630,7 @@ namespace pg
 
             // foldable card, added to view once, starts hidden
             auto fold = makeFoldableCard(ecsRef, toUpper(typeName));
-            view->addEntity(fold);
+            compView->addEntity(fold);
             panel.foldCard = fold.entity;
             panel.layout   = fold.get<VerticalLayout>();
             fold.get<Prefab>()->setVisibility(false);
