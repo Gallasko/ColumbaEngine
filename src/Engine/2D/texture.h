@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Renderer/renderer.h"
+#include "Renderer/genericrendersys.h"
 
 #include "2D/position.h"
 #include "pgconstant.h"
@@ -9,38 +9,23 @@
 
 #include "Components/Texture2DComponent.generated.h"
 
-#include <unordered_set>
-
 namespace pg
 {
-    struct Texture2DComponentSystem : public AbstractRenderer, System<Own<Texture2DComponent>, Listener<PositionComponentChangedEvent>, Listener<TextureChangedEvent>, Ref<PositionComponent>, InitSys>
+    struct Texture2DComponentSystem : public GenericRenderSystem<Texture2DComponent, TextureChangedEvent, PositionComponent, PositionComponentChangedEvent>
     {
-        Texture2DComponentSystem(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render) { }
+        Texture2DComponentSystem(MasterRenderer* masterRenderer) : GenericRenderSystem(masterRenderer) { }
 
         virtual std::string getSystemName() const override { return "Ui Texture System"; }
 
-        virtual void init() override;
+        virtual void setup() override;
 
-        virtual void execute() override;
-
-        RenderCall createRenderCall(CompRef<PositionComponent> ui, CompRef<Texture2DComponent> obj);
-
-        virtual void onEvent(const PositionComponentChangedEvent& event) override;
-        virtual void onEvent(const TextureChangedEvent& event) override;
-
-        void onEventUpdate(_unique_id entityId);
+        virtual RenderCall createRenderCall(CompRef<Texture2DComponent> obj, CompRef<PositionComponent> ui) override;
 
         // Use this material preset if a material is not specified when creating a texture component !
         Material baseMaterialPreset;
 
         // Use this material preset if a material is not specified when creating an atlas texture component !
         Material atlasMaterialPreset;
-
-        std::unordered_set<_unique_id> textureUpdateSet;
-
-        // Map of entity ID to render call - owned by the system directly
-        std::unordered_map<_unique_id, RenderCall> entityRenderCalls;
-        std::vector<_unique_id> entitiesInRenderGroup;
     };
 
     /** Helper that create an entity with a Pos component and a Texture component */

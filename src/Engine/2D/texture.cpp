@@ -59,7 +59,7 @@ namespace pg
         }
     }
 
-    void Texture2DComponentSystem::init()
+    void Texture2DComponentSystem::setup()
     {
         baseMaterialPreset.shader = masterRenderer->getShader("simpleTexture");
 
@@ -78,102 +78,9 @@ namespace pg
         atlasMaterialPreset.uniformMap.emplace("sHeight", "ScreenHeight");
 
         atlasMaterialPreset.setSimpleMesh({3, 2, 1, 4, 1, 3, 1});
-
-        auto group = registerGroup<PositionComponent, Texture2DComponent>();
-
-        group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE("Texture 2D System", "Add entity " << entity->id << " to ui - texture 2D group !");
-
-            auto pos = entity->get<PositionComponent>();
-            auto tex = entity->get<Texture2DComponent>();
-
-            entityRenderCalls[entity->id] = createRenderCall(pos, tex);
-            entitiesInRenderGroup.push_back(entity->id);
-
-            std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
-
-            changed = true;
-        });
-
-        group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_INFO("Texture 2D System", "Remove entity " << id << " of ui - texture 2D group !");
-
-            // Remove render call from the map
-            entityRenderCalls.erase(id);
-            entitiesInRenderGroup.erase(std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id), entitiesInRenderGroup.end());
-
-            changed = true;
-        });
     }
 
-    void Texture2DComponentSystem::execute()
-    {
-        if (not changed)
-        {
-            return;
-        }
-
-        std::vector<_unique_id> updateQueue;
-        std::vector<_unique_id> temp;
-
-        temp.assign(textureUpdateSet.begin(), textureUpdateSet.end());
-
-        std::sort(temp.begin(), temp.end());
-
-        std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), temp.begin(), temp.end(),
-                          std::back_inserter(updateQueue));
-
-        // Clear the update set after processing
-        textureUpdateSet.clear();
-
-        int processedCount = 0;
-        int failedCount = 0;
-
-        for (const auto& entityId : updateQueue)
-        {
-            LOG_MILE(DOM, "Processing entity ID: " << entityId);
-
-            auto entity = ecsRef->getEntity(entityId);
-
-            if (not entity)
-            {
-                LOG_WARNING(DOM, "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
-                failedCount++;
-                continue;
-            }
-
-            LOG_MILE(DOM, "Entity " << entityId << " found successfully");
-
-            auto ui = entity->get<PositionComponent>();
-            auto obj = entity->get<Texture2DComponent>();
-
-            LOG_MILE(DOM, "Position - x: " << ui->x << ", y: " << ui->y
-                     << ", width: " << ui->width << ", height: " << ui->height
-                     << ", visible: " << ui->visible);
-            LOG_MILE(DOM, "Texture name: " << obj->textureName);
-
-            // Store render call directly in the system's map (no component needed!)
-            entityRenderCalls[entityId] = createRenderCall(ui, obj);
-
-            processedCount++;
-        }
-
-        renderCallList.clear();
-
-        // Build render call list from the system's map
-        renderCallList.reserve(entityRenderCalls.size());
-
-        LOG_MILE(DOM, "Building render call list from " << entityRenderCalls.size() << " stored render calls");
-
-        for (const auto& [entityId, renderCall] : entityRenderCalls)
-        {
-            renderCallList.push_back(renderCall);
-        }
-
-        finishChanges();
-    }
-
-    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Texture2DComponent> obj)
+    RenderCall Texture2DComponentSystem::createRenderCall(CompRef<Texture2DComponent> obj, CompRef<PositionComponent> ui)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -287,26 +194,4 @@ namespace pg
         return call;
     }
 
-    void Texture2DComponentSystem::onEvent(const PositionComponentChangedEvent& event)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        onEventUpdate(event.id);
-    }
-
-    void Texture2DComponentSystem::onEvent(const TextureChangedEvent& event)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        onEventUpdate(event.id);
-    }
-
-    void Texture2DComponentSystem::onEventUpdate(_unique_id entityId)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        textureUpdateSet.insert(entityId);
-
-        changed = true;
-    }
 }
