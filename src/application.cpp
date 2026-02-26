@@ -127,10 +127,10 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 LOG_INFO(DOM, "Clicked on entity: " << elem->entityId);
 
                 // send inspect event
-                ecsRef->sendEvent(InspectEvent{ elem->entity });
+                ecsRef->sendEvent(InspectEvent{ elem->entityId });
 
                 // send selection event to entity list
-                ecsRef->sendEvent(SelectEntityEvent{ elem->entity.id });
+                ecsRef->sendEvent(SelectEntityEvent{ elem->entityId });
 
                 // position & size our outline to wrap this entity
                 auto pos = elem->get<PositionComponent>();

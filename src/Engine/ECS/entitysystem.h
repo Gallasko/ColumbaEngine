@@ -1164,7 +1164,7 @@ namespace pg
             }
             else
             {
-                LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity");
+                LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity(" << entityId << ")");
             }
         }
     }

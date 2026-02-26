@@ -148,7 +148,7 @@ namespace pg
         std::string componentTypeName;
         size_t componentSize;
 
-        std::unordered_map<std::string, PropertyMetadata> properties;
+        std::map<std::string, PropertyMetadata> properties;
     };
 
     /**
