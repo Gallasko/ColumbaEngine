@@ -8,6 +8,7 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/html5.h>
+#include <emscripten/wasmfs.h>
 #endif
 
 using namespace pg;
@@ -82,29 +83,7 @@ EntitySystem* Engine::getECS() const
 void Engine::setupFilesystem()
 {
 #ifdef __EMSCRIPTEN__
-    printf("Setting up Emscripten filesystem...\n");
-    EM_ASM({
-        try {
-            var saveFolder = UTF8ToString($0);
-            console.log("Creating save folder:", saveFolder);
-
-            if (! FS.analyzePath('/' + saveFolder).exists) {
-                FS.mkdir('/' + saveFolder);
-            }
-
-            FS.mount(IDBFS, {autoPersist: true}, '/' + saveFolder);
-
-            FS.syncfs(true, function (err) {
-                if (err) {
-                    console.error("Initial filesystem sync error:", err);
-                } else {
-                    console.log("Filesystem initialized and synced for folder: /" + saveFolder);
-                }
-            });
-        } catch (e) {
-            console.error("Filesystem setup error:", e);
-        }
-    }, config.saveFolder.c_str());
+    printf("Setting up WasmFS filesystem (OPFS mount will happen in init thread)...\n");
 #else
     LOG_INFO(DOM, "Desktop save path: " << config.saveFolder);
 #endif
@@ -267,26 +246,6 @@ static void mainLoopCallback(void* arg)
     {
         engine->mainWindow->processEvents(event);
 
-        if (event.type == SDL_QUIT)
-        {
-            printf("Quit event received, syncing filesystem...\n");
-
-            EM_ASM({
-                var saveFolder = UTF8ToString($0);
-
-                FS.syncfs(false, function (err)
-                {
-                    if (err)
-                    {
-                        console.error("Final filesystem sync error:", err);
-                    }
-                    else
-                    {
-                        console.log("Filesystem synced on quit for folder: /" + saveFolder);
-                    }
-                });
-            }, engine->config.saveFolder.c_str());
-        }
     }
 
     engine->mainWindow->render();
@@ -312,6 +271,17 @@ int Engine::exec()
     initThread = new std::thread([this]()
     {
         printf("Window init thread started...\n");
+
+#ifdef __EMSCRIPTEN__
+        // OPFS must be mounted from a pthread (not the main thread)
+        std::string savePath = "/" + config.saveFolder;
+        backend_t backend = wasmfs_create_opfs_backend();
+        int err = wasmfs_create_directory(savePath.c_str(), 0777, backend);
+        if (err != 0 && errno != EEXIST)
+            printf("Warning: OPFS directory creation returned %d (errno=%d)\n", err, errno);
+        else
+            printf("OPFS backend mounted at %s\n", savePath.c_str());
+#endif
 
         this->initializeWindow();
 

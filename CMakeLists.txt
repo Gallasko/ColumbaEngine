@@ -311,109 +311,113 @@ file(GLOB COMPONENT_DEFINITIONS
 # Note: ColumbaEngine library will be created AFTER component generation
 
 # ===============================================
-# MINIMAL ENGINE LIBRARY (for bootstrap compiler)
+# MINIMAL ENGINE LIBRARY + BOOTSTRAP COMPILER
+# (native builds only - cannot run wasm tools on host)
 # ===============================================
-# Create a minimal engine library with only VM + modules + ECS
-# This is used ONLY for building the bootstrap compiler
-add_library(ColumbaEngineMinimal STATIC ${MINIMAL_ENGINESOURCE})
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # Create a minimal engine library with only VM + modules + ECS
+    # This is used ONLY for building the bootstrap compiler
+    add_library(ColumbaEngineMinimal STATIC ${MINIMAL_ENGINESOURCE})
 
-# Disable PCH for minimal engine to avoid rebuilding it
-# (The minimal engine is small enough that PCH overhead isn't worth it,
-#  and it would need a separate PCH due to PG_MINIMAL_BUILD definition)
-set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+    # Disable PCH for minimal engine to avoid rebuilding it
+    # (The minimal engine is small enough that PCH overhead isn't worth it,
+    #  and it would need a separate PCH due to PG_MINIMAL_BUILD definition)
+    set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
-# Define PG_MINIMAL_BUILD for the minimal engine
-target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)
+    # Define PG_MINIMAL_BUILD for the minimal engine
+    target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)
 
-message(STATUS "Created minimal engine library")
+    message(STATUS "Created minimal engine library")
 
-# Minimal engine needs minimal include directories (no SDL2, no rendering libs)
-target_include_directories(ColumbaEngineMinimal PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
-)
-
-# Minimal engine linking (much simpler - no rendering, no audio, no networking)
-# For minimal builds, we don't need SDL2 at all - just GLM for math types
-target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
-
-# ===============================================
-# BOOTSTRAP COMPILER EXECUTABLE
-# ===============================================
-# Create a minimal PgCompiler executable that can run component generator
-# This uses the minimal engine library to avoid circular dependencies
-add_executable(PgCompilerBootstrap
-    exemples/PgCompiler/main.cpp
-    exemples/PgCompiler/application.cpp
-    exemples/PgCompiler/constant_uniformity_pass.cpp
-)
-
-target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD SDL_MAIN_HANDLED)
-
-target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
-
-# Link against minimal engine (no rendering, no generated components)
-target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
-
-
-message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
-
-# ===============================================
-# COMPONENT REGENERATION TARGET
-# ===============================================
-# Create a target to regenerate components when .pgcomp files change
-# This uses the bootstrap compiler to avoid circular dependencies
-if(COMPONENT_DEFINITIONS)
-    set(ALL_GENERATED_FILES "")
-
-    foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
-        get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
-
-        # Define the output files
-        set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
-        set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
-        set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
-
-        # Add custom command that only runs when inputs change
-        add_custom_command(
-            OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-            COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
-            COMMAND $<TARGET_FILE:PgCompilerBootstrap>
-                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                    ${COMP_DEF}
-            DEPENDS
-                PgCompilerBootstrap
-                ${COMP_DEF}
-                ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
-            COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
-            VERBATIM
-        )
-
-        # Create a target for this component (for manual regeneration)
-        add_custom_target(Regenerate_${COMP_NAME}
-            DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-        )
-
-        list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
-
-        # Mark the generated files as GENERATED so CMake knows they'll be created
-        set_source_files_properties(
-            ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-            PROPERTIES GENERATED TRUE
-        )
-    endforeach()
-
-    # Create a target to regenerate all components (for manual use)
-    add_custom_target(RegenerateComponents
-        DEPENDS ${ALL_GENERATED_FILES}
-        COMMENT "All components up to date"
+    # Minimal engine needs minimal include directories (no SDL2, no rendering libs)
+    target_include_directories(ColumbaEngineMinimal PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
     )
 
-    message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
-    message(STATUS "  Components will regenerate only when .pgcomp files change")
-    message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
+    # Minimal engine linking (much simpler - no rendering, no audio, no networking)
+    # For minimal builds, we don't need SDL2 at all - just GLM for math types
+    target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
+
+    # ===============================================
+    # BOOTSTRAP COMPILER EXECUTABLE
+    # ===============================================
+    # Create a minimal PgCompiler executable that can run component generator
+    # This uses the minimal engine library to avoid circular dependencies
+    add_executable(PgCompilerBootstrap
+        exemples/PgCompiler/main.cpp
+        exemples/PgCompiler/application.cpp
+        exemples/PgCompiler/constant_uniformity_pass.cpp
+    )
+
+    target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD SDL_MAIN_HANDLED)
+
+    target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
+
+    # Link against minimal engine (no rendering, no generated components)
+    target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
+
+    message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
+
+    # ===============================================
+    # COMPONENT REGENERATION TARGET
+    # ===============================================
+    # Create a target to regenerate components when .pgcomp files change
+    # This uses the bootstrap compiler to avoid circular dependencies
+    if(COMPONENT_DEFINITIONS)
+        set(ALL_GENERATED_FILES "")
+
+        foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
+            get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+
+            # Define the output files
+            set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
+            set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
+            set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
+
+            # Add custom command that only runs when inputs change
+            add_custom_command(
+                OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
+                COMMAND $<TARGET_FILE:PgCompilerBootstrap>
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                        ${COMP_DEF}
+                DEPENDS
+                    PgCompilerBootstrap
+                    ${COMP_DEF}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
+                COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
+                VERBATIM
+            )
+
+            # Create a target for this component (for manual regeneration)
+            add_custom_target(Regenerate_${COMP_NAME}
+                DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+            )
+
+            list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
+
+            # Mark the generated files as GENERATED so CMake knows they'll be created
+            set_source_files_properties(
+                ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                PROPERTIES GENERATED TRUE
+            )
+        endforeach()
+
+        # Create a target to regenerate all components (for manual use)
+        add_custom_target(RegenerateComponents
+            DEPENDS ${ALL_GENERATED_FILES}
+            COMMENT "All components up to date"
+        )
+
+        message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
+        message(STATUS "  Components will regenerate only when .pgcomp files change")
+        message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
+    endif()
+else()
+    message(STATUS "Emscripten build: skipping bootstrap compiler and component regeneration (using pre-generated files)")
 endif()
 
 # ===============================================
@@ -445,8 +449,8 @@ endif()
 # Set precompiled headers - but don't make them public for consumers
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 
-# Make ColumbaEngine depend on component regeneration
-if(COMPONENT_DEFINITIONS)
+# Make ColumbaEngine depend on component regeneration (native builds only)
+if(COMPONENT_DEFINITIONS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_dependencies(ColumbaEngine RegenerateComponents)
 endif()
 
@@ -718,7 +722,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(GMTK2025
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -734,7 +738,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(BoxBouncer
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -750,7 +754,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(RenderingTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -766,7 +770,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(Asteroid
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -782,7 +786,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         set_target_properties(InvadersBreaker
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 

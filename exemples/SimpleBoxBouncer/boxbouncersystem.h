@@ -5,6 +5,7 @@
 
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
+#include "ECS/savemanager.h"
 
 using namespace pg;
 
@@ -30,13 +31,15 @@ private:
 
     EntityRef ent;
 
+    int bounceCount = 0;
+
 public:
     BoxBouncerSystem(float width = 820.0f, float height = 640.0f)
         : screenWidth(width), screenHeight(height), rng(std::random_device{}()), colorDist(0.0f, 255.0f) {}
 
     // Name of the system so it is easier to debug the taskflow
     virtual std::string getSystemName() const override { return "Box Bouncer System"; }
-    
+
     void init() override
     {
         // Create a 2D square
@@ -57,6 +60,12 @@ public:
         bouncer->speed = 150.0f;
 
         ent = shape.entity;
+
+        auto saved = ecsRef->getSavedData("bounceCount");
+        if (!saved.isEmpty())
+            bounceCount = saved.get<int>();
+
+        printf("BoxBouncer started - total bounces so far: %d\n", bounceCount);
     }
 
     virtual void onEvent(const TickEvent& event) override
@@ -129,5 +138,9 @@ private:
 
         // Change to random color when bouncing
         simple2D->setColors({r, g, b, 255.0f});
+
+        ++bounceCount;
+        ecsRef->sendEvent(SaveElementEvent{"bounceCount", bounceCount});
+        printf("Bounce #%d\n", bounceCount);
     }
 };
