@@ -467,6 +467,9 @@ namespace pg
         // ecs->succeed<UiComponentSystem, PrefabSystem>();
         // ecs->succeed<UiComponentSystem, MouseClickSystem>();
 
+        ecs->succeed<LayoutSystem, PrefabSystem>();
+
+        ecs->succeed<PositionComponentSystem, PrefabSystem>();
         ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();
         ecs->succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs->succeed<PositionComponentSystem, ListViewSystem>();

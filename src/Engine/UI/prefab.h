@@ -170,7 +170,7 @@ namespace pg
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, QueuedListener<ClearPrefabEvent>, QueuedListener<SetMainEntityEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<ClearPrefabEvent>, QueuedListener<SetMainEntityEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -215,7 +215,7 @@ namespace pg
             });
         }
 
-        virtual void onEvent(const EntityChangedEvent& event) override
+        virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
         {
             auto entity = ecsRef->getEntity(event.id);
 

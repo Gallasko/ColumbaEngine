@@ -306,7 +306,7 @@ namespace pg
         }
     }
 
-    void LayoutSystem::onProcessEvent(const EntityChangedEvent& event)
+    void LayoutSystem::onProcessEvent(const PositionComponentChangedEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
 
