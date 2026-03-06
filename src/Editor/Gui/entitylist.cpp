@@ -274,12 +274,12 @@ namespace pg
 
         void EntityListSystem::onEvent(const RefreshEntityListEvent&)
         {
-            refreshEntityList();
+            refreshEventReceived = true;
         }
 
-        void EntityListSystem::onProcessEvent(const CreateElement&)
+        void EntityListSystem::onEvent(const CreateElement&)
         {
-            refreshEntityList();
+            refreshEventReceived = true;
         }
 
         void EntityListSystem::onEvent(const ToggleEntityListEvent&)
