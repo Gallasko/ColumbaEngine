@@ -268,25 +268,24 @@ int Engine::exec()
 #ifdef __EMSCRIPTEN__
     printf("Starting Emscripten build...\n");
 
-    initThread = new std::thread([this]()
+    printf("Initializing SDL...\n");
+    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0)
     {
-        printf("Window init thread started...\n");
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return -1;
+    }
+    printf("SDL initialized\n");
 
-#ifdef __EMSCRIPTEN__
-        // OPFS must be mounted from a pthread (not the main thread)
-        std::string savePath = "/" + config.saveFolder;
-        backend_t backend = wasmfs_create_opfs_backend();
-        int err = wasmfs_create_directory(savePath.c_str(), 0777, backend);
-        if (err != 0 && errno != EEXIST)
-            printf("Warning: OPFS directory creation returned %d (errno=%d)\n", err, errno);
-        else
-            printf("OPFS backend mounted at %s\n", savePath.c_str());
-#endif
-
-        this->initializeWindow();
-
-        printf("Window init thread completed\n");
-    });
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE, 32);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
 
@@ -309,6 +308,29 @@ int Engine::exec()
         printf("Failed to create SDL window for Emscripten\n");
         return -1;
     }
+
+    printf("SDL window created, starting init thread...\n");
+
+    // Start the init thread AFTER SDL setup so OPFS promises can resolve
+    // once the browser event loop is running (after emscripten_set_main_loop_arg)
+    initThread = new std::thread([this]()
+    {
+        printf("Window init thread started...\n");
+
+        // OPFS must be mounted from a pthread (not the main thread)
+        printf("Mounting OPFS backend at /%s...\n", config.saveFolder.c_str());
+        std::string savePath = "/" + config.saveFolder;
+        backend_t backend = wasmfs_create_opfs_backend();
+        int err = wasmfs_create_directory(savePath.c_str(), 0777, backend);
+        if (err != 0 && errno != EEXIST)
+            printf("Warning: OPFS directory creation returned %d (errno=%d)\n", err, errno);
+        else
+            printf("OPFS backend mounted at %s\n", savePath.c_str());
+
+        this->initializeWindow();
+
+        printf("Window init thread completed\n");
+    });
 
     auto args = new void*[2]{this, pWindow};
 

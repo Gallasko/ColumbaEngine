@@ -37,7 +37,11 @@ namespace
 #ifdef DEBUG
     static constexpr size_t NBEXECUTORTHREADS = 1;
 #else
-    static constexpr size_t NBEXECUTORTHREADS = 3;
+    #ifdef __EMSCRIPTEN__
+        static constexpr size_t NBEXECUTORTHREADS = 2;
+    #else
+        static constexpr size_t NBEXECUTORTHREADS = std::thread::hardware_concurrency() > 1 ? std::thread::hardware_concurrency() - 1 : 1;
+    #endif
 #endif
 }
 
