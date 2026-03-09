@@ -741,7 +741,7 @@ namespace pg
         void layoutWithSpacing(EntityRef viewEnt, BaseLayout* view);
 
         std::set<EntityRef> layoutUpdate;    ///< Layouts that need position recalculation this frame
-        std::set<_unique_id> entitiesInLayout; ///< Optimization: tracks which entities are in layouts
+        std::unordered_map<_unique_id, _unique_id> entitiesInLayout; ///< Optimization: tracks which entities are in layouts
     };
 
     /**
