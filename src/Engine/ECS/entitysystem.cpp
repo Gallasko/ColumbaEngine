@@ -40,7 +40,7 @@ namespace
     #ifdef __EMSCRIPTEN__
         static constexpr size_t NBEXECUTORTHREADS = 2;
     #else
-        static constexpr size_t NBEXECUTORTHREADS = std::thread::hardware_concurrency() > 1 ? std::thread::hardware_concurrency() - 1 : 1;
+        static  size_t NBEXECUTORTHREADS = std::thread::hardware_concurrency() > 1 ? std::thread::hardware_concurrency() - 1 : 1;
     #endif
 #endif
 }
@@ -102,7 +102,10 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
+        printf("Initializing Entity System...\n");
+
         LOG_INFO(DOM, "Starting ecs...");
+        LOG_INFO(DOM, "Number of executor threads: " << NBEXECUTORTHREADS);
 
         saveManager.addToRegistry(&registry);
 

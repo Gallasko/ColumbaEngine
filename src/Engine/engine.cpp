@@ -143,6 +143,31 @@ void Engine::initializeECS()
         }
         ecsReady = true;
 
+#ifdef __EMSCRIPTEN__
+        // Register browser lifecycle callbacks so data is saved on tab hide / page close.
+        // Using a file-scope pointer is safe here: only one Engine exists per page.
+        static EntitySystem* s_ecsForSave = nullptr;
+        s_ecsForSave = mainWindow->ecs;
+
+        // Save when the tab/window loses visibility (switch tab, minimize, etc.)
+        emscripten_set_visibilitychange_callback(nullptr, false,
+            [](int, const EmscriptenVisibilityChangeEvent* e, void*) -> EM_BOOL {
+                if (e->hidden && s_ecsForSave)
+                    s_ecsForSave->forceSaveNow();
+                return EM_TRUE;
+            });
+
+        // Save on page refresh / close (beforeunload fires synchronously)
+        emscripten_set_beforeunload_callback(nullptr,
+            [](int, const void*, void*) -> const char* {
+                if (s_ecsForSave)
+                    s_ecsForSave->forceSaveNow();
+                return nullptr; // nullptr = no "Are you sure?" dialog
+            });
+
+        printf("Registered browser save callbacks (visibilitychange + beforeunload)\n");
+#endif
+
         if (postInit)
         {
             printf("Running post-init...\n");
@@ -268,6 +293,16 @@ int Engine::exec()
 #ifdef __EMSCRIPTEN__
     printf("Starting Emscripten build...\n");
 
+    // OPFS must be mounted from a pthread (not the main thread)
+    printf("Mounting OPFS backend at /%s...\n", config.saveFolder.c_str());
+    std::string savePath = "/" + config.saveFolder;
+    backend_t backend = wasmfs_create_opfs_backend();
+    int err = wasmfs_create_directory(savePath.c_str(), 0777, backend);
+    if (err != 0 && errno != EEXIST)
+        printf("Warning: OPFS directory creation returned %d (errno=%d)\n", err, errno);
+    else
+        printf("OPFS backend mounted at %s\n", savePath.c_str());
+
     printf("Initializing SDL...\n");
     if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0)
     {
@@ -316,16 +351,6 @@ int Engine::exec()
     initThread = new std::thread([this]()
     {
         printf("Window init thread started...\n");
-
-        // OPFS must be mounted from a pthread (not the main thread)
-        printf("Mounting OPFS backend at /%s...\n", config.saveFolder.c_str());
-        std::string savePath = "/" + config.saveFolder;
-        backend_t backend = wasmfs_create_opfs_backend();
-        int err = wasmfs_create_directory(savePath.c_str(), 0777, backend);
-        if (err != 0 && errno != EEXIST)
-            printf("Warning: OPFS directory creation returned %d (errno=%d)\n", err, errno);
-        else
-            printf("OPFS backend mounted at %s\n", savePath.c_str());
 
         this->initializeWindow();
 

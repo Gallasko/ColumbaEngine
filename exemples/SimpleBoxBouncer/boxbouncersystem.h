@@ -19,7 +19,7 @@ struct BouncingBox
         : velocityX(vx), velocityY(vy), speed(spd) {}
 };
 
-class BoxBouncerSystem : public System<InitSys, Listener<TickEvent>>
+class BoxBouncerSystem : public System<InitSys, Listener<TickEvent>, SaveSys>
 {
 private:
     float screenWidth;
@@ -39,6 +39,18 @@ public:
 
     // Name of the system so it is easier to debug the taskflow
     virtual std::string getSystemName() const override { return "Box Bouncer System"; }
+
+    virtual void save(Archive& archive) override
+    {
+        serialize(archive, "bounceCount", bounceCount);
+    }
+
+    virtual void load(const UnserializedObject& serializedString) override
+    {
+        defaultDeserialize(serializedString, "bounceCount", bounceCount);
+
+        printf("BoxBouncer started - total bounces so far: %d\n", bounceCount);
+    }
 
     void init() override
     {
@@ -60,12 +72,6 @@ public:
         bouncer->speed = 150.0f;
 
         ent = shape.entity;
-
-        auto saved = ecsRef->getSavedData("bounceCount");
-        if (!saved.isEmpty())
-            bounceCount = saved.get<int>();
-
-        printf("BoxBouncer started - total bounces so far: %d\n", bounceCount);
     }
 
     virtual void onEvent(const TickEvent& event) override
@@ -140,7 +146,6 @@ private:
         simple2D->setColors({r, g, b, 255.0f});
 
         ++bounceCount;
-        ecsRef->sendEvent(SaveElementEvent{"bounceCount", bounceCount});
         printf("Bounce #%d\n", bounceCount);
     }
 };

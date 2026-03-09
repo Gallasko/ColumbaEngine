@@ -555,6 +555,14 @@ namespace pg
 
             if (not loaded)
                 system->firstLoad();
+
+            registry->registerSystemSaveSystem(name, [system, name](Archive& ar) {
+                ar.startSerialization(name);
+
+                system->save(ar);
+
+                ar.endSerialization();
+            });
         }
         else
         {
@@ -588,15 +596,12 @@ namespace pg
         LOG_INFO("System", "Saving system data...");
 
         auto name = system->__name;
+
         if (name != "UnNamed")
         {
-            registry->saveSystem([system, name](Archive& ar) {
-                ar.startSerialization(name);
+            registry->saveSystem(name);
 
-                system->save(ar);
-
-                ar.endSerialization();
-            }, name);
+            registry->unregisterSystemSave(name);
         }
         else
         {

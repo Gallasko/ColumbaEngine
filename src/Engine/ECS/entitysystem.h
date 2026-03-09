@@ -644,6 +644,14 @@ namespace pg
 
         inline ElementType getSavedData(const std::string& id) const { return saveManager.getValue(id); }
 
+        /** Force an immediate save (used by browser lifecycle events in Emscripten). */
+        inline void forceSaveNow()
+        { 
+            saveManager.forceSave();
+        
+            registry.saveAllSystems();
+        }
+
         inline bool isRunning() const { return running; }
 
         inline size_t getNbSystems() const { return systems.size(); }

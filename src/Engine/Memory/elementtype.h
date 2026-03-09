@@ -364,4 +364,9 @@ namespace pg
     };
 
     typedef std::unordered_map<std::string, ElementType> ElementMap;
+
+    // Declare the ElementType serialize specialization here so it is visible
+    // wherever ElementType is used, preventing the generic no-op from being instantiated first.
+    template <>
+    void serialize(Archive& archive, const ElementType& element);
 }

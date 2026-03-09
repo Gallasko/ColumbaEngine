@@ -82,6 +82,9 @@ namespace pg
 
         ElementType getValue(const std::string& id) const;
 
+        /** Force an immediate save regardless of the needSave flag (e.g. on page hide/close). */
+        void forceSave();
+
     private:
         void loadSave(const std::string& savePath);
 
