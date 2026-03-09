@@ -346,14 +346,14 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # Create a minimal PgCompiler executable that can run component generator
     # This uses the minimal engine library to avoid circular dependencies
     add_executable(PgCompilerBootstrap
-        exemples/PgCompiler/main.cpp
-        exemples/PgCompiler/application.cpp
-        exemples/PgCompiler/constant_uniformity_pass.cpp
+        examples/PgCompiler/main.cpp
+        examples/PgCompiler/application.cpp
+        examples/PgCompiler/constant_uniformity_pass.cpp
     )
 
     target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD SDL_MAIN_HANDLED)
 
-    target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
+    target_include_directories(PgCompilerBootstrap PUBLIC examples/PgCompiler)
 
     # Link against minimal engine (no rendering, no generated components)
     target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
@@ -708,14 +708,14 @@ install(FILES
 # Only build examples if not building static lib only
 if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
     if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-        add_executable(GMTK2025 exemples/GMTK2025/main.cpp)
+        add_executable(GMTK2025 examples/GMTK2025/main.cpp)
 
-        target_include_directories(GMTK2025 PUBLIC exemples/GMTK2025)
+        target_include_directories(GMTK2025 PUBLIC examples/GMTK2025)
 
         target_sources(GMTK2025 PRIVATE
-            exemples/GMTK2025/application.cpp
-            exemples/GMTK2025/ribbonmesh.cpp
-            exemples/GMTK2025/polygonmesh.cpp
+            examples/GMTK2025/application.cpp
+            examples/GMTK2025/ribbonmesh.cpp
+            examples/GMTK2025/polygonmesh.cpp
         )
 
         target_link_libraries(GMTK2025 PRIVATE ColumbaEngine)
@@ -726,12 +726,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
-        add_executable(BoxBouncer exemples/SimpleBoxBouncer/main.cpp)
+        add_executable(BoxBouncer examples/SimpleBoxBouncer/main.cpp)
 
-        target_include_directories(BoxBouncer PUBLIC exemples/SimpleBoxBouncer)
+        target_include_directories(BoxBouncer PUBLIC examples/SimpleBoxBouncer)
 
         target_sources(BoxBouncer PRIVATE
-            exemples/SimpleBoxBouncer/application.cpp
+            examples/SimpleBoxBouncer/application.cpp
         )
 
         target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
@@ -742,12 +742,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
-        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+        add_executable(RenderingTest examples/RenderingTest/main.cpp)
 
-        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+        target_include_directories(RenderingTest PUBLIC examples/RenderingTest)
 
         target_sources(RenderingTest PRIVATE
-            exemples/RenderingTest/application.cpp
+            examples/RenderingTest/application.cpp
         )
 
         target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
@@ -758,12 +758,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
-        add_executable(Asteroid exemples/Asteroid/main.cpp)
+        add_executable(Asteroid examples/Asteroid/main.cpp)
 
-        target_include_directories(Asteroid PUBLIC exemples/Asteroid)
+        target_include_directories(Asteroid PUBLIC examples/Asteroid)
 
         target_sources(Asteroid PRIVATE
-            exemples/Asteroid/application.cpp
+            examples/Asteroid/application.cpp
         )
 
         target_link_libraries(Asteroid PRIVATE ColumbaEngine)
@@ -774,12 +774,12 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
-        add_executable(InvadersBreaker exemples/InvadersBreaker/main.cpp)
+        add_executable(InvadersBreaker examples/InvadersBreaker/main.cpp)
 
-        target_include_directories(InvadersBreaker PUBLIC exemples/InvadersBreaker)
+        target_include_directories(InvadersBreaker PUBLIC examples/InvadersBreaker)
 
         target_sources(InvadersBreaker PRIVATE
-            exemples/InvadersBreaker/application.cpp
+            examples/InvadersBreaker/application.cpp
         )
 
         target_link_libraries(InvadersBreaker PRIVATE ColumbaEngine)
@@ -806,191 +806,191 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_link_libraries(ColumbaEngineEditor PRIVATE ColumbaEngine)
 
-        add_executable(GameOff exemples/GameOff/main.cpp)
+        add_executable(GameOff examples/GameOff/main.cpp)
 
         # configure_file(res/main.pg nexus.pg COPYONLY)
 
-        target_include_directories(GameOff PUBLIC exemples/GameOff)
+        target_include_directories(GameOff PUBLIC examples/GameOff)
 
         target_sources(GameOff PRIVATE
-            exemples/GameOff/achievement.cpp
-            exemples/GameOff/application.cpp
-            exemples/GameOff/character.cpp
-            exemples/GameOff/characustomizationscene.cpp
-            exemples/GameOff/fightscene.cpp
-            exemples/GameOff/gamefacts.cpp
-            exemples/GameOff/inventory.cpp
-            exemples/GameOff/item.cpp
-            exemples/GameOff/location.cpp
-            exemples/GameOff/locationscene.cpp
-            exemples/GameOff/mainscene.cpp
-            exemples/GameOff/managenerator.cpp
-            exemples/GameOff/nexusbindings.cpp
-            exemples/GameOff/nexusmodule.cpp
-            exemples/GameOff/nexusscene.cpp
-            exemples/GameOff/skilltree.cpp
-            exemples/GameOff/passives.cpp
-            exemples/GameOff/spells.cpp
-            exemples/GameOff/theme.cpp
+            examples/GameOff/achievement.cpp
+            examples/GameOff/application.cpp
+            examples/GameOff/character.cpp
+            examples/GameOff/characustomizationscene.cpp
+            examples/GameOff/fightscene.cpp
+            examples/GameOff/gamefacts.cpp
+            examples/GameOff/inventory.cpp
+            examples/GameOff/item.cpp
+            examples/GameOff/location.cpp
+            examples/GameOff/locationscene.cpp
+            examples/GameOff/mainscene.cpp
+            examples/GameOff/managenerator.cpp
+            examples/GameOff/nexusbindings.cpp
+            examples/GameOff/nexusmodule.cpp
+            examples/GameOff/nexusscene.cpp
+            examples/GameOff/skilltree.cpp
+            examples/GameOff/passives.cpp
+            examples/GameOff/spells.cpp
+            examples/GameOff/theme.cpp
         )
 
         target_link_libraries(GameOff PRIVATE ColumbaEngine)
 
-        add_executable(PixelJam exemples/PixelJam/main.cpp)
+        add_executable(PixelJam examples/PixelJam/main.cpp)
 
-        target_include_directories(PixelJam PUBLIC exemples/PixelJam)
+        target_include_directories(PixelJam PUBLIC examples/PixelJam)
 
         target_sources(PixelJam PRIVATE
-            exemples/PixelJam/application.cpp
-            exemples/PixelJam/Characters/enemy.cpp
-            exemples/PixelJam/Characters/player.cpp
-            exemples/PixelJam/config.cpp
-            exemples/PixelJam/Tiled_Lib/TiledLoader.cpp
-            exemples/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
-            exemples/PixelJam/Room/room.cpp
+            examples/PixelJam/application.cpp
+            examples/PixelJam/Characters/enemy.cpp
+            examples/PixelJam/Characters/player.cpp
+            examples/PixelJam/config.cpp
+            examples/PixelJam/Tiled_Lib/TiledLoader.cpp
+            examples/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
+            examples/PixelJam/Room/room.cpp
         )
 
         target_link_libraries(PixelJam PRIVATE ColumbaEngine)
 
-        add_executable(TugOfWar exemples/TugOfWar/main.cpp)
+        add_executable(TugOfWar examples/TugOfWar/main.cpp)
 
-        target_include_directories(TugOfWar PUBLIC exemples/TugOfWar)
+        target_include_directories(TugOfWar PUBLIC examples/TugOfWar)
 
         target_sources(TugOfWar PRIVATE
-            exemples/TugOfWar/application.cpp
+            examples/TugOfWar/application.cpp
         )
 
         target_link_libraries(TugOfWar PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(SimpleClientServer exemples/SimpleClientServer/main.cpp)
+        add_executable(SimpleClientServer examples/SimpleClientServer/main.cpp)
 
         target_sources(SimpleClientServer PRIVATE
-            exemples/SimpleClientServer/application.cpp
+            examples/SimpleClientServer/application.cpp
         )
 
         target_link_libraries(SimpleClientServer PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(BasicTerminal exemples/BasicTerminal/main.cpp)
+        add_executable(BasicTerminal examples/BasicTerminal/main.cpp)
 
-        target_include_directories(BasicTerminal PUBLIC exemples/BasicTerminal)
+        target_include_directories(BasicTerminal PUBLIC examples/BasicTerminal)
 
         target_sources(BasicTerminal PRIVATE
-            exemples/BasicTerminal/application.cpp
+            examples/BasicTerminal/application.cpp
         )
 
         target_link_libraries(BasicTerminal PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(EmptyApp exemples/EmptyAppTemplate/main.cpp)
+        add_executable(EmptyApp examples/EmptyAppTemplate/main.cpp)
 
-        target_include_directories(EmptyApp PUBLIC exemples/EmptyAppTemplate)
+        target_include_directories(EmptyApp PUBLIC examples/EmptyAppTemplate)
 
         target_sources(EmptyApp PRIVATE
-            exemples/EmptyAppTemplate/application.cpp
+            examples/EmptyAppTemplate/application.cpp
         )
 
         target_link_libraries(EmptyApp PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(GMTK2025 exemples/GMTK2025/main.cpp)
+        add_executable(GMTK2025 examples/GMTK2025/main.cpp)
 
-        target_include_directories(GMTK2025 PUBLIC exemples/GMTK2025)
+        target_include_directories(GMTK2025 PUBLIC examples/GMTK2025)
 
         target_sources(GMTK2025 PRIVATE
-            exemples/GMTK2025/application.cpp
-            exemples/GMTK2025/ribbonmesh.cpp
-            exemples/GMTK2025/polygonmesh.cpp
+            examples/GMTK2025/application.cpp
+            examples/GMTK2025/ribbonmesh.cpp
+            examples/GMTK2025/polygonmesh.cpp
         )
 
         target_link_libraries(GMTK2025 PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(InvadersBreaker exemples/InvadersBreaker/main.cpp)
+        add_executable(InvadersBreaker examples/InvadersBreaker/main.cpp)
 
-        target_include_directories(InvadersBreaker PUBLIC exemples/InvadersBreaker)
+        target_include_directories(InvadersBreaker PUBLIC examples/InvadersBreaker)
 
         target_sources(InvadersBreaker PRIVATE
-            exemples/InvadersBreaker/application.cpp
+            examples/InvadersBreaker/application.cpp
         )
 
         target_link_libraries(InvadersBreaker PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(BoxBouncer exemples/SimpleBoxBouncer/main.cpp)
+        add_executable(BoxBouncer examples/SimpleBoxBouncer/main.cpp)
 
-        target_include_directories(BoxBouncer PUBLIC exemples/SimpleBoxBouncer)
+        target_include_directories(BoxBouncer PUBLIC examples/SimpleBoxBouncer)
 
         target_sources(BoxBouncer PRIVATE
-            exemples/SimpleBoxBouncer/application.cpp
+            examples/SimpleBoxBouncer/application.cpp
         )
 
         target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+        add_executable(RenderingTest examples/RenderingTest/main.cpp)
 
-        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+        target_include_directories(RenderingTest PUBLIC examples/RenderingTest)
 
         target_sources(RenderingTest PRIVATE
-            exemples/RenderingTest/application.cpp
+            examples/RenderingTest/application.cpp
         )
 
         target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(Asteroid exemples/Asteroid/main.cpp)
+        add_executable(Asteroid examples/Asteroid/main.cpp)
 
-        target_include_directories(Asteroid PUBLIC exemples/Asteroid)
+        target_include_directories(Asteroid PUBLIC examples/Asteroid)
 
         target_sources(Asteroid PRIVATE
-            exemples/Asteroid/application.cpp
+            examples/Asteroid/application.cpp
         )
 
         target_link_libraries(Asteroid PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(StandardSys exemples/StandardSys/main.cpp)
+        add_executable(StandardSys examples/StandardSys/main.cpp)
 
-        target_include_directories(StandardSys PUBLIC exemples/StandardSys)
+        target_include_directories(StandardSys PUBLIC examples/StandardSys)
 
         target_sources(StandardSys PRIVATE
-            exemples/StandardSys/application.cpp
+            examples/StandardSys/application.cpp
         )
 
         target_link_libraries(StandardSys PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(PgInterpreter exemples/PgInterpreter/main.cpp)
+        add_executable(PgInterpreter examples/PgInterpreter/main.cpp)
 
-        target_include_directories(PgInterpreter PUBLIC exemples/PgInterpreter)
+        target_include_directories(PgInterpreter PUBLIC examples/PgInterpreter)
 
         target_sources(PgInterpreter PRIVATE
-            exemples/PgInterpreter/application.cpp
+            examples/PgInterpreter/application.cpp
         )
 
         target_link_libraries(PgInterpreter PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(PgCompiler exemples/PgCompiler/main.cpp)
+        add_executable(PgCompiler examples/PgCompiler/main.cpp)
 
-        target_include_directories(PgCompiler PUBLIC exemples/PgCompiler)
+        target_include_directories(PgCompiler PUBLIC examples/PgCompiler)
 
         target_sources(PgCompiler PRIVATE
-            exemples/PgCompiler/application.cpp
-            exemples/PgCompiler/constant_uniformity_pass.cpp
+            examples/PgCompiler/application.cpp
+            examples/PgCompiler/constant_uniformity_pass.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
@@ -1046,9 +1046,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
-        add_executable(EcsSerializationExample exemples/PgCompiler/ecs_serialization_example.cpp)
+        add_executable(EcsSerializationExample examples/PgCompiler/ecs_serialization_example.cpp)
 
-        target_include_directories(EcsSerializationExample PUBLIC exemples/PgCompiler)
+        target_include_directories(EcsSerializationExample PUBLIC examples/PgCompiler)
 
         target_sources(EcsSerializationExample PRIVATE
         )
@@ -1131,7 +1131,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         # Include directories for compiler tests
         target_include_directories(test_compiler PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/exemples/PgCompiler
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/PgCompiler
         )
 
         # Link libraries for compiler tests
