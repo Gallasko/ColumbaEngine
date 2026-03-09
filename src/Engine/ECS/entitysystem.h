@@ -646,9 +646,9 @@ namespace pg
 
         /** Force an immediate save (used by browser lifecycle events in Emscripten). */
         inline void forceSaveNow()
-        { 
+        {
             saveManager.forceSave();
-        
+
             registry.saveAllSystems();
         }
 
@@ -1054,7 +1054,16 @@ namespace pg
         });
 
         componentSerializeMap.emplace(id, [owner](Archive& archive, const Entity* entity) {
-            serialize(archive, *(owner->getComponent(entity->id)));
+            if constexpr(HasStaticName<Type>::value)
+            {
+                serialize(archive, *(owner->getComponent(entity->id)));
+            }
+            else
+            {
+                (void)owner;
+                (void)archive;
+                (void)entity;
+            }
         });
 
         // Store component type name for fast lookup

@@ -146,6 +146,7 @@ private:
         simple2D->setColors({r, g, b, 255.0f});
 
         ++bounceCount;
+        // ecsRef->sendEvent(SaveElementEvent{"bounceCount", bounceCount});
         printf("Bounce #%d\n", bounceCount);
     }
 };
