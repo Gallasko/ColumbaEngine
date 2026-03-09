@@ -689,7 +689,7 @@ namespace pg
 
             if ((executionPolicy == ExecutionPolicy::Manual or executionPolicy == ExecutionPolicy::Storage) and _executionQueue.size() > 0)
             {
-                LOG_WARNING("System", "Trying to add a QueuedListener to a system that will not have an execute call. (Remove the Manual/Storage policy or call execute())");
+                LOG_WARNING("System", "Trying to add a QueuedListener to a system(" << __name << ") that will not have an execute call. (Remove the Manual/Storage policy or call execute())");
             }
 
             onRegisterFinished();

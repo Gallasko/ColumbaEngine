@@ -69,7 +69,7 @@ namespace pg
         ElementType element;
     };
 
-    class SaveManager : public System<QueuedListener<SaveElementEvent>, StoragePolicy>
+    class SaveManager : public System<QueuedListener<SaveElementEvent>>
     {
     public:
         SaveManager(const std::string& savePath);
