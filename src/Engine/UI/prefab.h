@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ECS/system.h"
+#include "ECS/entitysystem.h"
 
 #include "2D/position.h"
 
