@@ -241,7 +241,7 @@ namespace pg
             flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
         }
 
-#ifndef __EMSCRIPTEN__      
+#ifndef __EMSCRIPTEN__
         LOG_INFO(DOM, "Initializing SDL...");
 
         // if (SDL_Init(SDL_INIT_EVERYTHING) == 0)

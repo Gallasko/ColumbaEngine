@@ -16,8 +16,8 @@ namespace pg
     {
         // 1) Create the root prefab (anchored at 0,0 by default).
         auto outline = makeAnchoredPrefab(ecs, 0.f, 0.f);
+        outline.get<PositionComponent>()->setVisibility(visible);
         auto outlinePrefab = outline.get<Prefab>();
-        outlinePrefab->setVisibility(visible);
         auto outlineAnchor = outline.get<UiAnchor>();
 
         // 2) Top edge

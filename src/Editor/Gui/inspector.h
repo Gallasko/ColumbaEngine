@@ -320,7 +320,7 @@ namespace pg
 
             void toggleInspectorVisibility();
 
-            CompList<Prefab, UiAnchor, VerticalLayout> getOrBuildPanel(const std::string& typeName);
+            CompList<PositionComponent, Prefab, UiAnchor, VerticalLayout> getOrBuildPanel(const std::string& typeName);
             void showPanel (const std::string& typeName, void* componentPtr);
             void hideAllPanels();
 

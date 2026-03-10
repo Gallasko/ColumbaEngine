@@ -707,15 +707,16 @@ namespace pg
             }
         }
 
-        CompList<Prefab, UiAnchor, VerticalLayout> InspectorSystem::getOrBuildPanel(const std::string& typeName)
+        CompList<PositionComponent, Prefab, UiAnchor, VerticalLayout> InspectorSystem::getOrBuildPanel(const std::string& typeName)
         {
             auto& panel = componentPanels[typeName];
 
             // If already initialized, return the existing panel prefab
             if (panel.initialized)
             {
-                return CompList<Prefab, UiAnchor, VerticalLayout>(
+                return CompList<PositionComponent, Prefab, UiAnchor, VerticalLayout>(
                     panel.foldCard,
+                    panel.foldCard.get<PositionComponent>(),
                     panel.foldCard.get<Prefab>(),
                     panel.foldCard.get<UiAnchor>(),
                     panel.foldCard.get<VerticalLayout>()
@@ -729,7 +730,7 @@ namespace pg
             compView->addEntity(fold);
             panel.foldCard = fold.entity;
             panel.layout   = fold.get<VerticalLayout>();
-            fold.get<Prefab>()->setVisibility(false);
+            fold.get<PositionComponent>()->setVisibility(false);
 
             // check for custom drawer (takes over whole panel)
             // auto customIt = customDrawers.find(typeName);
@@ -792,7 +793,7 @@ namespace pg
             auto fold = getOrBuildPanel(typeName);
 
             auto& panel = componentPanels[typeName];
-            fold.get<Prefab>()->setVisibility(true);
+            fold.get<PositionComponent>()->setVisibility(true);
 
             auto& meta = ComponentProxyRegistry::instance().getMetadata(typeName);
 
@@ -828,7 +829,7 @@ namespace pg
         {
             for (auto& [name, panel] : componentPanels)
                 if (panel.initialized)
-                    panel.foldCard.get<Prefab>()->setVisibility(false);
+                    panel.foldCard.get<PositionComponent>()->setVisibility(false);
         }
 
     }

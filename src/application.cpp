@@ -143,7 +143,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 outlinePos->setRotation(pos->rotation);
 
                 // show it
-                selectionOutline.get<Prefab>()->setVisibility(true);
+                selectionOutline.get<PositionComponent>()->setVisibility(true);
                 selectionOutline.get<SelectedEntity>()->id = elem->entity.id;
 
                 break;
@@ -154,7 +154,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
         // If we clicked on empty space, hide the outline (and maybe clear inspect)
         if (not hit)
         {
-            selectionOutline.get<Prefab>()->setVisibility(false);
+            selectionOutline.get<PositionComponent>()->setVisibility(false);
         }
     }
 };

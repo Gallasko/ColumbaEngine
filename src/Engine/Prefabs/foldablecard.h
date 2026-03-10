@@ -10,14 +10,14 @@ namespace pg
 {
     /**
      * @brief Event to toggle the folded/expanded state of a foldable card.
-     * 
+     *
      * This event is typically triggered by user interaction (such as clicking
      * the card's title bar) and causes the card to toggle between collapsed
      * and expanded states by showing/hiding its content area.
-     * 
+     *
      * The event contains the ID of the foldable card entity that should
      * have its state toggled.
-     * 
+     *
      * @see FoldCardSystem::onEvent()
      * @see makeFoldableCard()
      */
@@ -28,17 +28,17 @@ namespace pg
 
     /**
      * @brief System that handles foldable card toggle events.
-     * 
+     *
      * The FoldCardSystem processes FoldCardEvent events to toggle the
      * visibility state of foldable card contents. When a fold event is
      * received, it calls the "toggleCard" helper function on the target
      * card's Prefab component.
-     * 
+     *
      * ## Functionality
      * - Listens for FoldCardEvent events
      * - Validates that target entities exist and have Prefab components
      * - Delegates toggle logic to the card's "toggleCard" helper function
-     * 
+     *
      * @see FoldCardEvent
      * @see makeFoldableCard()
      */
@@ -46,14 +46,14 @@ namespace pg
     {
         /**
          * @brief Handles fold card toggle events.
-         * 
+         *
          * When a FoldCardEvent is received, this method:
          * 1. Retrieves the target entity by ID
          * 2. Validates the entity exists and has a Prefab component
          * 3. Calls the "toggleCard" helper function to toggle visibility
-         * 
+         *
          * @param event The fold card event containing the target entity ID
-         * 
+         *
          * @note If the entity doesn't exist or lacks a Prefab component,
          *       the event is silently ignored.
          */
@@ -71,55 +71,56 @@ namespace pg
 
     /**
      * @brief Factory function to create a foldable card UI component.
-     * 
+     *
      * Creates a complete foldable card interface consisting of:
-     * 
+     *
      * ## Structure
      * - **Title Bar**: Clickable header with card title and background
      * - **Content Area**: Collapsible vertical layout for card contents
      * - **Visual Indicators**: Left border line that shows/hides with content
-     * 
+     *
      * ## Components Created
      * - Main prefab entity with Prefab, UiAnchor, and layout components
      * - Title background (clickable, triggers fold/unfold)
      * - Title text element
      * - Content layout (initially collapsed)
      * - Visual separator line
-     * 
+     *
      * ## Behavior
      * - Clicking the title bar toggles the card between folded/expanded states
      * - Content area and separator line visibility toggle together
      * - Card maintains its width but adjusts height based on state
-     * 
+     *
      * ## Usage Example
      * ```cpp
      * auto card = makeFoldableCard(ecs, "Settings");
      * auto layout = card.get<VerticalLayout>();
-     * 
+     *
      * // Add content to the card
      * auto textElement = makeText(ecs, "Card content here");
      * layout->addEntity(textElement);
      * ```
-     * 
+     *
      * @tparam Type ECS system type
      * @param ecsRef Pointer to the ECS system
      * @param cardTitle Title text to display in the card header
      * @return ComponentList containing the main entity and key components
-     * 
+     *
      * @see FoldCardEvent
      * @see FoldCardSystem
      * @see Prefab
-     * 
+     *
      * @note The returned layout is the content area where you should add
      *       your card contents, not the main card container.
-     * 
+     *
      * @todo Fix visibility issue where card children are invisible without
      *       adding a dummy element to the layout.
      */
     template <typename Type>
-    CompList<Prefab, UiAnchor, VerticalLayout> makeFoldableCard(Type *ecsRef, const std::string& cardTitle = "New Card")
+    CompList<PositionComponent, Prefab, UiAnchor, VerticalLayout> makeFoldableCard(Type *ecsRef, const std::string& cardTitle = "New Card")
     {
         auto prefabEnt = makeAnchoredPrefab(ecsRef, 100, 100, 1);
+        auto pos = prefabEnt.template get<PositionComponent>();
         auto prefab = prefabEnt.template get<Prefab>();
         auto prefabAnchor = prefabEnt.template get<UiAnchor>();
 
@@ -203,6 +204,6 @@ namespace pg
             vLayoutPos->setVisibility(not visi);
         });
 
-        return {prefabEnt, prefab, prefabAnchor, layout};
+        return {prefabEnt, pos, prefab, prefabAnchor, layout};
     }
 }

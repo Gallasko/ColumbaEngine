@@ -5,7 +5,7 @@ project(ColumbaEngine VERSION 1.0)
 # Options remain the same
 option(USE_GDB "Add -ggdb to the build" OFF)
 option(AUTO_CONVERT_EVENT "Auto convert event to standard event" ON)
-option(PG_PROFILE "Enable the profiling of systems" ON)
+option(PG_PROFILE "Enable the profiling of systems" OFF)
 option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds" OFF)
 option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
@@ -1074,6 +1074,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/filemanager.cc
             test/interpreter.cc
             test/layout.cc
+            test/prefab.cc
             test/network.cc
             # test/mock2dsimpleshape.h
             # test/simple2dobject.cc

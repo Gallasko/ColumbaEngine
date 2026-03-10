@@ -334,5 +334,100 @@ namespace pg
             auto mainEnt = prefab->getEntity("MainEntity");
             EXPECT_EQ(mainEnt.id, childEnt.id);
         }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        // Regression test: setMainEntity used fillIn() which created a circular anchor dependency
+        // (prefab.width = main.width, main.right = prefab.right -> main.width = prefab.width).
+        // The anchor system resolved the cycle to 0, making everything invisible.
+        // Fix: only anchor main entity's top+left to the prefab, preserving its own size.
+        TEST(prefab_test, set_main_entity_size_not_collapsed)
+        {
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<PrefabSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            auto prefabComp = makeAnchoredPrefab(&ecs, 0.0f, 0.0f, 0.0f);
+            auto prefab = prefabComp.get<Prefab>();
+
+            auto mainEnt = ecs.createEntity();
+            auto mainPos = ecs.attach<PositionComponent>(mainEnt);
+            ecs.attach<UiAnchor>(mainEnt);
+
+            mainPos->setWidth(32.0f);
+            mainPos->setHeight(32.0f);
+
+            prefab->setMainEntity(mainEnt);
+
+            ecs.executeOnce();
+
+            // Main entity must keep its own size - not collapse to 0 due to circular anchor
+            EXPECT_FLOAT_EQ(mainPos->width, 32.0f);
+            EXPECT_FLOAT_EQ(mainPos->height, 32.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_test, set_main_entity_position_follows_prefab)
+        {
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<PrefabSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            auto prefabComp = makeAnchoredPrefab(&ecs, 100.0f, 200.0f, 0.0f);
+            auto prefab = prefabComp.get<Prefab>();
+
+            auto mainEnt = ecs.createEntity();
+            auto mainPos = ecs.attach<PositionComponent>(mainEnt);
+            ecs.attach<UiAnchor>(mainEnt);
+
+            mainPos->setWidth(32.0f);
+            mainPos->setHeight(16.0f);
+
+            prefab->setMainEntity(mainEnt);
+
+            ecs.executeOnce();
+
+            // Main entity is anchored to the prefab's top-left, so it follows its position
+            EXPECT_FLOAT_EQ(mainPos->x, 100.0f);
+            EXPECT_FLOAT_EQ(mainPos->y, 200.0f);
+        }
+
+        // ----------------------------------------------------------------------------------------
+        // ---------------------------        Test separator        -------------------------------
+        // ----------------------------------------------------------------------------------------
+        TEST(prefab_test, set_main_entity_prefab_adopts_main_entity_size)
+        {
+            EntitySystem ecs;
+
+            ecs.createSystem<PositionComponentSystem>();
+            ecs.createSystem<PrefabSystem>();
+            ecs.succeed<PositionComponentSystem, PrefabSystem>();
+
+            auto prefabComp = makeAnchoredPrefab(&ecs, 0.0f, 0.0f, 0.0f);
+            auto prefab = prefabComp.get<Prefab>();
+            auto prefabPos = prefabComp.get<PositionComponent>();
+
+            auto mainEnt = ecs.createEntity();
+            auto mainPos = ecs.attach<PositionComponent>(mainEnt);
+            ecs.attach<UiAnchor>(mainEnt);
+
+            mainPos->setWidth(64.0f);
+            mainPos->setHeight(48.0f);
+
+            prefab->setMainEntity(mainEnt);
+
+            ecs.executeOnce();
+
+            // Prefab's size is driven by the main entity's size via width/height constrains
+            EXPECT_FLOAT_EQ(prefabPos->width, 64.0f);
+            EXPECT_FLOAT_EQ(prefabPos->height, 48.0f);
+        }
     }
 }
