@@ -386,6 +386,8 @@ namespace pg
         }
     };
 
+    struct LayoutScrolledEvent { _unique_id id; };
+
     /**
      * @brief System responsible for managing UI layouts and their positioning.
      *
@@ -424,6 +426,7 @@ namespace pg
     struct LayoutSystem : public System<
         Listener<StandardEvent>,
         QueuedListener<PositionComponentChangedEvent>,
+        QueuedListener<LayoutScrolledEvent>,
         QueuedListener<AddLayoutElementEvent>,
         QueuedListener<InsertLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementEvent>,
@@ -526,6 +529,10 @@ namespace pg
          * @see EntityChangedEvent
          */
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
+
+        virtual void onProcessEvent(const LayoutScrolledEvent& event) override;
+
+        void onLayoutChanged(_unique_id id);
 
         /**
          * @brief Processes requests to update layout scrollable state.

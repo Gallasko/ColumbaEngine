@@ -546,8 +546,6 @@ void initGame() {
 
     // mainWindow->masterRenderer->processTextureRegister();
 
-    // mainWindow->ecs->createSystem<FpsSystem>();
-
     mainWindow->ecs->succeed<MasterRenderer, TTFTextSystem>();
 
     mainWindow->ecs->createSystem<TextHandlingSys>();

@@ -453,13 +453,16 @@ namespace pg
             return fold.get<VerticalLayout>();
         }
 
-        void InspectorSystem::processEntityChanged(const EntityChangedEvent& event)
+        void InspectorSystem::processEntityChanged(const PositionComponentChangedEvent& event)
         {
             if (event.id == 0 or currentId == 0 or event.id != currentId)
                 return;
+
+            dontClear = true;
+            eventRequested = true;
         }
 
-        void InspectorSystem::onProcessEvent(const EntityChangedEvent& event)
+        void InspectorSystem::onProcessEvent(const PositionComponentChangedEvent& event)
         {
             processEntityChanged(event);
         }
@@ -495,8 +498,15 @@ namespace pg
                 return;
             }
 
-            hideAllPanels();
-            activeBindings.clear();
+            if (dontClear)
+            {
+                dontClear = false;
+            }
+            else
+            {
+                hideAllPanels();
+                activeBindings.clear();
+            }
 
             currentEnt = ecsRef->getEntity(currentId);
 

@@ -215,7 +215,7 @@ namespace pg
             void* componentPtr;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, QueuedListener<EndRotation>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, QueuedListener<EndRotation>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -223,7 +223,7 @@ namespace pg
 
             CompRef<VerticalLayout> addNewText(const std::string& text, CompRef<VerticalLayout> currentView);
 
-            virtual void onProcessEvent(const EntityChangedEvent& event) override;
+            virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
 
             virtual void onEvent(const InspectEvent& event) override;
 
@@ -316,7 +316,7 @@ namespace pg
 
             virtual void execute() override;
 
-            void processEntityChanged(const EntityChangedEvent& event);
+            void processEntityChanged(const PositionComponentChangedEvent& event);
 
             void toggleInspectorVisibility();
 
@@ -336,6 +336,8 @@ namespace pg
             bool eventRequested = false;
 
             bool needClear = false;
+
+            bool dontClear = false;
 
             std::map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>)>> customDrawers;
 

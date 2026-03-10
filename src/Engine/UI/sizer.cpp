@@ -139,7 +139,7 @@ namespace pg
 
         *offset -= event.values.at("y").get<int>() * scrollSpeed;
 
-        ecsRef->sendEvent(EntityChangedEvent{id});
+        ecsRef->sendEvent(LayoutScrolledEvent{id});
     };
 
     void LayoutSystem::execute()
@@ -308,7 +308,17 @@ namespace pg
 
     void LayoutSystem::onProcessEvent(const PositionComponentChangedEvent& event)
     {
-        auto ent = ecsRef->getEntity(event.id);
+        onLayoutChanged(event.id);
+    }
+
+    void LayoutSystem::onProcessEvent(const LayoutScrolledEvent& event)
+    {
+        onLayoutChanged(event.id);
+    }
+
+    void LayoutSystem::onLayoutChanged(_unique_id id)
+    {
+        auto ent = ecsRef->getEntity(id);
 
         if (not ent)
         {
