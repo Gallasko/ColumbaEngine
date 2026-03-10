@@ -227,7 +227,69 @@ namespace pg
     {
         LOG_THIS_MEMBER("ECS");
 
-        taskflowImpl->taskflow.dump(std::cout);
+        // Capture the raw dot dump for post-processing
+        std::ostringstream oss;
+        taskflowImpl->taskflow.dump(oss);
+        std::string dot = oss.str();
+
+        // Locate the "Basic Task" node ID (the token just before its label)
+        const std::string basicTaskLabel = "[label=\"Basic Task\" ]";
+        auto labelPos = dot.find(basicTaskLabel);
+        if (labelPos == std::string::npos)
+        {
+            std::cout << dot;
+            return;
+        }
+
+        auto lineStart = dot.rfind('\n', labelPos);
+        lineStart = (lineStart == std::string::npos) ? 0 : lineStart + 1;
+        const std::string basicTaskId = dot.substr(lineStart, labelPos - lineStart);
+        const std::string edgePrefix = basicTaskId + " -> ";
+
+        // Walk line-by-line: strip all edges from Basic Task, collect their targets
+        std::vector<std::string> basicTaskTargets;
+        std::string result;
+        std::istringstream stream(dot);
+        std::string line;
+
+        while (std::getline(stream, line))
+        {
+            if (line.rfind(edgePrefix, 0) == 0)
+            {
+                // Extract target id: text between "-> " and ";"
+                auto targetStart = line.find("-> ") + 3;
+                auto targetEnd   = line.find(';', targetStart);
+                if (targetEnd != std::string::npos)
+                    basicTaskTargets.push_back(line.substr(targetStart, targetEnd - targetStart));
+                // drop this edge line from output
+            }
+            else
+            {
+                result += line + '\n';
+            }
+        }
+
+        // Build replacement nodes + edges
+        const std::string eventId = "eventProcessing";
+        const std::string groupId = "groupEventProcessing";
+
+        std::string inject;
+        inject += eventId + "[label=\"Event Processing\" style=filled fillcolor=lightblue];\n";
+        inject += groupId + "[label=\"Group Event Processing\" style=filled fillcolor=lightgreen];\n";
+        inject += eventId + " -> " + basicTaskId + ";\n";
+        inject += basicTaskId + " -> " + groupId + ";\n";
+        // for (const auto& target : basicTaskTargets)
+        //     inject += groupId + " -> " + target + ";\n";
+
+        // Insert inside the subgraph, just before its closing '}'
+        // Structure: digraph { subgraph { ... } }  -> find 2nd-to-last '}'
+        auto insertPos = result.rfind('}');
+        if (insertPos != std::string::npos and insertPos > 0)
+            insertPos = result.rfind('}', insertPos - 1);
+        if (insertPos != std::string::npos)
+            result.insert(insertPos, inject);
+
+        std::cout << result;
     }
 
     size_t EntitySystem::getNbTasks() const
@@ -292,7 +354,10 @@ namespace pg
             auto name = system->getSystemName();
 
             if (name == "UnNamed")
+            {
                 name = std::to_string(system->_id);
+                system->__name = name; // keep __name in sync with the DOT task label
+            }
 
             auto task = taskflowImpl->taskflow.emplace([system, name]()
             {
