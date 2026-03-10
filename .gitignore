@@ -25,3 +25,4 @@ global.sz
 src/**/temp.pgc
 test/pgcompiler/scripts/*compiled.pgc
 .vscode/.intellisense-cache
+graph.dot
