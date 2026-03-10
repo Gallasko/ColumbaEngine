@@ -69,8 +69,13 @@ namespace pg
         return ecsRef->registry.retrieveStandardComponent(compName)->components.has(id);
     }
 
-    EntityRef::EntityRef(Entity* ent, bool initialized) : initialized(initialized), entity(ent), id(ent->id), ecsRef(ent->world())
+    EntityRef::EntityRef(Entity* ent, bool initialized) : initialized(initialized), entity(ent)
     {
+        if (ent)
+        {
+            id = ent->id;
+            ecsRef = ent->world();
+        }
     }
 
     bool EntityRef::operator==(const EntityRef& rhs)
@@ -165,11 +170,19 @@ namespace pg
             return entity;
         else
         {
+            if (id == 0)
+            {
+                LOG_ERROR("EntityRef", "Trying to access an entity with id 0, this is not a valid entity id !");
+                initialized = true;
+                entity = nullptr;
+                return nullptr;
+            }
+
             // Try to find the entity in the ecs to update this ref
             auto ent = ecsRef->getEntity(id);
 
             // Entity found, updating this entity ref
-            if (id != 0 and ent)
+            if (ent)
             {
                 entity = ent;
                 initialized = true;
@@ -187,6 +200,14 @@ namespace pg
             return entity;
         else
         {
+            if (id == 0)
+            {
+                LOG_ERROR("EntityRef", "Trying to access an entity with id 0, this is not a valid entity id !");
+                initialized = true;
+                entity = nullptr;
+                return nullptr;
+            }
+
             // Try to find the entity in the ecs to update this ref
             auto ent = ecsRef->getEntity(id);
 

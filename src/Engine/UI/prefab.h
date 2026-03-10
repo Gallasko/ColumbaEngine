@@ -57,7 +57,7 @@ namespace pg
             if (it == namedChildrenIds.end())
             {
                 LOG_ERROR("Prefab", "Couldn't find entity with name: " << name << " in prefab: " << id);
-                return nullptr;
+                return EntityRef{};
             }
 
             return namedChildrenIds[name];
@@ -160,7 +160,8 @@ namespace pg
             prefabAnchor->setWidthConstrain(PosConstrain{event.entityId, AnchorType::Width});
             prefabAnchor->setHeightConstrain(PosConstrain{event.entityId, AnchorType::Height});
 
-            entAnchor->fillIn(prefabAnchor);
+            entAnchor->setTopAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Top});
+            entAnchor->setLeftAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Left});
             entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
 
             auto prefab = prefabEnt->get<Prefab>();

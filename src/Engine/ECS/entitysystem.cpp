@@ -102,8 +102,6 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        printf("Initializing Entity System...\n");
-
         LOG_INFO(DOM, "Starting ecs...");
         LOG_INFO(DOM, "Number of executor threads: " << NBEXECUTORTHREADS);
 
