@@ -272,7 +272,7 @@ namespace pg
             ObjVector* vec = vm->asVector(args[0]);
             int64_t index = AS_INT(args[1]);
 
-            if (index < 0 || index > static_cast<int64_t>(vec->fields.size()))
+            if (index < 0 or index > static_cast<int64_t>(vec->fields.size()))
             {
                 throw std::runtime_error("insert index out of bounds");
             }
@@ -308,7 +308,7 @@ namespace pg
             ObjVector* vec = vm->asVector(args[0]);
             int64_t index = AS_INT(args[1]);
 
-            if (index < 0 || index >= static_cast<int64_t>(vec->fields.size()))
+            if (index < 0 or index >= static_cast<int64_t>(vec->fields.size()))
             {
                 throw std::runtime_error("removeAt index out of bounds");
             }

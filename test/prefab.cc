@@ -217,12 +217,20 @@ namespace pg
             ecs.attach<PositionComponent>(childEnt);
             prefab->addToPrefab(childEnt);
 
+            auto prefabId = prefabEnt.id;
+
             auto childId = childEnt.id;
 
             EXPECT_TRUE(ecs.getEntity(childId));
 
             ecs.removeEntity(prefabEnt);
 
+            // First the prefab is deleted
+            ecs.executeOnce();
+
+            EXPECT_FALSE(ecs.getEntity(prefabId));
+
+            // Then at next exec all the child in the prefab are cleaned up
             ecs.executeOnce();
 
             EXPECT_FALSE(ecs.getEntity(childId));
