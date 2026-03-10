@@ -659,7 +659,7 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<FoldCardSystem>();
 
-        ecs.dumbTaskflow();
+        ecs.dumbTaskflow(false, "graph.dot");
     });
 }
 

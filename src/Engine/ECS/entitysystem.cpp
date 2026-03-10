@@ -16,6 +16,11 @@
 // Include taskflow here instead of in header for compilation time optimization
 #include "taskflow/taskflow.hpp"
 
+// For type-name demangling in dumbTaskflow()
+#if defined(__GNUC__) || defined(__clang__)
+#include <cxxabi.h>
+#endif
+
 #include "system.h"
 
 #include "Systems/coresystems.h"
@@ -223,16 +228,47 @@ namespace pg
             runningThread.join();
     }
 
-    void EntitySystem::dumbTaskflow() const
+    void EntitySystem::dumbTaskflow(bool showEventNodes, const std::string& outputFile) const
     {
         LOG_THIS_MEMBER("ECS");
 
-        // Capture the raw dot dump for post-processing
+        // --- local helpers ---
+
+        // Demangle a C++ mangled type name and strip all "pg::" namespace prefixes.
+        auto prettyName = [](const char* mangled) -> std::string {
+#if defined(__GNUC__) || defined(__clang__)
+            int status = 0;
+            char* buf = abi::__cxa_demangle(mangled, nullptr, nullptr, &status);
+            std::string s = (status == 0 && buf) ? buf : mangled;
+            if (buf) free(buf);
+#else
+            std::string s = mangled;
+#endif
+            std::string clean;
+            for (size_t i = 0; i < s.size(); )
+            {
+                if (s.compare(i, 4, "pg::") == 0) i += 4;
+                else clean += s[i++];
+            }
+            return clean;
+        };
+
+        // Decode a _listenerEventNames entry ("L:mangled" or "Q:mangled")
+        // Returns {kind_prefix, pretty_event_name}
+        auto decodeEntry = [&prettyName](const std::string& entry)
+            -> std::pair<std::string, std::string>
+        {
+            if (entry.size() > 2 && entry[1] == ':')
+                return { entry.substr(0, 2), prettyName(entry.c_str() + 2) };
+            return { "", prettyName(entry.c_str()) };
+        };
+
+        // --- capture raw DOT ---
         std::ostringstream oss;
         taskflowImpl->taskflow.dump(oss);
         std::string dot = oss.str();
 
-        // Locate the "Basic Task" node ID (the token just before its label)
+        // --- find "Basic Task" node ID ---
         const std::string basicTaskLabel = "[label=\"Basic Task\" ]";
         auto labelPos = dot.find(basicTaskLabel);
         if (labelPos == std::string::npos)
@@ -240,28 +276,46 @@ namespace pg
             std::cout << dot;
             return;
         }
-
         auto lineStart = dot.rfind('\n', labelPos);
         lineStart = (lineStart == std::string::npos) ? 0 : lineStart + 1;
         const std::string basicTaskId = dot.substr(lineStart, labelPos - lineStart);
-        const std::string edgePrefix = basicTaskId + " -> ";
+        const std::string edgePrefix    = basicTaskId + " -> ";
+        const std::string basicNodeDef  = basicTaskId + "["; // node definition line to drop
 
-        // Walk line-by-line: strip all edges from Basic Task, collect their targets
+        // --- parse DOT: build nodeId↔name maps, strip Basic Task node + edges ---
         std::vector<std::string> basicTaskTargets;
+        std::unordered_map<std::string, std::string> nodeIdToName;
         std::string result;
         std::istringstream stream(dot);
         std::string line;
 
         while (std::getline(stream, line))
         {
-            if (line.rfind(edgePrefix, 0) == 0)
+            // Detect node definition:  p0xABCD[label="Name" ];
+            auto labelMark = line.find("[label=\"");
+            if (labelMark != std::string::npos)
             {
-                // Extract target id: text between "-> " and ";"
-                auto targetStart = line.find("-> ") + 3;
-                auto targetEnd   = line.find(';', targetStart);
-                if (targetEnd != std::string::npos)
-                    basicTaskTargets.push_back(line.substr(targetStart, targetEnd - targetStart));
-                // drop this edge line from output
+                std::string nid = line.substr(0, labelMark);
+                auto last = nid.find_last_not_of(" \t");
+                if (last != std::string::npos) nid = nid.substr(0, last + 1);
+
+                auto ns = labelMark + 8; // len("[label=\"")
+                auto ne = line.find('"', ns);
+                if (ne != std::string::npos)
+                    nodeIdToName[nid] = line.substr(ns, ne - ns);
+            }
+
+            // Drop Basic Task node definition and all its outgoing edges
+            if (line.rfind(basicNodeDef, 0) == 0 || line.rfind(edgePrefix, 0) == 0)
+            {
+                if (line.rfind(edgePrefix, 0) == 0)
+                {
+                    auto ts = line.find("-> ") + 3;
+                    auto te = line.find(';', ts);
+                    if (te != std::string::npos)
+                        basicTaskTargets.push_back(line.substr(ts, te - ts));
+                }
+                // drop this line in both cases
             }
             else
             {
@@ -269,27 +323,87 @@ namespace pg
             }
         }
 
-        // Build replacement nodes + edges
-        const std::string eventId = "eventProcessing";
-        const std::string groupId = "groupEventProcessing";
+        // Build reverse: system name → DOT node id
+        std::unordered_map<std::string, std::string> nameToNodeId;
+        for (const auto& [nid, name] : nodeIdToName)
+            nameToNodeId[name] = nid;
 
-        std::string inject;
-        inject += eventId + "[label=\"Event Processing\" style=filled fillcolor=lightblue];\n";
-        inject += groupId + "[label=\"Group Event Processing\" style=filled fillcolor=lightgreen];\n";
-        inject += eventId + " -> " + basicTaskId + ";\n";
-        inject += basicTaskId + " -> " + groupId + ";\n";
-        // for (const auto& target : basicTaskTargets)
-        //     inject += groupId + " -> " + target + ";\n";
+        // --- build event / group → [target dot nodes] maps ---
+        // key for events: "L:<pretty>" or "Q:<pretty>"
+        std::unordered_map<std::string, std::vector<std::string>> eventToNodes;
+        std::unordered_map<std::string, std::vector<std::string>> groupToNodes;
 
-        // Insert inside the subgraph, just before its closing '}'
-        // Structure: digraph { subgraph { ... } }  -> find 2nd-to-last '}'
-        auto insertPos = result.rfind('}');
-        if (insertPos != std::string::npos and insertPos > 0)
-            insertPos = result.rfind('}', insertPos - 1);
-        if (insertPos != std::string::npos)
-            result.insert(insertPos, inject);
+        for (const auto& [sysId, sys] : systems)
+        {
+            auto it = nameToNodeId.find(sys->__name);
+            if (it == nameToNodeId.end()) continue; // Storage/Manual – not in taskflow
+            const std::string& nodeId = it->second;
 
-        std::cout << result;
+            for (const auto& entry : sys->_listenerEventNames)
+            {
+                auto [prefix, name] = decodeEntry(entry);
+                eventToNodes[prefix + name].push_back(nodeId);
+            }
+
+            for (const auto& mangled : sys->_registeredGroupNames)
+                groupToNodes[prettyName(mangled.c_str())].push_back(nodeId);
+        }
+
+        // --- inject new nodes + edges into the DOT (optional) ---
+        if (showEventNodes)
+        {
+            std::string inject;
+            int idx = 0;
+
+            // One coloured node per unique listened event (root nodes – no predecessor)
+            for (const auto& [key, targetNodes] : eventToNodes)
+            {
+                bool isQueued = (key.size() >= 2 && key[0] == 'Q' && key[1] == ':');
+                std::string label = key.substr(2) + (isQueued ? " (queued)" : "");
+                std::string color = isQueued ? "lightyellow" : "lightblue";
+                std::string nid   = "evtNode" + std::to_string(idx++);
+
+                inject += nid + "[label=\"" + label + "\" style=filled fillcolor=" + color + "];\n";
+                for (const auto& tn : targetNodes)
+                    inject += nid + " -> " + tn + ";\n";
+            }
+
+            // One coloured node per unique registered group (deferred/group events, root nodes)
+            for (const auto& [key, targetNodes] : groupToNodes)
+            {
+                std::string nid = "grpNode" + std::to_string(idx++);
+                inject += nid + "[label=\"" + key + "\" style=filled fillcolor=lightgreen];\n";
+                for (const auto& tn : targetNodes)
+                    inject += nid + " -> " + tn + ";\n";
+            }
+
+            // Insert inside the subgraph, before its closing '}'
+            auto insertPos = result.rfind('}');
+            if (insertPos != std::string::npos and insertPos > 0)
+                insertPos = result.rfind('}', insertPos - 1);
+            if (insertPos != std::string::npos)
+                result.insert(insertPos, inject);
+        }
+
+        // --- output: file or stdout ---
+        if (outputFile.empty())
+        {
+            std::cout << result;
+        }
+        else
+        {
+            std::ofstream f(outputFile);
+            if (f.is_open())
+            {
+                f << result;
+                LOG_INFO("ECS", "Taskflow graph written to: " << outputFile);
+            }
+            else
+            {
+                LOG_ERROR("ECS", "dumbTaskflow: could not open file: " << outputFile);
+                std::cout << result; // fallback to stdout
+            }
+        }
     }
 
     size_t EntitySystem::getNbTasks() const

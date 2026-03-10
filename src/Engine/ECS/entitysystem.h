@@ -335,7 +335,10 @@ namespace pg
             _succeed(sys1Id, sys2Id);
         }
 
-        void dumbTaskflow() const;
+        /** Dump the taskflow graph in Graphviz DOT format.
+         *  @param showEventNodes  When true (default), inject coloured event/group listener nodes.
+         *  @param outputFile      When non-empty, write to this file path instead of stdout. */
+        void dumbTaskflow(bool showEventNodes = true, const std::string& outputFile = "") const;
 
         //TODO make a template specialization capable of attaching an entity to an entity
 
