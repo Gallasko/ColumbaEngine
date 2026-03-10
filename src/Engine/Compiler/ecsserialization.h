@@ -149,6 +149,13 @@ namespace pg
         size_t componentSize;
 
         std::map<std::string, PropertyMetadata> properties;
+
+        // Fallback handlers for components with dynamic properties (e.g. StandardComponent)
+        // Called when the requested property name is not found in the static `properties` map.
+        using DynamicGetterFn = std::function<Value(void* component, const std::string& propName, VM* vm)>;
+        using DynamicSetterFn = std::function<void(void* component, const std::string& propName, VM* vm, Value value)>;
+        DynamicGetterFn dynamicGetter = nullptr;
+        DynamicSetterFn dynamicSetter = nullptr;
     };
 
     /**
