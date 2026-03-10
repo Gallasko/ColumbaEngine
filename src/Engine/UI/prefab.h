@@ -65,7 +65,7 @@ namespace pg
 
         void setMainEntity(EntityRef entity)
         {
-            ecsRef->sendEvent(SetMainEntityEvent{id, entity->id});
+            ecsRef->sendEvent(SetMainEntityEvent{id, entity->id}, true);
         }
 
         template<typename R, typename... Args>
@@ -93,7 +93,7 @@ namespace pg
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<ClearPrefabEvent>, QueuedListener<SetMainEntityEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<ClearPrefabEvent>, Listener<SetMainEntityEvent>, InitSys>
     {
         virtual void init() override
         {
@@ -141,7 +141,7 @@ namespace pg
             }
         }
 
-        virtual void onProcessEvent(const SetMainEntityEvent& event) override
+        virtual void onEvent(const SetMainEntityEvent& event) override
         {
             auto prefabEnt = ecsRef->getEntity(event.prefabId);
             auto ent = ecsRef->getEntity(event.entityId);
@@ -172,6 +172,8 @@ namespace pg
         virtual void execute() override
         {
         }
+
+        virtual std::string getSystemName() const override { return "Prefab System"; }
 
         void updatePrefabEntity(EntityRef prefabEnt, EntityRef targetEnt)
         {

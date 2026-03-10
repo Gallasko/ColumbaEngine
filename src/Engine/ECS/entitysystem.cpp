@@ -140,7 +140,7 @@ namespace pg
 
             PROFILE_BEGIN("GroupEventDispatch", "Event");
 #endif
-            groupEventDispatcher.process();
+            deferredEventDispatcher.process();
 
 #ifdef PROFILE
             PROFILE_END("GroupEventDispatch", "Event");

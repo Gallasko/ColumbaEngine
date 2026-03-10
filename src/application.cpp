@@ -658,6 +658,8 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
         ecs.createSystem<EntityListSystem>();
 
         ecs.createSystem<FoldCardSystem>();
+
+        ecs.dumbTaskflow();
     });
 }
 

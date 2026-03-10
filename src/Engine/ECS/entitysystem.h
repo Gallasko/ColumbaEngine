@@ -538,12 +538,12 @@ namespace pg
         }
 
         template <typename Event>
-        void sendEvent(const Event& event, bool isGroupEvent = false)
+        void sendEvent(const Event& event, bool isDeferred = false)
         {
             LOG_THIS_MEMBER("ECS");
 
             // Select the appropriate dispatcher based on event type
-            auto& dispatcher = isGroupEvent ? groupEventDispatcher : eventDispatcher;
+            auto& dispatcher = isDeferred ? deferredEventDispatcher : eventDispatcher;
 
             // Dispatch the typed C++ event
             if (running)
@@ -837,7 +837,7 @@ namespace pg
 
         EventDispatcher eventDispatcher;
 
-        EventDispatcher groupEventDispatcher;
+        EventDispatcher deferredEventDispatcher;
 
         SaveManager saveManager;
 
