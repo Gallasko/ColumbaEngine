@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ECS/system.h"
+#include "ECS/entitysystem.h"
 
 #include "2D/position.h"
 
@@ -11,6 +12,8 @@ namespace pg
     struct ClearPrefabEvent { std::set<_unique_id> ids; };
 
     struct SetMainEntityEvent { _unique_id prefabId; _unique_id entityId; };
+
+    struct PrefabChangedEvent { _unique_id prefabId; };
 
     // Todo fix prefab runtime
     // Currently prefabs only works in events has the prefab need to be realized before adding other components to it
@@ -31,57 +34,13 @@ namespace pg
             }
         }
 
-        void setCompForPrefab(EntityRef entity)
-        {
-            // Without a position component, we cannot work on adding the entity to the prefab ui, so we skip the rest
-            if (not entity->has<PositionComponent>())
-            {
-                LOG_MILE("Prefab", "Entity " << entity.id << " can't be added to prefab as it doesn't have a PositionComponent!");
-                return;
-            }
-
-            auto pos = entity->get<PositionComponent>();
-
-            bool renderable = visible and observable;
-
-            if (pos->observable != renderable)
-            {
-                pos->setObservable(renderable);
-            }
-
-            if (isClippedToWindow)
-            {
-                if (entity->has<ClippedTo>())
-                {
-                    entity->world()->detach<ClippedTo>(entity);
-                }
-            }
-            else
-            {
-                auto thisEnt = ecsRef->getEntity(id);
-                if (not thisEnt or not thisEnt->has<ClippedTo>())
-                {
-                    LOG_ERROR("Prefab", "Prefab " << id << " has no ClippedTo component, but wants to clip its children!");
-                }
-
-                auto clip = thisEnt->get<ClippedTo>();
-
-                if (entity->has<ClippedTo>())
-                {
-                    entity->get<ClippedTo>()->setNewClipper(clip->clipperId);
-                }
-                else
-                {
-                    ecsRef->attach<ClippedTo>(entity, clip->clipperId);
-                }
-            }
-        }
-
         void addToPrefab(EntityRef entity)
         {
-            setCompForPrefab(entity);
+            // setCompForPrefab(entity);
 
             childrenIds.insert(entity.id);
+
+            ecsRef->sendEvent(PrefabChangedEvent{id});
         }
 
         void addToPrefab(EntityRef entity, const std::string& name)
@@ -98,7 +57,7 @@ namespace pg
             if (it == namedChildrenIds.end())
             {
                 LOG_ERROR("Prefab", "Couldn't find entity with name: " << name << " in prefab: " << id);
-                return nullptr;
+                return EntityRef{};
             }
 
             return namedChildrenIds[name];
@@ -106,38 +65,7 @@ namespace pg
 
         void setMainEntity(EntityRef entity)
         {
-            ecsRef->sendEvent(SetMainEntityEvent{id, entity->id});
-        }
-
-        void update()
-        {
-            for (const auto& id : childrenIds)
-            {
-                auto ent = ecsRef->getEntity(id);
-
-                if (ent)
-                {
-                    setCompForPrefab(ent);
-                }
-            }
-        }
-
-        void setVisibility(bool visible)
-        {
-            if (this->visible != visible)
-            {
-                this->visible = visible;
-                update();
-            }
-        }
-
-        void setObservable(bool observable)
-        {
-            if (this->observable != observable)
-            {
-                this->observable = observable;
-                update();
-            }
+            ecsRef->sendEvent(SetMainEntityEvent{id, entity->id}, true);
         }
 
         template<typename R, typename... Args>
@@ -162,93 +90,47 @@ namespace pg
 
         // Data to keep track
 
-        bool isClippedToWindow = true;
-
-        bool visible = true;
-        bool observable = true;
-
         bool deleteEntityUponRelease = true;
     };
 
-    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, Listener<EntityChangedEvent>, QueuedListener<ClearPrefabEvent>, QueuedListener<SetMainEntityEvent>, InitSys>
+    struct PrefabSystem : public System<Own<Prefab>, Ref<PositionComponent>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<ClearPrefabEvent>, Listener<SetMainEntityEvent>, InitSys>
     {
         virtual void init() override
         {
             auto group = registerGroup<PositionComponent, Prefab>();
 
-            group->addOnGroup([](EntityRef entity) {
+            group->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("Prefab", "Add entity " << entity->id << " to ui - prefab group !");
 
-                auto ui = entity->get<PositionComponent>();
-                auto prefab = entity->get<Prefab>();
-
-                prefab->visible = ui->visible;
-                prefab->observable = ui->observable;
-
-                prefab->update();
+                updateAllPrefabEntities(entity);
             });
 
             auto clippedGroup = registerGroup<PositionComponent, Prefab, ClippedTo>();
 
-            clippedGroup->addOnGroup([](EntityRef entity) {
+            clippedGroup->addOnGroup([this](EntityRef entity) {
                 LOG_MILE("Prefab", "Add entity " << entity->id << " to pos - prefab - clip group !");
 
-                auto prefab = entity->get<Prefab>();
-                prefab->isClippedToWindow = false;
-
-                prefab->update();
+                updateAllPrefabEntities(entity);
             });
 
-            clippedGroup->removeOfGroup([](EntitySystem* ecsRef, _unique_id id) {
+            clippedGroup->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
                 auto entity = ecsRef->getEntity(id);
 
-                if (entity and entity->has<Prefab>())
+                if (entity and entity->has<Prefab>() and entity->has<PositionComponent>())
                 {
-                    if (not entity->has<ClippedTo>())
-                    {
-                        auto prefab = entity->get<Prefab>();
-
-                        prefab->isClippedToWindow = true;
-                        prefab->update();
-                    }
+                    updateAllPrefabEntities(entity);
                 }
             });
         }
 
-        virtual void onEvent(const EntityChangedEvent& event) override
+        virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
         {
             auto entity = ecsRef->getEntity(event.id);
 
             if (not entity or not entity->has<Prefab>())
                 return;
 
-            bool modified = false;
-
-            auto ui = entity->get<PositionComponent>();
-            auto prefab = entity->get<Prefab>();
-
-            if (ui->visible != prefab->visible)
-            {
-                prefab->visible = ui->visible;
-                modified = true;
-            }
-
-            if (ui->observable != prefab->observable)
-            {
-                prefab->observable = ui->observable;
-                modified = true;
-            }
-
-            if (not prefab->isClippedToWindow)
-            {
-                // Todo find a way to find if the clip parent was updated and set modified flag only if it was updated
-                modified = true;
-            }
-
-            if (modified)
-            {
-                prefab->update();
-            }
+            updateAllPrefabEntities(entity);
         }
 
         virtual void onProcessEvent(const ClearPrefabEvent& event) override
@@ -259,7 +141,7 @@ namespace pg
             }
         }
 
-        virtual void onProcessEvent(const SetMainEntityEvent& event) override
+        virtual void onEvent(const SetMainEntityEvent& event) override
         {
             auto prefabEnt = ecsRef->getEntity(event.prefabId);
             auto ent = ecsRef->getEntity(event.entityId);
@@ -278,7 +160,8 @@ namespace pg
             prefabAnchor->setWidthConstrain(PosConstrain{event.entityId, AnchorType::Width});
             prefabAnchor->setHeightConstrain(PosConstrain{event.entityId, AnchorType::Height});
 
-            entAnchor->fillIn(prefabAnchor);
+            entAnchor->setTopAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Top});
+            entAnchor->setLeftAnchor(PosAnchor{prefabAnchor->entityId, AnchorType::Left});
             entAnchor->setZConstrain(PosConstrain{event.prefabId, AnchorType::Z});
 
             auto prefab = prefabEnt->get<Prefab>();
@@ -288,6 +171,65 @@ namespace pg
 
         virtual void execute() override
         {
+        }
+
+        virtual std::string getSystemName() const override { return "Prefab System"; }
+
+        void updatePrefabEntity(EntityRef prefabEnt, EntityRef targetEnt)
+        {
+            auto prefabPos = prefabEnt->get<PositionComponent>();
+
+            // Without a position component, we cannot work on adding the entity to the prefab ui, so we skip the rest
+            if (not targetEnt->has<PositionComponent>())
+            {
+                LOG_MILE("Prefab", "Entity " << targetEnt.id << " can't be added to prefab as it doesn't have a PositionComponent!");
+                return;
+            }
+
+            auto pos = targetEnt->get<PositionComponent>();
+
+            bool renderable = prefabPos->isRenderable();
+
+            if (pos->observable != renderable)
+            {
+                pos->setObservable(renderable);
+            }
+
+            if (not prefabEnt->has<ClippedTo>())
+            {
+                if (targetEnt->has<ClippedTo>())
+                {
+                    ecsRef->detach<ClippedTo>(targetEnt);
+                }
+            }
+            else
+            {
+                auto clip = prefabEnt->get<ClippedTo>();
+
+                if (targetEnt->has<ClippedTo>())
+                {
+                    targetEnt->get<ClippedTo>()->setNewClipper(clip->clipperId);
+                }
+                else
+                {
+                    ecsRef->attach<ClippedTo>(targetEnt, clip->clipperId);
+                }
+            }
+        }
+
+        void updateAllPrefabEntities(EntityRef prefabEnt)
+        {
+            auto prefab = prefabEnt->get<Prefab>();
+
+            for (const auto& id : prefab->childrenIds)
+            {
+                auto ent = ecsRef->getEntity(id);
+
+                if (ent)
+                {
+                    updatePrefabEntity(prefabEnt, ent);
+                }
+            }
         }
 
         template<typename R, typename... Args>

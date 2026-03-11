@@ -1,6 +1,7 @@
 #include "application.h"
 
 #include "ECS/entitysystem.h"
+#include "ECS/entitysystem_vm_modules.h"
 
 #include "ECS/standardsystem.h"
 
@@ -13,6 +14,9 @@
 #include "UI/ttftext.h"
 
 #include "window.h"
+
+#include "particle_system.h"
+#include "particlemodule.h"
 
 using namespace pg;
 
@@ -190,6 +194,11 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
         ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
 
+        ecs.succeed<MasterRenderer, TTFTextSystem>();
+
+        // Register custom VM modules for scripts
+        ecs.registerCustomVmModule("particle", ParticleModule{&ecs});
+
         VM vm;
         ecs.setupVm(vm);
 
@@ -207,6 +216,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.registerSystem(createGameOverSystem());
 
         ecs.registerSystem(createFPSSystem());
+
+        // Create particle system
+        ecs.createSystem<ParticleSystem>();
 
         // Register collision handler for Bullet-Asteroid collisions
         makeCollisionHandleScript(&ecs, "res/asteroid/bullet_asteroid_collision.pg",

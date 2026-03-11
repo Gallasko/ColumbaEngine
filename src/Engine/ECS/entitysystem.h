@@ -335,7 +335,10 @@ namespace pg
             _succeed(sys1Id, sys2Id);
         }
 
-        void dumbTaskflow() const;
+        /** Dump the taskflow graph in Graphviz DOT format.
+         *  @param showEventNodes  When true (default), inject coloured event/group listener nodes.
+         *  @param outputFile      When non-empty, write to this file path instead of stdout. */
+        void dumbTaskflow(bool showEventNodes = true, const std::string& outputFile = "") const;
 
         //TODO make a template specialization capable of attaching an entity to an entity
 
@@ -538,12 +541,12 @@ namespace pg
         }
 
         template <typename Event>
-        void sendEvent(const Event& event, bool isGroupEvent = false)
+        void sendEvent(const Event& event, bool isDeferred = false)
         {
             LOG_THIS_MEMBER("ECS");
 
             // Select the appropriate dispatcher based on event type
-            auto& dispatcher = isGroupEvent ? groupEventDispatcher : eventDispatcher;
+            auto& dispatcher = isDeferred ? deferredEventDispatcher : eventDispatcher;
 
             // Dispatch the typed C++ event
             if (running)
@@ -644,6 +647,14 @@ namespace pg
 
         inline ElementType getSavedData(const std::string& id) const { return saveManager.getValue(id); }
 
+        /** Force an immediate save (used by browser lifecycle events in Emscripten). */
+        inline void forceSaveNow()
+        {
+            saveManager.forceSave();
+
+            registry.saveAllSystems();
+        }
+
         inline bool isRunning() const { return running; }
 
         inline size_t getNbSystems() const { return systems.size(); }
@@ -661,6 +672,29 @@ namespace pg
         }
 
         void setupVm(VM& vm);
+
+        /**
+         * @brief Register a custom VM module that will be added to all VMs created by this ECS
+         *
+         * This allows game-specific native modules to be available in all scripts (systems, events, etc.)
+         * The module must be movable or copyable.
+         *
+         * @param name The name to import the module as (e.g., "particle" for import "particle")
+         * @param module The native module instance (must be movable/copyable)
+         *
+         * Example:
+         * @code
+         * ecs.registerCustomVmModule("particle", ParticleModule{&ecs});
+         * @endcode
+         */
+        template<typename ModuleType>
+        void registerCustomVmModule(const std::string& name, ModuleType&& module);
+
+        // Helper for storing module registration
+        void addCustomVmModuleRegistrar(std::function<void(VM&)>&& registrar)
+        {
+            customVmModules.push_back(std::move(registrar));
+        }
 
     private:
         // Todo maybe
@@ -806,7 +840,7 @@ namespace pg
 
         EventDispatcher eventDispatcher;
 
-        EventDispatcher groupEventDispatcher;
+        EventDispatcher deferredEventDispatcher;
 
         SaveManager saveManager;
 
@@ -822,6 +856,9 @@ namespace pg
         /** Pimpl for taskflow types to reduce header compilation time */
         struct TaskflowImpl;
         std::unique_ptr<TaskflowImpl> taskflowImpl;
+
+        /** Custom VM modules to be added to all VMs created by this ECS */
+        std::vector<std::function<void(VM&)>> customVmModules;
     };
 
     template <typename Comp>
@@ -1020,7 +1057,16 @@ namespace pg
         });
 
         componentSerializeMap.emplace(id, [owner](Archive& archive, const Entity* entity) {
-            serialize(archive, *(owner->getComponent(entity->id)));
+            if constexpr(HasStaticName<Type>::value)
+            {
+                serialize(archive, *(owner->getComponent(entity->id)));
+            }
+            else
+            {
+                (void)owner;
+                (void)archive;
+                (void)entity;
+            }
         });
 
         // Store component type name for fast lookup
@@ -1138,7 +1184,7 @@ namespace pg
             }
             else
             {
-                LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity");
+                LOG_ERROR("Comp ref", "Copy of a reference to an invalid entity(" << entityId << ")");
             }
         }
     }

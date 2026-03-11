@@ -4,6 +4,7 @@ import "math"
 import "random"
 import "texture"
 import "algorithm"
+import "particle"
 
 // This script is called when a Bullet and an Asteroid collide
 // Need to detect which entity is which since order can vary
@@ -69,6 +70,9 @@ if (currentHealth <= 0)
 
     // Remove the destroyed asteroid
     removeEntity(asteroid.__entityId)
+
+    // Spawn dark particles for explosion effect
+    spawnParticles(asteroidX, asteroidY, 8, 3355443, 3.0)
 
     // Asteroid is destroyed - spawn smaller asteroids if applicable
     logInfo("Asteroid destroyed!")
@@ -143,5 +147,5 @@ else
 {
     // Asteroid still has health - just update the health value
     logInfo("Asteroid damaged! Remaining health: " + toString(currentHealth))
-    asteroidData.setHealth(currentHealth)
+    asteroidData.health = (currentHealth)
 }

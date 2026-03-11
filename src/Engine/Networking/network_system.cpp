@@ -204,7 +204,7 @@ namespace pg
         // 2) Process incoming packets
         // Process Tcp data
 
-        auto now = getCurrentTime();
+        std::set<uint32_t> disconnectedClients;
 
         for (auto& client : clients)
         {
@@ -217,6 +217,7 @@ namespace pg
             {
                 if (sendTCPMessage(ci.clientId, ci.token, NetMsgType::Ping, {0}, ci.tcpSock))
                 {
+                    auto now = getCurrentTime();
                     LOG_INFO("NetSys", "Sent ping to client: " << ci.clientId << " at time: " << now);
                     ci.lastPingSentMs = 0;
                 }
@@ -241,6 +242,14 @@ namespace pg
                     handleServerMessage(msg.header, msg.payload);
                 }
             }
+
+            if (tcpClosed)
+            {
+                LOG_WARNING("NetSys", "TCP connection closed by client: " << ci.clientId);
+
+                disconnectedClients.insert(ci.clientId);
+                break;
+            }
         }
 
         // Process Udp data
@@ -258,6 +267,11 @@ namespace pg
                 handleServerMessage(msg.header, msg.payload);
             }
             // LOG_INFO("NetSys", "Received UDP request from ip: " << ipPortKey(ip));
+        }
+
+        for (auto id : disconnectedClients)
+        {
+            disconnectClient(id);
         }
     }
 
@@ -361,6 +375,23 @@ namespace pg
         }
 
         handleMessage(header, payload);
+    }
+
+    void NetworkSystem::disconnectClient(uint32_t id)
+    {
+        auto it = idToTcp.find(id);
+
+        if (it != idToTcp.end())
+        {
+            auto tcpSock = it->second;
+
+            clients.erase(tcpSock);
+            idToTcp.erase(it);
+
+            backend->closeTcp(tcpSock);
+
+            LOG_INFO("NetSys", "Client " << id << " disconnected and cleaned up");
+        }
     }
 
 } // namespace pg

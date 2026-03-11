@@ -105,6 +105,14 @@ namespace pg
 
         std::string __name = "UnNamed";
 
+        /** Events this system subscribes to.
+         *  Each entry is "L:mangled_type" (Listener<T>) or "Q:mangled_type" (QueuedListener<T>). */
+        std::vector<std::string> _listenerEventNames;
+
+        /** Groups registered via registerGroup<>() – stored as mangled type names.
+         *  Mutable because registerGroup() is a const method (also called from viewGroup()). */
+        mutable std::vector<std::string> _registeredGroupNames;
+
         // Todo make function onAdd and onDelete of a component that default to nothing if not used
     };
 
@@ -434,6 +442,7 @@ namespace pg
         LOG_INFO("System", "Registering a listener to event '" << typeid(Event).name() << "' to the system.");
 
         static_cast<Listener<Event>*>(system)->setRegistry(registry);
+        system->_listenerEventNames.push_back(std::string("L:") + typeid(Event).name());
         registerComponents(system, registry, comps...);
     }
 
@@ -457,6 +466,7 @@ namespace pg
         });
 
         static_cast<QueuedListener<Event>*>(system)->setRegistry(registry);
+        system->_listenerEventNames.push_back(std::string("Q:") + typeid(Event).name());
         registerComponents(system, registry, comps...);
     }
 
@@ -555,6 +565,14 @@ namespace pg
 
             if (not loaded)
                 system->firstLoad();
+
+            registry->registerSystemSaveSystem(name, [system, name](Archive& ar) {
+                ar.startSerialization(name);
+
+                system->save(ar);
+
+                ar.endSerialization();
+            });
         }
         else
         {
@@ -588,15 +606,12 @@ namespace pg
         LOG_INFO("System", "Saving system data...");
 
         auto name = system->__name;
+
         if (name != "UnNamed")
         {
-            registry->saveSystem([system, name](Archive& ar) {
-                ar.startSerialization(name);
+            registry->saveSystem(name);
 
-                system->save(ar);
-
-                ar.endSerialization();
-            }, name);
+            registry->unregisterSystemSave(name);
         }
         else
         {
@@ -684,7 +699,7 @@ namespace pg
 
             if ((executionPolicy == ExecutionPolicy::Manual or executionPolicy == ExecutionPolicy::Storage) and _executionQueue.size() > 0)
             {
-                LOG_WARNING("System", "Trying to add a QueuedListener to a system that will not have an execute call. (Remove the Manual/Storage policy or call execute())");
+                LOG_WARNING("System", "Trying to add a QueuedListener to a system(" << __name << ") that will not have an execute call. (Remove the Manual/Storage policy or call execute())");
             }
 
             onRegisterFinished();
@@ -794,6 +809,14 @@ namespace pg
                 LOG_ERROR("System", "No registry specified, can't create a group");
                 return nullptr;
             }
+
+            // Track this group type once (viewGroup() calls us on every execute, so deduplicate)
+            const char* groupTypeName = typeid(Group<Type, Types...>).name();
+            bool alreadyTracked = false;
+            for (const auto& g : _registeredGroupNames)
+                if (g == groupTypeName) { alreadyTracked = true; break; }
+            if (not alreadyTracked)
+                _registeredGroupNames.push_back(groupTypeName);
 
             const auto& groupId = registry->getTypeId<Group<Type, Types...>>();
 

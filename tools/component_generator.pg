@@ -25,6 +25,7 @@ class ComponentSchema
         this.baseClass = data["base_class"]
         this.shortname = data["shortname"]
         this.constructors = data["constructors"]
+        this.enums = data["enums"]
     }
 
     getField(index)
@@ -41,6 +42,57 @@ class ComponentSchema
 // ============================================================================
 // Code Generators
 // ============================================================================
+
+fun getFieldType(field)
+{
+    var fieldType = field["type"]
+
+    if (fieldType == "string")
+    {
+        return "std::string"
+    }
+
+    return fieldType
+}
+
+// Returns true if typeName is one of the enums declared in the schema
+fun isEnumType(schema, typeName)
+{
+    if (not contain(schema, "enums") or typeOf(schema["enums"]) != "array")
+    {
+        return false
+    }
+
+    for (var i = 0; i < len(schema["enums"]); i = i + 1)
+    {
+        if (schema["enums"][i]["name"] == typeName)
+        {
+            return true
+        }
+    }
+
+    return false
+}
+
+// Returns the first field name of the given enum type (used as default value)
+fun getEnumFirstField(schema, typeName)
+{
+    if (not contain(schema, "enums") or typeOf(schema["enums"]) != "array")
+    {
+        return ""
+    }
+
+    for (var i = 0; i < len(schema["enums"]); i = i + 1)
+    {
+        var enumDef = schema["enums"][i]
+        if (enumDef["name"] == typeName and contain(enumDef, "fields") and len(enumDef["fields"]) > 0)
+        {
+            return enumDef["fields"][0]
+        }
+    }
+
+    return ""
+}
 
 class HeaderGenerator
 {
@@ -60,6 +112,11 @@ class HeaderGenerator
             {
                 code += "#include " + schema["includes"][i] + "\n"
             }
+
+            if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+            {
+                code += "#include \"Helpers/helpers.h\"\n"
+            }
             code += "\n"
         }
 
@@ -76,6 +133,49 @@ class HeaderGenerator
                 code += schema["forwards"][i] + "\n"
             }
             code += "\n"
+        }
+
+        // Enum declarations + string conversion maps
+        if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+        {
+            for (var ei = 0; ei < len(schema["enums"]); ei = ei + 1)
+            {
+                var enumDef = schema["enums"][ei]
+                var enumName = enumDef["name"]
+                var enumFields = enumDef["fields"]
+
+                // enum class declaration
+                code += "enum class " + enumName + " : uint8_t\n{\n"
+                for (var fi = 0; fi < len(enumFields); fi = fi + 1)
+                {
+                    code += "    " + enumFields[fi]
+                    if (fi == 0)
+                    {
+                        code += " = 0"
+                    }
+                    code += ",\n"
+                }
+                code += "};\n\n"
+
+                // EnumName -> string map  (e.g. shapeToString)
+                var mapName = lowerize(enumName) + "ToString"
+                code += "const static std::unordered_map<" + enumName + ", std::string> " + mapName + " = {\n"
+                for (var fi = 0; fi < len(enumFields); fi = fi + 1)
+                {
+                    code += "    {" + enumName + "::" + enumFields[fi] + ", \"" + enumFields[fi] + "\"},\n"
+                }
+                code += "};\n\n"
+
+                // string -> EnumName map  (e.g. stringToShape)
+                var revMapName = "stringTo" + enumName
+                code += "const static auto " + revMapName + " = invertMap(" + mapName + ");\n\n"
+
+                // Serialization template declarations for this enum
+                code += "template <>\n"
+                code += "void serialize(Archive& archive, const " + enumName + "& value);\n\n"
+                code += "template <>\n"
+                code += enumName + " deserialize(const UnserializedObject& serializedString);\n\n"
+            }
         }
 
         // Event structs
@@ -110,19 +210,35 @@ class HeaderGenerator
         for (var i = 0; i < len(schema.fields); i = i + 1)
         {
             var field = schema.fields[i]
-            code += "    " + field["type"] + " " + field["name"]
+            var fieldType = getFieldType(field)
+
+            code += "    " + fieldType + " " + field["name"]
 
             if (contain(field, "default"))
             {
                 var defaultValue = field["default"]
                 // For string types, ensure quotes are preserved
-                if (contains(field["type"], "string") and typeOf(defaultValue) == "string")
+                if (fieldType == "std::string" and typeOf(defaultValue) == "string")
                 {
                     code += " = \"" + defaultValue + "\""
+                }
+                else if (isEnumType(schema, fieldType))
+                {
+                    // Enum default: must be qualified with EnumName::
+                    code += " = " + fieldType + "::" + toString(defaultValue)
                 }
                 else
                 {
                     code += " = " + toString(defaultValue)
+                }
+            }
+            else if (isEnumType(schema, fieldType))
+            {
+                // No default provided: use the first enum field (value = 0)
+                var firstField = getEnumFirstField(schema, fieldType)
+                if (firstField != "")
+                {
+                    code += " = " + fieldType + "::" + firstField
                 }
             }
 
@@ -167,7 +283,7 @@ class HeaderGenerator
                     {
                         if (schema.fields[fieldIdx]["name"] == paramName)
                         {
-                            fieldType = schema.fields[fieldIdx]["type"]
+                            fieldType = getFieldType(schema.fields[fieldIdx])
 
                             // Check if there's a custom default for this param in the constructor
                             if (contain(ctorDefaults, paramName))
@@ -255,7 +371,7 @@ class HeaderGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var getterName = "get" + capitalize(fieldName)
 
             code += "    " + fieldType + " " + getterName + "() const { return " + fieldName + "; }\n"
@@ -268,7 +384,7 @@ class HeaderGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var setterName = "set" + capitalize(fieldName)
 
             if (contain(field, "setter"))
@@ -332,6 +448,8 @@ class ProxyMetadataGenerator
 {
     generate(schema)
     {
+        this.schema = schema  // store for use in helper methods
+
         var code = ""
 
         // Generate metadata registration inside anonymous namespace
@@ -357,7 +475,7 @@ class ProxyMetadataGenerator
             log("Generating proxy metadata for field " + toString(i) + " of component " + schema.name)
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
 
             // Skip fields that shouldn't be exposed
             if (contain(field, "serialize") and field["serialize"] == false)
@@ -379,13 +497,12 @@ class ProxyMetadataGenerator
             code += "        metadata.properties.emplace(\"" + fieldName + "\", PropertyMetadata{\n"
             code += "            \"" + fieldName + "\",\n"
             code += "            pg::PropertyType::" + propType + ",\n"
+            code += "            " + toString(writable) + ",\n"
 
             code += "            [](void* comp, VM* vm) -> Value {\n"
             code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
             code += this.generateGetterCall(schema.name, field);
             code += "            },\n"
-
-            code += "            " + toString(writable) + ",\n"
 
             // Generate setter lambda if writable
             if (writable)
@@ -393,6 +510,23 @@ class ProxyMetadataGenerator
                 code += "            [](void* comp, VM* vm, Value val) {\n"
                 code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
                 code += this.generateSetterCall(schema.name, field)
+                code += "            },\n"
+            }
+            else
+            {
+                code += "            nullptr,\n"
+            }
+
+            code += "            [](void* comp) -> std::string {\n"
+            code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
+            code += this.generateSGetterCall(schema.name, field);
+            code += "            },\n"
+
+            if (writable)
+            {
+                code += "            [](void* comp, const std::string& val) {\n"
+                code += "                auto* c = static_cast<" + schema.name + "*>(comp);\n"
+                code += this.generateSSetterCall(schema.name, field)
                 code += "            }\n"
             }
             else
@@ -424,24 +558,25 @@ class ProxyMetadataGenerator
         if (cppType == "double") return "Double"
         if (cppType == "int") return "Int"
         if (cppType == "bool") return "Bool"
-        if (cppType == "std::string") return "String"
+        if (cppType == "std::string" or cppType == "string") return "String"
         if (cppType == "_unique_id") return "UniqueId"
         if (cppType == "unsigned int" or cppType == "size_t") return "UnsignedInt"
+        if (cppType == "constant::Vector3D" or cppType == "pg::constant::Vector3D") return "Vector3D"
+        if (cppType == "constant::Vector4D" or cppType == "pg::constant::Vector4D") return "Vector4D"
 
-        // Default to Int for unknown types
-        return "Int"
+        // Enum types are represented as strings in the proxy
+        if (isEnumType(this.schema, cppType)) return "String"
+
+        // Default to Custom for unknown types
+        return "Custom"
     }
 
     generateGetterCall(componentName, field)
     {
         var fieldName = field["name"]
-        var fieldType = field["type"]
+        var fieldType = getFieldType(field)
         var getterName = "get" + capitalize(fieldName)
         var code = ""
-
-        // Track which parameters are used to add (void) casts for unused ones
-        var usesVm = false
-        var usesVal = true  // val is always used
 
         if (fieldType == "float")
         {
@@ -473,41 +608,44 @@ class ProxyMetadataGenerator
             code += "                (void)vm; // Suppress unused parameter warning\n"
             code += "                return makeBoolValue(c->" + getterName + "());\n"
         }
-        else if (fieldType == "std::string")
+        else if (fieldType == "std::string" or fieldType == "string")
         {
-            usesVm = true
             code += "                return vm->createString(c->" + getterName + "());\n"
         }
         else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
         {
-            usesVm = true
             code += "                // Convert Vector3D to table\n"
             code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
             code += "                Klass* tableClass = vm->asClass(it->second);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
-            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
-            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
+            code += "                auto vec = c->" + getterName + "();\n\n"
             code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
             code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
-            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
+            code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n\n"
             code += "                return tableValue;\n"
         }
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
-            usesVm = true
             code += "                // Convert Vector4D to table\n"
             code += "                auto it = vm->globals.find(\"__Table\");\n"
-            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n"
+            code += "                if (it == vm->globals.end()) return INT_VAL(0);\n\n"
             code += "                Klass* tableClass = vm->asClass(it->second);\n"
             code += "                Value tableValue = vm->createInstance(tableClass);\n"
-            code += "                ObjInstance* table = vm->asInstance(tableValue);\n"
-            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                ObjInstance* table = vm->asInstance(tableValue);\n\n"
+            code += "                auto vec = c->" + getterName + "();\n\n"
             code += "                table->setField(\"x\", makeFloatValue(vec.x), vm, true);\n"
             code += "                table->setField(\"y\", makeFloatValue(vec.y), vm, true);\n"
             code += "                table->setField(\"z\", makeFloatValue(vec.z), vm, true);\n"
-            code += "                table->setField(\"w\", makeFloatValue(vec.w), vm, true);\n"
+            code += "                table->setField(\"w\", makeFloatValue(vec.w), vm, true);\n\n"
             code += "                return tableValue;\n"
+        }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var mapName = lowerize(fieldType) + "ToString"
+            code += "                (void)vm;\n"
+            code += "                return vm->createString(" + mapName + ".at(c->" + getterName + "()));\n"
         }
         else
         {
@@ -520,98 +658,231 @@ class ProxyMetadataGenerator
         return code
     }
 
-    generateSetterCall(componentName, field)
+    generateSGetterCall(componentName, field)
     {
         var fieldName = field["name"]
-        var fieldType = field["type"]
-        var setterName = "set" + capitalize(fieldName)
+        var fieldType = getFieldType(field)
+        var getterName = "get" + capitalize(fieldName)
         var code = ""
-
-        // Track which parameters are used to add (void) casts for unused ones
-        var usesVm = false
-        var usesVal = true  // val is always used
 
         if (fieldType == "float")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));\n"
-            code += "                    c->" + setterName + "(v);\n"
+            code += "                return std::to_string(c->" + getterName + "());\n"
         }
         else if (fieldType == "double")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    double v = IS_DOUBLE(val) ? AS_DOUBLE(val) : static_cast<double>(AS_INT(val));\n"
-            code += "                    c->" + setterName + "(v);\n"
+            code += "                return std::to_string(c->" + getterName + "());\n"
         }
         else if (fieldType == "int")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(static_cast<int>(AS_INT(val)));\n"
+            code += "                return std::to_string(c->" + getterName + "());\n"
         }
         else if (fieldType == "_unique_id")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(static_cast<_unique_id>(AS_INT(val)));\n"
+            code += "                return std::to_string(c->" + getterName + "());\n"
         }
         else if (fieldType == "unsigned int" or fieldType == "size_t")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(static_cast<unsigned int>(AS_INT(val)));\n"
+            code += "                return std::to_string(c->" + getterName + "());\n"
         }
         else if (fieldType == "bool")
         {
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    c->" + setterName + "(AS_BOOL(val));\n"
+            code += "                return std::to_string(c->" + getterName + "());\n"
         }
-        else if (fieldType == "std::string")
+        else if (fieldType == "std::string" or fieldType == "string")
         {
-            usesVm = true
-            code += "                    c->" + setterName + "(vm->asString(val));\n"
+            code += "                return c->" + getterName + "();\n"
         }
         else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
         {
-            usesVm = true
-            code += "                    // Convert table or vector to Vector3D\n"
-            code += "                    if (IS_INSTANCE(val)) {\n"
-            code += "                        ObjInstance* table = vm->asInstance(val);\n"
-            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
-            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
-            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
-            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
-            code += "                    } else if (IS_VECTOR(val)) {\n"
-            code += "                        ObjVector* vec = vm->asVector(val);\n"
-            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
-            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
-            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
-            code += "                        c->" + setterName + "(constant::Vector3D(x, y, z));\n"
-            code += "                    }\n"
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                return std::to_string(vec.x) + \",\" + std::to_string(vec.y) + \",\" + std::to_string(vec.z);\n"
         }
         else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
         {
-            usesVm = true
-            code += "                    // Convert table or vector to Vector4D\n"
-            code += "                    if (IS_INSTANCE(val)) {\n"
-            code += "                        ObjInstance* table = vm->asInstance(val);\n"
-            code += "                        float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
-            code += "                        float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
-            code += "                        float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
-            code += "                        float w = static_cast<float>(AS_DOUBLE(table->getField(\"w\")));\n"
-            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
-            code += "                    } else if (IS_VECTOR(val)) {\n"
-            code += "                        ObjVector* vec = vm->asVector(val);\n"
-            code += "                        float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
-            code += "                        float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
-            code += "                        float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
-            code += "                        float w = vec->fields.size() > 3 ? static_cast<float>(AS_DOUBLE(vec->fields[3])) : 0.0f;\n"
-            code += "                        c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
-            code += "                    }\n"
+            code += "                auto vec = c->" + getterName + "();\n"
+            code += "                return std::to_string(vec.x) + \",\" + std::to_string(vec.y) + \",\" + std::to_string(vec.z); + \",\" + std::to_string(vec.w);\n"
+        }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var mapName = lowerize(fieldType) + "ToString"
+            code += "                return " + mapName + ".at(c->" + getterName + "());\n"
         }
         else
         {
             // Fallback for unknown types
-            code += "                    (void)vm; // Suppress unused parameter warning\n"
-            code += "                    (void)val; // Suppress unused parameter warning\n"
-            code += "                    // TODO: Handle setter for type " + fieldType + "\n"
+            code += "                // TODO: Handle getter for type " + fieldType + "\n"
+            code += "                return \"\";\n"
+        }
+
+        return code
+    }
+
+    generateSetterCall(componentName, field)
+    {
+        var fieldName = field["name"]
+        var fieldType = getFieldType(field)
+        var setterName = "set" + capitalize(fieldName)
+        var code = ""
+
+        if (fieldType == "float")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                float v = IS_DOUBLE(val) ? static_cast<float>(AS_DOUBLE(val)) : static_cast<float>(AS_INT(val));\n"
+            code += "                c->" + setterName + "(v);\n"
+        }
+        else if (fieldType == "double")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                double v = IS_DOUBLE(val) ? AS_DOUBLE(val) : static_cast<double>(AS_INT(val));\n"
+            code += "                c->" + setterName + "(v);\n"
+        }
+        else if (fieldType == "int")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(static_cast<int>(AS_INT(val)));\n"
+        }
+        else if (fieldType == "_unique_id")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(static_cast<_unique_id>(AS_INT(val)));\n"
+        }
+        else if (fieldType == "unsigned int" or fieldType == "size_t")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(static_cast<unsigned int>(AS_INT(val)));\n"
+        }
+        else if (fieldType == "bool")
+        {
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                c->" + setterName + "(AS_BOOL(val));\n"
+        }
+        else if (fieldType == "std::string" or fieldType == "string")
+        {
+            code += "                c->" + setterName + "(vm->asString(val));\n"
+        }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            code += "                // Convert table or vector to Vector3D\n"
+            code += "                if (IS_INSTANCE(val))\n                {\n"
+            code += "                    ObjInstance* table = vm->asInstance(val);\n\n"
+            code += "                    float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                    float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                    float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n\n"
+            code += "                    c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                }\n                else if (IS_VECTOR(val))\n                {\n"
+            code += "                    ObjVector* vec = vm->asVector(val);\n\n"
+            code += "                    float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                    float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                    float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n\n"
+            code += "                    c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+            code += "                }\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            code += "                // Convert table or vector to Vector4D\n"
+            code += "                if (IS_INSTANCE(val))\n                {\n"
+            code += "                    ObjInstance* table = vm->asInstance(val);\n\n"
+            code += "                    float x = static_cast<float>(AS_DOUBLE(table->getField(\"x\")));\n"
+            code += "                    float y = static_cast<float>(AS_DOUBLE(table->getField(\"y\")));\n"
+            code += "                    float z = static_cast<float>(AS_DOUBLE(table->getField(\"z\")));\n"
+            code += "                    float w = static_cast<float>(AS_DOUBLE(table->getField(\"w\")));\n\n"
+            code += "                    c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                }\n                else if (IS_VECTOR(val))\n                {\n"
+            code += "                    ObjVector* vec = vm->asVector(val);\n\n"
+            code += "                    float x = vec->fields.size() > 0 ? static_cast<float>(AS_DOUBLE(vec->fields[0])) : 0.0f;\n"
+            code += "                    float y = vec->fields.size() > 1 ? static_cast<float>(AS_DOUBLE(vec->fields[1])) : 0.0f;\n"
+            code += "                    float z = vec->fields.size() > 2 ? static_cast<float>(AS_DOUBLE(vec->fields[2])) : 0.0f;\n"
+            code += "                    float w = vec->fields.size() > 3 ? static_cast<float>(AS_DOUBLE(vec->fields[3])) : 0.0f;\n\n"
+            code += "                    c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+            code += "                }\n"
+        }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var revMapName = "stringTo" + fieldType
+            code += "                auto enumIt = " + revMapName + ".find(vm->asString(val));\n"
+            code += "                if (enumIt != " + revMapName + ".end()) c->" + setterName + "(enumIt->second);\n"
+        }
+        else
+        {
+            // Fallback for unknown types
+            code += "                (void)vm; // Suppress unused parameter warning\n"
+            code += "                (void)val; // Suppress unused parameter warning\n"
+            code += "                // TODO: Handle setter for type " + fieldType + "\n"
+        }
+
+        return code
+    }
+
+    generateSSetterCall(componentName, field)
+    {
+        var fieldName = field["name"]
+        var fieldType = getFieldType(field)
+        var setterName = "set" + capitalize(fieldName)
+        var code = ""
+
+        if (fieldType == "float")
+        {
+            code += "                c->" + setterName + "(std::stof(val));\n"
+        }
+        else if (fieldType == "double")
+        {
+            code += "                c->" + setterName + "(std::stod(val));\n"
+        }
+        else if (fieldType == "int")
+        {
+            code += "                c->" + setterName + "(std::stoi(val));\n"
+        }
+        else if (fieldType == "_unique_id")
+        {
+            code += "                c->" + setterName + "(static_cast<_unique_id>(std::stoull(val)));\n"
+        }
+        else if (fieldType == "unsigned int" or fieldType == "size_t")
+        {
+            code += "                c->" + setterName + "(static_cast<unsigned int>(std::stoul(val)));\n"
+        }
+        else if (fieldType == "bool")
+        {
+            code += "                c->" + setterName + "(val == \"true\" or val == \"1\");\n"
+        }
+        else if (fieldType == "std::string" or fieldType == "string")
+        {
+            code += "                c->" + setterName + "(val);\n"
+        }
+        else if (fieldType == "constant::Vector3D" or fieldType == "pg::constant::Vector3D")
+        {
+            code += "                // Parse comma-separated \"x,y,z\"\n"
+            code += "                float x = 0.0f, y = 0.0f, z = 0.0f;\n\n"
+            code += "                std::istringstream ss(val);\n"
+            code += "                std::string tok;\n"
+            code += "                if (std::getline(ss, tok, ',')) x = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) y = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) z = std::stof(tok);\n\n"
+            code += "                c->" + setterName + "(constant::Vector3D(x, y, z));\n"
+        }
+        else if (fieldType == "constant::Vector4D" or fieldType == "pg::constant::Vector4D")
+        {
+            code += "                // Parse comma-separated \"x,y,z,w\"\n"
+            code += "                float x = 0.0f, y = 0.0f, z = 0.0f, w = 0.0f;\n\n"
+            code += "                std::istringstream ss(val);\n"
+            code += "                std::string tok;\n"
+            code += "                if (std::getline(ss, tok, ',')) x = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) y = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) z = std::stof(tok);\n"
+            code += "                if (std::getline(ss, tok, ',')) w = std::stof(tok);\n\n"
+            code += "                c->" + setterName + "(constant::Vector4D(x, y, z, w));\n"
+        }
+        else if (isEnumType(this.schema, fieldType))
+        {
+            var revMapName = "stringTo" + fieldType
+            code += "                auto enumIt = " + revMapName + ".find(val);\n"
+            code += "                if (enumIt != " + revMapName + ".end()) c->" + setterName + "(enumIt->second);\n"
+        }
+        else
+        {
+            // Fallback for unknown types
+            code += "                (void)val;\n"
+            code += "                // TODO: Handle string setter for type " + fieldType + "\n"
         }
 
         return code
@@ -627,6 +898,7 @@ class SerializationGenerator
         // Include necessary headers
         code += "#include \"stdafx.h\"\n\n"
         code += "#include \"" + schema.name + ".generated.h\"\n\n"
+        code += "#include <sstream>\n\n"
         code += "#include \"Compiler/ecsserialization.h\"\n"
         code += "#include \"ECS/entitysystem.h\"\n\n"
 
@@ -649,7 +921,7 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var setterName = "set" + capitalize(fieldName)
 
             if (contain(field, "setter") and field["setter"] != "none" and not contain(field, "customSerializationSetter"))
@@ -673,7 +945,7 @@ class SerializationGenerator
                 {
                     macroName = "REGISTER_DOUBLE_SETTER"
                 }
-                else if (fieldType == "std::string")
+                else if (fieldType == "std::string" or fieldType == "string")
                 {
                     macroName = "REGISTER_STRING_SETTER"
                 }
@@ -687,11 +959,29 @@ class SerializationGenerator
                 {
                     code += "    " + macroName + "(vm, table, component, " + setterName + ");\n"
                 }
+                else if (isEnumType(schema, fieldType))
+                {
+                    // Enum: generate a custom VM setter that converts string -> enum
+                    var revMapName = "stringTo" + fieldType
+                    code += "    auto " + fieldName + "EnumSetter = [component](VM* vm, int argCount, Value* args) -> Value {\n"
+                    code += "        if (argCount > 0 && IS_STRING(args[0])) {\n"
+                    code += "            auto it = " + revMapName + ".find(vm->asString(args[0]));\n"
+                    code += "            if (it != " + revMapName + ".end()) component->" + setterName + "(it->second);\n"
+                    code += "        }\n"
+                    code += "        return INT_VAL(0);\n"
+                    code += "    };\n"
+                    code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "EnumSetter));\n"
+                }
             }
             else if (contain(field, "customSerializationSetter"))
             {
+                code += "    auto " + fieldName + "CustomSetter = [component](VM* vm, int argCount, Value* args) -> Value {\n"
+
                 var customCode = field["customSerializationSetter"]
                 code += "    " + customCode + "\n"
+
+                code += "    };\n"
+                code += "    table->setField(\"" + setterName + "\", vm->createNativeFunction(" + fieldName + "CustomSetter));\n"
             }
         }
 
@@ -710,7 +1000,7 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var defaultValue = ""
 
             if (contain(field, "default"))
@@ -720,6 +1010,10 @@ class SerializationGenerator
                 if (contains(fieldType, "string") and typeOf(defVal) == "string")
                 {
                     defaultValue = " = \"" + defVal + "\""
+                }
+                else if (isEnumType(schema, fieldType))
+                {
+                    defaultValue = " = " + fieldType + "::" + toString(defVal)
                 }
                 else
                 {
@@ -741,6 +1035,14 @@ class SerializationGenerator
                 {
                     defaultValue = " = false"
                 }
+                else if (isEnumType(schema, fieldType))
+                {
+                    var firstField = getEnumFirstField(schema, fieldType)
+                    if (firstField != "")
+                    {
+                        defaultValue = " = " + fieldType + "::" + firstField
+                    }
+                }
             }
 
             code += "    " + fieldType + " " + fieldName + defaultValue + ";\n"
@@ -750,7 +1052,7 @@ class SerializationGenerator
         code += "    for (int i = 0; i < argCount; i += 2)\n"
         code += "    {\n"
         code += "        if (i + 1 >= argCount) break;\n\n"
-        code += "        if (!IS_STRING(args[i]))\n"
+        code += "        if (not IS_STRING(args[i]))\n"
         code += "        {\n"
         code += "            LOG_ERROR(\"ECS Serialization\", \"attachComp expects string keys for properties\");\n"
         code += "            continue;\n"
@@ -763,7 +1065,7 @@ class SerializationGenerator
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
 
             var extractFunc = ""
             if (fieldType == "float" or fieldType == "double")
@@ -791,6 +1093,25 @@ class SerializationGenerator
                     code += "        else if (key == \"" + fieldName + "\")\n"
                 }
                 code += "            " + fieldName + " = " + extractFunc + "(args, i + 1);\n"
+            }
+            else if (isEnumType(schema, fieldType))
+            {
+                var revMapName = "stringTo" + fieldType
+                if (firstField)
+                {
+                    code += "        if (key == \"" + fieldName + "\")\n"
+                    firstField = false
+                }
+                else
+                {
+                    code += "        else if (key == \"" + fieldName + "\")\n"
+                }
+                code += "        {\n"
+                code += "            if (IS_STRING(args[i + 1])) {\n"
+                code += "                auto " + fieldName + "EnumIt = " + revMapName + ".find(vm->asString(args[i + 1]));\n"
+                code += "                if (" + fieldName + "EnumIt != " + revMapName + ".end()) " + fieldName + " = " + fieldName + "EnumIt->second;\n"
+                code += "            }\n"
+                code += "        }\n"
             }
         }
 
@@ -879,12 +1200,40 @@ class CppGenerator
             code += "namespace " + schema.namespace + "\n{\n\n"
         }
 
+        // Enum serialize / deserialize implementations
+        if (contain(schema, "enums") and typeOf(schema["enums"]) == "array" and len(schema["enums"]) > 0)
+        {
+            for (var ei = 0; ei < len(schema["enums"]); ei = ei + 1)
+            {
+                var enumDef = schema["enums"][ei]
+                var enumName = enumDef["name"]
+                var enumFields = enumDef["fields"]
+                var mapName = lowerize(enumName) + "ToString"
+                var revMapName = "stringTo" + enumName
+
+                // serialize specialization
+                code += "template <>\n"
+                code += "void serialize(Archive& archive, const " + enumName + "& value)\n{\n"
+                code += "    serialize(archive, " + mapName + ".at(value));\n"
+                code += "}\n\n"
+
+                // deserialize specialization
+                code += "template <>\n"
+                code += enumName + " deserialize(const UnserializedObject& serializedString)\n{\n"
+                code += "    auto str = deserialize<std::string>(serializedString);\n"
+                code += "    auto it = " + revMapName + ".find(str);\n"
+                code += "    if (it != " + revMapName + ".end()) return it->second;\n"
+                code += "    return " + enumName + "::" + enumFields[0] + "; // fallback to first value\n"
+                code += "}\n\n"
+            }
+        }
+
         // Setter implementations
         for (var i = 0; i < len(schema.fields); i = i + 1)
         {
             var field = schema.fields[i]
             var fieldName = field["name"]
-            var fieldType = field["type"]
+            var fieldType = getFieldType(field)
             var setterName = "set" + capitalize(fieldName)
 
             if (contain(field, "setter"))
@@ -997,7 +1346,15 @@ class CppGenerator
 
             if (shouldSerialize)
             {
-                code += "    serialize(archive, \"" + fieldName + "\", value." + fieldName + ");\n"
+                if (isEnumType(schema, getFieldType(field)))
+                {
+                    var mapName = lowerize(getFieldType(field)) + "ToString"
+                    code += "    serialize(archive, \"" + fieldName + "\", " + mapName + ".at(value." + fieldName + "));\n"
+                }
+                else
+                {
+                    code += "    serialize(archive, \"" + fieldName + "\", value." + fieldName + ");\n"
+                }
             }
         }
 
@@ -1026,7 +1383,20 @@ class CppGenerator
 
             if (shouldSerialize)
             {
-                code += "    defaultDeserialize(serializedString, \"" + fieldName + "\", data." + fieldName + ");\n"
+                if (isEnumType(schema, getFieldType(field)))
+                {
+                    var revMapName = "stringTo" + getFieldType(field)
+                    code += "    {\n"
+                    code += "        std::string " + fieldName + "Str;\n"
+                    code += "        defaultDeserialize(serializedString, \"" + fieldName + "\", " + fieldName + "Str);\n"
+                    code += "        auto " + fieldName + "It = " + revMapName + ".find(" + fieldName + "Str);\n"
+                    code += "        if (" + fieldName + "It != " + revMapName + ".end()) data." + fieldName + " = " + fieldName + "It->second;\n"
+                    code += "    }\n"
+                }
+                else
+                {
+                    code += "    defaultDeserialize(serializedString, \"" + fieldName + "\", data." + fieldName + ");\n"
+                }
             }
         }
 

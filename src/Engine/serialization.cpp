@@ -128,6 +128,16 @@ namespace pg
         archive.setAttribute(std::to_string(value), "size_t");
     }
 
+#ifdef __EMSCRIPTEN__
+    template <>
+    void serialize(Archive& archive, const unsigned long long& value)
+    {
+        LOG_THIS(DOM);
+
+        archive.setAttribute(std::to_string(value), "size_t");
+    }
+#endif
+
     template <>
     void serialize(Archive& archive, const std::string& value)
     {
@@ -331,6 +341,30 @@ namespace pg
 
         return value;
     }
+
+#ifdef __EMSCRIPTEN__
+    template <>
+    unsigned long long deserialize(const UnserializedObject& serializedString)
+    {
+        LOG_THIS(DOM);
+
+        size_t value = 0;
+
+        auto attribute = serializedString.getAsAttribute();
+
+        // Todo check this
+        if (attribute.name != "size_t" and attribute.name != "unsigned int" and attribute.name != "int")
+        {
+            LOG_ERROR(DOM, "Serialized string [" << serializedString.getObjectName() << "] is not an integer (" << attribute.name << ")");
+            return value;
+        }
+
+        std::stringstream sstream(attribute.value);
+        sstream >> value;
+
+        return value;
+    }
+#endif
 
     template <>
     std::string deserialize(const UnserializedObject& serializedString)

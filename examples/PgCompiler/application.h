@@ -20,6 +20,7 @@ private:
     std::string fileName;
     bool profilingEnabled;
     bool needCompileOnly = false;
+    bool needGeneratedBytecodeOutput = false;
     pg::VmOptimizationLevel optimizationLevel = pg::VmOptimizationLevel::O3;
     int m_argc;
     char** m_argv;

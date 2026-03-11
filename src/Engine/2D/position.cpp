@@ -687,7 +687,6 @@ namespace pg
         ecsRef = entity->world();
 
         ecsRef->sendEvent(ParentingEvent{clipperId, id});
-        ecsRef->sendEvent(EntityChangedEvent{id});
     }
 
     void ClippedTo::setNewClipper(_unique_id clipperId)
@@ -698,7 +697,6 @@ namespace pg
 
             this->clipperId = clipperId;
             ecsRef->sendEvent(ParentingEvent{clipperId, id});
-            ecsRef->sendEvent(EntityChangedEvent{id});
         }
     }
 
@@ -842,8 +840,8 @@ namespace pg
                 LOG_MILE(DOM, "Entity " << id << " has NO UiAnchor");
             }
 
-            LOG_MILE(DOM, "Sending EntityChangedEvent for entity " << id);
-            ecsRef->sendEvent(EntityChangedEvent{id});
+            // LOG_MILE(DOM, "Sending EntityChangedEvent for entity " << id);
+            // ecsRef->sendEvent(EntityChangedEvent{id});
 
             if (anchorChanged)
             {

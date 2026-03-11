@@ -22,14 +22,14 @@ namespace pg
 {
     namespace editor
     {
-        struct SelectEntityEvent 
-        { 
+        struct SelectEntityEvent
+        {
             SelectEntityEvent(_unique_id id = 0) : entityId(id) {}
             _unique_id entityId = 0;
         };
 
-        struct ToggleEntityVisibilityEvent 
-        { 
+        struct ToggleEntityVisibilityEvent
+        {
             ToggleEntityVisibilityEvent(_unique_id id = 0) : entityId(id) {}
             _unique_id entityId = 0;
         };
@@ -38,7 +38,7 @@ namespace pg
 
         struct ToggleEntityListEvent {};
 
-        struct EntityInfo 
+        struct EntityInfo
         {
             _unique_id entityId = 0;
             std::string name;
@@ -50,7 +50,7 @@ namespace pg
         struct EntityListSystem : public System<Ref<SceneElement>, Ref<EntityName>, Ref<PositionComponent>,
             Listener<EntityChangedEvent>, Listener<NewSceneLoaded>, Listener<SelectEntityEvent>,
             Listener<ToggleEntityVisibilityEvent>, Listener<RefreshEntityListEvent>,
-            QueuedListener<CreateElement>, Listener<ToggleEntityListEvent>,
+            Listener<CreateElement>, Listener<ToggleEntityListEvent>,
             InitSys>
         {
             virtual void init() override;
@@ -60,19 +60,37 @@ namespace pg
             virtual void onEvent(const SelectEntityEvent& event) override;
             virtual void onEvent(const ToggleEntityVisibilityEvent& event) override;
             virtual void onEvent(const RefreshEntityListEvent& event) override;
-            virtual void onProcessEvent(const CreateElement& event) override;
+            virtual void onEvent(const CreateElement& event) override;
             virtual void onEvent(const ToggleEntityListEvent& event) override;
+
+            virtual void execute() override
+            {
+                if (refreshOnNextUpdate)
+                {
+                    refreshEntityList();
+                    refreshOnNextUpdate = false;
+                }
+
+                if (refreshEventReceived)
+                {
+                    refreshOnNextUpdate = true;
+                    refreshEventReceived = false;
+                }
+            }
 
             void refreshEntityList();
             void createEntityListUI();
             void updateEntitySelection(_unique_id selectedId);
             void toggleEntityListVisibility();
-            
+
             EntityInfo createEntityInfo(EntityRef entity);
             CompList<PositionComponent, UiAnchor, HorizontalLayout> createEntityListItem(const EntityInfo& info);
 
             std::vector<EntityInfo> sceneEntities;
             bool needsRefresh = true;
+
+            bool refreshEventReceived = false;
+            bool refreshOnNextUpdate = false;
 
             // UI Components
             EntityRef entityListPanel;
@@ -80,7 +98,7 @@ namespace pg
             EntityRef titleText;
             EntityRef countText;
             EntityRef scrollableList;
-            
+
             // Toggle functionality
             bool isEntityListVisible = true;
             EntityRef toggleButton;

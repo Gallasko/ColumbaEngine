@@ -118,24 +118,24 @@ void initGame(int argc, char** argv)
     // Todo delete this somewhere (should be when the system is deleted)
     auto *backend = new SdlNetworkBackend(netCfg);
 
-    mainWindow->ecs.createSystem<NetworkSystem>(backend, netCfg);
+    mainWindow->ecs->createSystem<NetworkSystem>(backend, netCfg);
 
     if (not isServer)
     {
-        mainWindow->ecs.createSystem<TestSystem>();
+        mainWindow->ecs->createSystem<TestSystem>();
     }
 
     // SDL_Quit();
 
     printf("Engine initialized ...\n");
 
-    mainWindow->ecs.dumbTaskflow();
+    mainWindow->ecs->dumbTaskflow();
 
     mainWindow->render();
 
     mainWindow->resize(820, 640);
 
-    mainWindow->ecs.start();
+    mainWindow->ecs->start();
 
     printf("Engine initialized\n");
 }

@@ -5,6 +5,7 @@
 
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
+#include "ECS/savemanager.h"
 
 using namespace pg;
 
@@ -18,7 +19,7 @@ struct BouncingBox
         : velocityX(vx), velocityY(vy), speed(spd) {}
 };
 
-class BoxBouncerSystem : public System<InitSys, Listener<TickEvent>>
+class BoxBouncerSystem : public System<InitSys, Listener<TickEvent>, SaveSys>
 {
 private:
     float screenWidth;
@@ -30,13 +31,27 @@ private:
 
     EntityRef ent;
 
+    int bounceCount = 0;
+
 public:
     BoxBouncerSystem(float width = 820.0f, float height = 640.0f)
         : screenWidth(width), screenHeight(height), rng(std::random_device{}()), colorDist(0.0f, 255.0f) {}
 
     // Name of the system so it is easier to debug the taskflow
     virtual std::string getSystemName() const override { return "Box Bouncer System"; }
-    
+
+    virtual void save(Archive& archive) override
+    {
+        serialize(archive, "bounceCount", bounceCount);
+    }
+
+    virtual void load(const UnserializedObject& serializedString) override
+    {
+        defaultDeserialize(serializedString, "bounceCount", bounceCount);
+
+        printf("BoxBouncer started - total bounces so far: %d\n", bounceCount);
+    }
+
     void init() override
     {
         // Create a 2D square
@@ -129,5 +144,9 @@ private:
 
         // Change to random color when bouncing
         simple2D->setColors({r, g, b, 255.0f});
+
+        ++bounceCount;
+        // ecsRef->sendEvent(SaveElementEvent{"bounceCount", bounceCount});
+        printf("Bounce #%d\n", bounceCount);
     }
 };

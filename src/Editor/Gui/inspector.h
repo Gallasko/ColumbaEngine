@@ -1,10 +1,15 @@
 #pragma once
 
+#include <array>
+
 #include "serialization.h"
 #include "ECS/system.h"
 #include "UI/sizer.h"
 #include "UI/textinput.h"
+#include "UI/prefab.h"
 #include "Input/keyconfig.h"
+
+#include "Compiler/ecsserialization.h"
 
 namespace pg
 {
@@ -46,7 +51,7 @@ namespace pg
             _unique_id id;
         };
 
-        struct InspectEvent { EntityRef entity; };
+        struct InspectEvent { _unique_id id; };
 
         struct ValueChanged { std::string valueName; std::string value; };
 
@@ -60,8 +65,15 @@ namespace pg
             _unique_id id;
         };
 
+        struct InspectorSystem;
+
         struct InspectorCommands
         {
+            InspectorCommands(InspectorSystem* inspectorSys, EntitySystem* ecsRef) : inspectorSys(inspectorSys), ecsRef(ecsRef) {}
+
+            InspectorSystem* inspectorSys;
+            EntitySystem* ecsRef;
+
             virtual ~InspectorCommands() {}
             virtual void execute() = 0;
             virtual void undo() = 0;
@@ -72,98 +84,66 @@ namespace pg
         public:
             InspectorCommandHistory() = default;
 
-            void execute(std::unique_ptr<InspectorCommands> command)
-            {
-                command->execute();
-                undoStack.push_back(std::move(command));
-                redoStack.clear();
-            }
+            void execute(std::unique_ptr<InspectorCommands> command);
 
-            void undo()
-            {
-                if (undoStack.empty())
-                    return;
+            void undo();
 
-                auto cmd = std::move(undoStack.back());
-                undoStack.pop_back();
-                cmd->undo();
-                redoStack.push_back(std::move(cmd));
-            }
-
-            void redo()
-            {
-                if (redoStack.empty())
-                    return;
-
-                auto cmd = std::move(redoStack.back());
-                redoStack.pop_back();
-                cmd->execute();
-                undoStack.push_back(std::move(cmd));
-            }
+            void redo();
 
         private:
             std::vector<std::unique_ptr<InspectorCommands>> undoStack;
             std::vector<std::unique_ptr<InspectorCommands>> redoStack;
         };
 
-        struct InspectorSystem;
-
         struct DraggingCommand : public InspectorCommands
         {
             DraggingCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, float startX, float startY, float endX, float endY) :
-                inspectorSys(inspectorSys), ecsRef(ecsRef), startX(startX), startY(startY), endX(endX), endY(endY) {}
+                InspectorCommands(inspectorSys, ecsRef),
+                startX(startX), startY(startY), endX(endX), endY(endY) {}
 
             virtual void execute() override;
 
             virtual void undo() override;
 
-            InspectorSystem* inspectorSys; EntitySystem* ecsRef; _unique_id id;
             float startX, startY;
             float endX, endY;
         };
 
         struct AttachComponentCommand : public InspectorCommands
         {
-            AttachComponentCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id id, const std::string& name) : inspectorSys(inspectorSys), ecsRef(ecsRef), id(id), name(name) {}
+            AttachComponentCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, const std::string& name) :
+                InspectorCommands(inspectorSys, ecsRef), name(name) {}
 
             virtual void execute() override;
             virtual void undo() override;
 
-            InspectorSystem *inspectorSys;
-            EntitySystem *ecsRef;
-            _unique_id id;
             std::string name;
         };
 
         struct CreateEntityCommand : public InspectorCommands
         {
-            CreateEntityCommand(InspectorSystem *inspectorSys, EntitySystem *ecsRef, std::function<EntityRef(EntitySystem *)> callbackCreated) : inspectorSys(inspectorSys), ecsRef(ecsRef), callback(callbackCreated) { }
+            CreateEntityCommand(InspectorSystem *inspectorSys, EntitySystem *ecsRef, std::function<EntityRef(EntitySystem *)> callbackCreated) :
+                InspectorCommands(inspectorSys, ecsRef), callback(callbackCreated) { }
 
             virtual void execute() override;
             virtual void undo() override;
 
-            InspectorSystem *inspectorSys;
-            EntitySystem *ecsRef;
             std::function<EntityRef(EntitySystem *)> callback;
-            _unique_id id;
-            _unique_id lastFocusedId;
         };
 
         struct ResizeCommand : public InspectorCommands
         {
-            ResizeCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, ResizeHandle handle,
-                         float startWidth, float startHeight, float startX, float startY,
-                         float endWidth, float endHeight, float endX, float endY) :
-                inspectorSys(inspectorSys), ecsRef(ecsRef), entityId(entityId), handle(handle),
+            ResizeCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, ResizeHandle handle,
+                          float startWidth, float startHeight, float startX, float startY,
+                          float endWidth, float endHeight, float endX, float endY) :
+                InspectorCommands(inspectorSys, ecsRef),
+                handle(handle),
                 startWidth(startWidth), startHeight(startHeight), startX(startX), startY(startY),
                 endWidth(endWidth), endHeight(endHeight), endX(endX), endY(endY) {}
 
             virtual void execute() override;
             virtual void undo() override;
 
-            InspectorSystem *inspectorSys;
-            EntitySystem *ecsRef;
-            _unique_id entityId;
             ResizeHandle handle;
             float startWidth, startHeight, startX, startY;
             float endWidth, endHeight, endX, endY;
@@ -171,17 +151,14 @@ namespace pg
 
         struct RotationCommand : public InspectorCommands
         {
-            RotationCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, _unique_id entityId, RotationHandle handle,
-                           float startRotation, float endRotation) :
-                inspectorSys(inspectorSys), ecsRef(ecsRef), entityId(entityId), handle(handle),
-                startRotation(startRotation), endRotation(endRotation) {}
+            RotationCommand(InspectorSystem *inspectorSys, EntitySystem* ecsRef, RotationHandle handle,
+                            float startRotation, float endRotation) :
+                InspectorCommands(inspectorSys, ecsRef),
+                handle(handle),startRotation(startRotation), endRotation(endRotation) {}
 
             virtual void execute() override;
             virtual void undo() override;
 
-            InspectorSystem *inspectorSys;
-            EntitySystem *ecsRef;
-            _unique_id entityId;
             RotationHandle handle;
             float startRotation, endRotation;
         };
@@ -207,7 +184,38 @@ namespace pg
             std::function<EntityRef(EntitySystem *)> callback;
         };
 
-        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<EntityChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, QueuedListener<EndRotation>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
+        struct InspectorPropertyWidget
+        {
+            std::string propertyName;
+            PropertyType type;
+
+            std::vector<_unique_id> inputIds;
+        };
+
+        struct InspectorComponentPanel
+        {
+            std::string typeName;
+
+            EntityRef foldCard;                        // foldable card root
+            CompRef<VerticalLayout> layout;            // inner layout
+
+            std::vector<InspectorPropertyWidget> widgets;
+            bool initialized = false;
+        };
+
+        struct ActiveBinding
+        {
+            std::string componentType;
+            std::string propertyName;
+
+            PropertyType type;
+
+            std::vector<_unique_id> inputIds;
+
+            void* componentPtr;
+        };
+
+        struct InspectorSystem : public System<Listener<InspectEvent>, Listener<StandardEvent>, Listener<NewSceneLoaded>, QueuedListener<PositionComponentChangedEvent>, QueuedListener<EndDragging>, QueuedListener<EndResize>, QueuedListener<EndRotation>, Listener<ConfiguredKeyEvent<EditorKeyConfig>>, Listener<EditorAttachComponent>, Listener<CreateInspectorEntityEvent>, Listener<ToggleInspectorEvent>, InitSys>
         {
             virtual void onEvent(const StandardEvent& event) override;
 
@@ -215,11 +223,7 @@ namespace pg
 
             CompRef<VerticalLayout> addNewText(const std::string& text, CompRef<VerticalLayout> currentView);
 
-            void addNewAttribute(const std::string& text, std::string& value, CompRef<VerticalLayout> currentView);
-
-            void printChildren(SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView);
-
-            virtual void onProcessEvent(const EntityChangedEvent& event) override;
+            virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
 
             virtual void onEvent(const InspectEvent& event) override;
 
@@ -232,14 +236,14 @@ namespace pg
 
             virtual void onProcessEvent(const EndResize& event) override
             {
-                history.execute(std::make_unique<ResizeCommand>(this, ecsRef, event.entityId, event.handle,
+                history.execute(std::make_unique<ResizeCommand>(this, ecsRef, event.handle,
                     event.startWidth, event.startHeight, event.startX, event.startY,
                     event.endWidth, event.endHeight, event.endX, event.endY));
             }
 
             virtual void onProcessEvent(const EndRotation& event) override
             {
-                history.execute(std::make_unique<RotationCommand>(this, ecsRef, event.entityId, event.handle,
+                history.execute(std::make_unique<RotationCommand>(this, ecsRef, event.handle,
                     event.startRotation, event.endRotation));
             }
 
@@ -261,7 +265,7 @@ namespace pg
 
             virtual void onEvent(const EditorAttachComponent& event) override
             {
-                history.execute(std::make_unique<AttachComponentCommand>(this, ecsRef, event.id, event.name));
+                history.execute(std::make_unique<AttachComponentCommand>(this, ecsRef, event.name));
             }
 
             virtual void onEvent(const CreateInspectorEntityEvent& event) override
@@ -299,8 +303,6 @@ namespace pg
             {
                 attachableComponentMap.emplace(name, [this, args...](EntityRef ent) {
                     ecsRef->template attach<Comp>(ent, args...);
-
-                    ecsRef->sendEvent(EntityChangedEvent{ent->id});
                 });
             }
 
@@ -314,29 +316,28 @@ namespace pg
 
             virtual void execute() override;
 
-            void processEntityChanged(const EntityChangedEvent& event);
-
-            void deserializeCurrentEntity();
+            void processEntityChanged(const PositionComponentChangedEvent& event);
 
             void toggleInspectorVisibility();
 
+            CompList<PositionComponent, Prefab, UiAnchor, VerticalLayout> getOrBuildPanel(const std::string& typeName);
+            void showPanel (const std::string& typeName, void* componentPtr);
+            void hideAllPanels();
+
             InspectorCommandHistory history;
 
-            InspectorArchive archive;
+            std::map<std::string, InspectorComponentPanel> componentPanels;
+            std::vector<ActiveBinding> activeBindings;
 
-            std::vector<InspectedText> inspectorText;
-
-            CompRef<VerticalLayout> view;
-
-            InspectEvent event;
+            CompRef<VerticalLayout> mainView;
+            CompRef<VerticalLayout> compView;
+            CompRef<VerticalLayout> addView;
 
             bool eventRequested = false;
 
-            bool needDeserialization = false;
-
-            bool needUpdateEntity = false;
-
             bool needClear = false;
+
+            bool dontClear = false;
 
             std::map<std::string, std::function<void(InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>)>> customDrawers;
 
@@ -345,6 +346,8 @@ namespace pg
             std::vector<EntityRef> attachMenuItems;
 
             _unique_id currentId = 0;
+            std::vector<_unique_id> idStack = {};
+            EntityRef currentEnt;
 
             size_t nbEntity = 0;
 
@@ -363,16 +366,8 @@ namespace pg
         class InspectorWidgets
         {
         public:
-            /**
-             * Creates a labeled text-input row and adds it to the given vertical layout.
-             *
-             * @param ecs         Pointer to the EntitySystem
-             * @param parentLayout   The Inspector's VerticalLayout to which to add this row
-             * @param labelText   The label to display on the left
-             * @param boundValue  Reference to the underlying std::string that backs the TextInputComponent
-             * @param onChange    StandardEvent to fire when the user commits a change
-             */
-            static void makeLabeledTextInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, std::string& boundValue, InspectorSystem* sys);
+            static _unique_id makeScalarInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, const std::string& key, const std::string& baseValue);
+            static std::array<_unique_id, 3> makeVec3Input(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, const std::string& baseKey, const std::string& baseValue);
         };
     }
 

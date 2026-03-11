@@ -139,7 +139,7 @@ namespace pg
 
         *offset -= event.values.at("y").get<int>() * scrollSpeed;
 
-        ecsRef->sendEvent(EntityChangedEvent{id});
+        ecsRef->sendEvent(LayoutScrolledEvent{id});
     };
 
     void LayoutSystem::execute()
@@ -242,7 +242,7 @@ namespace pg
 
         if (ent and (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>()))
         {
-            entitiesInLayout.insert(event.id);
+            entitiesInLayout[event.ui] = event.id;
             addEntity(ent, event.ui, event.orientation);
 
             layoutUpdate.insert(ent);
@@ -255,7 +255,7 @@ namespace pg
 
         if (ent and (ent->has<HorizontalLayout>() or ent->has<VerticalLayout>()))
         {
-            entitiesInLayout.insert(event.id);
+            entitiesInLayout[event.ui] = event.id;
             addEntity(ent, event.ui, event.orientation, event.index);
 
             layoutUpdate.insert(ent);
@@ -306,9 +306,19 @@ namespace pg
         }
     }
 
-    void LayoutSystem::onProcessEvent(const EntityChangedEvent& event)
+    void LayoutSystem::onProcessEvent(const PositionComponentChangedEvent& event)
     {
-        auto ent = ecsRef->getEntity(event.id);
+        onLayoutChanged(event.id);
+    }
+
+    void LayoutSystem::onProcessEvent(const LayoutScrolledEvent& event)
+    {
+        onLayoutChanged(event.id);
+    }
+
+    void LayoutSystem::onLayoutChanged(_unique_id id)
+    {
+        auto ent = ecsRef->getEntity(id);
 
         if (not ent)
         {
@@ -321,34 +331,12 @@ namespace pg
             return;
         }
 
-        // If entity is not in a layout anymore we can skip the heavy lookup in layouts
-        if (not entitiesInLayout.count(ent->id))
+        auto it = entitiesInLayout.find(ent->id);
+
+        if (it != entitiesInLayout.end())
         {
+            layoutUpdate.insert(ecsRef->getEntity(it->second));
             return;
-        }
-
-        // Todo maybe add a flag to all the entity put in a layout so we can just check for the flag presence and get rid of this
-        // An entity should not be in multple layouts at the same time
-        for (auto v : view<HorizontalLayout>())
-        {
-            const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-
-            if (it != v->entities.end())
-            {
-                layoutUpdate.insert(ecsRef->getEntity(v->id));
-                return;
-            }
-        }
-
-        for (auto v : view<VerticalLayout>())
-        {
-            const auto& it = std::find_if(v->entities.begin(), v->entities.end(), [ent](const EntityRef& ref) { return ref.id == ent->id; });
-
-            if (it != v->entities.end())
-            {
-                layoutUpdate.insert(ecsRef->getEntity(v->id));
-                return;
-            }
         }
     }
 

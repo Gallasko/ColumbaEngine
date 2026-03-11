@@ -29,7 +29,9 @@ namespace pg
                 // Todo put the path of the file in the textFile struct
                 fs::path p {filename};
 
-                if (not fs::exists(p))
+                bool exists = fs::exists(p);
+
+                if (not exists)
                 {
                     LOG_INFO(DOM, "Couldn't open file '" << filename << "' : File doesn't exist.");
                     return TextFile{filename, ""};

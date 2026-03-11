@@ -10,7 +10,7 @@ includes:
 
 fields:
   - name: text
-    type: std::string
+    type: string
     default: ""
     setter: event
 
@@ -25,7 +25,7 @@ fields:
     serialize: false
 
   - name: fontPath
-    type: std::string
+    type: string
     default: ""
     setter: event
 
@@ -38,7 +38,7 @@ fields:
     type: constant::Vector4D
     default: "{255.0f, 255.0f, 255.0f, 255.0f}"
     setter: event
-    customSerializationSetter: "auto setColorsFunc = [component](VM* vm, int argCount, Value* args) -> Value {
+    customSerializationSetter: "    // Special setter with default alpha
         if (argCount < 3)
             throw std::runtime_error(\"setColor expects at least 3 arguments: r, g, b, [a]\");
 
@@ -57,10 +57,7 @@ fields:
 
         component->setColors(colors);
 
-        return INT_VAL(0);
-    };
-
-    table->setField(\"setColors\", vm->createNativeFunction(setColorsFunc));"
+        return INT_VAL(0);"
 
   - name: wrap
     type: bool

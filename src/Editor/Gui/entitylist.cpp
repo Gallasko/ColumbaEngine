@@ -21,7 +21,7 @@ namespace pg
             // Create entity list panel (200px wide, left-anchored)
             auto listPanel = makeVerticalLayout(ecsRef, 1, 1, 200, 1, true);
             listPanel.get<PositionComponent>()->setZ(1);
-            
+
             auto listPanelUi = listPanel.get<UiAnchor>();
             listPanelUi->setTopAnchor(actionUi->bottom);
             listPanelUi->setBottomAnchor(windowUi->bottom);
@@ -38,10 +38,10 @@ namespace pg
             // Create toggle button on right side of entity list panel, vertically centered
             auto toggleButtonShape = makeUiSimple2DShape(ecsRef, Shape2D::Square, 20, 20, {200, 200, 200, 255});
             toggleButton = toggleButtonShape.entity;
-            
+
             auto toggleButtonPos = toggleButtonShape.get<PositionComponent>();
             toggleButtonPos->setZ(3);
-            
+
             auto toggleButtonUi = toggleButtonShape.get<UiAnchor>();
             toggleButtonUi->setRightAnchor(listPanelUi->right);
             toggleButtonUi->setVerticalCenter(listPanelUi->verticalCenter);
@@ -50,10 +50,10 @@ namespace pg
             // Create toggle button text
             auto toggleText = makeTTFText(ecsRef, 0, 0, 12.0f, "light", "▶", 0.5);
             toggleButtonText = toggleText.entity;
-            
+
             auto toggleTextPos = toggleText.get<PositionComponent>();
             toggleTextPos->setZ(4);
-            
+
             auto toggleTextUi = toggleText.get<UiAnchor>();
             toggleTextUi->centeredIn(toggleButtonUi);
 
@@ -92,7 +92,7 @@ namespace pg
             entityListView->addEntity(scrollContainer.entity);
         }
 
-        // Todo list refresh at the wrong time 
+        // Todo list refresh at the wrong time
         void EntityListSystem::refreshEntityList()
         {
             sceneEntities.clear();
@@ -117,7 +117,7 @@ namespace pg
 
             // Rebuild entity list UI
             if (!scrollableList.empty())
-            { 
+            {
                 auto scrollView = scrollableList.get<VerticalLayout>();
                 if (scrollView)
                 {
@@ -192,9 +192,9 @@ namespace pg
         CompList<PositionComponent, UiAnchor, HorizontalLayout> EntityListSystem::createEntityListItem(const EntityInfo& info)
         {
             auto row = makeHorizontalLayout(ecsRef, 0, 0, 180, 20, false);
-            
+
             // Set background color based on selection state
-            constant::Vector4D backgroundColor = info.isSelected ? 
+            constant::Vector4D backgroundColor = info.isSelected ?
                 constant::Vector4D{100, 150, 255, 100} :  // Blue for selected
                 constant::Vector4D{0, 0, 0, 0};           // Transparent for normal
 
@@ -245,10 +245,10 @@ namespace pg
         void EntityListSystem::onEvent(const SelectEntityEvent& event)
         {
             selectedEntityId = event.entityId;
-            
+
             // Send inspect event to show in inspector panel
-            ecsRef->sendEvent(InspectEvent{ecsRef->getEntity(event.entityId)});
-            
+            ecsRef->sendEvent(InspectEvent{event.entityId});
+
             // Refresh list to show selection
             needsRefresh = true;
 
@@ -274,12 +274,12 @@ namespace pg
 
         void EntityListSystem::onEvent(const RefreshEntityListEvent&)
         {
-            refreshEntityList();
+            refreshEventReceived = true;
         }
 
-        void EntityListSystem::onProcessEvent(const CreateElement&)
+        void EntityListSystem::onEvent(const CreateElement&)
         {
-            refreshEntityList();
+            refreshEventReceived = true;
         }
 
         void EntityListSystem::onEvent(const ToggleEntityListEvent&)
@@ -313,13 +313,13 @@ namespace pg
                 // Show: restore entity list panel and reposition button to panel right
                 panelPos->setVisibility(true);
                 buttonTextComp->text = "▶";
-                
+
                 // Reposition button to right of entity list panel
                 toggleButtonUi->clearLeftAnchor();
                 toggleButtonUi->setRightAnchor(entityListUi->right);
                 toggleButtonUi->setVerticalCenter(entityListUi->verticalCenter);
                 toggleButtonUi->setRightMargin(-25);
-                
+
                 LOG_INFO("EntityList", "Entity list panel shown");
             }
             else
@@ -327,26 +327,26 @@ namespace pg
                 // Hide: make panel invisible and reposition button to main window left edge
                 panelPos->setVisibility(false);
                 buttonTextComp->text = "◀";
-                
+
                 // Reposition button to left edge of main window
                 toggleButtonUi->clearRightAnchor();
                 toggleButtonUi->setLeftAnchor(windowUi->left);
                 toggleButtonUi->setVerticalCenter(windowUi->verticalCenter);
                 toggleButtonUi->setLeftMargin(5);
-                
+
                 // Keep toggle button visible
                 auto buttonPos = toggleButton.get<PositionComponent>();
                 if (buttonPos)
                 {
                     buttonPos->setVisibility(true);
                 }
-                
+
                 auto buttonTextPos = toggleButtonText.get<PositionComponent>();
                 if (buttonTextPos)
                 {
                     buttonTextPos->setVisibility(true);
                 }
-                
+
                 LOG_INFO("EntityList", "Entity list panel hidden, button moved to window edge");
             }
 

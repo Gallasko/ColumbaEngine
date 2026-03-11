@@ -5,7 +5,7 @@ project(ColumbaEngine VERSION 1.0)
 # Options remain the same
 option(USE_GDB "Add -ggdb to the build" OFF)
 option(AUTO_CONVERT_EVENT "Auto convert event to standard event" ON)
-option(PG_PROFILE "Enable the profiling of systems" ON)
+option(PG_PROFILE "Enable the profiling of systems" OFF)
 option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds" OFF)
 option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
@@ -311,109 +311,113 @@ file(GLOB COMPONENT_DEFINITIONS
 # Note: ColumbaEngine library will be created AFTER component generation
 
 # ===============================================
-# MINIMAL ENGINE LIBRARY (for bootstrap compiler)
+# MINIMAL ENGINE LIBRARY + BOOTSTRAP COMPILER
+# (native builds only - cannot run wasm tools on host)
 # ===============================================
-# Create a minimal engine library with only VM + modules + ECS
-# This is used ONLY for building the bootstrap compiler
-add_library(ColumbaEngineMinimal STATIC ${MINIMAL_ENGINESOURCE})
+if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+    # Create a minimal engine library with only VM + modules + ECS
+    # This is used ONLY for building the bootstrap compiler
+    add_library(ColumbaEngineMinimal STATIC ${MINIMAL_ENGINESOURCE})
 
-# Disable PCH for minimal engine to avoid rebuilding it
-# (The minimal engine is small enough that PCH overhead isn't worth it,
-#  and it would need a separate PCH due to PG_MINIMAL_BUILD definition)
-set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
+    # Disable PCH for minimal engine to avoid rebuilding it
+    # (The minimal engine is small enough that PCH overhead isn't worth it,
+    #  and it would need a separate PCH due to PG_MINIMAL_BUILD definition)
+    set_target_properties(ColumbaEngineMinimal PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
 
-# Define PG_MINIMAL_BUILD for the minimal engine
-target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)
+    # Define PG_MINIMAL_BUILD for the minimal engine
+    target_compile_definitions(ColumbaEngineMinimal PRIVATE PG_MINIMAL_BUILD)
 
-message(STATUS "Created minimal engine library")
+    message(STATUS "Created minimal engine library")
 
-# Minimal engine needs minimal include directories (no SDL2, no rendering libs)
-target_include_directories(ColumbaEngineMinimal PUBLIC
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
-)
-
-# Minimal engine linking (much simpler - no rendering, no audio, no networking)
-# For minimal builds, we don't need SDL2 at all - just GLM for math types
-target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
-
-# ===============================================
-# BOOTSTRAP COMPILER EXECUTABLE
-# ===============================================
-# Create a minimal PgCompiler executable that can run component generator
-# This uses the minimal engine library to avoid circular dependencies
-add_executable(PgCompilerBootstrap
-    exemples/PgCompiler/main.cpp
-    exemples/PgCompiler/application.cpp
-    exemples/PgCompiler/constant_uniformity_pass.cpp
-)
-
-target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD SDL_MAIN_HANDLED)
-
-target_include_directories(PgCompilerBootstrap PUBLIC exemples/PgCompiler)
-
-# Link against minimal engine (no rendering, no generated components)
-target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
-
-
-message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
-
-# ===============================================
-# COMPONENT REGENERATION TARGET
-# ===============================================
-# Create a target to regenerate components when .pgcomp files change
-# This uses the bootstrap compiler to avoid circular dependencies
-if(COMPONENT_DEFINITIONS)
-    set(ALL_GENERATED_FILES "")
-
-    foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
-        get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
-
-        # Define the output files
-        set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
-        set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
-        set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
-
-        # Add custom command that only runs when inputs change
-        add_custom_command(
-            OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-            COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
-            COMMAND $<TARGET_FILE:PgCompilerBootstrap>
-                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-                    ${COMP_DEF}
-            DEPENDS
-                PgCompilerBootstrap
-                ${COMP_DEF}
-                ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
-            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
-            COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
-            VERBATIM
-        )
-
-        # Create a target for this component (for manual regeneration)
-        add_custom_target(Regenerate_${COMP_NAME}
-            DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-        )
-
-        list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
-
-        # Mark the generated files as GENERATED so CMake knows they'll be created
-        set_source_files_properties(
-            ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
-            PROPERTIES GENERATED TRUE
-        )
-    endforeach()
-
-    # Create a target to regenerate all components (for manual use)
-    add_custom_target(RegenerateComponents
-        DEPENDS ${ALL_GENERATED_FILES}
-        COMMENT "All components up to date"
+    # Minimal engine needs minimal include directories (no SDL2, no rendering libs)
+    target_include_directories(ColumbaEngineMinimal PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src/Engine>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${GLM_DIR}>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/${TASKFLOW_DIR}>
     )
 
-    message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
-    message(STATUS "  Components will regenerate only when .pgcomp files change")
-    message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
+    # Minimal engine linking (much simpler - no rendering, no audio, no networking)
+    # For minimal builds, we don't need SDL2 at all - just GLM for math types
+    target_link_libraries(ColumbaEngineMinimal PUBLIC glm)
+
+    # ===============================================
+    # BOOTSTRAP COMPILER EXECUTABLE
+    # ===============================================
+    # Create a minimal PgCompiler executable that can run component generator
+    # This uses the minimal engine library to avoid circular dependencies
+    add_executable(PgCompilerBootstrap
+        examples/PgCompiler/main.cpp
+        examples/PgCompiler/application.cpp
+        examples/PgCompiler/constant_uniformity_pass.cpp
+    )
+
+    target_compile_definitions(PgCompilerBootstrap PRIVATE PG_MINIMAL_BUILD SDL_MAIN_HANDLED)
+
+    target_include_directories(PgCompilerBootstrap PUBLIC examples/PgCompiler)
+
+    # Link against minimal engine (no rendering, no generated components)
+    target_link_libraries(PgCompilerBootstrap PRIVATE ColumbaEngineMinimal)
+
+    message(STATUS "Bootstrap compiler 'PgCompilerBootstrap' created (links to minimal engine)")
+
+    # ===============================================
+    # COMPONENT REGENERATION TARGET
+    # ===============================================
+    # Create a target to regenerate components when .pgcomp files change
+    # This uses the bootstrap compiler to avoid circular dependencies
+    if(COMPONENT_DEFINITIONS)
+        set(ALL_GENERATED_FILES "")
+
+        foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
+            get_filename_component(COMP_NAME ${COMP_DEF} NAME_WE)
+
+            # Define the output files
+            set(GENERATED_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.h")
+            set(GENERATED_CPP "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.generated.cpp")
+            set(GENERATED_SER "${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components/${COMP_NAME}.serialization.cpp")
+
+            # Add custom command that only runs when inputs change
+            add_custom_command(
+                OUTPUT ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                COMMAND ${CMAKE_COMMAND} -E echo "Regenerating ${COMP_NAME}..."
+                COMMAND $<TARGET_FILE:PgCompilerBootstrap>
+                        ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                        ${COMP_DEF}
+                DEPENDS
+                    PgCompilerBootstrap
+                    ${COMP_DEF}
+                    ${CMAKE_CURRENT_SOURCE_DIR}/tools/component_generator.pg
+                WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/Engine/Components
+                COMMENT "Regenerating ${COMP_NAME} from ${COMP_DEF}"
+                VERBATIM
+            )
+
+            # Create a target for this component (for manual regeneration)
+            add_custom_target(Regenerate_${COMP_NAME}
+                DEPENDS ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+            )
+
+            list(APPEND ALL_GENERATED_FILES ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER})
+
+            # Mark the generated files as GENERATED so CMake knows they'll be created
+            set_source_files_properties(
+                ${GENERATED_HEADER} ${GENERATED_CPP} ${GENERATED_SER}
+                PROPERTIES GENERATED TRUE
+            )
+        endforeach()
+
+        # Create a target to regenerate all components (for manual use)
+        add_custom_target(RegenerateComponents
+            DEPENDS ${ALL_GENERATED_FILES}
+            COMMENT "All components up to date"
+        )
+
+        message(STATUS "Component regeneration configured for ${NUM_DEFINITIONS} components")
+        message(STATUS "  Components will regenerate only when .pgcomp files change")
+        message(STATUS "  Manual regeneration: cmake --build . --target RegenerateComponents")
+    endif()
+else()
+    message(STATUS "Emscripten build: skipping bootstrap compiler and component regeneration (using pre-generated files)")
 endif()
 
 # ===============================================
@@ -445,8 +449,8 @@ endif()
 # Set precompiled headers - but don't make them public for consumers
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 
-# Make ColumbaEngine depend on component regeneration
-if(COMPONENT_DEFINITIONS)
+# Make ColumbaEngine depend on component regeneration (native builds only)
+if(COMPONENT_DEFINITIONS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     add_dependencies(ColumbaEngine RegenerateComponents)
 endif()
 
@@ -704,85 +708,85 @@ install(FILES
 # Only build examples if not building static lib only
 if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
     if (${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
-        add_executable(GMTK2025 exemples/GMTK2025/main.cpp)
+        add_executable(GMTK2025 examples/GMTK2025/main.cpp)
 
-        target_include_directories(GMTK2025 PUBLIC exemples/GMTK2025)
+        target_include_directories(GMTK2025 PUBLIC examples/GMTK2025)
 
         target_sources(GMTK2025 PRIVATE
-            exemples/GMTK2025/application.cpp
-            exemples/GMTK2025/ribbonmesh.cpp
-            exemples/GMTK2025/polygonmesh.cpp
+            examples/GMTK2025/application.cpp
+            examples/GMTK2025/ribbonmesh.cpp
+            examples/GMTK2025/polygonmesh.cpp
         )
 
         target_link_libraries(GMTK2025 PRIVATE ColumbaEngine)
 
         set_target_properties(GMTK2025
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
-        add_executable(BoxBouncer exemples/SimpleBoxBouncer/main.cpp)
+        add_executable(BoxBouncer examples/SimpleBoxBouncer/main.cpp)
 
-        target_include_directories(BoxBouncer PUBLIC exemples/SimpleBoxBouncer)
+        target_include_directories(BoxBouncer PUBLIC examples/SimpleBoxBouncer)
 
         target_sources(BoxBouncer PRIVATE
-            exemples/SimpleBoxBouncer/application.cpp
+            examples/SimpleBoxBouncer/application.cpp
         )
 
         target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
 
         set_target_properties(BoxBouncer
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
-        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+        add_executable(RenderingTest examples/RenderingTest/main.cpp)
 
-        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+        target_include_directories(RenderingTest PUBLIC examples/RenderingTest)
 
         target_sources(RenderingTest PRIVATE
-            exemples/RenderingTest/application.cpp
+            examples/RenderingTest/application.cpp
         )
 
         target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
 
         set_target_properties(RenderingTest
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
-        add_executable(Asteroid exemples/Asteroid/main.cpp)
+        add_executable(Asteroid examples/Asteroid/main.cpp)
 
-        target_include_directories(Asteroid PUBLIC exemples/Asteroid)
+        target_include_directories(Asteroid PUBLIC examples/Asteroid)
 
         target_sources(Asteroid PRIVATE
-            exemples/Asteroid/application.cpp
+            examples/Asteroid/application.cpp
         )
 
         target_link_libraries(Asteroid PRIVATE ColumbaEngine)
 
         set_target_properties(Asteroid
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
-        add_executable(InvadersBreaker exemples/InvadersBreaker/main.cpp)
+        add_executable(InvadersBreaker examples/InvadersBreaker/main.cpp)
 
-        target_include_directories(InvadersBreaker PUBLIC exemples/InvadersBreaker)
+        target_include_directories(InvadersBreaker PUBLIC examples/InvadersBreaker)
 
         target_sources(InvadersBreaker PRIVATE
-            exemples/InvadersBreaker/application.cpp
+            examples/InvadersBreaker/application.cpp
         )
 
         target_link_libraries(InvadersBreaker PRIVATE ColumbaEngine)
 
         set_target_properties(InvadersBreaker
             PROPERTIES SUFFIX ".html"
-            LINK_FLAGS "-lidbfs.js -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
 
         ###
 
@@ -802,191 +806,191 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_link_libraries(ColumbaEngineEditor PRIVATE ColumbaEngine)
 
-        add_executable(GameOff exemples/GameOff/main.cpp)
+        add_executable(GameOff examples/GameOff/main.cpp)
 
         # configure_file(res/main.pg nexus.pg COPYONLY)
 
-        target_include_directories(GameOff PUBLIC exemples/GameOff)
+        target_include_directories(GameOff PUBLIC examples/GameOff)
 
         target_sources(GameOff PRIVATE
-            exemples/GameOff/achievement.cpp
-            exemples/GameOff/application.cpp
-            exemples/GameOff/character.cpp
-            exemples/GameOff/characustomizationscene.cpp
-            exemples/GameOff/fightscene.cpp
-            exemples/GameOff/gamefacts.cpp
-            exemples/GameOff/inventory.cpp
-            exemples/GameOff/item.cpp
-            exemples/GameOff/location.cpp
-            exemples/GameOff/locationscene.cpp
-            exemples/GameOff/mainscene.cpp
-            exemples/GameOff/managenerator.cpp
-            exemples/GameOff/nexusbindings.cpp
-            exemples/GameOff/nexusmodule.cpp
-            exemples/GameOff/nexusscene.cpp
-            exemples/GameOff/skilltree.cpp
-            exemples/GameOff/passives.cpp
-            exemples/GameOff/spells.cpp
-            exemples/GameOff/theme.cpp
+            examples/GameOff/achievement.cpp
+            examples/GameOff/application.cpp
+            examples/GameOff/character.cpp
+            examples/GameOff/characustomizationscene.cpp
+            examples/GameOff/fightscene.cpp
+            examples/GameOff/gamefacts.cpp
+            examples/GameOff/inventory.cpp
+            examples/GameOff/item.cpp
+            examples/GameOff/location.cpp
+            examples/GameOff/locationscene.cpp
+            examples/GameOff/mainscene.cpp
+            examples/GameOff/managenerator.cpp
+            examples/GameOff/nexusbindings.cpp
+            examples/GameOff/nexusmodule.cpp
+            examples/GameOff/nexusscene.cpp
+            examples/GameOff/skilltree.cpp
+            examples/GameOff/passives.cpp
+            examples/GameOff/spells.cpp
+            examples/GameOff/theme.cpp
         )
 
         target_link_libraries(GameOff PRIVATE ColumbaEngine)
 
-        add_executable(PixelJam exemples/PixelJam/main.cpp)
+        add_executable(PixelJam examples/PixelJam/main.cpp)
 
-        target_include_directories(PixelJam PUBLIC exemples/PixelJam)
+        target_include_directories(PixelJam PUBLIC examples/PixelJam)
 
         target_sources(PixelJam PRIVATE
-            exemples/PixelJam/application.cpp
-            exemples/PixelJam/Characters/enemy.cpp
-            exemples/PixelJam/Characters/player.cpp
-            exemples/PixelJam/config.cpp
-            exemples/PixelJam/Tiled_Lib/TiledLoader.cpp
-            exemples/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
-            exemples/PixelJam/Room/room.cpp
+            examples/PixelJam/application.cpp
+            examples/PixelJam/Characters/enemy.cpp
+            examples/PixelJam/Characters/player.cpp
+            examples/PixelJam/config.cpp
+            examples/PixelJam/Tiled_Lib/TiledLoader.cpp
+            examples/PixelJam/Tiled_Lib/TileMapAtlasLoader.cpp
+            examples/PixelJam/Room/room.cpp
         )
 
         target_link_libraries(PixelJam PRIVATE ColumbaEngine)
 
-        add_executable(TugOfWar exemples/TugOfWar/main.cpp)
+        add_executable(TugOfWar examples/TugOfWar/main.cpp)
 
-        target_include_directories(TugOfWar PUBLIC exemples/TugOfWar)
+        target_include_directories(TugOfWar PUBLIC examples/TugOfWar)
 
         target_sources(TugOfWar PRIVATE
-            exemples/TugOfWar/application.cpp
+            examples/TugOfWar/application.cpp
         )
 
         target_link_libraries(TugOfWar PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(SimpleClientServer exemples/SimpleClientServer/main.cpp)
+        add_executable(SimpleClientServer examples/SimpleClientServer/main.cpp)
 
         target_sources(SimpleClientServer PRIVATE
-            exemples/SimpleClientServer/application.cpp
+            examples/SimpleClientServer/application.cpp
         )
 
         target_link_libraries(SimpleClientServer PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(BasicTerminal exemples/BasicTerminal/main.cpp)
+        add_executable(BasicTerminal examples/BasicTerminal/main.cpp)
 
-        target_include_directories(BasicTerminal PUBLIC exemples/BasicTerminal)
+        target_include_directories(BasicTerminal PUBLIC examples/BasicTerminal)
 
         target_sources(BasicTerminal PRIVATE
-            exemples/BasicTerminal/application.cpp
+            examples/BasicTerminal/application.cpp
         )
 
         target_link_libraries(BasicTerminal PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(EmptyApp exemples/EmptyAppTemplate/main.cpp)
+        add_executable(EmptyApp examples/EmptyAppTemplate/main.cpp)
 
-        target_include_directories(EmptyApp PUBLIC exemples/EmptyAppTemplate)
+        target_include_directories(EmptyApp PUBLIC examples/EmptyAppTemplate)
 
         target_sources(EmptyApp PRIVATE
-            exemples/EmptyAppTemplate/application.cpp
+            examples/EmptyAppTemplate/application.cpp
         )
 
         target_link_libraries(EmptyApp PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(GMTK2025 exemples/GMTK2025/main.cpp)
+        add_executable(GMTK2025 examples/GMTK2025/main.cpp)
 
-        target_include_directories(GMTK2025 PUBLIC exemples/GMTK2025)
+        target_include_directories(GMTK2025 PUBLIC examples/GMTK2025)
 
         target_sources(GMTK2025 PRIVATE
-            exemples/GMTK2025/application.cpp
-            exemples/GMTK2025/ribbonmesh.cpp
-            exemples/GMTK2025/polygonmesh.cpp
+            examples/GMTK2025/application.cpp
+            examples/GMTK2025/ribbonmesh.cpp
+            examples/GMTK2025/polygonmesh.cpp
         )
 
         target_link_libraries(GMTK2025 PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(InvadersBreaker exemples/InvadersBreaker/main.cpp)
+        add_executable(InvadersBreaker examples/InvadersBreaker/main.cpp)
 
-        target_include_directories(InvadersBreaker PUBLIC exemples/InvadersBreaker)
+        target_include_directories(InvadersBreaker PUBLIC examples/InvadersBreaker)
 
         target_sources(InvadersBreaker PRIVATE
-            exemples/InvadersBreaker/application.cpp
+            examples/InvadersBreaker/application.cpp
         )
 
         target_link_libraries(InvadersBreaker PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(BoxBouncer exemples/SimpleBoxBouncer/main.cpp)
+        add_executable(BoxBouncer examples/SimpleBoxBouncer/main.cpp)
 
-        target_include_directories(BoxBouncer PUBLIC exemples/SimpleBoxBouncer)
+        target_include_directories(BoxBouncer PUBLIC examples/SimpleBoxBouncer)
 
         target_sources(BoxBouncer PRIVATE
-            exemples/SimpleBoxBouncer/application.cpp
+            examples/SimpleBoxBouncer/application.cpp
         )
 
         target_link_libraries(BoxBouncer PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(RenderingTest exemples/RenderingTest/main.cpp)
+        add_executable(RenderingTest examples/RenderingTest/main.cpp)
 
-        target_include_directories(RenderingTest PUBLIC exemples/RenderingTest)
+        target_include_directories(RenderingTest PUBLIC examples/RenderingTest)
 
         target_sources(RenderingTest PRIVATE
-            exemples/RenderingTest/application.cpp
+            examples/RenderingTest/application.cpp
         )
 
         target_link_libraries(RenderingTest PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(Asteroid exemples/Asteroid/main.cpp)
+        add_executable(Asteroid examples/Asteroid/main.cpp)
 
-        target_include_directories(Asteroid PUBLIC exemples/Asteroid)
+        target_include_directories(Asteroid PUBLIC examples/Asteroid)
 
         target_sources(Asteroid PRIVATE
-            exemples/Asteroid/application.cpp
+            examples/Asteroid/application.cpp
         )
 
         target_link_libraries(Asteroid PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(StandardSys exemples/StandardSys/main.cpp)
+        add_executable(StandardSys examples/StandardSys/main.cpp)
 
-        target_include_directories(StandardSys PUBLIC exemples/StandardSys)
+        target_include_directories(StandardSys PUBLIC examples/StandardSys)
 
         target_sources(StandardSys PRIVATE
-            exemples/StandardSys/application.cpp
+            examples/StandardSys/application.cpp
         )
 
         target_link_libraries(StandardSys PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(PgInterpreter exemples/PgInterpreter/main.cpp)
+        add_executable(PgInterpreter examples/PgInterpreter/main.cpp)
 
-        target_include_directories(PgInterpreter PUBLIC exemples/PgInterpreter)
+        target_include_directories(PgInterpreter PUBLIC examples/PgInterpreter)
 
         target_sources(PgInterpreter PRIVATE
-            exemples/PgInterpreter/application.cpp
+            examples/PgInterpreter/application.cpp
         )
 
         target_link_libraries(PgInterpreter PRIVATE ColumbaEngine)
 
         ###
 
-        add_executable(PgCompiler exemples/PgCompiler/main.cpp)
+        add_executable(PgCompiler examples/PgCompiler/main.cpp)
 
-        target_include_directories(PgCompiler PUBLIC exemples/PgCompiler)
+        target_include_directories(PgCompiler PUBLIC examples/PgCompiler)
 
         target_sources(PgCompiler PRIVATE
-            exemples/PgCompiler/application.cpp
-            exemples/PgCompiler/constant_uniformity_pass.cpp
+            examples/PgCompiler/application.cpp
+            examples/PgCompiler/constant_uniformity_pass.cpp
         )
 
         target_link_libraries(PgCompiler PRIVATE ColumbaEngine)
@@ -1042,9 +1046,9 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
-        add_executable(EcsSerializationExample exemples/PgCompiler/ecs_serialization_example.cpp)
+        add_executable(EcsSerializationExample examples/PgCompiler/ecs_serialization_example.cpp)
 
-        target_include_directories(EcsSerializationExample PUBLIC exemples/PgCompiler)
+        target_include_directories(EcsSerializationExample PUBLIC examples/PgCompiler)
 
         target_sources(EcsSerializationExample PRIVATE
         )
@@ -1070,6 +1074,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             test/filemanager.cc
             test/interpreter.cc
             test/layout.cc
+            test/prefab.cc
             test/network.cc
             # test/mock2dsimpleshape.h
             # test/simple2dobject.cc
@@ -1127,7 +1132,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         # Include directories for compiler tests
         target_include_directories(test_compiler PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/exemples/PgCompiler
+            ${CMAKE_CURRENT_SOURCE_DIR}/examples/PgCompiler
         )
 
         # Link libraries for compiler tests

@@ -537,7 +537,7 @@ void initGame() {
 
     printf("Engine initialized ...\n");
 
-    auto ttfSys = mainWindow->ecs.createSystem<TTFTextSystem>(mainWindow->masterRenderer);
+    auto ttfSys = mainWindow->ecs->createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
     // Need to fix this
     ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
@@ -546,19 +546,17 @@ void initGame() {
 
     // mainWindow->masterRenderer->processTextureRegister();
 
-    mainWindow->ecs.createSystem<FpsSystem>();
+    mainWindow->ecs->succeed<MasterRenderer, TTFTextSystem>();
 
-    mainWindow->ecs.succeed<MasterRenderer, TTFTextSystem>();
+    mainWindow->ecs->createSystem<TextHandlingSys>();
 
-    mainWindow->ecs.createSystem<TextHandlingSys>();
-
-    mainWindow->ecs.dumbTaskflow();
+    mainWindow->ecs->dumbTaskflow();
 
     mainWindow->render();
 
     mainWindow->resize(820, 640);
 
-    mainWindow->ecs.start();
+    mainWindow->ecs->start();
 
     printf("Engine initialized\n");
 }

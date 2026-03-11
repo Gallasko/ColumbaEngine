@@ -124,8 +124,6 @@ namespace editor
 
         ecsRef->attach<MouseLeftClickComponent>(addItemEntity, callable);
 
-        LOG_ERROR("Context Menu", layout->has<VerticalLayout>());
-
         auto vLayout = layout->get<VerticalLayout>();
 
         vLayout->addEntity(addItemEntity);

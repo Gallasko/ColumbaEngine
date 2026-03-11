@@ -616,7 +616,7 @@ namespace pg
     }
 
 
-    void CollisionSystem::onEvent(const EntityChangedEvent& event)
+    void CollisionSystem::onProcessEvent(const PositionComponentChangedEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 

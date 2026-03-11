@@ -419,11 +419,38 @@ namespace pg
             }
         }
 
-        void saveSystem(std::function<void(Archive&)> f, const std::string& objectName)
+        void registerSystemSaveSystem(const std::string& sysName, std::function<void(Archive&)> f)
         {
-            Serializer::ClassSerializer ar(&systemSerializer, objectName);
+            systemSaveCallbacks[sysName] = f;
+        }
 
-            f(ar.archive);
+        void unregisterSystemSave(const std::string& sysName)
+        {
+            systemSaveCallbacks.erase(sysName);
+        }
+
+        void saveSystem(const std::string& sysName)
+        {
+            const auto& it = systemSaveCallbacks.find(sysName);
+
+            if (it != systemSaveCallbacks.end())
+            {
+                Serializer::ClassSerializer ar(&systemSerializer, sysName);
+
+                it->second(ar.archive);
+            }
+            else
+            {
+                LOG_WARNING("Registry", "Cannot save system: " << sysName << " system is not registered for saving !");
+            }
+        }
+
+        void saveAllSystems()
+        {
+            for (const auto& pair : systemSaveCallbacks)
+            {
+                saveSystem(pair.first);
+            }
         }
 
         bool loadSystem(std::function<void(const UnserializedObject&)> f, const std::string& objectName)
@@ -524,6 +551,8 @@ namespace pg
         mutable std::unordered_map<std::string, Own<StandardComponent>*> standardComponentStorageMap;
 
         Serializer systemSerializer;
+
+        std::unordered_map<std::string, std::function<void(Archive&)>> systemSaveCallbacks;
     };
 
     template<>

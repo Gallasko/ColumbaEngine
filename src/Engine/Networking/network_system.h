@@ -139,7 +139,7 @@ namespace pg
         size_t nextPacketNumber = 0;
 
         // Reassembly‐buffer timestamping:
-        std::map<uint32_t, uint64_t> fragmentTimers; // packetNumber → first‐seen timestamp
+        std::map<uint32_t, uint64_t> fragmentTimers; // packetNumber -> first‐seen timestamp
         NetPacketBuffer reassembly;
 
         // Server state
@@ -178,6 +178,8 @@ namespace pg
         void handleMessage(const PacketHeader& header, const NetPayload& payload);
         void handleServerMessage(const PacketHeader& header, const NetPayload& payload);
         void handleClientMessage(const PacketHeader& header, const NetPayload& payload);
+
+        void disconnectClient(uint32_t id);
     };
 
 }

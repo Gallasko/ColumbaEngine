@@ -241,6 +241,7 @@ namespace pg
             flags = SDL_WINDOW_FULLSCREEN | SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
         }
 
+#ifndef __EMSCRIPTEN__
         LOG_INFO(DOM, "Initializing SDL...");
 
         // if (SDL_Init(SDL_INIT_EVERYTHING) == 0)
@@ -253,21 +254,16 @@ namespace pg
         }
 
         LOG_INFO(DOM, "SDL initialized successfully");
-
+#endif
         // Enable file dropping
         SDL_EventState(SDL_DROPFILE, SDL_ENABLE);
 
-#ifdef __EMSCRIPTEN__
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
-        SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
-#else
+#ifndef __EMSCRIPTEN__
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 3);
 
         SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, SDL_GL_CONTEXT_DEBUG_FLAG);
-#endif
 
         SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
         SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
@@ -276,7 +272,7 @@ namespace pg
         SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE, 32);
         SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
         SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
-
+#endif
         LOG_INFO(DOM, "Creating WindowSDL...");
 
         if (sdlWindow)
@@ -467,6 +463,9 @@ namespace pg
         // ecs->succeed<UiComponentSystem, PrefabSystem>();
         // ecs->succeed<UiComponentSystem, MouseClickSystem>();
 
+        ecs->succeed<LayoutSystem, PrefabSystem>();
+
+        ecs->succeed<PositionComponentSystem, PrefabSystem>();
         ecs->succeed<PositionComponentSystem, NamedUiAnchorSystem>();
         ecs->succeed<PositionComponentSystem, ProgressBarComponentSystem>();
         ecs->succeed<PositionComponentSystem, ListViewSystem>();

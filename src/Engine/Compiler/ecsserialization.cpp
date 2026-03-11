@@ -97,6 +97,28 @@ namespace pg
         }
     }
 
+    namespace
+    {
+        static void* getRawComponentPtr(EntitySystem* ecs, _unique_id entityId, const std::string& typeName)
+        {
+            auto& reg = ComponentSerializerRegistry::instance();
+
+            if (reg.hasSerializer(typeName))
+            {
+                auto fn = reg.getRetriever(typeName);
+                if (fn)
+                    return fn(ecs, entityId);
+            }
+
+            auto* owner = ecs->getComponentRegistry()->retrieveStandardComponent(typeName);
+
+            if (owner)
+                return owner->getComponent(entityId);
+
+            return nullptr;
+        }
+    }
+
     // ============================================================================
     // Registered Component Serializers
     // ============================================================================
@@ -281,43 +303,38 @@ namespace pg
         // Check if this component has proxy metadata registered
         auto& proxyRegistry = ComponentProxyRegistry::instance();
 
-        if (proxyRegistry.hasMetadata(componentTypeName))
+        // StandardComponent types are stored under their runtime typeName in standardComponentStorageMap,
+        // not under "StandardComponent".  Detect them explicitly so they can use the generic
+        // "StandardComponent" proxy metadata registered in ComponentProxy::registerWithVM.
+        const bool isStandardComponent = ecsRef->getComponentRegistry()->hasStandardComponent(componentTypeName);
+
+        if (proxyRegistry.hasMetadata(componentTypeName) or
+            (isStandardComponent and proxyRegistry.hasMetadata("StandardComponent")))
         {
-            LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName);
+            const std::string proxyMetaKey = proxyRegistry.hasMetadata(componentTypeName)
+                ? componentTypeName
+                : std::string("StandardComponent");
 
-            // Get the component pointer
+            LOG_MILE("ECS Serialization", "Using ComponentProxy for " << componentTypeName
+                     << " (metadata key: " << proxyMetaKey << ")");
+
             void* componentPtr = nullptr;
-
-            if (componentTypeName == "StandardComponent")
+            if (isStandardComponent and proxyMetaKey == "StandardComponent")
             {
-                // StandardComponent requires special handling
-                if (not actualTypeName.empty())
-                {
-                    auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(actualTypeName);
-                    if (owner)
-                    {
-                        componentPtr = owner->getComponent(entity->id);
-                    }
-                }
+                // Retrieve directly from the runtime-named standard component storage
+                auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(componentTypeName);
+                if (owner)
+                    componentPtr = owner->getComponent(entity->id);
             }
             else
             {
-                // For all other components, use the registered retriever
-                auto& registry = ComponentSerializerRegistry::instance();
-                if (registry.hasSerializer(componentTypeName))
-                {
-                    auto retrieverFunc = registry.getRetriever(componentTypeName);
-                    if (retrieverFunc)
-                    {
-                        componentPtr = retrieverFunc(ecsRef, entity->id);
-                    }
-                }
+                componentPtr = getRawComponentPtr(ecsRef, entity->id, componentTypeName);
             }
 
             if (componentPtr)
             {
                 // Return a proxy instead of a table copy
-                return ComponentProxy::createProxy(vm, componentTypeName, componentPtr);
+                return ComponentProxy::createProxy(vm, proxyMetaKey, componentPtr);
             }
             else
             {
@@ -368,30 +385,7 @@ namespace pg
                 LOG_MILE("ECS Serialization", "Using registered serializer for " << componentTypeName);
 
                 // Get the component pointer using the registered retriever function
-                void* componentPtr = nullptr;
-
-                if (componentTypeName == "StandardComponent")
-                {
-                    // StandardComponent requires special handling - use actualTypeName we already have
-                    if (not actualTypeName.empty())
-                    {
-                        auto* owner = ecsRef->getComponentRegistry()->retrieveStandardComponent(actualTypeName);
-
-                        if (owner)
-                        {
-                            componentPtr = owner->getComponent(entity->id);
-                        }
-                    }
-                }
-                else
-                {
-                    // For all other components, use the registered retriever
-                    auto retrieverFunc = registry.getRetriever(componentTypeName);
-                    if (retrieverFunc)
-                    {
-                        componentPtr = retrieverFunc(ecsRef, entity->id);
-                    }
-                }
+                void* componentPtr = getRawComponentPtr(ecsRef, entity->id, componentTypeName);
 
                 if (componentPtr)
                 {
@@ -820,7 +814,9 @@ namespace pg
 
             if (propIt == metadata.properties.end())
             {
-                // Property not found - return nil or 0
+                // Property not found in static map - try dynamic getter fallback
+                if (metadata.dynamicGetter)
+                    return metadata.dynamicGetter(componentPtr, propName, vm);
                 return INT_VAL(-1);
             }
 
@@ -870,6 +866,12 @@ namespace pg
 
             if (propIt == metadata.properties.end())
             {
+                // Property not found in static map - try dynamic setter fallback
+                if (metadata.dynamicSetter)
+                {
+                    metadata.dynamicSetter(componentPtr, propName, vm, newValue);
+                    return newValue;
+                }
                 // Property not found - just return the value
                 return newValue;
             }
@@ -896,6 +898,27 @@ namespace pg
 
         // Store the ComponentProxy class in globals
         vm->globals["ComponentProxy"] = vm->retainValue(klassValue);
+
+        // Register StandardComponent proxy metadata with dynamic property access.
+        // This allows any StandardComponent (regardless of its runtime typeName) to be
+        // accessed via the proxy system by looking up properties in the properties map.
+        ComponentProxyMetadata standardMeta;
+        standardMeta.componentTypeName = "StandardComponent";
+
+        standardMeta.dynamicGetter = [](void* componentPtr, const std::string& propName, VM* vm) -> Value {
+            auto* comp = static_cast<StandardComponent*>(componentPtr);
+            if (comp->has(propName))
+                return vm->elementToValue(comp->properties.at(propName));
+            return INT_VAL(-1);
+        };
+
+        standardMeta.dynamicSetter = [](void* componentPtr, const std::string& propName, VM* vm, Value value) {
+            auto* comp = static_cast<StandardComponent*>(componentPtr);
+            ElementType newValue = vm->valueToElement(value);
+            comp->setWithEvent(propName, newValue);
+        };
+
+        ComponentProxyRegistry::instance().registerMetadata(standardMeta);
     }
 
     Value ComponentProxy::createProxy(VM* vm, const std::string& typeName, void* componentPtr)

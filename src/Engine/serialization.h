@@ -221,7 +221,7 @@ namespace pg
     // TODO make a specialized renderer for std::nullptr_t to catch nullptr error ?;
 
     template <typename Type>
-    void serialize(Archive&, const Type&) { LOG_ERROR("Serializer", "No serialize function exist for " << typeid(Type).name()); }
+    void serialize(Archive&, const Type&);
 
     // Forward declarations for first-class engine types serialization
     struct StandardEvent;
@@ -263,6 +263,11 @@ namespace pg
 
     template <>
     void serialize(Archive& archive, const size_t& value);
+
+#ifdef __EMSCRIPTEN__
+    template <>
+    void serialize(Archive& archive, const unsigned long long& value);
+#endif
 
     template <>
     void serialize(Archive& archive, const std::string& value);
@@ -319,7 +324,6 @@ namespace pg
 
         archive.endSerialization();
     }
-
 
     class UnserializedObject
     {

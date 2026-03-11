@@ -100,6 +100,10 @@ void CompilerApp::setLoggerSink()
         {
             needInfo = true;
         }
+        else if (arg == "--generated-bytecode" or arg == "-gb")
+        {
+            needGeneratedBytecodeOutput = true;
+        }
         else if (arg == "--compile-only" or arg == "-c")
         {
             needCompileOnly = true;
@@ -328,7 +332,9 @@ void CompilerApp::runFile(bool needCompile)
         if (optimizationLevel != VmOptimizationLevel::O0)
         {
             vm->enableBytecodeOptimization();
-            vm->enableOptimizationDebugging();
+
+            if (needGeneratedBytecodeOutput)
+                vm->enableOptimizationDebugging();
         }
 
         // vm->disableBytecodeOptimization();
@@ -351,7 +357,10 @@ void CompilerApp::runFile(bool needCompile)
 
         auto tokens = lexer.getTokens();
 
-        vm->listOptimizationPasses();
+        if (optimizationLevel != VmOptimizationLevel::O0)
+        {
+            vm->listOptimizationPasses();
+        }
 
         vm->currentFileName = fileName;
 
@@ -362,9 +371,12 @@ void CompilerApp::runFile(bool needCompile)
         result = vm->interpretFromBytecodeFile(fileName);
     }
 
-    vm->printProfilingReport();
-    vm->printProfilingBytecodeReport();
-    vm->printAllFunctionsBytecodeWithPerformance();
+    if (profilingEnabled)
+    {
+        vm->printProfilingReport();
+        vm->printProfilingBytecodeReport();
+        vm->printAllFunctionsBytecodeWithPerformance();
+    }
 
     switch (result)
     {

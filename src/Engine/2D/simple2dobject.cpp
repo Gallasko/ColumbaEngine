@@ -17,118 +17,7 @@ namespace pg
         static constexpr char const * DOM = "Shape 2D";
     }
 
-    /**
-     * @brief Specialization of the serialize function for Shape2D
-     *
-     * @param archive A references to the archive
-     * @param value The shape 2d value
-     */
-    template <>
-    void serialize(Archive& archive, const Shape2D& value)
-    {
-        LOG_THIS(DOM);
-
-        archive.startSerialization("Shape2D");
-
-        std::string shapeString;
-
-        switch (value)
-        {
-            case Shape2D::Triangle:
-                shapeString = "Triangle"; break;
-            case Shape2D::Square:
-                shapeString = "Square"; break;
-            case Shape2D::Circle:
-                shapeString = "Circle"; break;
-            case Shape2D::None:
-                shapeString = "None"; break;
-            default:
-                LOG_ERROR(DOM, "Invalid anchor dir value");
-                shapeString = "None";
-                break;
-        };
-
-        serialize(archive, "shape", shapeString);
-
-        archive.endSerialization();
-    }
-
-    /**
-     * @brief Specialization of the serialize function for Simple2DObject
-     *
-     * @param archive A references to the archive
-     * @param value The simple 2d object value
-     */
-    template <>
-    void serialize(Archive& archive, const Simple2DObject& value)
-    {
-        LOG_THIS(DOM);
-
-        archive.startSerialization(Simple2DObject::getType());
-
-        serialize(archive, "shape", value.shape);
-        serialize(archive, "colors", value.colors);
-
-        archive.endSerialization();
-    }
-
-    template <>
-    Shape2D deserialize(const UnserializedObject& serializedString)
-    {
-        LOG_THIS(DOM);
-
-        std::string type = "";
-
-        if (serializedString.isNull())
-        {
-            LOG_ERROR(DOM, "Element is null");
-        }
-        else
-        {
-            LOG_INFO(DOM, "Deserializing an Shape2D");
-
-            auto shapeValue = deserialize<std::string>(serializedString["shape"]);
-
-            if (shapeValue == "Triangle")
-                return Shape2D::Triangle;
-            else if (shapeValue == "Square")
-                return Shape2D::Square;
-            else if (shapeValue == "Circle")
-                return Shape2D::Circle;
-            else if (shapeValue == "None")
-                return Shape2D::None;
-
-            return Shape2D::None;
-        }
-
-        return Shape2D::None;
-    }
-
-    template <>
-    Simple2DObject deserialize(const UnserializedObject& serializedString)
-    {
-        LOG_THIS(DOM);
-
-        std::string type = "";
-
-        if (serializedString.isNull())
-        {
-            LOG_ERROR(DOM, "Element is null");
-        }
-        else
-        {
-            LOG_INFO(DOM, "Deserializing an Simple2DObject");
-
-            auto shape = deserialize<Shape2D>(serializedString["shape"]);
-            auto colors = deserialize<constant::Vector4D>(serializedString["colors"]);
-
-            return Simple2DObject{shape, colors};
-        }
-
-        return Simple2DObject{Shape2D::None};
-    }
-
-    void Simple2DObjectSystem::init()
+    void Simple2DObjectSystem::setup()
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -144,75 +33,9 @@ namespace pg
         simpleShapeMaterial.setSimpleMesh({3, 2, 1, 4});
 
         materialId = masterRenderer->registerMaterial(simpleShapeMaterial);
-
-        auto group = registerGroup<PositionComponent, Simple2DObject>();
-
-        group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE("Simple 2D Object System", "Add entity " << entity->id << " to ui - 2d shape group !");
-
-            shapeUpdateQueue.push(entity->id);
-
-            changed = true;
-        });
-
-        group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_MILE("Simple 2D Object System", "Remove entity " << id << " of ui - 2d shape group !");
-
-            auto entity = ecsRef->getEntity(id);
-
-            ecsRef->detach<Simple2DRenderCall>(entity);
-
-            changed = true;
-        });
     }
 
-    void Simple2DObjectSystem::execute()
-    {
-        if (not changed)
-            return;
-
-        while (not shapeUpdateQueue.empty())
-        {
-            auto entityId = shapeUpdateQueue.front();
-
-            auto entity = ecsRef->getEntity(entityId);
-
-            if (not entity)
-            {
-                shapeUpdateQueue.pop();
-                continue;
-            }
-
-            auto ui = entity->get<PositionComponent>();
-            auto obj = entity->get<Simple2DObject>();
-
-            if (entity->has<Simple2DRenderCall>())
-            {
-                entity->get<Simple2DRenderCall>()->call = createRenderCall(ui, obj);
-            }
-            else
-            {
-                ecsRef->_attach<Simple2DRenderCall>(entity, createRenderCall(ui, obj));
-            }
-
-            shapeUpdateQueue.pop();
-        }
-
-        renderCallList.clear();
-
-        const auto& renderCallView = view<Simple2DRenderCall>();
-
-        renderCallList.reserve(renderCallView.nbComponents());
-
-        for (const auto& renderCall : renderCallView)
-        {
-            renderCallList.push_back(renderCall->call);
-        }
-
-        finishChanges();
-    }
-
-    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<Simple2DObject> obj)
+    RenderCall Simple2DObjectSystem::createRenderCall(CompRef<Simple2DObject> obj, CompRef<PositionComponent> ui)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -251,61 +74,11 @@ namespace pg
         return call;
     }
 
-    void Simple2DObjectSystem::onEvent(const EntityChangedEvent& event)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        auto entity = ecsRef->getEntity(event.id);
-
-        if (not entity or not entity->has<Simple2DObject>())
-            return;
-
-        shapeUpdateQueue.push(event.id);
-
-        changed = true;
-    }
-
-    // ---------------------------------------------------------------------------
-    // RoundedRect2DObject serialize / deserialize
-    // ---------------------------------------------------------------------------
-
-    template <>
-    void serialize(Archive& archive, const RoundedRect2DObject& value)
-    {
-        LOG_THIS(DOM);
-
-        archive.startSerialization(RoundedRect2DObject::getType());
-
-        serialize(archive, "cornerRadius", value.cornerRadius);
-        serialize(archive, "colors", value.colors);
-
-        archive.endSerialization();
-    }
-
-    template <>
-    RoundedRect2DObject deserialize(const UnserializedObject& serializedString)
-    {
-        LOG_THIS(DOM);
-
-        if (serializedString.isNull())
-        {
-            LOG_ERROR(DOM, "Element is null");
-            return RoundedRect2DObject{};
-        }
-
-        LOG_INFO(DOM, "Deserializing a RoundedRect2DObject");
-
-        auto cornerRadius = deserialize<float>(serializedString["cornerRadius"]);
-        auto colors = deserialize<constant::Vector4D>(serializedString["colors"]);
-
-        return RoundedRect2DObject{cornerRadius, colors};
-    }
-
     // ---------------------------------------------------------------------------
     // RoundedRect2DObjectSystem
     // ---------------------------------------------------------------------------
 
-    void RoundedRect2DObjectSystem::init()
+    void RoundedRect2DObjectSystem::setup()
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -322,70 +95,9 @@ namespace pg
         mat.setSimpleMesh({3, 2, 1, 4, 1});
 
         materialId = masterRenderer->registerMaterial(mat);
-
-        auto group = registerGroup<PositionComponent, RoundedRect2DObject>();
-
-        group->addOnGroup([this](EntityRef entity) {
-            LOG_MILE("Rounded Rect 2D System", "Add entity " << entity->id << " to rounded rect group!");
-            updateQueue.push(entity->id);
-            changed = true;
-        });
-
-        group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-            LOG_MILE("Rounded Rect 2D System", "Remove entity " << id << " from rounded rect group!");
-            auto entity = ecsRef->getEntity(id);
-            ecsRef->detach<RoundedRect2DRenderCall>(entity);
-            changed = true;
-        });
     }
 
-    void RoundedRect2DObjectSystem::execute()
-    {
-        if (not changed)
-            return;
-
-        while (not updateQueue.empty())
-        {
-            auto entityId = updateQueue.front();
-
-            auto entity = ecsRef->getEntity(entityId);
-
-            if (not entity)
-            {
-                updateQueue.pop();
-                continue;
-            }
-
-            auto ui  = entity->get<PositionComponent>();
-            auto obj = entity->get<RoundedRect2DObject>();
-
-            if (entity->has<RoundedRect2DRenderCall>())
-            {
-                entity->get<RoundedRect2DRenderCall>()->call = createRenderCall(ui, obj);
-            }
-            else
-            {
-                ecsRef->_attach<RoundedRect2DRenderCall>(entity, createRenderCall(ui, obj));
-            }
-
-            updateQueue.pop();
-        }
-
-        renderCallList.clear();
-
-        const auto& renderCallView = view<RoundedRect2DRenderCall>();
-
-        renderCallList.reserve(renderCallView.nbComponents());
-
-        for (const auto& renderCall : renderCallView)
-        {
-            renderCallList.push_back(renderCall->call);
-        }
-
-        finishChanges();
-    }
-
-    RenderCall RoundedRect2DObjectSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<RoundedRect2DObject> obj)
+    RenderCall RoundedRect2DObjectSystem::createRenderCall(CompRef<RoundedRect2DObject> obj, CompRef<PositionComponent> ui)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -417,19 +129,5 @@ namespace pg
         call.data[10] = obj->cornerRadius;
 
         return call;
-    }
-
-    void RoundedRect2DObjectSystem::onEvent(const EntityChangedEvent& event)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        auto entity = ecsRef->getEntity(event.id);
-
-        if (not entity or not entity->has<RoundedRect2DObject>())
-            return;
-
-        updateQueue.push(event.id);
-
-        changed = true;
     }
 }

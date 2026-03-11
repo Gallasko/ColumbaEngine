@@ -127,10 +127,10 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 LOG_INFO(DOM, "Clicked on entity: " << elem->entityId);
 
                 // send inspect event
-                ecsRef->sendEvent(InspectEvent{ elem->entity });
+                ecsRef->sendEvent(InspectEvent{ elem->entityId });
 
                 // send selection event to entity list
-                ecsRef->sendEvent(SelectEntityEvent{ elem->entity.id });
+                ecsRef->sendEvent(SelectEntityEvent{ elem->entityId });
 
                 // position & size our outline to wrap this entity
                 auto pos = elem->get<PositionComponent>();
@@ -143,7 +143,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
                 outlinePos->setRotation(pos->rotation);
 
                 // show it
-                selectionOutline.get<Prefab>()->setVisibility(true);
+                selectionOutline.get<PositionComponent>()->setVisibility(true);
                 selectionOutline.get<SelectedEntity>()->id = elem->entity.id;
 
                 break;
@@ -154,7 +154,7 @@ struct EntityFinder : public System<Listener<OnMouseClick>, Own<SelectedEntity>,
         // If we clicked on empty space, hide the outline (and maybe clear inspect)
         if (not hit)
         {
-            selectionOutline.get<Prefab>()->setVisibility(false);
+            selectionOutline.get<PositionComponent>()->setVisibility(false);
         }
     }
 };
@@ -265,14 +265,14 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
                 if (anchor)
                 {
                     // If top or bottom anchor is set, lock Y movement
-                    if (anchor->hasTopAnchor || anchor->hasBottomAnchor)
+                    if (anchor->hasTopAnchor or anchor->hasBottomAnchor)
                     {
                         lockY = true;
                         LOG_INFO(DOM, "Y-axis locked due to top/bottom anchor");
                     }
 
                     // If left or right anchor is set, lock X movement
-                    if (anchor->hasLeftAnchor || anchor->hasRightAnchor)
+                    if (anchor->hasLeftAnchor or anchor->hasRightAnchor)
                     {
                         lockX = true;
                         LOG_INFO(DOM, "X-axis locked due to left/right anchor");
@@ -319,7 +319,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         pos->setY(newY);
 
         auto ent = ecsRef->getEntity("SelectionOutline");
-        if (not ent) return;
+        if (not ent)
+            return;
 
         if (ent->get<SelectedEntity>()->id == draggingEntity)
         {
@@ -393,7 +394,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
         // Enforce minimum size
         constexpr float minSize = 10.0f;
-        if (newWidth < minSize || newHeight < minSize)
+        if (newWidth < minSize or newHeight < minSize)
             return;
 
         pos->setX(newX);
@@ -403,7 +404,7 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
 
         // Update selection outline
         auto ent = ecsRef->getEntity("SelectionOutline");
-        if (ent && ent->get<SelectedEntity>()->id == resizingEntity)
+        if (ent and ent->get<SelectedEntity>()->id == resizingEntity)
         {
             auto outlinePos = ent->get<PositionComponent>();
             outlinePos->setX(newX - 2.f);
@@ -438,14 +439,16 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         float newRotation = rotationStartAngle + angleDelta;
 
         // Normalize rotation to 0-360 degrees
-        while (newRotation < 0.0f) newRotation += 360.0f;
-        while (newRotation >= 360.0f) newRotation -= 360.0f;
+        while (newRotation < 0.0f)
+            newRotation += 360.0f;
+        while (newRotation >= 360.0f)
+            newRotation -= 360.0f;
 
         pos->setRotation(newRotation);
 
         // Update selection outline rotation
         auto ent = ecsRef->getEntity("SelectionOutline");
-        if (ent && ent->get<SelectedEntity>()->id == rotatingEntity)
+        if (ent and ent->get<SelectedEntity>()->id == rotatingEntity)
         {
             auto outlinePos = ent->get<PositionComponent>();
             outlinePos->setRotation(newRotation);
@@ -494,7 +497,8 @@ struct DragSystem : public System<Listener<OnMouseClick>, Listener<OnMouseMove>,
         if (draggingEntity != 0)
         {
             auto pos = ecsRef->getComponent<PositionComponent>(draggingEntity);
-            if (not pos) return;
+            if (not pos)
+                return;
 
             // send event to notify that dragging has ended
             ecsRef->sendEvent(EndDragging{ draggingEntity, startX, startY, pos->x, pos->y });
@@ -573,67 +577,67 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
 
         auto inspector = ecs.createSystem<InspectorSystem>();
 
-        inspector->registerCustomDrawer("Entity", [](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
-            LOG_INFO("Inspector", "Custom drawer for Entity");
+        // inspector->registerCustomDrawer("Entity", [](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
+        //     LOG_INFO("Inspector", "Custom drawer for Entity");
 
-            for (auto& child : parent.children)
-            {
-                if (child.className != "")
-                {
-                    sys->printChildren(child, view);
-                }
-                else
-                {
-                    LOG_INFO("Inspector", "Entity: " << child.name);
-                }
-            }
-        });
+        //     for (auto& child : parent.children)
+        //     {
+        //         if (child.className != "")
+        //         {
+        //             sys->printChildren(child, view);
+        //         }
+        //         else
+        //         {
+        //             LOG_INFO("Inspector", "Entity: " << child.name);
+        //         }
+        //     }
+        // });
 
-        inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>) {
-            LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
-        });
+        // inspector->registerCustomDrawer<UiAnchor>([](InspectorSystem*, SerializedInfoHolder&, CompRef<VerticalLayout>) {
+        //     LOG_ERROR("Inspector", "Todo ! : Custom drawer for UiAnchor, right now it skips it entirely");
+        // });
 
-        inspector->registerCustomDrawer<NamedUiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
-            // If no class name then we got an attribute
-            if (parent.className == "")
-            {
-                sys->addNewAttribute(parent.name, parent.value, view);
-            }
-            // We got a class name then it is a class ! So no type nor value
-            else
-            {
-                view = sys->addNewText(parent.className, view);
-            }
+        // inspector->registerCustomDrawer<NamedUiAnchor>([](InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> view) {
+        //     // If no class name then we got an attribute
+        //     if (parent.className == "")
+        //     {
+        //         sys->addNewAttribute(parent.name, parent.value, view);
+        //     }
+        //     // We got a class name then it is a class ! So no type nor value
+        //     else
+        //     {
+        //         view = sys->addNewText(parent.className, view);
+        //     }
 
-            // auto ent = make9squarePrefab(sys->ecsRef);
+        //     // auto ent = make9squarePrefab(sys->ecsRef);
 
-            // sys->view->addEntity(makeFoldableCard(sys->ecsRef));
+        //     // sys->view->addEntity(makeFoldableCard(sys->ecsRef));
 
-            // LOG_INFO("Inspector", "Ent: " << ent.id);
+        //     // LOG_INFO("Inspector", "Ent: " << ent.id);
 
-            // sys->view->addEntity(ent);
+        //     // sys->view->addEntity(ent);
 
-            // Process children but skip internal flags
-            for (auto& child : parent.children)
-            {
-                // Skip all the internal has* flags
-                if (child.name == "hasTopAnchor"        or
-                    child.name == "hasLeftAnchor"       or
-                    child.name == "hasRightAnchor"      or
-                    child.name == "hasBottomAnchor"     or
-                    child.name == "hasVerticalCenter"   or
-                    child.name == "hasHorizontalCenter" or
-                    child.name == "hasWidthConstrain"   or
-                    child.name == "hasHeightConstrain"  or
-                    child.name == "hasZConstrain")
-                {
-                    continue; // Skip these internal flags
-                }
+        //     // Process children but skip internal flags
+        //     for (auto& child : parent.children)
+        //     {
+        //         // Skip all the internal has* flags
+        //         if (child.name == "hasTopAnchor"        or
+        //             child.name == "hasLeftAnchor"       or
+        //             child.name == "hasRightAnchor"      or
+        //             child.name == "hasBottomAnchor"     or
+        //             child.name == "hasVerticalCenter"   or
+        //             child.name == "hasHorizontalCenter" or
+        //             child.name == "hasWidthConstrain"   or
+        //             child.name == "hasHeightConstrain"  or
+        //             child.name == "hasZConstrain")
+        //         {
+        //             continue; // Skip these internal flags
+        //         }
 
-                // Draw everything else normally
-                sys->printChildren(child, view);
-            }
-        });
+        //         // Draw everything else normally
+        //         sys->printChildren(child, view);
+        //     }
+        // });
 
         // mainWindow->ecs.succeed<InspectorSystem, ListViewSystem>();
         ecs.succeed<MasterRenderer, TTFTextSystem>();
@@ -654,6 +658,8 @@ EditorApp::EditorApp(const std::string &appName) : engine(appName)
         ecs.createSystem<EntityListSystem>();
 
         ecs.createSystem<FoldCardSystem>();
+
+        ecs.dumbTaskflow(false, "graph.dot");
     });
 }
 
