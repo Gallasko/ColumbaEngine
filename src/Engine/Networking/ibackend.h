@@ -23,6 +23,8 @@ namespace pg
         bool _isConnectedToServer = false;
         inline bool isConnectedToServer() const { return _isConnectedToServer; }
 
+        virtual void closeTcp(SocketHandle sock) = 0;
+
         // Send raw packet (header+payload)
         virtual bool sendUdp(const IpEndpoint& dest, const NetPayload& data) = 0;
         virtual bool sendTcp(SocketHandle sock, const NetPayload& data) = 0;
