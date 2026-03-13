@@ -65,6 +65,9 @@ namespace pg
 
         auto newSock = SDLNet_TCP_Accept(_listener);
 
+        if (not newSock)
+            return nullptr;
+
         bool addedToSet = false;
 
         for (size_t setId = 0; setId < sockSets.size(); setId++)
@@ -154,8 +157,16 @@ namespace pg
     {
         if (sock)
         {
-            SDLNet_TCP_DelSocket(sockSet, static_cast<TCPsocket>(sock));
-            SDLNet_TCP_Close(static_cast<TCPsocket>(sock));
+            auto tcpSock = static_cast<TCPsocket>(sock);
+
+            auto it = sockSetsMap.find(tcpSock);
+            if (it != sockSetsMap.end())
+            {
+                SDLNet_TCP_DelSocket(it->second, tcpSock);
+                sockSetsMap.erase(it);
+            }
+
+            SDLNet_TCP_Close(tcpSock);
         }
     }
 
