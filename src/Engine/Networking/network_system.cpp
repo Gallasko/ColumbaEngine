@@ -299,6 +299,12 @@ namespace pg
                 handleClientMessage(msg.header, msg.payload);
             }
         }
+
+        // If we were disconnected going back to trying to connect to server
+        if (not backend->isConnectedToServer())
+        {
+            currentClientState = ClientState::Connecting;
+        }
     }
 
     void NetworkSystem::handleMessage(const PacketHeader&, const NetPayload&)

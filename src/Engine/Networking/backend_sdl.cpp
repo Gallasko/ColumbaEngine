@@ -132,6 +132,24 @@ namespace pg
         return _isConnectedToServer;
     }
 
+    void SdlNetworkBackend::disconnectFromServer()
+    {
+        if (_tcpSock)
+        {
+            SDLNet_TCP_DelSocket(sockSet, _tcpSock);
+            SDLNet_TCP_Close(_tcpSock);
+            _tcpSock = nullptr;
+        }
+
+        if (_udpSock)
+        {
+            SDLNet_UDP_Close(_udpSock);
+            _udpSock = nullptr;
+        }
+
+        _isConnectedToServer = false;
+    }
+
     void SdlNetworkBackend::closeTcp(SocketHandle sock)
     {
         if (sock)
@@ -231,7 +249,7 @@ namespace pg
             }
             else
             {
-                _isConnectedToServer = false;
+                disconnectFromServer();
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
             }
         }
@@ -318,7 +336,7 @@ namespace pg
             }
             else
             {
-                _isConnectedToServer = false;
+                disconnectFromServer();
                 socketClosed = true;
 
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
