@@ -417,15 +417,18 @@ namespace pg
                     "Use: ecs.attachGeneric(entity, \"ComponentName\") instead of ecs.attachGeneric<StandardComponent>(entity)");
             }
 
-            if (not registry.hasTypeId<Type>())
+            // Single combined lookup: avoids hasTypeId (find 1) + _attach→retrieve→getTypeId (find 2)
+            auto* owner = registry.tryRetrieve<Type>();
+            if (not owner)
             {
                 LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
                 LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
 
                 registerFlagComponent<Type>();
+                owner = registry.retrieve<Type>();
             }
 
-            return _attach<Type>(entity, std::forward<Args>(args)...);
+            return _attach<Type>(entity, owner, std::forward<Args>(args)...);
         }
 
         template <typename... Args>
@@ -463,6 +466,38 @@ namespace pg
                     res->onCreation(entity);
 
                 // Todo make the systems capable of triggering on a component creation
+
+                return res;
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
+            }
+
+            return CompRef<Type>();
+        }
+
+        // Overload that accepts a pre-fetched owner, bypassing the retrieve->getTypeId lookup
+        template <typename Type, typename... Args>
+        CompRef<Type> _attach(EntityRef entity, Own<Type>* owner, Args&&... args) noexcept
+        {
+            try
+            {
+                Type* component;
+
+                if (running)
+                {
+                    component = cmdDispatcher.attachComp<Type>(entity, std::forward<Args>(args)...);
+                }
+                else
+                {
+                    component = owner->internalCreateComponent(entity, std::forward<Args>(args)...);
+                }
+
+                auto res = CompRef<Type>(component, entity.id, this, not running);
+
+                if constexpr(std::is_base_of_v<Ctor, Type>)
+                    res->onCreation(entity);
 
                 return res;
             }
@@ -527,13 +562,13 @@ namespace pg
             if (not entity)
                 return;
 
-            if (not registry.hasTypeId<Type>())
+            // Single lookup replacing hasTypeId (find 1) + getTypeId (find 2)
+            const auto id = registry.tryGetTypeId<Type>();
+            if (id == 0)
             {
                 LOG_ERROR("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS");
                 return;
             }
-
-            auto id = registry.getTypeId<Type>();
 
             try
             {

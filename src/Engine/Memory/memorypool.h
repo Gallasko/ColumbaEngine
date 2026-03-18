@@ -364,7 +364,12 @@ namespace pg
         {
             LOG_THIS_MEMBER("Memory Pool");
 
+#if defined(__GNUC__) || defined(__clang__)
+            // Single lzcnt/bsr hardware instruction instead of the multiply+table trick
+            const uint64_t n = static_cast<uint64_t>(63 - __builtin_clzll(static_cast<unsigned long long>(index) + 1ULL));
+#else
             const uint64_t n = log2_64(index + 1);
+#endif
             const size_t containerSize = N >= 2 ? N : n == 0 ? 0 : 1 << n;
 
             const size_t listPos = N >= 2 ? index / containerSize : n;
