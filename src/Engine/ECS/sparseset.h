@@ -659,6 +659,78 @@ namespace pg
             }
         }
 
+        /**
+         * @brief Create multiple components in parallel for a contiguous range of entity ids
+         *
+         * Identical pre-allocation strategy to addComponents, but the object construction
+         * (placement-new) is handed off to the caller-supplied @p exec functor so that it
+         * can be executed in parallel across several threads.
+         *
+         * Layout contract:
+         *   - Phase 1 (sequential): sparse/dense indices are filled and componentList
+         *     pointers are stored pointing at the pre-reserved (but unconstructed) pool slots.
+         *   - Phase 2 (parallel via @p exec): each slot is constructed in-place.
+         *   - Phase 3 (sequential): constructed pointers are written to @p out.
+         *
+         * The @p exec callable must satisfy: exec(count, body)
+         * where body is void(size_t i) and must be called for every i in [0, count).
+         *
+         * @param idList  Contiguous id range returned by UniqueIdGenerator::generateIdList
+         * @param out     Output iterator that receives each Comp* after construction
+         * @param exec    Parallel executor: exec(count, body) runs body(i) for i in [0,count)
+         * @param args    Extra constructor arguments forwarded to every component
+         */
+        template <typename OutputIt, typename ParallelExec, typename... Args>
+        void addComponentsParallel(const UniqueIdGenerator::UniqueIdList& idList, OutputIt out, ParallelExec&& exec, const Args&... args)
+        {
+            LOG_THIS_MEMBER("Component Set");
+
+            // Pre-reserve sparse set (dense and sparse arrays)
+            this->reserveBulk(idList.length, idList.end);
+
+            // Pre-reserve component pointer list
+            const size_t targetComponentCount = nbComponents + idList.length;
+            if (targetComponentCount > componentCapacity)
+            {
+                size_t targetCapacity = componentCapacity;
+                while (targetCapacity <= targetComponentCount)
+                    targetCapacity *= 2;
+
+                Comp** tempComponentList = new Comp*[targetCapacity];
+                memcpy(tempComponentList, componentList, componentCapacity * sizeof(Comp*));
+                delete[] componentList;
+                componentList = tempComponentList;
+                componentCapacity = targetCapacity;
+            }
+
+            // Pre-reserve allocator pool
+            pool.reserve(targetComponentCount);
+
+            const size_t basePoolIdx      = pool.getNbElements();
+            const size_t baseNbComponents = nbComponents;
+
+            // Phase 1 (sequential): fill sparse/dense, store unconstructed slot pointers
+            for (size_t i = 0; i < idList.length; ++i)
+            {
+                const auto index = add(idList.start + i);
+                lastEntityIndex  = index;
+                componentList[nbComponents++] = pool.getSlot(basePoolIdx + i);
+            }
+
+            // Advance pool count to mark the slots as logically allocated
+            pool.advanceCount(idList.length);
+
+            // Phase 2 (parallel): construct each component at its pre-determined slot
+            exec(idList.length, [&](size_t i)
+            {
+                new(pool.getSlot(basePoolIdx + i)) Comp(idList.start + i, args...);
+            });
+
+            // Phase 3 (sequential): write output after construction is complete
+            for (size_t i = 0; i < idList.length; ++i)
+                *out++ = componentList[baseNbComponents + i];
+        }
+
         void removeComponent(_unique_id id)
         {
             LOG_THIS_MEMBER("Component Set");

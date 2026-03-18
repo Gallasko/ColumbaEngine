@@ -299,6 +299,38 @@ namespace pg
         }
 
         /**
+         * @brief Get a raw pointer to a pre-reserved slot at the given index
+         *
+         * The pool must already have been reserved to cover @p index.
+         * The slot is returned as-is (no construction, no nbElements update).
+         * Use this together with placement-new for parallel bulk allocation;
+         * call advanceCount() once all slots have been constructed.
+         *
+         * @param index The pool index (must be < getSize())
+         * @return T* Raw pointer to the storage at that index
+         */
+        T* getSlot(size_t index) const
+        {
+            return reinterpret_cast<T*>(getChunk(index));
+        }
+
+        /**
+         * @brief Advance the element count by @p n without constructing any objects
+         *
+         * Use after parallel placement-new into pre-reserved slots obtained via getSlot().
+         *
+         * @param n Number of elements to mark as allocated
+         */
+        void advanceCount(size_t n)
+        {
+            if (n == 0) return;
+            const size_t newMax = nbElements + n - 1;
+            if (newMax > maxAllocatedIndex)
+                maxAllocatedIndex = newMax;
+            nbElements += n;
+        }
+
+        /**
          * @brief Get a specific element in the pool by his index
          *
          * @param index The position of the item in the pool
