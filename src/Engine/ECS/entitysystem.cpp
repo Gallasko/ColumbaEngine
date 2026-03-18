@@ -443,6 +443,27 @@ namespace pg
         }
     }
 
+    std::vector<EntityRef> EntitySystem::createEntities(size_t count)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        std::vector<EntityRef> result;
+        result.reserve(count);
+
+        if (running)
+        {
+            for (size_t i = 0; i < count; ++i)
+                result.push_back(cmdDispatcher.createEntity());
+        }
+        else
+        {
+            const auto idList = registry.idGenerator.generateIdList(count);
+            entityPool.addComponents(idList, std::back_inserter(result), this);
+        }
+
+        return result;
+    }
+
     void EntitySystem::removeEntity(Entity* entity)
     {
         LOG_THIS_MEMBER("ECS");

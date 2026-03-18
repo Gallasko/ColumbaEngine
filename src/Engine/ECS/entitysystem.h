@@ -188,6 +188,18 @@ namespace pg
         EntityRef createEntity(const std::string& name);
 
         /**
+         * @brief Create multiple Entity objects at once
+         *
+         * When the ECS is not running, entity ids are allocated in a single contiguous
+         * block via the id generator and all memory (sparse set, component pool) is
+         * pre-reserved before the insertion loop, avoiding repeated reallocation.
+         *
+         * @param count Number of entities to create
+         * @return std::vector<EntityRef> A vector of reference objects to the entities created, in creation order
+         */
+        std::vector<EntityRef> createEntities(size_t count);
+
+        /**
          * @brief Remove an Entity object
          *
          * @param entity Pointer to the entity to delete from the ecs (Remove it from the entity pool)

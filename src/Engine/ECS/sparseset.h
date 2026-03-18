@@ -198,6 +198,17 @@ namespace pg
         /** Remove an id in the set */
         size_t remove(const _unique_id& id);
 
+        /**
+         * @brief Pre-allocate dense and sparse capacity for a bulk insertion
+         *
+         * Call this before inserting @p additionalCount new elements whose ids are
+         * all <= @p maxId. This avoids repeated reallocation inside the hot loop.
+         *
+         * @param additionalCount Number of elements that will be inserted
+         * @param maxId           Highest entity id among the elements to be inserted
+         */
+        void reserveBulk(size_t additionalCount, _unique_id maxId);
+
         /** Clear the entire list */
         inline virtual void clear()
         {
@@ -576,6 +587,76 @@ namespace pg
             LOG_THIS_MEMBER("Component Set");
 
             return addComponent(entity->id, std::forward<Args>(args)...);
+        }
+
+        /**
+         * @brief Create multiple components at once for a contiguous range of entity ids
+         *
+         * All memory (dense/sparse arrays, component pointer list, allocator pool) is
+         * pre-allocated in a single pass before the insertion loop, avoiding repeated
+         * reallocation overhead.
+         *
+         * The first constructor argument passed to each component is its entity id
+         * (matching the behaviour of addComponent where the sparse key and first arg
+         * are both the entity id), followed by any extra @p args.
+         *
+         * @param idList Contiguous id range returned by UniqueIdGenerator::generateIdList
+         * @param args   Extra constructor arguments forwarded to every component
+         * @return std::vector<Comp*> Pointers to the newly created components, in id order
+         */
+        /**
+         * @brief Create multiple components at once for a contiguous range of entity ids
+         *
+         * All memory (dense/sparse arrays, component pointer list, allocator pool) is
+         * pre-allocated in a single pass before the insertion loop, avoiding repeated
+         * reallocation overhead.
+         *
+         * Each component is constructed with (entityId, args...) and the resulting
+         * Comp* is written to @p out. The caller controls the output type: use
+         * std::back_inserter on a pre-reserved vector to avoid any intermediate
+         * heap allocation.
+         *
+         * @param idList Contiguous id range returned by UniqueIdGenerator::generateIdList
+         * @param out    Output iterator that receives each Comp* as it is created
+         * @param args   Extra constructor arguments forwarded to every component
+         */
+        template <typename OutputIt, typename... Args>
+        void addComponents(const UniqueIdGenerator::UniqueIdList& idList, OutputIt out, const Args&... args)
+        {
+            LOG_THIS_MEMBER("Component Set");
+
+            // Pre-reserve sparse set (dense and sparse arrays)
+            this->reserveBulk(idList.length, idList.end);
+
+            // Pre-reserve component pointer list
+            const size_t targetComponentCount = nbComponents + idList.length;
+            if (targetComponentCount > componentCapacity)
+            {
+                size_t targetCapacity = componentCapacity;
+                while (targetCapacity <= targetComponentCount)
+                    targetCapacity *= 2;
+
+                Comp** tempComponentList = new Comp*[targetCapacity];
+                memcpy(tempComponentList, componentList, componentCapacity * sizeof(Comp*));
+                delete[] componentList;
+                componentList = tempComponentList;
+                componentCapacity = targetCapacity;
+            }
+
+            // Pre-reserve allocator pool
+            pool.reserve(targetComponentCount);
+
+            for (_unique_id entityId = idList.start; entityId <= idList.end; ++entityId)
+            {
+                // Sparse set insertion - no realloc since we pre-reserved
+                const auto index = add(entityId);
+                lastEntityIndex = index;
+
+                // Pool allocation - no realloc since we pre-reserved
+                auto* component = pool.allocate(entityId, args...);
+                componentList[nbComponents++] = component;
+                *out++ = component;
+            }
         }
 
         void removeComponent(_unique_id id)

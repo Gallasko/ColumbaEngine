@@ -105,7 +105,29 @@ namespace pg
         }
 
         // ====================================================================
-        // Benchmark 2 — Entity creation + single component attachment
+        // Benchmark 2 — Bulk entity creation (createEntities)
+        // ====================================================================
+
+        TEST(ECS_Benchmark, BulkEntityCreation)
+        {
+            std::cout << "\n=== Bulk Entity Creation (createEntities) ===" << std::endl;
+
+            for (int count : entityCounts)
+            {
+                EntitySystem ecs("bench_create_bulk");
+
+                auto start = now();
+
+                ecs.createEntities(static_cast<size_t>(count));
+
+                auto end = now();
+
+                printResult("createEntities()", count, nanoseconds(start, end));
+            }
+        }
+
+        // ====================================================================
+        // Benchmark 3 — Entity creation + single component attachment
         // ====================================================================
 
         TEST(ECS_Benchmark, EntityCreationWithComponent)
@@ -293,13 +315,22 @@ namespace pg
             struct Result { std::string name; int64_t ns; };
             std::vector<Result> results;
 
-            // --- Creation ---
+            // --- Creation (one by one) ---
             {
                 EntitySystem ecs("s_create");
                 auto start = now();
                 for (int i = 0; i < count; ++i) ecs.createEntity();
                 auto end = now();
-                results.push_back({"Entity creation", nanoseconds(start, end)});
+                results.push_back({"Entity creation (loop)", nanoseconds(start, end)});
+            }
+
+            // --- Bulk creation ---
+            {
+                EntitySystem ecs("s_create_bulk");
+                auto start = now();
+                ecs.createEntities(static_cast<size_t>(count));
+                auto end = now();
+                results.push_back({"Entity creation (bulk)", nanoseconds(start, end)});
             }
 
             // --- Creation + attach ---
