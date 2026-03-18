@@ -1,6 +1,6 @@
 #pragma once
 
-#include <set>
+#include <vector>
 #include <algorithm>
 
 #include "entityref.h"
@@ -139,7 +139,7 @@ namespace pg
 
         // Todo make this mutable because it is only used for memoisation purposes
         // std::unordered_map<_unique_id, Entity*> componentList;
-        std::set<EntityHeld> componentList;
+        std::vector<EntityHeld> componentList;
 
         //Todo overload operator delete to call ecsRef->deleteEntity(this);
 
