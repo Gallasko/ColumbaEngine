@@ -273,11 +273,16 @@ namespace pg
                 profiler.recordPreRunTime(duration);
             }
 
+#ifdef DEBUG_PROFILE_COMPILE
             begin = std::chrono::steady_clock::now();
+#endif
+
             auto result = run();
-            end = std::chrono::steady_clock::now();
 
 #ifdef DEBUG_PROFILE_COMPILE
+            end = std::chrono::steady_clock::now();
+
+
             std::cout << "Execution took: "
                       << std::chrono::duration_cast<std::chrono::nanoseconds>(end - begin).count()
                       << " ns"
@@ -964,7 +969,6 @@ namespace pg
             vm->releaseAndDelete(value);
 
             auto finalValue = vm->pop();
-
             vm->releaseAndDelete(finalValue);
             vm->vm_return(InterpretResult::OK);
 
