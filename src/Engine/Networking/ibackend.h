@@ -19,6 +19,7 @@ namespace pg
 
         // Client-side: try to connect; return true on success
         virtual bool connectToServer() = 0;
+        virtual void disconnectFromServer() = 0;
 
         bool _isConnectedToServer = false;
         inline bool isConnectedToServer() const { return _isConnectedToServer; }

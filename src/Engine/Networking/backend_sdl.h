@@ -20,6 +20,7 @@ namespace pg
 
         // Client‐side: connect to server using cfg.peerAddress/cfg.tcpPort
         bool connectToServer() override;
+        virtual void disconnectFromServer() override;
 
         virtual void closeTcp(SocketHandle sock) override;
 

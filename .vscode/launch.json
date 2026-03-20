@@ -83,6 +83,33 @@
             // "preLaunchTask": "build"
         },
         {
+            "name": "NetworkTestServer",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": ["--mode=server"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/build/SimpleClientServer"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
+            // },
+            // "preLaunchTask": "build"
+        },
+        {
             "name": "Test",
             "type": "cppdbg",
             "request": "launch",
