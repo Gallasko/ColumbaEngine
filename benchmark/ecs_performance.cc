@@ -144,7 +144,7 @@ namespace pg
                 for (int i = 0; i < count; ++i)
                 {
                     auto entity = ecs.createEntity();
-                    ecs.attachGeneric<BenchPosition>(entity);
+                    ecs._attach<BenchPosition>(entity);
                 }
 
                 auto end = now();
@@ -172,8 +172,8 @@ namespace pg
                 for (int i = 0; i < count; ++i)
                 {
                     auto entity = ecs.createEntity();
-                    ecs.attachGeneric<BenchPosition>(entity);
-                    ecs.attachGeneric<BenchVelocity>(entity);
+                    ecs._attach<BenchPosition>(entity);
+                    ecs._attach<BenchVelocity>(entity);
                 }
 
                 auto end = now();
@@ -341,7 +341,7 @@ namespace pg
                 for (int i = 0; i < count; ++i)
                 {
                     auto e = ecs.createEntity();
-                    ecs.attachGeneric<BenchPosition>(e);
+                    ecs._attach<BenchPosition>(e);
                 }
                 auto end = now();
                 results.push_back({"Create + attach (1 comp)", nanoseconds(start, end)});

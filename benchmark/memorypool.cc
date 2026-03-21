@@ -166,6 +166,16 @@ namespace pg
             }
         }
 
+        TEST(memorypool_benchmark, allocation_desallocation_1M)
+        {
+            runMemoryPoolAllocDealloc(1000000);
+        }
+
+        TEST(memorypool_benchmark, allocation_desallocation_100M)
+        {
+            runMemoryPoolAllocDealloc(100000000);
+        }
+
         // ----------------------------------------------------------------------------------------
         // ---------------------------        Test separator        -------------------------------
         // ----------------------------------------------------------------------------------------
