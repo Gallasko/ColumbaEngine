@@ -111,9 +111,9 @@ namespace pg
 
             while (reserveSize >= size)
             {
-                const size_t blockSize = N >= 2 ? N : size == 0 ? 1 : size + 1;
+                const size_t blockSize = N >= 2 ? N : size == 0 ? 64 : size;
 
-                LOG_MILE("Memory Pool", "Current size: " << size <<
+                LOG_INFO("Memory Pool", "Current size: " << size <<
                     ", target: " << reserveSize <<
                     ", blockSize: " << blockSize);
 
@@ -364,18 +364,23 @@ namespace pg
         {
             LOG_THIS_MEMBER("Memory Pool");
 
+            if (N >= 2)
+                return &chunkList[index / N][index % N];
+
+            // Block layout (N == 1):
+            //   Block 0          : indices [0,   63], size = 64
+            //   Block k (k >= 1) : indices [2^(k+5), 2^(k+6) - 1], size = 2^(k+5)
+            // For index < 64: block 0, offset = index
+            // For index >= 64: n = floor(log2(index)), listPos = n - 5, offset = index - 2^n
+            if (index < 64)
+                return &chunkList[0][index];
+
 #if defined(__GNUC__) || defined(__clang__)
-            // Single lzcnt/bsr hardware instruction instead of the multiply+table trick
-            const uint64_t n = static_cast<uint64_t>(63 - __builtin_clzll(static_cast<unsigned long long>(index) + 1ULL));
+            const uint64_t n = static_cast<uint64_t>(63 - __builtin_clzll(static_cast<unsigned long long>(index)));
 #else
-            const uint64_t n = log2_64(index + 1);
+            const uint64_t n = log2_64(index);
 #endif
-            const size_t containerSize = N >= 2 ? N : n == 0 ? 0 : 1 << n;
-
-            const size_t listPos = N >= 2 ? index / containerSize : n;
-            const size_t vectorPos = N >= 2 ? index % containerSize : n == 0 ? 0 : index + 1 - containerSize;
-
-            return &chunkList[listPos][vectorPos];
+            return &chunkList[n - 5][index - (size_t(1) << n)];
         }
 
     private:
