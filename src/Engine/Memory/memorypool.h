@@ -113,7 +113,7 @@ namespace pg
             {
                 const size_t blockSize = N >= 2 ? N : size == 0 ? 64 : size;
 
-                LOG_INFO("Memory Pool", "Current size: " << size <<
+                LOG_MILE("Memory Pool", "Current size: " << size <<
                     ", target: " << reserveSize <<
                     ", blockSize: " << blockSize);
 

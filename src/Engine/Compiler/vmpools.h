@@ -44,34 +44,34 @@ namespace pg
         // ====================================================================
 
         /** Pool for string objects (ElementType) */
-        AllocatorPool<std::string, 64> stringPool;
+        AllocatorPool<std::string> stringPool;
 
         /** String interning map - maps string content to pool index for deduplication */
         std::unordered_map<std::string, uint32_t> internedStrings;
 
         /** Pool for closure objects */
-        AllocatorPool<Closure, 32> closurePool;
+        AllocatorPool<Closure> closurePool;
 
         /** Pool for function objects */
-        AllocatorPool<ObjFunction, 16> functionPool;
+        AllocatorPool<ObjFunction> functionPool;
 
         /** Pool for upvalue objects */
-        AllocatorPool<ObjUpvalue, 32> upvaluePool;
+        AllocatorPool<ObjUpvalue> upvaluePool;
 
         /** Pool for class objects */
-        AllocatorPool<Klass, 16> classPool;
+        AllocatorPool<Klass> classPool;
 
         /** Pool for native function wrappers */
-        AllocatorPool<NativeFunction, 16> nativeFuncPool;
+        AllocatorPool<NativeFunction> nativeFuncPool;
 
         /** Pool for instance objects */
-        AllocatorPool<ObjInstance, 32> instancePool;
+        AllocatorPool<ObjInstance> instancePool;
 
         /** Pool for bound method objects */
-        AllocatorPool<ObjBoundMethod, 32> boundMethodPool;
+        AllocatorPool<ObjBoundMethod> boundMethodPool;
 
         /** Pool for vector objects */
-        AllocatorPool<ObjVector, 32> vectorPool;
+        AllocatorPool<ObjVector> vectorPool;
 
         /** Pool for custom pointer types (void*) */
         std::unordered_map<_unique_id, std::vector<void *>> customPointerPool;

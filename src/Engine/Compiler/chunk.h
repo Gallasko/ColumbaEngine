@@ -147,7 +147,7 @@ namespace pg
         // Helper function to compare two values for semantic equality
         // For primitives (int, bool, double), compares bit patterns
         // For strings, compares actual string content (requires stringPool)
-        bool valuesEqual(Value a, Value b, AllocatorPool<std::string, 64>* stringPool = nullptr) const
+        bool valuesEqual(Value a, Value b, AllocatorPool<std::string>* stringPool = nullptr) const
         {
             // Fast path: if bit patterns match, they're definitely equal
             if (a == b) return true;
@@ -200,7 +200,7 @@ namespace pg
             return false;
         }
 
-        AllocatorPool<std::string, 64>* stringPool = nullptr;  // Set by compiler/VM for string comparison
+        AllocatorPool<std::string>* stringPool = nullptr;  // Set by compiler/VM for string comparison
 
         size_t addConstant(const Value& value, int line)
         {
