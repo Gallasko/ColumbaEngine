@@ -26,6 +26,19 @@ namespace pg
             glm::vec2    uvBottomRight;
         };
 
+        // Position-independent glyph data, relative to the PositionComponent origin.
+        // Rebuilt only when text content changes; reused for position-only updates.
+        struct GlyphRenderData
+        {
+            float relX, relY;   // Position relative to PositionComponent (x, y)
+            float w, h;         // Glyph size
+            float a, r, g, b;   // Colors (alpha, red, green, blue)
+            float uvX0, uvY0;   // UV top-left
+            float uvX1, uvY1;   // UV bottom-right
+            size_t materialId;
+            size_t viewport;
+        };
+
         TTFTextSystem(MasterRenderer *renderer);
 
         virtual std::string getSystemName() const override { return "TTFText System"; }
@@ -37,11 +50,16 @@ namespace pg
 
         void registerFont(const std::string& fontPath, const std::string& fontName = "", int size = 48);
 
-        void onEventUpdate(_unique_id entityId);
-
         virtual void execute() override;
 
-        std::vector<RenderCall> createRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
+        // Builds glyph layout templates from text content. Only called when text changes.
+        std::vector<GlyphRenderData> buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj);
+
+        // Produces RenderCalls by applying position data to pre-built glyph templates.
+        std::vector<RenderCall> createRenderCall(CompRef<PositionComponent> ui, const std::vector<GlyphRenderData>& glyphs);
+
+        // Fast-path: regenerates render calls from stored templates using only new position data.
+        void applyPositionUpdate(_unique_id entityId, CompRef<PositionComponent> ui);
 
         // Use this material preset if a material is not specified when creating a ttf component !
         Material baseMaterialPreset;
@@ -52,22 +70,23 @@ namespace pg
 
         std::unordered_map<std::string, std::unordered_map<char, Character>> charactersMap;
 
+        std::unordered_map<_unique_id, std::vector<GlyphRenderData>> entityGlyphTemplates;
         std::unordered_map<_unique_id, std::vector<RenderCall>> entityRenderCalls;
         std::vector<_unique_id> entitiesInRenderGroup;
-        std::unordered_set<_unique_id> textUpdateSet;
+        std::unordered_set<_unique_id> textContentUpdateSet;  // Full rebuild needed (text changed)
+        std::unordered_set<_unique_id> positionUpdateSet;     // Position-only update needed
 
     private:
         // Render call helpers
         float computeLineHeight(const std::string& text, const std::string& fontPath, float scale);
         float getGlyphAdvance(char c, const std::string& fontPath, float scale);
         float computeWordWidth(const std::string& word, const std::string& fontPath, float scale);
-        RenderCall createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors, size_t viewport);
 
         std::vector<TTFText> parseFormattedText(const TTFText &original);
 
         size_t getMaterialId(const std::string& fontPath);
 
-        // Used for memoiszing the material id of a font
+        // Used for memoizing the material id of a font
         std::map<std::string, size_t> currentLoadedMaterialId;
     };
 

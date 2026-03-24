@@ -62,7 +62,8 @@ namespace pg
 
             if (ui and obj)
             {
-                entityRenderCalls[entity->id] = createRenderCall(ui, obj);
+                entityGlyphTemplates[entity->id] = buildGlyphTemplates(ui, obj);
+                entityRenderCalls[entity->id] = createRenderCall(ui, entityGlyphTemplates[entity->id]);
                 entitiesInRenderGroup.push_back(entity->id);
                 std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
             }
@@ -74,6 +75,7 @@ namespace pg
             LOG_MILE(DOM, "Remove entity " << id << " of ui - ttf group !");
 
             entityRenderCalls.erase(id);
+            entityGlyphTemplates.erase(id);
             entitiesInRenderGroup.erase(
                 std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id),
                 entitiesInRenderGroup.end()
@@ -87,14 +89,22 @@ namespace pg
     {
         LOG_THIS_MEMBER(DOM);
 
-        onEventUpdate(event.id);
+        // Only queue a position-only update if a full rebuild isn't already pending.
+        if (textContentUpdateSet.find(event.id) == textContentUpdateSet.end())
+            positionUpdateSet.insert(event.id);
+
+        changed = true;
     }
 
     void TTFTextSystem::onEvent(const TTFTextChangedEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 
-        onEventUpdate(event.id);
+        // Full rebuild needed; remove from position-only set to avoid redundant work.
+        positionUpdateSet.erase(event.id);
+        textContentUpdateSet.insert(event.id);
+
+        changed = true;
     }
 
     void TTFTextSystem::registerFont(const std::string& fontPath, const std::string& fontName, int size)
@@ -217,65 +227,83 @@ namespace pg
         masterRenderer->queueRegisterTexture(textureName, f);
     }
 
-    void TTFTextSystem::onEventUpdate(_unique_id entityId)
-    {
-        LOG_THIS_MEMBER(DOM);
-
-        textUpdateSet.insert(entityId);
-
-        changed = true;
-    }
-
     void TTFTextSystem::execute()
     {
         if (not changed)
             return;
 
-        // Build update queue using set intersection (like texture system)
-        std::vector<_unique_id> updateQueue;
-        std::vector<_unique_id> temp;
+        // Snapshot and clear textContentUpdateSet, intersect with render group.
+        std::vector<_unique_id> fullRebuildQueue;
+        {
+            std::vector<_unique_id> temp;
+            temp.assign(textContentUpdateSet.begin(), textContentUpdateSet.end());
+            std::sort(temp.begin(), temp.end());
+            textContentUpdateSet.clear();
 
-        temp.assign(textUpdateSet.begin(), textUpdateSet.end());
-        std::sort(temp.begin(), temp.end());
+            std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(),
+                                  temp.begin(), temp.end(),
+                                  std::back_inserter(fullRebuildQueue));
+        }
 
-        std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(),
-                              temp.begin(), temp.end(),
-                              std::back_inserter(updateQueue));
+        // Snapshot and clear positionUpdateSet, intersect with render group,
+        // then exclude entities already scheduled for a full rebuild.
+        std::vector<_unique_id> positionOnlyQueue;
+        {
+            std::vector<_unique_id> temp;
+            temp.assign(positionUpdateSet.begin(), positionUpdateSet.end());
+            std::sort(temp.begin(), temp.end());
+            positionUpdateSet.clear();
 
-        // Clear the update set after processing
-        textUpdateSet.clear();
+            std::vector<_unique_id> inGroup;
+            std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(),
+                                  temp.begin(), temp.end(),
+                                  std::back_inserter(inGroup));
 
-        // Update render calls for entities that need it
-        for (const auto& entityId : updateQueue)
+            std::set_difference(inGroup.begin(), inGroup.end(),
+                                fullRebuildQueue.begin(), fullRebuildQueue.end(),
+                                std::back_inserter(positionOnlyQueue));
+        }
+
+        // Full rebuild: text content changed — redo glyph layout and render calls.
+        for (const auto& entityId : fullRebuildQueue)
         {
             auto entity = ecsRef->getEntity(entityId);
-
             if (not entity)
                 continue;
 
             auto ui = entity->get<PositionComponent>();
             auto obj = entity->get<TTFText>();
 
-            LOG_MILE(DOM, "Updating entity " << entityId << ", with text: " << obj->text);
+            LOG_MILE(DOM, "Full rebuild entity " << entityId << ", with text: " << obj->text);
 
-            entityRenderCalls[entityId] = createRenderCall(ui, obj);
+            entityGlyphTemplates[entityId] = buildGlyphTemplates(ui, obj);
+            entityRenderCalls[entityId] = createRenderCall(ui, entityGlyphTemplates[entityId]);
         }
 
-        // Build render call list from system map
+        // Fast-path: position only changed — reuse glyph templates, apply new position.
+        for (const auto& entityId : positionOnlyQueue)
+        {
+            auto entity = ecsRef->getEntity(entityId);
+            if (not entity)
+                continue;
+
+            auto ui = entity->get<PositionComponent>();
+
+            LOG_MILE(DOM, "Position update entity " << entityId);
+
+            applyPositionUpdate(entityId, ui);
+        }
+
+        // Rebuild renderCallList from the system map.
         renderCallList.clear();
 
-        // Reserve space to avoid reallocations during iteration
         size_t totalCalls = 0;
         for (const auto& [entityId, calls] : entityRenderCalls)
-        {
             totalCalls += calls.size();
-        }
         renderCallList.reserve(totalCalls);
 
         for (const auto& [entityId, calls] : entityRenderCalls)
-        {
             renderCallList.insert(renderCallList.end(), calls.begin(), calls.end());
-        }
 
         finishChanges();
     }
@@ -319,84 +347,28 @@ namespace pg
         return width;
     }
 
-    // Helper: Creates a RenderCall for a single glyph character.
-    RenderCall TTFTextSystem::createGlyphRenderCall(CompRef<PositionComponent> ui, const std::string& fontPath, size_t materialId, char c, float currentX, float currentY, float z, float scale, float lineHeight, const constant::Vector4D &colors, size_t viewport)
+    std::vector<TTFTextSystem::GlyphRenderData> TTFTextSystem::buildGlyphTemplates(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
     {
-        RenderCall call;
-        call.processPositionComponent(ui);
+        std::vector<GlyphRenderData> glyphs;
 
-        // Build a unique texture name for the glyph.
-        Character ch = charactersMap[fontPath][c];
-
-        float xPos = currentX + ch.bearing.x * scale;
-        float yPos = currentY - ch.bearing.y * scale + lineHeight;
-        float w = ch.size.x * scale;
-        float h = ch.size.y * scale;
-
-        call.setMaterial(materialId);
-
-        call.setOpacity(OpacityType::Additive);
-        call.setRenderStage(renderStage);
-
-        call.setViewport(viewport);
-
-        // Resize data array and assign properties.
-        call.data.resize(15);
-
-        call.data[0] = xPos;
-        call.data[1] = yPos;
-        call.data[2] = z;
-        call.data[3] = w;
-        call.data[4] = h;
-        call.data[5] = ui->rotation;
-        call.data[6] = colors.w;
-        call.data[7] = colors.x;
-        call.data[8] = colors.y;
-        call.data[9] = colors.z;
-        call.data[10] = 1.0f;
-
-        call.data[11] = ch.uvTopLeft.x;
-        call.data[12] = ch.uvTopLeft.y;
-        call.data[13] = ch.uvBottomRight.x;
-        call.data[14] = ch.uvBottomRight.y;
-
-        return call;
-    }
-
-    std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<PositionComponent> ui, CompRef<TTFText> obj)
-    {
-        std::vector<RenderCall> calls;
-
-        // First, parse the text into segments with formatting applied.
-        // Each segment is stored in a TTFText instance (with its text and color updated).
         std::vector<TTFText> segments = parseFormattedText(*obj);
 
         float startX = ui->x;
         float startY = ui->y;
-        float z = ui->z;
         float scale = obj->scale;
-        auto colors = obj->colors;
         size_t viewport = obj->viewport;
-
-        auto wrap = obj->wrap;
-
-        std::string text = obj->text;
+        bool wrap = obj->wrap;
         std::string fontPath = obj->fontPath;
-
         size_t materialId = getMaterialId(fontPath);
 
-        // Compute line height and determine maximum allowed width.
-        float lineHeight = computeLineHeight(text, fontPath, scale) + obj->spacing;
+        float lineHeight = computeLineHeight(obj->text, fontPath, scale) + obj->spacing;
         float maxWidth = (ui->width > 0) ? ui->width : 10000.0f;
 
-        // Initialize positions and dimensions.
         float currentX = startX;
         float currentY = startY;
 
-        // Iterate over each parsed segment.
-        for (const auto &seg : segments)
+        for (const auto& seg : segments)
         {
-            // If the segment contains only "\n", treat it as a forced newline.
             if (seg.text == "\n")
             {
                 currentY += lineHeight;
@@ -404,36 +376,28 @@ namespace pg
                 continue;
             }
 
-            // Process text character by character to preserve all spaces
             for (size_t charIndex = 0; charIndex < seg.text.length(); charIndex++)
             {
                 char c = seg.text[charIndex];
 
                 if (c == ' ')
                 {
-                    // Handle space character
-                    float spaceWidth = getGlyphAdvance(' ', obj->fontPath, scale);
-                    currentX += spaceWidth;
+                    currentX += getGlyphAdvance(' ', fontPath, scale);
                 }
                 else
                 {
-                    // When we hit a non-space character, check if it's the start of a word for wrapping
                     if (charIndex == 0 || seg.text[charIndex - 1] == ' ')
                     {
-                        // Beginning of a word - calculate word width for wrapping check
                         std::string currentWord;
                         size_t wordEnd = charIndex;
-
-                        // Extract the full word (until space or end)
                         while (wordEnd < seg.text.length() && seg.text[wordEnd] != ' ')
                         {
                             currentWord += seg.text[wordEnd];
                             wordEnd++;
                         }
 
-                        float wordWidth = computeWordWidth(currentWord, obj->fontPath, scale);
+                        float wordWidth = computeWordWidth(currentWord, fontPath, scale);
 
-                        // Check if word would exceed line width
                         if (wrap && (currentX - startX + wordWidth > maxWidth))
                         {
                             currentY += lineHeight;
@@ -441,15 +405,30 @@ namespace pg
                         }
                     }
 
-                    // Process the character normally
-                    RenderCall call = createGlyphRenderCall(ui, fontPath, materialId, c, currentX, currentY, z, scale, lineHeight, seg.colors, viewport);
-                    calls.push_back(call);
+                    Character ch = charactersMap[fontPath][c];
+
+                    GlyphRenderData glyph;
+                    glyph.relX = (currentX - startX) + ch.bearing.x * scale;
+                    glyph.relY = (currentY - startY) - ch.bearing.y * scale + lineHeight;
+                    glyph.w = ch.size.x * scale;
+                    glyph.h = ch.size.y * scale;
+                    glyph.a = seg.colors.w;
+                    glyph.r = seg.colors.x;
+                    glyph.g = seg.colors.y;
+                    glyph.b = seg.colors.z;
+                    glyph.uvX0 = ch.uvTopLeft.x;
+                    glyph.uvY0 = ch.uvTopLeft.y;
+                    glyph.uvX1 = ch.uvBottomRight.x;
+                    glyph.uvY1 = ch.uvBottomRight.y;
+                    glyph.materialId = materialId;
+                    glyph.viewport = viewport;
+
+                    glyphs.push_back(glyph);
                     currentX += getGlyphAdvance(c, fontPath, scale);
                 }
             }
         }
 
-        // Update the overall dimensions based on the final cursor positions.
         float totalWidth = currentX - startX;
         float totalHeight = (currentY - startY) + lineHeight;
 
@@ -465,7 +444,54 @@ namespace pg
             ui->setHeight(totalHeight);
         }
 
+        return glyphs;
+    }
+
+    std::vector<RenderCall> TTFTextSystem::createRenderCall(CompRef<PositionComponent> ui, const std::vector<GlyphRenderData>& glyphs)
+    {
+        std::vector<RenderCall> calls;
+        calls.reserve(glyphs.size());
+
+        for (const auto& glyph : glyphs)
+        {
+            RenderCall call;
+            call.processPositionComponent(ui);
+
+            call.setMaterial(glyph.materialId);
+            call.setOpacity(OpacityType::Additive);
+            call.setRenderStage(renderStage);
+            call.setViewport(glyph.viewport);
+
+            call.data.resize(15);
+            call.data[0] = ui->x + glyph.relX;
+            call.data[1] = ui->y + glyph.relY;
+            call.data[2] = ui->z;
+            call.data[3] = glyph.w;
+            call.data[4] = glyph.h;
+            call.data[5] = ui->rotation;
+            call.data[6] = glyph.a;
+            call.data[7] = glyph.r;
+            call.data[8] = glyph.g;
+            call.data[9] = glyph.b;
+            call.data[10] = 1.0f;
+            call.data[11] = glyph.uvX0;
+            call.data[12] = glyph.uvY0;
+            call.data[13] = glyph.uvX1;
+            call.data[14] = glyph.uvY1;
+
+            calls.push_back(std::move(call));
+        }
+
         return calls;
+    }
+
+    void TTFTextSystem::applyPositionUpdate(_unique_id entityId, CompRef<PositionComponent> ui)
+    {
+        auto it = entityGlyphTemplates.find(entityId);
+        if (it == entityGlyphTemplates.end())
+            return;
+
+        entityRenderCalls[entityId] = createRenderCall(ui, it->second);
     }
 
     // Parses inline formatting commands (such as \n for newline and \c{r,g,b,a} for color changes)
