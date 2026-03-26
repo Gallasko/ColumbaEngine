@@ -278,7 +278,7 @@ namespace pg
                 removeEntity(ent->get<VerticalLayout>(), event.index);
             }
 
-            entitiesInLayout.erase(event.id);
+            entitiesInLayout.erase(event.index);
 
             layoutUpdate.insert(ent);
         }
@@ -300,7 +300,7 @@ namespace pg
                 removeEntityAt(ent->get<VerticalLayout>(), event.index);
             }
 
-            entitiesInLayout.erase(event.id);
+            entitiesInLayout.erase(event.index);
 
             layoutUpdate.insert(ent);
         }
@@ -864,7 +864,7 @@ namespace pg
     {
         if (index < 0)
         {
-            index = static_cast<int>(view->entities.size()) + index + 1;
+            index = static_cast<int>(view->entities.size()) + index;
         }
 
         if (index < 0 or index >= static_cast<int>(view->entities.size()))

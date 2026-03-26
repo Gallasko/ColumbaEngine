@@ -809,9 +809,15 @@ namespace pg
             auto anchorChanged = false;
             auto entity = ecsRef->getEntity(id);
 
-            if (not entity or not entity->has<PositionComponent>())
+            if (not entity)
             {
-                LOG_WARNING(DOM, "Entity " << id << " not found or has no PositionComponent");
+                LOG_WARNING(DOM, "Entity " << id << " not found");
+                continue;
+            }
+
+            if (not entity->has<PositionComponent>())
+            {
+                LOG_WARNING(DOM, "Entity " << id << " has no PositionComponent");
                 continue;
             }
 
