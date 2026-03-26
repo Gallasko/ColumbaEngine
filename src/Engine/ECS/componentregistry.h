@@ -306,6 +306,42 @@ namespace pg
             return it != idMap.end();
         }
 
+        /**
+         * @brief Look up the ECS-local id for @p Type in a single map find.
+         *
+         * Unlike the hasTypeId + getTypeId pair, this performs exactly one
+         * unordered_map::find and reuses the iterator for the value.
+         *
+         * @return The registered id, or 0 if @p Type has not been registered yet.
+         *         (0 is the reserved "invalid" id in UniqueIdGenerator.)
+         */
+        template <typename Type>
+        _unique_id tryGetTypeId() const noexcept
+        {
+            const auto globalId = getGlobalGenericId<Type>();
+            const auto it = idMap.find(globalId);
+            return it != idMap.end() ? it->second : _unique_id{0};
+        }
+
+        /**
+         * @brief Retrieve the owner for @p Type in a single combined lookup.
+         *
+         * Performs one idMap find and one componentStorageMap find, replacing the
+         * hasTypeId (find 1) + retrieve -> getTypeId (find 2) + componentStorageMap.at
+         * triple-lookup pattern.
+         *
+         * @return Pointer to Own<Type>, or nullptr if @p Type is not registered.
+         */
+        template <typename Type>
+        Own<Type>* tryRetrieve() const noexcept
+        {
+            const auto globalId = getGlobalGenericId<Type>();
+            const auto idIt = idMap.find(globalId);
+            if (idIt == idMap.end()) return nullptr;
+            const auto csIt = componentStorageMap.find(idIt->second);
+            return csIt != componentStorageMap.end() ? static_cast<Own<Type>*>(csIt->second) : nullptr;
+        }
+
         template <typename Type>
         _unique_id getTypeId() const noexcept
         {
@@ -582,15 +618,16 @@ namespace pg
                 return;
             }
 
-            if (not registry->hasTypeId<Type>())
+            // Single combined lookup: avoids hasTypeId (find 1) + retrieve→getTypeId (find 2)
+            ref = registry->tryRetrieve<Type>();
+            if (not ref)
             {
                 LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
                 LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
 
                 registry->registerFlagComponent<Type>();
+                ref = registry->retrieve<Type>();
             }
-
-            ref = registry->retrieve<Type>();
         }
 
         template <typename... Args>
@@ -683,8 +720,7 @@ namespace pg
             // Create a new component and store it in a sparse set along with the entity id using it
             auto comp = components.addComponent(entity, std::forward<Args>(args)...);
 
-            // Add the component to the entity
-            entity->componentList.emplace(_componentId);
+            entity->componentList.insert(_componentId);
 
             // Call the on component creation callbacks to register the component in potential groups
             for (const auto& callback : onComponentCreation)
@@ -981,7 +1017,7 @@ namespace pg
                 comp->set(key, value);
             }
 
-            entity->componentList.emplace(_componentId);
+            entity->componentList.insert(_componentId);
 
             for (const auto& callback : onComponentCreation)
                 callback.second(entity);

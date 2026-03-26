@@ -153,6 +153,14 @@ namespace pg
     //     size--;
     // }
 
+    void SparseSet::reserveBulk(size_t additionalCount, _unique_id maxId)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        addDenseCapacity(size + additionalCount);
+        addSparseCapacity(maxId);
+    }
+
     /**
      * @brief Internal helper function used to expend the dense and the component list
      *

@@ -16,6 +16,8 @@
 #include "commanddispatcher.h"
 #include "savemanager.h"
 
+#include <iostream>
+
 #ifdef PROFILE
 #include <atomic>
 #include <mutex>
@@ -186,6 +188,18 @@ namespace pg
          * @return EntityRef A reference object to the entity created
          */
         EntityRef createEntity(const std::string& name);
+
+        /**
+         * @brief Create multiple Entity objects at once
+         *
+         * When the ECS is not running, entity ids are allocated in a single contiguous
+         * block via the id generator and all memory (sparse set, component pool) is
+         * pre-reserved before the insertion loop, avoiding repeated reallocation.
+         *
+         * @param count Number of entities to create
+         * @return std::vector<EntityRef> A vector of reference objects to the entities created, in creation order
+         */
+        std::vector<EntityRef> createEntities(size_t count);
 
         /**
          * @brief Remove an Entity object
@@ -405,15 +419,18 @@ namespace pg
                     "Use: ecs.attachGeneric(entity, \"ComponentName\") instead of ecs.attachGeneric<StandardComponent>(entity)");
             }
 
-            if (not registry.hasTypeId<Type>())
+            // Single combined lookup: avoids hasTypeId (find 1) + _attach→retrieve→getTypeId (find 2)
+            auto* owner = registry.tryRetrieve<Type>();
+            if (not owner)
             {
                 LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
                 LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
 
                 registerFlagComponent<Type>();
+                owner = registry.retrieve<Type>();
             }
 
-            return _attach<Type>(entity, std::forward<Args>(args)...);
+            return _attach<Type>(entity, owner, std::forward<Args>(args)...);
         }
 
         template <typename... Args>
@@ -451,6 +468,38 @@ namespace pg
                     res->onCreation(entity);
 
                 // Todo make the systems capable of triggering on a component creation
+
+                return res;
+            }
+            catch (const std::exception& e)
+            {
+                LOG_ERROR("ECS", "Can't attach component [" << typeid(Type).name() << "]: " << e.what() << " (No system own this component ?)");
+            }
+
+            return CompRef<Type>();
+        }
+
+        // Overload that accepts a pre-fetched owner, bypassing the retrieve->getTypeId lookup
+        template <typename Type, typename... Args>
+        CompRef<Type> _attach(EntityRef entity, Own<Type>* owner, Args&&... args) noexcept
+        {
+            try
+            {
+                Type* component;
+
+                if (running)
+                {
+                    component = cmdDispatcher.attachComp<Type>(entity, std::forward<Args>(args)...);
+                }
+                else
+                {
+                    component = owner->internalCreateComponent(entity, std::forward<Args>(args)...);
+                }
+
+                auto res = CompRef<Type>(component, entity.id, this, not running);
+
+                if constexpr(std::is_base_of_v<Ctor, Type>)
+                    res->onCreation(entity);
 
                 return res;
             }
@@ -515,13 +564,13 @@ namespace pg
             if (not entity)
                 return;
 
-            if (not registry.hasTypeId<Type>())
+            // Single lookup replacing hasTypeId (find 1) + getTypeId (find 2)
+            const auto id = registry.tryGetTypeId<Type>();
+            if (id == 0)
             {
                 LOG_ERROR("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS");
                 return;
             }
-
-            auto id = registry.getTypeId<Type>();
 
             try
             {
@@ -736,24 +785,17 @@ namespace pg
                 return;
             }
 
-            while (not entity->componentList.empty())
-            {
-                const auto& comp = *entity->componentList.begin();
+            auto compList = entity->componentList;
 
-                if (comp.entityHeldType == Entity::EntityHeld::EntityHeldType::id)
+            for (auto _id : compList)
+            {
+                try
                 {
-                    try
-                    {
-                        registry.detachComponentFromEntity(entity, comp.getId());
-                    }
-                    catch (const std::exception& e)
-                    {
-                        LOG_ERROR("ECS", "Can't detach component [" << comp.getId() << "] from entity [" << entity->id << "]: " << e.what());
-                    }
+                    registry.detachComponentFromEntity(entity, _id);
                 }
-                else
+                catch (const std::exception& e)
                 {
-                    entity->componentList.erase(entity->componentList.begin());
+                    LOG_ERROR("ECS", "Can't detach component [" << _id << "] from entity [" << entity->id << "]: " << e.what());
                 }
             }
 
@@ -923,9 +965,11 @@ namespace pg
             return CompRef<Comp>();
         }
 
+        // Todo add a fast path here
+
         const auto& componentId = ecsRef->getId<Comp>();
 
-        const auto& it = std::find(componentList.begin(), componentList.end(), componentId);
+        const auto& it = componentList.find(componentId);
 
         if (it != componentList.end())
         {

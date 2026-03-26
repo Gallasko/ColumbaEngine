@@ -435,7 +435,7 @@ namespace pg
                 throw std::runtime_error("has expects exactly 1 argument (componentName)");
             }
 
-            if (!IS_STRING(args[0]))
+            if (not IS_STRING(args[0]))
             {
                 throw std::runtime_error("has expects a string argument (component name)");
             }
@@ -450,29 +450,24 @@ namespace pg
             }
 
             // Check other registered components by iterating through the entity's component list
-            for (const auto& compRef : entity->componentList)
+            for (const auto& id : entity->componentList)
             {
-                if (compRef.entityHeldType == Entity::EntityHeld::EntityHeldType::id)
+                // Use fast getComponentTypeName() instead of creating an archive!
+                std::string compTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(id);
+
+                // For StandardComponent, get the actual type name
+                if (compTypeName == "StandardComponent")
                 {
-                    _unique_id componentId = compRef.getId();
-
-                    // Use fast getComponentTypeName() instead of creating an archive!
-                    std::string compTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(componentId);
-
-                    // For StandardComponent, get the actual type name
-                    if (compTypeName == "StandardComponent")
+                    StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
+                    if (standardComp)
                     {
-                        StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
-                        if (standardComp)
-                        {
-                            compTypeName = standardComp->typeName;
-                        }
+                        compTypeName = standardComp->typeName;
                     }
+                }
 
-                    if (compTypeName == componentName)
-                    {
-                        return makeBoolValue(true);
-                    }
+                if (compTypeName == componentName)
+                {
+                    return makeBoolValue(true);
                 }
             }
 
@@ -483,31 +478,26 @@ namespace pg
         entityTable->setField("has", hasFuncValue);
 
         // Serialize each component
-        for (const auto& compRef : entity->componentList)
+        for (const auto& id : entity->componentList)
         {
-            if (compRef.entityHeldType == Entity::EntityHeld::EntityHeldType::id)
+            // Get component type name FIRST (fast lookup, no archive needed)
+            std::string componentTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(id);
+
+            // For StandardComponent, get the actual runtime type name
+            if (componentTypeName == "StandardComponent")
             {
-                _unique_id componentId = compRef.getId();
-
-                // Get component type name FIRST (fast lookup, no archive needed)
-                std::string componentTypeName = ecsRef->getComponentRegistry()->getComponentTypeName(componentId);
-
-                // For StandardComponent, get the actual runtime type name
-                if (componentTypeName == "StandardComponent")
+                StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
+                if (standardComp)
                 {
-                    StandardComponent* standardComp = ecsRef->getComponent<StandardComponent>(entity->id);
-                    if (standardComp)
-                    {
-                        componentTypeName = standardComp->typeName;
-                    }
+                    componentTypeName = standardComp->typeName;
                 }
-
-                // Serialize the component (will return proxy for registered components)
-                Value componentValue = serializeComponentToTable(vm, ecsRef, entity, componentId);
-
-                // Add to entity table using the type name we already have
-                entityTable->setField(componentTypeName, componentValue);
             }
+
+            // Serialize the component (will return proxy for registered components)
+            Value componentValue = serializeComponentToTable(vm, ecsRef, entity, id);
+
+            // Add to entity table using the type name we already have
+            entityTable->setField(componentTypeName, componentValue);
         }
 
         return entityTableValue;

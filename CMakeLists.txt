@@ -10,6 +10,7 @@ option(ENABLE_TIME_TRACE "Add -ftime-trace to Clang builds" OFF)
 option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
 option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
+option(SKIP_COMPONENT_GENERATION "Skip regeneration of component files (use existing generated files)" OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -365,7 +366,9 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     # ===============================================
     # Create a target to regenerate components when .pgcomp files change
     # This uses the bootstrap compiler to avoid circular dependencies
-    if(COMPONENT_DEFINITIONS)
+    if(SKIP_COMPONENT_GENERATION)
+        message(STATUS "SKIP_COMPONENT_GENERATION is ON: skipping component regeneration (using existing generated files)")
+    elseif(COMPONENT_DEFINITIONS)
         set(ALL_GENERATED_FILES "")
 
         foreach(COMP_DEF ${COMPONENT_DEFINITIONS})
@@ -450,7 +453,7 @@ endif()
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
 
 # Make ColumbaEngine depend on component regeneration (native builds only)
-if(COMPONENT_DEFINITIONS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
+if(COMPONENT_DEFINITIONS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT SKIP_COMPONENT_GENERATION)
     add_dependencies(ColumbaEngine RegenerateComponents)
 endif()
 
@@ -1109,6 +1112,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             benchmark/memorypool.cc
             benchmark/serialization.cc
             benchmark/script_performance.cc
+            benchmark/ecs_performance.cc
         )
 
         target_link_libraries(bench PRIVATE gtest gtest_main ColumbaEngine)

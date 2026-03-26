@@ -61,9 +61,9 @@ namespace pg
                 auto compList = makeList(this, {});
 
                 size_t j = 0;
-                for (const auto& compId : entity->componentList)
+                for (const auto& id : entity->componentList)
                 {
-                    addToList(compList, this->token, {std::to_string(j), compId.getId()});
+                    addToList(compList, this->token, {std::to_string(j), id});
                     j++;
                 }
 

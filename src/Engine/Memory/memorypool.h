@@ -111,7 +111,7 @@ namespace pg
 
             while (reserveSize >= size)
             {
-                const size_t blockSize = N >= 2 ? N : size == 0 ? 1 : size + 1;
+                const size_t blockSize = N >= 2 ? N : size == 0 ? 64 : size;
 
                 LOG_MILE("Memory Pool", "Current size: " << size <<
                     ", target: " << reserveSize <<
@@ -299,6 +299,38 @@ namespace pg
         }
 
         /**
+         * @brief Get a raw pointer to a pre-reserved slot at the given index
+         *
+         * The pool must already have been reserved to cover @p index.
+         * The slot is returned as-is (no construction, no nbElements update).
+         * Use this together with placement-new for parallel bulk allocation;
+         * call advanceCount() once all slots have been constructed.
+         *
+         * @param index The pool index (must be < getSize())
+         * @return T* Raw pointer to the storage at that index
+         */
+        T* getSlot(size_t index) const
+        {
+            return reinterpret_cast<T*>(getChunk(index));
+        }
+
+        /**
+         * @brief Advance the element count by @p n without constructing any objects
+         *
+         * Use after parallel placement-new into pre-reserved slots obtained via getSlot().
+         *
+         * @param n Number of elements to mark as allocated
+         */
+        void advanceCount(size_t n)
+        {
+            if (n == 0) return;
+            const size_t newMax = nbElements + n - 1;
+            if (newMax > maxAllocatedIndex)
+                maxAllocatedIndex = newMax;
+            nbElements += n;
+        }
+
+        /**
          * @brief Get a specific element in the pool by his index
          *
          * @param index The position of the item in the pool
@@ -332,13 +364,23 @@ namespace pg
         {
             LOG_THIS_MEMBER("Memory Pool");
 
-            const uint64_t n = log2_64(index + 1);
-            const size_t containerSize = N >= 2 ? N : n == 0 ? 0 : 1 << n;
+            if (N >= 2)
+                return &chunkList[index / N][index % N];
 
-            const size_t listPos = N >= 2 ? index / containerSize : n;
-            const size_t vectorPos = N >= 2 ? index % containerSize : n == 0 ? 0 : index + 1 - containerSize;
+            // Block layout (N == 1):
+            //   Block 0          : indices [0,   63], size = 64
+            //   Block k (k >= 1) : indices [2^(k+5), 2^(k+6) - 1], size = 2^(k+5)
+            // For index < 64: block 0, offset = index
+            // For index >= 64: n = floor(log2(index)), listPos = n - 5, offset = index - 2^n
+            if (index < 64)
+                return &chunkList[0][index];
 
-            return &chunkList[listPos][vectorPos];
+#if defined(__GNUC__) || defined(__clang__)
+            const uint64_t n = static_cast<uint64_t>(63 - __builtin_clzll(static_cast<unsigned long long>(index)));
+#else
+            const uint64_t n = log2_64(index);
+#endif
+            return &chunkList[n - 5][index - (size_t(1) << n)];
         }
 
     private:

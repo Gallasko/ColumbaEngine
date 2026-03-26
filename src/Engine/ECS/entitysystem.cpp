@@ -443,6 +443,55 @@ namespace pg
         }
     }
 
+    std::vector<EntityRef> EntitySystem::createEntities(size_t count)
+    {
+        LOG_THIS_MEMBER("ECS");
+
+        std::vector<EntityRef> result;
+        result.reserve(count);
+
+        if (running)
+        {
+            for (size_t i = 0; i < count; ++i)
+                result.push_back(cmdDispatcher.createEntity());
+        }
+        else
+        {
+            const auto idList = registry.idGenerator.generateIdList(count);
+
+            // Use parallel construction when there are enough entities to amortise
+            // the task-submission overhead and more than one executor thread is available.
+            constexpr size_t parallelThreshold = 64;
+            if (count > parallelThreshold and NBEXECUTORTHREADS > 1)
+            {
+                entityPool.addComponentsParallel(idList, std::back_inserter(result),
+                    [this](size_t n, auto body)
+                    {
+                        tf::Taskflow tfLocal;
+                        const size_t chunkSize = (n + NBEXECUTORTHREADS - 1) / NBEXECUTORTHREADS;
+                        for (size_t t = 0; t < NBEXECUTORTHREADS and t * chunkSize < n; ++t)
+                        {
+                            const size_t start = t * chunkSize;
+                            const size_t end   = std::min(start + chunkSize, n);
+                            tfLocal.emplace([body, start, end]()
+                            {
+                                for (size_t i = start; i < end; ++i)
+                                    body(i);
+                            });
+                        }
+                        taskflowImpl->executor.run(tfLocal).wait();
+                    },
+                    this);
+            }
+            else
+            {
+                entityPool.addComponents(idList, std::back_inserter(result), this);
+            }
+        }
+
+        return result;
+    }
+
     void EntitySystem::removeEntity(Entity* entity)
     {
         LOG_THIS_MEMBER("ECS");
