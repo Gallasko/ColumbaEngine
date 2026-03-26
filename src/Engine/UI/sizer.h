@@ -23,6 +23,44 @@ namespace pg
     };
 
     /**
+     * @brief Event fired when a layout child is removed from its parent layout.
+     *
+     * Sent by EntityInLayout::onDeletion when the child entity is destroyed, or by the
+     * <PositionComponent, EntityInLayout> group's removeOfGroup when the child loses its
+     * PositionComponent while still alive. The LayoutSystem handler erases the child from
+     * view->entities and entitiesInLayout without calling removeEntity (the entity may
+     * already be gone).
+     */
+    struct EntityRemovedFromLayoutEvent
+    {
+        _unique_id layoutId;  ///< ID of the parent layout entity
+        _unique_id entityId;  ///< ID of the child entity being removed
+    };
+
+    /**
+     * @brief Marker component attached to every entity that is a direct child of a layout.
+     *
+     * Always present on layout children, so layout loops can call get<EntityInLayout>()
+     * without a has<> guard. Caches capability flags kept in sync by ECS group callbacks:
+     *
+     * - hasPosition: true while PositionComponent is attached
+     *
+     * onDeletion sends EntityRemovedFromLayoutEvent so the parent layout can evict the
+     * stale EntityRef from view->entities when the child is destroyed externally.
+     */
+    struct EntityInLayout : public Component, public Dtor
+    {
+        _unique_id layoutId = 0;
+        LayoutOrientation orientation = LayoutOrientation::Horizontal;
+        bool hasPosition = false; ///< Kept in sync by <PositionComponent, EntityInLayout> group
+
+        virtual void onDeletion(EntityRef entity) override
+        {
+            ecsRef->sendEvent(EntityRemovedFromLayoutEvent{layoutId, entity.id});
+        }
+    };
+
+    /**
      * @brief Event to clear multiple entities from layouts.
      *
      * Removes all specified entities from their respective layouts and destroys them.
@@ -425,10 +463,11 @@ namespace pg
      */
     struct LayoutSystem : public System<
         Listener<StandardEvent>,
+        QueuedListener<EntityRemovedFromLayoutEvent>,
         QueuedListener<PositionComponentChangedEvent>,
         QueuedListener<LayoutScrolledEvent>,
-        QueuedListener<AddLayoutElementEvent>,
-        QueuedListener<InsertLayoutElementEvent>,
+        Listener<AddLayoutElementEvent>,
+        Listener<InsertLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementAtEvent>,
         QueuedListener<ClearLayoutEvent>,
@@ -472,7 +511,7 @@ namespace pg
          * @param event Event containing layout ID, entity ID, and orientation
          * @see AddLayoutElementEvent
          */
-        virtual void onProcessEvent(const AddLayoutElementEvent& event) override;
+        virtual void onEvent(const AddLayoutElementEvent& event) override;
 
         /**
          * @brief Processes requests to insert elements at specific positions.
@@ -483,7 +522,7 @@ namespace pg
          * @param event Event containing layout ID, entity ID, orientation, and index
          * @see InsertLayoutElementEvent
          */
-        virtual void onProcessEvent(const InsertLayoutElementEvent& event) override;
+        virtual void onEvent(const InsertLayoutElementEvent& event) override;
 
         /**
          * @brief Processes requests to remove specific entities from layouts.
@@ -531,6 +570,16 @@ namespace pg
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
 
         virtual void onProcessEvent(const LayoutScrolledEvent& event) override;
+
+        /**
+         * @brief Handles child entity removal notifications.
+         *
+         * Fired by EntityInLayout::onDeletion (entity destroyed) or by the
+         * <PositionComponent, EntityInLayout> group (child lost PositionComponent).
+         * Evicts the child from view->entities and entitiesInLayout, then queues
+         * the parent layout for a reflow. Does NOT call removeEntity.
+         */
+        virtual void onProcessEvent(const EntityRemovedFromLayoutEvent& event) override;
 
         void onLayoutChanged(_unique_id id);
 

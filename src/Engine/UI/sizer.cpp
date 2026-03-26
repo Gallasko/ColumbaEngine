@@ -102,6 +102,22 @@ namespace pg
                 }
             }
         });
+
+        auto childGroup = registerGroup<PositionComponent, EntityInLayout>();
+
+        childGroup->addOnGroup([](EntityRef entity) {
+            LOG_MILE(DOM, "Entity " << entity->id << " joined PositionComponent+EntityInLayout group");
+            entity->get<EntityInLayout>()->hasPosition = true;
+        });
+
+        childGroup->removeOfGroup([](EntitySystem* ecs, _unique_id id) {
+            LOG_MILE(DOM, "Entity " << id << " left PositionComponent+EntityInLayout group");
+            // Entity still alive: it lost its PositionComponent — update the flag
+            auto ent = ecs->getEntity(id);
+            if (ent and ent->has<EntityInLayout>())
+                ent->get<EntityInLayout>()->hasPosition = false;
+            // Entity deleted: EntityInLayout::onDeletion already sent EntityRemovedFromLayoutEvent
+        });
     }
 
     void LayoutSystem::onEvent(const StandardEvent& event)
@@ -236,7 +252,7 @@ namespace pg
         clear(event.entityIds);
     }
 
-    void LayoutSystem::onProcessEvent(const AddLayoutElementEvent& event)
+    void LayoutSystem::onEvent(const AddLayoutElementEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
 
@@ -249,7 +265,7 @@ namespace pg
         }
     }
 
-    void LayoutSystem::onProcessEvent(const InsertLayoutElementEvent& event)
+    void LayoutSystem::onEvent(const InsertLayoutElementEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
 
@@ -314,6 +330,36 @@ namespace pg
     void LayoutSystem::onProcessEvent(const LayoutScrolledEvent& event)
     {
         onLayoutChanged(event.id);
+    }
+
+    void LayoutSystem::onProcessEvent(const EntityRemovedFromLayoutEvent& event)
+    {
+        auto layoutEnt = ecsRef->getEntity(event.layoutId);
+
+        if (not layoutEnt)
+            return;
+
+        BaseLayout* view = nullptr;
+
+        if (layoutEnt->has<HorizontalLayout>())
+            view = layoutEnt->get<HorizontalLayout>();
+        else if (layoutEnt->has<VerticalLayout>())
+            view = layoutEnt->get<VerticalLayout>();
+
+        if (not view)
+            return;
+
+        auto it = std::find_if(view->entities.begin(), view->entities.end(),
+            [&event](const EntityRef& e) { return e.id == event.entityId; });
+
+        if (it != view->entities.end())
+        {
+            LOG_MILE(DOM, "Evicting stale child " << event.entityId << " from layout " << event.layoutId);
+            view->entities.erase(it);
+        }
+
+        entitiesInLayout.erase(event.entityId);
+        layoutUpdate.insert(layoutEnt);
     }
 
     void LayoutSystem::onLayoutChanged(_unique_id id)
@@ -434,11 +480,10 @@ namespace pg
 
         for (auto& ent : view->entities)
         {
-            if (not ent->has<PositionComponent>())
-            {
-                LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
+            auto inLayout = ent->template get<EntityInLayout>();
+
+            if (not inLayout->hasPosition)
                 continue;
-            }
 
             auto pos = ent->template get<PositionComponent>();
 
@@ -516,12 +561,10 @@ namespace pg
         for (size_t i = 0; i < view->entities.size(); ++i)
         {
             auto ent = view->entities[i];
+            auto inLayout = ent->template get<EntityInLayout>();
 
-            if (not ent->template has<PositionComponent>())
-            {
-                LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
+            if (not inLayout->hasPosition)
                 continue;
-            }
 
             auto pos = ent->template get<PositionComponent>();
 
@@ -554,12 +597,10 @@ namespace pg
         for (size_t i = 0; i < view->entities.size(); i++)
         {
             auto ent = view->entities[i];
+            auto inLayout = ent->template get<EntityInLayout>();
 
-            if (not ent->template has<PositionComponent>())
-            {
-                LOG_ERROR("Layout", "Entity " << ent.id << " must have a PositionComponent!");
+            if (not inLayout->hasPosition)
                 continue;
-            }
 
             auto pos = ent->template get<PositionComponent>();
 
@@ -780,6 +821,13 @@ namespace pg
 
             // view->entities.push_back(ent);
 
+            {
+                auto inLayout = ecsRef->attach<EntityInLayout>(ent);
+                inLayout->layoutId = view->id;
+                inLayout->orientation = LayoutOrientation::Horizontal;
+                inLayout->hasPosition = ent->has<PositionComponent>();
+            }
+
             // Stick to end logic for horizontal layout
             if (view->stickToEnd)
             {
@@ -824,6 +872,13 @@ namespace pg
 
             // view->entities.push_back(ent);
             view->entities.insert(view->entities.begin() + index, ent);
+
+            {
+                auto inLayout = ecsRef->attach<EntityInLayout>(ent);
+                inLayout->layoutId = view->id;
+                inLayout->orientation = LayoutOrientation::Vertical;
+                inLayout->hasPosition = ent->has<PositionComponent>();
+            }
 
             // Stick to end logic for vertical layout
             if (view->stickToEnd)
@@ -896,26 +951,28 @@ namespace pg
 
         for (auto& ui : entities)
         {
-            if (ui->template has<PositionComponent>())
+            auto inLayout = ui->template get<EntityInLayout>();
+
+            if (not inLayout->hasPosition)
+                continue;
+
+            auto pos = ui->template get<PositionComponent>();
+            bool isCompVisible = false;
+
+            if (renderable)
             {
-                auto pos = ui->template get<PositionComponent>();
-                bool isCompVisible = false;
+                float childTop    = pos->y;
+                float childBottom = pos->y + pos->height;
+                float childLeft   = pos->x;
+                float childRight  = pos->x + pos->width;
 
-                if (renderable)
+                if (childRight > parentLeft and childLeft < parentRight and childBottom > parentTop and childTop < parentBottom)
                 {
-                    float childTop    = pos->y;
-                    float childBottom = pos->y + pos->height;
-                    float childLeft   = pos->x;
-                    float childRight  = pos->x + pos->width;
-
-                    if (childRight > parentLeft and childLeft < parentRight and childBottom > parentTop and childTop < parentBottom)
-                    {
-                        isCompVisible = true;
-                    }
+                    isCompVisible = true;
                 }
-
-                pos->setObservable(isCompVisible);
             }
+
+            pos->setObservable(isCompVisible);
         }
     }
 
