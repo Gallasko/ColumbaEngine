@@ -35,12 +35,12 @@ namespace pg
 
             EXPECT_NE(elem, nullptr);
             EXPECT_EQ(pool.getNbElements(), 1);
-            EXPECT_EQ(pool.getSize(), 1);
+            EXPECT_EQ(pool.getSize(), 64);
 
             pool.release(elem);
 
             EXPECT_EQ(pool.getNbElements(), 0);
-            EXPECT_EQ(pool.getSize(), 1);
+            EXPECT_EQ(pool.getSize(), 64);
         }
 
         // ----------------------------------------------------------------------------------------
@@ -63,32 +63,32 @@ namespace pg
                 if (i == 0)
                 {
                     EXPECT_EQ(pool.getNbElements(), 1);
-                    EXPECT_EQ(pool.getSize(), 1);
+                    EXPECT_EQ(pool.getSize(), 64);
                 }
                 else if (i == 1)
                 {
                     EXPECT_EQ(pool.getNbElements(), 2);
-                    EXPECT_EQ(pool.getSize(), 3);
+                    EXPECT_EQ(pool.getSize(), 64);
                 }
                 else if (i == 3)
                 {
                     EXPECT_EQ(pool.getNbElements(), 4);
-                    EXPECT_EQ(pool.getSize(), 7);
+                    EXPECT_EQ(pool.getSize(), 64);
                 }
                 else if (i == 7)
                 {
                     EXPECT_EQ(pool.getNbElements(), 8);
-                    EXPECT_EQ(pool.getSize(), 15);
+                    EXPECT_EQ(pool.getSize(), 64);
                 }
                 else if (i == 15)
                 {
                     EXPECT_EQ(pool.getNbElements(), 16);
-                    EXPECT_EQ(pool.getSize(), 31);
+                    EXPECT_EQ(pool.getSize(), 64);
                 }
                 else if (i == 31)
                 {
                     EXPECT_EQ(pool.getNbElements(), 32);
-                    EXPECT_EQ(pool.getSize(), 63);
+                    EXPECT_EQ(pool.getSize(), 64);
                 }
             }
 
@@ -99,7 +99,7 @@ namespace pg
 
 
             EXPECT_EQ(pool.getNbElements(), 0);
-            EXPECT_EQ(pool.getSize(), 2047);
+            EXPECT_EQ(pool.getSize(), 2048);
         }
 
         // ----------------------------------------------------------------------------------------
