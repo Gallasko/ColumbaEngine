@@ -22,21 +22,10 @@ namespace pg
 
         auto ecs = entity.world();
 
-        size_t refIdCount = 0;
-
-        for (const auto& comp : entity.componentList)
+        for (const auto& id : entity.componentList)
         {
-            if (comp.entityHeldType == Entity::EntityHeld::EntityHeldType::id)
-            {
-                ecs->getComponentRegistry()->serializeComponentFromEntity(archive, &entity, comp.getId());
-            }
-            else
-            {
-                serialize(archive, "idRef" + std::to_string(refIdCount++), comp.getId());
-            }
+            ecs->getComponentRegistry()->serializeComponentFromEntity(archive, &entity, id);
         }
-
-        serialize(archive, "nbRefId", refIdCount);
 
         archive.endSerialization();
     }

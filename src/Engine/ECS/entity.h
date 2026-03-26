@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vector>
+#include <unordered_set>
 #include <algorithm>
 
 #include "entityref.h"
@@ -31,71 +31,6 @@ namespace pg
     friend class EntitySystem;
     friend class CommandDispatcher;
     public:
-        struct EntityHeld
-        {
-            union EntityHeldId
-            {
-                explicit EntityHeldId(Entity *ent) : entity(ent) {}
-                explicit EntityHeldId(_unique_id id) : id(id) {}
-
-                Entity *entity;
-                _unique_id id;
-            };
-
-            enum class EntityHeldType
-            {
-                entity,
-                id
-            };
-
-            explicit EntityHeld(Entity* entity) : entityHeldId(entity), entityHeldType(EntityHeldType::entity) { }
-            explicit EntityHeld(const _unique_id& id) : entityHeldId(id), entityHeldType(EntityHeldType::id) { }
-            explicit EntityHeld(const EntityHeld& other) : entityHeldId(other.entityHeldId), entityHeldType(other.entityHeldType) { }
-
-            constexpr bool operator==(_unique_id id) const
-            {
-                if (entityHeldType == EntityHeldType::entity)
-                    return entityHeldId.entity->id == id;
-                else
-                    return entityHeldId.id == id;
-            }
-
-            void operator=(Entity* entity)
-            {
-                entityHeldId.entity = entity;
-                entityHeldType = EntityHeldType::entity;
-            }
-
-            void operator=(_unique_id id)
-            {
-                entityHeldId.id = id;
-                entityHeldType = EntityHeldType::id;
-            }
-
-            void operator=(const EntityHeld& rhs)
-            {
-                entityHeldId = rhs.entityHeldId;
-                entityHeldType = rhs.entityHeldType;
-            }
-
-            _unique_id getId() const
-            {
-                if (entityHeldType == EntityHeldType::entity)
-                    return entityHeldId.entity->id;
-                else
-                    return entityHeldId.id;
-            }
-
-            operator _unique_id() const
-            {
-                return getId();
-            }
-
-            EntityHeldId entityHeldId;
-            EntityHeldType entityHeldType;
-        };
-
-    public:
         // Default copy and move constructor
         // Entity(Entity& mE)              = default;
         // Entity& operator=(Entity& mE)   = default;
@@ -112,7 +47,7 @@ namespace pg
 
         inline bool has(const _unique_id& otherId) const noexcept
         {
-            return std::find(componentList.begin(), componentList.end(), otherId) != componentList.end();
+            return componentList.find(otherId) != componentList.end();
         }
 
         template <typename Comp>
@@ -139,7 +74,7 @@ namespace pg
 
         // Todo make this mutable because it is only used for memoisation purposes
         // std::unordered_map<_unique_id, Entity*> componentList;
-        std::vector<EntityHeld> componentList;
+        std::unordered_set<_unique_id> componentList;
 
         //Todo overload operator delete to call ecsRef->deleteEntity(this);
 

@@ -720,9 +720,7 @@ namespace pg
             // Create a new component and store it in a sparse set along with the entity id using it
             auto comp = components.addComponent(entity, std::forward<Args>(args)...);
 
-            // Add the component to the entity (deduplicate: vector doesn't enforce uniqueness itself)
-            if (std::find(entity->componentList.begin(), entity->componentList.end(), _componentId) == entity->componentList.end())
-                entity->componentList.emplace_back(_componentId);
+            entity->componentList.insert(_componentId);
 
             // Call the on component creation callbacks to register the component in potential groups
             for (const auto& callback : onComponentCreation)
@@ -1019,8 +1017,7 @@ namespace pg
                 comp->set(key, value);
             }
 
-            if (std::find(entity->componentList.begin(), entity->componentList.end(), _componentId) == entity->componentList.end())
-                entity->componentList.emplace_back(_componentId);
+            entity->componentList.insert(_componentId);
 
             for (const auto& callback : onComponentCreation)
                 callback.second(entity);

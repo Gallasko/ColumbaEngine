@@ -118,7 +118,7 @@ namespace pg
     {
         _unique_id id;
 
-        std::vector<Entity::EntityHeld> compList;
+        std::unordered_set<_unique_id> compList;
     };
 
     struct AbstractGroup
@@ -267,7 +267,7 @@ namespace pg
             LOG_THIS_MEMBER("Ecs Group");
 
             return std::all_of(compIdList.begin(), compIdList.end(), [&](const _unique_id id) {
-                return std::find(entity->componentList.begin(), entity->componentList.end(), id) != entity->componentList.end();
+                return entity->componentList.find(id) != entity->componentList.end();
             });
         }
 

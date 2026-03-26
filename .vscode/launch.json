@@ -109,6 +109,32 @@
             // "preLaunchTask": "test"
         },
         {
+            "name": "Bench",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": ["--gtest_filter=Serialization*"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/build/bench"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/release/test"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/release/test.exe"
+            },
+            // "preLaunchTask": "test"
+        },
+        {
             "name": "RenderTest",
             "type": "cppdbg",
             "request": "launch",

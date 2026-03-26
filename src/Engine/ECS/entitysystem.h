@@ -16,6 +16,8 @@
 #include "commanddispatcher.h"
 #include "savemanager.h"
 
+#include <iostream>
+
 #ifdef PROFILE
 #include <atomic>
 #include <mutex>
@@ -783,24 +785,17 @@ namespace pg
                 return;
             }
 
-            while (not entity->componentList.empty())
-            {
-                const auto& comp = *entity->componentList.begin();
+            auto compList = entity->componentList;
 
-                if (comp.entityHeldType == Entity::EntityHeld::EntityHeldType::id)
+            for (auto _id : compList)
+            {
+                try
                 {
-                    try
-                    {
-                        registry.detachComponentFromEntity(entity, comp.getId());
-                    }
-                    catch (const std::exception& e)
-                    {
-                        LOG_ERROR("ECS", "Can't detach component [" << comp.getId() << "] from entity [" << entity->id << "]: " << e.what());
-                    }
+                    registry.detachComponentFromEntity(entity, _id);
                 }
-                else
+                catch (const std::exception& e)
                 {
-                    entity->componentList.erase(entity->componentList.begin());
+                    LOG_ERROR("ECS", "Can't detach component [" << _id << "] from entity [" << entity->id << "]: " << e.what());
                 }
             }
 
@@ -970,9 +965,11 @@ namespace pg
             return CompRef<Comp>();
         }
 
+        // Todo add a fast path here
+
         const auto& componentId = ecsRef->getId<Comp>();
 
-        const auto& it = std::find(componentList.begin(), componentList.end(), componentId);
+        const auto& it = componentList.find(componentId);
 
         if (it != componentList.end())
         {
