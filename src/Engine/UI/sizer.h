@@ -466,8 +466,8 @@ namespace pg
         QueuedListener<EntityRemovedFromLayoutEvent>,
         QueuedListener<PositionComponentChangedEvent>,
         QueuedListener<LayoutScrolledEvent>,
-        Listener<AddLayoutElementEvent>,
-        Listener<InsertLayoutElementEvent>,
+        QueuedListener<AddLayoutElementEvent>,
+        QueuedListener<InsertLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementAtEvent>,
         QueuedListener<ClearLayoutEvent>,
@@ -511,7 +511,7 @@ namespace pg
          * @param event Event containing layout ID, entity ID, and orientation
          * @see AddLayoutElementEvent
          */
-        virtual void onEvent(const AddLayoutElementEvent& event) override;
+        virtual void onProcessEvent(const AddLayoutElementEvent& event) override;
 
         /**
          * @brief Processes requests to insert elements at specific positions.
@@ -522,7 +522,7 @@ namespace pg
          * @param event Event containing layout ID, entity ID, orientation, and index
          * @see InsertLayoutElementEvent
          */
-        virtual void onEvent(const InsertLayoutElementEvent& event) override;
+        virtual void onProcessEvent(const InsertLayoutElementEvent& event) override;
 
         /**
          * @brief Processes requests to remove specific entities from layouts.

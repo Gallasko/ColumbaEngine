@@ -252,7 +252,7 @@ namespace pg
         clear(event.entityIds);
     }
 
-    void LayoutSystem::onEvent(const AddLayoutElementEvent& event)
+    void LayoutSystem::onProcessEvent(const AddLayoutElementEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
 
@@ -265,7 +265,7 @@ namespace pg
         }
     }
 
-    void LayoutSystem::onEvent(const InsertLayoutElementEvent& event)
+    void LayoutSystem::onProcessEvent(const InsertLayoutElementEvent& event)
     {
         auto ent = ecsRef->getEntity(event.id);
 
@@ -480,9 +480,7 @@ namespace pg
 
         for (auto& ent : view->entities)
         {
-            auto inLayout = ent->template get<EntityInLayout>();
-
-            if (not inLayout->hasPosition)
+            if (not ent->template has<PositionComponent>())
                 continue;
 
             auto pos = ent->template get<PositionComponent>();
@@ -561,9 +559,7 @@ namespace pg
         for (size_t i = 0; i < view->entities.size(); ++i)
         {
             auto ent = view->entities[i];
-            auto inLayout = ent->template get<EntityInLayout>();
-
-            if (not inLayout->hasPosition)
+            if (not ent->template has<PositionComponent>())
                 continue;
 
             auto pos = ent->template get<PositionComponent>();
@@ -597,9 +593,7 @@ namespace pg
         for (size_t i = 0; i < view->entities.size(); i++)
         {
             auto ent = view->entities[i];
-            auto inLayout = ent->template get<EntityInLayout>();
-
-            if (not inLayout->hasPosition)
+            if (not ent->template has<PositionComponent>())
                 continue;
 
             auto pos = ent->template get<PositionComponent>();
@@ -790,6 +784,11 @@ namespace pg
 
         ecsRef->sendEvent(ParentingEvent{ui, viewEnt.id});
 
+        auto inLayout = ecsRef->attach<EntityInLayout>(ent);
+        inLayout->layoutId = viewEnt.id;
+        inLayout->orientation = orientation;
+        inLayout->hasPosition = ent->has<PositionComponent>();
+
         if (orientation == LayoutOrientation::Horizontal)
         {
             auto view = viewEnt->get<HorizontalLayout>();
@@ -820,13 +819,6 @@ namespace pg
             view->entities.insert(view->entities.begin() + index, ent);
 
             // view->entities.push_back(ent);
-
-            {
-                auto inLayout = ecsRef->attach<EntityInLayout>(ent);
-                inLayout->layoutId = view->id;
-                inLayout->orientation = LayoutOrientation::Horizontal;
-                inLayout->hasPosition = ent->has<PositionComponent>();
-            }
 
             // Stick to end logic for horizontal layout
             if (view->stickToEnd)
@@ -872,13 +864,6 @@ namespace pg
 
             // view->entities.push_back(ent);
             view->entities.insert(view->entities.begin() + index, ent);
-
-            {
-                auto inLayout = ecsRef->attach<EntityInLayout>(ent);
-                inLayout->layoutId = view->id;
-                inLayout->orientation = LayoutOrientation::Vertical;
-                inLayout->hasPosition = ent->has<PositionComponent>();
-            }
 
             // Stick to end logic for vertical layout
             if (view->stickToEnd)
@@ -951,9 +936,7 @@ namespace pg
 
         for (auto& ui : entities)
         {
-            auto inLayout = ui->template get<EntityInLayout>();
-
-            if (not inLayout->hasPosition)
+            if (not ui->template has<PositionComponent>())
                 continue;
 
             auto pos = ui->template get<PositionComponent>();

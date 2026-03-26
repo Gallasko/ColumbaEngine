@@ -98,6 +98,11 @@ namespace pg
         _unique_id id = 0;
     };
 
+    struct RemoveParentedChildEvent
+    {
+        _unique_id id = 0;
+    };
+
     struct StartResize
     {
         _unique_id entityId = 0;
@@ -308,18 +313,32 @@ namespace pg
     RotationHandleComponent deserialize(const UnserializedObject& serializedString);
 
     // Todo add Listener<ResizeEvent>,
-    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, QueuedListener<PositionComponentChangedEvent>>
+    struct PositionComponentSystem : public System<Own<PositionComponent>, Own<UiAnchor>, Own<ClippedTo>, Listener<ParentingEvent>, Listener<ClearParentingEvent>, Listener<RemoveParentedChildEvent>, QueuedListener<PositionComponentChangedEvent>>
     {
         virtual std::string getSystemName() const override { return "Position System"; }
 
         virtual void onEvent(const ParentingEvent& event) override
         {
             parentalMap[event.parent].insert(event.child);
+            reverseParentalMap[event.child].insert(event.parent);
         }
 
         virtual void onEvent(const ClearParentingEvent& event) override
         {
             parentalMap[event.parent].erase(event.id);
+            reverseParentalMap[event.id].erase(event.parent);
+        }
+
+        virtual void onEvent(const RemoveParentedChildEvent& event) override
+        {
+            for (const auto& parent : reverseParentalMap[event.id])
+            {
+                parentalMap[parent].erase(event.id);
+            }
+
+            reverseParentalMap.erase(event.id);
+
+            pushChildrenInChange(changedIds, event.id);
         }
 
         virtual void onProcessEvent(const PositionComponentChangedEvent& event) override
@@ -331,13 +350,14 @@ namespace pg
             }
         }
 
-        void pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId);
+        void pushChildrenInChange(std::unordered_set<_unique_id>& set, _unique_id parentId);
 
         virtual void execute() override;
 
-        std::unordered_map<_unique_id, std::set<_unique_id>> parentalMap;
+        std::unordered_map<_unique_id, std::unordered_set<_unique_id>> parentalMap;
+        std::unordered_map<_unique_id, std::unordered_set<_unique_id>> reverseParentalMap;
 
-        std::set<_unique_id> changedIds;
+        std::unordered_set<_unique_id> changedIds;
 
         bool updated = false;
     };

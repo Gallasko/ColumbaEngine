@@ -634,9 +634,7 @@ namespace pg
 
     void UiAnchor::onDeletion(EntityRef)
     {
-        clearAnchors();
-
-        // Todo clear constrains
+        ecsRef->sendEvent(RemoveParentedChildEvent{entityId});
     }
 
     void UiAnchor::updateAnchor(bool hasAnchor, PosAnchor& anchor)
@@ -782,7 +780,7 @@ namespace pg
     }
     }
 
-    void PositionComponentSystem::pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId)
+    void PositionComponentSystem::pushChildrenInChange(std::unordered_set<_unique_id>& set, _unique_id parentId)
     {
         for (const auto& child : parentalMap[parentId])
         {

@@ -576,7 +576,7 @@ namespace pg
     InterpretResult VM::runDecoded()
     {
         // Get the decoded chunk for the current function
-        DecodedChunk* decoded = currentFrame->closure->function->decodedChunk;
+        DecodedChunk* volatile decoded = currentFrame->closure->function->decodedChunk;
 
         if (decoded == nullptr or decoded->instructions.empty())
         {
@@ -618,10 +618,9 @@ namespace pg
                 std::cout << std::endl;
                 disassembleInstruction(this, currentFrame->closure->function->chunk, instr.bytecodeOffset);
 #endif
-                // Save the current frame and decoded chunk before executing
+                // Save the current frame before executing
                 // (needed to detect frame changes from OP_Call/OP_Return)
                 CallFrame* frameBeforeExecution = currentFrame;
-                DecodedChunk* decodedBeforeExecution = decoded;
 
                 // Execute the pre-decoded instruction
                 // The handler is already resolved, operands are already extracted

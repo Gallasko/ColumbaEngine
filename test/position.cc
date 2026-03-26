@@ -750,6 +750,8 @@ namespace pg
             childAnchor->setTopAnchor(parentAnchor->top);
             childAnchor->setLeftAnchor(parentAnchor->left);
 
+            posSys->_execute();
+
             auto grandChildEntity = ecs.createEntity();
             auto grandChildPos = ecs.attach<PositionComponent>(grandChildEntity);
             auto grandChildAnchor = ecs.attach<UiAnchor>(grandChildEntity);
@@ -762,7 +764,7 @@ namespace pg
             EXPECT_FLOAT_EQ(grandChildPos->x, 10.0f);
             EXPECT_FLOAT_EQ(grandChildPos->y, 20.0f);
 
-            EXPECT_EQ(sys->nbEventReceived, 11); // Parent, child, and grandchild updates
+            EXPECT_EQ(sys->nbEventReceived, 12); // Parent, child, and grandchild updates
         }
 
         // ----------------------------------------------------------------------------------------

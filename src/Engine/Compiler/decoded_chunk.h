@@ -111,11 +111,11 @@ namespace pg
                 return it->second;
             }
             // Fallback: linear search (shouldn't happen if jumpTargets is built correctly)
-            for (size_t i = 0; i < instructions.size(); i++)
+            for (const auto& instr : instructions)
             {
-                if (instructions[i].bytecodeOffset == bytecodeOffset)
+                if (instr.bytecodeOffset == bytecodeOffset)
                 {
-                    return i;
+                    return static_cast<size_t>(&instr - instructions.data());
                 }
             }
             return 0;  // Last resort

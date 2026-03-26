@@ -13,7 +13,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/build/Asteroid"
+                "program": "${workspaceFolder}/build/BasicTerminal"
             },
             "osx": {
                 "MIMode": "lldb",
