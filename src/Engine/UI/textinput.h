@@ -37,7 +37,7 @@ namespace pg
     {
         DEFAULT_COMPONENT_MEMBERS(TextInputComponent)
 
-        TextInputComponent(StandardEvent event, const std::string& defaultText = "") : event(event), text(defaultText) { LOG_THIS_MEMBER("TextInputComponent"); }
+        TextInputComponent(StandardEvent event, const std::string& defaultText = "") : event(event), text(defaultText), cursorPos(defaultText.size()) { LOG_THIS_MEMBER("TextInputComponent"); }
 
         void setText(const std::string& text)
         {

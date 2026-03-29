@@ -164,6 +164,8 @@ namespace
             auto inputText  = inputEnt.get<TTFText>();
             auto inputComp  = inputEnt.get<TextInputComponent>();
 
+            ecsRef->attach<MouseLeftClickComponent>(bgEnt.entity, makeCallable<OnFocus>(OnFocus{inputEnt.id}) );
+
             inputText->setColors(FIELD_TXT);
             inputComp->clearTextAfterEnter = false;
             inputComp->minWidth            = static_cast<size_t>(width - FIELD_PAD_LEFT * 2.0f);

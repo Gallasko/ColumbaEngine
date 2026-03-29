@@ -24,6 +24,10 @@ namespace pg
             {
                 auto text = entity->get<TextInputComponent>();
 
+                // Clamp cursor in case text was modified externally
+                if (text->cursorPos > text->text.size())
+                    text->cursorPos = text->text.size();
+
                 // Insert text at cursor position instead of appending
                 text->text.insert(text->cursorPos, event.text);
                 text->cursorPos += event.text.size();
@@ -131,8 +135,6 @@ namespace pg
                         {
                             if (inputHandler->isKeyPressed(SDL_SCANCODE_LCTRL) or inputHandler->isKeyPressed(SDL_SCANCODE_RCTRL))
                             {
-                                size_t eraseStart = text->cursorPos;
-
                                 // Skip forward to next word boundary
                                 size_t eraseEnd = text->cursorPos;
                                 while (eraseEnd < text->text.size() and text->text[eraseEnd] != ' ')
@@ -144,7 +146,7 @@ namespace pg
                                 if (eraseEnd < text->text.size() and text->text[eraseEnd] == ' ')
                                     eraseEnd++;
 
-                                text->text.erase(eraseStart, eraseEnd - eraseStart);
+                                text->text.erase(text->cursorPos, eraseEnd - text->cursorPos);
                             }
                             else
                             {
