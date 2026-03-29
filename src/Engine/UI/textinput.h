@@ -6,6 +6,8 @@
 
 #include "2D/simple2dobject.h"
 
+#include "Systems/coresystems.h"
+
 #include "sentencesystem.h"
 #include "ttftext.h"
 #include "focusable.h"
@@ -65,7 +67,7 @@ namespace pg
 
     struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>,
         Listener<OnSDLTextInput>, Listener<OnSDLScanCode>,
-        Listener<EntityChangedEvent>, Listener<OnFocus>,
+        Listener<EntityChangedEvent>, Listener<OnFocus>, Listener<TickEvent>,
         QueuedListener<__InternalCurrentTextInputTextChanged>, InitSys>
     {
         TextInputSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("Text Input System"); }
@@ -82,6 +84,8 @@ namespace pg
         virtual void onEvent(const OnSDLScanCode& event) override;
 
         virtual void onEvent(const OnFocus& event) override;
+
+        virtual void onEvent(const TickEvent& event) override;
 
         virtual void onEvent(const EntityChangedEvent& event) override
         {
@@ -127,7 +131,15 @@ namespace pg
         /** Recomputes the cursor entity position based on the current text and cursor index. */
         void updateCursorVisual(EntityRef entity, CompRef<TextInputComponent> textComp);
 
+        /** Resets the blink timer so the cursor stays visible right after user interaction. */
+        void resetBlinkTimer();
+
         Input *inputHandler;
+
+        // Cursor blink state
+        float blinkTimer = 0.0f;
+        float blinkInterval = 0.5f; // seconds per on/off half-cycle
+        bool cursorVisible = true;
     };
 
     // template <typename Type>

@@ -250,6 +250,55 @@ namespace pg
 
             cursorUi->setVisible(isFocused);
         }
+
+        resetBlinkTimer();
+    }
+
+    void TextInputSystem::onEvent(const TickEvent& event)
+    {
+        // Accumulate time (TickEvent::tick is in milliseconds)
+        blinkTimer += event.tick / 1000.0f;
+
+        if (blinkTimer >= blinkInterval)
+        {
+            blinkTimer -= blinkInterval;
+            cursorVisible = !cursorVisible;
+
+            for (const auto& entity : viewGroup<TextInputComponent, FocusableComponent>())
+            {
+                auto focus = entity->get<FocusableComponent>();
+                auto text = entity->get<TextInputComponent>();
+
+                if (not focus->focused or not text->cursorEntity)
+                    continue;
+
+                auto cursorUi = text->cursorEntity->get<PositionComponent>();
+
+                if (cursorUi)
+                    cursorUi->setVisible(cursorVisible);
+            }
+        }
+    }
+
+    void TextInputSystem::resetBlinkTimer()
+    {
+        blinkTimer = 0.0f;
+        cursorVisible = true;
+
+        // Immediately make all focused cursors visible
+        for (const auto& entity : viewGroup<TextInputComponent, FocusableComponent>())
+        {
+            auto focus = entity->get<FocusableComponent>();
+            auto text = entity->get<TextInputComponent>();
+
+            if (not focus->focused or not text->cursorEntity)
+                continue;
+
+            auto cursorUi = text->cursorEntity->get<PositionComponent>();
+
+            if (cursorUi)
+                cursorUi->setVisible(true);
+        }
     }
 
     void TextInputSystem::updateCursorVisual(EntityRef entity, CompRef<TextInputComponent> textComp)
@@ -262,6 +311,9 @@ namespace pg
         if (not cursorAnchor)
             return;
 
+        // Reset the blink timer so cursor stays visible after any interaction
+        resetBlinkTimer();
+
         // Compute the X offset of the cursor by summing glyph advances up to cursorPos
         float cursorX = 0.0f;
 
@@ -272,16 +324,20 @@ namespace pg
 
             if (ttfSystem)
             {
-                const auto& fontChars = ttfSystem->charactersMap[ttf->fontPath];
-                float scale = ttf->scale;
-
-                for (size_t i = 0; i < textComp->cursorPos and i < textComp->text.size(); i++)
+                auto mapIt = ttfSystem->charactersMap.find(ttf->fontPath);
+                if (mapIt != ttfSystem->charactersMap.end())
                 {
-                    char c = textComp->text[i];
-                    auto it = fontChars.find(c);
-                    if (it != fontChars.end())
+                    const auto& fontChars = mapIt->second;
+                    float scale = ttf->scale;
+
+                    for (size_t i = 0; i < textComp->cursorPos and i < textComp->text.size(); i++)
                     {
-                        cursorX += (it->second.advance >> 6) * scale;
+                        char c = textComp->text[i];
+                        auto it = fontChars.find(c);
+                        if (it != fontChars.end())
+                        {
+                            cursorX += (it->second.advance >> 6) * scale;
+                        }
                     }
                 }
             }
