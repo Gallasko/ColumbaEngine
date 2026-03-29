@@ -4,6 +4,8 @@
 
 #include "Input/inputcomponent.h"
 
+#include "2D/simple2dobject.h"
+
 #include "sentencesystem.h"
 #include "ttftext.h"
 #include "focusable.h"
@@ -45,6 +47,12 @@ namespace pg
         std::string text;
         std::string returnText;
 
+        // Cursor position within the text (index into the string, 0 = before first char)
+        size_t cursorPos = 0;
+
+        // Entity used to render the cursor visual (a small square)
+        EntityRef cursorEntity;
+
         // Todo add support for all those option in the text input !
         bool clearTextAfterEnter = true;
         bool acceptMultilines = false;
@@ -57,7 +65,8 @@ namespace pg
 
     struct TextInputSystem: public System<Own<TextInputComponent>, Ref<FocusableComponent>,
         Listener<OnSDLTextInput>, Listener<OnSDLScanCode>,
-        Listener<EntityChangedEvent>, QueuedListener<__InternalCurrentTextInputTextChanged>, InitSys>
+        Listener<EntityChangedEvent>, Listener<OnFocus>,
+        QueuedListener<__InternalCurrentTextInputTextChanged>, InitSys>
     {
         TextInputSystem(Input* inputHandler) : inputHandler(inputHandler) { LOG_THIS_MEMBER("Text Input System"); }
 
@@ -71,6 +80,8 @@ namespace pg
         virtual void onEvent(const OnSDLTextInput& event) override;
 
         virtual void onEvent(const OnSDLScanCode& event) override;
+
+        virtual void onEvent(const OnFocus& event) override;
 
         virtual void onEvent(const EntityChangedEvent& event) override
         {
@@ -99,21 +110,22 @@ namespace pg
             auto text = ent->get<TextInputComponent>();
 
             text->text = event.text;
-
-            // if (ent->has<SentenceText>())
-            // {
-            //     ent->get<SentenceText>()->setText(text->text);
-            // }
+            text->cursorPos = text->text.size();
 
             if (ent->has<TTFText>())
             {
                 ent->get<TTFText>()->setText(text->text);
             }
 
+            updateCursorVisual(ent, text);
+
             ecsRef->sendEvent(CurrentTextInputTextChanged{text->text, event.id});
         }
 
         virtual void execute() override;
+
+        /** Recomputes the cursor entity position based on the current text and cursor index. */
+        void updateCursorVisual(EntityRef entity, CompRef<TextInputComponent> textComp);
 
         Input *inputHandler;
     };
@@ -170,6 +182,28 @@ namespace pg
         ecs->template attach<MouseLeftClickComponent>(entity, makeCallable<OnFocus>(OnFocus{entity.id}) );
 
         auto textInputComp = ecs->template attach<TextInputComponent>(entity, event, defaultText);
+
+        textInputComp->cursorPos = defaultText.size();
+
+        // Create a small square entity as the text cursor visual
+        float cursorWidth = 2.0f;
+        float cursorHeight = sentence->textHeight > 0 ? sentence->textHeight : 14.0f * size;
+
+        auto cursorEnt = makeUiSimple2DShape(ecs, Shape2D::Square, cursorWidth, cursorHeight, {255.0f, 255.0f, 255.0f, 255.0f});
+
+        auto cursorAnchor = cursorEnt.template get<UiAnchor>();
+        auto cursorUi = cursorEnt.template get<PositionComponent>();
+
+        // Anchor the cursor to the text input's left edge, offset by text width
+        cursorAnchor->setTopAnchor({entity.id, AnchorType::Top});
+        cursorAnchor->setLeftAnchor({entity.id, AnchorType::Left});
+        cursorAnchor->setLeftMargin(sentence->textWidth);
+        cursorAnchor->setZConstrain({entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
+
+        // Start hidden (shown when focused)
+        cursorUi->setVisible(false);
+
+        textInputComp->cursorEntity = cursorEnt.entity;
 
         return {entity, ui, anchor, sentence, focused, textInputComp};
     }
