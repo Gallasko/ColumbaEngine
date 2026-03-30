@@ -92,11 +92,24 @@ namespace pg
         ui->setWidth(width);
         ui->setHeight(height);
 
-        ecs->template attach<UiAnchor>(entity);
-
-
         auto obj = ecs->template attach<RoundedRect2DObject>(entity, cornerRadius, colors);
 
         return {entity, ui, obj};
+    }
+
+    template <typename Type>
+    CompList<PositionComponent, UiAnchor, RoundedRect2DObject> makeUiRoundedRect2DShape(Type* ecs, float cornerRadius, float width = 0.0f, float height = 0.0f, const constant::Vector4D& colors = {255.0f, 255.0f, 255.0f, 255.0f})
+    {
+        auto entity = ecs->createEntity();
+
+        auto ui = ecs->template attach<PositionComponent>(entity);
+        ui->setWidth(width);
+        ui->setHeight(height);
+
+        auto anchor = ecs->template attach<UiAnchor>(entity);
+
+        auto obj = ecs->template attach<RoundedRect2DObject>(entity, cornerRadius, colors);
+
+        return {entity, ui, anchor, obj};
     }
 }

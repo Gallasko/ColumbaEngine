@@ -44,91 +44,80 @@ namespace
     constexpr float FIELD_PAD_LEFT = 10.0f;
     constexpr float FIELD_PAD_TOP  = 8.0f;
 
-    // ─── Panel prefab ─────────────────────────────────────────────────────────
+    // Panel prefab
     struct PanelWithInputs : public System<InitSys>
     {
         virtual void init() override
         {
             const float contentW = PANEL_W - 2.0f * PADDING;
 
-            // ── Root prefab entity ──────────────────────────────────────────
+            // Root prefab entity
             auto panelEnt   = makeAnchoredPrefab(ecsRef, PANEL_X, PANEL_Y, PANEL_Z);
-            auto panelPos   = panelEnt.get<PositionComponent>();
-            auto panelAnch  = panelEnt.get<UiAnchor>();
             auto panel      = panelEnt.get<Prefab>();
 
-            panelPos->setWidth(PANEL_W);
-            panelPos->setHeight(PANEL_H);
-
-            // ── Panel background (rounded rect) ────────────────────────────
+            // Panel background (rounded rect)
             auto bg = makeRoundedRect2DShape(ecsRef, PANEL_RADIUS, PANEL_W, PANEL_H, PANEL_BG);
-            bg.entity.get<UiAnchor>()->fillIn(*panelAnch);
-            bg.entity.get<UiAnchor>()->setZConstrain(
-                PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 1.0f});
-            panel->addToPrefab(bg, "BG");
+            auto bgAnch = bg.entity.get<UiAnchor>();
 
-            // ── Header strip ───────────────────────────────────────────────
+            panel->setMainEntity(bg.entity);
+
+            // Header strip
             // Same corner radius so corners blend with the background, bottom
             // edge is flat (it's hidden behind the background below).
             auto header     = makeRoundedRect2DShape(ecsRef, PANEL_RADIUS, PANEL_W, HEADER_H, HEADER_BG);
             auto headerAnch = header.entity.get<UiAnchor>();
-            headerAnch->setTopAnchor(PosAnchor{panelEnt.id, AnchorType::Top});
-            headerAnch->setLeftAnchor(PosAnchor{panelEnt.id, AnchorType::Left});
-            headerAnch->setWidthConstrain(PosConstrain{panelEnt.id, AnchorType::Width});
-            headerAnch->setZConstrain(
-                PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 2.0f});
-            header.get<PositionComponent>()->setHeight(HEADER_H);
+            headerAnch->setTopAnchor(bgAnch->top);
+            headerAnch->setLeftAnchor(bgAnch->left);
+            headerAnch->setWidthConstrain(PosConstrain{bg.id, AnchorType::Width});
+            headerAnch->setZConstrain(PosConstrain{bg.id, AnchorType::Z, PosOpType::Add, 2.0f});
             panel->addToPrefab(header, "Header");
 
-            // ── Title text (vertically centred in header) ──────────────────
-            auto titleEnt  = makeTTFText(ecsRef, 0.0f, 0.0f, 0.0f,
-                                         "semibold", "Properties", TITLE_SCALE, TITLE_COL);
+            // Title text (vertically centred in header)
+            auto titleEnt  = makeTTFText(ecsRef, 0.0f, 0.0f, 0.0f,"semibold", "Properties", TITLE_SCALE, TITLE_COL);
             auto titleAnch = titleEnt.get<UiAnchor>();
-            titleAnch->setTopAnchor(PosAnchor{panelEnt.id, AnchorType::Top});
-            titleAnch->setLeftAnchor(PosAnchor{panelEnt.id, AnchorType::Left});
-            titleAnch->setTopMargin(HEADER_H * 0.5f - 8.0f);
+            titleAnch->setVerticalCenter(headerAnch->verticalCenter);
+            titleAnch->setLeftAnchor(headerAnch->left);
             titleAnch->setLeftMargin(PADDING);
-            titleAnch->setZConstrain(
-                PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 4.0f});
+            titleAnch->setZConstrain(PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 4.0f});
             panel->addToPrefab(titleEnt, "Title");
 
-            // ── Thin divider between header and content ────────────────────
+            // Thin divider between header and content
             auto divider     = makeUiSimple2DShape(ecsRef, Shape2D::Square, PANEL_W, 1.0f, DIVIDER_COL);
             auto dividerAnch = divider.get<UiAnchor>();
-            dividerAnch->setTopAnchor(PosAnchor{panelEnt.id, AnchorType::Top});
-            dividerAnch->setLeftAnchor(PosAnchor{panelEnt.id, AnchorType::Left});
-            dividerAnch->setTopMargin(HEADER_H);
-            dividerAnch->setWidthConstrain(PosConstrain{panelEnt.id, AnchorType::Width});
-            dividerAnch->setZConstrain(
-                PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 3.0f});
-            divider.get<PositionComponent>()->setHeight(1.0f);
+            dividerAnch->setTopAnchor(headerAnch->bottom);
+            dividerAnch->setLeftAnchor(bgAnch->left);
+            dividerAnch->setRightAnchor(bgAnch->right);
+            dividerAnch->setZConstrain(PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 3.0f});
             panel->addToPrefab(divider, "Divider");
 
-            // ── Vertical layout for the fields ────────────────────────────
-            auto contentEnt    = makeVerticalLayout(ecsRef, 0.0f, 0.0f, contentW,
-                                                    PANEL_H - HEADER_H - 2.0f * PADDING, false);
+            // Vertical layout for the fields
+            auto contentEnt    = makeVerticalLayout(ecsRef, 0.0f, 0.0f, 1.0f, 1.0f, false);
             auto contentAnch   = contentEnt.get<UiAnchor>();
-            contentAnch->setTopAnchor(PosAnchor{panelEnt.id, AnchorType::Top});
-            contentAnch->setLeftAnchor(PosAnchor{panelEnt.id, AnchorType::Left});
-            contentAnch->setTopMargin(HEADER_H + PADDING);
+            contentAnch->setTopAnchor(dividerAnch->bottom);
+            contentAnch->setTopMargin(PADDING);
+            contentAnch->setLeftAnchor(bgAnch->left);
+            contentAnch->setRightAnchor(bgAnch->right);
             contentAnch->setLeftMargin(PADDING);
-            contentAnch->setZConstrain(
-                PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 2.0f});
+            contentAnch->setRightMargin(PADDING);
+            contentAnch->setZConstrain(PosConstrain{panelEnt.id, AnchorType::Z, PosOpType::Add, 2.0f});
             auto layout = contentEnt.get<VerticalLayout>();
             layout->spacing = ROW_SPACING;
+            // layout->fitToAxis = true;
             panel->addToPrefab(contentEnt, "Content");
 
-            // ── Input rows ────────────────────────────────────────────────
-            addInputRow(layout, panelEnt.id, "Name",       "",       contentW);
-            addInputRow(layout, panelEnt.id, "Position X", "0.0",    contentW);
-            addInputRow(layout, panelEnt.id, "Position Y", "0.0",    contentW);
-            addInputRow(layout, panelEnt.id, "Width",      "100.0",  contentW);
-            addInputRow(layout, panelEnt.id, "Height",     "50.0",   contentW);
+            bgAnch->setBottomAnchor(contentAnch->bottom);
+
+            // Input rows
+            addInputRow(layout, "Name",       "",       contentW);
+            addInputRow(layout, "Position X", "0.0",    contentW);
+            addInputRow(layout, "Position Y", "0.0",    contentW);
+            addInputRow(layout, "Position Z", "0.0",    contentW);
+            addInputRow(layout, "Width",      "100.0",  contentW);
+            addInputRow(layout, "Height",     "50.0",   contentW);
         }
 
         // ── Builds one label + input-field pair and pushes both into layout ──
         void addInputRow(CompRef<VerticalLayout> layout,
-                         _unique_id /*panelId*/,
                          const std::string& labelText,
                          const std::string& defaultValue,
                          float width)
@@ -138,23 +127,16 @@ namespace
             // Label
             auto labelEnt  = makeTTFText(ecsRef, 0.0f, 0.0f, fieldZ,
                                          "regular", labelText, LABEL_SCALE, LABEL_COL);
-            labelEnt.get<PositionComponent>()->setWidth(width);
             layout->addEntity(labelEnt);
 
             // ── Input field prefab (background + text input) ──────────────
             auto fieldEnt  = makeAnchoredPrefab(ecsRef, 0.0f, 0.0f, fieldZ);
-            auto fieldPos  = fieldEnt.get<PositionComponent>();
-            auto fieldAnch = fieldEnt.get<UiAnchor>();
             auto fieldPfb  = fieldEnt.get<Prefab>();
-            fieldPos->setWidth(width);
-            fieldPos->setHeight(FIELD_H);
 
             // Background rounded rect
             auto bgEnt  = makeRoundedRect2DShape(ecsRef, FIELD_RADIUS, width, FIELD_H, FIELD_BG);
             auto bgAnch = bgEnt.entity.get<UiAnchor>();
-            bgAnch->fillIn(*fieldAnch);
-            bgAnch->setZConstrain(PosConstrain{fieldEnt.id, AnchorType::Z, PosOpType::Add, 1.0f});
-            fieldPfb->addToPrefab(bgEnt, "BG");
+            fieldPfb->setMainEntity(bgEnt);
 
             // Text input (TTFText + TextInputComponent)
             auto inputEnt   = makeTTFTextInput(ecsRef, 0.0f, 0.0f,
@@ -170,8 +152,8 @@ namespace
             inputComp->clearTextAfterEnter = false;
             inputComp->minWidth            = static_cast<size_t>(width - FIELD_PAD_LEFT * 2.0f);
 
-            inputAnch->setTopAnchor(PosAnchor{fieldEnt.id, AnchorType::Top});
-            inputAnch->setLeftAnchor(PosAnchor{fieldEnt.id, AnchorType::Left});
+            inputAnch->setTopAnchor(bgAnch->top);
+            inputAnch->setLeftAnchor(bgAnch->left);
             inputAnch->setTopMargin(FIELD_PAD_TOP);
             inputAnch->setLeftMargin(FIELD_PAD_LEFT);
             inputAnch->setZConstrain(PosConstrain{fieldEnt.id, AnchorType::Z, PosOpType::Add, 2.0f});
