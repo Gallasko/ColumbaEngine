@@ -1,0 +1,4 @@
+Test 1 - key: 'key' value: ' value'
+Test 2 - key: 'namespace' value: ' pg::ecs::components'
+Test 3 - key: 'no delimiter here' value: ''
+Test 4 - key: 'method' value: ' getValue() const { return val; }'

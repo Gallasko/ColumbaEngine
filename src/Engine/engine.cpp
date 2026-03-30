@@ -8,6 +8,7 @@
 #ifdef __EMSCRIPTEN__
 #include <emscripten.h>
 #include <emscripten/html5.h>
+#include <emscripten/wasmfs.h>
 #endif
 
 using namespace pg;
@@ -82,29 +83,7 @@ EntitySystem* Engine::getECS() const
 void Engine::setupFilesystem()
 {
 #ifdef __EMSCRIPTEN__
-    printf("Setting up Emscripten filesystem...\n");
-    EM_ASM({
-        try {
-            var saveFolder = UTF8ToString($0);
-            console.log("Creating save folder:", saveFolder);
-
-            if (! FS.analyzePath('/' + saveFolder).exists) {
-                FS.mkdir('/' + saveFolder);
-            }
-
-            FS.mount(IDBFS, {autoPersist: true}, '/' + saveFolder);
-
-            FS.syncfs(true, function (err) {
-                if (err) {
-                    console.error("Initial filesystem sync error:", err);
-                } else {
-                    console.log("Filesystem initialized and synced for folder: /" + saveFolder);
-                }
-            });
-        } catch (e) {
-            console.error("Filesystem setup error:", e);
-        }
-    }, config.saveFolder.c_str());
+    printf("Setting up WasmFS filesystem (OPFS mount will happen in init thread)...\n");
 #else
     LOG_INFO(DOM, "Desktop save path: " << config.saveFolder);
 #endif
@@ -163,6 +142,31 @@ void Engine::initializeECS()
             printf("ECS auto-start disabled - call getECS()->start() manually when ready\n");
         }
         ecsReady = true;
+
+#ifdef __EMSCRIPTEN__
+        // Register browser lifecycle callbacks so data is saved on tab hide / page close.
+        // Using a file-scope pointer is safe here: only one Engine exists per page.
+        static EntitySystem* s_ecsForSave = nullptr;
+        s_ecsForSave = mainWindow->ecs;
+
+        // Save when the tab/window loses visibility (switch tab, minimize, etc.)
+        emscripten_set_visibilitychange_callback(nullptr, false,
+            [](int, const EmscriptenVisibilityChangeEvent* e, void*) -> EM_BOOL {
+                if (e->hidden && s_ecsForSave)
+                    s_ecsForSave->forceSaveNow();
+                return EM_TRUE;
+            });
+
+        // Save on page refresh / close (beforeunload fires synchronously)
+        emscripten_set_beforeunload_callback(nullptr,
+            [](int, const void*, void*) -> const char* {
+                if (s_ecsForSave)
+                    s_ecsForSave->forceSaveNow();
+                return nullptr; // nullptr = no "Are you sure?" dialog
+            });
+
+        printf("Registered browser save callbacks (visibilitychange + beforeunload)\n");
+#endif
 
         if (postInit)
         {
@@ -267,26 +271,6 @@ static void mainLoopCallback(void* arg)
     {
         engine->mainWindow->processEvents(event);
 
-        if (event.type == SDL_QUIT)
-        {
-            printf("Quit event received, syncing filesystem...\n");
-
-            EM_ASM({
-                var saveFolder = UTF8ToString($0);
-
-                FS.syncfs(false, function (err)
-                {
-                    if (err)
-                    {
-                        console.error("Final filesystem sync error:", err);
-                    }
-                    else
-                    {
-                        console.log("Filesystem synced on quit for folder: /" + saveFolder);
-                    }
-                });
-            }, engine->config.saveFolder.c_str());
-        }
     }
 
     engine->mainWindow->render();
@@ -309,14 +293,34 @@ int Engine::exec()
 #ifdef __EMSCRIPTEN__
     printf("Starting Emscripten build...\n");
 
-    initThread = new std::thread([this]()
+    // OPFS must be mounted from a pthread (not the main thread)
+    printf("Mounting OPFS backend at /%s...\n", config.saveFolder.c_str());
+    std::string savePath = "/" + config.saveFolder;
+    backend_t backend = wasmfs_create_opfs_backend();
+    int err = wasmfs_create_directory(savePath.c_str(), 0777, backend);
+    if (err != 0 && errno != EEXIST)
+        printf("Warning: OPFS directory creation returned %d (errno=%d)\n", err, errno);
+    else
+        printf("OPFS backend mounted at %s\n", savePath.c_str());
+
+    printf("Initializing SDL...\n");
+    if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_JOYSTICK | SDL_INIT_GAMECONTROLLER) != 0)
     {
-        printf("Window init thread started...\n");
+        printf("SDL_Init failed: %s\n", SDL_GetError());
+        return -1;
+    }
+    printf("SDL initialized\n");
 
-        this->initializeWindow();
-
-        printf("Window init thread completed\n");
-    });
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+    SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+    SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE, 8);
+    SDL_GL_SetAttribute(SDL_GL_BUFFER_SIZE, 32);
+    SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+    SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 
     Uint32 windowFlags = SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN;
 
@@ -339,6 +343,19 @@ int Engine::exec()
         printf("Failed to create SDL window for Emscripten\n");
         return -1;
     }
+
+    printf("SDL window created, starting init thread...\n");
+
+    // Start the init thread AFTER SDL setup so OPFS promises can resolve
+    // once the browser event loop is running (after emscripten_set_main_loop_arg)
+    initThread = new std::thread([this]()
+    {
+        printf("Window init thread started...\n");
+
+        this->initializeWindow();
+
+        printf("Window init thread completed\n");
+    });
 
     auto args = new void*[2]{this, pWindow};
 

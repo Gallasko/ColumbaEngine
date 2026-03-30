@@ -56,6 +56,19 @@ namespace pg
     static constexpr uint64_t NEG_TAG_BASE = QNAN_MASK | SIGN_BIT;
 
     // ============================================================================
+    // Custom Pointer Bit Layout (TAG_CUSTOM_PTR only)
+    // ============================================================================
+
+    /** For TAG_CUSTOM_PTR: 32-bit index at bits [31:0] */
+    static constexpr uint64_t CUSTOM_PTR_INDEX_MASK = 0x00000000FFFFFFFFULL;
+
+    /** For TAG_CUSTOM_PTR: 15-bit type field at bits [46:32] */
+    static constexpr uint64_t CUSTOM_PTR_TYPE_MASK = 0x00007FFF00000000ULL;
+
+    /** For TAG_CUSTOM_PTR: Shift amount for type field */
+    static constexpr uint64_t CUSTOM_PTR_TYPE_SHIFT = 32;
+
+    // ============================================================================
     // Type Tags
     // ============================================================================
 
@@ -63,7 +76,8 @@ namespace pg
      * Primary value tags (Sign bit = 0)
      * These are the most commonly used types
      */
-    enum ValueTag : uint8_t {
+    enum ValueTag : uint8_t
+    {
         TAG_INT       = 0,  // 48-bit signed integer
         TAG_BOOL      = 1,  // Boolean (0 or 1)
         TAG_STRING    = 2,  // Index into string pool
@@ -78,15 +92,16 @@ namespace pg
      * Extended value tags (Sign bit = 1)
      * These are less common types or reserved for future use
      */
-    enum ValueTagExt : uint8_t {
-        TAG_INSTANCE      = 0,  // Index into instance pool
-        TAG_BOUND_METHOD  = 1,  // Index into bound method pool
-        TAG_VECTOR        = 2,  // Index into vector pool
-        TAG_SMALL_STRING  = 3,  // Inline string (up to 5 chars)
-        TAG_RESERVED_4    = 4,  // Reserved for future use
-        TAG_RESERVED_5    = 5,  // Reserved for future use
-        TAG_RESERVED_6    = 6,  // Reserved for future use
-        TAG_RESERVED_7    = 7,  // Reserved for future use
+    enum ValueTagExt : uint8_t
+    {
+        TAG_INSTANCE        = 0,  // Index into instance pool
+        TAG_BOUND_METHOD    = 1,  // Index into bound method pool
+        TAG_VECTOR          = 2,  // Index into vector pool
+        TAG_SMALL_STRING    = 3,  // Inline string (up to 5 chars)
+        TAG_CUSTOM_PTR      = 4,  // Hold a custom pointer (user-defined)
+        TAG_INTERNED_STRING = 5,  // Index into chunk's constantStrings vector (property names)
+        TAG_RESERVED_6      = 6,  // Reserved for future use
+        TAG_RESERVED_7      = 7,  // Reserved for future use
     };
 
     /**
@@ -102,106 +117,132 @@ namespace pg
     /**
      * Check if value is an IEEE 754 double (not a tagged value)
      */
-    inline bool IS_DOUBLE(Value v) {
+    inline bool IS_DOUBLE(Value v)
+    {
         return (v & QNAN_MASK) != QNAN_MASK;
     }
 
     /**
      * Check if value is a tagged value (not a double)
      */
-    inline bool IS_TAGGED(Value v) {
+    inline bool IS_TAGGED(Value v)
+    {
         return (v & QNAN_MASK) == QNAN_MASK;
     }
 
     /**
      * Check if tagged value uses positive sign (primary tags)
      */
-    inline bool IS_POS_TAGGED(Value v) {
+    inline bool IS_POS_TAGGED(Value v)
+    {
         return (v & (QNAN_MASK | SIGN_BIT)) == QNAN_MASK;
     }
 
     /**
      * Check if tagged value uses negative sign (extended tags)
      */
-    inline bool IS_NEG_TAGGED(Value v) {
+    inline bool IS_NEG_TAGGED(Value v)
+    {
         return (v & (QNAN_MASK | SIGN_BIT)) == (QNAN_MASK | SIGN_BIT);
     }
 
     /**
      * Extract 3-bit tag from tagged value
      */
-    inline uint8_t GET_TAG(Value v) {
+    inline uint8_t GET_TAG(Value v)
+    {
         return static_cast<uint8_t>((v & TAG_MASK) >> TAG_SHIFT);
     }
 
     /**
      * Extract 48-bit index from tagged value
      */
-    inline uint32_t GET_INDEX(Value v) {
+    inline uint32_t GET_INDEX(Value v)
+    {
         return static_cast<uint32_t>(v & INDEX_MASK);
     }
 
     // Primary type checks
-    inline bool IS_INT(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_INT;
+    inline bool IS_INT(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_INT;
     }
 
-    inline bool IS_BOOL(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_BOOL;
+    inline bool IS_BOOL(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_BOOL;
     }
 
-    inline bool IS_LONG_STRING(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_STRING;
+    inline bool IS_LONG_STRING(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_STRING;
     }
 
-    inline bool IS_CLOSURE(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_CLOSURE;
+    inline bool IS_CLOSURE(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_CLOSURE;
     }
 
-    inline bool IS_FUNC(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_FUNCTION;
+    inline bool IS_FUNC(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_FUNCTION;
     }
 
-    inline bool IS_UPVALUE(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_UPVALUE;
+    inline bool IS_UPVALUE(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_UPVALUE;
     }
 
-    inline bool IS_CLASS(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_CLASS;
+    inline bool IS_CLASS(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_CLASS;
     }
 
-    inline bool IS_NAT_FUNC(Value v) {
-        return IS_POS_TAGGED(v) && GET_TAG(v) == TAG_NATIVE;
+    inline bool IS_NAT_FUNC(Value v)
+    {
+        return IS_POS_TAGGED(v) and GET_TAG(v) == TAG_NATIVE;
     }
 
     // Extended type checks
-    inline bool IS_INSTANCE(Value v) {
-        return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_INSTANCE;
+    inline bool IS_INSTANCE(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INSTANCE;
     }
 
-    inline bool IS_BOUND_METHOD(Value v) {
-        return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_BOUND_METHOD;
+    inline bool IS_BOUND_METHOD(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_BOUND_METHOD;
     }
 
-    inline bool IS_VECTOR(Value v) {
-        return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_VECTOR;
+    inline bool IS_VECTOR(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_VECTOR;
     }
 
-    inline bool IS_SMALL_STRING(Value v) {
-        return IS_NEG_TAGGED(v) && GET_TAG(v) == TAG_SMALL_STRING;
+    inline bool IS_SMALL_STRING(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_SMALL_STRING;
     }
 
-    // Unified string check (both small and long strings)
-    inline bool IS_STRING(Value v) {
-        return IS_LONG_STRING(v) || IS_SMALL_STRING(v);
+    inline bool IS_CUSTOM_PTR(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_CUSTOM_PTR;
+    }
+
+    inline bool IS_INTERNED_STRING(Value v)
+    {
+        return IS_NEG_TAGGED(v) and GET_TAG(v) == TAG_INTERNED_STRING;
+    }
+
+    // Unified string check (long, small, and interned strings)
+    inline bool IS_STRING(Value v)
+    {
+        return IS_LONG_STRING(v) or IS_SMALL_STRING(v) or IS_INTERNED_STRING(v);
     }
 
     // Legacy compatibility (for transition period)
-    inline bool IS_OBJ(Value v) {
-        return IS_STRING(v);  // OBJ was primarily used for strings
-    }
-
-    inline bool IS_FLOAT(Value v) {
+    inline bool IS_FLOAT(Value v)
+    {
         return IS_DOUBLE(v);  // FLOAT is now DOUBLE
     }
 
@@ -212,8 +253,10 @@ namespace pg
     /**
      * Create a double value from native double
      */
-    inline Value makeDoubleValue(double d) {
+    inline Value makeDoubleValue(double d)
+    {
         union { double d; uint64_t u; } cast;
+
         cast.d = d;
         return cast.u;
     }
@@ -222,7 +265,8 @@ namespace pg
      * Create an integer value (47-bit signed integer)
      * Range: -70,368,744,177,664 to +70,368,744,177,663
      */
-    inline Value makeIntValue(int64_t i) {
+    inline Value makeIntValue(int64_t i)
+    {
         // Mask to 47 bits (preserves sign bit in bit 46)
         uint64_t index = static_cast<uint64_t>(i) & INDEX_MASK;
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_INT) << TAG_SHIFT) | index;
@@ -231,7 +275,8 @@ namespace pg
     /**
      * Create a boolean value
      */
-    inline Value makeBoolValue(bool b) {
+    inline Value makeBoolValue(bool b)
+    {
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_BOOL) << TAG_SHIFT) |
                static_cast<uint64_t>(b);
     }
@@ -239,7 +284,8 @@ namespace pg
     /**
      * Create a string value (pool index)
      */
-    inline Value makeStringValue(uint32_t index) {
+    inline Value makeStringValue(uint32_t index)
+    {
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_STRING) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -247,7 +293,8 @@ namespace pg
     /**
      * Create a closure value (pool index)
      */
-    inline Value makeClosureValue(uint32_t index) {
+    inline Value makeClosureValue(uint32_t index)
+    {
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_CLOSURE) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -255,7 +302,8 @@ namespace pg
     /**
      * Create a function value (pool index)
      */
-    inline Value makeFunctionValue(uint32_t index) {
+    inline Value makeFunctionValue(uint32_t index)
+    {
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_FUNCTION) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -263,7 +311,8 @@ namespace pg
     /**
      * Create an upvalue (pool index)
      */
-    inline Value makeUpvalueValue(uint32_t index) {
+    inline Value makeUpvalueValue(uint32_t index)
+    {
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_UPVALUE) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -271,7 +320,8 @@ namespace pg
     /**
      * Create a class value (pool index)
      */
-    inline Value makeClassValue(uint32_t index) {
+    inline Value makeClassValue(uint32_t index)
+    {
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_CLASS) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -279,7 +329,8 @@ namespace pg
     /**
      * Create a native function value (pool index)
      */
-    inline Value makeNativeFuncValue(uint32_t index) {
+    inline Value makeNativeFuncValue(uint32_t index)
+    {
         return POS_TAG_BASE | (static_cast<uint64_t>(TAG_NATIVE) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -287,7 +338,8 @@ namespace pg
     /**
      * Create an instance value (pool index) - uses negative tag
      */
-    inline Value makeInstanceValue(uint32_t index) {
+    inline Value makeInstanceValue(uint32_t index)
+    {
         return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_INSTANCE) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -295,7 +347,8 @@ namespace pg
     /**
      * Create a bound method value (pool index) - uses negative tag
      */
-    inline Value makeBoundMethodValue(uint32_t index) {
+    inline Value makeBoundMethodValue(uint32_t index)
+    {
         return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_BOUND_METHOD) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -303,7 +356,8 @@ namespace pg
     /**
      * Create a vector value (pool index) - uses negative tag
      */
-    inline Value makeVectorValue(uint32_t index) {
+    inline Value makeVectorValue(uint32_t index)
+    {
         return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_VECTOR) << TAG_SHIFT) |
                static_cast<uint64_t>(index);
     }
@@ -314,24 +368,53 @@ namespace pg
      * Bits [46:40] = length (0-127)
      * Bits [39:0]  = 5 characters
      */
-    inline Value makeSmallStringValue(const char* str, uint8_t length) {
+    inline Value makeSmallStringValue(const char* str, uint8_t length)
+    {
         // Pack length in upper 7 bits of the 47-bit payload
         uint64_t payload = (static_cast<uint64_t>(length) << 40);
 
         // Pack up to 5 characters into lower 40 bits
-        for (uint8_t i = 0; i < length && i < 5; ++i) {
+        for (uint8_t i = 0; i < length && i < 5; ++i)
+        {
             payload |= (static_cast<uint64_t>(static_cast<unsigned char>(str[i])) << (8 * i));
         }
 
         return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_SMALL_STRING) << TAG_SHIFT) | payload;
     }
 
-    // Legacy compatibility
-    inline Value makeObjValue(uint32_t index) {
-        return makeStringValue(index);
+    /**
+     * Create an interned string value (index into chunk's constantStrings)
+     * Used for property names and other compile-time constant strings
+     */
+    inline Value makeInternedStringValue(uint32_t index)
+    {
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_INTERNED_STRING) << TAG_SHIFT) |
+               static_cast<uint64_t>(index);
     }
 
-    inline Value makeFloatValue(double d) {
+    /**
+     * Create a custom pointer value with type and index - uses negative tag
+     * Format in 47-bit payload: [15-bit type][32-bit index]
+     * Bits [46:32] = type (0-32767) - allows differentiating 32K pointer types
+     * Bits [31:0]  = index (0-4294967295) - supports 4.2 billion objects per type
+     *
+     * @param type A 15-bit type identifier for this custom pointer (0-32767)
+     * @param index A 32-bit pool index for this custom pointer (0-4294967295)
+     */
+    inline Value makeCustomPtrValue(uint16_t type, uint32_t index)
+    {
+        // Mask type to 15 bits and shift to position [46:32]
+        uint64_t payload = (static_cast<uint64_t>(type & 0x7FFF) << CUSTOM_PTR_TYPE_SHIFT);
+
+        // Add 32-bit index at position [31:0]
+        payload |= static_cast<uint64_t>(index);
+
+        return NEG_TAG_BASE | (static_cast<uint64_t>(TAG_CUSTOM_PTR) << TAG_SHIFT) | payload;
+    }
+
+    // Legacy compatibility
+    inline Value makeFloatValue(double d)
+    {
         return makeDoubleValue(d);
     }
 
@@ -342,8 +425,10 @@ namespace pg
     /**
      * Extract double from value
      */
-    inline double AS_DOUBLE(Value v) {
+    inline double AS_DOUBLE(Value v)
+    {
         union { uint64_t u; double d; } cast;
+
         cast.u = v;
         return cast.d;
     }
@@ -352,12 +437,14 @@ namespace pg
      * Extract 47-bit signed integer from value
      * Properly handles sign extension
      */
-    inline int64_t AS_INT(Value v) {
+    inline int64_t AS_INT(Value v)
+    {
         // Extract 47-bit value
         int64_t i = static_cast<int64_t>(v & INDEX_MASK);
 
         // Sign extend from bit 46 to 64 bits
-        if (i & 0x400000000000LL) {
+        if (i & 0x400000000000LL)
+        {
             i |= 0xFFFF800000000000LL;
         }
 
@@ -367,77 +454,96 @@ namespace pg
     /**
      * Extract boolean from value
      */
-    inline bool AS_BOOL(Value v) {
+    inline bool AS_BOOL(Value v)
+    {
         return static_cast<bool>(v & 1);
     }
 
     /**
      * Extract pool index for string
      */
-    inline uint32_t AS_STRING_INDEX(Value v) {
+    inline uint32_t AS_STRING_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for closure
      */
-    inline uint32_t AS_CLOSURE_INDEX(Value v) {
+    inline uint32_t AS_CLOSURE_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for function
      */
-    inline uint32_t AS_FUNCTION_INDEX(Value v) {
+    inline uint32_t AS_FUNCTION_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for upvalue
      */
-    inline uint32_t AS_UPVALUE_INDEX(Value v) {
+    inline uint32_t AS_UPVALUE_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for class
      */
-    inline uint32_t AS_CLASS_INDEX(Value v) {
+    inline uint32_t AS_CLASS_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for native function
      */
-    inline uint32_t AS_NATIVE_INDEX(Value v) {
+    inline uint32_t AS_NATIVE_INDEX(Value v)
+    {
+        return GET_INDEX(v);
+    }
+
+    /**
+     * Extract index for interned string (into constantStrings)
+     */
+    inline uint32_t AS_INTERNED_STRING_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for instance
      */
-    inline uint32_t AS_INSTANCE_INDEX(Value v) {
+    inline uint32_t AS_INSTANCE_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for bound method
      */
-    inline uint32_t AS_BOUND_METHOD_INDEX(Value v) {
+    inline uint32_t AS_BOUND_METHOD_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract pool index for vector
      */
-    inline uint32_t AS_VECTOR_INDEX(Value v) {
+    inline uint32_t AS_VECTOR_INDEX(Value v)
+    {
         return GET_INDEX(v);
     }
 
     /**
      * Extract small string length from inline string value
      */
-    inline uint8_t AS_SMALL_STRING_LENGTH(Value v) {
+    inline uint8_t AS_SMALL_STRING_LENGTH(Value v)
+    {
         uint64_t payload = v & INDEX_MASK;
         return static_cast<uint8_t>(payload >> 40);
     }
@@ -446,14 +552,17 @@ namespace pg
      * Extract small string characters from inline string value
      * Caller must provide a buffer of at least 6 bytes (5 chars + null terminator)
      */
-    inline void AS_SMALL_STRING_CHARS(Value v, char* buffer) {
+    inline void AS_SMALL_STRING_CHARS(Value v, char* buffer)
+    {
         uint64_t payload = v & INDEX_MASK;
         uint8_t length = static_cast<uint8_t>(payload >> 40);
 
         // Extract up to 5 characters from lower 40 bits
-        for (uint8_t i = 0; i < length && i < 5; ++i) {
+        for (uint8_t i = 0; i < length && i < 5; ++i)
+        {
             buffer[i] = static_cast<char>((payload >> (8 * i)) & 0xFF);
         }
+
         buffer[length] = '\0';  // Null terminate
     }
 
@@ -461,25 +570,44 @@ namespace pg
      * Convert small string value to std::string
      * Helper function that extracts the string content without null terminator issues
      */
-    inline std::string AS_SMALL_STRING(Value v) {
+    inline std::string AS_SMALL_STRING(Value v)
+    {
         uint64_t payload = v & INDEX_MASK;
         uint8_t length = static_cast<uint8_t>(payload >> 40);
 
         // Build string directly from the payload bytes
         std::string result;
         result.reserve(length);
-        for (uint8_t i = 0; i < length && i < 5; ++i) {
+
+        for (uint8_t i = 0; i < length && i < 5; ++i)
+        {
             result += static_cast<char>((payload >> (8 * i)) & 0xFF);
         }
+
         return result;
     }
 
-    // Legacy compatibility - these will need to be updated to work with pools
-    inline uint32_t AS_OBJ_INDEX(Value v) {
-        return AS_STRING_INDEX(v);
+    /**
+     * Extract 32-bit pool index from custom pointer value
+     * Extracts bits [31:0] from the payload
+     */
+    inline uint32_t AS_CUSTOM_PTR_INDEX(Value v)
+    {
+        return static_cast<uint32_t>(v & CUSTOM_PTR_INDEX_MASK);
     }
 
-    inline double AS_FLOAT(Value v) {
+    /**
+     * Extract 15-bit type field from custom pointer value
+     * Extracts bits [46:32] from the payload
+     */
+    inline uint16_t AS_CUSTOM_PTR_TYPE(Value v)
+    {
+        return static_cast<uint16_t>((v & CUSTOM_PTR_TYPE_MASK) >> CUSTOM_PTR_TYPE_SHIFT);
+    }
+
+    // Legacy compatibility - these will need to be updated to work with pools
+    inline double AS_FLOAT(Value v)
+    {
         return AS_DOUBLE(v);
     }
 
@@ -490,17 +618,31 @@ namespace pg
     /**
      * Check if value requires pool-based reference counting
      */
-    inline bool requiresRefCount(Value v) {
-        if (!IS_TAGGED(v)) return false;  // Doubles don't need refcount
-        if (IS_INT(v) || IS_BOOL(v)) return false;  // Primitives don't need refcount
-        if (IS_SMALL_STRING(v)) return false;  // Inline strings don't need refcount
+    inline bool requiresRefCount(Value v)
+    {
+        if (not IS_TAGGED(v)) // Doubles don't need refcount
+            return false;
+
+        if (IS_INT(v) or IS_BOOL(v)) // Primitives don't need refcount
+            return false;
+
+        if (IS_SMALL_STRING(v)) // Inline strings don't need refcount
+            return false;
+
+        if (IS_INTERNED_STRING(v)) // Interned strings live in VM's constantStrings, no refcount needed
+            return false;
+
+        if (IS_CUSTOM_PTR(v)) // Custom pointers managed externally
+            return false;
+
         return true;  // All pool-based values need refcount
     }
 
     /**
      * Get a string representation of the value type (for debugging)
      */
-    inline const char* valueTypeName(Value v) {
+    inline const char* valueTypeName(Value v)
+    {
         if (IS_DOUBLE(v)) return "double";
         if (IS_INT(v)) return "int";
         if (IS_BOOL(v)) return "bool";
@@ -512,6 +654,8 @@ namespace pg
         if (IS_NAT_FUNC(v)) return "native";
         if (IS_INSTANCE(v)) return "instance";
         if (IS_BOUND_METHOD(v)) return "bound_method";
+        if (IS_VECTOR(v)) return "vector";
+        if (IS_CUSTOM_PTR(v)) return "custom_ptr";
         return "unknown";
     }
 }

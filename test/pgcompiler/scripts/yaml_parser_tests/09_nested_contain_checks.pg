@@ -1,0 +1,44 @@
+// Test 09: Nested conditional contain checks (from lines 99-112)
+// Tests the pattern of checking multiple conditions to save array sections
+
+import "algorithm"
+import "string"
+
+var currentArray = ["item1", "item2"];
+var currentItem = {"name": "item3"};
+var currentSection = "fields";
+var result = {};
+
+// Pattern from lines 99-112
+if (len(currentArray) > 0 or contain(currentItem, "name") or contain(currentItem, "params")) {
+    // Save previous array
+    if (contain(currentItem, "name") or contain(currentItem, "params")) {
+        push(currentArray, currentItem);
+        currentItem = {};
+    }
+
+    __dprint("Saving section '" + currentSection + "' with " + toString(len(currentArray)) + " items");
+    result[currentSection] = currentArray;
+    currentArray = [];
+}
+
+__dprint("Result section length: " + toString(len(result[currentSection])));
+
+// Test 2: currentItem without name/params
+currentArray = ["item1"];
+currentItem = {};
+currentSection = "includes";
+result = {};
+
+if (len(currentArray) > 0 or contain(currentItem, "name") or contain(currentItem, "params")) {
+    if (contain(currentItem, "name") or contain(currentItem, "params")) {
+        push(currentArray, currentItem);
+        currentItem = {};
+    }
+
+    __dprint("Saving section '" + currentSection + "' with " + toString(len(currentArray)) + " items");
+    result[currentSection] = currentArray;
+    currentArray = [];
+}
+
+__dprint("Result section length: " + toString(len(result[currentSection])));

@@ -19,21 +19,23 @@
 #include <vector>
 #include <cstdint>
 
-namespace pg {
+namespace pg
+{
+    class LongJumpOptimizationPass : public BytecodePass
+    {
+        struct JumpInfo
+        {
+            size_t instructionOffset;
+            OpCode opcode;
+            uint32_t jumpDistance;
+            size_t targetOffset;
+            bool canOptimize;
 
-    struct JumpInfo {
-        size_t instructionOffset;
-        OpCode opcode;
-        uint32_t jumpDistance;
-        size_t targetOffset;
-        bool canOptimize;
+            JumpInfo(size_t offset, OpCode op, uint32_t distance, size_t target)
+                : instructionOffset(offset), opcode(op), jumpDistance(distance),
+                targetOffset(target), canOptimize(false) {}
+        };
 
-        JumpInfo(size_t offset, OpCode op, uint32_t distance, size_t target)
-            : instructionOffset(offset), opcode(op), jumpDistance(distance),
-              targetOffset(target), canOptimize(false) {}
-    };
-
-    class LongJumpOptimizationPass : public BytecodePass {
     public:
         std::string getName() const override { return "LongJumpOptimization"; }
 
@@ -45,7 +47,7 @@ namespace pg {
 
     private:
         // Find all long jump candidates that can be optimized to short jumps
-        std::vector<JumpInfo> findOptimizableJumps(const Chunk& chunk);
+        std::optional<JumpInfo> findFirstOptimizableJumps(const Chunk& chunk);
 
         // Helper methods
         uint32_t extractLongJumpOffset(const Chunk& chunk, size_t offset);

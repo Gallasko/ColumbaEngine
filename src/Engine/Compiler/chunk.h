@@ -18,6 +18,7 @@ namespace pg
         OP_Return = 0,
         OP_Constant,
         OP_LongConstant,
+        OP_Constant_String,  // Load string from constantStrings array
         OP_Negate,
         OP_Add,
         OP_Subtract,
@@ -92,6 +93,10 @@ namespace pg
         OP_SubtractLC, // SUBTRACT optimized for local and constant
         OP_SubtractCL, // SUBTRACT optimized for constant and local
 
+        // Control flow
+        OP_Jump_If_False_Popping,      // Jump if false and pop the condition value (used for while loops, if statements)
+        OP_Long_Jump_If_False_Popping, // Long jump if false and pop the condition value (for long jumps in loops/ifs)
+
         // Table operations
         OP_Build_Vector,  // Create vector instance from stack key-value pairs
         OP_Build_Table,   // Create table instance from stack key-value pairs
@@ -106,6 +111,17 @@ namespace pg
 
         // Module operations
         OP_Import,        // Import a module (expects module name string on stack)
+
+        // Register-based opcodes (direct slot access, no push/pop)
+        OP_Load_Constant_R,  // Load constant to register: <dest_slot> <const_index>
+        OP_Move_R,           // Move between registers: <dest_slot> <src_slot>
+        OP_Add_RRR,          // Add registers: <dest_slot> <src1_slot> <src2_slot>
+        OP_Less_RR,          // Compare less: <src1_slot> <src2_slot> (result on stack for jump)
+        OP_Incr_R,           // Increment register: <slot>
+        OP_Less_RRR,         // Compare less to register: <dest_slot> <src1_slot> <src2_slot> (no push)
+        OP_Jump_If_False_R,  // Jump if register is false: <slot> <offset_high> <offset_low>
+
+        OP_Custom = 255, // Custom opcode for extensions (not used by core VM)
     };
 
     struct Chunk
@@ -121,43 +137,70 @@ namespace pg
         // Note: Imports are always global (added to VM globals), even if written in local scopes
         std::vector<std::string> importedModules;
 
+        // Constant strings (for interned string values) - stored per chunk
+        // All compile-time string constants are stored here and referenced by index
+        std::vector<std::string> constantStrings;
+
         // Note: With NaN-boxing and pool-based memory, constants don't need cleanup in destructor
         // The VM's pools handle all memory management via reference counting
 
         // Helper function to compare two values for semantic equality
         // For primitives (int, bool, double), compares bit patterns
         // For strings, compares actual string content (requires stringPool)
-        bool valuesEqual(Value a, Value b, AllocatorPool<ElementType, 64>* stringPool = nullptr) const
+        bool valuesEqual(Value a, Value b, AllocatorPool<std::string>* stringPool = nullptr) const
         {
             // Fast path: if bit patterns match, they're definitely equal
             if (a == b) return true;
 
             // For non-string types, only bit pattern equality matters
-            if (!IS_STRING(a) || !IS_STRING(b))
+            if (not IS_STRING(a) or not IS_STRING(b))
                 return false;
 
-            // If no string pool available, can only compare bit patterns
-            if (!stringPool)
-                return false;
+            // Handle different string types properly
+            bool aIsSmall = IS_SMALL_STRING(a);
+            bool bIsSmall = IS_SMALL_STRING(b);
+            bool aIsInterned = IS_INTERNED_STRING(a);
+            bool bIsInterned = IS_INTERNED_STRING(b);
+            bool aIsLong = IS_LONG_STRING(a);
+            bool bIsLong = IS_LONG_STRING(b);
 
-            // Compare actual string content
-            uint32_t indexA = AS_STRING_INDEX(a);
-            uint32_t indexB = AS_STRING_INDEX(b);
+            // Small strings: compare inline data directly
+            if (aIsSmall and bIsSmall)
+            {
+                return AS_SMALL_STRING(a) == AS_SMALL_STRING(b);
+            }
 
-            // Bounds check
-            if (indexA >= stringPool->getNbElements() || indexB >= stringPool->getNbElements())
-                return false;
+            // Interned strings: compare indices (they reference chunk.constantStrings)
+            if (aIsInterned and bIsInterned)
+            {
+                return AS_INTERNED_STRING_INDEX(a) == AS_INTERNED_STRING_INDEX(b);
+            }
 
-            auto strA = stringPool->getElement(indexA);
-            auto strB = stringPool->getElement(indexB);
+            // Long strings: compare content from string pool
+            if (aIsLong and bIsLong and stringPool)
+            {
+                uint32_t indexA = AS_STRING_INDEX(a);
+                uint32_t indexB = AS_STRING_INDEX(b);
 
-            if (!strA || !strB)
-                return false;
+                // Bounds check
+                if (indexA >= stringPool->getNbElements() or indexB >= stringPool->getNbElements())
+                    return false;
 
-            return strA->toString() == strB->toString();
+                auto strA = stringPool->getElement(indexA);
+                auto strB = stringPool->getElement(indexB);
+
+                if (not strA or not strB)
+                    return false;
+
+                return *strA == *strB;
+            }
+
+            // Mixed string types are never equal
+            // (We don't compare content across different representations)
+            return false;
         }
 
-        AllocatorPool<ElementType, 64>* stringPool = nullptr;  // Set by compiler/VM for string comparison
+        AllocatorPool<std::string>* stringPool = nullptr;  // Set by compiler/VM for string comparison
 
         size_t addConstant(const Value& value, int line)
         {
@@ -281,7 +324,7 @@ namespace pg
                 return 2; // opcode + 1 byte operand
 
             case OpCode::OP_Define_Global:
-            case OpCode::OP_Define_Global_Non_Popping: 
+            case OpCode::OP_Define_Global_Non_Popping:
             case OpCode::OP_Get_Global:
             case OpCode::OP_Set_Global:
             case OpCode::OP_Return:
@@ -319,11 +362,13 @@ namespace pg
                 return 4; // opcode + 3 byte operand
 
             case OpCode::OP_Jump_If_False:
+            case OpCode::OP_Jump_If_False_Popping:
             case OpCode::OP_Jump:
             case OpCode::OP_Loop:
                 return 3; // opcode + 2 byte operand
 
             case OpCode::OP_Long_Jump_If_False:
+            case OpCode::OP_Long_Jump_If_False_Popping:
             case OpCode::OP_Long_Jump:
             case OpCode::OP_Long_Loop:
                 return 5; // opcode + 4 byte operand
@@ -371,10 +416,29 @@ namespace pg
             case OpCode::OP_Import:
                 return 1; // opcode only (module name is on stack)
 
+            // Register-based opcodes
+            case OpCode::OP_Load_Constant_R:
+                return 3; // opcode + dest_slot + const_index
+            case OpCode::OP_Move_R:
+                return 3; // opcode + dest_slot + src_slot
+            case OpCode::OP_Add_RRR:
+                return 4; // opcode + dest_slot + src1_slot + src2_slot
+            case OpCode::OP_Less_RR:
+                return 3; // opcode + src1_slot + src2_slot
+            case OpCode::OP_Incr_R:
+                return 2; // opcode + slot
+            case OpCode::OP_Less_RRR:
+                return 4; // opcode + dest_slot + src1_slot + src2_slot
+            case OpCode::OP_Jump_If_False_R:
+                return 4; // opcode + slot + offset_high + offset_low
+
             default:
                 return 1; // default to single byte for unknown opcodes
         }
     }
+
+    // Forward declaration
+    struct DecodedChunk;
 
     struct ObjFunction
     {
@@ -382,5 +446,10 @@ namespace pg
         int arity; // Number of parameters
         std::string name;
         int upvalueCount = 0;
+
+        // Pre-decoded chunk for faster execution (lazily created)
+        DecodedChunk* decodedChunk = nullptr;
+
+        ~ObjFunction();
     };
 }

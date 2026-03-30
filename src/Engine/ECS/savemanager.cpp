@@ -113,6 +113,14 @@ namespace pg
         }
     }
 
+    void SaveManager::forceSave()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        save();
+        needSave = false;
+    }
+
     void SaveManager::onProcessEvent(const SaveElementEvent& event)
     {
         LOG_THIS_MEMBER(DOM);

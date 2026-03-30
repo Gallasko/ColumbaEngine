@@ -1,0 +1,3 @@
+Component: TransformComponent -> Shortname: Transform
+Component: RenderComponent -> Shortname: Render
+Component: PhysicsComponent -> Shortname: Physics

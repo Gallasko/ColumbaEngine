@@ -1,0 +1,24 @@
+// Test 05: Quote stripping with conditional checks (from lines 309-318)
+// Tests removing surrounding quotes from values
+
+import "string"
+import "algorithm"
+
+fun stripQuotes(value) {
+    // Remove quotes if present
+    if (startsWith(value, "\"") and endsWith(value, "\"")) {
+        return substring(value, 1, len(value) - 1);
+    }
+
+    if (startsWith(value, "'") and endsWith(value, "'")) {
+        return substring(value, 1, len(value) - 1);
+    }
+
+    return value;
+}
+
+__dprint("Double quotes: " + stripQuotes("\"myValue\""));
+__dprint("Single quotes: " + stripQuotes("'myValue'"));
+__dprint("No quotes: " + stripQuotes("myValue"));
+__dprint("Mixed quotes: " + stripQuotes("\"myValue'"));
+__dprint("Partial quotes: " + stripQuotes("myValue\""));

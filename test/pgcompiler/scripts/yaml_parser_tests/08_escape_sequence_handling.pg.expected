@@ -1,0 +1,5 @@
+Test 1: Simple string
+Test 2: String with "escaped quotes"
+Test 3: Backslash at end\
+Test 4: "Start and end"
+Test 5: Other escape\nsequences

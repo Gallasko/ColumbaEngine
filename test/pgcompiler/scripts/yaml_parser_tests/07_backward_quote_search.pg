@@ -1,0 +1,29 @@
+// Test 07: Backward quote position search (from lines 163-167)
+// Tests searching backwards for a quote character
+
+import "string"
+import "algorithm"
+
+fun findLastQuote(str) {
+    var quotePos = len(str) - 1;
+    while (quotePos >= 0 and substring(str, quotePos, quotePos + 1) != "\"") {
+        quotePos = quotePos - 1;
+    }
+    return quotePos;
+}
+
+var test1 = "    some text\"";
+var pos1 = findLastQuote(test1);
+__dprint("Test 1: '" + test1 + "' quote at position " + toString(pos1));
+
+var test2 = "  \"quoted\" value\"";
+var pos2 = findLastQuote(test2);
+__dprint("Test 2: '" + test2 + "' last quote at position " + toString(pos2));
+
+var test3 = "no quotes here";
+var pos3 = findLastQuote(test3);
+__dprint("Test 3: '" + test3 + "' quote at position " + toString(pos3));
+
+var test4 = "\"";
+var pos4 = findLastQuote(test4);
+__dprint("Test 4: single quote at position " + toString(pos4));

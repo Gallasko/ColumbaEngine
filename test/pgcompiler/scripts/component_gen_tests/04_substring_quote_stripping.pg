@@ -1,0 +1,53 @@
+// Test 04: Substring operations with quote stripping (from lines 178-186)
+// Tests the default parameter quote stripping logic
+
+import "string"
+import "algorithm"
+
+var paramDefault = "\"defaultValue\"";
+var result = "";
+
+// Strip quotes if present
+if (len(paramDefault) >= 2)
+{
+    var firstChar = substring(paramDefault, 0, 1);
+    var lastChar = substring(paramDefault, len(paramDefault) - 1, len(paramDefault));
+
+    if ((firstChar == "\"" and lastChar == "\"") or (firstChar == "'" and lastChar == "'"))
+    {
+        paramDefault = substring(paramDefault, 1, len(paramDefault) - 1);
+    }
+}
+
+result = paramDefault;
+__dprint(result);
+
+// Test with single quotes
+paramDefault = "'anotherValue'";
+if (len(paramDefault) >= 2)
+{
+    var firstChar = substring(paramDefault, 0, 1);
+    var lastChar = substring(paramDefault, len(paramDefault) - 1, len(paramDefault));
+
+    if ((firstChar == "\"" and lastChar == "\"") or (firstChar == "'" and lastChar == "'"))
+    {
+        paramDefault = substring(paramDefault, 1, len(paramDefault) - 1);
+    }
+}
+
+__dprint(paramDefault);
+
+// Test without quotes
+paramDefault = "noQuotes";
+if (len(paramDefault) >= 2)
+{
+    var firstChar = substring(paramDefault, 0, 1);
+    var lastChar = substring(paramDefault, len(paramDefault) - 1, len(paramDefault));
+
+    if ((firstChar == "\"" and lastChar == "\"") or (firstChar == "'" and lastChar == "'"))
+    {
+        paramDefault = substring(paramDefault, 1, len(paramDefault) - 1);
+    }
+}
+
+__dprint(paramDefault);

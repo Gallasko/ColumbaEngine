@@ -1,0 +1,27 @@
+// Test 02: splitFirst with substring (from lines 350-360)
+// Tests the splitFirst function that splits on first occurrence only
+
+import "algorithm"
+import "string"
+
+fun splitFirst(str, delimiter) {
+    var idx = indexOf(str, delimiter);
+
+    if (idx == -1) {
+        return [str, ""];
+    }
+
+    return [substring(str, 0, idx), substring(str, idx + 1, len(str))];
+}
+
+var test1 = splitFirst("key: value", ":");
+__dprint("Test 1 - key: '" + test1[0] + "' value: '" + test1[1] + "'");
+
+var test2 = splitFirst("namespace: pg::ecs::components", ":");
+__dprint("Test 2 - key: '" + test2[0] + "' value: '" + test2[1] + "'");
+
+var test3 = splitFirst("no delimiter here", ":");
+__dprint("Test 3 - key: '" + test3[0] + "' value: '" + test3[1] + "'");
+
+var test4 = splitFirst("method: getValue() const { return val; }", ":");
+__dprint("Test 4 - key: '" + test4[0] + "' value: '" + test4[1] + "'");

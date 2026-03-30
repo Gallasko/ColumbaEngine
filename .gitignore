@@ -23,3 +23,6 @@ global.sz
 *.generated.*
 *.serialization.cpp
 src/**/temp.pgc
+test/pgcompiler/scripts/*compiled.pgc
+.vscode/.intellisense-cache
+graph.dot

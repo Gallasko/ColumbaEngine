@@ -120,6 +120,9 @@ namespace pg
         if (hdr.fragmentIndex >= hdr.totalFragments)
             return false;
 
+        if (HEADER_SIZE + hdr.payloadLen > raw.size())
+            return false;
+
         slots[hdr.fragmentIndex] =
             NetPayload(
             raw.begin() + HEADER_SIZE,

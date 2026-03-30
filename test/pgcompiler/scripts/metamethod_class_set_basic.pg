@@ -1,0 +1,32 @@
+import "string"
+
+class Test
+{
+    init()
+    {
+        this.val = 0;
+    }
+
+    __set(name, value)
+    {
+        if (name == "example")
+        {
+            __dprint("Setting 'example' to: " + toString(value));
+            this.val = value;
+        }
+        else
+        {
+            __dprint("Setter called with unknown property: " + name + " = " + toString(value));
+        }
+
+        return value;
+    }
+}
+
+var testInstance = Test();
+
+__dprint("Initial value: " + toString(testInstance.val)); // Should print 0
+testInstance.example = 42; // Should trigger the setter
+__dprint("Value after setting 'example': " + toString(testInstance.val)); // Should print 42
+testInstance.randomProp = 99; // Should print warning
+__dprint("Final value: " + toString(testInstance.val)); // Should still print 42

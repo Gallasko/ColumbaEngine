@@ -8,10 +8,10 @@ namespace pg
 {
     /**
      * @brief Enumeration defining layout orientation types.
-     * 
+     *
      * Specifies whether a layout arranges its child elements horizontally or vertically.
      * Used by BaseLayout and its derived classes to determine element positioning.
-     * 
+     *
      * @see BaseLayout
      * @see HorizontalLayout
      * @see VerticalLayout
@@ -23,11 +23,49 @@ namespace pg
     };
 
     /**
+     * @brief Event fired when a layout child is removed from its parent layout.
+     *
+     * Sent by EntityInLayout::onDeletion when the child entity is destroyed, or by the
+     * <PositionComponent, EntityInLayout> group's removeOfGroup when the child loses its
+     * PositionComponent while still alive. The LayoutSystem handler erases the child from
+     * view->entities and entitiesInLayout without calling removeEntity (the entity may
+     * already be gone).
+     */
+    struct EntityRemovedFromLayoutEvent
+    {
+        _unique_id layoutId;  ///< ID of the parent layout entity
+        _unique_id entityId;  ///< ID of the child entity being removed
+    };
+
+    /**
+     * @brief Marker component attached to every entity that is a direct child of a layout.
+     *
+     * Always present on layout children, so layout loops can call get<EntityInLayout>()
+     * without a has<> guard. Caches capability flags kept in sync by ECS group callbacks:
+     *
+     * - hasPosition: true while PositionComponent is attached
+     *
+     * onDeletion sends EntityRemovedFromLayoutEvent so the parent layout can evict the
+     * stale EntityRef from view->entities when the child is destroyed externally.
+     */
+    struct EntityInLayout : public Component, public Dtor
+    {
+        _unique_id layoutId = 0;
+        LayoutOrientation orientation = LayoutOrientation::Horizontal;
+        bool hasPosition = false; ///< Kept in sync by <PositionComponent, EntityInLayout> group
+
+        virtual void onDeletion(EntityRef entity) override
+        {
+            ecsRef->sendEvent(EntityRemovedFromLayoutEvent{layoutId, entity.id});
+        }
+    };
+
+    /**
      * @brief Event to clear multiple entities from layouts.
-     * 
+     *
      * Removes all specified entities from their respective layouts and destroys them.
      * This is a batch operation for efficiently clearing multiple entities at once.
-     * 
+     *
      * @see LayoutSystem::onProcessEvent(const ClearLayoutEvent&)
      * @see BaseLayout::clear()
      */
@@ -38,10 +76,10 @@ namespace pg
 
     /**
      * @brief Event to add an element to the end of a layout.
-     * 
+     *
      * Adds the specified UI entity to the end of the layout with the given ID.
      * The element is positioned according to the layout's orientation and settings.
-     * 
+     *
      * @see LayoutSystem::onProcessEvent(const AddLayoutElementEvent&)
      * @see BaseLayout::addEntity()
      */
@@ -54,10 +92,10 @@ namespace pg
 
     /**
      * @brief Event to insert an element at a specific position in a layout.
-     * 
+     *
      * Inserts the specified UI entity at the given index within the layout.
      * Negative indices count from the end (-1 = last position).
-     * 
+     *
      * @see LayoutSystem::onProcessEvent(const InsertLayoutElementEvent&)
      * @see BaseLayout::insertEntity()
      */
@@ -71,10 +109,10 @@ namespace pg
 
     /**
      * @brief Event to remove a specific entity from a layout by ID.
-     * 
+     *
      * Removes the entity with the specified ID from the layout and destroys it.
      * The entity is searched for within the layout's entities list.
-     * 
+     *
      * @see LayoutSystem::onProcessEvent(const RemoveLayoutElementEvent&)
      * @see BaseLayout::removeEntity()
      */
@@ -87,10 +125,10 @@ namespace pg
 
     /**
      * @brief Event to remove an element from a layout at a specific index.
-     * 
+     *
      * Removes the entity at the specified index position within the layout.
      * Negative indices count from the end (-1 = last element).
-     * 
+     *
      * @see LayoutSystem::onProcessEvent(const RemoveLayoutElementAtEvent&)
      * @see BaseLayout::removeAt()
      */
@@ -103,10 +141,10 @@ namespace pg
 
     /**
      * @brief Event to update the scrollable state of a layout.
-     * 
+     *
      * Enables or disables scrolling for the specified layout. When enabled,
      * mouse wheel events are handled and child elements are clipped to the layout bounds.
-     * 
+     *
      * @see LayoutSystem::onProcessEvent(const UpdateLayoutScrollable&)
      * @see BaseLayout::setScrollable()
      */
@@ -119,14 +157,14 @@ namespace pg
 
     /**
      * @brief Counts the number of visible elements in a layout.
-     * 
+     *
      * Iterates through all entities in the layout and counts those that have
      * a PositionComponent and are marked as visible.
-     * 
+     *
      * @tparam Layout The layout type (BaseLayout* or derived)
      * @param layout Pointer to the layout to analyze
      * @return Number of visible elements in the layout
-     * 
+     *
      * @note Only counts entities that have PositionComponent attached
      * @see PositionComponent::visible
      */
@@ -153,22 +191,22 @@ namespace pg
 
     /**
      * @brief Base class for all layout components in the UI system.
-     * 
+     *
      * BaseLayout provides the fundamental functionality for arranging child entities
      * in either horizontal or vertical orientations. It supports features like:
-     * 
+     *
      * - Scrolling with mouse wheel support
      * - Element spacing and wrapping
      * - Scroll bars (horizontal and vertical)
      * - Visibility culling for performance
      * - Automatic size calculation
-     * 
+     *
      * Key Features:
      * - **Spacing**: Configurable spacing between elements
      * - **Scrolling**: Optional scrollable content with overflow handling
      * - **Wrapping**: Elements can wrap to new lines/columns when `fitToAxis` is enabled
      * - **Stick to End**: New elements can be added to maintain scroll position at end
-     * 
+     *
      * @see HorizontalLayout
      * @see VerticalLayout
      * @see LayoutSystem
@@ -177,10 +215,10 @@ namespace pg
     {
         /**
          * @brief Called when the layout component is attached to an entity.
-         * 
+         *
          * Initializes the layout with the entity's ID and ECS reference.
          * This is automatically called by the ECS system.
-         * 
+         *
          * @param entity The entity this layout is attached to
          */
         virtual void onCreation(EntityRef entity) override
@@ -191,10 +229,10 @@ namespace pg
 
         /**
          * @brief Called when the layout component is about to be destroyed.
-         * 
+         *
          * If clearOnDeletion is true, removes and destroys all child entities.
          * This prevents memory leaks and orphaned entities.
-         * 
+         *
          * @param entity The entity being destroyed (unused)
          */
         virtual void onDeletion(EntityRef) override
@@ -205,10 +243,10 @@ namespace pg
 
         /**
          * @brief Adds an entity to the end of this layout.
-         * 
+         *
          * The entity will be positioned according to the layout's orientation
          * and current settings. Sends an AddLayoutElementEvent to the LayoutSystem.
-         * 
+         *
          * @param entity The entity to add to this layout
          * @see AddLayoutElementEvent
          */
@@ -219,7 +257,7 @@ namespace pg
 
         /**
          * @brief Inserts an entity at a specific position in this layout.
-         * 
+         *
          * @param entity The entity to insert
          * @param index Position to insert at (negative values count from end)
          * @see InsertLayoutElementEvent
@@ -231,9 +269,9 @@ namespace pg
 
         /**
          * @brief Removes a specific entity from this layout by reference.
-         * 
+         *
          * The entity is removed from the layout and destroyed.
-         * 
+         *
          * @param entity The entity to remove
          * @see RemoveLayoutElementEvent
          */
@@ -244,9 +282,9 @@ namespace pg
 
         /**
          * @brief Removes a specific entity from this layout by ID.
-         * 
+         *
          * The entity is removed from the layout and destroyed.
-         * 
+         *
          * @param entityId ID of the entity to remove
          * @see RemoveLayoutElementEvent
          */
@@ -257,7 +295,7 @@ namespace pg
 
         /**
          * @brief Removes an entity at a specific index position.
-         * 
+         *
          * @param index Position to remove from (negative values count from end)
          * @see RemoveLayoutElementAtEvent
          */
@@ -268,10 +306,10 @@ namespace pg
 
         /**
          * @brief Enables or disables scrolling for this layout.
-         * 
+         *
          * When enabled, the layout will handle mouse wheel events and clip
          * child elements to its bounds. Scroll bars will be shown if configured.
-         * 
+         *
          * @param scrollable Whether the layout should be scrollable
          * @see UpdateLayoutScrollable
          */
@@ -287,11 +325,11 @@ namespace pg
 
         /**
          * @brief Removes and destroys all entities in this layout.
-         * 
+         *
          * This is a batch operation that efficiently clears all child entities.
          * The entities list is cleared immediately, but actual entity destruction
          * is handled by the LayoutSystem.
-         * 
+         *
          * @see ClearLayoutEvent
          */
         void clear()
@@ -311,7 +349,7 @@ namespace pg
         }
 
         // Public configuration properties
-        
+
         bool fitToAxis = false;    ///< If true, elements wrap to new lines/columns when exceeding layout bounds
         bool spaced = false;       ///< If true, elements are evenly spaced across the available area
         size_t spacing = 0;        ///< Spacing between elements in pixels
@@ -329,12 +367,12 @@ namespace pg
         bool clearOnDeletion = true;   ///< If true, destroys all child entities when layout is destroyed
 
         // Internal properties (do not modify directly)
-        
+
         LayoutOrientation orientation = LayoutOrientation::Horizontal; ///< Layout direction
         bool scrollable = true;        ///< Whether this layout handles scroll events
         std::vector<EntityRef> entities; ///< List of child entities in this layout
         bool childrenAdded = false;    ///< Flag indicating children were added this frame
-        
+
         _unique_id id;                 ///< ID of the entity owning this layout
         EntitySystem *ecsRef;          ///< Reference to the ECS system
     };
@@ -342,11 +380,11 @@ namespace pg
 
     /**
      * @brief Layout that arranges child elements horizontally (left to right).
-     * 
+     *
      * HorizontalLayout extends BaseLayout with horizontal orientation.
      * Elements are positioned from left to right, with optional wrapping
      * to new rows when fitToAxis is enabled.
-     * 
+     *
      * @see BaseLayout
      * @see VerticalLayout
      */
@@ -354,7 +392,7 @@ namespace pg
     {
         /**
          * @brief Constructs a horizontal layout.
-         * 
+         *
          * Sets orientation to Horizontal automatically.
          */
         HorizontalLayout() : BaseLayout()
@@ -365,11 +403,11 @@ namespace pg
 
     /**
      * @brief Layout that arranges child elements vertically (top to bottom).
-     * 
+     *
      * VerticalLayout extends BaseLayout with vertical orientation.
      * Elements are positioned from top to bottom, with optional wrapping
      * to new columns when fitToAxis is enabled.
-     * 
+     *
      * @see BaseLayout
      * @see HorizontalLayout
      */
@@ -377,7 +415,7 @@ namespace pg
     {
         /**
          * @brief Constructs a vertical layout.
-         * 
+         *
          * Sets orientation to Vertical automatically.
          */
         VerticalLayout() : BaseLayout()
@@ -386,44 +424,48 @@ namespace pg
         }
     };
 
+    struct LayoutScrolledEvent { _unique_id id; };
+
     /**
      * @brief System responsible for managing UI layouts and their positioning.
-     * 
+     *
      * The LayoutSystem handles all layout-related operations including:
-     * 
+     *
      * ## Core Functionality
      * - **Element Positioning**: Arranges child elements according to layout orientation
      * - **Scrolling Support**: Handles mouse wheel events and scroll offset management
      * - **Visibility Culling**: Optimizes rendering by hiding off-screen elements
      * - **Dynamic Updates**: Responds to entity changes and layout modifications
-     * 
+     *
      * ## Layout Types Supported
      * - HorizontalLayout: Left-to-right arrangement
      * - VerticalLayout: Top-to-bottom arrangement
-     * 
+     *
      * ## Advanced Features
      * - **Wrapping**: Elements can wrap to new lines/columns with `fitToAxis`
      * - **Spacing**: Configurable spacing between elements and even distribution
      * - **Scroll Bars**: Optional horizontal and vertical scroll bar support
      * - **Clipping**: Child elements are clipped to layout bounds when scrolling
-     * 
+     *
      * ## Event Handling
      * The system processes various layout events:
      * - AddLayoutElementEvent: Add elements to layouts
      * - RemoveLayoutElementEvent: Remove elements from layouts
      * - UpdateLayoutScrollable: Enable/disable scrolling
      * - EntityChangedEvent: Update layouts when child entities change
-     * 
+     *
      * @see BaseLayout
      * @see HorizontalLayout
      * @see VerticalLayout
-     * 
+     *
      * @warning This system modifies entity positions and visibility. Ensure proper
      *          initialization order with rendering systems.
      */
     struct LayoutSystem : public System<
         Listener<StandardEvent>,
-        QueuedListener<EntityChangedEvent>,
+        QueuedListener<EntityRemovedFromLayoutEvent>,
+        QueuedListener<PositionComponentChangedEvent>,
+        QueuedListener<LayoutScrolledEvent>,
         QueuedListener<AddLayoutElementEvent>,
         QueuedListener<InsertLayoutElementEvent>,
         QueuedListener<RemoveLayoutElementEvent>,
@@ -442,7 +484,7 @@ namespace pg
 
         /**
          * @brief Initializes the layout system.
-         * 
+         *
          * Sets up entity groups for horizontal and vertical layouts,
          * registers event listeners, and configures scroll handling.
          * Called automatically by the ECS framework.
@@ -451,10 +493,10 @@ namespace pg
 
         /**
          * @brief Handles standard events, primarily mouse wheel scrolling.
-         * 
+         *
          * Processes "layoutScroll" events to update scroll offsets for
          * scrollable layouts. Extracts entity ID and scroll delta from event.
-         * 
+         *
          * @param event The standard event to process
          * @see StandardEvent
          */
@@ -462,10 +504,10 @@ namespace pg
 
         /**
          * @brief Processes requests to add elements to layouts.
-         * 
+         *
          * Adds the specified entity to the end of the target layout.
          * Validates that both entities exist and have required components.
-         * 
+         *
          * @param event Event containing layout ID, entity ID, and orientation
          * @see AddLayoutElementEvent
          */
@@ -473,10 +515,10 @@ namespace pg
 
         /**
          * @brief Processes requests to insert elements at specific positions.
-         * 
+         *
          * Inserts the specified entity at the given index within the layout.
          * Supports negative indices for insertion from the end.
-         * 
+         *
          * @param event Event containing layout ID, entity ID, orientation, and index
          * @see InsertLayoutElementEvent
          */
@@ -484,10 +526,10 @@ namespace pg
 
         /**
          * @brief Processes requests to remove specific entities from layouts.
-         * 
+         *
          * Removes the entity with the specified ID from the layout and destroys it.
          * Searches through the layout's entities to find the target.
-         * 
+         *
          * @param event Event containing layout ID and entity ID to remove
          * @see RemoveLayoutElementEvent
          */
@@ -495,10 +537,10 @@ namespace pg
 
         /**
          * @brief Processes requests to remove elements at specific indices.
-         * 
+         *
          * Removes the entity at the specified index position and destroys it.
          * Supports negative indices for removal from the end.
-         * 
+         *
          * @param event Event containing layout ID and index position
          * @see RemoveLayoutElementAtEvent
          */
@@ -506,10 +548,10 @@ namespace pg
 
         /**
          * @brief Processes requests to clear multiple entities from layouts.
-         * 
+         *
          * Batch removes and destroys all specified entities. This is more
          * efficient than removing entities individually.
-         * 
+         *
          * @param event Event containing list of entity IDs to remove
          * @see ClearLayoutEvent
          */
@@ -517,23 +559,37 @@ namespace pg
 
         /**
          * @brief Processes entity change notifications.
-         * 
+         *
          * When an entity changes (position, size, etc.), this updates any layouts
          * containing that entity. Uses optimization to avoid searching all layouts
          * for entities not known to be in layouts.
-         * 
+         *
          * @param event Event containing the ID of the changed entity
          * @see EntityChangedEvent
          */
-        virtual void onProcessEvent(const EntityChangedEvent& event) override;
+        virtual void onProcessEvent(const PositionComponentChangedEvent& event) override;
+
+        virtual void onProcessEvent(const LayoutScrolledEvent& event) override;
+
+        /**
+         * @brief Handles child entity removal notifications.
+         *
+         * Fired by EntityInLayout::onDeletion (entity destroyed) or by the
+         * <PositionComponent, EntityInLayout> group (child lost PositionComponent).
+         * Evicts the child from view->entities and entitiesInLayout, then queues
+         * the parent layout for a reflow. Does NOT call removeEntity.
+         */
+        virtual void onProcessEvent(const EntityRemovedFromLayoutEvent& event) override;
+
+        void onLayoutChanged(_unique_id id);
 
         /**
          * @brief Processes requests to update layout scrollable state.
-         * 
+         *
          * Enables or disables scrolling for the specified layout. When enabled,
          * attaches mouse wheel components and sets up clipping. When disabled,
          * removes scroll components and hides scroll bars.
-         * 
+         *
          * @param event Event containing layout ID, scrollable state, and orientation
          * @see UpdateLayoutScrollable
          */
@@ -541,7 +597,7 @@ namespace pg
 
         /**
          * @brief Main execution loop for layout updates.
-         * 
+         *
          * Processes all layouts marked for update, recalculating positions
          * and visibility for their child elements. Called every frame.
          */
@@ -549,22 +605,22 @@ namespace pg
 
         /**
          * @brief Helper function for updating layout scrollable state.
-         * 
+         *
          * Handles the complex logic of enabling/disabling scroll functionality:
-         * 
+         *
          * **When enabling scrolling:**
          * - Attaches MouseWheelComponent for scroll event handling
          * - Clips all child entities to the layout bounds
-         * 
+         *
          * **When disabling scrolling:**
          * - Removes MouseWheelComponent
          * - Removes clipping from child entities (if layout itself isn't clipped)
          * - Hides horizontal and vertical scroll bars
-         * 
+         *
          * @param entity The layout entity to modify
          * @param view The BaseLayout component of the entity
          * @param scrollable Whether to enable or disable scrolling
-         * 
+         *
          * @see MouseWheelComponent
          * @see ClippedTo
          */
@@ -572,28 +628,28 @@ namespace pg
 
         /**
          * @brief Recalculates positions of all child elements in a layout.
-         * 
+         *
          * This is the main layout calculation function that:
          * - Adjusts scroll offsets to valid ranges
          * - Updates scroll bar positions and visibility
          * - Delegates to appropriate spacing/positioning algorithms
-         * 
+         *
          * @param viewEnt The layout entity
          * @param view The BaseLayout component
-         * 
+         *
          * @todo Calculate the lesser axis of the view (biggest width for Vertical layouts)
          */
         void recalculateChildrenPos(EntityRef viewEnt, BaseLayout* view);
 
         /**
          * @brief Internal method to add an entity to a layout.
-         * 
+         *
          * Performs the actual work of adding entities to layouts, including:
          * - Validation of entity components
          * - Setting up parent-child relationships
          * - Configuring clipping if needed
          * - Handling "stick to end" scroll behavior
-         * 
+         *
          * @param viewEnt The layout entity
          * @param ui ID of the entity to add
          * @param orientation Layout orientation
@@ -603,10 +659,10 @@ namespace pg
 
         /**
          * @brief Removes an entity from a layout by entity ID.
-         * 
+         *
          * Searches for the entity in the layout's entities list and removes it.
          * Also handles parent-child relationship cleanup.
-         * 
+         *
          * @param view The layout to remove from
          * @param index The entity ID to remove (poorly named parameter)
          */
@@ -614,10 +670,10 @@ namespace pg
 
         /**
          * @brief Removes an entity from a layout by index position.
-         * 
+         *
          * Removes the entity at the specified index, with support for
          * negative indices counting from the end.
-         * 
+         *
          * @param view The layout to remove from
          * @param index The position to remove from
          */
@@ -625,33 +681,33 @@ namespace pg
 
         /**
          * @brief Updates visibility state of child elements for culling optimization.
-         * 
+         *
          * Performs frustum culling by checking which child elements intersect
          * with the layout's visible bounds. Hidden elements are marked as
          * non-observable to optimize rendering.
-         * 
+         *
          * @param viewEnt The layout entity
          * @param view The BaseLayout component
-         * 
+         *
          * @see PositionComponent::setObservable()
          */
         void updateVisibility(EntityRef viewEnt, BaseLayout* view);
 
         /**
          * @brief Internal method to clear multiple entities.
-         * 
+         *
          * Batch removes entities from tracking sets and destroys them.
          * More efficient than individual removal operations.
-         * 
+         *
          * @param entityIds List of entity IDs to remove and destroy
          */
         void clear(const std::vector<_unique_id>& entityIds);
 
         /**
          * @brief Updates a layout by recalculating positions and visibility.
-         * 
+         *
          * Simple wrapper that calls both recalculateChildrenPos and updateVisibility.
-         * 
+         *
          * @param viewEnt The layout entity
          * @param view The BaseLayout component
          */
@@ -659,10 +715,10 @@ namespace pg
 
         /**
          * @brief Adjusts scroll offsets to ensure they remain within valid bounds.
-         * 
+         *
          * Clamps scroll offsets to prevent scrolling beyond content boundaries.
          * Special handling when children are added to avoid premature clamping.
-         * 
+         *
          * @param viewEnt The layout entity
          * @param view The BaseLayout component
          * @param childrenAdded Whether children were added this frame
@@ -671,10 +727,10 @@ namespace pg
 
         /**
          * @brief Updates scroll bar positions and visibility.
-         * 
+         *
          * Updates both horizontal and vertical scroll bars if they exist,
          * calculating thumb position and size based on content and view dimensions.
-         * 
+         *
          * @param viewEnt The layout entity
          * @param view The BaseLayout component
          */
@@ -682,10 +738,10 @@ namespace pg
 
         /**
          * @brief Updates horizontal scroll bar appearance and position.
-         * 
+         *
          * Calculates thumb width and position based on the ratio of view width
          * to content width. Hides scroll bar if scrolling is not needed.
-         * 
+         *
          * @param viewUi Position component of the layout
          * @param view The BaseLayout component
          * @param sbPos Position component of the scroll bar
@@ -694,10 +750,10 @@ namespace pg
 
         /**
          * @brief Updates vertical scroll bar appearance and position.
-         * 
+         *
          * Calculates thumb height and position based on the ratio of view height
          * to content height. Hides scroll bar if scrolling is not needed.
-         * 
+         *
          * @param viewUi Position component of the layout
          * @param view The BaseLayout component
          * @param sbPos Position component of the scroll bar
@@ -706,15 +762,15 @@ namespace pg
 
         /**
          * @brief Positions elements without advanced spacing or wrapping.
-         * 
+         *
          * Simple linear layout algorithm that:
          * - Places elements sequentially along the primary axis
          * - Aligns elements to the layout's secondary axis anchor
          * - Adds configured spacing between elements
          * - Automatically sizes the layout to fit content (if not constrained)
-         * 
+         *
          * Used when both `fitToAxis` and `spaced` are false.
-         * 
+         *
          * @param viewEnt The layout entity
          * @param view The BaseLayout component
          */
@@ -722,36 +778,36 @@ namespace pg
 
         /**
          * @brief Positions elements with advanced spacing and wrapping support.
-         * 
+         *
          * Complex layout algorithm that supports:
          * - Element wrapping when `fitToAxis` is enabled
          * - Even spacing distribution when `spaced` is enabled
          * - Handling of oversized elements that exceed layout bounds
          * - Multi-line/multi-column layout calculations
-         * 
+         *
          * This is the most sophisticated layout method and handles edge cases
          * like elements larger than the available space.
-         * 
+         *
          * @param viewEnt The layout entity
          * @param view The BaseLayout component
-         * 
+         *
          * @warning This function is complex and handles many edge cases.
          *          Modifications should be tested thoroughly.
          */
         void layoutWithSpacing(EntityRef viewEnt, BaseLayout* view);
 
         std::set<EntityRef> layoutUpdate;    ///< Layouts that need position recalculation this frame
-        std::set<_unique_id> entitiesInLayout; ///< Optimization: tracks which entities are in layouts
+        std::unordered_map<_unique_id, _unique_id> entitiesInLayout; ///< Optimization: tracks which entities are in layouts
     };
 
     /**
      * @brief Factory function to create a horizontal layout entity.
-     * 
+     *
      * Creates a complete horizontal layout with all required components:
      * - HorizontalLayout component for layout logic
      * - PositionComponent for size and position
      * - UiAnchor for anchoring and constraints
-     * 
+     *
      * @tparam Type ECS system type
      * @param ecs Pointer to the ECS system
      * @param x Initial X position
@@ -760,7 +816,7 @@ namespace pg
      * @param height Initial height
      * @param scrollable Whether the layout should be scrollable
      * @return ComponentList containing entity and attached components
-     * 
+     *
      * @see HorizontalLayout
      * @see makeVerticalLayout()
      */
@@ -787,12 +843,12 @@ namespace pg
 
     /**
      * @brief Factory function to create a vertical layout entity.
-     * 
+     *
      * Creates a complete vertical layout with all required components:
      * - VerticalLayout component for layout logic
      * - PositionComponent for size and position
      * - UiAnchor for anchoring and constraints
-     * 
+     *
      * @tparam Type ECS system type
      * @param ecs Pointer to the ECS system
      * @param x Initial X position
@@ -801,7 +857,7 @@ namespace pg
      * @param height Initial height
      * @param scrollable Whether the layout should be scrollable
      * @return ComponentList containing entity and attached components
-     * 
+     *
      * @see VerticalLayout
      * @see makeHorizontalLayout()
      */

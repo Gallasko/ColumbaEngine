@@ -1,0 +1,4 @@
+__set[x] = 42
+__set[name] = Alice
+__set[active] = true
+Done setting via brackets

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(grep -n \"__dprint\" /x/Document/GitHub/PgEngine/src/Engine/Compiler/*.cpp)"
+    ]
+  }
+}

@@ -1,0 +1,9 @@
+Initial val = 0
+__get called with property: x
+x = 100
+val after accessing x = 0
+__get called with property: y
+y = 200
+val after accessing y = 10
+__get called with property: z
+z = -1

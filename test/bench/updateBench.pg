@@ -1,0 +1,15 @@
+import "sys"
+
+var tests = getEntities("Test")
+
+for (var test : tests)
+{
+    var pos = test["PositionComponent"]
+
+    // Update position
+    var newX = pos.x + 1
+    var newY = pos.y + 1
+
+    pos.x = newX
+    pos.y = newY
+}

@@ -13,7 +13,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/build/Asteroid"
+                "program": "${workspaceFolder}/build/BasicTerminal"
             },
             "osx": {
                 "MIMode": "lldb",
@@ -40,7 +40,7 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/ColumbaEngineEditor"
+                "program": "${workspaceFolder}/build/ColumbaEngineEditor"
             },
             "osx": {
                 "MIMode": "lldb",
@@ -83,10 +83,10 @@
             // "preLaunchTask": "build"
         },
         {
-            "name": "Test",
+            "name": "NetworkTestServer",
             "type": "cppdbg",
             "request": "launch",
-            "args": [],
+            "args": ["--mode=server"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -94,7 +94,34 @@
             "linux": {
                 "MIMode": "gdb",
                 "miDebuggerPath": "gdb",
-                "program": "${workspaceFolder}/release/test"
+                "program": "${workspaceFolder}/build/SimpleClientServer"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
+            // },
+            // "preLaunchTask": "build"
+        },
+        {
+            "name": "Test",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": ["--gtest_filter=Regis*"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/build/test_compiler"
             },
             "osx": {
                 "MIMode": "lldb",
@@ -106,7 +133,83 @@
                 "miDebuggerPath": "gdb.exe",
                 "program": "${workspaceFolder}/release/test.exe"
             },
-            "preLaunchTask": "test"
-        }
+            // "preLaunchTask": "test"
+        },
+        {
+            "name": "Bench",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": ["--gtest_filter=Serialization*"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/build/bench"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/release/test"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/release/test.exe"
+            },
+            // "preLaunchTask": "test"
+        },
+        {
+            "name": "RenderTest",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/build/RenderingTest"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
+        },
+        {
+            "name": "AsteroidTest",
+            "type": "cppdbg",
+            "request": "launch",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "linux": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb",
+                "program": "${workspaceFolder}/release/Asteroid"
+            },
+            "osx": {
+                "MIMode": "lldb",
+                "miDebuggerPath": "lldb-mi",
+                "program": "${workspaceFolder}/debug/main"
+            },
+            "windows": {
+                "MIMode": "gdb",
+                "miDebuggerPath": "gdb.exe",
+                "program": "${workspaceFolder}/debug/GameOff.exe"
+            }
+        },
     ]
 }

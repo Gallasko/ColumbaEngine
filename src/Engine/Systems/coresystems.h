@@ -58,6 +58,89 @@ namespace pg
         float tick;
     };
 
+    /**
+     * @brief Automatic delta time handling trait
+     *
+     * Systems that inherit from this trait will automatically:
+     * - Listen to TickEvent
+     * - Accumulate delta time
+     * - Have access to getDeltaTime() to get time in seconds
+     * - Automatically reset delta time after execute()
+     *
+     * The system's execute() method will be automatically generated to:
+     * 1. Check if delta time > 0
+     * 2. Call onExecute(deltaSeconds)
+     * 3. Reset delta time to 0
+     *
+     * Example usage:
+     * @code
+     * class MySystem : public System<DeltaTime, InitSys> {
+     *     void init() override { ... }
+     *     void onExecute(float deltaTime) override {
+     *         // deltaTime is in seconds, automatically provided
+     *     }
+     * };
+     * @endcode
+     */
+    struct DeltaTime : public Listener<TickEvent>
+    {
+        virtual ~DeltaTime() {}
+
+        /**
+         * @brief Override this method in your system to receive automatic delta time updates
+         * @param deltaTime Time elapsed since last execute, in seconds
+         */
+        virtual void onExecute(float deltaTime) = 0;
+
+        void onEvent(const TickEvent& event) override
+        {
+            __accumulatedDeltaTime += event.tick;
+        }
+
+        // This will be called by the System's execute() through the template inheritance
+        void execute()
+        {
+            if (__accumulatedDeltaTime > 0.0f)
+            {
+                float deltaSeconds = __accumulatedDeltaTime / 1000.0f;
+                onExecute(deltaSeconds);
+                __accumulatedDeltaTime = 0.0f;
+            }
+        }
+
+        /**
+         * @brief Get current accumulated delta time in seconds
+         * @return Delta time in seconds
+         */
+        float getDeltaTime() const
+        {
+            return __accumulatedDeltaTime / 1000.0f;
+        }
+
+    private:
+        float __accumulatedDeltaTime = 0.0f;
+    };
+
+    // Register DeltaTime trait with the ECS system
+    template <typename... Comps, typename Sys>
+    void registerComponents(Sys *system, ComponentRegistry *registry, const tag<DeltaTime>&, const Comps&... comps)
+    {
+        LOG_THIS("System");
+
+        LOG_INFO("System", "Registering DeltaTime trait (auto delta time handling)");
+
+        // Register as a TickEvent listener (DeltaTime inherits from Listener<TickEvent>)
+        static_cast<Listener<TickEvent>*>(static_cast<DeltaTime*>(system))->setRegistry(registry);
+
+        // Add execute handler to the execution queue to call DeltaTime::execute()
+        system->_executionQueue.emplace_back([system]() {
+            static_cast<DeltaTime*>(system)->execute();
+        });
+
+        // Continue registering remaining components
+        registerComponents(system, registry, comps...);
+    }
+
     struct TickingSystem : public System<>
     {
 

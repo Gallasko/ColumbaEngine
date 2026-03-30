@@ -65,6 +65,9 @@ namespace pg
 
         auto newSock = SDLNet_TCP_Accept(_listener);
 
+        if (not newSock)
+            return nullptr;
+
         bool addedToSet = false;
 
         for (size_t setId = 0; setId < sockSets.size(); setId++)
@@ -130,6 +133,41 @@ namespace pg
         _isConnectedToServer = SDLNet_TCP_AddSocket(sockSet, _tcpSock) != -1;
 
         return _isConnectedToServer;
+    }
+
+    void SdlNetworkBackend::disconnectFromServer()
+    {
+        if (_tcpSock)
+        {
+            SDLNet_TCP_DelSocket(sockSet, _tcpSock);
+            SDLNet_TCP_Close(_tcpSock);
+            _tcpSock = nullptr;
+        }
+
+        if (_udpSock)
+        {
+            SDLNet_UDP_Close(_udpSock);
+            _udpSock = nullptr;
+        }
+
+        _isConnectedToServer = false;
+    }
+
+    void SdlNetworkBackend::closeTcp(SocketHandle sock)
+    {
+        if (sock)
+        {
+            auto tcpSock = static_cast<TCPsocket>(sock);
+
+            auto it = sockSetsMap.find(tcpSock);
+            if (it != sockSetsMap.end())
+            {
+                SDLNet_TCP_DelSocket(it->second, tcpSock);
+                sockSetsMap.erase(it);
+            }
+
+            SDLNet_TCP_Close(tcpSock);
+        }
     }
 
     bool SdlNetworkBackend::sendTcp(SocketHandle sock, const NetPayload& data)
@@ -222,10 +260,7 @@ namespace pg
             }
             else
             {
-                SDLNet_TCP_DelSocket(sockSet, _tcpSock);
-                SDLNet_TCP_Close(_tcpSock);
-                _tcpSock = nullptr;
-                _isConnectedToServer = false;
+                disconnectFromServer();
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
             }
         }
@@ -289,10 +324,6 @@ namespace pg
             }
             else
             {
-                SDLNet_TCP_DelSocket(socketSet, tcpSock);
-                SDLNet_TCP_Close(tcpSock);
-
-                tcpSock = nullptr;
                 socketClosed = true;
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");
             }
@@ -316,11 +347,7 @@ namespace pg
             }
             else
             {
-                SDLNet_TCP_DelSocket(sockSet, _tcpSock);
-                SDLNet_TCP_Close(_tcpSock);
-
-                _tcpSock = nullptr;
-                _isConnectedToServer = false;
+                disconnectFromServer();
                 socketClosed = true;
 
                 LOG_ERROR(DOM, "TCP receive failed, disconnected from server !");

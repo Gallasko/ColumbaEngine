@@ -1,0 +1,20 @@
+// Test 8: String operations in conditionals
+// This tests that values are correctly managed on the stack through conditionals
+
+var text = "Value is: ";
+var condition = true;
+
+if (condition) {
+    __dprint(text + "true");
+} else {
+    __dprint(text + "false");
+}
+
+// Test that comparison results don't leak onto the stack
+var x = 5;
+if (x > 0) {
+    __dprint("positive");
+}
+
+// Use the variable after the conditional
+__dprint(text + "done");

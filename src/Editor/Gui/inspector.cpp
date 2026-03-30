@@ -25,41 +25,99 @@ namespace pg
         {
             static const char* const DOM = "Inspector";
 
-            void deserializeCurrentEntityHelper(UnserializedObject& holder, const SerializedInfoHolder& parent)
+            static void* getRawComponentPtr(EntitySystem* ecs, _unique_id entityId, const std::string& typeName)
             {
-                for (const auto& child : parent.children)
+                auto& reg = ComponentSerializerRegistry::instance();
+
+                if (reg.hasSerializer(typeName))
                 {
-                    if (child.className == "")
-                    {
-                        std::string str;
-
-                        if (strcmp(ARCHIVEVERSION, "1.0.0") == 0)
-                            str = ATTRIBUTECONST + " " + child.type + " {" + child.value + "}";
-
-                        UnserializedObject attribute(str, child.name, false);
-
-                        holder.children.push_back(attribute);
-                    }
-                    else
-                    {
-                        UnserializedObject klass(child.name, child.className, std::string(""));
-
-                        deserializeCurrentEntityHelper(klass, child);
-
-                        holder.children.push_back(klass);
-                    }
+                    auto fn = reg.getRetriever(typeName);
+                    if (fn)
+                        return fn(ecs, entityId);
                 }
+
+                auto* owner = ecs->getComponentRegistry()->retrieveStandardComponent(typeName);
+
+                if (owner)
+                    return owner->getComponent(entityId);
+
+                return nullptr;
+            }
+
+            std::string toUpper(std::string str)
+            {
+                std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+                return str;
+            }
+
+            std::vector<std::string> splitComma(const std::string& str)
+            {
+                std::vector<std::string> result;
+                std::istringstream ss(str);
+                std::string item;
+
+                while (std::getline(ss, item, ','))
+                {
+                    // Trim whitespace from item
+                    item.erase(item.begin(), std::find_if(item.begin(), item.end(), [](unsigned char ch) { return not std::isspace(ch); }));
+                    item.erase(std::find_if(item.rbegin(), item.rend(), [](unsigned char ch) { return not std::isspace(ch); }).base(), item.end());
+
+                    if (not item.empty())
+                        result.push_back(item);
+                }
+
+                return result;
             }
         }
 
         std::map<EditorKeyConfig, DefaultScancode> scancodeMap = {
             {EditorKeyConfig::Undo,   {"Undo", SDL_SCANCODE_Z, KMOD_CTRL}},
             {EditorKeyConfig::Redo,   {"Redo", SDL_SCANCODE_Y, KMOD_CTRL}},
-            };
+        };
+
+        void InspectorCommandHistory::execute(std::unique_ptr<InspectorCommands> command)
+        {
+            auto* sys = command->inspectorSys;
+            sys->idStack.push_back(sys->currentId);
+
+            command->execute();
+            undoStack.push_back(std::move(command));
+            redoStack.clear();
+        }
+
+        void InspectorCommandHistory::undo()
+        {
+            if (undoStack.empty())
+                return;
+
+            auto cmd = std::move(undoStack.back());
+            undoStack.pop_back();
+            cmd->undo();
+
+            auto* sys = cmd->inspectorSys;
+            sys->idStack.pop_back();
+
+            redoStack.push_back(std::move(cmd));
+        }
+
+        void InspectorCommandHistory::redo()
+        {
+            if (redoStack.empty())
+                return;
+
+            auto cmd = std::move(redoStack.back());
+            redoStack.pop_back();
+
+            auto* sys = cmd->inspectorSys;
+            sys->idStack.push_back(sys->currentId);
+
+            cmd->execute();
+            undoStack.push_back(std::move(cmd));
+        }
 
         void DraggingCommand::execute()
         {
-            id = inspectorSys->currentId;
+            auto id = inspectorSys->idStack.back();
             auto ent = ecsRef->getEntity(id);
 
             if (not ent or not ent->has<PositionComponent>())
@@ -73,6 +131,7 @@ namespace pg
 
         void DraggingCommand::undo()
         {
+            auto id = inspectorSys->idStack.back();
             auto ent = ecsRef->getEntity(id);
 
             if (not ent or not ent->has<PositionComponent>())
@@ -86,6 +145,7 @@ namespace pg
 
         void AttachComponentCommand::execute()
         {
+            auto id = inspectorSys->idStack.back();
             auto ent = ecsRef->getEntity(id);
 
             if (ent)
@@ -100,6 +160,7 @@ namespace pg
 
         void AttachComponentCommand::undo()
         {
+            auto id = inspectorSys->idStack.back();
             auto ent = ecsRef->getEntity(id);
 
             if (ent)
@@ -112,8 +173,6 @@ namespace pg
 
         void CreateEntityCommand::execute()
         {
-            lastFocusedId = inspectorSys->currentId;
-
             auto ent = callback(ecsRef);
 
             ecsRef->attach<SceneElement>(ent);
@@ -126,22 +185,77 @@ namespace pg
 
             ecsRef->attach<NamedUiAnchor>(ent);
 
-            id = ent.id;
+            auto id = ent.id;
 
+            inspectorSys->idStack.push_back(id);
             inspectorSys->currentId = id;
 
             // Need to redraw the inspector
-            inspectorSys->event.entity = ent;
             inspectorSys->eventRequested = true;
         }
 
         void CreateEntityCommand::undo()
         {
-            inspectorSys->currentId = lastFocusedId;
+            ecsRef->removeEntity(inspectorSys->idStack.back());
+            inspectorSys->idStack.pop_back();
 
-            // inspectorSys->eventRequested = true;
+            // If idstack.size == 1 then there was no previous entity
+            if (inspectorSys->idStack.size() > 1)
+                inspectorSys->onEvent(InspectEvent{inspectorSys->idStack.back()});
+        }
 
-            ecsRef->removeEntity(id);
+        void ResizeCommand::execute()
+        {
+            auto id = inspectorSys->idStack.back();
+            auto ent = ecsRef->getEntity(id);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(endX);
+            pos->setY(endY);
+            pos->setWidth(endWidth);
+            pos->setHeight(endHeight);
+        }
+
+        void ResizeCommand::undo()
+        {
+            auto id = inspectorSys->idStack.back();
+            auto ent = ecsRef->getEntity(id);
+
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+
+            pos->setX(startX);
+            pos->setY(startY);
+            pos->setWidth(startWidth);
+            pos->setHeight(startHeight);
+        }
+
+        void RotationCommand::execute()
+        {
+            auto id = inspectorSys->idStack.back();
+            auto ent = ecsRef->getEntity(id);
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+            pos->setRotation(endRotation);
+        }
+
+        void RotationCommand::undo()
+        {
+            auto id = inspectorSys->idStack.back();
+            auto ent = ecsRef->getEntity(id);
+            if (not ent or not ent->has<PositionComponent>())
+                return;
+
+            auto pos = ent->get<PositionComponent>();
+            pos->setRotation(startRotation);
         }
 
         void InspectorSystem::onEvent(const StandardEvent& event)
@@ -149,14 +263,56 @@ namespace pg
             if (event.name == "InspectorTextChanges")
             {
                 LOG_INFO("Inspector", "Received event named: " << event.name << ", return value: " << event.values.at("return"));
+            }
 
-                auto id = event.values.at("id").get<size_t>();
+            auto key    = event.values.at("key").toString();     // "Type:prop:slot"
+            auto newVal = event.values.at("return").toString();
 
-                LOG_INFO("Inspector", "Replacing text: " << *inspectorText.at(id).valuePointer << " with: " << event.values.at("return").toString());
+            // Parse key
+            auto sep1     = key.find(':');
+            auto sep2     = key.rfind(':');
+            std::string compType = key.substr(0, sep1);
+            std::string propName = key.substr(sep1 + 1, sep2 - sep1 - 1);
+            int slot             = std::stoi(key.substr(sep2 + 1));
 
-                *inspectorText.at(id).valuePointer = event.values.at("return").toString();
+            for (auto& binding : activeBindings)
+            {
+                if (binding.componentType != compType)
+                    continue;
 
-                needDeserialization = true;
+                if (binding.propertyName  != propName)
+                    continue;
+
+                auto& propMeta = ComponentProxyRegistry::instance().getMetadata(compType).properties.at(propName);
+                if (not propMeta.sSetter)
+                    break;
+
+                if (binding.inputIds.size() == 1)
+                {
+                    // Scalar: just call with the new value directly
+                    propMeta.sSetter(binding.componentPtr, newVal);
+                }
+                else
+                {
+                    // Vec3/Vec4: collect all current values, combine, call once
+                    std::string combined;
+                    for (size_t i = 0; i < binding.inputIds.size(); i++)
+                    {
+                        auto tc = ecsRef->getComponent<TextInputComponent>(binding.inputIds[i]);
+
+                        std::string v = tc ? tc->text : "0";
+
+                        if (static_cast<int>(i) == slot)
+                            v = newVal;  // use the just-typed value
+
+                        if (i > 0)
+                            combined += ",";
+                        combined += v;
+                    }
+
+                    propMeta.sSetter(binding.componentPtr, combined);
+                }
+                break;
             }
         };
 
@@ -187,7 +343,29 @@ namespace pg
             auto listViewBackgroundUi = listViewBackground.get<UiAnchor>();
             listViewBackgroundUi->fillIn(listViewUi);
 
-            view = listView.get<VerticalLayout>();
+            mainView = listView.get<VerticalLayout>();
+
+            auto compViewLayout = makeVerticalLayout(ecsRef, 1, 1, 300, 1);
+            compView = compViewLayout.get<VerticalLayout>();
+            compViewLayout.get<PositionComponent>()->setZ(2);
+
+            auto compViewUi = compViewLayout.get<UiAnchor>();
+
+            compViewUi->setLeftAnchor(listViewUi->left);
+            compViewUi->setRightAnchor(listViewUi->right);
+
+            mainView->addEntity(compViewLayout.entity);
+
+            auto addViewLayout = makeVerticalLayout(ecsRef, 1, 1, 300, 1);
+            addView = addViewLayout.get<VerticalLayout>();
+            addViewLayout.get<PositionComponent>()->setZ(2);
+
+            auto addViewUi = addViewLayout.get<UiAnchor>();
+
+            addViewUi->setLeftAnchor(listViewUi->left);
+            addViewUi->setRightAnchor(listViewUi->right);
+
+            mainView->addEntity(addViewLayout.entity);
 
             // Store reference to the inspector panel for visibility toggling
             inspectorPanel = listView.entity;
@@ -205,7 +383,7 @@ namespace pg
             toggleButtonUi->setLeftMargin(-25); // Position outside the inspector panel
 
             // Create toggle button text
-            auto toggleText = makeEditorText(ecsRef, themeManager, 0, 0, 12.0f, "light", "◀", 0.5);
+            auto toggleText = makeEditorText(ecsRef, themeManager, 0, 0, 12.0f, "light", "<", 0.5);
             toggleButtonText = toggleText.entity;
 
             auto toggleTextPos = toggleText.get<PositionComponent>();
@@ -220,152 +398,16 @@ namespace pg
             registerAttachableComponent<PositionComponent>();
             registerAttachableComponent<UiAnchor>();
             registerAttachableComponent<Simple2DObject>(Shape2D::Square);
-        }
 
-        CompRef<VerticalLayout> InspectorSystem::addNewText(const std::string& text, CompRef<VerticalLayout> currentView)
-        {
-            std::string textTemp = text;
-
-            std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
-
-            auto fold = makeFoldableCard(ecsRef, textTemp);
-
-            currentView->addEntity(fold);
-
-            return fold.get<VerticalLayout>();
-        }
-
-        // Todo to remove type
-        void InspectorSystem::addNewAttribute(const std::string& text, std::string& value, CompRef<VerticalLayout> currentView)
-        {
-            InspectorWidgets::makeLabeledTextInput(ecsRef, currentView, text, value, this);
-        }
-
-        void InspectorSystem::printChildren(SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView)
-        {
-            auto it = customDrawers.find(parent.className);
-
-            if (it != customDrawers.end())
-            {
-                it->second(this, parent, currentView);
-                return;
-            }
-            else
-            {
-                defaultInspectWidget(this, parent, currentView);
-            }
-        }
-
-
-        void InspectorSystem::processEntityChanged(const EntityChangedEvent& event)
-        {
-            if (event.id == 0 or currentId == 0 or event.id != currentId)
-                return;
-
-            auto pos = ecsRef->getComponent<PositionComponent>(currentId);
-            if (not pos) return;
-
-            // now update each field by name
-            for (const auto& f : inspectorText)
-            {
-                if (not (f.name == "x" or f.name == "y" or f.name == "z" or f.name == "width" or f.name == "height"))
-                    continue;
-
-                auto comp = ecsRef->getComponent<TextInputComponent>(f.id);
-
-                if (not comp)
-                {
-                    LOG_ERROR(DOM, "Component not found for id: " << f.id);
-                    continue;
-                }
-
-                // compute the new value string
-                std::string newVal;
-                if      (f.name == "x")      newVal = std::to_string(pos->x);
-                else if (f.name == "y")      newVal = std::to_string(pos->y);
-                else if (f.name == "z")      newVal = std::to_string(pos->z);
-                else if (f.name == "width")  newVal = std::to_string(pos->width);
-                else /* height */            newVal = std::to_string(pos->height);
-
-                // 1) update the visible text widget
-                comp->setText(newVal);
-
-                // 2) **also** write it back into your archive
-                *f.valuePointer = newVal;
-            }
-        }
-
-        void InspectorSystem::onProcessEvent(const EntityChangedEvent& event)
-        {
-            processEntityChanged(event);
-        }
-
-        void InspectorSystem::onEvent(const InspectEvent& event)
-        {
-            if (currentId != event.entity.id)
-            {
-                this->event = event;
-                eventRequested = true;
-            }
-        }
-
-        void InspectorSystem::onEvent(const NewSceneLoaded&)
-        {
-            currentId = 0;
-            needClear = true;
-
-            ecsRef->sendEvent(ReRendererAll{});
-        }
-
-        void InspectorSystem::execute()
-        {
-            if (needUpdateEntity)
-            {
-                ecsRef->sendEvent(EntityChangedEvent{currentId});
-                needUpdateEntity = false;
-            }
-
-            if (needDeserialization and currentId != 0)
-            {
-                deserializeCurrentEntity();
-                needDeserialization = false;
-                needUpdateEntity = true;
-            }
-
-            if (eventRequested or needClear)
-            {
-                view->clear();
-                inspectorText.clear();
-
-                archive.mainNode.children.clear();
-
-                ecsRef->sendEvent(SkipRenderPass{8});
-
-                needClear = false;
-            }
-
-            if (not eventRequested)
-                return;
-
-            currentId = event.entity.id;
-
-            serialize(archive, *event.entity.entity);
-
-            for (auto& child : archive.mainNode.children)
-            {
-                printChildren(child, view);
-            }
-
-            eventRequested = false;
+            // Add Component
 
             auto row = makeHorizontalLayout(ecsRef, 0, 0, 300, 30, true);
             row.get<HorizontalLayout>()->fitToAxis = true;
             row.get<HorizontalLayout>()->spacing  = 8.f;
 
             // label
-            auto themeManager = ecsRef->getSystem<ThemeManager>();
             auto label = makeEditorHeaderText(ecsRef, themeManager, 0, 0, 1, "bold", "Add Component", 0.4f);
-            view->addEntity(label.entity);
+            addView->addEntity(label.entity);
 //
             // std::function<void(const OnMouseClick&)> f = [this](const OnMouseClick& ev){
                 // if (ev.button == SDL_BUTTON_LEFT) showAttachMenu = not showAttachMenu;
@@ -374,85 +416,120 @@ namespace pg
             // hook its click
             // ecsRef->attach<OnEventComponent>(label.entity, f);
 
-            view->addEntity(row.entity);
+            addView->addEntity(row.entity);
 
             // if (showAttachMenu)
             // {
                 // clean up from last frame
-                for (auto e : attachMenuItems)
-                    ecsRef->removeEntity(e);
+            for (auto e : attachMenuItems)
+                ecsRef->removeEntity(e);
 
-                attachMenuItems.clear();
+            attachMenuItems.clear();
 
-                for (const auto& pair : attachableComponentMap)
-                {
-                    const auto& name = pair.first;
+            for (const auto& pair : attachableComponentMap)
+            {
+                const auto& name = pair.first;
 
-                    auto item = makeEditorText(ecsRef, themeManager, 0, 0, 1, "light", name, 0.35f);
-                    // indent it a bit
-                    // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
+                auto item = makeEditorText(ecsRef, themeManager, 0, 0, 1, "light", name, 0.35f);
+                // indent it a bit
+                // item.get<PositionComponent>()->setX(item.get<PositionComponent>()->x + 20.f);
 
-                    // clicking this line attaches that component
+                // clicking this line attaches that component
 
-                    ecsRef->attach<MouseLeftClickComponent>(item.entity, makeCallable<EditorAttachComponent>(name, currentId));
+                ecsRef->attach<MouseLeftClickComponent>(item.entity, makeCallable<EditorAttachComponent>(name, currentId));
 
-                    view->addEntity(item.entity);
-                    attachMenuItems.push_back(item.entity);
-                }
+                addView->addEntity(item.entity);
+                attachMenuItems.push_back(item.entity);
+            }
             // }
         }
 
-        void InspectorSystem::deserializeCurrentEntity()
+        CompRef<VerticalLayout> InspectorSystem::addNewText(const std::string& text, CompRef<VerticalLayout> currentView)
         {
-            UnserializedObject obj;
+            auto fold = makeFoldableCard(ecsRef, toUpper(text));
 
-            deserializeCurrentEntityHelper(obj, archive.mainNode);
+            currentView->addEntity(fold);
 
-            if (obj.children.size() < 1)
+            return fold.get<VerticalLayout>();
+        }
+
+        void InspectorSystem::processEntityChanged(const PositionComponentChangedEvent& event)
+        {
+            if (event.id == 0 or currentId == 0 or event.id != currentId)
+                return;
+
+            dontClear = true;
+            eventRequested = true;
+        }
+
+        void InspectorSystem::onProcessEvent(const PositionComponentChangedEvent& event)
+        {
+            processEntityChanged(event);
+        }
+
+        void InspectorSystem::onEvent(const InspectEvent& event)
+        {
+            if (currentId != event.id)
             {
-                LOG_ERROR(DOM, "Entity root node has no children, should never happen !");
+                currentId = event.id;
+                eventRequested = true;
+            }
+        }
 
+        void InspectorSystem::onEvent(const NewSceneLoaded&)
+        {
+            idStack = {};
+            needClear = true;
+
+            ecsRef->sendEvent(ReRendererAll{});
+        }
+
+        void InspectorSystem::execute()
+        {
+            if (needClear)
+            {
+                hideAllPanels();
+                activeBindings.clear();
+
+                needClear = false;
+            }
+            else if (not eventRequested)
+            {
                 return;
             }
 
-            auto entity = ecsRef->getEntity(currentId);
-
-            // obj.children[0] is the root node of the entity's components
-            for (const auto& child : obj.children[0].children)
+            if (dontClear)
             {
-                if (child.isClassObject())
-                {
-                    ecsRef->deserializeComponent(entity, child);
-                }
+                dontClear = false;
             }
-        }
-
-        void defaultInspectWidget(InspectorSystem* sys, SerializedInfoHolder& parent, CompRef<VerticalLayout> currentView)
-        {
-            // If no class name then we got an attribute
-            if (parent.className == "")
-            {
-                sys->addNewAttribute(parent.name, parent.value, currentView);
-            }
-            // We got a class name then it is a class ! So no type nor value
             else
             {
-                auto name = parent.name == "" ? parent.className : parent.name;
-                currentView = sys->addNewText(name, currentView);
+                hideAllPanels();
+                activeBindings.clear();
             }
 
-            for (auto& child : parent.children)
+            currentEnt = ecsRef->getEntity(currentId);
+
+            LOG_INFO("Inspector", "Working on entity: " << currentId);
+
+            for (const auto& compRef : currentEnt->componentList)
             {
-                sys->printChildren(child, currentView);
+                auto typeName = ecsRef->getComponentRegistry()->getComponentTypeName(compRef.getId());
+                if (not ComponentProxyRegistry::instance().hasMetadata(typeName))
+                    continue;
+
+                void* ptr = getRawComponentPtr(ecsRef, currentId, typeName);
+                if (not ptr)
+                    continue;
+
+                showPanel(typeName, ptr);
             }
+
+            eventRequested = false;
         }
 
-        void InspectorWidgets::makeLabeledTextInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, std::string& boundValue, InspectorSystem* sys)
+        _unique_id InspectorWidgets::makeScalarInput(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, const std::string& key, const std::string& baseValue)
         {
-            std::string textTemp = labelText;
-
-            std::transform(textTemp.begin(), textTemp.end(), textTemp.begin(), ::toupper);
-
             // Horizontal row
             auto row = makeHorizontalLayout(ecs, 0, 0, 300, 30, true);
             auto rowAnchor = row.get<UiAnchor>();
@@ -465,7 +542,7 @@ namespace pg
 
             // Label
             auto themeManager = ecs->getSystem<ThemeManager>();
-            auto labelEnt = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", textTemp, 0.4f);
+            auto labelEnt = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", toUpper(labelText), 0.4f);
             // auto labelPos = labelEnt.get<PositionComponent>();
             rowView->addEntity(labelEnt.entity);
 
@@ -480,7 +557,7 @@ namespace pg
 
             prefab->setMainEntity(background.entity);
 
-            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "id", sys->inspectorText.size()), "light", { boundValue }, 0.4f);
+            auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "key", key), "light", { baseValue }, 0.4f);
             auto input = inputEnt.get<TextInputComponent>();
             auto inputAnchor = inputEnt.get<UiAnchor>();
 
@@ -499,94 +576,109 @@ namespace pg
             prefab->addToPrefab(inputEnt.entity);
             rowView->addEntity(prefabEnt.entity);
 
-            sys->inspectorText.emplace_back(labelText, &boundValue, inputEnt.entity.id);
-
             // Add the row into the parent vertical layout
             parentLayout->addEntity(row.entity);
+
+            return inputEnt.entity.id;
         }
 
-        void ResizeCommand::execute()
+        std::array<_unique_id, 3> InspectorWidgets::makeVec3Input(EntitySystem* ecs, BaseLayout* parentLayout, const std::string& labelText, const std::string& baseKey, const std::string& baseValue)
         {
-            auto ent = ecsRef->getEntity(entityId);
+            auto themeManager = ecs->getSystem<ThemeManager>();
 
-            if (not ent or not ent->has<PositionComponent>())
-                return;
+            // Top label: property name
+            auto nameLabel = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", toUpper(labelText), 0.4f);
+            parentLayout->addEntity(nameLabel.entity);
 
-            auto pos = ent->get<PositionComponent>();
+            // Row of X / Y / Z axis labels
+            auto labelRow = makeHorizontalLayout(ecs, 0, 0, 300, 20, true);
+            auto labelRowAnchor = labelRow.get<UiAnchor>();
+            auto labelRowView = labelRow.get<HorizontalLayout>();
+            labelRowAnchor->setWidthConstrain(PosConstrain{parentLayout->id, AnchorType::Width});
+            labelRowView->spaced = true;
 
-            pos->setX(endX);
-            pos->setY(endY);
-            pos->setWidth(endWidth);
-            pos->setHeight(endHeight);
+            const char* axisNames[3] = {"X", "Y", "Z"};
+            for (int i = 0; i < 3; i++)
+            {
+                auto axisLabel = makeEditorSecondaryText(ecs, themeManager, 0, 0, 1, "bold", axisNames[i], 0.4f);
+                labelRowView->addEntity(axisLabel.entity);
+            }
+            parentLayout->addEntity(labelRow.entity);
 
-            ecsRef->sendEvent(EntityChangedEvent{entityId});
-        }
+            // Row of 3 text inputs
+            auto inputRow = makeHorizontalLayout(ecs, 0, 0, 300, 30, true);
+            auto inputRowAnchor = inputRow.get<UiAnchor>();
+            auto inputRowView = inputRow.get<HorizontalLayout>();
+            inputRowAnchor->setWidthConstrain(PosConstrain{parentLayout->id, AnchorType::Width});
+            inputRowView->spacing = 10;
+            inputRowView->fitToAxis = true;
 
-        void ResizeCommand::undo()
-        {
-            auto ent = ecsRef->getEntity(entityId);
+            std::array<_unique_id, 3> ids{};
 
-            if (not ent or not ent->has<PositionComponent>())
-                return;
+            for (int i = 0; i < 3; i++)
+            {
+                std::string key = baseKey + ":" + std::to_string(i);
 
-            auto pos = ent->get<PositionComponent>();
+                auto prefabEnt = makeAnchoredPrefab(ecs, 0, 0, 1);
+                auto prefab = prefabEnt.get<Prefab>();
 
-            pos->setX(startX);
-            pos->setY(startY);
-            pos->setWidth(startWidth);
-            pos->setHeight(startHeight);
+                auto background = makeEditorInputBackground(ecs, themeManager, 90, 0);
+                auto backgroundAnchor = background.get<UiAnchor>();
+                prefab->setMainEntity(background.entity);
 
-            ecsRef->sendEvent(EntityChangedEvent{entityId});
-        }
+                auto inputEnt = makeTTFTextInput(ecs, 0, 0, StandardEvent("InspectorTextChanges", "key", key), "light", { baseValue }, 0.4f);
+                auto input = inputEnt.get<TextInputComponent>();
+                auto inputAnchor = inputEnt.get<UiAnchor>();
 
-        void RotationCommand::execute()
-        {
-            auto ent = ecsRef->getEntity(entityId);
-            if (not ent or not ent->has<PositionComponent>())
-                return;
+                input->clearTextAfterEnter = false;
 
-            auto pos = ent->get<PositionComponent>();
-            pos->setRotation(endRotation);
-            ecsRef->sendEvent(EntityChangedEvent{entityId});
-        }
+                backgroundAnchor->setHeightConstrain(PosConstrain{inputEnt.entity.id, AnchorType::Height, PosOpType::Add, 4.f});
 
-        void RotationCommand::undo()
-        {
-            auto ent = ecsRef->getEntity(entityId);
-            if (not ent or not ent->has<PositionComponent>())
-                return;
+                inputAnchor->setTopAnchor(backgroundAnchor->top);
+                inputAnchor->setTopMargin(2.f);
+                inputAnchor->setLeftAnchor(backgroundAnchor->left);
+                inputAnchor->setLeftMargin(2.f);
+                inputAnchor->setRightAnchor(backgroundAnchor->right);
+                inputAnchor->setRightMargin(2.f);
+                inputAnchor->setZConstrain(PosConstrain{background.entity.id, AnchorType::Z, PosOpType::Add, 1.f});
 
-            auto pos = ent->get<PositionComponent>();
-            pos->setRotation(startRotation);
-            ecsRef->sendEvent(EntityChangedEvent{entityId});
+                prefab->addToPrefab(inputEnt.entity);
+                inputRowView->addEntity(prefabEnt.entity);
+
+                ids[i] = inputEnt.entity.id;
+            }
+
+            parentLayout->addEntity(inputRow.entity);
+
+            return ids;
         }
 
         void InspectorSystem::toggleInspectorVisibility()
         {
-            if (inspectorPanel.empty() || toggleButtonText.empty())
+            if (inspectorPanel.empty() or toggleButtonText.empty())
                 return;
 
-            isInspectorVisible = !isInspectorVisible;
+            isInspectorVisible = not isInspectorVisible;
 
             auto panelPos = inspectorPanel.get<PositionComponent>();
             auto buttonTextComp = ecsRef->getComponent<TTFText>(toggleButtonText.id);
             auto toggleButtonUi = toggleButton.get<UiAnchor>();
 
-            if (not panelPos || not buttonTextComp || not toggleButtonUi)
+            if (not panelPos or not buttonTextComp or not toggleButtonUi)
                 return;
 
             auto windowEnt = ecsRef->getEntity("__MainWindow");
             auto windowUi = windowEnt->get<UiAnchor>();
             auto inspectorUi = inspectorPanel.get<UiAnchor>();
 
-            if (not windowUi || not inspectorUi)
+            if (not windowUi or not inspectorUi)
                 return;
 
             if (isInspectorVisible)
             {
                 // Show: restore inspector panel and reposition button to inspector left
                 panelPos->setVisibility(true);
-                buttonTextComp->text = "◀";
+                buttonTextComp->text = "<";
 
                 // Reposition button to left of inspector panel
                 toggleButtonUi->clearRightAnchor();
@@ -600,7 +692,7 @@ namespace pg
             {
                 // Hide: make panel invisible and reposition button to main window right edge
                 panelPos->setVisibility(false);
-                buttonTextComp->text = "▶";
+                buttonTextComp->text = ">";
 
                 // Reposition button to right edge of main window
                 toggleButtonUi->clearLeftAnchor();
@@ -623,11 +715,132 @@ namespace pg
 
                 LOG_INFO("Inspector", "Inspector panel hidden, button moved to window edge");
             }
-
-            // Send update events to refresh display
-            ecsRef->sendEvent(EntityChangedEvent{toggleButtonText.id});
-            ecsRef->sendEvent(EntityChangedEvent{toggleButton.id});
-            ecsRef->sendEvent(EntityChangedEvent{inspectorPanel.id});
         }
+
+        CompList<PositionComponent, Prefab, UiAnchor, VerticalLayout> InspectorSystem::getOrBuildPanel(const std::string& typeName)
+        {
+            auto& panel = componentPanels[typeName];
+
+            // If already initialized, return the existing panel prefab
+            if (panel.initialized)
+            {
+                return CompList<PositionComponent, Prefab, UiAnchor, VerticalLayout>(
+                    panel.foldCard,
+                    panel.foldCard.get<PositionComponent>(),
+                    panel.foldCard.get<Prefab>(),
+                    panel.foldCard.get<UiAnchor>(),
+                    panel.foldCard.get<VerticalLayout>()
+                );
+            }
+
+            panel.typeName = typeName;
+
+            // foldable card, added to view once, starts hidden
+            auto fold = makeFoldableCard(ecsRef, toUpper(typeName));
+            compView->addEntity(fold);
+            panel.foldCard = fold.entity;
+            panel.layout   = fold.get<VerticalLayout>();
+            fold.get<PositionComponent>()->setVisibility(false);
+
+            // check for custom drawer (takes over whole panel)
+            // auto customIt = customDrawers.find(typeName);
+            // if (customIt != customDrawers.end())
+            // {
+            //     customIt->second(this, ComponentProxyRegistry::instance().getMetadata(typeName), panel.layout);
+            //     panel.initialized = true;
+            //     return fold;
+            // }
+
+            auto& meta = ComponentProxyRegistry::instance().getMetadata(typeName);
+
+            for (auto& [propName, propMeta] : meta.properties)
+            {
+                InspectorPropertyWidget widget;
+                widget.propertyName = propName;
+                widget.type = propMeta.type;
+
+                auto name = propName;
+
+                auto key = [&](int slot) {
+                    return typeName + ":" + name + ":" + std::to_string(slot);
+                };
+
+                switch (propMeta.type)
+                {
+                case PropertyType::Vector3D:
+                {
+                    auto table = InspectorWidgets::makeVec3Input(ecsRef, panel.layout, propName, typeName + ":" + name, "0");
+
+                    for (int i = 0; i < 3; i++)
+                        widget.inputIds.push_back(table[i]);
+
+                    break;
+                }
+
+                case PropertyType::Vector4D:
+                    for (int i = 0; i < 4; i++)
+                        widget.inputIds.push_back(InspectorWidgets::makeScalarInput(ecsRef, panel.layout,
+                            propName + ( i == 0 ? " X" : ( i == 1 ? " Y" : ( i == 2 ? " Z" : " W" ) ) ), key(i), "0"));
+                    break;
+
+                default:   // Float, Double, Int, Bool, String, UnsignedInt, UniqueId
+                    widget.inputIds.push_back(InspectorWidgets::makeScalarInput(ecsRef, panel.layout,
+                        propName, key(0), "0"));
+                    break;
+                }
+
+                panel.widgets.push_back(std::move(widget));
+            }
+
+            panel.initialized = true;
+
+            return fold;
+        }
+
+        void InspectorSystem::showPanel(const std::string& typeName, void* componentPtr)
+        {
+            // Get or build the panel, ensuring it's fully initialized
+            auto fold = getOrBuildPanel(typeName);
+
+            auto& panel = componentPanels[typeName];
+            fold.get<PositionComponent>()->setVisibility(true);
+
+            auto& meta = ComponentProxyRegistry::instance().getMetadata(typeName);
+
+            for (const auto& widget : panel.widgets)
+            {
+                ActiveBinding binding;
+                binding.componentType = typeName;
+                binding.propertyName  = widget.propertyName;
+                binding.type          = widget.type;
+                binding.inputIds      = widget.inputIds;
+                binding.componentPtr  = componentPtr;
+                activeBindings.push_back(binding);
+
+                // Refresh displayed value(s)
+                auto& propMeta = meta.properties.at(widget.propertyName);
+                if (propMeta.sGetter)
+                {
+                    std::string val = propMeta.sGetter(componentPtr);
+                    // For scalar: fill inputIds[0]
+                    // For Vec3/Vec4: val is "x,y,z" — split by comma
+                    auto parts = splitComma(val);
+                    for (size_t i = 0; i < widget.inputIds.size(); i++)
+                    {
+                        auto textInput = ecsRef->getComponent<TextInputComponent>(widget.inputIds[i]);
+                        if (textInput)
+                            textInput->setText(i < parts.size() ? parts[i] : val);
+                    }
+                }
+            }
+        }
+
+        void InspectorSystem::hideAllPanels()
+        {
+            for (auto& [name, panel] : componentPanels)
+                if (panel.initialized)
+                    panel.foldCard.get<PositionComponent>()->setVisibility(false);
+        }
+
     }
 }

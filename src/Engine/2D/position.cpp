@@ -634,9 +634,7 @@ namespace pg
 
     void UiAnchor::onDeletion(EntityRef)
     {
-        clearAnchors();
-
-        // Todo clear constrains
+        ecsRef->sendEvent(RemoveParentedChildEvent{entityId});
     }
 
     void UiAnchor::updateAnchor(bool hasAnchor, PosAnchor& anchor)
@@ -687,7 +685,6 @@ namespace pg
         ecsRef = entity->world();
 
         ecsRef->sendEvent(ParentingEvent{clipperId, id});
-        ecsRef->sendEvent(EntityChangedEvent{id});
     }
 
     void ClippedTo::setNewClipper(_unique_id clipperId)
@@ -698,7 +695,6 @@ namespace pg
 
             this->clipperId = clipperId;
             ecsRef->sendEvent(ParentingEvent{clipperId, id});
-            ecsRef->sendEvent(EntityChangedEvent{id});
         }
     }
 
@@ -784,7 +780,7 @@ namespace pg
     }
     }
 
-    void PositionComponentSystem::pushChildrenInChange(std::set<_unique_id>& set, _unique_id parentId)
+    void PositionComponentSystem::pushChildrenInChange(std::unordered_set<_unique_id>& set, _unique_id parentId)
     {
         for (const auto& child : parentalMap[parentId])
         {
@@ -797,54 +793,78 @@ namespace pg
 
     void PositionComponentSystem::execute()
     {
+        if (changedIds.size() <= 0)
+            return;
+
         // std::set<_unique_id> modifiedIds;
         // std::set<_unique_id> impactedIds;
 
         // while (changedIds.size() > 0)
-        if (changedIds.size() > 0)
+        for (const auto& id : changedIds)
         {
-            for (const auto& id : changedIds)
+            LOG_MILE(DOM, "Processing changed entity ID: " << id);
+
+            auto anchorChanged = false;
+            auto entity = ecsRef->getEntity(id);
+
+            if (not entity)
             {
-                auto anchorChanged = false;
-                auto entity = ecsRef->getEntity(id);
-
-                if (not entity or not entity->has<PositionComponent>())
-                    continue;
-
-                if (entity->has<UiAnchor>())
-                {
-                    auto anchor = entity->get<UiAnchor>();
-
-                    auto pos = entity->get<PositionComponent>();
-
-                    anchorChanged = anchor->update(pos);
-
-                    // Todo check
-                    // If the position component get changed by the anchor moving then we push its children to the queue for check
-                    auto changed = pos->updatefromAnchor(*anchor);
-
-                    anchorChanged |= changed;
-                }
-
-                ecsRef->sendEvent(EntityChangedEvent{id});
-
-                if (anchorChanged)
-                    ecsRef->sendEvent(PositionComponentChangedEvent{id});
-
-                // modifiedIds.insert(id);
-
-                // if (anchorChanged)
-                    // impactedIds.insert(id);
+                LOG_WARNING(DOM, "Entity " << id << " not found");
+                continue;
             }
 
+            if (not entity->has<PositionComponent>())
+            {
+                LOG_WARNING(DOM, "Entity " << id << " has no PositionComponent");
+                continue;
+            }
+
+            auto pos = entity->get<PositionComponent>();
+            LOG_MILE(DOM, "Entity " << id << " position - x: " << pos->x << ", y: " << pos->y
+                        << ", width: " << pos->width << ", height: " << pos->height);
+
+            if (entity->has<UiAnchor>())
+            {
+                LOG_MILE(DOM, "Entity " << id << " has UiAnchor, updating...");
+
+                auto anchor = entity->get<UiAnchor>();
+
+                anchorChanged = anchor->update(pos);
+
+                // Todo check
+                // If the position component get changed by the anchor moving then we push its children to the queue for check
+                auto changed = pos->updatefromAnchor(*anchor);
+
+                anchorChanged |= changed;
+
+                LOG_MILE(DOM, "Anchor update result - anchorChanged: " << anchorChanged);
+            }
+            else
+            {
+                LOG_MILE(DOM, "Entity " << id << " has NO UiAnchor");
+            }
+
+            // LOG_MILE(DOM, "Sending EntityChangedEvent for entity " << id);
+            // ecsRef->sendEvent(EntityChangedEvent{id});
+
+            if (anchorChanged)
+            {
+                LOG_MILE(DOM, "Sending PositionComponentChangedEvent for entity " << id);
+                ecsRef->sendEvent(PositionComponentChangedEvent{id});
+            }
+
+            // modifiedIds.insert(id);
+
+            // if (anchorChanged)
+                // impactedIds.insert(id);
+
             // LOG_INFO("PositionComponentSystem", "Changed ids: " << changedIds.size() << ", modified ids: " << modifiedIds.size() << ", impacted ids: " << impactedIds.size());
-
-            changedIds.clear();
-
-            // changedIds = impactedIds;
-
-            // impactedIds.clear();
         }
+
+        changedIds.clear();
+        // changedIds = impactedIds;
+
+        // impactedIds.clear();
 
         // for (const auto& id : modifiedIds)
         // {

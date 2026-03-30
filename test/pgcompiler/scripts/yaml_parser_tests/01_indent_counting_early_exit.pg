@@ -1,0 +1,34 @@
+// Test 01: Indent counting with early exit (from lines 328-348)
+// Tests the getIndent function pattern
+
+import "algorithm"
+import "string"
+
+fun getIndent(line) {
+    var count = 0;
+    var done = false;
+
+    for (var i = 0; i < len(line) and not done; i = i + 1) {
+        var ch = charAt(line, i);
+
+        if (ch == " ") {
+            count = count + 1;
+        } else {
+            done = true;
+        }
+    }
+
+    return count;
+}
+
+var line1 = "noIndent";
+var line2 = "  twoSpaces";
+var line3 = "    fourSpaces";
+var line4 = "        eightSpaces";
+var line5 = "      sixSpaces  moreText";
+
+__dprint("Line 1 indent: " + toString(getIndent(line1)));
+__dprint("Line 2 indent: " + toString(getIndent(line2)));
+__dprint("Line 3 indent: " + toString(getIndent(line3)));
+__dprint("Line 4 indent: " + toString(getIndent(line4)));
+__dprint("Line 5 indent: " + toString(getIndent(line5)));

@@ -53,7 +53,7 @@ namespace pg {
 
             bool changed = false;
             int iterations = 0;
-            const int maxIterations = 10; // Prevent infinite loops
+            const int maxIterations = 100000; // Prevent infinite loops
 
             do
             {
@@ -63,7 +63,7 @@ namespace pg {
                 changed = pass->runPass(chunk, rewriter.get());
                 iterations++;
 
-                if (changed && enableDebugOutput)
+                if (changed and enableDebugOutput)
                 {
                     LOG_INFO("PassManager", "Pass " << pass->getName() << " made changes (iteration " << iterations << ")");
                 }

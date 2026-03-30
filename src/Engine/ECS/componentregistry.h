@@ -306,6 +306,42 @@ namespace pg
             return it != idMap.end();
         }
 
+        /**
+         * @brief Look up the ECS-local id for @p Type in a single map find.
+         *
+         * Unlike the hasTypeId + getTypeId pair, this performs exactly one
+         * unordered_map::find and reuses the iterator for the value.
+         *
+         * @return The registered id, or 0 if @p Type has not been registered yet.
+         *         (0 is the reserved "invalid" id in UniqueIdGenerator.)
+         */
+        template <typename Type>
+        _unique_id tryGetTypeId() const noexcept
+        {
+            const auto globalId = getGlobalGenericId<Type>();
+            const auto it = idMap.find(globalId);
+            return it != idMap.end() ? it->second : _unique_id{0};
+        }
+
+        /**
+         * @brief Retrieve the owner for @p Type in a single combined lookup.
+         *
+         * Performs one idMap find and one componentStorageMap find, replacing the
+         * hasTypeId (find 1) + retrieve -> getTypeId (find 2) + componentStorageMap.at
+         * triple-lookup pattern.
+         *
+         * @return Pointer to Own<Type>, or nullptr if @p Type is not registered.
+         */
+        template <typename Type>
+        Own<Type>* tryRetrieve() const noexcept
+        {
+            const auto globalId = getGlobalGenericId<Type>();
+            const auto idIt = idMap.find(globalId);
+            if (idIt == idMap.end()) return nullptr;
+            const auto csIt = componentStorageMap.find(idIt->second);
+            return csIt != componentStorageMap.end() ? static_cast<Own<Type>*>(csIt->second) : nullptr;
+        }
+
         template <typename Type>
         _unique_id getTypeId() const noexcept
         {
@@ -372,6 +408,21 @@ namespace pg
             componentSerializeMap.at(id)(archive, entity);
         }
 
+        /**
+         * @brief Get the component type name from its ID
+         * @param id The unique component type ID
+         * @return std::string The component type name, or empty string if not found
+         */
+        inline std::string getComponentTypeName(_unique_id id) const
+        {
+            auto it = componentTypeNameMap.find(id);
+            if (it != componentTypeNameMap.end())
+            {
+                return it->second;
+            }
+            return "";
+        }
+
         inline void deserializeComponentToEntity(const UnserializedObject& serializedString, EntityRef entity) const
         {
             const auto& name = serializedString.getObjectType();
@@ -404,11 +455,38 @@ namespace pg
             }
         }
 
-        void saveSystem(std::function<void(Archive&)> f, const std::string& objectName)
+        void registerSystemSaveSystem(const std::string& sysName, std::function<void(Archive&)> f)
         {
-            Serializer::ClassSerializer ar(&systemSerializer, objectName);
+            systemSaveCallbacks[sysName] = f;
+        }
 
-            f(ar.archive);
+        void unregisterSystemSave(const std::string& sysName)
+        {
+            systemSaveCallbacks.erase(sysName);
+        }
+
+        void saveSystem(const std::string& sysName)
+        {
+            const auto& it = systemSaveCallbacks.find(sysName);
+
+            if (it != systemSaveCallbacks.end())
+            {
+                Serializer::ClassSerializer ar(&systemSerializer, sysName);
+
+                it->second(ar.archive);
+            }
+            else
+            {
+                LOG_WARNING("Registry", "Cannot save system: " << sysName << " system is not registered for saving !");
+            }
+        }
+
+        void saveAllSystems()
+        {
+            for (const auto& pair : systemSaveCallbacks)
+            {
+                saveSystem(pair.first);
+            }
         }
 
         bool loadSystem(std::function<void(const UnserializedObject&)> f, const std::string& objectName)
@@ -498,6 +576,7 @@ namespace pg
         std::unordered_map<_unique_id, void*> componentStorageMap;
         std::unordered_map<_unique_id, std::function<void(Entity*)>> componentDeleteMap;
         std::unordered_map<_unique_id, std::function<void(Archive&, const Entity*)>> componentSerializeMap;
+        std::unordered_map<_unique_id, std::string> componentTypeNameMap;  // Maps component ID to type name
         std::unordered_map<std::string, std::function<void(const UnserializedObject&, EntityRef)>> componentDeserializeMap;
         std::unordered_map<std::string, std::function<void(EntityRef)>> componentDetachMap;
         std::unordered_map<_unique_id, void*> groupStorageMap;
@@ -508,6 +587,8 @@ namespace pg
         mutable std::unordered_map<std::string, Own<StandardComponent>*> standardComponentStorageMap;
 
         Serializer systemSerializer;
+
+        std::unordered_map<std::string, std::function<void(Archive&)>> systemSaveCallbacks;
     };
 
     template<>
@@ -537,15 +618,16 @@ namespace pg
                 return;
             }
 
-            if (not registry->hasTypeId<Type>())
+            // Single combined lookup: avoids hasTypeId (find 1) + retrieve→getTypeId (find 2)
+            ref = registry->tryRetrieve<Type>();
+            if (not ref)
             {
                 LOG_WARNING("ECS", "Component [" << typeid(Type).name() << "] is not registered in the ECS, attaching it to the default flag system instead");
                 LOG_WARNING("ECS", "This is a costly operation to do during runtime, you should register the component in the ECS using registerFlagComponent<Type>()");
 
                 registry->registerFlagComponent<Type>();
+                ref = registry->retrieve<Type>();
             }
-
-            ref = registry->retrieve<Type>();
         }
 
         template <typename... Args>
@@ -638,8 +720,7 @@ namespace pg
             // Create a new component and store it in a sparse set along with the entity id using it
             auto comp = components.addComponent(entity, std::forward<Args>(args)...);
 
-            // Add the component to the entity
-            entity->componentList.emplace(_componentId);
+            entity->componentList.insert(_componentId);
 
             // Call the on component creation callbacks to register the component in potential groups
             for (const auto& callback : onComponentCreation)
@@ -936,7 +1017,7 @@ namespace pg
                 comp->set(key, value);
             }
 
-            entity->componentList.emplace(_componentId);
+            entity->componentList.insert(_componentId);
 
             for (const auto& callback : onComponentCreation)
                 callback.second(entity);

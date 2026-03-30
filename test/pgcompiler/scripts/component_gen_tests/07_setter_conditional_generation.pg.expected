@@ -1,0 +1,5 @@
+    comp->setTextureName(textureName);
+    comp->setOpacity(opacity);
+    comp->width = width;
+    comp->visible = visible;
+

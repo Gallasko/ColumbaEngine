@@ -228,7 +228,7 @@ namespace pg
             uint16_t jump = (static_cast<uint16_t>(chunk.code[offset + 1]) << 8) |
                             (static_cast<uint16_t>(chunk.code[offset + 2]));
 
-            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 3 + sign * jump) << std::endl;
+            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 3 + sign * jump) << " (dist: " << jump << ")" << std::endl;
 
             return offset + 3;
         }
@@ -240,7 +240,7 @@ namespace pg
                             (static_cast<uint32_t>(chunk.code[offset + 3]) << 8) |
                             (static_cast<uint32_t>(chunk.code[offset + 4]));
 
-            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 5 + sign * jump) << std::endl;
+            std::cout << std::left << std::setw(16) << name << " " << offset << " -> " << (offset + 5 + sign * jump) << " (dist: " << jump << ")" << std::endl;
 
             return offset + 5;
         }
@@ -472,6 +472,12 @@ namespace pg
             case OpCode::OP_SubtractCL:
                 return twoBytesInstruction("OP_SubtractCL", chunk, offset);
 
+            case OpCode::OP_Jump_If_False_Popping:
+                return jumpInstruction("OP_Jump_If_False_Popping", chunk, offset);
+
+            case OpCode::OP_Long_Jump_If_False_Popping:
+                return longJumpInstruction("OP_Long_Jump_If_False_Popping", chunk, offset);
+
             case OpCode::OP_Define_Constant_Global:
                 return twoBytesInstruction("OP_Define_Constant_Global", chunk, offset);
 
@@ -510,6 +516,64 @@ namespace pg
 
             case OpCode::OP_Define_Global_Non_Popping:
                 return simpleInstruction("OP_Define_Global_Non_Popping", offset);
+
+            // Register-based opcodes
+            case OpCode::OP_Load_Constant_R:
+            {
+                uint8_t destSlot = chunk.code[offset + 1];
+                uint8_t constIndex = chunk.code[offset + 2];
+                std::cout << "OP_Load_Constant_R slot[" << (int)destSlot << "] <- const[" << (int)constIndex << "]";
+                return offset + 3;
+            }
+
+            case OpCode::OP_Move_R:
+            {
+                uint8_t destSlot = chunk.code[offset + 1];
+                uint8_t srcSlot = chunk.code[offset + 2];
+                std::cout << "OP_Move_R slot[" << (int)destSlot << "] <- slot[" << (int)srcSlot << "]";
+                return offset + 3;
+            }
+
+            case OpCode::OP_Add_RRR:
+            {
+                uint8_t destSlot = chunk.code[offset + 1];
+                uint8_t src1Slot = chunk.code[offset + 2];
+                uint8_t src2Slot = chunk.code[offset + 3];
+                std::cout << "OP_Add_RRR slot[" << (int)destSlot << "] <- slot[" << (int)src1Slot << "] + slot[" << (int)src2Slot << "]";
+                return offset + 4;
+            }
+
+            case OpCode::OP_Less_RR:
+            {
+                uint8_t src1Slot = chunk.code[offset + 1];
+                uint8_t src2Slot = chunk.code[offset + 2];
+                std::cout << "OP_Less_RR slot[" << (int)src1Slot << "] < slot[" << (int)src2Slot << "] (push result)";
+                return offset + 3;
+            }
+
+            case OpCode::OP_Incr_R:
+            {
+                uint8_t slot = chunk.code[offset + 1];
+                std::cout << "OP_Incr_R slot[" << (int)slot << "]++";
+                return offset + 2;
+            }
+
+            case OpCode::OP_Less_RRR:
+            {
+                uint8_t destSlot = chunk.code[offset + 1];
+                uint8_t src1Slot = chunk.code[offset + 2];
+                uint8_t src2Slot = chunk.code[offset + 3];
+                std::cout << "OP_Less_RRR slot[" << (int)destSlot << "] <- slot[" << (int)src1Slot << "] < slot[" << (int)src2Slot << "]";
+                return offset + 4;
+            }
+
+            case OpCode::OP_Jump_If_False_R:
+            {
+                uint8_t slot = chunk.code[offset + 1];
+                uint16_t jump = (chunk.code[offset + 2] << 8) | chunk.code[offset + 3];
+                std::cout << "OP_Jump_If_False_R slot[" << (int)slot << "] -> " << offset + 4 + jump;
+                return offset + 4;
+            }
 
             default:
                 std::cout << "Unknown opcode " << static_cast<uint8_t>(instruction) << std::endl;
@@ -582,6 +646,8 @@ namespace pg
             case OpCode::OP_SubtractLL: return "OP_SubtractLL";
             case OpCode::OP_SubtractLC: return "OP_SubtractLC";
             case OpCode::OP_SubtractCL: return "OP_SubtractCL";
+            case OpCode::OP_Jump_If_False_Popping: return "OP_Jump_If_False_Popping";
+            case OpCode::OP_Long_Jump_If_False_Popping: return "OP_Long_Jump_If_False_Popping";
             case OpCode::OP_Build_Vector: return "OP_Build_Vector";
             case OpCode::OP_Build_Table: return "OP_Build_Table";
             case OpCode::OP_Get_Index: return "OP_Get_Index";
@@ -591,6 +657,13 @@ namespace pg
             case OpCode::OP_Table_Size: return "OP_Table_Size";
             case OpCode::OP_Table_At: return "OP_Table_At";
             case OpCode::OP_Import: return "OP_Import";
+            case OpCode::OP_Load_Constant_R: return "OP_Load_Constant_R";
+            case OpCode::OP_Move_R: return "OP_Move_R";
+            case OpCode::OP_Add_RRR: return "OP_Add_RRR";
+            case OpCode::OP_Less_RR: return "OP_Less_RR";
+            case OpCode::OP_Incr_R: return "OP_Incr_R";
+            case OpCode::OP_Less_RRR: return "OP_Less_RRR";
+            case OpCode::OP_Jump_If_False_R: return "OP_Jump_If_False_R";
             default: return "OP_Unknown_" + std::to_string(static_cast<uint8_t>(opcode));
         }
     }

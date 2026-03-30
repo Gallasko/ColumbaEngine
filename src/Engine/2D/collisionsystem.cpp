@@ -1,8 +1,9 @@
 #include "stdafx.h"
 
 #include "collisionsystem.h"
-
 #include <unordered_set>
+
+#include "Compiler/ecsserialization.h"
 
 namespace pg
 {
@@ -615,7 +616,7 @@ namespace pg
     }
 
 
-    void CollisionSystem::onEvent(const EntityChangedEvent& event)
+    void CollisionSystem::onProcessEvent(const PositionComponentChangedEvent& event)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -816,4 +817,45 @@ namespace pg
         // 5) update the originPos *outside* this helper
         return res;
     }
+
+    /**
+     * @brief Custom attach handler for CollisionComponent
+     *
+     * Expected usage: attachComp("Collision", "layerId", 1, "scale", 2.0)
+     */
+    bool attachCollisionComponent(VM* vm, EntitySystem* ecs, Entity* entity, int argCount, Value* args)
+    {
+        size_t layerId = 0;
+        float scale = 1.0f;
+
+        // Process key-value pairs
+        for (int i = 0; i < argCount; i += 2)
+        {
+            if (i + 1 >= argCount) break;
+
+            if (!IS_STRING(args[i]))
+            {
+                LOG_ERROR("ECS Serialization", "attachComp expects string keys for properties");
+                continue;
+            }
+
+            auto key = vm->asString(args[i]);
+
+            if (key == "layerId")
+                layerId = static_cast<size_t>(detail::extractIntArg(args, i + 1));
+            else if (key == "scale")
+                scale = detail::extractFloatArg(args, i + 1);
+        }
+
+        // Attach CollisionComponent with parsed parameters
+        ecs->_attach<CollisionComponent>(entity, layerId, scale);
+
+        LOG_INFO("ECS Serialization", "Attached CollisionComponent to entity " << entity->id
+                 << " (layerId=" << layerId << ", scale=" << scale << ")");
+
+        return true;
+    }
+
+    // Register the Collision component attach handler
+    REGISTER_COMPONENT_ATTACH_HANDLER(Collision, attachCollisionComponent);
 }

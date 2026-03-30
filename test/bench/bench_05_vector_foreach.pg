@@ -1,0 +1,32 @@
+// Benchmark 5: Vector foreach iteration
+// This tests the performance of for-in loops over vectors (sys.getEntities returns a vector)
+
+// var count = 2000
+
+// Create vector of tables
+var entities = []
+for (var i = 0; i < count; i = i + 1)
+{
+    entities[i] = {
+        "x": 100,
+        "y": 200,
+        "z": 0,
+        "width": 50,
+        "height": 50
+    }
+}
+
+// Benchmark: foreach iteration over vector
+var counter = 0
+for (var entity : entities)
+{
+    // Read properties
+    var x = entity.x
+    var y = entity.y
+
+    // Write properties
+    entity.x = x + 1
+    entity.y = y + 1
+
+    counter = counter + 1
+}

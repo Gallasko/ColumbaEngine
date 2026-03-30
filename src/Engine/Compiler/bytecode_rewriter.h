@@ -100,7 +100,7 @@ namespace pg
 
         static PatternElement conditionalJump(bool cap = false)
         {
-            return anyOf({OpCode::OP_Jump_If_False, OpCode::OP_Long_Jump_If_False}, cap);
+            return anyOf({OpCode::OP_Jump_If_False, OpCode::OP_Long_Jump_If_False, OpCode::OP_Jump_If_False_Popping, OpCode::OP_Long_Jump_If_False_Popping}, cap);
         }
 
         static PatternElement loop(bool cap = false)
@@ -170,15 +170,17 @@ namespace pg
 
         bool rewrite(Chunk& chunk);
 
-        bool rewriteAt(Chunk& chunk, size_t index, size_t size, const std::vector<OpCode>& replacement);
-
         bool rewriteAtRaw(Chunk& chunk, size_t index, size_t size, const std::vector<uint8_t>& replacement);
 
         bool removeInstructions(Chunk& chunk, size_t index, size_t count);
 
+        bool insertInstructions(Chunk& chunk, size_t index, const std::vector<uint8_t>& instructions);
+
         void clearRules();
 
         size_t getRuleCount() const { return rules.size(); }
+
+        size_t getActualInstructionSize(const Chunk& chunk, size_t offset) const;
 
     private:
         void collectJumpTargets(const Chunk& chunk);
@@ -196,7 +198,7 @@ namespace pg
 
         void applyAdvancedRewrite(Chunk& chunk, size_t offset, size_t patternSize, const std::vector<uint8_t>& replacement);
 
-        void adjustJumpOffsetsAfterRewrite(Chunk& chunk, size_t rewriteIndex, int sizeDelta);
+        void adjustJumpOffsetsBeforeRewrite(Chunk& chunk, size_t rewriteIndex, size_t rewriteSize, int sizeDelta);
 
         size_t getPatternByteSize(const std::vector<OpCode>& pattern) const;
 

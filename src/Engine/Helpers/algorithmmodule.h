@@ -57,7 +57,7 @@ namespace pg
                 std::string key = vm->asString(args[1]);
 
                 // Check if the key exists in the instance's fields
-                bool exists = instance->fields.find(key) != instance->fields.end();
+                bool exists = instance->hasField(key);
 
                 return makeBoolValue(exists);
             }
@@ -188,8 +188,10 @@ namespace pg
             }
             else
             {
-                throw std::runtime_error("len expects an array or string");
+                throw std::runtime_error("len expects an array or string, got " + std::string(valueTypeName(args[0])));
             }
+
+            return makeIntValue(0); // Unreachable, but silences compiler warning
         }
 
         /**
@@ -270,7 +272,7 @@ namespace pg
             ObjVector* vec = vm->asVector(args[0]);
             int64_t index = AS_INT(args[1]);
 
-            if (index < 0 || index > static_cast<int64_t>(vec->fields.size()))
+            if (index < 0 or index > static_cast<int64_t>(vec->fields.size()))
             {
                 throw std::runtime_error("insert index out of bounds");
             }
@@ -306,7 +308,7 @@ namespace pg
             ObjVector* vec = vm->asVector(args[0]);
             int64_t index = AS_INT(args[1]);
 
-            if (index < 0 || index >= static_cast<int64_t>(vec->fields.size()))
+            if (index < 0 or index >= static_cast<int64_t>(vec->fields.size()))
             {
                 throw std::runtime_error("removeAt index out of bounds");
             }

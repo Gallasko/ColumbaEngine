@@ -1,13 +1,3 @@
-#ifdef __EMSCRIPTEN__
-    #include <SDL2/SDL.h>
-#else
-    #ifdef __linux__
-        #include <SDL2/SDL.h>
-    #elif _WIN32
-        #include <SDL.h>
-    #endif
-#endif
-
 #include "gtest/gtest.h"
 
 #include "Compiler/vm.h"
@@ -15,6 +5,8 @@
 #include "Files/filemodule.h"
 #include "Helpers/stringmodule.h"
 #include "Helpers/algorithmmodule.h"
+
+#include "ECS/entitysystem.h"
 
 #include "../mocklogger.h"
 
@@ -92,7 +84,8 @@ protected:
         registerNativeFunctions(vm);
     }
 
-    void TearDown() override {
+    void TearDown() override
+    {
         // Clean up
         delete vm;
     }
@@ -126,11 +119,40 @@ protected:
         else
             result = vm->interpretFromText(source, false, scriptPath + ".compiled.pgc");
 
-        // Use VM's built-in interpretFromText method
-
-
         // Return captured output from __dprint
         return vm->testOutput;
+    }
+
+     /**
+     * Run a script and return its output from __dprint
+     */
+    std::string runOptScript(const std::string& scriptPath, InterpretResult& result)
+    {
+        // Read the script file
+        std::ifstream file(scriptPath);
+        if (not file.is_open())
+        {
+            throw std::runtime_error("Failed to open script file: " + scriptPath);
+        }
+
+        std::stringstream buffer;
+        buffer << file.rdbuf();
+        std::string source = buffer.str();
+
+        EntitySystem ecs;
+        VM optimizedVM;
+
+        ecs.setVMOptimizationLevel(VmOptimizationLevel::O3);
+        ecs.setupVm(optimizedVM);
+
+        // Clear previous test output
+        if (scriptPath.find(".pgc") != std::string::npos)
+            result = optimizedVM.interpretFromBytecodeFile(scriptPath);
+        else
+            result = optimizedVM.interpretFromText(source, false, scriptPath + ".compiled.pgc");
+
+        // Return captured output from __dprint
+        return optimizedVM.testOutput;
     }
 
     /**
@@ -149,17 +171,8 @@ protected:
         return buffer.str();
     }
 
-    /**
-     * Test a script file
-     */
-    void testScript(const std::string& scriptName)
+    void executeScript(const std::string& scriptPath, const std::string& expectedPath, const std::string& scriptName)
     {
-        std::string scriptPath = getScriptPath(scriptName);
-        std::string expectedPath = getExpectedPath(scriptName);
-
-        ASSERT_TRUE(std::filesystem::exists(scriptPath))
-            << "Script file not found: " << scriptPath;
-
         InterpretResult result, compiledResult;
         std::string output = runScript(scriptPath, result);
 
@@ -189,13 +202,69 @@ protected:
                 << "Expected:\n" << expected << "\n"
                 << "Got:\n" << output;
 
-            EXPECT_EQ(compiledResult, InterpretResult::OK)
-                << "Script (compiled):" << scriptName << " failed to execute";
+            EXPECT_EQ(compiledResult, InterpretResult::OK) <<
+                "Script (compiled):" << scriptName << " failed to execute";
         }
 
         // Always check for successful execution
-        EXPECT_EQ(result, InterpretResult::OK)
-            << "Script " << scriptName << " failed to execute";
+        EXPECT_EQ(result, InterpretResult::OK) << "Script " << scriptName << " failed to execute";
+
+#ifndef _WIN32
+        // Todo: fix this
+        // O3 optimization path is skipped on Windows/MinGW due to a known interaction
+        // between longjmp and Windows SEH (RtlUnwindEx) when C++ objects are on the
+        // stack above the setjmp site. Works correctly on Linux/macOS.
+        output = runOptScript(scriptPath, result);
+
+        // Always check for successful execution
+        EXPECT_EQ(result, InterpretResult::OK) << "Script [O3]: " << scriptName << " failed to execute";
+
+        // Check if expected file exists
+        if (std::filesystem::exists(expectedPath))
+        {
+            std::string expected = loadExpectedOutput(expectedPath);
+
+            // Normalize line endings and trim
+            output = trim(output);
+            expected = trim(expected);
+
+            EXPECT_EQ(output, expected)
+                << "Script [O3]: " << scriptName << "\n"
+                << "Output mismatch!\n"
+                << "Expected:\n" << expected << "\n"
+                << "Got:\n" << output;
+
+            // Try to run the compiled bytecode version as well
+            output = runOptScript(scriptPath + ".compiled.pgc", compiledResult);
+
+            output = trim(output);
+
+            EXPECT_EQ(output, expected)
+                << "Script [O3] (compiled): " << scriptName << "\n"
+                << "Output mismatch!\n"
+                << "Expected:\n" << expected << "\n"
+                << "Got:\n" << output;
+
+            EXPECT_EQ(compiledResult, InterpretResult::OK) <<
+                "Script [O3] (compiled):" << scriptName << " failed to execute";
+        }
+
+        // Always check for successful execution
+        EXPECT_EQ(result, InterpretResult::OK) << "Script [O3] " << scriptName << " failed to execute";
+#endif
+    }
+
+    /**
+     * Test a script file
+     */
+    void testScript(const std::string& scriptName)
+    {
+        std::string scriptPath = getScriptPath(scriptName);
+        std::string expectedPath = getExpectedPath(scriptName);
+
+        ASSERT_TRUE(std::filesystem::exists(scriptPath)) << "Script file not found: " << scriptPath;
+
+        executeScript(scriptPath, expectedPath, scriptName);
     }
 
     /**
@@ -209,42 +278,7 @@ protected:
         ASSERT_TRUE(std::filesystem::exists(scriptPath))
             << "Script file not found: " << scriptPath;
 
-        InterpretResult result, compiledResult;
-        std::string output = runScript(scriptPath, result);
-
-        // Check if expected file exists
-        if (std::filesystem::exists(expectedPath))
-        {
-            std::string expected = loadExpectedOutput(expectedPath);
-
-            // Normalize line endings and trim
-            output = trim(output);
-            expected = trim(expected);
-
-            EXPECT_EQ(output, expected)
-                << "Script: " << scriptName << "\n"
-                << "Output mismatch!\n"
-                << "Expected:\n" << expected << "\n"
-                << "Got:\n" << output;
-
-            // Try to run the compiled bytecode version as well
-            output = runScript(scriptPath + ".compiled.pgc", compiledResult);
-
-            output = trim(output);
-
-            EXPECT_EQ(output, expected)
-                << "Script (compiled): " << scriptName << "\n"
-                << "Output mismatch!\n"
-                << "Expected:\n" << expected << "\n"
-                << "Got:\n" << output;
-
-            EXPECT_EQ(compiledResult, InterpretResult::OK)
-                << "Script (compiled):" << scriptName << " failed to execute";
-        }
-
-        // Always check for successful execution
-        EXPECT_EQ(result, InterpretResult::OK)
-            << "Script " << scriptName << " failed to execute";
+        executeScript(scriptPath, expectedPath, scriptName);
     }
 
     /**
@@ -299,7 +333,11 @@ private:
 
 TEST_F(ScriptTestBench, SimpleAddition)
 {
+    MockLogger<TerminalSink> logger;
+
     testScript("simple_addition");
+
+    LOG_INFO("Test", "Completed simple addition test");
 }
 
 TEST_F(ScriptTestBench, SimpleSubtraction)
@@ -585,6 +623,11 @@ TEST_F(ScriptTestBench, VectorLeak)
 TEST_F(ScriptTestBench, StringLiterals)
 {
     testScript("string_literals");
+}
+
+TEST_F(ScriptTestBench, StringIndexing)
+{
+    testScript("string_indexing");
 }
 
 TEST_F(ScriptTestBench, StringConcatenation)
@@ -897,6 +940,287 @@ TEST_F(ScriptTestBench, AdventOfCode2025Day3Part2)
 // {
 //     testScriptError("testFuncFailed", InterpretResult::RUNTIME_ERROR);
 // }
+
+// ============================================================================
+// Metamethod Tests (__get and __set)
+// ============================================================================
+
+TEST_F(ScriptTestBench, MetamethodClassGetBasic)
+{
+    testScript("metamethod_class_get_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodClassSetBasic)
+{
+    testScript("metamethod_class_set_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodGetBasic)
+{
+    testScript("metamethod_get_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodSetBasic)
+{
+    testScript("metamethod_set_basic");
+}
+
+TEST_F(ScriptTestBench, MetamethodClassGetIndex)
+{
+    testScript("metamethod_class_get_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodGetIndex)
+{
+    testScript("metamethod_get_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodClassSetIndex)
+{
+    testScript("metamethod_class_set_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodSetIndex)
+{
+    testScript("metamethod_set_index");
+}
+
+TEST_F(ScriptTestBench, MetamethodFieldsPriority)
+{
+    testScript("metamethod_fields_priority");
+}
+
+TEST_F(ScriptTestBench, MetamethodProxySimulation)
+{
+    testScript("metamethod_proxy_simulation");
+}
+
+// Memory Management Tests
+TEST_F(ScriptTestBench, VMMemoryPoolReserve)
+{
+    // Test that VM can be created and destroyed without crashes
+    // This specifically tests the pools.reserve() issue
+    VM* testVm = new VM();
+    delete testVm;
+
+    // Create another VM to ensure pools are properly cleaned up
+    testVm = new VM();
+    delete testVm;
+}
+
+TEST_F(ScriptTestBench, VMMultipleCreationDestruction)
+{
+    // Test multiple VM creation/destruction cycles
+    for (int i = 0; i < 10; i++)
+    {
+        VM* testVm = new VM();
+        // Run a simple script
+        testVm->interpretFromText("var x = 1 + 2;", false);
+        delete testVm;
+    }
+}
+
+TEST_F(ScriptTestBench, VMStringMemoryHandling)
+{
+    // Test that string creation and destruction works correctly
+    VM* testVm = new VM();
+
+    // Create various string types
+    testVm->interpretFromText(R"(
+        var smallStr = "abc";          // Small string (inline)
+        var longStr = "this is a very long string";  // Heap string
+        var str1 = "test";
+        var str2 = "test";  // Should reuse interned string
+    )", false);
+
+    delete testVm;
+}
+
+// ============================================================================
+// Popping Jump Optimization Pass Tests
+// ============================================================================
+
+TEST_F(ScriptTestBench, PoppingJump_BasicIf)
+{
+    testScript("popping_jump_tests/01_basic_if");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfElse)
+{
+    testScript("popping_jump_tests/02_if_else");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_NestedIf)
+{
+    testScript("popping_jump_tests/03_nested_if");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_MultipleConditions)
+{
+    testScript("popping_jump_tests/04_multiple_conditions");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfWithLoop)
+{
+    testScript("popping_jump_tests/05_if_with_loop");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfWithReturn)
+{
+    testScript("popping_jump_tests/06_if_with_return");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ComplexExpression)
+{
+    testScript("popping_jump_tests/07_complex_expression");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_StringBooleanOp)
+{
+    testScript("popping_jump_tests/08_string_boolean_op");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_IfElseChain)
+{
+    testScript("popping_jump_tests/09_if_else_chain");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ConditionAsExpression)
+{
+    testScript("popping_jump_tests/10_condition_as_expression");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_BreakInLoop)
+{
+    testScript("popping_jump_tests/11_break_in_loop");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ContinueInLoop)
+{
+    testScript("popping_jump_tests/12_continue_in_loop");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_ComponentGeneratorPattern)
+{
+    testScript("popping_jump_tests/13_component_generator_pattern");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_NestedStringConcat)
+{
+    testScript("popping_jump_tests/14_nested_string_concat");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_BooleanValueFlow)
+{
+    testScript("popping_jump_tests/15_boolean_value_flow");
+}
+
+TEST_F(ScriptTestBench, PoppingJump_NestedIfWithCounter)
+{
+    testScript("popping_jump_tests/16_nested_if_with_counter");
+}
+
+// Component Generator Pattern Tests
+TEST_F(ScriptTestBench, ComponentGen_CounterWithCommaInsertion)
+{
+    testScript("component_gen_tests/01_counter_with_comma_insertion");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_LoopStringConcatWithIndex)
+{
+    testScript("component_gen_tests/02_loop_string_concat_with_index");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_NestedLoopFieldMatching)
+{
+    testScript("component_gen_tests/03_nested_loop_field_matching");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_SubstringQuoteStripping)
+{
+    testScript("component_gen_tests/04_substring_quote_stripping");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_ConditionalDefaultValue)
+{
+    testScript("component_gen_tests/05_conditional_default_value");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_TypeBasedExtractionDispatch)
+{
+    testScript("component_gen_tests/06_type_based_extraction_dispatch");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_SetterConditionalGeneration)
+{
+    testScript("component_gen_tests/07_setter_conditional_generation");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_MacroTypeMapping)
+{
+    testScript("component_gen_tests/08_macro_type_mapping");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_ShortnameExtraction)
+{
+    testScript("component_gen_tests/09_shortname_extraction");
+}
+
+TEST_F(ScriptTestBench, ComponentGen_CompleteConstructorGeneration)
+{
+    testScript("component_gen_tests/10_complete_constructor_generation");
+}
+
+// YAML Parser Pattern Tests
+TEST_F(ScriptTestBench, YamlParser_IndentCountingEarlyExit)
+{
+    testScript("yaml_parser_tests/01_indent_counting_early_exit");
+}
+
+TEST_F(ScriptTestBench, YamlParser_SplitFirstWithSubstring)
+{
+    testScript("yaml_parser_tests/02_split_first_with_substring");
+}
+
+TEST_F(ScriptTestBench, YamlParser_InlineArrayParsing)
+{
+    testScript("yaml_parser_tests/03_inline_array_parsing");
+}
+
+TEST_F(ScriptTestBench, YamlParser_InlineObjectWithQuoteTracking)
+{
+    testScript("yaml_parser_tests/04_inline_object_with_quote_tracking");
+}
+
+TEST_F(ScriptTestBench, YamlParser_QuoteStrippingConditional)
+{
+    testScript("yaml_parser_tests/05_quote_stripping_conditional");
+}
+
+TEST_F(ScriptTestBench, YamlParser_MultilineStringAccumulation)
+{
+    testScript("yaml_parser_tests/06_multiline_string_accumulation");
+}
+
+TEST_F(ScriptTestBench, YamlParser_BackwardQuoteSearch)
+{
+    testScript("yaml_parser_tests/07_backward_quote_search");
+}
+
+TEST_F(ScriptTestBench, YamlParser_EscapeSequenceHandling)
+{
+    testScript("yaml_parser_tests/08_escape_sequence_handling");
+}
+
+TEST_F(ScriptTestBench, YamlParser_NestedContainChecks)
+{
+    testScript("yaml_parser_tests/09_nested_contain_checks");
+}
+
+TEST_F(ScriptTestBench, YamlParser_StatefulCharIteration)
+{
+    testScript("yaml_parser_tests/10_stateful_char_iteration");
+}
 
 } // namespace test
 } // namespace pg

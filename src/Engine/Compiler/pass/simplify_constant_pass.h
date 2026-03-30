@@ -67,7 +67,7 @@ namespace pg
             return rewriter->rewrite(chunk);
         }
 
-        bool changesSize() const override { return false; }
+        bool changesSize() const override { return true; }
 
         bool requiresMultiplePasses() const override { return false; }
     };

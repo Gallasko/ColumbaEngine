@@ -1,0 +1,29 @@
+// Test 14: Nested conditions with string concatenation
+// This pattern is prone to stack corruption if pops are done incorrectly
+
+fun buildHeader(hasEvent, eventName)
+{
+    var header = "#pragma once\n\n";
+
+    if (hasEvent) {
+        header = header + "struct " + eventName + "\n";
+        header = header + "{\n";
+        header = header + "    _unique_id id = 0;\n";
+        header = header + "};\n\n";
+    }
+
+    return header;
+}
+
+var result = buildHeader(true, "TextureChangedEvent");
+__dprint(result);
+
+// Test the problematic pattern: boolean in conditional context
+var condition = (5 > 3);  // Boolean value
+if (condition)
+{
+    var text = "Condition is: ";
+    // This would be wrong: text + condition (string + boolean)
+    // But this should work:
+    __dprint(text + "true");
+}

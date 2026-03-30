@@ -5,6 +5,8 @@
 #include "UI/sizer.h"
 #include "ECS/entitysystem.h"
 
+#include "mocklogger.h"
+
 namespace pg
 {
     namespace test
@@ -282,6 +284,8 @@ namespace pg
 
         TEST(layout_test, recalculate_layout_sized_to_children)
         {
+            MockLogger<TerminalSink> logger;
+
             EntitySystem ecs;
 
             ecs.createSystem<PositionComponentSystem>();
@@ -303,14 +307,16 @@ namespace pg
 
             ecs.executeOnce();
 
+            EXPECT_TRUE(layoutPos->visible);
+            EXPECT_TRUE(layoutPos->observable);
             EXPECT_FLOAT_EQ(layoutPos->x, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->y, 0.0f);
-            EXPECT_FLOAT_EQ(layoutPos->width, 100.0f);
-            EXPECT_FLOAT_EQ(layoutPos->height, 300.0f);
+            EXPECT_FLOAT_EQ(layoutPos->width, 0.0f);
+            EXPECT_FLOAT_EQ(layoutPos->height, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->left.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->top.value, 0.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 100.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 300.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 0.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 0.0f);
 
             // Create entities to add to the layout
             auto childEntity1 = ecs.createEntity();
@@ -378,11 +384,11 @@ namespace pg
 
             EXPECT_FLOAT_EQ(layoutPos->x, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->y, 0.0f);
-            EXPECT_FLOAT_EQ(layoutPos->width, 100.0f);
+            EXPECT_FLOAT_EQ(layoutPos->width, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->height, 300.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->left.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->top.value, 0.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 100.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 300.0f);
 
             // Create entities to add to the layout
@@ -436,14 +442,14 @@ namespace pg
 
             // Create a vertical layout
             auto layoutEntity = ecs.createEntity();
-            auto layout = ecs.attach<VerticalLayout>(layoutEntity);
+            auto layout = ecs.attach<HorizontalLayout>(layoutEntity);
             auto layoutPos = ecs.attach<PositionComponent>(layoutEntity);
             auto layoutAnchor = ecs.attach<UiAnchor>(layoutEntity);
 
             layoutPos->setX(0.0f);
             layoutPos->setY(0.0f);
-            layoutPos->setWidth(100.0f);
-            layoutPos->setHeight(300.0f);
+            layoutPos->setWidth(50.0f);
+            layoutPos->setHeight(50.0f);
 
             layout->fitToAxis = true;
 
@@ -451,12 +457,12 @@ namespace pg
 
             EXPECT_FLOAT_EQ(layoutPos->x, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->y, 0.0f);
-            EXPECT_FLOAT_EQ(layoutPos->width, 100.0f);
-            EXPECT_FLOAT_EQ(layoutPos->height, 300.0f);
+            EXPECT_FLOAT_EQ(layoutPos->width, 50.0f);
+            EXPECT_FLOAT_EQ(layoutPos->height, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->left.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->top.value, 0.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 100.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 300.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->right.value, 50.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 0.0f);
 
             // Create entities to add to the layout
             auto childEntity1 = ecs.createEntity();
@@ -481,11 +487,11 @@ namespace pg
             EXPECT_FLOAT_EQ(layoutPos->x, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->y, 0.0f);
             EXPECT_FLOAT_EQ(layoutPos->width, 50.0f);
-            EXPECT_FLOAT_EQ(layoutPos->height, 300.0f);
+            EXPECT_FLOAT_EQ(layoutPos->height, 100.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->left.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->top.value, 0.0f);
             EXPECT_FLOAT_EQ(layoutAnchor->right.value, 50.0f);
-            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 300.0f);
+            EXPECT_FLOAT_EQ(layoutAnchor->bottom.value, 100.0f);
 
             // Check positions after recalculation
             EXPECT_FLOAT_EQ(childPos1->x, 0.0f);

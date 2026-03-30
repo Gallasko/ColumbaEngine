@@ -20,7 +20,8 @@ namespace pg
         TTFTEXT,
         TEXTINPUT,
         LIST,
-        PREFAB // Todo to implement !
+        PREFAB, // Todo to implement !
+        ROUNDEDRECT
     };
 
     class Input;

@@ -4,6 +4,8 @@
 
 #include "Memory/memorypool.h"
 
+#include "../test/mocklogger.h"
+
 namespace pg
 {
     namespace benchmark
@@ -160,10 +162,22 @@ namespace pg
         // ----------------------------------------------------------------------------------------
         TEST(memorypool_benchmark, allocation_desallocation)
         {
+            MockLogger<TerminalSink> logger;
+
             for (auto value : valueToTest)
             {
                 runMemoryPoolAllocDealloc(value);
             }
+        }
+
+        TEST(memorypool_benchmark, allocation_desallocation_1M)
+        {
+            runMemoryPoolAllocDealloc(1000000);
+        }
+
+        TEST(memorypool_benchmark, allocation_desallocation_100M)
+        {
+            runMemoryPoolAllocDealloc(100000000);
         }
 
         // ----------------------------------------------------------------------------------------

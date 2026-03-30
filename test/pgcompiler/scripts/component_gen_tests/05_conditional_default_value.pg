@@ -1,0 +1,39 @@
+// Test 05: Conditional default value generation (from lines 115-127)
+// Tests the field default value handling with type checking
+
+import "string"
+import "algorithm"
+
+var fields = [
+    {"name": "textureName", "type": "std::string", "default": "default.png"},
+    {"name": "opacity", "type": "float", "default": 1.0},
+    {"name": "width", "type": "int", "default": 100},
+    {"name": "visible", "type": "bool"}
+];
+
+var code = "";
+
+for (var i = 0; i < len(fields); i = i + 1)
+{
+    var field = fields[i];
+    code = code + "    " + field["type"] + " " + field["name"];
+
+    if (contain(field, "default"))
+    {
+        var defaultValue = field["default"];
+        // For string types, ensure quotes are preserved
+
+        if (contains(field["type"], "string") and typeOf(defaultValue) == "string")
+        {
+            code = code + " = \"" + defaultValue + "\"";
+        }
+        else
+        {
+            code = code + " = " + toString(defaultValue);
+        }
+    }
+
+    code = code + ";\n";
+}
+
+__dprint(code);

@@ -14,11 +14,10 @@ This reference documents all bytecode optimization passes available in the VM.
 Overview
 --------
 
-The VM includes **9 optimization passes** organized into categories:
+The VM includes **10 optimization passes** organized into categories:
 
 * **Arithmetic**: 4 passes
-* **Control Flow**: 1 passes
-* **General**: 1 passes
+* **Control Flow**: 3 passes
 * **Memory**: 2 passes
 * **Stack**: 1 passes
 
@@ -64,20 +63,25 @@ Quick Reference
      - Control Flow
      - Yes
      - Yes
+   * - :ref:`Popping Jump Optimization Pass <popping-jump-optimization-pass>`
+     - Optimizes jump-if-false instructions followed by pops at bot...
+     - Control Flow
+     - Yes
+     - Yes
    * - :ref:`Remove Define-Get Global Redundancy Pass <remove-define-get-global-redundancy-pass>`
      - Eliminates redundant global variable lookups after definitio...
      - Memory
      - Yes
      - Yes
-   * - :ref:`ScriptedBytecodePass <scriptedbytecodepass>`
-     - Auto-extracted pass: ScriptedBytecodePass
-     - General
-     - No
-     - No
+   * - :ref:`Remove Useless Jump Pass <remove-useless-jump-pass>`
+     - Removes jump instructions where the target is the immediatel...
+     - Control Flow
+     - Yes
+     - Yes
    * - :ref:`Simplify Constant Pass <simplify-constant-pass>`
      - Replaces constant access patterns with optimized variants
      - Memory
-     - No
+     - Yes
      - No
 
 
@@ -296,24 +300,72 @@ After::
 **Source**: `long_jump_optimization_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/long_jump_optimization_pass.h>`_
 
 
-General
-~~~~~~~
+.. _popping-jump-optimization-pass:
 
+Popping Jump Optimization Pass
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-.. _scriptedbytecodepass:
-
-ScriptedBytecodePass
-^^^^^^^^^^^^^^^^^^^^
-
-**Purpose**: Auto-extracted pass: ScriptedBytecodePass
+**Purpose**: Optimizes jump-if-false instructions followed by pops at both locations into specialized popping jump instructions
 
 **Properties**:
 
-* Class name: ``ScriptedBytecodePass``
-* Changes bytecode size: No
-* Requires multiple passes: No
+* Class name: ``PoppingJumpPass``
+* Changes bytecode size: Yes
+* Requires multiple passes: Yes
 
-**Source**: `bytecode_pass_module.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/bytecode_pass_module.h>`_
+**Transformation Example**
+
+Before::
+
+    OP_Jump_If_False <offset>
+    OP_Pop
+    ...
+    OP_Pop  ; at jump target
+
+After::
+
+    OP_Jump_If_False_Popping <offset>
+    ...
+    ; (both pops eliminated)
+
+**Benefits**:
+
+* Reduce bytecode size by eliminating redundant pop instructions
+* Improve execution performance by combining jump and pop operations
+
+**Source**: `popping_jump_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/popping_jump_pass.h>`_
+
+
+.. _remove-useless-jump-pass:
+
+Remove Useless Jump Pass
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+**Purpose**: Removes jump instructions where the target is the immediately following instruction
+
+**Properties**:
+
+* Class name: ``RemoveUselessJumpPass``
+* Changes bytecode size: Yes
+* Requires multiple passes: Yes
+
+**Transformation Example**
+
+Before::
+
+    OP_Jump <offset to next instruction>
+    <next instruction>
+
+After::
+
+    <next instruction>
+
+**Benefits**:
+
+* Reduce bytecode size by eliminating no-op jumps
+* Improve execution performance by removing unnecessary control flow
+
+**Source**: `remove_useless_jump_pass.h <https://github.com/Gallasko/ColumbaEngine/blob/main/Engine/Compiler/pass/remove_useless_jump_pass.h>`_
 
 
 Memory
@@ -364,7 +416,7 @@ Simplify Constant Pass
 **Properties**:
 
 * Class name: ``SimplifyConstantToShort``
-* Changes bytecode size: No
+* Changes bytecode size: Yes
 * Requires multiple passes: No
 
 **Transformation Example**

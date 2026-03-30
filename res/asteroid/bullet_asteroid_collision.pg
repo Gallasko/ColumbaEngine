@@ -4,6 +4,7 @@ import "math"
 import "random"
 import "texture"
 import "algorithm"
+import "particle"
 
 // This script is called when a Bullet and an Asteroid collide
 // Need to detect which entity is which since order can vary
@@ -70,6 +71,9 @@ if (currentHealth <= 0)
     // Remove the destroyed asteroid
     removeEntity(asteroid.__entityId)
 
+    // Spawn dark particles for explosion effect
+    spawnParticles(asteroidX, asteroidY, 8, 3355443, 3.0)
+
     // Asteroid is destroyed - spawn smaller asteroids if applicable
     logInfo("Asteroid destroyed!")
 
@@ -86,8 +90,8 @@ if (currentHealth <= 0)
         var rotSpeed1 = randomRange(-2, 2)
 
         var medium1 = createTexture("Ghost", 40, 40)
-        medium1["PositionComponent"].setX(asteroidX)
-        medium1["PositionComponent"].setY(asteroidY)
+        medium1["PositionComponent"].x = asteroidX
+        medium1["PositionComponent"].y = asteroidY
         medium1.attachComp("Asteroid", "size", 40, "vx", vx1, "vy", vy1, "rotSpeed", rotSpeed1, "health", 2, "maxHealth", 2, "type", "medium")
         medium1.attachComp("Collision")
 
@@ -99,8 +103,8 @@ if (currentHealth <= 0)
         var rotSpeed2 = randomRange(-2, 2)
 
         var medium2 = createTexture("Ghost", 40, 40)
-        medium2["PositionComponent"].setX(asteroidX)
-        medium2["PositionComponent"].setY(asteroidY)
+        medium2["PositionComponent"].x = asteroidX
+        medium2["PositionComponent"].y = asteroidY
         medium2.attachComp("Asteroid", "size", 40, "vx", vx2, "vy", vy2, "rotSpeed", rotSpeed2, "health", 2, "maxHealth", 2, "type", "medium")
         medium2.attachComp("Collision")
     }
@@ -116,8 +120,8 @@ if (currentHealth <= 0)
         var rotSpeed1 = randomRange(-2, 2)
 
         var small1 = createTexture("Ghost", 20, 20)
-        small1["PositionComponent"].setX(asteroidX)
-        small1["PositionComponent"].setY(asteroidY)
+        small1["PositionComponent"].x = asteroidX
+        small1["PositionComponent"].y = asteroidY
         small1.attachComp("Asteroid", "size", 20, "vx", vx1, "vy", vy1, "rotSpeed", rotSpeed1, "health", 1, "maxHealth", 1, "type", "small")
         small1.attachComp("Collision")
 
@@ -129,8 +133,8 @@ if (currentHealth <= 0)
         var rotSpeed2 = randomRange(-2, 2)
 
         var small2 = createTexture("Ghost", 20, 20)
-        small2["PositionComponent"].setX(asteroidX)
-        small2["PositionComponent"].setY(asteroidY)
+        small2["PositionComponent"].x = asteroidX
+        small2["PositionComponent"].y = asteroidY
         small2.attachComp("Asteroid", "size", 20, "vx", vx2, "vy", vy2, "rotSpeed", rotSpeed2, "health", 1, "maxHealth", 1, "type", "small")
         small2.attachComp("Collision")
     }
@@ -143,5 +147,5 @@ else
 {
     // Asteroid still has health - just update the health value
     logInfo("Asteroid damaged! Remaining health: " + toString(currentHealth))
-    asteroidData.setHealth(currentHealth)
+    asteroidData.health = (currentHealth)
 }

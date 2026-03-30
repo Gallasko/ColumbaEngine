@@ -118,7 +118,7 @@ namespace pg
     {
         _unique_id id;
 
-        std::set<Entity::EntityHeld> compList;
+        std::unordered_set<_unique_id> compList;
     };
 
     struct AbstractGroup
@@ -159,7 +159,9 @@ namespace pg
         {
             LOG_THIS_MEMBER("Ecs Group");
 
-            if (registry and std::includes(event.compList.begin(), event.compList.end(), compIdList.begin(), compIdList.end()))
+            if (registry and std::all_of(compIdList.begin(), compIdList.end(), [&](const _unique_id id) {
+                return std::find(event.compList.begin(), event.compList.end(), id) != event.compList.end();
+            }))
             {
                 LOG_MILE("Group", "Entity " << event.id << " is in group " << this->id);
 
@@ -264,7 +266,9 @@ namespace pg
         {
             LOG_THIS_MEMBER("Ecs Group");
 
-            return std::includes(entity->componentList.begin(), entity->componentList.end(), compIdList.begin(), compIdList.end());
+            return std::all_of(compIdList.begin(), compIdList.end(), [&](const _unique_id id) {
+                return entity->componentList.find(id) != entity->componentList.end();
+            });
         }
 
         inline EntitySystem* world() const noexcept { LOG_THIS_MEMBER("Ecs Group"); return registry->world(); }
