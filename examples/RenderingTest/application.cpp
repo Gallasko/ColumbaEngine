@@ -56,7 +56,7 @@ namespace
             auto panel      = panelEnt.get<Prefab>();
 
             // Panel background (rounded rect)
-            auto bg = makeRoundedRect2DShape(ecsRef, PANEL_RADIUS, PANEL_W, PANEL_H, PANEL_BG);
+            auto bg = makeUiRoundedRect2DShape(ecsRef, PANEL_RADIUS, PANEL_W, PANEL_H, PANEL_BG);
             auto bgAnch = bg.entity.get<UiAnchor>();
 
             panel->setMainEntity(bg.entity);
@@ -64,7 +64,7 @@ namespace
             // Header strip
             // Same corner radius so corners blend with the background, bottom
             // edge is flat (it's hidden behind the background below).
-            auto header     = makeRoundedRect2DShape(ecsRef, PANEL_RADIUS, PANEL_W, HEADER_H, HEADER_BG);
+            auto header     = makeUiRoundedRect2DShape(ecsRef, PANEL_RADIUS, PANEL_W, HEADER_H, HEADER_BG);
             auto headerAnch = header.entity.get<UiAnchor>();
             headerAnch->setTopAnchor(bgAnch->top);
             headerAnch->setLeftAnchor(bgAnch->left);
@@ -134,7 +134,7 @@ namespace
             auto fieldPfb  = fieldEnt.get<Prefab>();
 
             // Background rounded rect
-            auto bgEnt  = makeRoundedRect2DShape(ecsRef, FIELD_RADIUS, width, FIELD_H, FIELD_BG);
+            auto bgEnt  = makeUiRoundedRect2DShape(ecsRef, FIELD_RADIUS, width, FIELD_H, FIELD_BG);
             auto bgAnch = bgEnt.entity.get<UiAnchor>();
             fieldPfb->setMainEntity(bgEnt);
 
