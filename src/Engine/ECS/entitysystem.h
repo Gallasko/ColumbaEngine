@@ -349,6 +349,38 @@ namespace pg
             _succeed(sys1Id, sys2Id);
         }
 
+        void succeed(const std::string& sysAfter, const std::string& sysBefore)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            _unique_id sys1Id = registry.getTypeId(sysAfter);
+            _unique_id sys2Id = registry.getTypeId(sysBefore));
+
+            _succeed(sys1Id, sys2Id);
+        }
+
+        template <typename SysAfter>
+        void succeed(const std::string& sysBefore)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            _unique_id sys1Id = registry.getTypeId<SysAfter>();
+            _unique_id sys2Id = registry.getTypeId(sysBefore);
+
+            _succeed(sys1Id, sys2Id);
+        }
+
+        template <typename SysBefore>
+        void precede(const std::string& sysAfter)
+        {
+            LOG_THIS_MEMBER("ECS");
+
+            _unique_id sys1Id = registry.getTypeId(sysAfter);
+            _unique_id sys2Id = registry.getTypeId<SysBefore>();
+
+            _succeed(sys1Id, sys2Id);
+        }
+
         /** Dump the taskflow graph in Graphviz DOT format.
          *  @param showEventNodes  When true (default), inject coloured event/group listener nodes.
          *  @param outputFile      When non-empty, write to this file path instead of stdout. */
