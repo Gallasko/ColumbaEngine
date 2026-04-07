@@ -320,10 +320,62 @@ namespace pg
             registry->addEventListener<TickEvent>(this);
         }
 
-        // Register event listeners
+        for (auto [eventName, scriptName] : deferredEventScriptCallbackList)
+        {
+            auto cachedBytecode = getCachedScript(ecsRef, scriptName, this);
+
+            if (cachedBytecode.empty())
+                continue;
+
+            std::string capturedScriptName = scriptName;
+
+            deferredEventCompiledScriptCallbackList.emplace(eventName, [this, cachedBytecode, capturedScriptName](StandardSystemHandle* sys, const StandardEvent& event) {
+                auto ecsRef = sys->getWorld();
+
+                VM vm;
+                ecsRef->setupVm(vm);
+
+                vm.addNativeModule("sys", SystemModule{this});
+
+                auto value = serializeToTable(&vm, event);
+                vm.globals["event"] = value;
+
+                auto result = interpretWithSysData(sys, vm, cachedBytecode);
+
+                if (result != InterpretResult::OK)
+                {
+                    LOG_ERROR("StandardSystemImpl", "Deferred event script handler error for: " << capturedScriptName);
+                    LOG_ERROR("StandardSystemImpl", "Interpret result: " << (result == InterpretResult::COMPILE_ERROR ? "COMPILE_ERROR" : "RUNTIME_ERROR"));
+                    LOG_ERROR("StandardSystemImpl", "Check VM error messages above for details");
+                }
+            });
+        }
+
+        // Register immediate event listeners
         for (const auto& eventName : listenedEvents)
         {
             registry->addStandardEventListener(eventName, this);
+        }
+
+        // Register deferred event listeners via the same standard path.
+        // onEvent() will push them onto _deferredEventQueue instead of processing immediately.
+        for (const auto& eventName : listenedDeferredEvents)
+        {
+            registry->addStandardEventListener(eventName, this);
+        }
+
+        // Drain the deferred queue during _execute(), after cmdDispatcher has committed entity changes.
+        if (not listenedDeferredEvents.empty())
+        {
+            _executionQueue.emplace_back([this]()
+            {
+                while (not _deferredEventQueue.empty())
+                {
+                    auto event = _deferredEventQueue.front();
+                    _deferredEventQueue.pop();
+                    onProcessEvent(event);
+                }
+            });
         }
 
         LOG_INFO("StandardSystemImpl", "System fully registered with " << componentOwners.size() << " components and " << listenedEvents.size() << " events");

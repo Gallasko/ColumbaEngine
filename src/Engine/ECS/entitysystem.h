@@ -354,7 +354,7 @@ namespace pg
             LOG_THIS_MEMBER("ECS");
 
             _unique_id sys1Id = registry.getTypeId(sysAfter);
-            _unique_id sys2Id = registry.getTypeId(sysBefore));
+            _unique_id sys2Id = registry.getTypeId(sysBefore);
 
             _succeed(sys1Id, sys2Id);
         }

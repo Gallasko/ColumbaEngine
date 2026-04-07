@@ -33,7 +33,7 @@ StandardSystemImpl* createPlayerSystem()
         .onEvent("OnSDLScanCode", "res/asteroid/move_player.pg")
         .onEvent("OnSDLScanCodeReleased", "res/asteroid/release_player.pg")
         .onEvent("PlayerHit", "res/asteroid/handle_player_hit.pg")
-        .onEvent("RespawnPlayer", "res/asteroid/respawn_player.pg")
+        .onProcessEvent("RespawnPlayer", "res/asteroid/respawn_player.pg")
         .onDelta("res/asteroid/update_player.pg")  // Update physics every frame
         .build();
 }
@@ -46,37 +46,10 @@ StandardSystemImpl* createAsteroidSpawnTimerSystem()
             LOG_MILE(DOM, "AsteroidSpawnTimer initialized");
             sys->setData("spawnTimer", 0.0f);
         })
-        // .onDelta([](StandardSystemHandle* sys, float deltaTime)
-        // {
-        //     float timer = sys->getData("spawnTimer").get<float>();
-        //     timer += deltaTime;
-
-        //     if (timer > 10.0f)
-        //     {
-        //         timer -= 10.0f;
-        //         // for (int i = 0; i < 10; i++)
-        //             sys->sendEvent("SpawnAsteroid");
-        //     }
-
-        //     sys->setData("spawnTimer", timer);
-        // })
         .onEvent("GameOver", "res/asteroid/clear_asteroids.pg")
         .onDelta("res/asteroid/spawn_asteroid_timer.pg")
         .build();
 }
-
-// StandardSystemImpl* createAsteroidSystem()
-// {
-//     return createStandardSystem("AsteroidSystem")
-//         .onInit([](StandardSystemHandle* sys)
-//         {
-//             LOG_MILE(DOM, "AsteroidSystem initialized");
-//         })
-//         .ownComponent("Asteroid")
-//         .onEvent("SpawnAsteroid", "res/asteroid/spawn_single_asteroid.pg")
-//         .onDelta("res/asteroid/update_asteroids.pg")
-//         .build();
-// }
 
 StandardSystemImpl* createBulletSystem()
 {

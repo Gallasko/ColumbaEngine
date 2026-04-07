@@ -176,6 +176,7 @@ namespace pg
                           const std::string& initScriptPath,
                           _S_EventMap eventMap,
                           _S_EventScriptMap eventScriptMap,
+                          _S_EventScriptMap deferredEventScriptMap,
                           _S_ExecuteCallback executeCb,
                           const std::string& executeScriptPath,
                           _S_SaveCallback saveCb,
@@ -186,6 +187,7 @@ namespace pg
                           systemName(name), ownedComponents(componentNames), defaultComponentValues(defaultComponentValues),
                           initCallback(initCb), initScript(initScriptPath),
                           eventCallbackList(eventMap), eventScriptCallbackList(eventScriptMap),
+                          deferredEventScriptCallbackList(deferredEventScriptMap),
                           executeCallback(executeCb), executeScript(executeScriptPath),
                           saveCallback(saveCb), loadCallback(loadCb), firstLoadCallback(firstLoadCb),
                           deltaCallback(deltaCb), deltaScript(deltaScriptPath)
@@ -198,6 +200,11 @@ namespace pg
             for (auto [key, _] : eventScriptMap)
             {
                 listenedEvents.insert(key);
+            }
+
+            for (auto [key, _] : deferredEventScriptMap)
+            {
+                listenedDeferredEvents.insert(key);
             }
 
             handle._internalSystemPtr = this;
@@ -225,6 +232,13 @@ namespace pg
         {
             LOG_THIS_MEMBER("StandardSystemImpl");
 
+            // Deferred events are queued and processed later during _execute()
+            if (listenedDeferredEvents.count(event.name))
+            {
+                _deferredEventQueue.push(event);
+                return;
+            }
+
             // Call user event callback
             auto it = eventCallbackList.find(event.name);
 
@@ -238,6 +252,18 @@ namespace pg
             if (it2 != eventCompiledScriptCallbackList.end())
             {
                 it2->second(&handle, event);
+            }
+        }
+
+        void onProcessEvent(const StandardEvent& event)
+        {
+            LOG_THIS_MEMBER("StandardSystemImpl");
+
+            auto it = deferredEventCompiledScriptCallbackList.find(event.name);
+
+            if (it != deferredEventCompiledScriptCallbackList.end())
+            {
+                it->second(&handle, event);
             }
         }
 
@@ -375,6 +401,7 @@ namespace pg
     private:
         std::string systemName;
         std::set<std::string> listenedEvents;
+        std::set<std::string> listenedDeferredEvents;
         std::vector<std::string> ownedComponents;
         std::unordered_map<std::string, ElementMap> defaultComponentValues;
         std::unordered_map<std::string, Own<StandardComponent>*> componentOwners;
@@ -390,6 +417,10 @@ namespace pg
         _S_EventMap eventCallbackList;
         _S_EventScriptMap eventScriptCallbackList;
         _S_EventMap eventCompiledScriptCallbackList;
+
+        _S_EventScriptMap deferredEventScriptCallbackList;
+        _S_EventMap deferredEventCompiledScriptCallbackList;
+        std::queue<StandardEvent> _deferredEventQueue;
 
         _S_ExecuteCallback executeCallback;
         std::string executeScript;

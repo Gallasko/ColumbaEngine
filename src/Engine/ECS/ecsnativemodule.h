@@ -280,6 +280,46 @@ namespace pg
                 return vm->retainValue(args[0]);
             });
 
+            // onProcessEvent(eventName, scriptPath) - sets a script for a specific event
+            vm->addNativeMethod(klass, "onProcessEvent", [](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount < 3)
+                {
+                    throw std::runtime_error("onEvent expects 2 arguments (eventName, scriptPath)");
+                }
+
+                ObjInstance* self = vm->asInstance(args[0]);
+
+                if (not IS_STRING(args[1]))
+                {
+                    throw std::runtime_error("onEvent expects event name to be a string");
+                }
+
+                if (not IS_STRING(args[2]))
+                {
+                    throw std::runtime_error("onEvent expects a string script path");
+                }
+
+                auto eventName = vm->asString(args[1]);
+                auto scriptPath = vm->asString(args[2]);
+
+                // Get or create the event scripts vector
+                Value eventScriptsVec = self->getField("__eventDeferedScripts");
+                ObjVector* eventScripts = vm->asVector(eventScriptsVec);
+
+                // Store as a pair: [eventName, scriptPath]
+                Value pair = vm->createVector();
+                ObjVector* pairVec = vm->asVector(pair);
+                pairVec->fields.push_back(vm->createString(eventName));
+                pairVec->fields.push_back(vm->createString(scriptPath));
+
+                eventScripts->fields.push_back(pair);
+
+                LOG_MILE("StandardSysClass", "Set event script for '" << eventName << "': " << scriptPath);
+
+                // Return self for chaining
+                return vm->retainValue(args[0]);
+            });
+
             // build() - finalizes and registers the system with the ECS
             vm->addNativeMethod(klass, "build", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
                 if (argCount < 1)
@@ -320,6 +360,19 @@ namespace pg
                     eventScriptMap[eventName] = scriptPath;
                 }
 
+                // Build event script map
+                _S_EventScriptMap eventDeferedScriptMap;
+                ObjVector* eventDeferedScripts = vm->asVector(self->getField("__eventDeferedScripts"));
+
+                for (Value pairVal : eventDeferedScripts->fields)
+                {
+                    ObjVector* pair = vm->asVector(pairVal);
+                    std::string eventName = vm->asString(pair->fields[0]);
+                    std::string scriptPath = vm->asString(pair->fields[1]);
+
+                    eventDeferedScriptMap[eventName] = scriptPath;
+                }
+
                 // Create the StandardSystemImpl
                 auto* systemImpl = new StandardSystemImpl(
                     systemName,
@@ -330,6 +383,7 @@ namespace pg
                     initScript, // initScriptPath
                     {}, // eventCallbackMap - empty, using scripts instead
                     eventScriptMap, // eventScriptMap
+                    eventDeferedScriptMap, // deferredEventScriptMap
                     nullptr, // executeCallback
                     executeScript, // executeScriptPath
                     nullptr, // saveCallback
@@ -682,6 +736,7 @@ namespace pg
                 systemInstance->setField("__executeScript", vm->createString(""));
                 systemInstance->setField("__deltaScript", vm->createString(""));
                 systemInstance->setField("__eventScripts", vm->createVector()); // Vector of [eventName, scriptPath] pairs
+                systemInstance->setField("__eventDeferedScripts", vm->createVector()); // Vector of [eventName, scriptPath] pairs
 
                 LOG_MILE("Ecs Compiled Module", "Created system builder for '" << systemName << "'");
 
