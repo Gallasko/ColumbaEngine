@@ -60,6 +60,7 @@ StandardSystemImpl* createAsteroidSpawnTimerSystem()
 
         //     sys->setData("spawnTimer", timer);
         // })
+        .onEvent("GameOver", "res/asteroid/clear_asteroids.pg")
         .onDelta("res/asteroid/spawn_asteroid_timer.pg")
         .build();
 }
@@ -88,6 +89,7 @@ StandardSystemImpl* createBulletSystem()
         })
         .ownComponent("Bullet")
         .onEvent("SpawnBullet", "res/asteroid/spawn_bullet.pg")
+        .onEvent("GameOver", "res/asteroid/clear_bullets.pg")
         .onDelta("res/asteroid/update_bullets.pg")
         .build();
 }

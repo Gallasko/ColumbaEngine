@@ -1,0 +1,12 @@
+import "ecs"
+
+logInfo("Clearing all bullets...")
+
+// Clear all bullets
+var bullets = getEntities("Bullet")
+for (var bullet : bullets)
+{
+    removeEntity(bullet.__entityId)
+}
+
+logInfo("Removed all bullets")

@@ -1,0 +1,12 @@
+import "ecs"
+
+logInfo("Clearing all asteroids...")
+
+// Clear all asteroids
+var asteroids = getEntities("Asteroid")
+for (var asteroid : asteroids)
+{
+    removeEntity(asteroid.__entityId)
+}
+
+logInfo("Removed all asteroids")
