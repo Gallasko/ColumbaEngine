@@ -1,5 +1,7 @@
 #include "application.h"
 
+#include <fstream>
+
 #include "logger.h"
 
 #include "UI/prefab.h"
@@ -149,6 +151,7 @@ struct TextHandlingSys : public System<
     QueuedListener<PrefabClickedEvent>,
     Listener<OpenFileAction>,
     Listener<SaveFileAction>,
+    Listener<LayoutScrolledEvent>,
     InitSys>
 {
     virtual void onProcessEvent(const PrefabClickedEvent& event) override
@@ -174,89 +177,89 @@ struct TextHandlingSys : public System<
 
     virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
-        auto listViewComp = listViewEnt.get<VerticalLayout>();
+        auto pf = getLinePrefab(currentLine);
+        if (!pf) return;
 
-        auto ent = listViewComp->entities[currentLine - 1];
-        auto prefab = ent.get<Prefab>();
+        auto currentText = pf->callHelper<std::string>("GetCurrentText");
+        auto newText = currentText + event.text;
+        pf->callHelper("SetCurrentText", newText);
 
-        auto currentText = prefab->callHelper<std::string>("GetCurrentText");
-
-        prefab->callHelper("SetCurrentText", currentText + event.text);
+        if (isVirtualMode)
+            fileLines[currentLine - 1] = newText;
     }
 
-    void focusLine(size_t lineNumber)
+    void focusLine(size_t ln)
     {
-        auto listViewComp = listViewEnt.get<VerticalLayout>();
+        if (isVirtualMode && !isLineInPool(ln))
+            scrollPoolToLine(ln);
 
-        auto entBefore = listViewComp->entities[currentLine - 1];
-        auto prefabBefore = entBefore.get<Prefab>();
-        prefabBefore->callHelper("UnfocusLine");
+        auto pfBefore = getLinePrefab(currentLine);
+        if (pfBefore) pfBefore->callHelper("UnfocusLine");
 
-        currentLine = lineNumber;
+        currentLine = ln;
 
-        auto entAfter = listViewComp->entities[currentLine - 1];
-        auto prefabAfter = entAfter.get<Prefab>();
-
-        prefabAfter->callHelper("SetAsFocusLine");
+        auto pfAfter = getLinePrefab(currentLine);
+        if (pfAfter) pfAfter->callHelper("SetAsFocusLine");
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
         if (event.key == SDL_SCANCODE_RETURN)
         {
-            auto anchor = textInputEnt.get<UiAnchor>();
-
             auto oldLine = currentLine++;
             lineNumber++;
 
-            auto linePrefab = makeLinePrefab(ecsRef, anchor, currentLine);
-
-            auto listViewComp = listViewEnt.get<VerticalLayout>();
-
-            // Remove the old higlighted line
-            if (oldLine > 0)
+            if (isVirtualMode)
             {
-                auto entBefore = listViewComp->entities[oldLine - 1];
-                auto prefabBefore = entBefore.get<Prefab>();
-                prefabBefore->callHelper("UnfocusLine");
+                fileLines.insert(fileLines.begin() + oldLine, "");
+
+                auto pfBefore = getLinePrefab(oldLine);
+                if (pfBefore) pfBefore->callHelper("UnfocusLine");
+
+                for (size_t i = currentLine - 1; i < poolWindowStart + linePool.size() && i < fileLines.size(); i++)
+                {
+                    size_t pi = i - poolWindowStart;
+                    linePool[pi].get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
+                    linePool[pi].get<Prefab>()->callHelper("UpdateLineText", i + 1);
+                }
+
+                updateSpacers();
+
+                auto pfAfter = getLinePrefab(currentLine);
+                if (pfAfter) pfAfter->callHelper("SetAsFocusLine");
             }
-
-            // Todo We should be able to do this
-            // auto prefab = linePrefab.get<Prefab>();
-
-            // auto ent = prefab->getEntity("TextBg");
-            // // Todo fix this (An entity here has a empty comp list as their comp are not materialized yet !)
-            // auto shape = ent->get<Simple2DObject>();
-            // shape->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
-
-            // Todo fix this
-            // Higlight the new line
-            linePrefab.get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
-
-            // Update the line text for all the line after the inserted line
-            for (size_t i = currentLine - 1; i < lineNumber - 2; ++i)
+            else
             {
-                auto ent = listViewComp->entities[i];
-                auto prefab = ent.get<Prefab>();
+                auto anchor = textInputEnt.get<UiAnchor>();
+                auto linePrefab = makeLinePrefab(ecsRef, anchor, currentLine);
 
-                auto newLineValue = i + 2;
+                auto listViewComp = listViewEnt.get<VerticalLayout>();
 
-                prefab->callHelper("UpdateLineText", newLineValue);
+                // Remove the old highlighted line
+                if (oldLine > 0)
+                {
+                    auto entBefore = listViewComp->entities[oldLine - 1];
+                    entBefore.get<Prefab>()->callHelper("UnfocusLine");
+                }
 
-                // prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+                // Todo fix this
+                // Highlight the new line
+                linePrefab.get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
 
-                // prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+                // Update the line text for all the lines after the inserted line
+                for (size_t i = currentLine - 1; i < lineNumber - 2; ++i)
+                {
+                    auto ent = listViewComp->entities[i];
+                    ent.get<Prefab>()->callHelper("UpdateLineText", i + 2);
+                }
+
+                listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
             }
-
-            listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
-            auto listViewComp = listViewEnt.get<VerticalLayout>();
-
-            auto ent = listViewComp->entities[currentLine - 1];
-
-            auto pf = ent->get<Prefab>();
+            auto pf = getLinePrefab(currentLine);
+            if (!pf) return;
 
             auto text = pf->callHelper<std::string>("GetCurrentText");
 
@@ -275,6 +278,9 @@ struct TextHandlingSys : public System<
 
                 pf->callHelper("SetCurrentText", text);
 
+                if (isVirtualMode)
+                    fileLines[currentLine - 1] = text;
+
                 return;
             }
             // else do the line removal logic down here
@@ -282,32 +288,57 @@ struct TextHandlingSys : public System<
             if (currentLine <= 1)
                 return;
 
-            if (currentLine - 2 >= 0)
+            if (isVirtualMode)
             {
-                auto entBefore = listViewComp->entities[currentLine - 2];
-                auto prefabBefore = entBefore.get<Prefab>();
-                prefabBefore->callHelper("UnfocusLine");
-            }
+                pf->callHelper("UnfocusLine");
 
-            // Update the line text for all the line after the inserted line
-            for (size_t i = currentLine; i < lineNumber - 1; ++i)
+                fileLines.erase(fileLines.begin() + currentLine - 1);
+                lineNumber--;
+                currentLine--;
+
+                // Shift pool contents back from currentLine - 1 onwards
+                for (size_t i = currentLine - 1; i < poolWindowStart + linePool.size() && i < fileLines.size(); i++)
+                {
+                    size_t pi = i - poolWindowStart;
+                    linePool[pi].get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
+                    linePool[pi].get<Prefab>()->callHelper("UpdateLineText", i + 1);
+                }
+
+                // Clear the last pool entry if it now falls beyond fileLines
+                size_t poolWindowEnd = poolWindowStart + linePool.size();
+                if (fileLines.size() < poolWindowEnd && fileLines.size() >= poolWindowStart)
+                {
+                    size_t pi = fileLines.size() - poolWindowStart;
+                    linePool[pi].get<Prefab>()->callHelper("SetCurrentText", "");
+                }
+
+                updateSpacers();
+
+                auto pfAfter = getLinePrefab(currentLine);
+                if (pfAfter) pfAfter->callHelper("SetAsFocusLine");
+            }
+            else
             {
-                auto ent = listViewComp->entities[i];
-                auto prefab = ent.get<Prefab>();
+                auto listViewComp = listViewEnt.get<VerticalLayout>();
 
-                auto newLineValue = i;
+                if (currentLine - 2 >= 0)
+                {
+                    auto entBefore = listViewComp->entities[currentLine - 2];
+                    entBefore.get<Prefab>()->callHelper("UnfocusLine");
+                }
 
-                prefab->callHelper("UpdateLineText", newLineValue);
+                // Update the line text for all the lines after the removed line
+                for (size_t i = currentLine; i < lineNumber - 1; ++i)
+                {
+                    auto ent = listViewComp->entities[i];
+                    ent.get<Prefab>()->callHelper("UpdateLineText", i);
+                }
 
-                // prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
+                listViewComp->removeAt(currentLine - 1);
 
-                // prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
+                lineNumber--;
+                currentLine--;
             }
-
-            listViewComp->removeAt(currentLine - 1);
-
-            lineNumber--;
-            currentLine--;
         }
         else if (event.key == SDL_SCANCODE_UP)
         {
@@ -422,16 +453,89 @@ struct TextHandlingSys : public System<
         {
             LOG_INFO("Context Menu", lTheOpenFileName);
 
-            auto file = FileAccessor::openTextFile(lTheOpenFileName);
-
             auto listViewComp = listViewEnt.get<VerticalLayout>();
-
             listViewComp->clear();
 
+            fileLines.clear();
+            linePool.clear();
+            topSpacerEnt = {};
+            bottomSpacerEnt = {};
+            poolWindowStart = 0;
+            isVirtualMode = false;
             lineNumber = 1;
             currentLine = 1;
 
-            fillText(file.data);
+            auto anchor = textInputEnt.get<UiAnchor>();
+
+            // Read all lines into memory (strings only — fast)
+            std::ifstream fileStream(lTheOpenFileName);
+            std::string line;
+            while (std::getline(fileStream, line))
+            {
+                if (!line.empty() && line.back() == '\r')
+                    line.pop_back();
+
+                std::string expandedLine;
+                expandedLine.reserve(line.size());
+                for (char ch : line)
+                {
+                    if (ch == '\t')
+                        expandedLine += "    ";
+                    else
+                        expandedLine += ch;
+                }
+
+                fileLines.push_back(std::move(expandedLine));
+            }
+
+            if (fileLines.size() > VIRTUAL_THRESHOLD)
+            {
+                isVirtualMode = true;
+
+                // Top spacer: zero height — pool starts at the top of the file
+                auto topSpacer = ecsRef->createEntity();
+                ecsRef->attach<PositionComponent>(topSpacer)->setHeight(0.0f);
+                ecsRef->attach<UiAnchor>(topSpacer);
+                listViewComp->addEntity(topSpacer);
+                topSpacerEnt = topSpacer;
+
+                // Create fixed pool of prefab entities
+                size_t poolSize = (fileLines.size() < POOL_SIZE) ? fileLines.size() : POOL_SIZE;
+                linePool.reserve(poolSize);
+                for (size_t i = 0; i < poolSize; i++)
+                {
+                    auto lp = makeLinePrefab(ecsRef, anchor, i + 1);
+                    lp.get<TTFText>()->setText(fileLines[i]);
+                    listViewComp->addEntity(lp.entity);
+                    linePool.push_back(lp.entity);
+                }
+                poolWindowStart = 0;
+
+                // Bottom spacer: covers lines not yet in the pool
+                auto bottomSpacer = ecsRef->createEntity();
+                float bottomH = static_cast<float>(fileLines.size() - poolSize) * LINE_HEIGHT;
+                ecsRef->attach<PositionComponent>(bottomSpacer)->setHeight(bottomH);
+                ecsRef->attach<UiAnchor>(bottomSpacer);
+                listViewComp->addEntity(bottomSpacer);
+                bottomSpacerEnt = bottomSpacer;
+
+                lineNumber = fileLines.size() + 1;
+                currentLine = 1;
+                linePool[0].get<Prefab>()->callHelper("SetAsFocusLine");
+            }
+            else
+            {
+                // Small file: create all prefabs directly
+                for (size_t i = 0; i < fileLines.size(); i++)
+                {
+                    auto lp = makeLinePrefab(ecsRef, anchor, i + 1);
+                    lp.get<TTFText>()->setText(fileLines[i]);
+                    listViewComp->addEntity(lp.entity);
+                }
+
+                lineNumber = fileLines.size() + 1;
+                currentLine = 1;
+            }
             // ecsRef->sendEvent(LoadScene{lTheOpenFileName});
         }
     }
@@ -481,6 +585,92 @@ struct TextHandlingSys : public System<
 
     }
 
+    virtual void onEvent(const LayoutScrolledEvent& event) override
+    {
+        if (updatingPool || !isVirtualMode || event.id != listViewEnt.id)
+            return;
+
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+        float yOffset = listViewComp->yOffset;
+
+        size_t firstVisible = static_cast<size_t>(yOffset / LINE_HEIGHT);
+        size_t targetStart = (firstVisible > SCROLL_BUFFER) ? firstVisible - SCROLL_BUFFER : 0;
+        size_t maxStart = (fileLines.size() > linePool.size()) ? fileLines.size() - linePool.size() : 0;
+        if (targetStart > maxStart) targetStart = maxStart;
+
+        if (targetStart == poolWindowStart)
+            return;
+
+        poolWindowStart = targetStart;
+
+        for (size_t i = 0; i < linePool.size(); i++)
+        {
+            size_t lineIdx = poolWindowStart + i;
+            linePool[i].get<Prefab>()->callHelper("SetCurrentText", fileLines[lineIdx]);
+            linePool[i].get<Prefab>()->callHelper("UpdateLineText", lineIdx + 1);
+        }
+
+        updateSpacers();
+    }
+
+    Prefab* getLinePrefab(size_t ln)
+    {
+        if (isVirtualMode)
+        {
+            size_t idx = ln - 1;
+            if (idx < poolWindowStart || idx >= poolWindowStart + linePool.size())
+                return nullptr;
+            return linePool[idx - poolWindowStart].get<Prefab>();
+        }
+        auto& ents = listViewEnt.get<VerticalLayout>()->entities;
+        if (ln == 0 || ln - 1 >= ents.size()) return nullptr;
+        return ents[ln - 1].get<Prefab>();
+    }
+
+    bool isLineInPool(size_t ln) const
+    {
+        size_t idx = ln - 1;
+        return idx >= poolWindowStart && idx < poolWindowStart + linePool.size();
+    }
+
+    void updateSpacers()
+    {
+        size_t poolWindowEnd = poolWindowStart + linePool.size();
+        topSpacerEnt.get<PositionComponent>()->setHeight(static_cast<float>(poolWindowStart) * LINE_HEIGHT);
+        float bottomH = (fileLines.size() > poolWindowEnd)
+            ? static_cast<float>(fileLines.size() - poolWindowEnd) * LINE_HEIGHT
+            : 0.0f;
+        bottomSpacerEnt.get<PositionComponent>()->setHeight(bottomH);
+    }
+
+    void scrollPoolToLine(size_t ln)
+    {
+        size_t idx = ln - 1;
+        size_t halfPool = linePool.size() / 2;
+        size_t newStart = (idx > halfPool) ? idx - halfPool : 0;
+        size_t maxStart = (fileLines.size() > linePool.size()) ? fileLines.size() - linePool.size() : 0;
+        if (newStart > maxStart) newStart = maxStart;
+
+        if (newStart == poolWindowStart) return;
+        poolWindowStart = newStart;
+
+        listViewEnt.get<VerticalLayout>()->yOffset = static_cast<float>(poolWindowStart) * LINE_HEIGHT;
+
+        for (size_t i = 0; i < linePool.size(); i++)
+        {
+            size_t lineIdx = poolWindowStart + i;
+            linePool[i].get<Prefab>()->callHelper("SetCurrentText", fileLines[lineIdx]);
+            linePool[i].get<Prefab>()->callHelper("UpdateLineText", lineIdx + 1);
+        }
+
+        updateSpacers();
+
+        // Notify LayoutSystem to update scrollbar and visibility culling
+        updatingPool = true;
+        ecsRef->sendEvent(LayoutScrolledEvent{listViewEnt.id});
+        updatingPool = false;
+    }
+
     virtual void onEvent(const SaveFileAction& event) override
     {
         LOG_INFO("Context Menu", "Save file");
@@ -503,7 +693,6 @@ struct TextHandlingSys : public System<
     }
 
     EntityRef textInputEnt;
-
     EntityRef listViewEnt;
 
     bool lcontrolPressed = false;
@@ -511,6 +700,20 @@ struct TextHandlingSys : public System<
 
     size_t lineNumber = 1;
     size_t currentLine = 1;
+
+    // Virtual scroll state
+    std::vector<std::string> fileLines;   // All file lines (strings only, no UI)
+    std::vector<EntityRef> linePool;      // Fixed pool of reused prefab entities
+    EntityRef topSpacerEnt;               // Spacer above the visible pool window
+    EntityRef bottomSpacerEnt;            // Spacer below the visible pool window
+    size_t poolWindowStart = 0;           // fileLines index of linePool[0]
+    bool isVirtualMode = false;           // True when file is large enough to virtualise
+    bool updatingPool = false;            // Guard against re-entrant LayoutScrolledEvent
+
+    static constexpr size_t POOL_SIZE        = 80;    // Prefab entities in the pool
+    static constexpr float  LINE_HEIGHT      = 25.0f; // Height of each line prefab (px)
+    static constexpr size_t VIRTUAL_THRESHOLD = 500;  // Lines needed to trigger virtual mode
+    static constexpr size_t SCROLL_BUFFER   = 20;    // Extra lines to keep above viewport
 };
 
 void initGame() {
