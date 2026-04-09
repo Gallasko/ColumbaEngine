@@ -34,3 +34,12 @@ var newText = "Score: " + toString(currentScore)
 ttfComp.text = newText
 
 logInfo("Successfully updated score text")
+
+var hs = sysData["hs"]
+
+if (currentScore > hs)
+{
+    sysData["hs"] = currentScore
+    saveData("highscore", currentScore)
+    logInfo("New high score: " + toString(currentScore))
+}

@@ -583,6 +583,25 @@ namespace pg
                 return vm->elementToValue(value);
             });
 
+            addNativeFunction("saveData", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount != 2)
+                {
+                    throw std::runtime_error("saveData expects exactly 2 arguments (key, value)");
+                }
+
+                if (!IS_STRING(args[0]))
+                {
+                    throw std::runtime_error("saveData expects first argument to be a string key");
+                }
+
+                auto key = vm->asString(args[0]);
+                auto value = vm->valueToElement(args[1]);
+
+                ecsRefCopy->sendEvent(SaveElementEvent{key, value});
+
+                return makeIntValue(0);
+            });
+
             addNativeFunction("attachComp", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
                 if (argCount < 2)
                 {

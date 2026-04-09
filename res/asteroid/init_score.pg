@@ -1,4 +1,6 @@
 import "ui"
+import "string"
+import "ecs"
 
 logInfo("Initializing score display")
 
@@ -12,3 +14,7 @@ var scoreText = createText("light", "Score: 0", 10, 10, 1.0, 255, 255, 255, 255)
 sysData["scoreTextId"] = scoreText.__entityId
 
 logInfo("Score display created")
+
+sysData["hs"] = getSavedData("highscore")
+
+logInfo("High score loaded: " + toString(sysData["hs"]))
