@@ -54,7 +54,7 @@ namespace pg
         dirty = false;
     }
 
-    Camera::Camera(glm::vec3 position, glm::vec3 up, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
+    BaseCamera3D::BaseCamera3D(glm::vec3 position, glm::vec3 up, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
         movementSpeed(0.5f), mouseSensitivity(0.005f), zoom(0.5f) // Todo make this configurable
     {
         LOG_THIS_MEMBER(DOM);
@@ -62,7 +62,7 @@ namespace pg
         init(position, up, yaw, pitch);
     }
 
-    Camera::Camera(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
+    BaseCamera3D::BaseCamera3D(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch) : front(glm::vec3(0.0f, 0.0f, -1.0f)),
         movementSpeed(0.5f), mouseSensitivity(0.005f), zoom(0.5f)
     {
         LOG_THIS_MEMBER(DOM);
@@ -73,7 +73,7 @@ namespace pg
         init(position, up, yaw, pitch);
     }
 
-    void Camera::init(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
+    void BaseCamera3D::init(glm::vec3 position, glm::vec3 up, float yaw, float pitch)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -86,14 +86,14 @@ namespace pg
         updateCameraVectors();
     }
 
-    void Camera::setSensitivity(float sensitivity)
+    void BaseCamera3D::setSensitivity(float sensitivity)
     {
         LOG_THIS_MEMBER(DOM);
 
         mouseSensitivity = sensitivity;
     }
 
-    void Camera::setPos(float x, float y, float z)
+    void BaseCamera3D::setPos(float x, float y, float z)
     {
         LOG_THIS_MEMBER(DOM);
 
@@ -102,14 +102,30 @@ namespace pg
         position.z = z;
     }
 
-    glm::mat4 Camera::getViewMatrix()
+    const glm::mat4& BaseCamera3D::getProjectionMatrix()
+    {
+        projectionMatrix = glm::perspective(glm::radians(zoom), width / height, nearPlane, farPlane);
+
+        return projectionMatrix;
+    }
+
+    const glm::mat4& BaseCamera3D::getViewMatrix()
     {
         viewMatrix = glm::lookAt(position, position + front, up);
 
         return viewMatrix;
     }
 
-    void Camera::processCameraMovement(const constant::Camera_Movement& direction, float deltaTime)
+    constant::Vector2D BaseCamera3D::screenToWorld(float mouseX, float mouseY) const
+    {
+        glm::vec3 win(mouseX, height - mouseY, 0.0f);
+        glm::vec4 viewport(0.0f, 0.0f, width, height);
+        glm::vec3 world = glm::unProject(win, viewMatrix, projectionMatrix, viewport);
+
+        return {world.x, world.y};
+    }
+
+    void BaseCamera3D::processCameraMovement(const constant::Camera_Movement& direction, float deltaTime)
     {
         float velocity = movementSpeed * deltaTime;
 
@@ -127,33 +143,7 @@ namespace pg
         LOG_INFO(DOM, "New position: x = " << position.x << ", y = " << position.y << ", z = " << position.z);
     }
 
-    // void Camera::ProcessMouseMovement(float xoffset, float yoffset, Input *inputHandler, GLboolean)
-    // {
-    //     xoffset *= MouseSensitivity;
-    //     yoffset *= MouseSensitivity;
-
-    //     if(inputHandler->isButtonPressed(Qt::RightButton))
-    //     {
-    //         //TODO check this value and correct them
-    //         Position += Up * yoffset / 2.0f;
-    //         Position += Right * xoffset / 2.0f;
-    //     }
-
-    //     // update Front, Right and Up Vectors using the updated Euler angles
-    //     updateCameraVectors();
-    // }
-
-    // void Camera::ProcessMouseScroll(float yoffset)
-    // {
-    //     Zoom -= yoffset;
-
-    //     if (Zoom < 10.0f)
-    //         Zoom = 10.0f;
-    //     if (Zoom > 45.0f)
-    //         Zoom = 45.0f;
-    // }
-
-    void Camera::updateCameraVectors()
+    void BaseCamera3D::updateCameraVectors()
     {
         // Calculate the new Front vector
         glm::vec3 front;

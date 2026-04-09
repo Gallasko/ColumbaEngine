@@ -61,9 +61,8 @@ namespace pg
         bool dirty = false;
     };
 
-    class Camera
+    struct BaseCamera3D : public AbstractCamera
     {
-    public:
         // Camera Attributes
         glm::vec3 position;
         glm::vec3 front;
@@ -81,11 +80,17 @@ namespace pg
         float mouseSensitivity;
         float zoom;
 
+        // projection parameters
+        float width = 800.0f;
+        float height = 600.0f;
+        float nearPlane = 0.1f;
+        float farPlane = 1000.0f;
+
         // constructor with vectors
-        Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
+        BaseCamera3D(glm::vec3 position = glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
 
         // constructor with scalar values
-        Camera(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch);
+        BaseCamera3D(float posX, float posY, float posZ, float upX, float upY, float upZ, float yaw, float pitch);
 
         //Init the camera positions and VAOs
         void init(glm::vec3 position, glm::vec3 up, float yaw, float pitch);
@@ -94,26 +99,17 @@ namespace pg
 
         void setPos(float x, float y, float z);
 
-        // returns the view matrix calculated using Euler Angles and the LookAt Matrix
-        glm::mat4 getViewMatrix();
+        virtual const glm::mat4& getProjectionMatrix() override;
+        virtual const glm::mat4& getViewMatrix() override;
+        virtual constant::Vector2D screenToWorld(float mouseX, float mouseY) const override;
 
-        // // processes input received from any keyboard-like input system. Accepts input parameter in the form of camera defined ENUM (to abstract it from windowing systems)
+        // processes input received from any keyboard-like input system
         void processCameraMovement(const constant::Camera_Movement& direction, float deltaTime);
 
-        // // processes input received from a mouse input system. Expects the offset value in both the x and y direction.
-        // void ProcessMouseMovement(float xoffset, float yoffset, Input *inputHandler, GLboolean constrainPitch = true);
-
-        // // processes input received from a mouse scroll-wheel event. Only requires input on the vertical wheel-axis
-        // void ProcessMouseScroll(float yoffset);
-
-    // public slots:
-    //     void updateKeyboard(Input *inputHandler, double deltaTime...);
-    //     void updateMouse(Input *inputHandler, double deltaTime...);
+        virtual ~BaseCamera3D() {}
 
     private:
         // calculates the front vector from the Camera's (updated) Euler Angles
         void updateCameraVectors();
-
-        glm::mat4 viewMatrix;
     };
 }

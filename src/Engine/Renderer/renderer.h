@@ -713,9 +713,7 @@ namespace pg
 
         RefracRef& getParameter() { return systemParameters; }
 
-        // Todo
-        // BaseCamera2D& getCamera() { return camera; }
-        Camera& getCamera() { return camera; }
+        BaseCamera3D& getCamera() { return camera; }
 
         inline void addRenderer(BaseAbstractRenderer* renderer) { renderers.push_back(renderer); }
 
@@ -791,9 +789,7 @@ namespace pg
          * Usefull to avoid any jittering when loading a scene as it takes 2 execute cycle to process all the entities correctly */
         size_t skipRenderPass = 0;
 
-        // Todo
-        // BaseCamera2D camera;
-        Camera camera;
+        BaseCamera3D camera;
 
         std::vector<RenderCall> renderCallList[2];
 
