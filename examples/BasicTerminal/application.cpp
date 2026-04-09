@@ -107,25 +107,15 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
     inputTextAnchor->setBottomAnchor(s2Anchor->bottom);
     inputTextAnchor->setBottomMargin(5);
 
-    // Cursor: thin white rectangle positioned after the text
-    auto cursorShape = makeUiSimple2DShape(ecsRef, Shape2D::Square, 2.0f, 20.0f, constant::Vector4D{255.f, 255.f, 255.f, 255.f});
-    auto cursorAnchor = cursorShape.get<UiAnchor>();
-    cursorAnchor->setTopAnchor(inputTextAnchor->top);
-    cursorAnchor->setLeftAnchor(inputTextAnchor->right);
-    cursorAnchor->setZConstrain(PosConstrain{inputText.entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
-    cursorShape.get<PositionComponent>()->setVisible(false);
-
     prefab->addToPrefab(square.entity, "LineTextBg");
     prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
     prefab->addToPrefab(inputText.entity, "Text");
-    prefab->addToPrefab(cursorShape.entity, "Cursor");
 
     prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
 
     prefab->addHelper("UpdateLineText", [](Prefab *prefab, size_t newLineValue) {
         prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
-
         prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
     });
 
@@ -135,19 +125,14 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
 
     prefab->addHelper("SetCurrentText", [](Prefab *prefab, const std::string& newText) {
         prefab->getEntity("Text")->get<TTFText>()->setText(newText);
-        // prefab->getEntity("Cursor")->get<UiAnchor>()->setLeftMargin(textEnt->get<TTFText>()->textWidth);
     });
 
     prefab->addHelper("SetAsFocusLine", [](Prefab *prefab) {
         prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
-        auto textEnt = prefab->getEntity("Text");
-        prefab->getEntity("Cursor")->get<UiAnchor>()->setLeftMargin(textEnt->get<TTFText>()->textWidth);
-        prefab->getEntity("Cursor")->get<PositionComponent>()->setVisible(true);
     });
 
     prefab->addHelper("UnfocusLine", [](Prefab *prefab) {
         prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
-        prefab->getEntity("Cursor")->get<PositionComponent>()->setVisible(false);
     });
 
     return {prefabEnt.entity, prefab, s2Bg, inputTTFText};
@@ -196,12 +181,16 @@ struct TextHandlingSys : public System<
         if (not pf)
             return;
 
-        auto currentText = pf->callHelper<std::string>("GetCurrentText");
-        auto newText = currentText + event.text;
+        auto currentText = getLineText(currentLine);
+        auto newText = currentText.substr(0, cursorCol) + event.text + currentText.substr(cursorCol);
+        cursorCol += event.text.size();
         pf->callHelper("SetCurrentText", newText);
 
         if (isVirtualMode)
             fileLines[currentLine - 1] = newText;
+
+        resetBlink();
+        repositionCursor();
     }
 
     void focusLine(size_t ln)
@@ -219,7 +208,13 @@ struct TextHandlingSys : public System<
         if (pfAfter)
             pfAfter->callHelper("SetAsFocusLine");
 
+        // Clamp column to the new line's length
+        const std::string lineText = getLineText(currentLine);
+        if (cursorCol > lineText.size())
+            cursorCol = lineText.size();
+
         resetBlink();
+        repositionCursor();
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
@@ -228,6 +223,7 @@ struct TextHandlingSys : public System<
         {
             auto oldLine = currentLine++;
             lineNumber++;
+            cursorCol = 0;
 
             if (isVirtualMode)
             {
@@ -276,25 +272,32 @@ struct TextHandlingSys : public System<
 
                 listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
             }
+
+            resetBlink();
+            repositionCursor();
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
             auto pf = getLinePrefab(currentLine);
             if (!pf) return;
 
-            auto text = pf->callHelper<std::string>("GetCurrentText");
+            auto text = getLineText(currentLine);
 
-            if (not text.empty())
+            if (cursorCol > 0)
             {
-                text.pop_back();
-
-                // If control is held try to remove everything till the beginning or till another space is found
                 if (lcontrolPressed or rcontrolPressed)
                 {
-                    while (not text.empty() and not (text.back() == ' '))
-                    {
-                        text.pop_back();
-                    }
+                    // Delete back to previous word boundary
+                    size_t newCol = cursorCol;
+                    while (newCol > 0 && text[newCol - 1] == ' ') newCol--;
+                    while (newCol > 0 && text[newCol - 1] != ' ') newCol--;
+                    text = text.substr(0, newCol) + text.substr(cursorCol);
+                    cursorCol = newCol;
+                }
+                else
+                {
+                    text = text.substr(0, cursorCol - 1) + text.substr(cursorCol);
+                    cursorCol--;
                 }
 
                 pf->callHelper("SetCurrentText", text);
@@ -302,6 +305,8 @@ struct TextHandlingSys : public System<
                 if (isVirtualMode)
                     fileLines[currentLine - 1] = text;
 
+                resetBlink();
+                repositionCursor();
                 return;
             }
             // else do the line removal logic down here
@@ -361,6 +366,37 @@ struct TextHandlingSys : public System<
                 currentLine--;
             }
         }
+        else if (event.key == SDL_SCANCODE_LEFT)
+        {
+            if (cursorCol > 0)
+            {
+                cursorCol--;
+                resetBlink();
+                repositionCursor();
+            }
+            else if (currentLine > 1)
+            {
+                focusLine(currentLine - 1);
+                cursorCol = getLineText(currentLine).size();
+                repositionCursor();
+            }
+        }
+        else if (event.key == SDL_SCANCODE_RIGHT)
+        {
+            const std::string lineText = getLineText(currentLine);
+            if (cursorCol < lineText.size())
+            {
+                cursorCol++;
+                resetBlink();
+                repositionCursor();
+            }
+            else if (currentLine < lineNumber - 1)
+            {
+                cursorCol = 0;
+                focusLine(currentLine + 1);
+                repositionCursor();
+            }
+        }
         else if (event.key == SDL_SCANCODE_UP)
         {
             if (currentLine > 1)
@@ -404,21 +440,74 @@ struct TextHandlingSys : public System<
             return;
 
         blinkTimer -= BLINK_INTERVAL;
-        cursorVisible = not cursorVisible;
+        cursorVisible = !cursorVisible;
 
-        auto pf = getLinePrefab(currentLine);
-        if (pf)
-        {
-            auto cursorEnt = pf->getEntity("Cursor");
-            if (cursorEnt)
-                cursorEnt->get<PositionComponent>()->setVisible(cursorVisible);
-        }
+        if (cursorActive)
+            cursorEntityRef.get<PositionComponent>()->setVisible(cursorVisible);
     }
 
     void resetBlink()
     {
         blinkTimer = 0.0f;
         cursorVisible = true;
+        if (cursorActive)
+            cursorEntityRef.get<PositionComponent>()->setVisible(true);
+    }
+
+    std::string getLineText(size_t ln) const
+    {
+        if (isVirtualMode)
+        {
+            if (ln == 0 || ln - 1 >= fileLines.size()) return "";
+            return fileLines[ln - 1];
+        }
+        auto& ents = listViewEnt.get<VerticalLayout>()->entities;
+        if (ln == 0 || ln - 1 >= ents.size()) return "";
+        auto pf = ents[ln - 1].get<Prefab>();
+        if (!pf) return "";
+        return pf->getEntity("Text")->get<TTFText>()->text;
+    }
+
+    void repositionCursor()
+    {
+        auto pf = getLinePrefab(currentLine);
+        if (!pf)
+        {
+            cursorActive = false;
+            cursorEntityRef.get<PositionComponent>()->setVisible(false);
+            return;
+        }
+
+        auto textEnt = pf->getEntity("Text");
+        auto textBg  = pf->getEntity("TextBg");
+        auto ttfComp = textEnt->get<TTFText>();
+        auto ttfSystem = ecsRef->getSystem<TTFTextSystem>();
+
+        float cursorX = 0.0f;
+        if (ttfSystem)
+        {
+            auto mapIt = ttfSystem->charactersMap.find(ttfComp->fontPath);
+            if (mapIt != ttfSystem->charactersMap.end())
+            {
+                const auto& fontChars = mapIt->second;
+                const std::string lineText = getLineText(currentLine);
+                for (size_t i = 0; i < cursorCol && i < lineText.size(); i++)
+                {
+                    auto it = fontChars.find(lineText[i]);
+                    if (it != fontChars.end())
+                        cursorX += (it->second.advance >> 6) * ttfComp->scale;
+                }
+            }
+        }
+
+        auto ca = cursorEntityRef.get<UiAnchor>();
+        ca->setTopAnchor({textBg->id, AnchorType::Top});
+        ca->setLeftAnchor({textBg->id, AnchorType::Left});
+        ca->setZConstrain(PosConstrain{textEnt->id, AnchorType::Z, PosOpType::Add, 1.0f});
+        ca->setLeftMargin(cursorX);
+
+        cursorActive = true;
+        cursorEntityRef.get<PositionComponent>()->setVisible(cursorVisible);
     }
 
     virtual void init() override
@@ -471,6 +560,15 @@ struct TextHandlingSys : public System<
         currentLine = 3;
 
         listViewEnt = listView.entity;
+
+        // Single global cursor entity - positioned dynamically via repositionCursor()
+        auto cursorShape = makeUiSimple2DShape(ecsRef, Shape2D::Square, 2.0f, 20.0f,
+            constant::Vector4D{255.f, 255.f, 255.f, 255.f});
+        cursorShape.get<PositionComponent>()->setVisible(false);
+        cursorEntityRef = cursorShape.entity;
+
+        cursorCol = 0;
+        repositionCursor();
 
         auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFileAction>());
@@ -656,9 +754,17 @@ struct TextHandlingSys : public System<
             linePool[i].get<Prefab>()->callHelper("UnfocusLine");
         }
 
-        // Re-apply focus if the cursor line is in the new window
+        // Re-apply focus highlight if the cursor line is in the new window
         if (isLineInPool(currentLine))
+        {
             linePool[currentLine - 1 - poolWindowStart].get<Prefab>()->callHelper("SetAsFocusLine");
+            repositionCursor();
+        }
+        else
+        {
+            cursorActive = false;
+            cursorEntityRef.get<PositionComponent>()->setVisible(false);
+        }
 
         updateSpacers();
     }
@@ -768,6 +874,11 @@ struct TextHandlingSys : public System<
     static constexpr size_t SCROLL_BUFFER    = 20;    // Extra lines to keep above viewport
     static constexpr float  BLINK_INTERVAL   = 0.5f;  // Seconds per cursor on/off half-cycle
 
+    // Cursor state
+    EntityRef cursorEntityRef;       // Single global cursor entity
+    size_t    cursorCol    = 0;      // 0-based char index within current line
+    bool      cursorActive = false;  // True when the focused line is visible in the pool
+
     // Cursor blink state
     float blinkTimer    = 0.0f;
     bool  cursorVisible = true;
@@ -800,9 +911,9 @@ void initGame() {
     auto ttfSys = mainWindow->ecs->createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
     // Need to fix this
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "light");
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Bold.ttf", "bold");
-    ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Italic.ttf", "italic");
+    ttfSys->registerFont("res/font/Consolas/Consolas-Regular.ttf", "light");
+    ttfSys->registerFont("res/font/Consolas/Consolas-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/Consolas/Consolas-Italic.ttf", "italic");
 
     // mainWindow->masterRenderer->processTextureRegister();
 
