@@ -566,6 +566,23 @@ namespace pg
                 return makeIntValue(0);
             });
 
+            addNativeFunction("getSavedData", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
+                if (argCount != 1)
+                {
+                    throw std::runtime_error("getSavedData expects exactly 1 argument (key)");
+                }
+
+                if (!IS_STRING(args[0]))
+                {
+                    throw std::runtime_error("getSavedData expects a string key");
+                }
+
+                auto key = vm->asString(args[0]);
+                auto value = ecsRefCopy->getSavedData(key);
+
+                return vm->elementToValue(value);
+            });
+
             addNativeFunction("attachComp", [ecsRefCopy](VM* vm, int argCount, Value* args) -> Value {
                 if (argCount < 2)
                 {

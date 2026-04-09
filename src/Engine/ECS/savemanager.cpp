@@ -104,6 +104,13 @@ namespace pg
         loadSave(savePath);
     }
 
+    void SaveManager::init()
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        addListenerToStandardEvent("SaveElementEvent");
+    }
+
     void SaveManager::execute()
     {
         if (needSave)
@@ -128,6 +135,27 @@ namespace pg
         currentSave.data.elements[event.name] = event.element;
 
         needSave = true;
+    }
+
+    void SaveManager::onProcessEvent(const StandardEvent& event)
+    {
+        LOG_THIS_MEMBER(DOM);
+
+        if (event.name == "SaveElementEvent")
+        {
+            if (event.values.find("value") == event.values.end() or event.values.find("name") == event.values.end())
+            {
+                LOG_ERROR(DOM, "SaveElementEvent is missing required values (`value` or `name`)");
+                return;
+            }
+
+            auto value = event.values.at("value");
+            auto name = event.values.at("name");
+
+            currentSave.data.elements[name.toString()] = value;
+
+            needSave = true;
+        }
     }
 
     ElementType SaveManager::getValue(const std::string& id) const

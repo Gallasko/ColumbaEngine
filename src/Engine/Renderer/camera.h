@@ -4,12 +4,6 @@
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 
-// #include <QVector3D>
-// #include <QMatrix4x4>
-
-// #include <QObject>
-// #include <QOpenGLFunctions>
-
 #include "pgconstant.h"
 // #include "Input/input.h"
 

@@ -455,7 +455,7 @@ namespace pg
 
     // Todo fix crash on renderer when failure to grab a missing texture or shader
 
-    class MasterRenderer : public System<Own<BaseCamera2D>, Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>, Listener<SaveCurrentFrameEvent>>
+    class MasterRenderer : public System<Own<BaseCamera3D>, Own<BaseCamera2D>, Listener<OnSDLScanCode>, Listener<SkipRenderPass>, Listener<ReRendererAll>, Listener<SaveCurrentFrameEvent>>
     {
     private:
         struct MaterialHolder

@@ -69,16 +69,19 @@ namespace pg
         ElementType element;
     };
 
-    class SaveManager : public System<QueuedListener<SaveElementEvent>>
+    class SaveManager : public System<QueuedListener<SaveElementEvent>, QueuedListener<StandardEvent>, InitSys>
     {
     public:
         SaveManager(const std::string& savePath);
+
+        virtual void init() override;
 
         virtual std::string getSystemName() const override { return "Save System"; }
 
         virtual void execute() override;
 
         virtual void onProcessEvent(const SaveElementEvent& event) override;
+        virtual void onProcessEvent(const StandardEvent& event) override;
 
         ElementType getValue(const std::string& id) const;
 
