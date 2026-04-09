@@ -591,7 +591,7 @@ struct TextHandlingSys : public System<
             return;
 
         auto listViewComp = listViewEnt.get<VerticalLayout>();
-        float yOffset = listViewComp->yOffset;
+        float yOffset = listViewComp->yOffset < 0.0f ? 0.0f : listViewComp->yOffset;
 
         size_t firstVisible = static_cast<size_t>(yOffset / LINE_HEIGHT);
         size_t targetStart = (firstVisible > SCROLL_BUFFER) ? firstVisible - SCROLL_BUFFER : 0;
