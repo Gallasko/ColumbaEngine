@@ -480,6 +480,7 @@ struct TextHandlingSys : public System<
 
         auto textEnt = pf->getEntity("Text");
         auto textBg  = pf->getEntity("TextBg");
+        auto textBgAnchor = textBg->get<UiAnchor>();
         auto ttfComp = textEnt->get<TTFText>();
         auto ttfSystem = ecsRef->getSystem<TTFTextSystem>();
 
@@ -501,7 +502,8 @@ struct TextHandlingSys : public System<
         }
 
         auto ca = cursorEntityRef.get<UiAnchor>();
-        ca->setTopAnchor({textBg->id, AnchorType::Top});
+        ca->setVerticalCenter(textBgAnchor->verticalCenter);
+        // ca->setTopAnchor({textBg->id, AnchorType::Top});
         ca->setLeftAnchor({textBg->id, AnchorType::Left});
         ca->setZConstrain(PosConstrain{textEnt->id, AnchorType::Z, PosOpType::Add, 1.0f});
         ca->setLeftMargin(cursorX);
@@ -911,9 +913,9 @@ void initGame() {
     auto ttfSys = mainWindow->ecs->createSystem<TTFTextSystem>(mainWindow->masterRenderer);
 
     // Need to fix this
-    ttfSys->registerFont("res/font/Consolas/Consolas-Regular.ttf", "light");
-    ttfSys->registerFont("res/font/Consolas/Consolas-Bold.ttf", "bold");
-    ttfSys->registerFont("res/font/Consolas/Consolas-Italic.ttf", "italic");
+    ttfSys->registerFont("res/font/DejaVuSans/DejaVuSansMono.ttf", "light");
+    ttfSys->registerFont("res/font/DejaVuSans/DejaVuSansMono-Bold.ttf", "bold");
+    ttfSys->registerFont("res/font/DejaVuSans/DejaVuSansMono-Oblique.ttf", "italic");
 
     // mainWindow->masterRenderer->processTextureRegister();
 
