@@ -107,10 +107,19 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
     inputTextAnchor->setBottomAnchor(s2Anchor->bottom);
     inputTextAnchor->setBottomMargin(5);
 
+    // Cursor: thin white rectangle positioned after the text
+    auto cursorShape = makeUiSimple2DShape(ecsRef, Shape2D::Square, 2.0f, 20.0f, constant::Vector4D{255.f, 255.f, 255.f, 255.f});
+    auto cursorAnchor = cursorShape.get<UiAnchor>();
+    cursorAnchor->setTopAnchor(inputTextAnchor->top);
+    cursorAnchor->setLeftAnchor(inputTextAnchor->right);
+    cursorAnchor->setZConstrain(PosConstrain{inputText.entity.id, AnchorType::Z, PosOpType::Add, 1.0f});
+    cursorShape.get<PositionComponent>()->setVisible(false);
+
     prefab->addToPrefab(square.entity, "LineTextBg");
     prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
     prefab->addToPrefab(inputText.entity, "Text");
+    prefab->addToPrefab(cursorShape.entity, "Cursor");
 
     prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
 
@@ -126,14 +135,19 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
 
     prefab->addHelper("SetCurrentText", [](Prefab *prefab, const std::string& newText) {
         prefab->getEntity("Text")->get<TTFText>()->setText(newText);
+        // prefab->getEntity("Cursor")->get<UiAnchor>()->setLeftMargin(textEnt->get<TTFText>()->textWidth);
     });
 
     prefab->addHelper("SetAsFocusLine", [](Prefab *prefab) {
         prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+        auto textEnt = prefab->getEntity("Text");
+        prefab->getEntity("Cursor")->get<UiAnchor>()->setLeftMargin(textEnt->get<TTFText>()->textWidth);
+        prefab->getEntity("Cursor")->get<PositionComponent>()->setVisible(true);
     });
 
     prefab->addHelper("UnfocusLine", [](Prefab *prefab) {
         prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+        prefab->getEntity("Cursor")->get<PositionComponent>()->setVisible(false);
     });
 
     return {prefabEnt.entity, prefab, s2Bg, inputTTFText};
@@ -152,6 +166,7 @@ struct TextHandlingSys : public System<
     Listener<OpenFileAction>,
     Listener<SaveFileAction>,
     Listener<LayoutScrolledEvent>,
+    Listener<TickEvent>,
     InitSys>
 {
     virtual void onProcessEvent(const PrefabClickedEvent& event) override
@@ -178,7 +193,8 @@ struct TextHandlingSys : public System<
     virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
         auto pf = getLinePrefab(currentLine);
-        if (!pf) return;
+        if (not pf)
+            return;
 
         auto currentText = pf->callHelper<std::string>("GetCurrentText");
         auto newText = currentText + event.text;
@@ -190,16 +206,20 @@ struct TextHandlingSys : public System<
 
     void focusLine(size_t ln)
     {
-        if (isVirtualMode && !isLineInPool(ln))
+        if (isVirtualMode and not isLineInPool(ln))
             scrollPoolToLine(ln);
 
         auto pfBefore = getLinePrefab(currentLine);
-        if (pfBefore) pfBefore->callHelper("UnfocusLine");
+        if (pfBefore)
+            pfBefore->callHelper("UnfocusLine");
 
         currentLine = ln;
 
         auto pfAfter = getLinePrefab(currentLine);
-        if (pfAfter) pfAfter->callHelper("SetAsFocusLine");
+        if (pfAfter)
+            pfAfter->callHelper("SetAsFocusLine");
+
+        resetBlink();
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
@@ -226,7 +246,8 @@ struct TextHandlingSys : public System<
                 updateSpacers();
 
                 auto pfAfter = getLinePrefab(currentLine);
-                if (pfAfter) pfAfter->callHelper("SetAsFocusLine");
+                if (pfAfter)
+                    pfAfter->callHelper("SetAsFocusLine");
             }
             else
             {
@@ -376,6 +397,30 @@ struct TextHandlingSys : public System<
         }
     }
 
+    virtual void onEvent(const TickEvent& event) override
+    {
+        blinkTimer += event.tick / 1000.0f;
+        if (blinkTimer < BLINK_INTERVAL)
+            return;
+
+        blinkTimer -= BLINK_INTERVAL;
+        cursorVisible = not cursorVisible;
+
+        auto pf = getLinePrefab(currentLine);
+        if (pf)
+        {
+            auto cursorEnt = pf->getEntity("Cursor");
+            if (cursorEnt)
+                cursorEnt->get<PositionComponent>()->setVisible(cursorVisible);
+        }
+    }
+
+    void resetBlink()
+    {
+        blinkTimer = 0.0f;
+        cursorVisible = true;
+    }
+
     virtual void init() override
     {
         textInputEnt = ecsRef->createEntity();
@@ -411,7 +456,7 @@ struct TextHandlingSys : public System<
         auto linePrefab2 = makeLinePrefab(ecsRef, anchor, lineNumber++);
         auto linePrefab3 = makeLinePrefab(ecsRef, anchor, lineNumber++);
 
-        linePrefab3.get<Prefab>()->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+        linePrefab3.get<Prefab>()->callHelper("SetAsFocusLine");
 
         // listViewComp->addEntity(linePrefab);
 
@@ -505,7 +550,7 @@ struct TextHandlingSys : public System<
                 for (size_t i = 0; i < poolSize; i++)
                 {
                     auto lp = makeLinePrefab(ecsRef, anchor, i + 1);
-                    lp.get<TTFText>()->setText(fileLines[i]);
+                    lp.get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
                     listViewComp->addEntity(lp.entity);
                     linePool.push_back(lp.entity);
                 }
@@ -529,7 +574,7 @@ struct TextHandlingSys : public System<
                 for (size_t i = 0; i < fileLines.size(); i++)
                 {
                     auto lp = makeLinePrefab(ecsRef, anchor, i + 1);
-                    lp.get<TTFText>()->setText(fileLines[i]);
+                    lp.get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
                     listViewComp->addEntity(lp.entity);
                 }
 
@@ -569,7 +614,7 @@ struct TextHandlingSys : public System<
 
             auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
 
-            linePrefab.get<TTFText>()->setText(expandedLine);
+            linePrefab.get<Prefab>()->callHelper("SetCurrentText", expandedLine);
 
             listViewComp->addEntity(linePrefab.entity);
 
@@ -608,7 +653,12 @@ struct TextHandlingSys : public System<
             size_t lineIdx = poolWindowStart + i;
             linePool[i].get<Prefab>()->callHelper("SetCurrentText", fileLines[lineIdx]);
             linePool[i].get<Prefab>()->callHelper("UpdateLineText", lineIdx + 1);
+            linePool[i].get<Prefab>()->callHelper("UnfocusLine");
         }
+
+        // Re-apply focus if the cursor line is in the new window
+        if (isLineInPool(currentLine))
+            linePool[currentLine - 1 - poolWindowStart].get<Prefab>()->callHelper("SetAsFocusLine");
 
         updateSpacers();
     }
@@ -651,7 +701,9 @@ struct TextHandlingSys : public System<
         size_t maxStart = (fileLines.size() > linePool.size()) ? fileLines.size() - linePool.size() : 0;
         if (newStart > maxStart) newStart = maxStart;
 
-        if (newStart == poolWindowStart) return;
+        if (newStart == poolWindowStart)
+            return;
+
         poolWindowStart = newStart;
 
         listViewEnt.get<VerticalLayout>()->yOffset = static_cast<float>(poolWindowStart) * LINE_HEIGHT;
@@ -710,10 +762,15 @@ struct TextHandlingSys : public System<
     bool isVirtualMode = false;           // True when file is large enough to virtualise
     bool updatingPool = false;            // Guard against re-entrant LayoutScrolledEvent
 
-    static constexpr size_t POOL_SIZE        = 80;    // Prefab entities in the pool
-    static constexpr float  LINE_HEIGHT      = 25.0f; // Height of each line prefab (px)
-    static constexpr size_t VIRTUAL_THRESHOLD = 500;  // Lines needed to trigger virtual mode
-    static constexpr size_t SCROLL_BUFFER   = 20;    // Extra lines to keep above viewport
+    static constexpr size_t POOL_SIZE         = 80;    // Prefab entities in the pool
+    static constexpr float  LINE_HEIGHT       = 25.0f; // Height of each line prefab (px)
+    static constexpr size_t VIRTUAL_THRESHOLD = 500;   // Lines needed to trigger virtual mode
+    static constexpr size_t SCROLL_BUFFER    = 20;    // Extra lines to keep above viewport
+    static constexpr float  BLINK_INTERVAL   = 0.5f;  // Seconds per cursor on/off half-cycle
+
+    // Cursor blink state
+    float blinkTimer    = 0.0f;
+    bool  cursorVisible = true;
 };
 
 void initGame() {
