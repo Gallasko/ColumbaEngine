@@ -186,6 +186,20 @@ public:
         state.cursor = {line, col};
     }
 
+    // Coalesce support: append `more` onto the existing insertion, keeping the
+    // command as a single undo unit. Caller must have verified that the cursor
+    // sits at endCol() on lineIdx() so the append is contiguous with `text`.
+    void appendText(EditorState& state, const std::string& more)
+    {
+        auto& target = state.lines[line];
+        target.insert(col + text.size(), more);
+        text += more;
+        state.cursor = {line, col + text.size()};
+    }
+
+    size_t lineIdx() const { return line; }
+    size_t endCol()  const { return col + text.size(); }
+
 private:
     size_t      line;
     size_t      col;
@@ -319,8 +333,23 @@ struct TextHandlingSys : public System<
         if (editorState.cursor.line >= editorState.lines.size())
             return;
 
-        executeCommand(std::make_unique<InsertTextCommand>(
-            editorState.cursor.line, editorState.cursor.col, event.text));
+        // Coalesce contiguous text input into the previous InsertTextCommand so
+        // a single Ctrl+Z removes the whole run instead of one char at a time.
+        if (coalesceTarget and
+            coalesceTarget->lineIdx() == editorState.cursor.line and
+            coalesceTarget->endCol()  == editorState.cursor.col)
+        {
+            coalesceTarget->appendText(editorState, event.text);
+            redoStack.clear();
+            ensureCursorVisible();
+            refreshEditorView();
+            return;
+        }
+
+        auto cmd = std::make_unique<InsertTextCommand>(
+            editorState.cursor.line, editorState.cursor.col, event.text);
+        coalesceTarget = cmd.get();
+        executeCommand(std::move(cmd));
     }
 
     void focusLine(size_t lineIdx)
@@ -328,6 +357,7 @@ struct TextHandlingSys : public System<
         if (lineIdx >= editorState.lines.size())
             return;
 
+        coalesceTarget = nullptr;
         editorState.cursor.line = lineIdx;
 
         // Clamp column to the new line's length.
@@ -372,11 +402,13 @@ struct TextHandlingSys : public System<
 
         if (event.key == SDL_SCANCODE_RETURN)
         {
+            coalesceTarget = nullptr;
             executeCommand(std::make_unique<SplitLineCommand>(
                 editorState.cursor.line, editorState.cursor.col));
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
+            coalesceTarget = nullptr;
             const std::string& line = editorState.lines[editorState.cursor.line];
 
             if (editorState.cursor.col > 0)
@@ -411,6 +443,7 @@ struct TextHandlingSys : public System<
         }
         else if (event.key == SDL_SCANCODE_LEFT)
         {
+            coalesceTarget = nullptr;
             if (editorState.cursor.col > 0)
             {
                 editorState.cursor.col--;
@@ -425,6 +458,7 @@ struct TextHandlingSys : public System<
         }
         else if (event.key == SDL_SCANCODE_RIGHT)
         {
+            coalesceTarget = nullptr;
             const std::string& lineText = editorState.lines[editorState.cursor.line];
             if (editorState.cursor.col < lineText.size())
             {
@@ -508,6 +542,8 @@ struct TextHandlingSys : public System<
     {
         if (undoStack.empty()) return;
 
+        coalesceTarget = nullptr;
+
         auto cmd = std::move(undoStack.back());
         undoStack.pop_back();
 
@@ -521,6 +557,8 @@ struct TextHandlingSys : public System<
     void redo()
     {
         if (redoStack.empty()) return;
+
+        coalesceTarget = nullptr;
 
         auto cmd = std::move(redoStack.back());
         redoStack.pop_back();
@@ -768,6 +806,7 @@ struct TextHandlingSys : public System<
             isVirtualMode = false;
             undoStack.clear();
             redoStack.clear();
+            coalesceTarget = nullptr;
             editorState.lines.clear();
             editorState.cursor = {0, 0};
 
@@ -945,6 +984,11 @@ struct TextHandlingSys : public System<
     EditorState                                  editorState;
     std::vector<std::unique_ptr<IEditorCommand>> undoStack;
     std::vector<std::unique_ptr<IEditorCommand>> redoStack;
+
+    // Points at the most recent InsertTextCommand eligible for coalescing.
+    // Cleared whenever an unrelated action (cursor move, non-insert command,
+    // undo/redo, file load) breaks the run.
+    InsertTextCommand* coalesceTarget = nullptr;
 
     // Non-virtual mode: one LineView per line in editorState.lines, kept in sync
     // locally because the VerticalLayout's own `entities` vector is only updated
