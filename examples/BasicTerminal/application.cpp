@@ -370,14 +370,6 @@ struct TextHandlingSys : public System<
                 // Unfocus the line that is about to be deleted.
                 pf->callHelper("UnfocusLine");
 
-                // Capture a direct reference to the line we'll move the cursor
-                // to BEFORE calling removeAt. The removal is deferred, so by
-                // the time we need to reposition the cursor, getLinePrefab()
-                // may still point at the stale layout and resolve to the wrong
-                // entity.
-                auto targetEnt    = listViewComp->entities[currentLine - 2];
-                auto targetPrefab = targetEnt.get<Prefab>();
-
                 // Update the line text for all the lines after the removed line
                 for (size_t i = currentLine; i < lineNumber - 1; ++i)
                 {
@@ -390,48 +382,21 @@ struct TextHandlingSys : public System<
                 lineNumber--;
                 currentLine--;
 
-                // Mark the new current line as focused via the captured ref.
-                targetPrefab->callHelper("SetAsFocusLine");
+                // Focus the new current line. Unlike the insert case, the
+                // previous line already lives in entities[currentLine - 1],
+                // so getLinePrefab() resolves correctly even while the
+                // deferred removeAt hasn't been applied yet.
+                auto pfAfter = getLinePrefab(currentLine);
+                if (pfAfter)
+                    pfAfter->callHelper("SetAsFocusLine");
 
                 // Clamp cursor column to the new line's length.
-                auto targetTextEnt = targetPrefab->getEntity("Text");
-                const std::string lineText = targetTextEnt->get<TTFText>()->text;
+                const std::string lineText = getLineText(currentLine);
                 if (cursorCol > lineText.size())
                     cursorCol = lineText.size();
 
                 resetBlink();
-
-                // Reposition the cursor inline using the captured target
-                // prefab (see comment above about stale getLinePrefab result).
-                auto textBg       = targetPrefab->getEntity("TextBg");
-                auto textBgAnchor = textBg->get<UiAnchor>();
-                auto ttfComp      = targetTextEnt->get<TTFText>();
-                auto ttfSystem    = ecsRef->getSystem<TTFTextSystem>();
-
-                float cursorX = 0.0f;
-                if (ttfSystem)
-                {
-                    auto mapIt = ttfSystem->charactersMap.find(ttfComp->fontPath);
-                    if (mapIt != ttfSystem->charactersMap.end())
-                    {
-                        const auto& fontChars = mapIt->second;
-                        for (size_t i = 0; i < cursorCol && i < lineText.size(); i++)
-                        {
-                            auto it = fontChars.find(lineText[i]);
-                            if (it != fontChars.end())
-                                cursorX += (it->second.advance >> 6) * ttfComp->scale;
-                        }
-                    }
-                }
-
-                auto ca = cursorEntityRef.get<UiAnchor>();
-                ca->setVerticalCenter(textBgAnchor->verticalCenter);
-                ca->setLeftAnchor({textBg->id, AnchorType::Left});
-                ca->setZConstrain(PosConstrain{targetTextEnt->id, AnchorType::Z, PosOpType::Add, 1.0f});
-                ca->setLeftMargin(cursorX);
-
-                cursorActive = true;
-                cursorEntityRef.get<PositionComponent>()->setVisible(cursorVisible);
+                repositionCursor();
             }
         }
         else if (event.key == SDL_SCANCODE_LEFT)
