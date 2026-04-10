@@ -221,18 +221,32 @@ struct TextHandlingSys : public System<
     {
         if (event.key == SDL_SCANCODE_RETURN)
         {
+            // Split the current line at the cursor: everything before the
+            // cursor stays on the current line, everything after moves to
+            // the newly created line.
+            const std::string currentText = getLineText(currentLine);
+            const size_t splitPos = std::min(cursorCol, currentText.size());
+            const std::string textBefore = currentText.substr(0, splitPos);
+            const std::string textAfter  = currentText.substr(splitPos);
+
             auto oldLine = currentLine++;
             lineNumber++;
             cursorCol = 0;
 
             if (isVirtualMode)
             {
-                fileLines.insert(fileLines.begin() + oldLine, "");
+                // Old line keeps the text before the cursor, new line takes
+                // the text after.
+                fileLines[oldLine - 1] = textBefore;
+                fileLines.insert(fileLines.begin() + oldLine, textAfter);
 
                 auto pfBefore = getLinePrefab(oldLine);
                 if (pfBefore) pfBefore->callHelper("UnfocusLine");
 
-                for (size_t i = currentLine - 1; i < poolWindowStart + linePool.size() && i < fileLines.size(); i++)
+                // Refresh all visible lines from the split point onwards so
+                // both the shortened old line and the new line pick up their
+                // new text.
+                for (size_t i = oldLine - 1; i < poolWindowStart + linePool.size() && i < fileLines.size(); i++)
                 {
                     size_t pi = i - poolWindowStart;
                     linePool[pi].get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
@@ -253,13 +267,20 @@ struct TextHandlingSys : public System<
                 auto anchor = textInputEnt.get<UiAnchor>();
                 auto linePrefab = makeLinePrefab(ecsRef, anchor, currentLine);
 
+                // New line gets the text after the cursor. Use the TTFText
+                // CompRef directly since the freshly created prefab can't be
+                // queried by child name yet.
+                linePrefab.get<TTFText>()->setText(textAfter);
+
                 auto listViewComp = listViewEnt.get<VerticalLayout>();
 
-                // Remove the old highlighted line
+                // Old line keeps the text before the cursor and is unfocused.
                 if (oldLine > 0)
                 {
                     auto entBefore = listViewComp->entities[oldLine - 1];
-                    entBefore.get<Prefab>()->callHelper("UnfocusLine");
+                    auto oldPrefab = entBefore.get<Prefab>();
+                    oldPrefab->callHelper("SetCurrentText", textBefore);
+                    oldPrefab->callHelper("UnfocusLine");
                 }
 
                 // Todo fix this
