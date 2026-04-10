@@ -1,6 +1,7 @@
 #include "application.h"
 
 #include <fstream>
+#include <memory>
 
 #include "logger.h"
 
@@ -64,7 +65,23 @@ struct PrefabClickedEvent
     _unique_id id;
 };
 
-CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
+// Cached component references for a single line prefab. We hold CompRefs grabbed
+// at creation time so view refresh code can drive the components directly
+// instead of going through Prefab::getEntity(name), which is unreliable on
+// freshly-created prefabs (deferred component attachment means the entity
+// lookup may not yet find TTFText/Simple2DObject right after attach()).
+struct LineView
+{
+    EntityRef               entity;         // The prefab entity
+    CompRef<Prefab>         prefab;         // Prefab component (for helpers on existing prefabs)
+    CompRef<TTFText>        textRef;        // Input (editable) TTFText
+    CompRef<Simple2DObject> textBgRef;      // Dark bg behind input text (focus highlight)
+    CompRef<UiAnchor>       textBgAnchor;   // textBg's UiAnchor (used for cursor positioning)
+    CompRef<TTFText>        lineNumTextRef; // Line-number label TTFText
+    CompRef<Simple2DObject> lineNumBgRef;   // Alternating line-number background
+};
+
+LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
 {
     auto prefabEnt = makeAnchoredPrefab(ecsRef);
     auto prefab = prefabEnt.get<Prefab>();
@@ -73,6 +90,7 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
     auto color = getLineTextBgColor(lineNumber);
 
     auto square = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, color);
+    auto squareBg = square.get<Simple2DObject>();
     auto squareAnchor = square.get<UiAnchor>();
 
     prefabAnchor->setHeightConstrain(PosConstrain{square.entity.id, AnchorType::Height});
@@ -83,6 +101,7 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
 
     // Todo replace the -50 here by an actual masking until ready of the ttf text component
     auto lineText = makeTTFText(ecsRef, 0, -50, 4, "light", std::to_string(lineNumber), 0.4, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    auto lineTextComp = lineText.get<TTFText>();
 
     auto textAnchor = lineText.get<UiAnchor>();
     textAnchor->centeredIn(squareAnchor);
@@ -114,34 +133,148 @@ CompList<Prefab, Simple2DObject, TTFText> makeLinePrefab(EntitySystem *ecsRef, C
 
     prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
 
-    prefab->addHelper("UpdateLineText", [](Prefab *prefab, size_t newLineValue) {
-        prefab->getEntity("LineText")->get<TTFText>()->setText(std::to_string(newLineValue));
-        prefab->getEntity("LineTextBg")->get<Simple2DObject>()->setColors(getLineTextBgColor(newLineValue));
-    });
-
-    prefab->addHelper("GetCurrentText", [](Prefab *prefab) -> std::string {
-        return prefab->getEntity("Text")->get<TTFText>()->text;
-    });
-
-    prefab->addHelper("SetCurrentText", [](Prefab *prefab, const std::string& newText) {
-        prefab->getEntity("Text")->get<TTFText>()->setText(newText);
-    });
-
-    prefab->addHelper("SetAsFocusLine", [](Prefab *prefab) {
-        prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
-    });
-
-    prefab->addHelper("UnfocusLine", [](Prefab *prefab) {
-        prefab->getEntity("TextBg")->get<Simple2DObject>()->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
-    });
-
-    return {prefabEnt.entity, prefab, s2Bg, inputTTFText};
-    // return prefabEnt.entity;
+    return LineView{prefabEnt.entity, prefab, inputTTFText, s2Bg, s2Anchor, lineTextComp, squareBg};
 }
 
 struct OpenFileAction {};
 
 struct SaveFileAction {};
+
+// ---------------------------------------------------------------------------
+// Editor model & command pattern
+// ---------------------------------------------------------------------------
+
+struct CursorPosition
+{
+    size_t line = 0; // 0-based line index
+    size_t col  = 0; // 0-based column index (in bytes)
+};
+
+struct EditorState
+{
+    std::vector<std::string> lines = {""};
+    CursorPosition            cursor;
+};
+
+class IEditorCommand
+{
+public:
+    virtual ~IEditorCommand() = default;
+
+    virtual void execute(EditorState& state) = 0;
+    virtual void undo(EditorState& state)    = 0;
+};
+
+// Insert `text` at (line, col). Cursor ends up just after the inserted text.
+class InsertTextCommand : public IEditorCommand
+{
+public:
+    InsertTextCommand(size_t line, size_t col, std::string text)
+        : line(line), col(col), text(std::move(text)) {}
+
+    void execute(EditorState& state) override
+    {
+        auto& target = state.lines[line];
+        target.insert(col, text);
+        state.cursor = {line, col + text.size()};
+    }
+
+    void undo(EditorState& state) override
+    {
+        auto& target = state.lines[line];
+        target.erase(col, text.size());
+        state.cursor = {line, col};
+    }
+
+private:
+    size_t      line;
+    size_t      col;
+    std::string text;
+};
+
+// Delete `deletedText` starting at (line, startCol). Cursor ends up at startCol.
+// Undo restores the text and moves the cursor to just after the re-inserted range.
+class DeleteRangeCommand : public IEditorCommand
+{
+public:
+    DeleteRangeCommand(size_t line, size_t startCol, std::string deletedText)
+        : line(line), startCol(startCol), deletedText(std::move(deletedText)) {}
+
+    void execute(EditorState& state) override
+    {
+        auto& target = state.lines[line];
+        target.erase(startCol, deletedText.size());
+        state.cursor = {line, startCol};
+    }
+
+    void undo(EditorState& state) override
+    {
+        auto& target = state.lines[line];
+        target.insert(startCol, deletedText);
+        state.cursor = {line, startCol + deletedText.size()};
+    }
+
+private:
+    size_t      line;
+    size_t      startCol;
+    std::string deletedText;
+};
+
+// Split the line at (line, col). The portion after `col` becomes a new line
+// below. Cursor moves to the start of the new line.
+class SplitLineCommand : public IEditorCommand
+{
+public:
+    SplitLineCommand(size_t line, size_t col) : line(line), col(col) {}
+
+    void execute(EditorState& state) override
+    {
+        auto& current  = state.lines[line];
+        std::string rightPart = current.substr(col);
+        current.erase(col);
+        state.lines.insert(state.lines.begin() + line + 1, std::move(rightPart));
+        state.cursor = {line + 1, 0};
+    }
+
+    void undo(EditorState& state) override
+    {
+        state.lines[line] += state.lines[line + 1];
+        state.lines.erase(state.lines.begin() + line + 1);
+        state.cursor = {line, col};
+    }
+
+private:
+    size_t line;
+    size_t col;
+};
+
+// Merge line (line+1) into line. `joinCol` is the length of `line` before the
+// merge — that's where the cursor lands. Undo restores both lines.
+class MergeLinesCommand : public IEditorCommand
+{
+public:
+    MergeLinesCommand(size_t line, size_t joinCol) : line(line), joinCol(joinCol) {}
+
+    void execute(EditorState& state) override
+    {
+        state.lines[line] += state.lines[line + 1];
+        state.lines.erase(state.lines.begin() + line + 1);
+        state.cursor = {line, joinCol};
+    }
+
+    void undo(EditorState& state) override
+    {
+        auto& current = state.lines[line];
+        std::string rightPart = current.substr(joinCol);
+        current.erase(joinCol);
+        state.lines.insert(state.lines.begin() + line + 1, std::move(rightPart));
+        state.cursor = {line + 1, 0};
+    }
+
+private:
+    size_t line;
+    size_t joinCol;
+};
 
 struct TextHandlingSys : public System<
     QueuedListener<OnSDLTextInput>,
@@ -168,323 +301,156 @@ struct TextHandlingSys : public System<
 
         auto lineText = prefab->getEntity("LineText");
 
-        auto lineNumber = lineText->get<TTFText>()->text;
+        auto lineNumberText = lineText->get<TTFText>()->text;
 
-        LOG_INFO(DOM, "Clicked on line: " << lineNumber);
+        LOG_INFO(DOM, "Clicked on line: " << lineNumberText);
 
-        focusLine(std::stoul(lineNumber));
+        // Display number is 1-based; convert to 0-based line index.
+        focusLine(std::stoul(lineNumberText) - 1);
     }
 
     virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
-        auto pf = getLinePrefab(currentLine);
-        if (not pf)
+        // Ignore text input while control is held to avoid inserting characters
+        // on Ctrl+Z / Ctrl+Y shortcuts.
+        if (lcontrolPressed or rcontrolPressed)
             return;
 
-        auto currentText = getLineText(currentLine);
-        auto newText = currentText.substr(0, cursorCol) + event.text + currentText.substr(cursorCol);
-        cursorCol += event.text.size();
-        pf->callHelper("SetCurrentText", newText);
+        if (editorState.cursor.line >= editorState.lines.size())
+            return;
 
-        if (isVirtualMode)
-            fileLines[currentLine - 1] = newText;
-
-        resetBlink();
-        repositionCursor();
+        executeCommand(std::make_unique<InsertTextCommand>(
+            editorState.cursor.line, editorState.cursor.col, event.text));
     }
 
-    void focusLine(size_t ln)
+    void focusLine(size_t lineIdx)
     {
-        if (isVirtualMode and not isLineInPool(ln))
-            scrollPoolToLine(ln);
+        if (lineIdx >= editorState.lines.size())
+            return;
 
-        auto pfBefore = getLinePrefab(currentLine);
-        if (pfBefore)
-            pfBefore->callHelper("UnfocusLine");
+        editorState.cursor.line = lineIdx;
 
-        currentLine = ln;
+        // Clamp column to the new line's length.
+        if (editorState.cursor.col > editorState.lines[lineIdx].size())
+            editorState.cursor.col = editorState.lines[lineIdx].size();
 
-        auto pfAfter = getLinePrefab(currentLine);
-        if (pfAfter)
-            pfAfter->callHelper("SetAsFocusLine");
-
-        // Clamp column to the new line's length
-        const std::string lineText = getLineText(currentLine);
-        if (cursorCol > lineText.size())
-            cursorCol = lineText.size();
-
-        resetBlink();
-        repositionCursor();
+        ensureCursorVisible();
+        refreshEditorView();
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
+        // Modifier keys — update state first so the rest of the handler sees
+        // the up-to-date control flags.
+        if (event.key == SDL_SCANCODE_LCTRL)
+        {
+            lcontrolPressed = true;
+            return;
+        }
+        if (event.key == SDL_SCANCODE_RCTRL)
+        {
+            rcontrolPressed = true;
+            return;
+        }
+
+        const bool ctrl = lcontrolPressed or rcontrolPressed;
+
+        // Undo / redo shortcuts.
+        if (ctrl and event.key == SDL_SCANCODE_Z)
+        {
+            undo();
+            return;
+        }
+        if (ctrl and event.key == SDL_SCANCODE_Y)
+        {
+            redo();
+            return;
+        }
+
+        if (editorState.cursor.line >= editorState.lines.size())
+            return;
+
         if (event.key == SDL_SCANCODE_RETURN)
         {
-            // Split the current line at the cursor: everything before the
-            // cursor stays on the current line, everything after moves to
-            // the newly created line.
-            const std::string currentText = getLineText(currentLine);
-            const size_t splitPos = std::min(cursorCol, currentText.size());
-            const std::string textBefore = currentText.substr(0, splitPos);
-            const std::string textAfter  = currentText.substr(splitPos);
-
-            auto oldLine = currentLine++;
-            lineNumber++;
-            cursorCol = 0;
-
-            if (isVirtualMode)
-            {
-                // Old line keeps the text before the cursor, new line takes
-                // the text after.
-                fileLines[oldLine - 1] = textBefore;
-                fileLines.insert(fileLines.begin() + oldLine, textAfter);
-
-                auto pfBefore = getLinePrefab(oldLine);
-                if (pfBefore) pfBefore->callHelper("UnfocusLine");
-
-                // Refresh all visible lines from the split point onwards so
-                // both the shortened old line and the new line pick up their
-                // new text.
-                for (size_t i = oldLine - 1; i < poolWindowStart + linePool.size() && i < fileLines.size(); i++)
-                {
-                    size_t pi = i - poolWindowStart;
-                    linePool[pi].get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
-                    linePool[pi].get<Prefab>()->callHelper("UpdateLineText", i + 1);
-                }
-
-                updateSpacers();
-
-                auto pfAfter = getLinePrefab(currentLine);
-                if (pfAfter)
-                    pfAfter->callHelper("SetAsFocusLine");
-
-                resetBlink();
-                repositionCursor();
-            }
-            else
-            {
-                auto anchor = textInputEnt.get<UiAnchor>();
-                auto linePrefab = makeLinePrefab(ecsRef, anchor, currentLine);
-
-                // New line gets the text after the cursor. Use the TTFText
-                // CompRef directly since the freshly created prefab can't be
-                // queried by child name yet.
-                linePrefab.get<TTFText>()->setText(textAfter);
-
-                auto listViewComp = listViewEnt.get<VerticalLayout>();
-
-                // Old line keeps the text before the cursor and is unfocused.
-                if (oldLine > 0)
-                {
-                    auto entBefore = listViewComp->entities[oldLine - 1];
-                    auto oldPrefab = entBefore.get<Prefab>();
-                    oldPrefab->callHelper("SetCurrentText", textBefore);
-                    oldPrefab->callHelper("UnfocusLine");
-                }
-
-                // Todo fix this
-                // Highlight the new line
-                linePrefab.get<Simple2DObject>()->setColors(constant::Vector4D{255.f, 0.f, 0.f, 255.f});
-
-                // Update the line text for all the lines after the inserted line
-                for (size_t i = currentLine - 1; i < lineNumber - 2; ++i)
-                {
-                    auto ent = listViewComp->entities[i];
-                    ent.get<Prefab>()->callHelper("UpdateLineText", i + 2);
-                }
-
-                listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
-
-                resetBlink();
-
-                // Edge case: the insertion into the list view is deferred, so
-                // getLinePrefab(currentLine) still resolves to the previous line,
-                // and prefab->getEntity("Text"/"TextBg") won't work on a freshly
-                // created prefab either. Use the CompRefs returned by
-                // makeLinePrefab directly: the Simple2DObject ref points to the
-                // TextBg entity and the TTFText ref points to the Text entity.
-                auto textBgId = linePrefab.get<Simple2DObject>().entityId;
-                auto textId   = linePrefab.get<TTFText>().entityId;
-
-                auto ca = cursorEntityRef.get<UiAnchor>();
-                ca->setVerticalCenter({textBgId, AnchorType::VerticalCenter});
-                ca->setLeftAnchor({textBgId, AnchorType::Left});
-                ca->setZConstrain(PosConstrain{textId, AnchorType::Z, PosOpType::Add, 1.0f});
-                ca->setLeftMargin(0.0f);
-
-                cursorActive = true;
-                cursorEntityRef.get<PositionComponent>()->setVisible(cursorVisible);
-            }
+            executeCommand(std::make_unique<SplitLineCommand>(
+                editorState.cursor.line, editorState.cursor.col));
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
-            auto pf = getLinePrefab(currentLine);
-            if (!pf) return;
+            const std::string& line = editorState.lines[editorState.cursor.line];
 
-            auto text = getLineText(currentLine);
-
-            if (cursorCol > 0)
+            if (editorState.cursor.col > 0)
             {
-                if (lcontrolPressed or rcontrolPressed)
+                size_t startCol = editorState.cursor.col;
+                if (ctrl)
                 {
-                    // Delete back to previous word boundary
-                    size_t newCol = cursorCol;
-                    while (newCol > 0 && text[newCol - 1] == ' ') newCol--;
-                    while (newCol > 0 && text[newCol - 1] != ' ') newCol--;
-                    text = text.substr(0, newCol) + text.substr(cursorCol);
-                    cursorCol = newCol;
+                    // Delete back to previous word boundary.
+                    while (startCol > 0 && line[startCol - 1] == ' ') startCol--;
+                    while (startCol > 0 && line[startCol - 1] != ' ') startCol--;
                 }
                 else
                 {
-                    text = text.substr(0, cursorCol - 1) + text.substr(cursorCol);
-                    cursorCol--;
+                    startCol = editorState.cursor.col - 1;
                 }
 
-                pf->callHelper("SetCurrentText", text);
-
-                if (isVirtualMode)
-                    fileLines[currentLine - 1] = text;
-
-                resetBlink();
-                repositionCursor();
-                return;
+                std::string deleted = line.substr(startCol, editorState.cursor.col - startCol);
+                if (not deleted.empty())
+                {
+                    executeCommand(std::make_unique<DeleteRangeCommand>(
+                        editorState.cursor.line, startCol, std::move(deleted)));
+                }
             }
-            // else do the line removal logic down here
-
-            if (currentLine <= 1)
-                return;
-
-            // Merge the current line into the previous one: the previous
-            // line's original length becomes the new cursor column, and the
-            // two texts are concatenated.
-            const std::string prevText   = getLineText(currentLine - 1);
-            const size_t      joinCol    = prevText.size();
-            const std::string mergedText = prevText + text;
-
-            if (isVirtualMode)
+            else if (editorState.cursor.line > 0)
             {
-                pf->callHelper("UnfocusLine");
-
-                fileLines[currentLine - 2] = mergedText;
-                fileLines.erase(fileLines.begin() + currentLine - 1);
-                lineNumber--;
-                currentLine--;
-                cursorCol = joinCol;
-
-                // Shift pool contents back from the merged line onwards so
-                // it picks up the concatenated text too.
-                for (size_t i = currentLine - 1; i < poolWindowStart + linePool.size() && i < fileLines.size(); i++)
-                {
-                    size_t pi = i - poolWindowStart;
-                    linePool[pi].get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
-                    linePool[pi].get<Prefab>()->callHelper("UpdateLineText", i + 1);
-                }
-
-                // Clear the last pool entry if it now falls beyond fileLines
-                size_t poolWindowEnd = poolWindowStart + linePool.size();
-                if (fileLines.size() < poolWindowEnd && fileLines.size() >= poolWindowStart)
-                {
-                    size_t pi = fileLines.size() - poolWindowStart;
-                    linePool[pi].get<Prefab>()->callHelper("SetCurrentText", "");
-                }
-
-                updateSpacers();
-
-                auto pfAfter = getLinePrefab(currentLine);
-                if (pfAfter) pfAfter->callHelper("SetAsFocusLine");
-
-                resetBlink();
-                repositionCursor();
-            }
-            else
-            {
-                auto listViewComp = listViewEnt.get<VerticalLayout>();
-
-                // Unfocus the line that is about to be deleted.
-                pf->callHelper("UnfocusLine");
-
-                // Merge the current line's text into the previous line.
-                auto prevEnt = listViewComp->entities[currentLine - 2];
-                prevEnt.get<Prefab>()->callHelper("SetCurrentText", mergedText);
-
-                // Update the line text for all the lines after the removed line
-                for (size_t i = currentLine; i < lineNumber - 1; ++i)
-                {
-                    auto ent = listViewComp->entities[i];
-                    ent.get<Prefab>()->callHelper("UpdateLineText", i);
-                }
-
-                listViewComp->removeAt(currentLine - 1);
-
-                lineNumber--;
-                currentLine--;
-                cursorCol = joinCol;
-
-                // Focus the new current line. Unlike the insert case, the
-                // previous line already lives in entities[currentLine - 1],
-                // so getLinePrefab() resolves correctly even while the
-                // deferred removeAt hasn't been applied yet.
-                auto pfAfter = getLinePrefab(currentLine);
-                if (pfAfter)
-                    pfAfter->callHelper("SetAsFocusLine");
-
-                resetBlink();
-                repositionCursor();
+                // Merge the current line into the previous one. joinCol is the
+                // previous line's length (where the cursor should end up).
+                size_t prevLineIdx = editorState.cursor.line - 1;
+                size_t joinCol = editorState.lines[prevLineIdx].size();
+                executeCommand(std::make_unique<MergeLinesCommand>(prevLineIdx, joinCol));
             }
         }
         else if (event.key == SDL_SCANCODE_LEFT)
         {
-            if (cursorCol > 0)
+            if (editorState.cursor.col > 0)
             {
-                cursorCol--;
-                resetBlink();
-                repositionCursor();
+                editorState.cursor.col--;
             }
-            else if (currentLine > 1)
+            else if (editorState.cursor.line > 0)
             {
-                focusLine(currentLine - 1);
-                cursorCol = getLineText(currentLine).size();
-                repositionCursor();
+                editorState.cursor.line--;
+                editorState.cursor.col = editorState.lines[editorState.cursor.line].size();
             }
+            ensureCursorVisible();
+            refreshEditorView();
         }
         else if (event.key == SDL_SCANCODE_RIGHT)
         {
-            const std::string lineText = getLineText(currentLine);
-            if (cursorCol < lineText.size())
+            const std::string& lineText = editorState.lines[editorState.cursor.line];
+            if (editorState.cursor.col < lineText.size())
             {
-                cursorCol++;
-                resetBlink();
-                repositionCursor();
+                editorState.cursor.col++;
             }
-            else if (currentLine < lineNumber - 1)
+            else if (editorState.cursor.line + 1 < editorState.lines.size())
             {
-                cursorCol = 0;
-                focusLine(currentLine + 1);
-                repositionCursor();
+                editorState.cursor.line++;
+                editorState.cursor.col = 0;
             }
+            ensureCursorVisible();
+            refreshEditorView();
         }
         else if (event.key == SDL_SCANCODE_UP)
         {
-            if (currentLine > 1)
+            if (editorState.cursor.line > 0)
             {
-                focusLine(currentLine - 1);
+                focusLine(editorState.cursor.line - 1);
             }
         }
         else if (event.key == SDL_SCANCODE_DOWN)
         {
-            if (currentLine < lineNumber - 1)
+            if (editorState.cursor.line + 1 < editorState.lines.size())
             {
-                focusLine(currentLine + 1);
+                focusLine(editorState.cursor.line + 1);
             }
-        }
-        else if (event.key == SDL_SCANCODE_LCTRL)
-        {
-            lcontrolPressed = true;
-        }
-        else if (event.key == SDL_SCANCODE_RCTRL)
-        {
-            rcontrolPressed = true;
         }
     }
 
@@ -521,34 +487,180 @@ struct TextHandlingSys : public System<
             cursorEntityRef.get<PositionComponent>()->setVisible(true);
     }
 
-    std::string getLineText(size_t ln) const
+    std::string getLineText(size_t lineIdx) const
     {
-        if (isVirtualMode)
+        if (lineIdx >= editorState.lines.size()) return "";
+        return editorState.lines[lineIdx];
+    }
+
+    // ---- Command dispatch ------------------------------------------------
+
+    void executeCommand(std::unique_ptr<IEditorCommand> cmd)
+    {
+        cmd->execute(editorState);
+        undoStack.push_back(std::move(cmd));
+        redoStack.clear();
+        ensureCursorVisible();
+        refreshEditorView();
+    }
+
+    void undo()
+    {
+        if (undoStack.empty()) return;
+
+        auto cmd = std::move(undoStack.back());
+        undoStack.pop_back();
+
+        cmd->undo(editorState);
+        redoStack.push_back(std::move(cmd));
+
+        ensureCursorVisible();
+        refreshEditorView();
+    }
+
+    void redo()
+    {
+        if (redoStack.empty()) return;
+
+        auto cmd = std::move(redoStack.back());
+        redoStack.pop_back();
+
+        cmd->execute(editorState);
+        undoStack.push_back(std::move(cmd));
+
+        ensureCursorVisible();
+        refreshEditorView();
+    }
+
+    // In virtual mode, scroll the pool window so the cursor line stays visible.
+    void ensureCursorVisible()
+    {
+        if (not isVirtualMode) return;
+
+        size_t cursorLine = editorState.cursor.line;
+        if (cursorLine < poolWindowStart or
+            cursorLine >= poolWindowStart + linePool.size())
         {
-            if (ln == 0 || ln - 1 >= fileLines.size()) return "";
-            return fileLines[ln - 1];
+            scrollPoolToLine(cursorLine);
         }
-        auto& ents = listViewEnt.get<VerticalLayout>()->entities;
-        if (ln == 0 || ln - 1 >= ents.size()) return "";
-        auto pf = ents[ln - 1].get<Prefab>();
-        if (!pf) return "";
-        return pf->getEntity("Text")->get<TTFText>()->text;
+    }
+
+    // ---- View synchronisation -------------------------------------------
+
+    void refreshEditorView()
+    {
+        if (editorState.lines.empty())
+            editorState.lines.push_back("");
+
+        // Clamp cursor to a valid position.
+        if (editorState.cursor.line >= editorState.lines.size())
+            editorState.cursor.line = editorState.lines.size() - 1;
+        if (editorState.cursor.col > editorState.lines[editorState.cursor.line].size())
+            editorState.cursor.col = editorState.lines[editorState.cursor.line].size();
+
+        if (isVirtualMode)
+            refreshVirtualView();
+        else
+            refreshNonVirtualView();
+
+        resetBlink();
+        repositionCursor();
+    }
+
+    void refreshVirtualView()
+    {
+        // Clamp pool window so it never runs off the end.
+        size_t maxStart = (editorState.lines.size() > linePool.size())
+            ? editorState.lines.size() - linePool.size() : 0;
+        if (poolWindowStart > maxStart)
+            poolWindowStart = maxStart;
+
+        // Sync every pool prefab with the current model using cached CompRefs.
+        for (size_t i = 0; i < linePool.size(); i++)
+        {
+            auto& view    = linePool[i];
+            size_t lineIdx = poolWindowStart + i;
+
+            if (lineIdx < editorState.lines.size())
+            {
+                view.textRef->setText(editorState.lines[lineIdx]);
+                view.lineNumTextRef->setText(std::to_string(lineIdx + 1));
+                view.lineNumBgRef->setColors(getLineTextBgColor(lineIdx + 1));
+                view.textBgRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+            }
+            else
+            {
+                view.textRef->setText(std::string{});
+            }
+        }
+
+        updateSpacers();
+
+        // Highlight the focused line if it lives inside the current pool window.
+        size_t cursorLine = editorState.cursor.line;
+        if (cursorLine >= poolWindowStart and
+            cursorLine <  poolWindowStart + linePool.size() and
+            cursorLine <  editorState.lines.size())
+        {
+            linePool[cursorLine - poolWindowStart].textBgRef->setColors(
+                constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+        }
+    }
+
+    void refreshNonVirtualView()
+    {
+        auto anchor       = textInputEnt.get<UiAnchor>();
+        auto listViewComp = listViewEnt.get<VerticalLayout>();
+
+        // Remove excess prefabs from the end first. Non-virtual mode only ever
+        // appends/pops at the tail (lines inserted in the middle are handled by
+        // rewriting the tail prefabs' text below), so line-number labels stay
+        // stable for the lifetime of each prefab — no UpdateLineText needed.
+        while (linePrefabs.size() > editorState.lines.size())
+        {
+            int lastIdx = static_cast<int>(linePrefabs.size()) - 1;
+            listViewComp->removeAt(lastIdx);
+            linePrefabs.pop_back();
+        }
+
+        // Add missing prefabs at the end of the layout. We use the CompRefs
+        // returned by makeLinePrefab directly instead of going through
+        // Prefab::getEntity / callHelper, which is unreliable on freshly
+        // created prefabs because component attachment is deferred.
+        while (linePrefabs.size() < editorState.lines.size())
+        {
+            size_t newIdx = linePrefabs.size();
+            auto view = makeLinePrefab(ecsRef, anchor, newIdx + 1);
+            listViewComp->addEntity(view.entity);
+            linePrefabs.push_back(view);
+        }
+
+        // Sync text and focus state for every prefab via cached CompRefs.
+        for (size_t i = 0; i < linePrefabs.size(); i++)
+        {
+            auto& view = linePrefabs[i];
+            view.textRef->setText(editorState.lines[i]);
+            view.textBgRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+        }
+
+        if (editorState.cursor.line < linePrefabs.size())
+        {
+            linePrefabs[editorState.cursor.line].textBgRef->setColors(
+                constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+        }
     }
 
     void repositionCursor()
     {
-        auto pf = getLinePrefab(currentLine);
-        if (!pf)
+        auto view = getLineView(editorState.cursor.line);
+        if (not view)
         {
             cursorActive = false;
             cursorEntityRef.get<PositionComponent>()->setVisible(false);
             return;
         }
 
-        auto textEnt = pf->getEntity("Text");
-        auto textBg  = pf->getEntity("TextBg");
-        auto textBgAnchor = textBg->get<UiAnchor>();
-        auto ttfComp = textEnt->get<TTFText>();
+        auto ttfComp   = view->textRef;
         auto ttfSystem = ecsRef->getSystem<TTFTextSystem>();
 
         float cursorX = 0.0f;
@@ -558,8 +670,8 @@ struct TextHandlingSys : public System<
             if (mapIt != ttfSystem->charactersMap.end())
             {
                 const auto& fontChars = mapIt->second;
-                const std::string lineText = getLineText(currentLine);
-                for (size_t i = 0; i < cursorCol && i < lineText.size(); i++)
+                const std::string& lineText = editorState.lines[editorState.cursor.line];
+                for (size_t i = 0; i < editorState.cursor.col && i < lineText.size(); i++)
                 {
                     auto it = fontChars.find(lineText[i]);
                     if (it != fontChars.end())
@@ -569,10 +681,9 @@ struct TextHandlingSys : public System<
         }
 
         auto ca = cursorEntityRef.get<UiAnchor>();
-        ca->setVerticalCenter(textBgAnchor->verticalCenter);
-        // ca->setTopAnchor({textBg->id, AnchorType::Top});
-        ca->setLeftAnchor({textBg->id, AnchorType::Left});
-        ca->setZConstrain(PosConstrain{textEnt->id, AnchorType::Z, PosOpType::Add, 1.0f});
+        ca->setVerticalCenter(view->textBgAnchor->verticalCenter);
+        ca->setLeftAnchor({view->textBgRef.entityId, AnchorType::Left});
+        ca->setZConstrain(PosConstrain{view->textRef.entityId, AnchorType::Z, PosOpType::Add, 1.0f});
         ca->setLeftMargin(cursorX);
 
         cursorActive = true;
@@ -601,32 +712,9 @@ struct TextHandlingSys : public System<
 
         auto listView = makeVerticalLayout(ecsRef, 0, 0, 500, 500, true);
 
-        // listView.attach<Simple2DObject>(Shape2D::Square, constant::Vector4D{0.f, 192.f, 0.f, 255.f});
-
         auto listViewAnchor = listView.get<UiAnchor>();
         listViewAnchor->setTopMargin(90);
-
         listViewAnchor->fillIn(anchor);
-
-        auto listViewComp = listView.get<VerticalLayout>();
-
-        auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
-        auto linePrefab2 = makeLinePrefab(ecsRef, anchor, lineNumber++);
-        auto linePrefab3 = makeLinePrefab(ecsRef, anchor, lineNumber++);
-
-        linePrefab3.get<Prefab>()->callHelper("SetAsFocusLine");
-
-        // listViewComp->addEntity(linePrefab);
-
-        // auto testCube = makeUiSimple2DShape(ecsRef, Shape2D::Square, 50, 50, constant::Vector4D{192.f, 0.f, 0.f, 255.f});
-
-        // listViewComp->addEntity(testCube.entity);
-
-        listViewComp->addEntity(linePrefab.entity);
-        listViewComp->addEntity(linePrefab2.entity);
-        listViewComp->addEntity(linePrefab3.entity);
-
-        currentLine = 3;
 
         listViewEnt = listView.entity;
 
@@ -636,8 +724,11 @@ struct TextHandlingSys : public System<
         cursorShape.get<PositionComponent>()->setVisible(false);
         cursorEntityRef = cursorShape.entity;
 
-        cursorCol = 0;
-        repositionCursor();
+        // Initial editor state: three empty lines, cursor on the last one.
+        editorState.lines  = {"", "", ""};
+        editorState.cursor = {2, 0};
+
+        refreshEditorView();
 
         auto file = makeTTFText(ecsRef, 10.0f, 5.0f, 12.0f, "light", "Open", 0.5);
         ecsRef->attach<MouseLeftClickComponent>(file.entity, makeCallable<OpenFileAction>());
@@ -665,21 +756,24 @@ struct TextHandlingSys : public System<
         {
             LOG_INFO("Context Menu", lTheOpenFileName);
 
+            // Tear down any existing UI state.
             auto listViewComp = listViewEnt.get<VerticalLayout>();
             listViewComp->clear();
 
-            fileLines.clear();
+            linePrefabs.clear();
             linePool.clear();
             topSpacerEnt = {};
             bottomSpacerEnt = {};
             poolWindowStart = 0;
             isVirtualMode = false;
-            lineNumber = 1;
-            currentLine = 1;
+            undoStack.clear();
+            redoStack.clear();
+            editorState.lines.clear();
+            editorState.cursor = {0, 0};
 
             auto anchor = textInputEnt.get<UiAnchor>();
 
-            // Read all lines into memory (strings only — fast)
+            // Read all lines into the editor model (strings only — fast).
             std::ifstream fileStream(lTheOpenFileName);
             std::string line;
             while (std::getline(fileStream, line))
@@ -697,104 +791,49 @@ struct TextHandlingSys : public System<
                         expandedLine += ch;
                 }
 
-                fileLines.push_back(std::move(expandedLine));
+                editorState.lines.push_back(std::move(expandedLine));
             }
 
-            if (fileLines.size() > VIRTUAL_THRESHOLD)
+            if (editorState.lines.empty())
+                editorState.lines.push_back("");
+
+            if (editorState.lines.size() > VIRTUAL_THRESHOLD)
             {
                 isVirtualMode = true;
 
-                // Top spacer: zero height — pool starts at the top of the file
+                // Top spacer: zero height — pool starts at the top of the file.
                 auto topSpacer = ecsRef->createEntity();
                 ecsRef->attach<PositionComponent>(topSpacer)->setHeight(0.0f);
                 ecsRef->attach<UiAnchor>(topSpacer);
                 listViewComp->addEntity(topSpacer);
                 topSpacerEnt = topSpacer;
 
-                // Create fixed pool of prefab entities
-                size_t poolSize = (fileLines.size() < POOL_SIZE) ? fileLines.size() : POOL_SIZE;
+                // Create fixed pool of prefab entities. refreshEditorView fills
+                // their text below.
+                size_t poolSize = (editorState.lines.size() < POOL_SIZE)
+                    ? editorState.lines.size() : POOL_SIZE;
                 linePool.reserve(poolSize);
                 for (size_t i = 0; i < poolSize; i++)
                 {
-                    auto lp = makeLinePrefab(ecsRef, anchor, i + 1);
-                    lp.get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
-                    listViewComp->addEntity(lp.entity);
-                    linePool.push_back(lp.entity);
+                    auto view = makeLinePrefab(ecsRef, anchor, i + 1);
+                    listViewComp->addEntity(view.entity);
+                    linePool.push_back(view);
                 }
                 poolWindowStart = 0;
 
-                // Bottom spacer: covers lines not yet in the pool
+                // Bottom spacer: covers lines not yet in the pool.
                 auto bottomSpacer = ecsRef->createEntity();
-                float bottomH = static_cast<float>(fileLines.size() - poolSize) * LINE_HEIGHT;
+                float bottomH = static_cast<float>(editorState.lines.size() - poolSize) * LINE_HEIGHT;
                 ecsRef->attach<PositionComponent>(bottomSpacer)->setHeight(bottomH);
                 ecsRef->attach<UiAnchor>(bottomSpacer);
                 listViewComp->addEntity(bottomSpacer);
                 bottomSpacerEnt = bottomSpacer;
-
-                lineNumber = fileLines.size() + 1;
-                currentLine = 1;
-                linePool[0].get<Prefab>()->callHelper("SetAsFocusLine");
             }
-            else
-            {
-                // Small file: create all prefabs directly
-                for (size_t i = 0; i < fileLines.size(); i++)
-                {
-                    auto lp = makeLinePrefab(ecsRef, anchor, i + 1);
-                    lp.get<Prefab>()->callHelper("SetCurrentText", fileLines[i]);
-                    listViewComp->addEntity(lp.entity);
-                }
 
-                lineNumber = fileLines.size() + 1;
-                currentLine = 1;
-            }
-            // ecsRef->sendEvent(LoadScene{lTheOpenFileName});
+            // refreshEditorView creates any missing prefabs in non-virtual mode
+            // and pushes the loaded text into the pool/prefabs.
+            refreshEditorView();
         }
-    }
-
-    void fillText(std::string_view sv)
-    {
-        auto anchor = textInputEnt.get<UiAnchor>();
-
-        auto listViewComp = listViewEnt.get<VerticalLayout>();
-
-        while (not sv.empty())
-        {
-            // Find the next newline character
-            size_t pos = sv.find_first_of("\n\r");
-
-            // Extract the line (no copy, still a view)
-            std::string_view line = sv.substr(0, pos);
-
-            // Expand tabs into 4 spaces (requires building a string)
-            std::string expandedLine;
-            expandedLine.reserve(line.size() + 4); // rough guess to avoid frequent reallocs
-
-            for (char ch : line)
-            {
-                if (ch == '\t') {
-                    expandedLine += "    "; // replace tab with 4 spaces
-                } else {
-                    expandedLine += ch;
-                }
-            }
-
-            auto linePrefab = makeLinePrefab(ecsRef, anchor, lineNumber++);
-
-            linePrefab.get<Prefab>()->callHelper("SetCurrentText", expandedLine);
-
-            listViewComp->addEntity(linePrefab.entity);
-
-            if (pos == std::string_view::npos) break;
-
-            // Handle CRLF (\r\n): if \r is found and followed by \n, skip both
-            if (sv[pos] == '\r' && pos + 1 < sv.size() && sv[pos + 1] == '\n') {
-                sv.remove_prefix(pos + 2);
-            } else {
-                sv.remove_prefix(pos + 1);
-            }
-        }
-
     }
 
     virtual void onEvent(const LayoutScrolledEvent& event) override
@@ -807,7 +846,8 @@ struct TextHandlingSys : public System<
 
         size_t firstVisible = static_cast<size_t>(yOffset / LINE_HEIGHT);
         size_t targetStart = (firstVisible > SCROLL_BUFFER) ? firstVisible - SCROLL_BUFFER : 0;
-        size_t maxStart = (fileLines.size() > linePool.size()) ? fileLines.size() - linePool.size() : 0;
+        size_t maxStart = (editorState.lines.size() > linePool.size())
+            ? editorState.lines.size() - linePool.size() : 0;
         if (targetStart > maxStart) targetStart = maxStart;
 
         if (targetStart == poolWindowStart)
@@ -815,65 +855,47 @@ struct TextHandlingSys : public System<
 
         poolWindowStart = targetStart;
 
-        for (size_t i = 0; i < linePool.size(); i++)
-        {
-            size_t lineIdx = poolWindowStart + i;
-            linePool[i].get<Prefab>()->callHelper("SetCurrentText", fileLines[lineIdx]);
-            linePool[i].get<Prefab>()->callHelper("UpdateLineText", lineIdx + 1);
-            linePool[i].get<Prefab>()->callHelper("UnfocusLine");
-        }
-
-        // Re-apply focus highlight if the cursor line is in the new window
-        if (isLineInPool(currentLine))
-        {
-            linePool[currentLine - 1 - poolWindowStart].get<Prefab>()->callHelper("SetAsFocusLine");
-            repositionCursor();
-        }
-        else
-        {
-            cursorActive = false;
-            cursorEntityRef.get<PositionComponent>()->setVisible(false);
-        }
-
-        updateSpacers();
+        // Scrolling is a pure view update — the model is unchanged, and we must
+        // not auto-scroll back to the cursor, so call refreshEditorView without
+        // ensureCursorVisible().
+        refreshEditorView();
     }
 
-    Prefab* getLinePrefab(size_t ln)
+    LineView* getLineView(size_t lineIdx)
     {
         if (isVirtualMode)
         {
-            size_t idx = ln - 1;
-            if (idx < poolWindowStart || idx >= poolWindowStart + linePool.size())
+            if (lineIdx < poolWindowStart || lineIdx >= poolWindowStart + linePool.size())
                 return nullptr;
-            return linePool[idx - poolWindowStart].get<Prefab>();
+            return &linePool[lineIdx - poolWindowStart];
         }
-        auto& ents = listViewEnt.get<VerticalLayout>()->entities;
-        if (ln == 0 || ln - 1 >= ents.size()) return nullptr;
-        return ents[ln - 1].get<Prefab>();
+        if (lineIdx >= linePrefabs.size()) return nullptr;
+        return &linePrefabs[lineIdx];
     }
 
-    bool isLineInPool(size_t ln) const
+    bool isLineInPool(size_t lineIdx) const
     {
-        size_t idx = ln - 1;
-        return idx >= poolWindowStart && idx < poolWindowStart + linePool.size();
+        return lineIdx >= poolWindowStart && lineIdx < poolWindowStart + linePool.size();
     }
 
     void updateSpacers()
     {
+        if (not topSpacerEnt or not bottomSpacerEnt) return;
+
         size_t poolWindowEnd = poolWindowStart + linePool.size();
         topSpacerEnt.get<PositionComponent>()->setHeight(static_cast<float>(poolWindowStart) * LINE_HEIGHT);
-        float bottomH = (fileLines.size() > poolWindowEnd)
-            ? static_cast<float>(fileLines.size() - poolWindowEnd) * LINE_HEIGHT
+        float bottomH = (editorState.lines.size() > poolWindowEnd)
+            ? static_cast<float>(editorState.lines.size() - poolWindowEnd) * LINE_HEIGHT
             : 0.0f;
         bottomSpacerEnt.get<PositionComponent>()->setHeight(bottomH);
     }
 
-    void scrollPoolToLine(size_t ln)
+    void scrollPoolToLine(size_t lineIdx)
     {
-        size_t idx = ln - 1;
         size_t halfPool = linePool.size() / 2;
-        size_t newStart = (idx > halfPool) ? idx - halfPool : 0;
-        size_t maxStart = (fileLines.size() > linePool.size()) ? fileLines.size() - linePool.size() : 0;
+        size_t newStart = (lineIdx > halfPool) ? lineIdx - halfPool : 0;
+        size_t maxStart = (editorState.lines.size() > linePool.size())
+            ? editorState.lines.size() - linePool.size() : 0;
         if (newStart > maxStart) newStart = maxStart;
 
         if (newStart == poolWindowStart)
@@ -883,16 +905,10 @@ struct TextHandlingSys : public System<
 
         listViewEnt.get<VerticalLayout>()->yOffset = static_cast<float>(poolWindowStart) * LINE_HEIGHT;
 
-        for (size_t i = 0; i < linePool.size(); i++)
-        {
-            size_t lineIdx = poolWindowStart + i;
-            linePool[i].get<Prefab>()->callHelper("SetCurrentText", fileLines[lineIdx]);
-            linePool[i].get<Prefab>()->callHelper("UpdateLineText", lineIdx + 1);
-        }
-
-        updateSpacers();
-
-        // Notify LayoutSystem to update scrollbar and visibility culling
+        // Notify LayoutSystem to update scrollbar and visibility culling. The
+        // guard prevents onEvent(LayoutScrolledEvent) from recomputing the pool
+        // window; refreshEditorView (called by the command dispatcher) will
+        // repopulate the pool based on the new poolWindowStart.
         updatingPool = true;
         ecsRef->sendEvent(LayoutScrolledEvent{listViewEnt.id});
         updatingPool = false;
@@ -925,15 +941,21 @@ struct TextHandlingSys : public System<
     bool lcontrolPressed = false;
     bool rcontrolPressed = false;
 
-    size_t lineNumber = 1;
-    size_t currentLine = 1;
+    // Editor model (single source of truth) and command history.
+    EditorState                                  editorState;
+    std::vector<std::unique_ptr<IEditorCommand>> undoStack;
+    std::vector<std::unique_ptr<IEditorCommand>> redoStack;
+
+    // Non-virtual mode: one LineView per line in editorState.lines, kept in sync
+    // locally because the VerticalLayout's own `entities` vector is only updated
+    // when deferred layout events are processed.
+    std::vector<LineView> linePrefabs;
 
     // Virtual scroll state
-    std::vector<std::string> fileLines;   // All file lines (strings only, no UI)
-    std::vector<EntityRef> linePool;      // Fixed pool of reused prefab entities
+    std::vector<LineView> linePool;       // Fixed pool of reused line prefabs
     EntityRef topSpacerEnt;               // Spacer above the visible pool window
     EntityRef bottomSpacerEnt;            // Spacer below the visible pool window
-    size_t poolWindowStart = 0;           // fileLines index of linePool[0]
+    size_t poolWindowStart = 0;           // editorState.lines index of linePool[0]
     bool isVirtualMode = false;           // True when file is large enough to virtualise
     bool updatingPool = false;            // Guard against re-entrant LayoutScrolledEvent
 
@@ -945,7 +967,6 @@ struct TextHandlingSys : public System<
 
     // Cursor state
     EntityRef cursorEntityRef;       // Single global cursor entity
-    size_t    cursorCol    = 0;      // 0-based char index within current line
     bool      cursorActive = false;  // True when the focused line is visible in the pool
 
     // Cursor blink state
