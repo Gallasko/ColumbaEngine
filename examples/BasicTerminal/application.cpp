@@ -2,6 +2,18 @@
 
 #include <fstream>
 #include <memory>
+#include <optional>
+#include <utility>
+
+#ifdef __EMSCRIPTEN__
+    #include <SDL2/SDL.h>
+#else
+    #ifdef __linux__
+        #include <SDL2/SDL.h>
+    #elif _WIN32
+        #include <SDL.h>
+    #endif
+#endif
 
 #include "logger.h"
 
@@ -72,14 +84,16 @@ struct PrefabClickedEvent
 // lookup may not yet find TTFText/Simple2DObject right after attach()).
 struct LineView
 {
-    EntityRef                  entity;         // The prefab entity
-    CompRef<Prefab>            prefab;         // Prefab component (for helpers on existing prefabs)
-    CompRef<TTFText>           textRef;        // Input (editable) TTFText
-    CompRef<PositionComponent> textPosRef;    // Text entity's PositionComponent (for click→col hit test)
-    CompRef<Simple2DObject>    textBgRef;      // Dark bg behind input text (focus highlight)
-    CompRef<UiAnchor>          textBgAnchor;   // textBg's UiAnchor (used for cursor positioning)
-    CompRef<TTFText>           lineNumTextRef; // Line-number label TTFText
-    CompRef<Simple2DObject>    lineNumBgRef;   // Alternating line-number background
+    EntityRef                  entity;            // The prefab entity
+    CompRef<Prefab>            prefab;            // Prefab component (for helpers on existing prefabs)
+    CompRef<TTFText>           textRef;           // Input (editable) TTFText
+    CompRef<PositionComponent> textPosRef;        // Text entity's PositionComponent (for click→col hit test)
+    CompRef<Simple2DObject>    textBgRef;         // Dark bg behind input text (focus highlight)
+    CompRef<UiAnchor>          textBgAnchor;      // textBg's UiAnchor (used for cursor positioning)
+    CompRef<TTFText>           lineNumTextRef;    // Line-number label TTFText
+    CompRef<Simple2DObject>    lineNumBgRef;      // Alternating line-number background
+    CompRef<PositionComponent> selectionRectPos;  // Per-line selection highlight rect
+    CompRef<UiAnchor>          selectionRectAnchor;
 };
 
 LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
@@ -128,14 +142,28 @@ LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t l
     inputTextAnchor->setBottomAnchor(s2Anchor->bottom);
     inputTextAnchor->setBottomMargin(5);
 
+    // Selection highlight rect - hidden by default, positioned & sized by the
+    // refresh code when the line intersects the active selection. Placed above
+    // the text bg but below the text itself.
+    auto selRect = makeUiSimple2DShape(ecsRef, Shape2D::Square, 1.0f, 20.0f,
+        constant::Vector4D{80.f, 120.f, 220.f, 180.f});
+    auto selRectPos    = selRect.get<PositionComponent>();
+    auto selRectAnchor = selRect.get<UiAnchor>();
+    selRectPos->setVisible(false);
+    selRectAnchor->setVerticalCenter(s2Anchor->verticalCenter);
+    selRectAnchor->setLeftAnchor(s2Anchor->left);
+    selRectAnchor->setZConstrain(PosConstrain{s2.entity.id, AnchorType::Z, PosOpType::Add, 1});
+
     prefab->addToPrefab(square.entity, "LineTextBg");
     prefab->addToPrefab(lineText.entity, "LineText");
     prefab->addToPrefab(s2.entity, "TextBg");
+    prefab->addToPrefab(selRect.entity, "SelectionRect");
     prefab->addToPrefab(inputText.entity, "Text");
 
     prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
 
-    return LineView{prefabEnt.entity, prefab, inputTTFText, inputTextPos, s2Bg, s2Anchor, lineTextComp, squareBg};
+    return LineView{prefabEnt.entity, prefab, inputTTFText, inputTextPos, s2Bg, s2Anchor,
+                    lineTextComp, squareBg, selRectPos, selRectAnchor};
 }
 
 struct OpenFileAction {};
@@ -150,12 +178,53 @@ struct CursorPosition
 {
     size_t line = 0; // 0-based line index
     size_t col  = 0; // 0-based column index (in bytes)
+
+    bool operator==(const CursorPosition& o) const { return line == o.line and col == o.col; }
+    bool operator!=(const CursorPosition& o) const { return not (*this == o); }
+    bool operator<(const CursorPosition& o) const
+    {
+        return line < o.line or (line == o.line and col < o.col);
+    }
+    bool operator<=(const CursorPosition& o) const { return *this < o or *this == o; }
 };
 
 struct EditorState
 {
     std::vector<std::string> lines = {""};
-    CursorPosition            cursor;
+    CursorPosition           cursor;
+    // Selection anchor — when set, the selection spans [anchor, cursor] (in
+    // either order). Empty optional means no active selection.
+    std::optional<CursorPosition> anchor;
+
+    bool hasSelection() const { return anchor.has_value() and *anchor != cursor; }
+
+    // Return the selection bounds as an ordered (start, end) pair. Caller must
+    // have already verified hasSelection(). start <= end.
+    std::pair<CursorPosition, CursorPosition> selectionRange() const
+    {
+        CursorPosition a = *anchor;
+        CursorPosition b = cursor;
+        if (a <= b) return {a, b};
+        return {b, a};
+    }
+
+    // Copy the text between [start, end] into a single string with '\n' line
+    // separators. Caller must pass start <= end and valid positions.
+    std::string textInRange(const CursorPosition& start, const CursorPosition& end) const
+    {
+        if (start.line == end.line)
+            return lines[start.line].substr(start.col, end.col - start.col);
+
+        std::string out = lines[start.line].substr(start.col);
+        out += '\n';
+        for (size_t i = start.line + 1; i < end.line; i++)
+        {
+            out += lines[i];
+            out += '\n';
+        }
+        out += lines[end.line].substr(0, end.col);
+        return out;
+    }
 };
 
 class IEditorCommand
@@ -292,6 +361,129 @@ private:
     size_t joinCol;
 };
 
+// Replace text in the range [start, end] with `newText` (which may itself
+// contain '\n's). Single command handles selection deletion, paste over
+// selection, type over selection, and multi-line paste uniformly. Cursor ends
+// at the position just after the inserted text.
+class ReplaceRangeCommand : public IEditorCommand
+{
+public:
+    ReplaceRangeCommand(CursorPosition start, CursorPosition end, std::string newText)
+        : start(start), end(end), newText(std::move(newText)) {}
+
+    void execute(EditorState& state) override
+    {
+        // Snapshot the existing slice for undo on the first execution only;
+        // later redo calls already have it stored.
+        if (not oldCaptured)
+        {
+            oldLines = sliceLines(state, start, end);
+            oldCaptured = true;
+        }
+        applySlice(state, splitToLines(newText));
+        state.cursor = endCursorAfterInsert(start, newText);
+        state.anchor.reset();
+    }
+
+    void undo(EditorState& state) override
+    {
+        // Recompute the span currently occupied by newText to remove it.
+        CursorPosition curEnd = endCursorAfterInsert(start, newText);
+        applySlice(state, oldLines, curEnd);
+        state.cursor = end;
+        state.anchor.reset();
+    }
+
+private:
+    // Split `s` on '\n'. Empty string → one empty line.
+    static std::vector<std::string> splitToLines(const std::string& s)
+    {
+        std::vector<std::string> out;
+        size_t start = 0;
+        for (size_t i = 0; i <= s.size(); i++)
+        {
+            if (i == s.size() or s[i] == '\n')
+            {
+                out.emplace_back(s.substr(start, i - start));
+                start = i + 1;
+            }
+        }
+        return out;
+    }
+
+    // Extract [a, b] from state as a vector of line fragments matching the
+    // layout produced by splitToLines.
+    static std::vector<std::string> sliceLines(const EditorState& state,
+                                                const CursorPosition& a,
+                                                const CursorPosition& b)
+    {
+        std::vector<std::string> out;
+        if (a.line == b.line)
+        {
+            out.push_back(state.lines[a.line].substr(a.col, b.col - a.col));
+            return out;
+        }
+        out.push_back(state.lines[a.line].substr(a.col));
+        for (size_t i = a.line + 1; i < b.line; i++)
+            out.push_back(state.lines[i]);
+        out.push_back(state.lines[b.line].substr(0, b.col));
+        return out;
+    }
+
+    // Where the cursor lands after inserting `text` at `from`.
+    static CursorPosition endCursorAfterInsert(const CursorPosition& from,
+                                                const std::string& text)
+    {
+        auto parts = splitToLines(text);
+        if (parts.size() == 1)
+            return {from.line, from.col + parts[0].size()};
+        return {from.line + parts.size() - 1, parts.back().size()};
+    }
+
+    // Overwrite the span [start, currentEnd] in state with `parts`. currentEnd
+    // defaults to `end` (the original span size) on the first execute().
+    void applySlice(EditorState& state, const std::vector<std::string>& parts)
+    {
+        applySlice(state, parts, end);
+    }
+
+    void applySlice(EditorState& state,
+                    const std::vector<std::string>& parts,
+                    const CursorPosition& currentEnd)
+    {
+        const std::string leftPrefix  = state.lines[start.line].substr(0, start.col);
+        const std::string rightSuffix = state.lines[currentEnd.line].substr(currentEnd.col);
+
+        // Erase all fully or partially covered lines.
+        state.lines.erase(state.lines.begin() + start.line,
+                          state.lines.begin() + currentEnd.line + 1);
+
+        // Build the replacement lines.
+        std::vector<std::string> inserted;
+        inserted.reserve(parts.size());
+        if (parts.size() == 1)
+        {
+            inserted.push_back(leftPrefix + parts[0] + rightSuffix);
+        }
+        else
+        {
+            inserted.push_back(leftPrefix + parts.front());
+            for (size_t i = 1; i + 1 < parts.size(); i++)
+                inserted.push_back(parts[i]);
+            inserted.push_back(parts.back() + rightSuffix);
+        }
+
+        state.lines.insert(state.lines.begin() + start.line,
+                           inserted.begin(), inserted.end());
+    }
+
+    CursorPosition start;
+    CursorPosition end;
+    std::string    newText;
+    std::vector<std::string> oldLines;
+    bool oldCaptured = false;
+};
+
 struct TextHandlingSys : public System<
     QueuedListener<OnSDLTextInput>,
     QueuedListener<OnSDLScanCode>,
@@ -386,6 +578,80 @@ struct TextHandlingSys : public System<
         return line.size();
     }
 
+    // Pixel offset from the text entity's left edge to column `col` on
+    // `lineIdx`. Used for cursor positioning and selection rect sizing.
+    float glyphOffsetAtCol(LineView& view, size_t lineIdx, size_t col)
+    {
+        if (col == 0 or lineIdx >= editorState.lines.size())
+            return 0.0f;
+
+        auto ttfSystem = ecsRef->getSystem<TTFTextSystem>();
+        if (not ttfSystem)
+            return 0.0f;
+
+        auto mapIt = ttfSystem->charactersMap.find(view.textRef->fontPath);
+        if (mapIt == ttfSystem->charactersMap.end())
+            return 0.0f;
+
+        const auto& fontChars = mapIt->second;
+        const std::string& lineText = editorState.lines[lineIdx];
+        float x = 0.0f;
+        for (size_t i = 0; i < col and i < lineText.size(); i++)
+        {
+            auto it = fontChars.find(lineText[i]);
+            if (it != fontChars.end())
+                x += (it->second.advance >> 6) * view.textRef->scale;
+        }
+        return x;
+    }
+
+    // Position the per-line selection highlight rect for `lineIdx`. Hides the
+    // rect when there is no active selection or when the line is outside it.
+    void updateLineSelection(LineView& view, size_t lineIdx)
+    {
+        if (not editorState.hasSelection())
+        {
+            view.selectionRectPos->setVisible(false);
+            return;
+        }
+
+        auto range = editorState.selectionRange();
+        const auto& selStart = range.first;
+        const auto& selEnd   = range.second;
+
+        if (lineIdx < selStart.line or lineIdx > selEnd.line or
+            lineIdx >= editorState.lines.size())
+        {
+            view.selectionRectPos->setVisible(false);
+            return;
+        }
+
+        const std::string& line = editorState.lines[lineIdx];
+        size_t lo = (lineIdx == selStart.line) ? selStart.col : 0;
+        size_t hi = (lineIdx == selEnd.line)   ? selEnd.col   : line.size();
+
+        float xLo = glyphOffsetAtCol(view, lineIdx, lo);
+        float xHi = glyphOffsetAtCol(view, lineIdx, hi);
+        float width = xHi - xLo;
+
+        // Lines that are fully inside the selection (not the last line) should
+        // still show a visible sliver even when empty so the user can see the
+        // line break is included.
+        if (lineIdx < selEnd.line and width < 6.0f)
+            width = 6.0f;
+
+        if (width <= 0.0f)
+        {
+            view.selectionRectPos->setVisible(false);
+            return;
+        }
+
+        view.selectionRectAnchor->setLeftMargin(xLo);
+        view.selectionRectPos->setWidth(width);
+        view.selectionRectPos->setHeight(18.0f);
+        view.selectionRectPos->setVisible(true);
+    }
+
     virtual void onProcessEvent(const OnSDLTextInput& event) override
     {
         // Ignore text input while control is held to avoid inserting characters
@@ -395,6 +661,14 @@ struct TextHandlingSys : public System<
 
         if (editorState.cursor.line >= editorState.lines.size())
             return;
+
+        // Typing into an active selection replaces it with the inserted text
+        // as a single undo step. Breaks any coalesce run.
+        if (editorState.hasSelection())
+        {
+            replaceSelectionWith(event.text);
+            return;
+        }
 
         // Coalesce contiguous text input into the previous InsertTextCommand so
         // a single Ctrl+Z removes the whole run instead of one char at a time.
@@ -415,20 +689,41 @@ struct TextHandlingSys : public System<
         executeCommand(std::move(cmd));
     }
 
+    // Core cursor movement helper. When `extendSelection` is true, keeps the
+    // existing anchor (seeding one from the current cursor if none exists) so
+    // the selection grows to the new position. When false, drops any active
+    // selection.
+    void moveCursor(size_t line, size_t col, bool extendSelection)
+    {
+        if (editorState.lines.empty())
+            return;
+
+        if (extendSelection)
+        {
+            if (not editorState.anchor)
+                editorState.anchor = editorState.cursor;
+        }
+        else
+        {
+            editorState.anchor.reset();
+        }
+
+        coalesceTarget = nullptr;
+
+        if (line >= editorState.lines.size())
+            line = editorState.lines.size() - 1;
+        editorState.cursor.line = line;
+        editorState.cursor.col  = std::min(col, editorState.lines[line].size());
+
+        ensureCursorVisible();
+        refreshEditorView();
+    }
+
     void focusLine(size_t lineIdx)
     {
         if (lineIdx >= editorState.lines.size())
             return;
-
-        coalesceTarget = nullptr;
-        editorState.cursor.line = lineIdx;
-
-        // Clamp column to the new line's length.
-        if (editorState.cursor.col > editorState.lines[lineIdx].size())
-            editorState.cursor.col = editorState.lines[lineIdx].size();
-
-        ensureCursorVisible();
-        refreshEditorView();
+        moveCursor(lineIdx, editorState.cursor.col, false);
     }
 
     // Overload used by click handling: caller already knows the target column.
@@ -436,13 +731,7 @@ struct TextHandlingSys : public System<
     {
         if (lineIdx >= editorState.lines.size())
             return;
-
-        coalesceTarget = nullptr;
-        editorState.cursor.line = lineIdx;
-        editorState.cursor.col  = std::min(col, editorState.lines[lineIdx].size());
-
-        ensureCursorVisible();
-        refreshEditorView();
+        moveCursor(lineIdx, col, false);
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
@@ -474,17 +763,55 @@ struct TextHandlingSys : public System<
             return;
         }
 
+        // Clipboard & select-all shortcuts. These all consume the event.
+        if (ctrl and event.key == SDL_SCANCODE_A)
+        {
+            selectAll();
+            return;
+        }
+        if (ctrl and event.key == SDL_SCANCODE_C)
+        {
+            copySelection();
+            return;
+        }
+        if (ctrl and event.key == SDL_SCANCODE_X)
+        {
+            cutSelection();
+            return;
+        }
+        if (ctrl and event.key == SDL_SCANCODE_V)
+        {
+            pasteClipboard();
+            return;
+        }
+
         if (editorState.cursor.line >= editorState.lines.size())
             return;
 
+        const bool shift = (event.mod & KMOD_SHIFT) != 0;
+
         if (event.key == SDL_SCANCODE_RETURN)
         {
-            coalesceTarget = nullptr;
-            executeCommand(std::make_unique<SplitLineCommand>(
-                editorState.cursor.line, editorState.cursor.col));
+            // Replace any active selection with a newline; otherwise plain split.
+            if (editorState.hasSelection())
+            {
+                replaceSelectionWith("\n");
+            }
+            else
+            {
+                coalesceTarget = nullptr;
+                executeCommand(std::make_unique<SplitLineCommand>(
+                    editorState.cursor.line, editorState.cursor.col));
+            }
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
+            if (editorState.hasSelection())
+            {
+                replaceSelectionWith("");
+                return;
+            }
+
             coalesceTarget = nullptr;
             const std::string& line = editorState.lines[editorState.cursor.line];
 
@@ -518,76 +845,176 @@ struct TextHandlingSys : public System<
                 executeCommand(std::make_unique<MergeLinesCommand>(prevLineIdx, joinCol));
             }
         }
+        else if (event.key == SDL_SCANCODE_DELETE)
+        {
+            if (editorState.hasSelection())
+            {
+                replaceSelectionWith("");
+                return;
+            }
+
+            coalesceTarget = nullptr;
+            const std::string& line = editorState.lines[editorState.cursor.line];
+
+            if (editorState.cursor.col < line.size())
+            {
+                // Delete forward (one char, or a word with ctrl).
+                size_t endCol = editorState.cursor.col + 1;
+                if (ctrl)
+                {
+                    endCol = editorState.cursor.col;
+                    while (endCol < line.size() && line[endCol] != ' ') endCol++;
+                    while (endCol < line.size() && line[endCol] == ' ') endCol++;
+                }
+                std::string deleted = line.substr(editorState.cursor.col,
+                                                  endCol - editorState.cursor.col);
+                if (not deleted.empty())
+                {
+                    executeCommand(std::make_unique<DeleteRangeCommand>(
+                        editorState.cursor.line, editorState.cursor.col, std::move(deleted)));
+                }
+            }
+            else if (editorState.cursor.line + 1 < editorState.lines.size())
+            {
+                // Merge the next line into this one.
+                executeCommand(std::make_unique<MergeLinesCommand>(
+                    editorState.cursor.line, editorState.cursor.col));
+            }
+        }
         else if (event.key == SDL_SCANCODE_LEFT)
         {
-            coalesceTarget = nullptr;
-            if (editorState.cursor.col > 0)
+            size_t targetLine = editorState.cursor.line;
+            size_t targetCol  = editorState.cursor.col;
+
+            if (targetCol > 0)
             {
                 if (ctrl)
                 {
                     // Jump to the start of the previous word: skip trailing
                     // spaces, then skip the word characters to their start.
-                    const std::string& line = editorState.lines[editorState.cursor.line];
-                    size_t col = editorState.cursor.col;
-                    while (col > 0 && line[col - 1] == ' ') col--;
-                    while (col > 0 && line[col - 1] != ' ') col--;
-                    editorState.cursor.col = col;
+                    const std::string& line = editorState.lines[targetLine];
+                    while (targetCol > 0 && line[targetCol - 1] == ' ') targetCol--;
+                    while (targetCol > 0 && line[targetCol - 1] != ' ') targetCol--;
                 }
                 else
                 {
-                    editorState.cursor.col--;
+                    targetCol--;
                 }
             }
-            else if (editorState.cursor.line > 0)
+            else if (targetLine > 0)
             {
-                editorState.cursor.line--;
-                editorState.cursor.col = editorState.lines[editorState.cursor.line].size();
+                targetLine--;
+                targetCol = editorState.lines[targetLine].size();
             }
-            ensureCursorVisible();
-            refreshEditorView();
+            moveCursor(targetLine, targetCol, shift);
         }
         else if (event.key == SDL_SCANCODE_RIGHT)
         {
-            coalesceTarget = nullptr;
-            const std::string& lineText = editorState.lines[editorState.cursor.line];
-            if (editorState.cursor.col < lineText.size())
+            size_t targetLine = editorState.cursor.line;
+            size_t targetCol  = editorState.cursor.col;
+            const std::string& lineText = editorState.lines[targetLine];
+
+            if (targetCol < lineText.size())
             {
                 if (ctrl)
                 {
                     // Jump to the end of the current/next word: skip word
                     // characters then skip trailing spaces.
-                    size_t col = editorState.cursor.col;
-                    while (col < lineText.size() && lineText[col] != ' ') col++;
-                    while (col < lineText.size() && lineText[col] == ' ') col++;
-                    editorState.cursor.col = col;
+                    while (targetCol < lineText.size() && lineText[targetCol] != ' ') targetCol++;
+                    while (targetCol < lineText.size() && lineText[targetCol] == ' ') targetCol++;
                 }
                 else
                 {
-                    editorState.cursor.col++;
+                    targetCol++;
                 }
             }
-            else if (editorState.cursor.line + 1 < editorState.lines.size())
+            else if (targetLine + 1 < editorState.lines.size())
             {
-                editorState.cursor.line++;
-                editorState.cursor.col = 0;
+                targetLine++;
+                targetCol = 0;
             }
-            ensureCursorVisible();
-            refreshEditorView();
+            moveCursor(targetLine, targetCol, shift);
         }
         else if (event.key == SDL_SCANCODE_UP)
         {
             if (editorState.cursor.line > 0)
             {
-                focusLine(editorState.cursor.line - 1);
+                moveCursor(editorState.cursor.line - 1, editorState.cursor.col, shift);
             }
         }
         else if (event.key == SDL_SCANCODE_DOWN)
         {
             if (editorState.cursor.line + 1 < editorState.lines.size())
             {
-                focusLine(editorState.cursor.line + 1);
+                moveCursor(editorState.cursor.line + 1, editorState.cursor.col, shift);
             }
         }
+        else if (event.key == SDL_SCANCODE_HOME)
+        {
+            moveCursor(editorState.cursor.line, 0, shift);
+        }
+        else if (event.key == SDL_SCANCODE_END)
+        {
+            moveCursor(editorState.cursor.line,
+                       editorState.lines[editorState.cursor.line].size(), shift);
+        }
+    }
+
+    // ---- Selection-aware command helpers ---------------------------------
+
+    // Replace whatever is currently selected with `text`. Assumes the caller
+    // has already verified (or doesn't care whether) there is a selection.
+    // When there is no selection, inserts `text` at the cursor.
+    void replaceSelectionWith(const std::string& text)
+    {
+        coalesceTarget = nullptr;
+        CursorPosition start = editorState.cursor;
+        CursorPosition end   = editorState.cursor;
+        if (editorState.hasSelection())
+        {
+            auto range = editorState.selectionRange();
+            start = range.first;
+            end   = range.second;
+        }
+        executeCommand(std::make_unique<ReplaceRangeCommand>(start, end, text));
+    }
+
+    void selectAll()
+    {
+        if (editorState.lines.empty()) return;
+
+        editorState.anchor = CursorPosition{0, 0};
+        size_t lastLine = editorState.lines.size() - 1;
+        editorState.cursor = CursorPosition{lastLine, editorState.lines[lastLine].size()};
+        coalesceTarget = nullptr;
+        ensureCursorVisible();
+        refreshEditorView();
+    }
+
+    void copySelection()
+    {
+        if (not editorState.hasSelection()) return;
+        auto range = editorState.selectionRange();
+        std::string text = editorState.textInRange(range.first, range.second);
+        SDL_SetClipboardText(text.c_str());
+    }
+
+    void cutSelection()
+    {
+        if (not editorState.hasSelection()) return;
+        copySelection();
+        replaceSelectionWith("");
+    }
+
+    void pasteClipboard()
+    {
+        if (not SDL_HasClipboardText()) return;
+        char* clip = SDL_GetClipboardText();
+        if (not clip) return;
+        std::string text(clip);
+        SDL_free(clip);
+        if (text.empty()) return;
+        replaceSelectionWith(text);
     }
 
     virtual void onProcessEvent(const OnSDLScanCodeReleased& event) override
@@ -645,6 +1072,7 @@ struct TextHandlingSys : public System<
         if (undoStack.empty()) return;
 
         coalesceTarget = nullptr;
+        editorState.anchor.reset();
 
         auto cmd = std::move(undoStack.back());
         undoStack.pop_back();
@@ -661,6 +1089,7 @@ struct TextHandlingSys : public System<
         if (redoStack.empty()) return;
 
         coalesceTarget = nullptr;
+        editorState.anchor.reset();
 
         auto cmd = std::move(redoStack.back());
         redoStack.pop_back();
@@ -727,10 +1156,12 @@ struct TextHandlingSys : public System<
                 view.lineNumTextRef->setText(std::to_string(lineIdx + 1));
                 view.lineNumBgRef->setColors(getLineTextBgColor(lineIdx + 1));
                 view.textBgRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+                updateLineSelection(view, lineIdx);
             }
             else
             {
                 view.textRef->setText(std::string{});
+                view.selectionRectPos->setVisible(false);
             }
         }
 
@@ -781,6 +1212,7 @@ struct TextHandlingSys : public System<
             auto& view = linePrefabs[i];
             view.textRef->setText(editorState.lines[i]);
             view.textBgRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+            updateLineSelection(view, i);
         }
 
         if (editorState.cursor.line < linePrefabs.size())
@@ -800,25 +1232,7 @@ struct TextHandlingSys : public System<
             return;
         }
 
-        auto ttfComp   = view->textRef;
-        auto ttfSystem = ecsRef->getSystem<TTFTextSystem>();
-
-        float cursorX = 0.0f;
-        if (ttfSystem)
-        {
-            auto mapIt = ttfSystem->charactersMap.find(ttfComp->fontPath);
-            if (mapIt != ttfSystem->charactersMap.end())
-            {
-                const auto& fontChars = mapIt->second;
-                const std::string& lineText = editorState.lines[editorState.cursor.line];
-                for (size_t i = 0; i < editorState.cursor.col && i < lineText.size(); i++)
-                {
-                    auto it = fontChars.find(lineText[i]);
-                    if (it != fontChars.end())
-                        cursorX += (it->second.advance >> 6) * ttfComp->scale;
-                }
-            }
-        }
+        float cursorX = glyphOffsetAtCol(*view, editorState.cursor.line, editorState.cursor.col);
 
         auto ca = cursorEntityRef.get<UiAnchor>();
         ca->setVerticalCenter(view->textBgAnchor->verticalCenter);
@@ -911,6 +1325,7 @@ struct TextHandlingSys : public System<
             coalesceTarget = nullptr;
             editorState.lines.clear();
             editorState.cursor = {0, 0};
+            editorState.anchor.reset();
 
             auto anchor = textInputEnt.get<UiAnchor>();
 
