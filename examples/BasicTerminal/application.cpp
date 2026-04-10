@@ -355,15 +355,25 @@ struct TextHandlingSys : public System<
             if (currentLine <= 1)
                 return;
 
+            // Merge the current line into the previous one: the previous
+            // line's original length becomes the new cursor column, and the
+            // two texts are concatenated.
+            const std::string prevText   = getLineText(currentLine - 1);
+            const size_t      joinCol    = prevText.size();
+            const std::string mergedText = prevText + text;
+
             if (isVirtualMode)
             {
                 pf->callHelper("UnfocusLine");
 
+                fileLines[currentLine - 2] = mergedText;
                 fileLines.erase(fileLines.begin() + currentLine - 1);
                 lineNumber--;
                 currentLine--;
+                cursorCol = joinCol;
 
-                // Shift pool contents back from currentLine - 1 onwards
+                // Shift pool contents back from the merged line onwards so
+                // it picks up the concatenated text too.
                 for (size_t i = currentLine - 1; i < poolWindowStart + linePool.size() && i < fileLines.size(); i++)
                 {
                     size_t pi = i - poolWindowStart;
@@ -383,6 +393,9 @@ struct TextHandlingSys : public System<
 
                 auto pfAfter = getLinePrefab(currentLine);
                 if (pfAfter) pfAfter->callHelper("SetAsFocusLine");
+
+                resetBlink();
+                repositionCursor();
             }
             else
             {
@@ -390,6 +403,10 @@ struct TextHandlingSys : public System<
 
                 // Unfocus the line that is about to be deleted.
                 pf->callHelper("UnfocusLine");
+
+                // Merge the current line's text into the previous line.
+                auto prevEnt = listViewComp->entities[currentLine - 2];
+                prevEnt.get<Prefab>()->callHelper("SetCurrentText", mergedText);
 
                 // Update the line text for all the lines after the removed line
                 for (size_t i = currentLine; i < lineNumber - 1; ++i)
@@ -402,6 +419,7 @@ struct TextHandlingSys : public System<
 
                 lineNumber--;
                 currentLine--;
+                cursorCol = joinCol;
 
                 // Focus the new current line. Unlike the insert case, the
                 // previous line already lives in entities[currentLine - 1],
@@ -410,11 +428,6 @@ struct TextHandlingSys : public System<
                 auto pfAfter = getLinePrefab(currentLine);
                 if (pfAfter)
                     pfAfter->callHelper("SetAsFocusLine");
-
-                // Clamp cursor column to the new line's length.
-                const std::string lineText = getLineText(currentLine);
-                if (cursorCol > lineText.size())
-                    cursorCol = lineText.size();
 
                 resetBlink();
                 repositionCursor();
