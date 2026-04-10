@@ -446,7 +446,20 @@ struct TextHandlingSys : public System<
             coalesceTarget = nullptr;
             if (editorState.cursor.col > 0)
             {
-                editorState.cursor.col--;
+                if (ctrl)
+                {
+                    // Jump to the start of the previous word: skip trailing
+                    // spaces, then skip the word characters to their start.
+                    const std::string& line = editorState.lines[editorState.cursor.line];
+                    size_t col = editorState.cursor.col;
+                    while (col > 0 && line[col - 1] == ' ') col--;
+                    while (col > 0 && line[col - 1] != ' ') col--;
+                    editorState.cursor.col = col;
+                }
+                else
+                {
+                    editorState.cursor.col--;
+                }
             }
             else if (editorState.cursor.line > 0)
             {
@@ -462,7 +475,19 @@ struct TextHandlingSys : public System<
             const std::string& lineText = editorState.lines[editorState.cursor.line];
             if (editorState.cursor.col < lineText.size())
             {
-                editorState.cursor.col++;
+                if (ctrl)
+                {
+                    // Jump to the end of the current/next word: skip word
+                    // characters then skip trailing spaces.
+                    size_t col = editorState.cursor.col;
+                    while (col < lineText.size() && lineText[col] != ' ') col++;
+                    while (col < lineText.size() && lineText[col] == ' ') col++;
+                    editorState.cursor.col = col;
+                }
+                else
+                {
+                    editorState.cursor.col++;
+                }
             }
             else if (editorState.cursor.line + 1 < editorState.lines.size())
             {
