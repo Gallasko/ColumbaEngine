@@ -244,6 +244,9 @@ struct TextHandlingSys : public System<
                 auto pfAfter = getLinePrefab(currentLine);
                 if (pfAfter)
                     pfAfter->callHelper("SetAsFocusLine");
+
+                resetBlink();
+                repositionCursor();
             }
             else
             {
@@ -271,10 +274,27 @@ struct TextHandlingSys : public System<
                 }
 
                 listViewComp->insertEntity(linePrefab.entity, currentLine - 1);
-            }
 
-            resetBlink();
-            repositionCursor();
+                resetBlink();
+
+                // Edge case: the insertion into the list view is deferred, so
+                // getLinePrefab(currentLine) still resolves to the previous line,
+                // and prefab->getEntity("Text"/"TextBg") won't work on a freshly
+                // created prefab either. Use the CompRefs returned by
+                // makeLinePrefab directly: the Simple2DObject ref points to the
+                // TextBg entity and the TTFText ref points to the Text entity.
+                auto textBgId = linePrefab.get<Simple2DObject>().entityId;
+                auto textId   = linePrefab.get<TTFText>().entityId;
+
+                auto ca = cursorEntityRef.get<UiAnchor>();
+                ca->setVerticalCenter({textBgId, AnchorType::VerticalCenter});
+                ca->setLeftAnchor({textBgId, AnchorType::Left});
+                ca->setZConstrain(PosConstrain{textId, AnchorType::Z, PosOpType::Add, 1.0f});
+                ca->setLeftMargin(0.0f);
+
+                cursorActive = true;
+                cursorEntityRef.get<PositionComponent>()->setVisible(cursorVisible);
+            }
         }
         else if (event.key == SDL_SCANCODE_BACKSPACE)
         {
