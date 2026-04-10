@@ -72,13 +72,14 @@ struct PrefabClickedEvent
 // lookup may not yet find TTFText/Simple2DObject right after attach()).
 struct LineView
 {
-    EntityRef               entity;         // The prefab entity
-    CompRef<Prefab>         prefab;         // Prefab component (for helpers on existing prefabs)
-    CompRef<TTFText>        textRef;        // Input (editable) TTFText
-    CompRef<Simple2DObject> textBgRef;      // Dark bg behind input text (focus highlight)
-    CompRef<UiAnchor>       textBgAnchor;   // textBg's UiAnchor (used for cursor positioning)
-    CompRef<TTFText>        lineNumTextRef; // Line-number label TTFText
-    CompRef<Simple2DObject> lineNumBgRef;   // Alternating line-number background
+    EntityRef                  entity;         // The prefab entity
+    CompRef<Prefab>            prefab;         // Prefab component (for helpers on existing prefabs)
+    CompRef<TTFText>           textRef;        // Input (editable) TTFText
+    CompRef<PositionComponent> textPosRef;    // Text entity's PositionComponent (for click→col hit test)
+    CompRef<Simple2DObject>    textBgRef;      // Dark bg behind input text (focus highlight)
+    CompRef<UiAnchor>          textBgAnchor;   // textBg's UiAnchor (used for cursor positioning)
+    CompRef<TTFText>           lineNumTextRef; // Line-number label TTFText
+    CompRef<Simple2DObject>    lineNumBgRef;   // Alternating line-number background
 };
 
 LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t lineNumber)
@@ -120,6 +121,7 @@ LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t l
 
     auto inputText = makeTTFText(ecsRef, 0, 0, 4, "light", "", 0.4, constant::Vector4D{255.f, 255.f, 255.f, 255.f});
     auto inputTTFText = inputText.get<TTFText>();
+    auto inputTextPos = inputText.get<PositionComponent>();
     auto inputTextAnchor = inputText.get<UiAnchor>();
 
     inputTextAnchor->setLeftAnchor(s2Anchor->left);
@@ -133,7 +135,7 @@ LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t l
 
     prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
 
-    return LineView{prefabEnt.entity, prefab, inputTTFText, s2Bg, s2Anchor, lineTextComp, squareBg};
+    return LineView{prefabEnt.entity, prefab, inputTTFText, inputTextPos, s2Bg, s2Anchor, lineTextComp, squareBg};
 }
 
 struct OpenFileAction {};
@@ -295,12 +297,20 @@ struct TextHandlingSys : public System<
     QueuedListener<OnSDLScanCode>,
     QueuedListener<OnSDLScanCodeReleased>,
     QueuedListener<PrefabClickedEvent>,
+    Listener<OnMouseRelease>,
     Listener<OpenFileAction>,
     Listener<SaveFileAction>,
     Listener<LayoutScrolledEvent>,
     Listener<TickEvent>,
     InitSys>
 {
+    virtual void onEvent(const OnMouseRelease& event) override
+    {
+        // Cache the release position so PrefabClickedEvent (queued) can map the
+        // click X onto a column within the hit line.
+        lastClickX = event.pos.x;
+    }
+
     virtual void onProcessEvent(const PrefabClickedEvent& event) override
     {
         auto ent = ecsRef->getEntity(event.id);
@@ -320,7 +330,60 @@ struct TextHandlingSys : public System<
         LOG_INFO(DOM, "Clicked on line: " << lineNumberText);
 
         // Display number is 1-based; convert to 0-based line index.
-        focusLine(std::stoul(lineNumberText) - 1);
+        size_t lineIdx = std::stoul(lineNumberText) - 1;
+
+        // Walk glyph advances to convert the click's screen X into a column
+        // within the line. The text entity's PositionComponent gives the
+        // on-screen origin of the first glyph.
+        size_t col = columnFromClick(lineIdx, lastClickX);
+
+        focusLine(lineIdx, col);
+    }
+
+    // Map a screen X coordinate onto a column index in `lineIdx`'s text by
+    // walking the font's per-glyph advances. Returns the nearest boundary
+    // (so clicks on the left half of a glyph land before it, right half after).
+    size_t columnFromClick(size_t lineIdx, float clickX)
+    {
+        if (lineIdx >= editorState.lines.size())
+            return 0;
+
+        LineView* view = getLineView(lineIdx);
+        if (not view)
+            return 0;
+
+        const std::string& line = editorState.lines[lineIdx];
+        if (line.empty())
+            return 0;
+
+        auto ttfSystem = ecsRef->getSystem<TTFTextSystem>();
+        if (not ttfSystem)
+            return 0;
+
+        auto mapIt = ttfSystem->charactersMap.find(view->textRef->fontPath);
+        if (mapIt == ttfSystem->charactersMap.end())
+            return 0;
+
+        const auto& fontChars = mapIt->second;
+        const float textX     = view->textPosRef->getX();
+        const float localX    = clickX - textX;
+
+        if (localX <= 0.0f)
+            return 0;
+
+        float cumulative = 0.0f;
+        for (size_t i = 0; i < line.size(); i++)
+        {
+            auto it = fontChars.find(line[i]);
+            if (it == fontChars.end())
+                continue;
+
+            float advance = (it->second.advance >> 6) * view->textRef->scale;
+            if (localX < cumulative + advance * 0.5f)
+                return i;
+            cumulative += advance;
+        }
+        return line.size();
     }
 
     virtual void onProcessEvent(const OnSDLTextInput& event) override
@@ -363,6 +426,20 @@ struct TextHandlingSys : public System<
         // Clamp column to the new line's length.
         if (editorState.cursor.col > editorState.lines[lineIdx].size())
             editorState.cursor.col = editorState.lines[lineIdx].size();
+
+        ensureCursorVisible();
+        refreshEditorView();
+    }
+
+    // Overload used by click handling: caller already knows the target column.
+    void focusLine(size_t lineIdx, size_t col)
+    {
+        if (lineIdx >= editorState.lines.size())
+            return;
+
+        coalesceTarget = nullptr;
+        editorState.cursor.line = lineIdx;
+        editorState.cursor.col  = std::min(col, editorState.lines[lineIdx].size());
 
         ensureCursorVisible();
         refreshEditorView();
@@ -1014,6 +1091,10 @@ struct TextHandlingSys : public System<
     // Cleared whenever an unrelated action (cursor move, non-insert command,
     // undo/redo, file load) breaks the run.
     InsertTextCommand* coalesceTarget = nullptr;
+
+    // Screen X of the most recent mouse release. Used by PrefabClickedEvent to
+    // place the cursor at the clicked column rather than the start of the line.
+    float lastClickX = 0.0f;
 
     // Non-virtual mode: one LineView per line in editorState.lines, kept in sync
     // locally because the VerticalLayout's own `entities` vector is only updated
