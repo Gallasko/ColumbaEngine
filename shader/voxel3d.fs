@@ -1,5 +1,3 @@
-#version 330 core
-
 in vec4 ourColor;
 in vec3 vWorldPos;
 

@@ -30,14 +30,6 @@ namespace pg
         glEnable(GL_DEPTH_TEST);
         glDepthFunc(GL_LESS);
 
-        // Register the voxel3d shader if no other system has done so yet.
-        if (masterRenderer->getShader("voxel3d") == nullptr)
-        {
-            masterRenderer->registerShader("voxel3d",
-                                           "shader/voxel3d.vs",
-                                           "shader/voxel3d.fs");
-        }
-
         // Base material — every voxel uses this material so the engine's
         // same-key batching merges all instance data into a single draw.
         auto* mat = newMaterial("voxelBase");
