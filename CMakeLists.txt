@@ -793,6 +793,25 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(VoxelTest examples/VoxelTest/main.cpp)
+
+        target_include_directories(VoxelTest PUBLIC examples/VoxelTest)
+
+        target_sources(VoxelTest PRIVATE
+            examples/VoxelTest/application.cpp
+            examples/VoxelTest/cubemesh.cpp
+            examples/VoxelTest/voxelrenderer.cpp
+            examples/VoxelTest/camera3dcontroller.cpp
+        )
+
+        target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
+
+        set_target_properties(VoxelTest
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
     else()
         add_executable(ColumbaEngineEditor src/main.cpp)
 
@@ -972,6 +991,21 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(StandardSys PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(VoxelTest examples/VoxelTest/main.cpp)
+
+        target_include_directories(VoxelTest PUBLIC examples/VoxelTest)
+
+        target_sources(VoxelTest PRIVATE
+            examples/VoxelTest/application.cpp
+            examples/VoxelTest/cubemesh.cpp
+            examples/VoxelTest/voxelrenderer.cpp
+            examples/VoxelTest/camera3dcontroller.cpp
+        )
+
+        target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
 
         ###
 
