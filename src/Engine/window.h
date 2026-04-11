@@ -57,6 +57,11 @@ namespace pg
 
         const Input * getInputHandler() const { return inputHandler; }
 
+        // Hide + pin the cursor to the window center (manual relative-mouse
+        // mode that works on WSL where SDL_SetRelativeMouseMode is unreliable).
+        // Call with false to restore the system cursor in place.
+        void setCursorLocked(bool locked);
+
     public:
         EntitySystem* ecs;
 

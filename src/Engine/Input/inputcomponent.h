@@ -106,6 +106,22 @@ namespace pg
         STANDARD_EVENT_CONVERTIBLE(OnMouseMove)
     };
 
+    /**
+     * Raw SDL mouse motion event, forwarded verbatim from the SDL event loop.
+     * `xrel`/`yrel` are SDL's authoritative relative motion and are reliable
+     * in both normal and relative-mouse-mode (SDL_SetRelativeMouseMode), which
+     * makes this event the right signal for FPS-style look controllers.
+     * Unlike `OnMouseMove` (position-based), this is not derived from UI
+     * hover tracking and does not race with the main-thread input reset.
+     */
+    struct OnSDLMouseMotion
+    {
+        Sint32 x;
+        Sint32 y;
+        Sint32 xrel;
+        Sint32 yrel;
+    };
+
     struct OnSDLTextInput
     {
         std::string text;

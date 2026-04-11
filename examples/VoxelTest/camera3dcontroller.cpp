@@ -6,6 +6,7 @@
 #include "Renderer/camera.h"
 #include "Input/input.h"
 #include "Maths/geometry.h"
+#include "window.h"
 
 #include "logger.h"
 
@@ -24,8 +25,8 @@
 
 namespace pg
 {
-    Camera3DController::Camera3DController(MasterRenderer* masterRenderer, const Input* input)
-        : masterRenderer(masterRenderer), input(input)
+    Camera3DController::Camera3DController(MasterRenderer* masterRenderer, const Input* input, Window* window)
+        : masterRenderer(masterRenderer), input(input), window(window)
     {
     }
 
@@ -38,6 +39,62 @@ namespace pg
             glm::vec3(0.0f, 1.0f, 0.0f),    // world up = +Y
             -110.0f,                         // yaw (looking toward -Z and slightly -X)
             -20.0f);                         // pitch (slightly downward)
+
+        // Lock the cursor to the window so the user can rotate the camera
+        // freely without having to hold a mouse button. LAlt (handled in the
+        // TickEvent below) temporarily releases it. We avoid
+        // SDL_SetRelativeMouseMode because it is unreliable on WSL; instead
+        // Window::setCursorLocked hides the cursor and warps it to the
+        // window center, and we re-warp on every mouse motion below.
+        if (window)
+            window->setCursorLocked(true);
+
+        // Drop the motion event SDL fires in response to the warp above —
+        // otherwise its xrel/yrel (from wherever the OS had the cursor to
+        // the window center) would rotate the camera to a random start
+        // angle on the very first frame.
+        ignoreNextMotion = true;
+        cursorLocked = true;
+    }
+
+    void Camera3DController::onEvent(const OnSDLMouseMotion& event)
+    {
+        if (not masterRenderer)
+            return;
+
+        // Eat exactly one motion event after a warp so the warp delta doesn't
+        // cancel the rotation we just applied (or jump the camera on init).
+        if (ignoreNextMotion)
+        {
+            ignoreNextMotion = false;
+            return;
+        }
+
+        // While the cursor is unlocked (LAlt held) we ignore mouse motion so
+        // the user can click around the window without yanking the view.
+        if (not cursorLocked)
+            return;
+
+        auto& cam = masterRenderer->getCamera();
+
+        cam.yaw   += static_cast<float>(event.xrel) * mouseSens;
+        cam.pitch -= static_cast<float>(event.yrel) * mouseSens;
+
+        if (cam.pitch > 89.0f)  cam.pitch = 89.0f;
+        if (cam.pitch < -89.0f) cam.pitch = -89.0f;
+
+        // Refresh front/right/up from the new yaw/pitch. updateCameraVectors()
+        // is private, so we re-run init() which calls it internally.
+        cam.init(cam.position, cam.worldUp, cam.yaw, cam.pitch);
+
+        // Re-center the cursor so it can never drift to the window edge, and
+        // flag the next motion event (the one the warp itself will generate)
+        // to be dropped so we don't feed the warp delta back into the camera.
+        if (window)
+        {
+            window->setCursorLocked(true);
+            ignoreNextMotion = true;
+        }
     }
 
     void Camera3DController::onEvent(const TickEvent& event)
@@ -47,37 +104,30 @@ namespace pg
 
         auto& cam = masterRenderer->getCamera();
 
-        // --- Mouse look (right mouse button held) ---
-        // NOTE: we can't use input->getMouseDelta() here. That accumulator is
-        // reset to 0 by Input::updateInput() on the main thread every frame,
-        // while this handler runs on the ECS thread at the tick rate, so the
-        // delta is almost always 0 when we read it. Instead we snapshot the
-        // current mouse position (which is not reset) and diff it against the
-        // position we stored on the previous tick.
-        const Point2D currentMousePos = input->getMousePos();
+        // --- Cursor lock toggle (hold LAlt to free the cursor) ---
+        const bool altHeld    = input->isKeyPressed(SDL_SCANCODE_LALT);
+        const bool wantLocked = not altHeld;
 
-        if (input->isButtonPressed(SDL_BUTTON_RIGHT))
+        if (wantLocked != cursorLocked)
         {
-            if (rightMouseWasHeld)
+            if (window)
             {
-                const float dx = currentMousePos.x - lastMousePos.x;
-                const float dy = currentMousePos.y - lastMousePos.y;
-
-                cam.yaw   += dx * mouseSens;
-                cam.pitch -= dy * mouseSens;
-
-                if (cam.pitch > 89.0f)  cam.pitch = 89.0f;
-                if (cam.pitch < -89.0f) cam.pitch = -89.0f;
+                if (wantLocked)
+                {
+                    // Re-center the cursor before relocking so the camera
+                    // doesn't jump based on wherever the cursor drifted
+                    // while LAlt was held.
+                    window->setCursorLocked(true);
+                    ignoreNextMotion = true;
+                }
+                else
+                {
+                    // Restore the system cursor in place.
+                    window->setCursorLocked(false);
+                }
             }
-
-            rightMouseWasHeld = true;
+            cursorLocked = wantLocked;
         }
-        else
-        {
-            rightMouseWasHeld = false;
-        }
-
-        lastMousePos = currentMousePos;
 
         // --- WASD + Space/LShift movement ---
         glm::vec3 dir(0.0f);

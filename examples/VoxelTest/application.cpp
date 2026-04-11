@@ -32,7 +32,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             : 16.0f / 9.0f;
 
         // --- Systems ---
-        ecs.createSystem<Camera3DController>(masterRenderer, input);
+        ecs.createSystem<Camera3DController>(masterRenderer, input, &window);
         ecs.createSystem<VoxelRenderSystem>(masterRenderer, aspect);
 
         // MasterRenderer consumes render calls — make sure it runs AFTER

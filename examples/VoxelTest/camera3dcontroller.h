@@ -2,32 +2,36 @@
 
 #include "ECS/system.h"
 #include "Systems/coresystems.h"
-#include "Maths/geometry.h"
+#include "Input/inputcomponent.h"   // for OnSDLMouseMotion
 
 namespace pg
 {
     class MasterRenderer;
     class Input;
+    class Window;
 
     /**
      * Simple fly-through FPS camera controller.
      *
-     *   WASD          — move forward/back/strafe in the view plane
+     *   WASD           — move forward/back/strafe in the view plane
      *   Space / LShift — move up / down along world Y
-     *   Right mouse    — hold & drag to rotate the view (yaw/pitch)
+     *   Mouse          — rotate the view (yaw/pitch); cursor is locked to the
+     *                    window by default so no button needs to be held
+     *   LAlt (hold)    — release the cursor temporarily
      *
      * The controller writes directly to `MasterRenderer::camera`, which is
      * then read by the engine when building the `view` uniform for viewport 0.
      */
-    struct Camera3DController : public System<InitSys, Listener<TickEvent>>
+    struct Camera3DController : public System<InitSys, Listener<TickEvent>, Listener<OnSDLMouseMotion>>
     {
-        Camera3DController(MasterRenderer* masterRenderer, const Input* input);
+        Camera3DController(MasterRenderer* masterRenderer, const Input* input, Window* window);
 
         std::string getSystemName() const override { return "Camera 3D Controller"; }
 
         void init() override;
 
         void onEvent(const TickEvent& event) override;
+        void onEvent(const OnSDLMouseMotion& event) override;
 
         // Tunables
         float moveSpeed  = 0.01f;    // world units per millisecond (TickEvent::tick is in ms)
@@ -36,12 +40,17 @@ namespace pg
     private:
         MasterRenderer* masterRenderer = nullptr;
         const Input*    input          = nullptr;
+        Window*         window         = nullptr;
 
-        // Position-based delta tracking. Using the Input's cumulative mouseDelta
-        // is unreliable because updateInput() resets it every main-loop frame,
-        // racing with the ECS thread that drives the TickEvent. getMousePos()
-        // is not reset, so we compare against our own stored position instead.
-        Point2D lastMousePos { 0.0f, 0.0f };
-        bool    rightMouseWasHeld = false;
+        // Current cursor-lock state. We only rotate the camera while locked,
+        // so releasing the cursor with LAlt pauses look input without losing
+        // keyboard movement.
+        bool cursorLocked = false;
+
+        // When true, the next OnSDLMouseMotion event is dropped. Used to eat
+        // the motion event SDL synthesises after SDL_WarpMouseInWindow, which
+        // would otherwise cancel the rotation we just applied (or jump the
+        // camera on init based on where the OS cursor happened to sit).
+        bool ignoreNextMotion = false;
     };
 }

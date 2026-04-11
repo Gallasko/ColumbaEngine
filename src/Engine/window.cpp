@@ -581,6 +581,11 @@ namespace pg
 
                 inputHandler->registerMouseMove(currentPos, mouseDelta);
 
+                // Forward the raw SDL motion (including xrel/yrel) so FPS-style
+                // look controllers can consume the delta directly without
+                // racing the main-thread input reset that zeroes mouseDelta.
+                ecs->sendEvent(OnSDLMouseMotion{event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel});
+
                 *mousePos = currentPos;
                 break;
             }
@@ -652,6 +657,37 @@ namespace pg
         // }
 
         ecs->sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});
+    }
+
+    void Window::setCursorLocked(bool locked)
+    {
+        if (not window)
+            return;
+
+        if (locked)
+        {
+            SDL_ShowCursor(SDL_DISABLE);
+
+            // Use SDL_GetWindowSize rather than the cached width/height so we
+            // stay correct after a resize even if the cache is stale.
+            int w = 0, h = 0;
+            SDL_GetWindowSize(window, &w, &h);
+
+            const int cx = w / 2;
+            const int cy = h / 2;
+
+            SDL_WarpMouseInWindow(window, cx, cy);
+
+            // Keep the engine's own mousePos cache in sync so the next
+            // SDL_MOUSEMOTION delta computed in processEvents() is relative
+            // to the center, not to the stale pre-warp position.
+            if (mousePos)
+                *mousePos = Point2D{static_cast<float>(cx), static_cast<float>(cy)};
+        }
+        else
+        {
+            SDL_ShowCursor(SDL_ENABLE);
+        }
     }
 
     void Window::render()
