@@ -90,6 +90,13 @@ namespace pg
         //Init the camera positions and VAOs
         void init(glm::vec3 position, glm::vec3 up, float yaw, float pitch);
 
+        // Recompute front/right/up from the current yaw/pitch/worldUp.
+        // Public so callers that edit yaw/pitch in place (e.g. an FPS
+        // controller) can refresh derived vectors without going through
+        // init(), which would also rewrite position/yaw/pitch from
+        // captured parameters and race with concurrent position updates.
+        void updateCameraVectors();
+
         void setSensitivity(float sensitivity);
 
         void setPos(float x, float y, float z);
@@ -111,9 +118,6 @@ namespace pg
     //     void updateMouse(Input *inputHandler, double deltaTime...);
 
     private:
-        // calculates the front vector from the Camera's (updated) Euler Angles
-        void updateCameraVectors();
-
         glm::mat4 viewMatrix;
     };
 }

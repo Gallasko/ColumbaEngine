@@ -83,9 +83,12 @@ namespace pg
         if (cam.pitch > 89.0f)  cam.pitch = 89.0f;
         if (cam.pitch < -89.0f) cam.pitch = -89.0f;
 
-        // Refresh front/right/up from the new yaw/pitch. updateCameraVectors()
-        // is private, so we re-run init() which calls it internally.
-        cam.init(cam.position, cam.worldUp, cam.yaw, cam.pitch);
+        // Refresh front/right/up from the new yaw/pitch. We deliberately
+        // avoid cam.init() here because init() also rewrites position from
+        // a captured parameter, which races with TickEvent's position
+        // update and causes visible stutter when moving with WASD while
+        // rotating the camera.
+        cam.updateCameraVectors();
 
         // Re-center the cursor so it can never drift to the window edge, and
         // flag the next motion event (the one the warp itself will generate)
@@ -145,9 +148,10 @@ namespace pg
             cam.position += dir * (moveSpeed * event.tick);
         }
 
-        // Camera::updateCameraVectors() is private, so to refresh
-        // front/right/up after our yaw/pitch/position edits we re-run
-        // init() which internally calls updateCameraVectors().
-        cam.init(cam.position, cam.worldUp, cam.yaw, cam.pitch);
+        // No cam.updateCameraVectors() / cam.init() call here: the tick only
+        // modifies cam.position, which does not feed into front/right/up.
+        // Calling init() here used to race with OnSDLMouseMotion's init()
+        // and drop either position or yaw/pitch updates, causing visible
+        // stutter when moving with WASD while rotating the camera.
     }
 }
