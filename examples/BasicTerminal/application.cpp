@@ -63,20 +63,6 @@ constant::Vector4D getLineTextBgColor(size_t lineNumber)
     return (lineNumber % 2) ? constant::Vector4D{167.f, 167.f, 167.f, 255.f} : constant::Vector4D{218.f, 218.f, 218.f, 255.f};
 }
 
-struct PrefabClickedEvent
-{
-    PrefabClickedEvent(_unique_id id) : id(id) {}
-    PrefabClickedEvent(const PrefabClickedEvent& other) : id(other.id) {}
-
-    PrefabClickedEvent& operator=(const PrefabClickedEvent& other)
-    {
-        id = other.id;
-        return *this;
-    }
-
-    _unique_id id;
-};
-
 // Cached component references for a single line prefab. We hold CompRefs grabbed
 // at creation time so view refresh code can drive the components directly
 // instead of going through Prefab::getEntity(name), which is unreliable on
@@ -160,7 +146,9 @@ LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t l
     prefab->addToPrefab(selRect.entity, "SelectionRect");
     prefab->addToPrefab(inputText.entity, "Text");
 
-    prefabEnt.attach<MouseLeftClickComponent>(makeCallable<PrefabClickedEvent>(prefabEnt.entity.id));
+    // Mouse click handling is done globally via OnMouseClick/OnMouseMove in
+    // TextHandlingSys so we can support click-drag selection; no per-prefab
+    // MouseLeftClickComponent is needed.
 
     return LineView{prefabEnt.entity, prefab, inputTTFText, inputTextPos, s2Bg, s2Anchor,
                     lineTextComp, squareBg, selRectPos, selRectAnchor};
@@ -488,7 +476,8 @@ struct TextHandlingSys : public System<
     QueuedListener<OnSDLTextInput>,
     QueuedListener<OnSDLScanCode>,
     QueuedListener<OnSDLScanCodeReleased>,
-    QueuedListener<PrefabClickedEvent>,
+    Listener<OnMouseClick>,
+    Listener<OnMouseMove>,
     Listener<OnMouseRelease>,
     Listener<OpenFileAction>,
     Listener<SaveFileAction>,
@@ -496,40 +485,90 @@ struct TextHandlingSys : public System<
     Listener<TickEvent>,
     InitSys>
 {
-    virtual void onEvent(const OnMouseRelease& event) override
-    {
-        // Cache the release position so PrefabClickedEvent (queued) can map the
-        // click X onto a column within the hit line.
-        lastClickX = event.pos.x;
-    }
+    // ---- Mouse click / drag selection ------------------------------------
+    //
+    // OnMouseClick (press) starts cursor placement + optional drag.
+    // OnMouseMove while dragging extends the selection.
+    // OnMouseRelease ends the drag.
 
-    virtual void onProcessEvent(const PrefabClickedEvent& event) override
+    virtual void onEvent(const OnMouseClick& event) override
     {
-        auto ent = ecsRef->getEntity(event.id);
+        if (event.button != SDL_BUTTON_LEFT)
+            return;
 
-        if (not ent or not ent->has<Prefab>())
+        size_t lineIdx;
+        if (not hitTestLine(event.pos, lineIdx))
         {
-            LOG_ERROR(DOM, "Clicked on a non-prefab entity " << event.id);
+            // Click didn't land on any line prefab — leave editor state alone.
+            dragging = false;
             return;
         }
 
-        auto prefab = ent->get<Prefab>();
+        lastClickX = event.pos.x;
+        size_t col = columnFromClick(lineIdx, event.pos.x);
 
-        auto lineText = prefab->getEntity("LineText");
+        dragging = true;
 
-        auto lineNumberText = lineText->get<TTFText>()->text;
+        // Plain click places the cursor and clears any existing selection.
+        moveCursor(lineIdx, col, false);
+    }
 
-        LOG_INFO(DOM, "Clicked on line: " << lineNumberText);
+    virtual void onEvent(const OnMouseMove& event) override
+    {
+        if (not dragging)
+            return;
 
-        // Display number is 1-based; convert to 0-based line index.
-        size_t lineIdx = std::stoul(lineNumberText) - 1;
+        size_t lineIdx;
+        if (not hitTestLine(event.pos, lineIdx))
+            return;
 
-        // Walk glyph advances to convert the click's screen X into a column
-        // within the line. The text entity's PositionComponent gives the
-        // on-screen origin of the first glyph.
-        size_t col = columnFromClick(lineIdx, lastClickX);
+        size_t col = columnFromClick(lineIdx, event.pos.x);
 
-        focusLine(lineIdx, col);
+        // Skip no-op moves to avoid unnecessary view refreshes.
+        if (lineIdx == editorState.cursor.line and col == editorState.cursor.col)
+            return;
+
+        // Extend the selection from the initial press position. moveCursor
+        // seeds the anchor from the current cursor on first extend, so the
+        // selection grows from the click origin as expected.
+        moveCursor(lineIdx, col, true);
+    }
+
+    virtual void onEvent(const OnMouseRelease& event) override
+    {
+        lastClickX = event.pos.x;
+        dragging   = false;
+    }
+
+    // Find which line prefab (if any) contains the given screen position.
+    // Returns false if the position is outside every visible line's clip box.
+    bool hitTestLine(const Point2D& pos, size_t& outLineIdx)
+    {
+        if (isVirtualMode)
+        {
+            for (size_t i = 0; i < linePool.size(); i++)
+            {
+                size_t lineIdx = poolWindowStart + i;
+                if (lineIdx >= editorState.lines.size())
+                    break;
+                if (inClipBound(linePool[i].entity, pos.x, pos.y))
+                {
+                    outLineIdx = lineIdx;
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        for (size_t i = 0; i < linePrefabs.size(); i++)
+        {
+            if (inClipBound(linePrefabs[i].entity, pos.x, pos.y))
+            {
+                outLineIdx = i;
+                return true;
+            }
+        }
+        return false;
     }
 
     // Map a screen X coordinate onto a column index in `lineIdx`'s text by
@@ -1507,9 +1546,13 @@ struct TextHandlingSys : public System<
     // undo/redo, file load) breaks the run.
     InsertTextCommand* coalesceTarget = nullptr;
 
-    // Screen X of the most recent mouse release. Used by PrefabClickedEvent to
-    // place the cursor at the clicked column rather than the start of the line.
+    // Screen X of the most recent mouse press/release. Tracked mostly for
+    // diagnostics now that click handling is done directly in OnMouseClick.
     float lastClickX = 0.0f;
+
+    // Click-drag selection state. `dragging` stays true between a left-button
+    // press that landed on a line prefab and the matching release.
+    bool dragging = false;
 
     // Non-virtual mode: one LineView per line in editorState.lines, kept in sync
     // locally because the VerticalLayout's own `entities` vector is only updated
