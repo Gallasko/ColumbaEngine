@@ -155,11 +155,15 @@ namespace pg
 
     void Camera::updateCameraVectors()
     {
-        // Calculate the new Front vector
-        glm::vec3 front;
-        front.x = (cos(glm::radians(yaw)) * cos(glm::radians(pitch)));
-        front.y = (sin(glm::radians(pitch)));
-        front.z = (sin(glm::radians(yaw)) * cos(glm::radians(pitch)));
+        // Calculate the new Front vector. Note: writes to the member
+        // `front` directly — a previous version declared a local
+        // `glm::vec3 front;` here which shadowed the member, leaving
+        // `this->front` stuck at its constructor value (0,0,-1) while
+        // only `right`/`up` tracked yaw/pitch. That caused the view to
+        // roll around the forward axis instead of actually pitching/yawing.
+        front.x = cos(glm::radians(yaw)) * cos(glm::radians(pitch));
+        front.y = sin(glm::radians(pitch));
+        front.z = sin(glm::radians(yaw)) * cos(glm::radians(pitch));
         front = glm::normalize(front);
         // Also re-calculate the Right and Up vector
         // Normalize the vectors, because their length gets closer to 0 the more you look up or down which results in slower movement.

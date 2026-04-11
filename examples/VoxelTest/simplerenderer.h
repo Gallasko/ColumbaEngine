@@ -52,8 +52,8 @@ namespace pg
 
         void execute() override
         {
-            if (not changed)
-                return;
+            // if (not changed)
+            //     return;
 
             while (not updateQueue.empty())
             {

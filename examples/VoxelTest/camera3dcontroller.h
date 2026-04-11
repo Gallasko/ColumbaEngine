@@ -2,6 +2,7 @@
 
 #include "ECS/system.h"
 #include "Systems/coresystems.h"
+#include "Maths/geometry.h"
 
 namespace pg
 {
@@ -29,11 +30,18 @@ namespace pg
         void onEvent(const TickEvent& event) override;
 
         // Tunables
-        float moveSpeed  = 6.0f;   // world units / second
-        float mouseSens  = 0.12f;  // degrees / pixel
+        float moveSpeed  = 0.01f;    // world units per millisecond (TickEvent::tick is in ms)
+        float mouseSens  = 0.15f;    // degrees / pixel
 
     private:
         MasterRenderer* masterRenderer = nullptr;
         const Input*    input          = nullptr;
+
+        // Position-based delta tracking. Using the Input's cumulative mouseDelta
+        // is unreliable because updateInput() resets it every main-loop frame,
+        // racing with the ECS thread that drives the TickEvent. getMousePos()
+        // is not reset, so we compare against our own stored position instead.
+        Point2D lastMousePos { 0.0f, 0.0f };
+        bool    rightMouseWasHeld = false;
     };
 }

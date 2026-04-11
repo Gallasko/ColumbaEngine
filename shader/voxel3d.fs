@@ -19,4 +19,5 @@ void main()
     float a  = ourColor.a   / 255.0;
 
     FragColor = vec4(rgb * diffuse, a);
+    // FragColor = vec4(1.0f, 0.0f, 0.0f, 1.0f);
 }

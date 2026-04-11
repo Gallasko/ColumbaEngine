@@ -48,16 +48,36 @@ namespace pg
         auto& cam = masterRenderer->getCamera();
 
         // --- Mouse look (right mouse button held) ---
+        // NOTE: we can't use input->getMouseDelta() here. That accumulator is
+        // reset to 0 by Input::updateInput() on the main thread every frame,
+        // while this handler runs on the ECS thread at the tick rate, so the
+        // delta is almost always 0 when we read it. Instead we snapshot the
+        // current mouse position (which is not reset) and diff it against the
+        // position we stored on the previous tick.
+        const Point2D currentMousePos = input->getMousePos();
+
         if (input->isButtonPressed(SDL_BUTTON_RIGHT))
         {
-            const Point2D& d = input->getMouseDelta();
+            if (rightMouseWasHeld)
+            {
+                const float dx = currentMousePos.x - lastMousePos.x;
+                const float dy = currentMousePos.y - lastMousePos.y;
 
-            cam.yaw   += d.x * mouseSens;
-            cam.pitch -= d.y * mouseSens;
+                cam.yaw   += dx * mouseSens;
+                cam.pitch -= dy * mouseSens;
 
-            if (cam.pitch > 89.0f)  cam.pitch = 89.0f;
-            if (cam.pitch < -89.0f) cam.pitch = -89.0f;
+                if (cam.pitch > 89.0f)  cam.pitch = 89.0f;
+                if (cam.pitch < -89.0f) cam.pitch = -89.0f;
+            }
+
+            rightMouseWasHeld = true;
         }
+        else
+        {
+            rightMouseWasHeld = false;
+        }
+
+        lastMousePos = currentMousePos;
 
         // --- WASD + Space/LShift movement ---
         glm::vec3 dir(0.0f);
