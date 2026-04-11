@@ -108,7 +108,7 @@ LineView makeLinePrefab(EntitySystem *ecsRef, CompRef<UiAnchor> anchor, size_t l
     textAnchor->centeredIn(squareAnchor);
     textAnchor->setZConstrain(PosConstrain{square.entity.id, AnchorType::Z, PosOpType::Add, 1});
 
-    auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+    auto s2 = makeUiSimple2DShape(ecsRef, Shape2D::Square, 25, 25, constant::Vector4D{0.f, 0.f, 0.f, 0.f});
     auto s2Bg = s2.get<Simple2DObject>();
     auto s2Anchor = s2.get<UiAnchor>();
 
@@ -1194,7 +1194,7 @@ struct TextHandlingSys : public System<
                 view.textRef->setText(editorState.lines[lineIdx]);
                 view.lineNumTextRef->setText(std::to_string(lineIdx + 1));
                 view.lineNumBgRef->setColors(getLineTextBgColor(lineIdx + 1));
-                view.textBgRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+                view.lineNumTextRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
                 updateLineSelection(view, lineIdx);
             }
             else
@@ -1212,8 +1212,8 @@ struct TextHandlingSys : public System<
             cursorLine <  poolWindowStart + linePool.size() and
             cursorLine <  editorState.lines.size())
         {
-            linePool[cursorLine - poolWindowStart].textBgRef->setColors(
-                constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+            linePool[cursorLine - poolWindowStart].lineNumTextRef->setColors(
+                constant::Vector4D{128.f, 128.f, 128.f, 255.f});
         }
     }
 
@@ -1250,14 +1250,14 @@ struct TextHandlingSys : public System<
         {
             auto& view = linePrefabs[i];
             view.textRef->setText(editorState.lines[i]);
-            view.textBgRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
+            view.lineNumTextRef->setColors(constant::Vector4D{0.f, 0.f, 0.f, 255.f});
             updateLineSelection(view, i);
         }
 
         if (editorState.cursor.line < linePrefabs.size())
         {
-            linePrefabs[editorState.cursor.line].textBgRef->setColors(
-                constant::Vector4D{255.f, 0.f, 0.f, 255.f});
+            linePrefabs[editorState.cursor.line].lineNumTextRef->setColors(
+                constant::Vector4D{128.f, 128.f, 128.f, 255.f});
         }
     }
 
