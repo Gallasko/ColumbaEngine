@@ -22,12 +22,19 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstdlib>
 
 namespace pg
 {
     Camera3DController::Camera3DController(MasterRenderer* masterRenderer, const Input* input, Window* window)
         : masterRenderer(masterRenderer), input(input), window(window)
     {
+        // Detect WSL/WSLg once at startup. Under WSLg the Windows host owns
+        // the real cursor, so SDL_WarpMouseInWindow is a silent no-op and
+        // produces no synthetic motion event. The ignoreNextMotion filter
+        // must be disabled there to avoid eating real user input.
+        onWSL = (std::getenv("WSL_INTEROP") != nullptr)
+             or (std::getenv("WSL_DISTRO_NAME") != nullptr);
     }
 
     void Camera3DController::init()
@@ -52,8 +59,10 @@ namespace pg
         // Drop the motion event SDL fires in response to the warp above —
         // otherwise its xrel/yrel (from wherever the OS had the cursor to
         // the window center) would rotate the camera to a random start
-        // angle on the very first frame.
-        ignoreNextMotion = true;
+        // angle on the very first frame. Skipped on WSL, where the warp
+        // never actually happens and the flag would eat a real event.
+        if (not onWSL)
+            ignoreNextMotion = true;
         cursorLocked = true;
     }
 
@@ -93,7 +102,11 @@ namespace pg
         // Re-center the cursor so it can never drift to the window edge, and
         // flag the next motion event (the one the warp itself will generate)
         // to be dropped so we don't feed the warp delta back into the camera.
-        if (window)
+        // On WSL the warp is a no-op, so we skip both the re-warp call and
+        // the filter arming: the cursor will drift (contained by F10
+        // fullscreen) but xrel/yrel remains clean and every user motion
+        // event is consumed exactly once.
+        if (window and not onWSL)
         {
             window->setCursorLocked(true);
             ignoreNextMotion = true;
@@ -119,9 +132,12 @@ namespace pg
                 {
                     // Re-center the cursor before relocking so the camera
                     // doesn't jump based on wherever the cursor drifted
-                    // while LAlt was held.
+                    // while LAlt was held. On WSL the warp is a no-op so
+                    // the filter must not be armed (it would eat a real
+                    // user motion event after Alt-release).
                     window->setCursorLocked(true);
-                    ignoreNextMotion = true;
+                    if (not onWSL)
+                        ignoreNextMotion = true;
                 }
                 else
                 {
