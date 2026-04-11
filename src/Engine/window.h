@@ -62,6 +62,10 @@ namespace pg
         // Call with false to restore the system cursor in place.
         void setCursorLocked(bool locked);
 
+        // Toggle between windowed and borderless-fullscreen (desktop
+        // resolution). Bound to F10 in processEvents.
+        void toggleFullscreen();
+
     public:
         EntitySystem* ecs;
 

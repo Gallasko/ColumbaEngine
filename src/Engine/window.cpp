@@ -561,6 +561,13 @@ namespace pg
 
             case SDL_KEYDOWN:
                 LOG_MILE(DOM, "Key pressed : " << event.key.keysym.scancode);
+                // Todo make the key configurable
+                // F9 toggles borderless fullscreen. Gated on key.repeat == 0
+                // so holding the key doesn't spam the toggle at key-repeat rate.
+                if (event.key.keysym.scancode == SDL_SCANCODE_F9 and event.key.repeat == 0)
+                {
+                    toggleFullscreen();
+                }
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYPRESSED);
                 ecs->sendEvent(OnSDLScanCode{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
@@ -687,6 +694,22 @@ namespace pg
         else
         {
             SDL_ShowCursor(SDL_ENABLE);
+        }
+    }
+
+    void Window::toggleFullscreen()
+    {
+        if (not window)
+            return;
+
+        const Uint32 flags = SDL_GetWindowFlags(window);
+        const bool currentlyFullscreen = (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+
+        // SDL_WINDOW_FULLSCREEN_DESKTOP is a superset of SDL_WINDOW_FULLSCREEN
+        // in terms of flag bits, so the check above catches both.
+        if (SDL_SetWindowFullscreen(window, currentlyFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+        {
+            LOG_ERROR(DOM, "SDL_SetWindowFullscreen failed: " << SDL_GetError());
         }
     }
 
