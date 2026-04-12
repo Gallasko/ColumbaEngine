@@ -23,11 +23,8 @@ namespace pg
 
     void VoxelRenderSystem::setupRenderer()
     {
-        // Depth test isn't enabled by the engine (it's a 2D-first renderer)
-        // but the depth buffer IS cleared each frame, so flipping this on
-        // here is enough to get correct 3D occlusion for our voxels.
-        glEnable(GL_DEPTH_TEST);
-        glDepthFunc(GL_LESS);
+        defaultState.depthTestEnabled = true;
+        defaultState.depthFunc = DepthFunc::Less;
 
         // Base material — every voxel uses this material so the engine's
         // same-key batching merges all instance data into a single draw.
@@ -52,7 +49,7 @@ namespace pg
             sharedCube = std::make_shared<CubeMesh>();
         }
 
-        RenderCall call(sharedCube);
+        auto call = makeRenderCall(sharedCube);
 
         call.setRenderStage(renderStage);
         call.setViewport(0);

@@ -352,8 +352,9 @@ namespace pg
         LOG_INFO(DOM, "Enable depth testing");
         glEnable(GL_ALPHA_TEST);
         LOG_INFO(DOM, "Enable alpha testing");
+        // Blend is now managed per-draw-call via OpenGLState (default: on, SrcAlpha/OneMinusSrcAlpha).
+        // The initial GL state must match OpenGLState defaults so the first setState() diff is correct.
         glEnable(GL_BLEND);
-        LOG_INFO(DOM, "Enable blending");
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         LOG_INFO(DOM, "GL functions set");
 

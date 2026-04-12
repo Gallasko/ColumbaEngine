@@ -162,6 +162,13 @@ namespace pg
             call.data.resize(material.nbAttributes);
         }
 
+        RenderCall makeRenderCall(std::shared_ptr<Mesh> mesh = nullptr)
+        {
+            RenderCall call(mesh);
+            call.state = defaultState;
+            return call;
+        }
+
         virtual void setupRenderer() = 0;
 
         virtual RenderCall createRenderCall(CompRef<Comps>... comps) = 0;
