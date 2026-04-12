@@ -89,7 +89,7 @@ namespace pg
                                      {20.0f, 20.0f, 20.0f, 180.0f});
 
         // Highlight (white border behind active swatch)
-        paletteHighlight = makeUIQuad(ecsRef, x0 - 2.0f, y0 - 2.0f, 0.1f,
+        paletteHighlight = makeUIQuad(ecsRef, x0 - 2.0f, y0 - 2.0f, 1.0f,
                                       ss + 4.0f, ss + 4.0f,
                                       {255.0f, 255.0f, 255.0f, 255.0f});
 
@@ -100,7 +100,7 @@ namespace pg
             const float xi = x0 + static_cast<float>(i) * (ss + sp);
 
             paletteSwatches[static_cast<size_t>(i)] = makeUIQuad(
-                ecsRef, xi, y0, 0.2f, ss, ss,
+                ecsRef, xi, y0, 2.0f, ss, ss,
                 {col.r, col.g, col.b, 255.0f});
         }
     }
@@ -115,14 +115,17 @@ namespace pg
         const float px = static_cast<float>(ES::LAYER_PANEL_X);
         const float py = static_cast<float>(ES::LAYER_PANEL_Y);
         const float pw = static_cast<float>(ES::LAYER_PANEL_W);
-        const float rh = static_cast<float>(ES::LAYER_ROW_H);
-        const float ew = static_cast<float>(ES::LAYER_EYE_W);
         const float bh = static_cast<float>(ES::LAYER_ADD_BTN_H);
 
         // Backdrop (will be resized in update)
         layerBackdrop = makeUIQuad(ecsRef, px - 2.0f, py - 2.0f, 0.0f,
                                    pw + 4.0f, bh + 8.0f,
                                    {20.0f, 20.0f, 20.0f, 180.0f});
+
+        // Vertical layout for layer rows
+        auto layout = makeVerticalLayout(ecsRef, px, py, pw, 800.0f, false);
+        layout.get<VerticalLayout>()->spacing = 2;
+        layerLayout = layout.entity;
 
         // Add button
         layerAddBtn = makeUIQuad(ecsRef, px, py, 0.1f,
@@ -142,35 +145,6 @@ namespace pg
         // "+" label
         layerAddLabel = makeUIText(ecsRef, px + pw * 0.5f + 12.0f, py + 2.0f, 0.3f,
                                    "+", 0.5f, {220.0f, 220.0f, 220.0f, 255.0f});
-
-        // Pre-allocate layer row entities (hidden by default)
-        for (int i = 0; i < MAX_UI_LAYERS; ++i)
-        {
-            const float ry = py + static_cast<float>(i) * rh;
-            auto& row = layerRows[static_cast<size_t>(i)];
-
-            row.row = makeUIQuad(ecsRef, px, ry, 0.1f,
-                                 pw, rh - 2.0f,
-                                 {60.0f, 60.0f, 100.0f, 200.0f});
-
-            row.eye = makeUIQuad(ecsRef, px + 2.0f, ry + 4.0f, 0.2f,
-                                 ew - 4.0f, rh - 10.0f,
-                                 {200.0f, 200.0f, 200.0f, 240.0f});
-
-            row.chip = makeUIQuad(ecsRef, px + ew + 2.0f, ry + 4.0f, 0.2f,
-                                  14.0f, rh - 10.0f,
-                                  {160.0f, 160.0f, 160.0f, 220.0f});
-
-            row.label = makeUIText(ecsRef, px + ew + 20.0f, ry + 4.0f, 0.3f,
-                                   "Layer " + std::to_string(i + 1), 0.4f,
-                                   {220.0f, 220.0f, 220.0f, 255.0f});
-
-            // Hide all rows initially
-            ecsRef->getComponent<PositionComponent>(row.row.id)->setVisibility(false);
-            ecsRef->getComponent<PositionComponent>(row.eye.id)->setVisibility(false);
-            ecsRef->getComponent<PositionComponent>(row.chip.id)->setVisibility(false);
-            ecsRef->getComponent<PositionComponent>(row.label.id)->setVisibility(false);
-        }
     }
 
     // =========================================================================
@@ -264,7 +238,7 @@ namespace pg
         {
             // Still need to check visibility changes per layer
             bool visChanged = false;
-            for (int i = 0; i < nbLayers && i < MAX_UI_LAYERS; ++i)
+            for (int i = 0; i < nbLayers && i < static_cast<int>(layerRows.size()); ++i)
             {
                 auto* eyeObj = ecsRef->getComponent<Simple2DObject>(layerRows[static_cast<size_t>(i)].eye.id);
                 if (!eyeObj) continue;
@@ -287,33 +261,60 @@ namespace pg
         const float py = static_cast<float>(ES::LAYER_PANEL_Y);
         const float pw = static_cast<float>(ES::LAYER_PANEL_W);
         const float rh = static_cast<float>(ES::LAYER_ROW_H);
+        const float ew = static_cast<float>(ES::LAYER_EYE_W);
         const float bh = static_cast<float>(ES::LAYER_ADD_BTN_H);
+
+        // Add new rows if layers were added
+        auto* layoutComp = ecsRef->getComponent<VerticalLayout>(layerLayout.id);
+        while (static_cast<int>(layerRows.size()) < nbLayers)
+        {
+            const int i = static_cast<int>(layerRows.size());
+            LayerRow row;
+
+            // Container quad for the row background
+            row.container = makeUIQuad(ecsRef, 0.0f, 0.0f, 0.1f,
+                                       pw, rh - 2.0f,
+                                       {60.0f, 60.0f, 100.0f, 200.0f});
+
+            // Eye visibility toggle
+            row.eye = makeUIQuad(ecsRef, px + 2.0f, 0.0f, 0.2f,
+                                 ew - 4.0f, rh - 10.0f,
+                                 {200.0f, 200.0f, 200.0f, 240.0f});
+
+            // Layer name label
+            row.label = makeUIText(ecsRef, px + ew + 4.0f, 0.0f, 0.3f,
+                                   "Layer " + std::to_string(i + 1), 0.4f,
+                                   {220.0f, 220.0f, 220.0f, 255.0f});
+
+            if (layoutComp)
+                layoutComp->addEntity(row.container);
+
+            layerRows.push_back(row);
+        }
+
+        // Remove excess rows if layers were removed
+        while (static_cast<int>(layerRows.size()) > nbLayers)
+        {
+            auto& row = layerRows.back();
+            if (layoutComp)
+                layoutComp->removeEntity(row.container);
+            ecsRef->removeEntity(row.eye.id);
+            ecsRef->removeEntity(row.label.id);
+            layerRows.pop_back();
+        }
 
         // Update backdrop height
         const float panelH = static_cast<float>(nbLayers) * rh + bh + 4.0f;
         auto* bdPos = ecsRef->getComponent<PositionComponent>(layerBackdrop.id);
         if (bdPos) bdPos->setHeight(panelH + 4.0f);
 
-        // Show/hide and update layer rows
-        for (int i = 0; i < MAX_UI_LAYERS; ++i)
+        // Update existing rows
+        for (int i = 0; i < nbLayers; ++i)
         {
             auto& row = layerRows[static_cast<size_t>(i)];
-            const bool show = (i < nbLayers);
-
-            auto* rowPos   = ecsRef->getComponent<PositionComponent>(row.row.id);
-            auto* eyePos   = ecsRef->getComponent<PositionComponent>(row.eye.id);
-            auto* chipPos  = ecsRef->getComponent<PositionComponent>(row.chip.id);
-            auto* labelPos = ecsRef->getComponent<PositionComponent>(row.label.id);
-
-            if (rowPos)   rowPos->setVisibility(show);
-            if (eyePos)   eyePos->setVisibility(show);
-            if (chipPos)  chipPos->setVisibility(show);
-            if (labelPos) labelPos->setVisibility(show);
-
-            if (!show) continue;
 
             // Active layer highlight
-            auto* rowObj = ecsRef->getComponent<Simple2DObject>(row.row.id);
+            auto* rowObj = ecsRef->getComponent<Simple2DObject>(row.container.id);
             if (rowObj)
             {
                 if (i == editor->activeLayer)
@@ -328,6 +329,27 @@ namespace pg
             {
                 const bool vis = editor->canvas->layers[static_cast<size_t>(i)].visible;
                 eyeObj->setOpacity(vis ? 240.0f : 80.0f);
+            }
+
+            // Position eye and label relative to the row container
+            auto* containerPos = ecsRef->getComponent<PositionComponent>(row.container.id);
+            if (containerPos)
+            {
+                const float ry = containerPos->y;
+
+                auto* eyePos = ecsRef->getComponent<PositionComponent>(row.eye.id);
+                if (eyePos)
+                {
+                    eyePos->setX(containerPos->x + 2.0f);
+                    eyePos->setY(ry + 4.0f);
+                }
+
+                auto* labelPos = ecsRef->getComponent<PositionComponent>(row.label.id);
+                if (labelPos)
+                {
+                    labelPos->setX(containerPos->x + ew + 4.0f);
+                    labelPos->setY(ry + 4.0f);
+                }
             }
 
             // Update label text if layer name changed
@@ -416,12 +438,12 @@ namespace pg
         setVis(layerAddCrossH);
         setVis(layerAddCrossV);
         setVis(layerAddLabel);
+        setVis(layerLayout);
 
         for (auto& row : layerRows)
         {
-            setVis(row.row);
+            setVis(row.container);
             setVis(row.eye);
-            setVis(row.chip);
             setVis(row.label);
         }
     }

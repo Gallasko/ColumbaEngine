@@ -6,6 +6,7 @@
 
 #include "2D/simple2dobject.h"
 #include "UI/ttftext.h"
+#include "UI/sizer.h"
 #include "Renderer/camera.h"
 
 #include "editorsystem.h"
@@ -59,12 +60,12 @@ namespace pg
 
         struct LayerRow
         {
-            EntityRef row;
+            EntityRef container;
             EntityRef eye;
-            EntityRef chip;
             EntityRef label;
         };
-        std::array<LayerRow, MAX_UI_LAYERS> layerRows;
+        EntityRef layerLayout;
+        std::vector<LayerRow> layerRows;
 
         int cachedActiveColor = -1;
         int cachedActiveLayer = -1;
