@@ -36,7 +36,6 @@ namespace pg
         void createLayerPanel();
         void updatePalette();
         void updateLayerPanel();
-        void repositionPalette();
         void repositionLayerPanel();
         void setAllVisible(bool visible);
 
@@ -47,6 +46,7 @@ namespace pg
         float screenH = 720.0f;
 
         // Palette entities
+        EntityRef paletteLayout;
         EntityRef paletteBackdrop;
         EntityRef paletteHighlight;
         std::array<EntityRef, PALETTE_SIZE> paletteSwatches;

@@ -80,28 +80,52 @@ namespace pg
         const float sp = static_cast<float>(ES::SWATCH_PADDING);
         const float margin = static_cast<float>(ES::PALETTE_MARGIN);
         const float totalW = static_cast<float>(PALETTE_SIZE) * (ss + sp) - sp;
-        const float x0 = (screenW - totalW) * 0.5f;
-        const float y0 = screenH - ss - margin;
 
-        // Backdrop
-        paletteBackdrop = makeUIQuad(ecsRef, x0 - sp, y0 - sp, 0.0f,
+        // Create horizontal layout for swatches
+        auto layout = makeHorizontalLayout(ecsRef, 0.0f, 0.0f, totalW, ss, false);
+        layout.get<HorizontalLayout>()->spacing = static_cast<size_t>(sp);
+        paletteLayout = layout.entity;
+
+        // Anchor layout to horizontal center + bottom of screen
+        auto* mainWindow = ecsRef->getEntity("__MainWindow");
+        if (mainWindow)
+        {
+            auto layoutAnchor = layout.get<UiAnchor>();
+            auto windowAnchor = mainWindow->get<UiAnchor>();
+            layoutAnchor->setHorizontalCenter(windowAnchor->horizontalCenter);
+            layoutAnchor->setBottomAnchor(windowAnchor->bottom);
+            layoutAnchor->setBottomMargin(margin);
+        }
+
+        // Backdrop (anchored relative to layout, will follow it)
+        paletteBackdrop = makeUIQuad(ecsRef, 0.0f, 0.0f, 0.0f,
                                      totalW + sp * 2.0f, ss + sp * 2.0f,
                                      {20.0f, 20.0f, 20.0f, 180.0f});
+        {
+            auto layoutAnchor = layout.get<UiAnchor>();
+            auto bdAnchor = ecsRef->attach<UiAnchor>(paletteBackdrop);
+            bdAnchor->setTopAnchor(layoutAnchor->top);
+            bdAnchor->setTopMargin(-sp);
+            bdAnchor->setLeftAnchor(layoutAnchor->left);
+            bdAnchor->setLeftMargin(-sp);
+        }
 
         // Highlight (white border behind active swatch)
-        paletteHighlight = makeUIQuad(ecsRef, x0 - 2.0f, y0 - 2.0f, 1.0f,
+        paletteHighlight = makeUIQuad(ecsRef, 0.0f, 0.0f, 1.0f,
                                       ss + 4.0f, ss + 4.0f,
                                       {255.0f, 255.0f, 255.0f, 255.0f});
 
-        // Swatches
-        for (int i = 0; i < PALETTE_SIZE; ++i)
+        // Swatches — add to layout
+        auto layoutComp = layout.get<HorizontalLayout>();
+        for (size_t i = 0; i < PALETTE_SIZE; ++i)
         {
             const glm::vec4& col = EDITOR_PALETTE[i];
-            const float xi = x0 + static_cast<float>(i) * (ss + sp);
 
-            paletteSwatches[static_cast<size_t>(i)] = makeUIQuad(
-                ecsRef, xi, y0, 2.0f, ss, ss,
+            paletteSwatches[i] = makeUIQuad(
+                ecsRef, 0.0f, 0.0f, 2.0f, ss, ss,
                 {col.r, col.g, col.b, 255.0f});
+
+            layoutComp->addEntity(paletteSwatches[i]);
         }
     }
 
@@ -165,7 +189,6 @@ namespace pg
             uiCamera->setHeight(screenH);
         }
 
-        repositionPalette();
         repositionLayerPanel();
     }
 
@@ -203,21 +226,14 @@ namespace pg
 
         cachedActiveColor = editor->activeColor;
 
-        using ES = EditorSystem;
-        const float ss = static_cast<float>(ES::SWATCH_SIZE);
-        const float sp = static_cast<float>(ES::SWATCH_PADDING);
-        const float margin = static_cast<float>(ES::PALETTE_MARGIN);
-        const float totalW = static_cast<float>(PALETTE_SIZE) * (ss + sp) - sp;
-        const float x0 = (screenW - totalW) * 0.5f;
-        const float y0 = screenH - ss - margin;
-
-        const float xi = x0 + static_cast<float>(cachedActiveColor) * (ss + sp);
-
-        auto* pos = ecsRef->getComponent<PositionComponent>(paletteHighlight.id);
-        if (pos)
+        // Position highlight relative to the active swatch's actual position
+        auto* swatchPos = ecsRef->getComponent<PositionComponent>(
+            paletteSwatches[static_cast<size_t>(cachedActiveColor)].id);
+        auto* highlightPos = ecsRef->getComponent<PositionComponent>(paletteHighlight.id);
+        if (swatchPos && highlightPos)
         {
-            pos->setX(xi - 2.0f);
-            pos->setY(y0 - 2.0f);
+            highlightPos->setX(swatchPos->x - 2.0f);
+            highlightPos->setY(swatchPos->y - 2.0f);
         }
     }
 
@@ -378,34 +394,6 @@ namespace pg
     }
 
     // =========================================================================
-    // Reposition palette (on resize)
-    // =========================================================================
-
-    void EditorUISystem::repositionPalette()
-    {
-        using ES = EditorSystem;
-        const float ss = static_cast<float>(ES::SWATCH_SIZE);
-        const float sp = static_cast<float>(ES::SWATCH_PADDING);
-        const float margin = static_cast<float>(ES::PALETTE_MARGIN);
-        const float totalW = static_cast<float>(PALETTE_SIZE) * (ss + sp) - sp;
-        const float x0 = (screenW - totalW) * 0.5f;
-        const float y0 = screenH - ss - margin;
-
-        auto* bdPos = ecsRef->getComponent<PositionComponent>(paletteBackdrop.id);
-        if (bdPos) { bdPos->setX(x0 - sp); bdPos->setY(y0 - sp); }
-
-        for (int i = 0; i < PALETTE_SIZE; ++i)
-        {
-            const float xi = x0 + static_cast<float>(i) * (ss + sp);
-            auto* pos = ecsRef->getComponent<PositionComponent>(paletteSwatches[static_cast<size_t>(i)].id);
-            if (pos) { pos->setX(xi); pos->setY(y0); }
-        }
-
-        // Force highlight reposition
-        cachedActiveColor = -1;
-    }
-
-    // =========================================================================
     // Reposition layer panel (on resize) — panel is top-left, no change needed
     // =========================================================================
 
@@ -429,6 +417,7 @@ namespace pg
             if (pos) pos->setVisibility(visible);
         };
 
+        setVis(paletteLayout);
         setVis(paletteBackdrop);
         setVis(paletteHighlight);
         for (auto& s : paletteSwatches) setVis(s);
