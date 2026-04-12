@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ECS/system.h"
+#include "ECS/entityref.h"
 #include "Systems/coresystems.h"
 #include "Input/inputcomponent.h"
 
@@ -21,8 +22,7 @@ namespace pg
      *   Ctrl+Y    — redo
      *
      * Mouse (edit mode only):
-     *   Left-click  — place block at the hovered empty cell adjacent to the
-     *                 first occupied cell (or canvas boundary) in view.
+     *   Left-click  — place block at the hovered empty cell under the cursor.
      *   Right-click — remove the hovered block.
      *
      * Clicks over UI panels (palette, layers) are consumed by the UI and do
@@ -31,6 +31,7 @@ namespace pg
     struct EditorSystem
         : public System<InitSys,
                         Listener<OnSDLScanCode>,
+                        Listener<OnSDLMouseMotion>,
                         Listener<OnMouseClick>>
     {
         EditorSystem(MasterRenderer*     mr,
@@ -40,13 +41,14 @@ namespace pg
 
         std::string getSystemName() const override { return "Editor System"; }
 
-        void init() override {}
+        void init() override;
 
         // Fill y=0 plane with a grey floor block on layer 0.
         void buildFloor();
 
-        void onEvent(const OnSDLScanCode& event) override;
-        void onEvent(const OnMouseClick&  event) override;
+        void onEvent(const OnSDLScanCode&   event) override;
+        void onEvent(const OnSDLMouseMotion& event) override;
+        void onEvent(const OnMouseClick&     event) override;
 
         // Toggle a layer's visibility (show/hide its blocks).
         void toggleLayerVisibility(int layerIdx);
@@ -64,23 +66,38 @@ namespace pg
         static constexpr int LAYER_EYE_W     = 24;
         static constexpr int LAYER_ADD_BTN_H = 24;
 
+        // Projection parameters — must match VoxelRenderSystem.
+        float fovDegrees = 60.0f;
+        float nearPlane  = 0.1f;
+        float farPlane   = 500.0f;
+
         // Public state — read by EditorUIRenderer to draw the overlay.
-        bool    editMode    = false;
-        int     activeColor = 0;   // index into EDITOR_PALETTE
-        int     activeLayer = 0;   // index into canvas->layers
-        int     screenW     = 1280;
-        int     screenH     = 720;
-        Canvas* canvas      = nullptr; // non-owning pointer to the app-owned Canvas
+        bool       editMode    = false;
+        int        activeColor = 0;   // index into EDITOR_PALETTE
+        int        activeLayer = 0;   // index into canvas->layers
+        int        screenW     = 1280;
+        int        screenH     = 720;
+        Canvas*    canvas      = nullptr; // non-owning pointer to the app-owned Canvas
+
+        // Current ghost (preview) cell — {-1,-1,-1} when none.
+        glm::ivec3 ghostCell   = { -1, -1, -1 };
 
     private:
         // Returns true if the screen pixel (px, py) falls inside any UI panel
         // and handles the interaction (color pick, layer toggle, etc.).
         bool handleUIClick(int px, int py, bool rightBtn);
 
-        // DDA voxel raycast along the camera look direction.
+        // Unproject screen pixel (px, py) → world-space ray direction.
+        glm::vec3 screenToRay(int px, int py) const;
+
+        // DDA voxel raycast from mouse cursor position.
         // hitCell:   first occupied cell found; only valid when return is true.
         // placeCell: last empty in-bounds cell before the hit.
-        bool raycast(glm::ivec3& hitCell, glm::ivec3& placeCell) const;
+        bool raycast(int mouseX, int mouseY, glm::ivec3& hitCell, glm::ivec3& placeCell);
+
+        // Move/hide the ghost preview entity.
+        void updateGhost(const glm::ivec3& cell);
+        void hideGhost();
 
         // High-level place/remove — update undo stack and call do* variants.
         void placeBlock(const glm::ivec3& pos);
@@ -93,6 +110,13 @@ namespace pg
         MasterRenderer*      mr     = nullptr;
         Window*              window = nullptr;
         Camera3DController*  cam    = nullptr;
+
+        // Ghost preview entity (not stored in canvas, not undo-able).
+        EntityRef ghostEntity;
+
+        // Last known mouse pixel position (updated by OnSDLMouseMotion).
+        int mouseX = 0;
+        int mouseY = 0;
 
         std::vector<EditorCmd> undoStack;
         std::vector<EditorCmd> redoStack;

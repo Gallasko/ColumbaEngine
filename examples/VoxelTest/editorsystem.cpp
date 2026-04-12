@@ -15,6 +15,9 @@
 #  include <SDL.h>
 #endif
 
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+
 #include <cmath>
 #include <algorithm>
 
@@ -31,6 +34,12 @@ namespace pg
                                Canvas*             canvas)
         : mr(mr), window(window), cam(cam), canvas(canvas)
     {}
+
+    void EditorSystem::init()
+    {
+        // Create a persistent ghost entity (no VoxelComponent yet — added on demand).
+        ghostEntity = ecsRef->createEntity();
+    }
 
     // =========================================================================
     // Keyboard
@@ -94,6 +103,89 @@ namespace pg
     }
 
     // =========================================================================
+    // Ghost preview helpers
+    // =========================================================================
+
+    void EditorSystem::updateGhost(const glm::ivec3& cell)
+    {
+        if (ghostEntity.empty())
+            return;
+
+        const glm::vec4 col = EDITOR_PALETTE[static_cast<size_t>(activeColor)];
+        // Semi-transparent version of the active color (alpha ~40%).
+        const glm::vec4 ghostColor{ col.r, col.g, col.b, 100.0f };
+
+        if (ghostCell == cell)
+        {
+            // Same cell — just refresh the color in case activeColor changed.
+            if (ghostEntity.has<VoxelComponent>())
+                ghostEntity->get<VoxelComponent>()->color = ghostColor;
+            return;
+        }
+
+        ghostCell = cell;
+
+        // Detach any existing component and reattach at the new position.
+        if (ghostEntity.has<VoxelComponent>())
+            ecsRef->detach<VoxelComponent>(static_cast<Entity*>(ghostEntity));
+
+        if (canvas->inBounds(cell.x, cell.y, cell.z))
+        {
+            ecsRef->attach<VoxelComponent>(
+                ghostEntity,
+                glm::vec3(cell),
+                glm::vec3(1.0f),
+                ghostColor);
+        }
+    }
+
+    void EditorSystem::hideGhost()
+    {
+        if (ghostEntity.empty())
+            return;
+        if (ghostEntity.has<VoxelComponent>())
+            ecsRef->detach<VoxelComponent>(static_cast<Entity*>(ghostEntity));
+        ghostCell = { -1, -1, -1 };
+    }
+
+    // =========================================================================
+    // Mouse motion — update ghost preview
+    // =========================================================================
+
+    void EditorSystem::onEvent(const OnSDLMouseMotion& event)
+    {
+        mouseX = event.x;
+        mouseY = event.y;
+
+        if (!editMode)
+        {
+            hideGhost();
+            return;
+        }
+
+        // Refresh screen size from the renderer parameter table.
+        if (mr)
+        {
+            const auto& rTable = mr->getParameter();
+            screenW = rTable.at("ScreenWidth").get<int>();
+            screenH = rTable.at("ScreenHeight").get<int>();
+        }
+
+        glm::ivec3 hitCell{ -1,-1,-1 }, placeCell{ -1,-1,-1 };
+        const bool hit = raycast(mouseX, mouseY, hitCell, placeCell);
+
+        if (hit && canvas->inBounds(placeCell.x, placeCell.y, placeCell.z)
+                && canvas->at(placeCell.x, placeCell.y, placeCell.z).empty())
+        {
+            updateGhost(placeCell);
+        }
+        else
+        {
+            hideGhost();
+        }
+    }
+
+    // =========================================================================
     // Mouse click
     // =========================================================================
 
@@ -119,7 +211,7 @@ namespace pg
 
         // 3-D interaction
         glm::ivec3 hitCell{ -1,-1,-1 }, placeCell{ -1,-1,-1 };
-        const bool hit = raycast(hitCell, placeCell);
+        const bool hit = raycast(px, py, hitCell, placeCell);
 
         if (rightBtn)
         {
@@ -264,14 +356,37 @@ namespace pg
     // DDA Voxel Raycast
     // =========================================================================
 
-    bool EditorSystem::raycast(glm::ivec3& hitCell, glm::ivec3& placeCell) const
+    glm::vec3 EditorSystem::screenToRay(int px, int py) const
+    {
+        // NDC (Y flipped: screen Y grows down, NDC Y grows up)
+        const float ndcX = (2.0f * px / static_cast<float>(screenW)) - 1.0f;
+        const float ndcY = 1.0f - (2.0f * py / static_cast<float>(screenH));
+
+        // Clip space ray pointing into -Z
+        const glm::vec4 clipRay(ndcX, ndcY, -1.0f, 1.0f);
+
+        // Eye space (undo projection)
+        const glm::mat4 proj = glm::perspective(
+            glm::radians(fovDegrees),
+            static_cast<float>(screenW) / static_cast<float>(screenH),
+            nearPlane, farPlane);
+        glm::vec4 eyeRay = glm::inverse(proj) * clipRay;
+        eyeRay = glm::vec4(eyeRay.x, eyeRay.y, -1.0f, 0.0f); // direction, not position
+
+        // World space (undo view)
+        const glm::mat4 view = const_cast<MasterRenderer*>(mr)->getCamera().getViewMatrix();
+        const glm::vec3 worldDir = glm::normalize(glm::vec3(glm::inverse(view) * eyeRay));
+
+        return worldDir;
+    }
+
+    bool EditorSystem::raycast(int mouseX, int mouseY, glm::ivec3& hitCell, glm::ivec3& placeCell)
     {
         if (!mr || !canvas)
             return false;
 
-        const auto& camera = mr->getCamera();
-        const glm::vec3 origin = camera.position;
-        const glm::vec3 dir    = camera.front; // already normalised by updateCameraVectors
+        const glm::vec3 origin = mr->getCamera().position;
+        const glm::vec3 dir    = screenToRay(mouseX, mouseY);
 
         int cx = static_cast<int>(std::floor(origin.x));
         int cy = static_cast<int>(std::floor(origin.y));
@@ -433,7 +548,7 @@ namespace pg
             return;
 
         // Neutral grey for the floor
-        constexpr glm::vec4 floorColor{ 180.0f, 180.0f, 180.0f, 255.0f };
+        const glm::vec4 floorColor{ 180.0f, 180.0f, 180.0f, 255.0f };
 
         for (int x = 0; x < canvas->W; ++x)
             for (int z = 0; z < canvas->D; ++z)

@@ -107,26 +107,7 @@ namespace pg
         auto& d = call.data;
 
         // -----------------------------------------------------------------
-        // 1. Crosshair (centre of screen)
-        // -----------------------------------------------------------------
-        {
-            constexpr float CX_LONG  = 20.0f;
-            constexpr float CX_SHORT =  2.0f;
-            constexpr float R = 255.0f, G = 255.0f, B = 255.0f, A = 200.0f;
-
-            const float cx = sw * 0.5f - CX_LONG * 0.5f;
-            const float cy = sh * 0.5f - CX_SHORT * 0.5f;
-
-            // Horizontal bar
-            pushQuad(d, cx,              cy,              CX_LONG, CX_SHORT, R, G, B, A);
-            // Vertical bar
-            pushQuad(d, cx + CX_LONG * 0.5f - CX_SHORT * 0.5f,
-                        cy - CX_LONG * 0.5f + CX_SHORT * 0.5f,
-                        CX_SHORT, CX_LONG, R, G, B, A);
-        }
-
-        // -----------------------------------------------------------------
-        // 2. Palette bar (bottom-centre)
+        // 1. Palette bar (bottom-centre)
         // -----------------------------------------------------------------
         {
             using ES = EditorSystem;
@@ -157,7 +138,7 @@ namespace pg
         }
 
         // -----------------------------------------------------------------
-        // 3. Layers panel (top-left)
+        // 2. Layers panel (top-left)
         // -----------------------------------------------------------------
         {
             using ES = EditorSystem;
