@@ -37,6 +37,10 @@ namespace pg
         float moveSpeed  = 0.01f;    // world units per millisecond (TickEvent::tick is in ms)
         float mouseSens  = 0.15f;    // degrees / pixel
 
+        // Set by EditorSystem on Tab: when true the controller yields cursor
+        // and look control to the editor, but still allows WASD movement.
+        bool editMode = false;
+
     private:
         MasterRenderer* masterRenderer = nullptr;
         const Input*    input          = nullptr;

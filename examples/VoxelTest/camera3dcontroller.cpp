@@ -90,9 +90,10 @@ namespace pg
             return;
         }
 
-        // While the cursor is unlocked (LAlt held) we ignore mouse motion so
-        // the user can click around the window without yanking the view.
-        if (not cursorLocked)
+        // While the cursor is unlocked (LAlt held or edit mode active) we
+        // ignore mouse motion so the user can interact with the UI / scene
+        // without yanking the view.
+        if (not cursorLocked or editMode)
             return;
 
         auto& cam = masterRenderer->getCamera();
@@ -150,7 +151,8 @@ namespace pg
 
         // --- Cursor lock toggle (hold LAlt to free the cursor) ---
         const bool altHeld    = input->isKeyPressed(SDL_SCANCODE_LALT);
-        const bool wantLocked = not altHeld;
+        // In edit mode the cursor is always free; LAlt is also honoured.
+        const bool wantLocked = not altHeld and not editMode;
 
         if (wantLocked != cursorLocked)
         {

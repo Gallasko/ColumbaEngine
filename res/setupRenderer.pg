@@ -15,6 +15,7 @@ loadShader("lineShader", "shader/lineshader.vs", "shader/lineshader.fs");
 loadShader("polygonShader", "shader/polygonshader.vs", "shader/polygonshader.fs");
 loadShader("RoundedRect", "shader/roundedrect.vs", "shader/roundedrect.fs");
 loadShader("voxel3d", "shader/voxel3d.vs", "shader/voxel3d.fs");
+loadShader("editorui", "shader/editorui.vs", "shader/editorui.fs");
 
 print("Shaders loaded successfully.")
 

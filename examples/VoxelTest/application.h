@@ -2,6 +2,9 @@
 #define APPLICATION_H
 
 #include "engine.h"
+#include "editorstate.h"
+
+#include <memory>
 
 class GameApp
 {
@@ -13,6 +16,9 @@ public:
 
 private:
     pg::Engine engine;
+
+    // Canvas lifetime is tied to the application; systems hold raw pointers.
+    std::unique_ptr<pg::Canvas> canvas;
 };
 
 #endif
