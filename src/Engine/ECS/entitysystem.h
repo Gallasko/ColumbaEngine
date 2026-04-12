@@ -1006,22 +1006,24 @@ namespace pg
             return CompRef<Comp>();
         }
 
-        // Todo add a fast path here
+        auto ent = ecsRef->getEntity(id);
+        auto initialized = id != 0 and ent;
 
         const auto& componentId = ecsRef->getId<Comp>();
 
+        // Fast path: entity is fully initialized, return the cached pointer directly without any lookup
+        if (initialized)
+            return CompRef<Comp>(static_cast<Comp*>(pendingComponents[componentId]), id, ecsRef, true);
+
+        // Normal path: component is flushed and lives in the sparse set pool
         const auto& it = componentList.find(componentId);
 
         if (it != componentList.end())
         {
-            auto ent = ecsRef->getEntity(id);
-            auto initialized = id != 0 and ent;
-
-            // Todo add memoisation if we run into performance issues here
             return CompRef<Comp>(ecsRef->registry.retrieve<Comp>()->getComponent(id), id, ecsRef, initialized);
         }
 
-        // Check if the component is pending (attached while ECS is running, not yet flushed)
+        // Deferred path: component was attached while ECS is running but not yet flushed
         const auto pending = pendingComponents.find(componentId);
         if (pending != pendingComponents.end())
         {

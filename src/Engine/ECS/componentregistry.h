@@ -721,7 +721,7 @@ namespace pg
             auto comp = components.addComponent(entity, std::forward<Args>(args)...);
 
             entity->componentList.insert(_componentId);
-            entity->pendingComponents.erase(_componentId);
+            entity->pendingComponents[_componentId] = comp;
 
             // Call the on component creation callbacks to register the component in potential groups
             for (const auto& callback : onComponentCreation)
@@ -1021,7 +1021,7 @@ namespace pg
             }
 
             entity->componentList.insert(_componentId);
-            entity->pendingComponents.erase(_componentId);
+            entity->pendingComponents[_componentId] = comp;
 
             for (const auto& callback : onComponentCreation)
                 callback.second(entity);
