@@ -12,6 +12,9 @@
 #include "editorsystem.h"
 #include "editorui.h"
 
+#include "2D/simple2dobject.h"
+#include "UI/ttftext.h"
+
 #include "glm/glm.hpp"
 
 using namespace pg;
@@ -48,17 +51,24 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* cam    = ecs.createSystem<Camera3DController>(masterRenderer, input, &window);
         ecs.createSystem<VoxelRenderSystem>(masterRenderer, aspect);
         auto* editor = ecs.createSystem<EditorSystem>(masterRenderer, &window, cam, canvas.get());
-        auto* ui     = ecs.createSystem<EditorUIRenderer>(masterRenderer, editor);
+
+        // Engine UI primitive systems
+        ecs.createSystem<Simple2DObjectSystem>(masterRenderer);
+        auto* ttfSys = ecs.createSystem<TTFTextSystem>(masterRenderer);
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf", "inter", 18);
+
+        auto* ui = ecs.createSystem<EditorUISystem>(masterRenderer, editor);
 
         // Execution ordering:
         //   EditorSystem first (updates editMode flag and blocks)
         //   Camera3DController after EditorSystem (reads editMode)
-        //   VoxelRenderSystem and EditorUIRenderer can run concurrently after
-        //   their dependencies, but MasterRenderer always runs last.
+        //   EditorUISystem after EditorSystem (reads editor state)
+        //   MasterRenderer always runs last.
         ecs.succeed<Camera3DController, EditorSystem>();
+        ecs.succeed<EditorUISystem, EditorSystem>();
         ecs.succeed<MasterRenderer, Camera3DController>();
         ecs.succeed<MasterRenderer, VoxelRenderSystem>();
-        ecs.succeed<MasterRenderer, EditorUIRenderer>();
+        ecs.succeed<MasterRenderer, EditorUISystem>();
 
         // Build the initial floor on y=0
         editor->buildFloor();

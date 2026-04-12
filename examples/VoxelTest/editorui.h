@@ -1,55 +1,75 @@
 #pragma once
 
-#include "Renderer/renderer.h"
-#include "ECS/entitysystem_fwd.h"
+#include "ECS/system.h"
+#include "ECS/entityref.h"
+#include "Systems/coresystems.h"
+
+#include "2D/simple2dobject.h"
+#include "UI/ttftext.h"
+#include "Renderer/camera.h"
 
 #include "editorsystem.h"
 
-#include <memory>
-
 namespace pg
 {
-    /**
-     * Overlay UI renderer for the voxel editor.
-     *
-     * Draws (only when editMode == true):
-     *   – Crosshair at screen centre
-     *   – Palette bar along the bottom
-     *   – Layers panel on the top-left
-     *
-     * Uses the "editorui" shader with SimpleSquareMesh({2,2,4}) so every quad
-     * is specified as (pixelX, pixelY, pixelW, pixelH, R, G, B, A) per instance.
-     * The shader maps pixel coords → NDC at z = -1 (near plane), which always
-     * passes the GL_LESS depth test and renders on top of all 3-D geometry.
-     */
-    struct EditorUIRenderer
-        : public AbstractRenderer,
-          public System<InitSys, Listener<ResizeEvent>>
-    {
-        EditorUIRenderer(MasterRenderer* masterRenderer, const EditorSystem* editor);
+    static constexpr int MAX_UI_LAYERS = 16;
 
-        std::string getSystemName() const override { return "Editor UI Renderer"; }
+    static const std::string EDITOR_FONT = "inter";
+
+    struct EditorUISystem
+        : public System<InitSys, Listener<ResizeEvent>>
+    {
+        EditorUISystem(MasterRenderer* masterRenderer, const EditorSystem* editor);
+
+        std::string getSystemName() const override { return "Editor UI System"; }
 
         void init() override;
         void execute() override;
 
         void onEvent(const ResizeEvent& event) override;
 
-    private:
-        // Emit one quad (x, y, w, h, r, g, b, a — pixels / 0..255) into data.
-        static void pushQuad(std::vector<float>& data,
-                             float x, float y, float w, float h,
-                             float r, float g, float b, float a = 255.0f);
+        BaseCamera2D* uiCamera = nullptr;
 
-        void rebuildCalls();
+    private:
+        void createPalette();
+        void createLayerPanel();
+        void updatePalette();
+        void updateLayerPanel();
+        void repositionPalette();
+        void repositionLayerPanel();
+        void setAllVisible(bool visible);
 
         const EditorSystem* editor = nullptr;
+        MasterRenderer* masterRenderer = nullptr;
 
         float screenW = 1280.0f;
         float screenH = 720.0f;
 
-        size_t matId = 0;
-        std::shared_ptr<Mesh> squareMesh;
+        // Palette entities
+        EntityRef paletteBackdrop;
+        EntityRef paletteHighlight;
+        std::array<EntityRef, PALETTE_SIZE> paletteSwatches;
+
+        // Layer panel entities
+        EntityRef layerBackdrop;
+        EntityRef layerAddBtn;
+        EntityRef layerAddCrossH;
+        EntityRef layerAddCrossV;
+        EntityRef layerAddLabel;
+
+        struct LayerRow
+        {
+            EntityRef row;
+            EntityRef eye;
+            EntityRef chip;
+            EntityRef label;
+        };
+        std::array<LayerRow, MAX_UI_LAYERS> layerRows;
+
+        int cachedActiveColor = -1;
+        int cachedActiveLayer = -1;
+        int cachedLayerCount  = -1;
+        bool cachedEditMode   = true;
     };
 
 } // namespace pg
