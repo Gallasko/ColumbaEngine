@@ -24,6 +24,7 @@ namespace pg
 
         virtual ~AbstractCamera() {}
 
+    protected:
         glm::mat4 projectionMatrix = glm::mat4(1.0f);
         glm::mat4 viewMatrix = glm::mat4(1.0f);
     };
@@ -47,10 +48,17 @@ namespace pg
 
         virtual ~BaseCamera2D() {}
 
-        float width = 0.0f;
-        float height = 0.0f;
-        float nearPlane = -1.0f;
-        float farPlane = 1.0f;
+        // Projection field setters
+        void setWidth(float w)     { if (areNotAlmostEqual(width, w))     { width = w;     projDirty = true; dirty = true; } }
+        void setHeight(float h)    { if (areNotAlmostEqual(height, h))    { height = h;    projDirty = true; dirty = true; } }
+        void setNearPlane(float n) { if (areNotAlmostEqual(nearPlane, n)) { nearPlane = n; projDirty = true; } }
+        void setFarPlane(float f)  { if (areNotAlmostEqual(farPlane, f))  { farPlane = f;  projDirty = true; } }
+
+        // Projection field getters
+        float getWidth() const     { return width; }
+        float getHeight() const    { return height; }
+        float getNearPlane() const { return nearPlane; }
+        float getFarPlane() const  { return farPlane; }
 
         float x = 0.0f;
         float y = 0.0f;
@@ -59,6 +67,14 @@ namespace pg
         float yOffset = 0.0f;
 
         bool dirty = false;
+
+    private:
+        float width = 0.0f;
+        float height = 0.0f;
+        float nearPlane = -1.0f;
+        float farPlane = 1.0f;
+
+        bool projDirty = true;
     };
 
     class Camera
@@ -81,10 +97,18 @@ namespace pg
         float mouseSensitivity;
         float zoom;
 
-        // Projection parameters
-        float fovDegrees = 60.0f;
-        float nearPlane  = 0.1f;
-        float farPlane   = 500.0f;
+        // Projection getters
+        const glm::mat4& getProjectionMatrix();
+        float getFovDegrees() const  { return fovDegrees; }
+        float getAspectRatio() const { return aspectRatio; }
+        float getNearPlane() const   { return nearPlane; }
+        float getFarPlane() const    { return farPlane; }
+
+        // Projection setters
+        void setFovDegrees(float fov)    { if (areNotAlmostEqual(fovDegrees, fov))    { fovDegrees = fov;    projDirty = true; } }
+        void setAspectRatio(float ratio) { if (areNotAlmostEqual(aspectRatio, ratio)) { aspectRatio = ratio;  projDirty = true; } }
+        void setNearPlane(float n)       { if (areNotAlmostEqual(nearPlane, n))       { nearPlane = n;        projDirty = true; } }
+        void setFarPlane(float f)        { if (areNotAlmostEqual(farPlane, f))        { farPlane = f;         projDirty = true; } }
 
         // constructor with vectors
         Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
@@ -124,5 +148,13 @@ namespace pg
 
     private:
         glm::mat4 viewMatrix;
+        glm::mat4 projectionMatrix = glm::mat4(1.0f);
+
+        float fovDegrees   = 60.0f;
+        float aspectRatio  = 16.0f / 9.0f;
+        float nearPlane    = 0.1f;
+        float farPlane     = 500.0f;
+
+        bool projDirty = false;
     };
 }

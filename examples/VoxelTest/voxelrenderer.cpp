@@ -6,8 +6,6 @@
 
 #include "logger.h"
 
-#include "glm/gtc/matrix_transform.hpp"
-
 #include "Helpers/openglobject.h"
 
 namespace pg
@@ -18,8 +16,9 @@ namespace pg
     }
 
     VoxelRenderSystem::VoxelRenderSystem(MasterRenderer* masterRenderer, float initialAspect)
-        : SimpleRenderer(masterRenderer), aspect(initialAspect)
+        : SimpleRenderer(masterRenderer)
     {
+        masterRenderer->getCamera().setAspectRatio(initialAspect);
     }
 
     void VoxelRenderSystem::setupRenderer()
@@ -36,44 +35,14 @@ namespace pg
         mat->shader      = masterRenderer->getShader("voxel3d");
         mat->nbTextures  = 0;
         mat->nbAttributes = CubeMesh::INSTANCE_STRIDE_FLOATS;
-
-        // Seed the custom projection uniform from the initial aspect ratio.
-        // We deliberately avoid the name `projection` because the engine
-        // unconditionally overwrites that uniform with an identity matrix
-        // before each draw call. onResize() refreshes this whenever the
-        // window is resized (including F9 fullscreen toggle).
-        const auto& cam = masterRenderer->getCamera();
-        glm::mat4 proj = glm::perspective(glm::radians(cam.fovDegrees),
-                                          aspect,
-                                          cam.nearPlane,
-                                          cam.farPlane);
-
-        mat->uniformMap.emplace("uProjection", UniformValue(proj));
     }
 
     void VoxelRenderSystem::onResize(float width, float height)
     {
-        // Ignore degenerate sizes (minimised window, etc.) so we never
-        // divide by zero or stash a NaN projection on the material.
         if (width <= 0.0f or height <= 0.0f)
             return;
 
-        aspect = width / height;
-
-        const auto& cam = masterRenderer->getCamera();
-        glm::mat4 proj = glm::perspective(glm::radians(cam.fovDegrees),
-                                          aspect,
-                                          cam.nearPlane,
-                                          cam.farPlane);
-
-        // The material was registered under "__voxelBase" — the "__" prefix
-        // is added by SimpleRenderer::applyMaterial when it forwards the
-        // material to MasterRenderer. Mutating our local `materials` map
-        // here would have no effect on subsequent draws because the master
-        // renderer holds its own copy; setMaterialUniform patches that copy
-        // in place (and any pending register-queue entry).
-        masterRenderer->setMaterialUniform("__voxelBase", "uProjection",
-                                           UniformValue(proj));
+        masterRenderer->getCamera().setAspectRatio(width / height);
     }
 
     RenderCall VoxelRenderSystem::createRenderCall(CompRef<VoxelComponent> voxel)

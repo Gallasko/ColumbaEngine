@@ -387,7 +387,7 @@ namespace pg
         const float ndcY = 1.0f - (2.0f * py / static_cast<float>(screenH));
 
         // Scale by half-FOV to get view-plane offsets (tan of the half-angles).
-        const float tanHalfFov = std::tan(glm::radians(cam.fovDegrees * 0.5f));
+        const float tanHalfFov = std::tan(glm::radians(cam.getFovDegrees() * 0.5f));
         const float aspect     = static_cast<float>(screenW) / static_cast<float>(screenH);
 
         // Reconstruct world-space ray directly from the camera basis vectors.

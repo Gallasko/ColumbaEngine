@@ -10,6 +10,8 @@ namespace pg
 
     const glm::mat4& BaseCamera2D::getProjectionMatrix()
     {
+        // 2D shaders handle their own pixel-to-NDC conversion internally,
+        // so the projection matrix stays as identity for 2D cameras.
         return projectionMatrix;
     }
 
@@ -48,8 +50,6 @@ namespace pg
         viewMatrix[3][0] = -realX * 2.0f / width;
         viewMatrix[3][1] =  realY * 2.0f / height;
         viewMatrix[3][2] = -2;
-
-        projectionMatrix = getProjectionMatrix();
 
         dirty = false;
     }
@@ -100,6 +100,17 @@ namespace pg
         position.x = x;
         position.y = y;
         position.z = z;
+    }
+
+    const glm::mat4& Camera::getProjectionMatrix()
+    {
+        if (projDirty)
+        {
+            projectionMatrix = glm::perspective(glm::radians(fovDegrees), aspectRatio, nearPlane, farPlane);
+            projDirty = false;
+        }
+
+        return projectionMatrix;
     }
 
     glm::mat4 Camera::getViewMatrix()

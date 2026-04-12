@@ -50,14 +50,18 @@ namespace pg
 
     void EditorUISystem::init()
     {
+        // Fetch actual screen dimensions from the renderer
+        const auto& rTable = masterRenderer->getParameter();
+        screenW = static_cast<float>(rTable.at("ScreenWidth").get<int>());
+        screenH = static_cast<float>(rTable.at("ScreenHeight").get<int>());
+
         // Create the 2D camera for viewport 1
         auto camEntity = ecsRef->createEntity();
         auto cam2d = ecsRef->_attach<BaseCamera2D>(camEntity);
-        cam2d->width = screenW;
-        cam2d->height = screenH;
-        cam2d->nearPlane = -1.0f;
-        cam2d->farPlane = 1.0f;
-        cam2d->dirty = true;
+        cam2d->setWidth(screenW);
+        cam2d->setHeight(screenH);
+        cam2d->setNearPlane(-1.0f);
+        cam2d->setFarPlane(1.0f);
         masterRenderer->queueRegisterCamera(camEntity.id);
         uiCamera = cam2d;
 
@@ -183,9 +187,8 @@ namespace pg
 
         if (uiCamera)
         {
-            uiCamera->width = screenW;
-            uiCamera->height = screenH;
-            uiCamera->dirty = true;
+            uiCamera->setWidth(screenW);
+            uiCamera->setHeight(screenH);
         }
 
         repositionPalette();

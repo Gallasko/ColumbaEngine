@@ -674,6 +674,7 @@ namespace pg
 
         if (viewport == 0)
         {
+            projection = camera.getProjectionMatrix();
             view = camera.getViewMatrix();
         }
         else
@@ -686,10 +687,8 @@ namespace pg
             }
             else
             {
+                projection = cameraList[cameraIndex]->getProjectionMatrix();
                 view = cameraList[cameraIndex]->getViewMatrix();
-
-                // Todo fix this
-                // projection = cameraList[cameraIndex]->getProjectionMatrix();
             }
         }
 
