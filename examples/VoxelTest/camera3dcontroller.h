@@ -47,11 +47,18 @@ namespace pg
         // keyboard movement.
         bool cursorLocked = false;
 
-        // When true, the next OnSDLMouseMotion event is dropped. Used to eat
-        // the motion event SDL synthesises after SDL_WarpMouseInWindow, which
-        // would otherwise cancel the rotation we just applied (or jump the
-        // camera on init based on where the OS cursor happened to sit).
-        bool ignoreNextMotion = false;
+        // Coordinates of an outstanding SDL_WarpMouseInWindow target. The
+        // synth motion event SDL fires in response to a warp lands at the
+        // BACK of the queue, behind any user motion events that were already
+        // pending. A naive "eat the next motion event" filter therefore
+        // drops a real user motion and lets the warp synth through with its
+        // wrong-direction delta — exactly what causes look-stutter when the
+        // user moves the mouse fast. We instead match the synth event by
+        // its absolute position (event.x/event.y == warpPendingX/Y) so we
+        // ignore the right event no matter where it sits in the queue.
+        // -1 means "no warp pending".
+        int warpPendingX = -1;
+        int warpPendingY = -1;
 
         // True when running inside WSL/WSLg. In that environment
         // SDL_WarpMouseInWindow is effectively a no-op (the authoritative

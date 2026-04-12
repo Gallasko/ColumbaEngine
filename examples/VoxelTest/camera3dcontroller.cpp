@@ -52,17 +52,22 @@ namespace pg
         // TickEvent below) temporarily releases it. We avoid
         // SDL_SetRelativeMouseMode because it is unreliable on WSL; instead
         // Window::setCursorLocked hides the cursor and warps it to the
-        // window center, and we re-warp on every mouse motion below.
+        // window center, and the motion handler re-warps it whenever it
+        // drifts close to the window edge.
         if (window)
+        {
             window->setCursorLocked(true);
-
-        // Drop the motion event SDL fires in response to the warp above —
-        // otherwise its xrel/yrel (from wherever the OS had the cursor to
-        // the window center) would rotate the camera to a random start
-        // angle on the very first frame. Skipped on WSL, where the warp
-        // never actually happens and the flag would eat a real event.
-        if (not onWSL)
-            ignoreNextMotion = true;
+            // Remember the warp target so the synth motion event SDL fires
+            // in response to the warp above can be filtered out by absolute
+            // position rather than by "next event arrives". On WSL the warp
+            // is a no-op so no synth event will arrive — leave warpPending
+            // at -1 there or we would eat a real user motion.
+            if (not onWSL)
+            {
+                warpPendingX = window->getWidth()  / 2;
+                warpPendingY = window->getHeight() / 2;
+            }
+        }
         cursorLocked = true;
     }
 
@@ -71,11 +76,17 @@ namespace pg
         if (not masterRenderer)
             return;
 
-        // Eat exactly one motion event after a warp so the warp delta doesn't
-        // cancel the rotation we just applied (or jump the camera on init).
-        if (ignoreNextMotion)
+        // Filter the synth motion event SDL queues in response to a warp.
+        // Match it by absolute position rather than "next event arrives":
+        // SDL queues the synth event behind any user motion events that
+        // were already pending, so a positional eat-the-next filter would
+        // drop a real user motion and let the warp synth through with its
+        // wrong-direction delta. That misalignment was the cause of the
+        // look stutter when moving with WASD + mouse simultaneously.
+        if (warpPendingX >= 0 and event.x == warpPendingX and event.y == warpPendingY)
         {
-            ignoreNextMotion = false;
+            warpPendingX = -1;
+            warpPendingY = -1;
             return;
         }
 
@@ -99,17 +110,34 @@ namespace pg
         // rotating the camera.
         cam.updateCameraVectors();
 
-        // Re-center the cursor so it can never drift to the window edge, and
-        // flag the next motion event (the one the warp itself will generate)
-        // to be dropped so we don't feed the warp delta back into the camera.
-        // On WSL the warp is a no-op, so we skip both the re-warp call and
-        // the filter arming: the cursor will drift (contained by F10
-        // fullscreen) but xrel/yrel remains clean and every user motion
-        // event is consumed exactly once.
+        // Re-center the cursor only when it drifts close to the window edge.
+        // The cursor is hidden, so its exact location does not matter as
+        // long as it stays inside the window — and warping on every motion
+        // event multiplied the rate at which warp synth events were
+        // generated, which (combined with the SDL queue ordering above)
+        // showed up as visible look stutter under sustained mouse motion.
+        // On WSL the warp is a no-op, so skip it entirely: the cursor will
+        // drift (contained by F10 fullscreen) but xrel/yrel stay clean.
         if (window and not onWSL)
         {
-            window->setCursorLocked(true);
-            ignoreNextMotion = true;
+            const int w = window->getWidth();
+            const int h = window->getHeight();
+
+            // Margin scales with window size with a sane minimum so this
+            // works on tiny test windows and large fullscreen alike.
+            const int marginX = std::max(80, w / 6);
+            const int marginY = std::max(80, h / 6);
+
+            const bool nearEdge =
+                (event.x < marginX) or (event.x > w - marginX) or
+                (event.y < marginY) or (event.y > h - marginY);
+
+            if (nearEdge)
+            {
+                window->setCursorLocked(true);
+                warpPendingX = w / 2;
+                warpPendingY = h / 2;
+            }
         }
     }
 
@@ -137,7 +165,10 @@ namespace pg
                     // user motion event after Alt-release).
                     window->setCursorLocked(true);
                     if (not onWSL)
-                        ignoreNextMotion = true;
+                    {
+                        warpPendingX = window->getWidth()  / 2;
+                        warpPendingY = window->getHeight() / 2;
+                    }
                 }
                 else
                 {

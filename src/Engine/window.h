@@ -62,6 +62,11 @@ namespace pg
         // Call with false to restore the system cursor in place.
         void setCursorLocked(bool locked);
 
+        // Current window size in pixels. Exposed so input/look controllers
+        // can do edge-based cursor recentering without re-querying SDL.
+        int getWidth()  const { return width; }
+        int getHeight() const { return height; }
+
         // Toggle between windowed and borderless-fullscreen (desktop
         // resolution). Bound to F10 in processEvents.
         void toggleFullscreen();
