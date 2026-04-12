@@ -721,6 +721,7 @@ namespace pg
             auto comp = components.addComponent(entity, std::forward<Args>(args)...);
 
             entity->componentList.insert(_componentId);
+            entity->pendingComponents.erase(_componentId);
 
             // Call the on component creation callbacks to register the component in potential groups
             for (const auto& callback : onComponentCreation)
@@ -747,6 +748,8 @@ namespace pg
 
             if (it != entity->componentList.end())
                 entity->componentList.erase(it);
+
+            entity->pendingComponents.erase(_componentId);
 
             // Remove the component from the sparse set
             if (components.has(entity->id))
@@ -1018,6 +1021,7 @@ namespace pg
             }
 
             entity->componentList.insert(_componentId);
+            entity->pendingComponents.erase(_componentId);
 
             for (const auto& callback : onComponentCreation)
                 callback.second(entity);
@@ -1036,6 +1040,8 @@ namespace pg
 
             if (it != entity->componentList.end())
                 entity->componentList.erase(it);
+
+            entity->pendingComponents.erase(_componentId);
 
             if (components.has(entity->id))
                 components.removeComponent(entity);

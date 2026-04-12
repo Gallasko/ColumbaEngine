@@ -488,6 +488,9 @@ namespace pg
                 if (running)
                 {
                     component = cmdDispatcher.attachComp<Type>(entity, std::forward<Args>(args)...);
+
+                    // Register in pending map for immediate access via get()
+                    entity.entity->pendingComponents[getId<Type>()] = component;
                 }
                 else
                 {
@@ -522,6 +525,9 @@ namespace pg
                 if (running)
                 {
                     component = cmdDispatcher.attachComp<Type>(entity, std::forward<Args>(args)...);
+
+                    // Register in pending map for immediate access via get()
+                    entity.entity->pendingComponents[getId<Type>()] = component;
                 }
                 else
                 {
@@ -554,6 +560,9 @@ namespace pg
                 if (running)
                 {
                     component = cmdDispatcher.attachComp<StandardComponent>(entity, compName, std::forward<Args>(args)...);
+
+                    // Register in pending map for immediate access via get()
+                    entity.entity->pendingComponents[registry.retrieveStandardComponent(compName)->getId()] = component;
                 }
                 else
                 {
@@ -1010,6 +1019,13 @@ namespace pg
 
             // Todo add memoisation if we run into performance issues here
             return CompRef<Comp>(ecsRef->registry.retrieve<Comp>()->getComponent(id), id, ecsRef, initialized);
+        }
+
+        // Check if the component is pending (attached while ECS is running, not yet flushed)
+        const auto pending = pendingComponents.find(componentId);
+        if (pending != pendingComponents.end())
+        {
+            return CompRef<Comp>(static_cast<Comp*>(pending->second), id, ecsRef, false);
         }
 
         LOG_ERROR("Entity", "Entity doesn't have component: " << componentId);
