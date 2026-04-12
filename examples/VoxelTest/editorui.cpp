@@ -152,23 +152,19 @@ namespace pg
         layerLayout = layout.entity;
 
         // Add button
-        layerAddBtn = makeUIQuad(ecsRef, px, py, 0.1f,
+        layerAddBtn = makeUIQuad(ecsRef, px, py, 1.f,
                                  pw, bh - 2.0f,
                                  {40.0f, 80.0f, 40.0f, 200.0f});
 
         // "+" crosshair bars
         layerAddCrossH = makeUIQuad(ecsRef,
-                                    px + pw * 0.5f - 8.0f, py + bh * 0.5f - 2.0f, 0.2f,
+                                    px + pw * 0.5f - 8.0f, py + bh * 0.5f - 2.0f, 2.f,
                                     16.0f, 4.0f,
                                     {220.0f, 220.0f, 220.0f, 255.0f});
         layerAddCrossV = makeUIQuad(ecsRef,
-                                    px + pw * 0.5f - 2.0f, py + bh * 0.5f - 8.0f, 0.2f,
+                                    px + pw * 0.5f - 2.0f, py + bh * 0.5f - 8.0f, 2.f,
                                     4.0f, 16.0f,
                                     {220.0f, 220.0f, 220.0f, 255.0f});
-
-        // "+" label
-        layerAddLabel = makeUIText(ecsRef, px + pw * 0.5f + 12.0f, py + 2.0f, 0.3f,
-                                   "+", 0.5f, {220.0f, 220.0f, 220.0f, 255.0f});
     }
 
     // =========================================================================
@@ -288,18 +284,18 @@ namespace pg
             LayerRow row;
 
             // Container quad for the row background
-            row.container = makeUIQuad(ecsRef, 0.0f, 0.0f, 0.1f,
+            row.container = makeUIQuad(ecsRef, 0.0f, 0.0f, 1.f,
                                        pw, rh - 2.0f,
                                        {60.0f, 60.0f, 100.0f, 200.0f});
 
             // Eye visibility toggle
-            row.eye = makeUIQuad(ecsRef, px + 2.0f, 0.0f, 0.2f,
+            row.eye = makeUIQuad(ecsRef, px + 2.0f, 0.0f, 2.f,
                                  ew - 4.0f, rh - 10.0f,
                                  {200.0f, 200.0f, 200.0f, 240.0f});
 
             // Layer name label
-            row.label = makeUIText(ecsRef, px + ew + 4.0f, 0.0f, 0.3f,
-                                   "Layer " + std::to_string(i + 1), 0.4f,
+            row.label = makeUIText(ecsRef, px + ew + 4.0f, 0.0f, 3.f,
+                                   "Layer " + std::to_string(i + 1), 1.f,
                                    {220.0f, 220.0f, 220.0f, 255.0f});
 
             if (layoutComp)
