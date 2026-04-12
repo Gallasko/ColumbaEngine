@@ -1,11 +1,12 @@
 #pragma once
 
 #include "Renderer/renderer.h"
+#include "ECS/entitysystem_fwd.h"  // for ResizeEvent
 
 namespace pg
 {
     template <typename... Comps>
-    struct SimpleRenderer : public AbstractRenderer, public System<InitSys, Listener<EntityChangedEvent>>
+    struct SimpleRenderer : public AbstractRenderer, public System<InitSys, Listener<EntityChangedEvent>, Listener<ResizeEvent>>
     {
         struct SimpleRenderCall
         {
@@ -104,6 +105,21 @@ namespace pg
 
             changed = true;
         }
+
+        // Forward window resize events to the virtual onResize hook below so
+        // subclasses can rebuild aspect-dependent state (projection matrices,
+        // framebuffers, etc.) without having to subscribe to ResizeEvent
+        // themselves — the System<...> listener pack is fixed at the base.
+        void onEvent(const ResizeEvent& event) override
+        {
+            onResize(event.width, event.height);
+        }
+
+        // Override in subclasses that need to react to window resize.
+        // Default: do nothing, which preserves the behavior of every 2D
+        // renderer whose scaling is handled by the engine's built-in
+        // `scale` uniform.
+        virtual void onResize(float /*width*/, float /*height*/) {}
 
         Material* newMaterial(const std::string& name)
         {

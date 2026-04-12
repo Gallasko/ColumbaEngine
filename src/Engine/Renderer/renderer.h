@@ -674,6 +674,50 @@ namespace pg
             }
         }
 
+        // Update an already-registered material's uniform in place. Used by
+        // renderers that need to react to runtime state changes (e.g. window
+        // resize → new perspective projection). Returns true if the material
+        // was found. Also updates any matching entry still sitting in the
+        // register queue, so a resize that fires before the first swap still
+        // lands on the right material.
+        //
+        // Safe to call from the main thread: the renderer draws on the main
+        // thread too, so there is no write-during-read race against draw().
+        bool setMaterialUniform(const std::string& materialName,
+                                const std::string& uniformName,
+                                const UniformValue& value)
+        {
+            bool found = false;
+
+            auto it = materialDict.find(materialName);
+            if (it != materialDict.end())
+            {
+                materialList.at(it->second).uniformMap[uniformName] = value;
+                found = true;
+            }
+
+            // Also patch any pending registration of the same name so the
+            // update survives the next swap into materialList.
+            {
+                std::lock_guard<std::mutex> lock(materialRegisterMutex);
+
+                for (auto& holder : materialRegisterQueue)
+                {
+                    if (holder.materialName == materialName)
+                    {
+                        holder.material.uniformMap[uniformName] = value;
+                        found = true;
+                    }
+                }
+            }
+
+            if (not found)
+                LOG_ERROR("Renderer", "setMaterialUniform: material '"
+                    << materialName << "' does not exist");
+
+            return found;
+        }
+
         size_t getMaterialID(const std::string& name) const
         {
             std::lock_guard<std::mutex> lock(materialRegisterMutex);

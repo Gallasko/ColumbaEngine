@@ -15,8 +15,12 @@ namespace pg
      * that share the same material into a single draw call, so one frame
      * with N voxels becomes one glDrawElementsInstanced with N instances.
      *
-     * Projection is set once at init from the initial window aspect ratio.
-     * Window resize support is intentionally out of scope for the base view.
+     * Projection is seeded at init from the initial window aspect ratio and
+     * refreshed in onResize() whenever the window size changes (F9 toggles
+     * borderless fullscreen via Window::toggleFullscreen). The engine's
+     * `projection` uniform is always identity for viewport 0, so this
+     * renderer uses a custom `uProjection` uniform that it owns and mutates
+     * directly on the registered material.
      */
     struct VoxelRenderSystem : public SimpleRenderer<VoxelComponent>
     {
@@ -27,6 +31,10 @@ namespace pg
         void setupRenderer() override;
 
         RenderCall createRenderCall(CompRef<VoxelComponent> voxel) override;
+
+        // Rebuild the perspective projection from the new aspect ratio and
+        // push it onto the registered material so the next frame uses it.
+        void onResize(float width, float height) override;
 
         // Camera parameters, matching a classic FPS projection.
         float fovDegrees = 60.0f;
