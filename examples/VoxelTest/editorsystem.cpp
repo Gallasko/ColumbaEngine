@@ -213,20 +213,36 @@ namespace pg
         glm::ivec3 hitCell{ -1,-1,-1 }, placeCell{ -1,-1,-1 };
         const bool hit = raycast(px, py, hitCell, placeCell);
 
+        bool acted = false;
         if (rightBtn)
         {
             if (hit)
+            {
                 removeBlock(hitCell);
+                acted = true;
+            }
         }
         else
         {
-            const glm::ivec3 target = hit ? placeCell : placeCell;
-
-            if (canvas->inBounds(target.x, target.y, target.z)
-                    && canvas->at(target.x, target.y, target.z).empty())
+            if (canvas->inBounds(placeCell.x, placeCell.y, placeCell.z)
+                    && canvas->at(placeCell.x, placeCell.y, placeCell.z).empty())
             {
-                placeBlock(target);
+                placeBlock(placeCell);
+                acted = true;
             }
+        }
+
+        // Re-evaluate ghost after the canvas changed.
+        if (acted)
+        {
+            ghostCell = { -1, -1, -1 }; // force re-evaluation even if same cell
+            glm::ivec3 newHit{ -1,-1,-1 }, newPlace{ -1,-1,-1 };
+            const bool newRayHit = raycast(px, py, newHit, newPlace);
+            if (newRayHit && canvas->inBounds(newPlace.x, newPlace.y, newPlace.z)
+                          && canvas->at(newPlace.x, newPlace.y, newPlace.z).empty())
+                updateGhost(newPlace);
+            else
+                hideGhost();
         }
     }
 
