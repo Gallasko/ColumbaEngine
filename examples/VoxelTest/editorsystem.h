@@ -72,7 +72,7 @@ namespace pg
         float farPlane   = 500.0f;
 
         // Public state — read by EditorUIRenderer to draw the overlay.
-        bool       editMode    = false;
+        bool       editMode    = true;
         int        activeColor = 0;   // index into EDITOR_PALETTE
         int        activeLayer = 0;   // index into canvas->layers
         int        screenW     = 1280;

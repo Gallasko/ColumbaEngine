@@ -39,6 +39,12 @@ namespace pg
     {
         // Create a persistent ghost entity (no VoxelComponent yet — added on demand).
         ghostEntity = ecsRef->createEntity();
+
+        // Start in edit mode — sync camera and cursor state.
+        if (cam)
+            cam->editMode = true;
+        if (window)
+            window->setCursorLocked(false);
     }
 
     // =========================================================================
@@ -216,7 +222,7 @@ namespace pg
         bool acted = false;
         if (rightBtn)
         {
-            if (hit)
+            if (hit && canvas->inBounds(hitCell.x, hitCell.y, hitCell.z))
             {
                 removeBlock(hitCell);
                 acted = true;
@@ -438,6 +444,15 @@ namespace pg
 
         for (int i = 0; i < maxSteps; ++i)
         {
+            // The floor lives at y=-1 outside the canvas grid.
+            // Treat it as a solid surface so placeCell (last empty in-bounds
+            // cell above it) is valid.
+            if (cy == -1 && cx >= 0 && cx < canvas->W && cz >= 0 && cz < canvas->D)
+            {
+                hitCell = { cx, cy, cz };
+                return true;
+            }
+
             if (canvas->inBounds(cx, cy, cz))
             {
                 if (!canvas->at(cx, cy, cz).empty())
