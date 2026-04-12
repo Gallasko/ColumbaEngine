@@ -42,10 +42,11 @@ namespace pg
         // unconditionally overwrites that uniform with an identity matrix
         // before each draw call. onResize() refreshes this whenever the
         // window is resized (including F9 fullscreen toggle).
-        glm::mat4 proj = glm::perspective(glm::radians(fovDegrees),
+        const auto& cam = masterRenderer->getCamera();
+        glm::mat4 proj = glm::perspective(glm::radians(cam.fovDegrees),
                                           aspect,
-                                          nearPlane,
-                                          farPlane);
+                                          cam.nearPlane,
+                                          cam.farPlane);
 
         mat->uniformMap.emplace("uProjection", UniformValue(proj));
     }
@@ -59,10 +60,11 @@ namespace pg
 
         aspect = width / height;
 
-        glm::mat4 proj = glm::perspective(glm::radians(fovDegrees),
+        const auto& cam = masterRenderer->getCamera();
+        glm::mat4 proj = glm::perspective(glm::radians(cam.fovDegrees),
                                           aspect,
-                                          nearPlane,
-                                          farPlane);
+                                          cam.nearPlane,
+                                          cam.farPlane);
 
         // The material was registered under "__voxelBase" — the "__" prefix
         // is added by SimpleRenderer::applyMaterial when it forwards the

@@ -81,6 +81,11 @@ namespace pg
         float mouseSensitivity;
         float zoom;
 
+        // Projection parameters
+        float fovDegrees = 60.0f;
+        float nearPlane  = 0.1f;
+        float farPlane   = 500.0f;
+
         // constructor with vectors
         Camera(glm::vec3 position = glm::vec3(0.0f, 0.0f, 2.0f), glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f), float yaw = -90.0f, float pitch = 0.0f);
 

@@ -66,11 +66,6 @@ namespace pg
         static constexpr int LAYER_EYE_W     = 24;
         static constexpr int LAYER_ADD_BTN_H = 24;
 
-        // Projection parameters — must match VoxelRenderSystem.
-        float fovDegrees = 60.0f;
-        float nearPlane  = 0.1f;
-        float farPlane   = 500.0f;
-
         // Public state — read by EditorUIRenderer to draw the overlay.
         bool       editMode    = true;
         int        activeColor = 0;   // index into EDITOR_PALETTE

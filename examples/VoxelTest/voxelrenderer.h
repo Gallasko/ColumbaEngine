@@ -36,11 +36,6 @@ namespace pg
         // push it onto the registered material so the next frame uses it.
         void onResize(float width, float height) override;
 
-        // Camera parameters, matching a classic FPS projection.
-        float fovDegrees = 60.0f;
-        float nearPlane  = 0.1f;
-        float farPlane   = 500.0f;
-
     private:
         float aspect = 16.0f / 9.0f;
 
