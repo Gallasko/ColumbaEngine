@@ -1,5 +1,8 @@
 #pragma once
 
+#include <algorithm>
+#include <unordered_set>
+
 #include "Renderer/renderer.h"
 #include "ECS/entitysystem_fwd.h"  // for ResizeEvent
 
@@ -8,117 +11,91 @@ namespace pg
     template <typename... Comps>
     struct SimpleRenderer : public AbstractRenderer, public System<InitSys, Listener<EntityChangedEvent>, Listener<ResizeEvent>>
     {
-        struct SimpleRenderCall
-        {
-            SimpleRenderCall(const RenderCall& call) : call(call) {}
-
-            RenderCall call;
-        };
-
-        ComponentRegistry* registryPtr = nullptr;
-
         SimpleRenderer(MasterRenderer* masterRenderer) : AbstractRenderer(masterRenderer, RenderStage::Render)
         {
         }
 
-        ~SimpleRenderer()
+        virtual void setupRenderer() = 0;
+
+        virtual void init() override final
         {
-            unregisterComponents(&renderCallOwner, registryPtr, tag<Own<SimpleRenderCall>>{});
-        }
-
-        void init() override
-        {
-            registryPtr = registry;
-
-            registerComponents(&renderCallOwner, registry, tag<Own<SimpleRenderCall>>{});
-
             setupRenderer();
 
             auto group = registerGroup<Comps...>();
 
             group->addOnGroup([this](EntityRef entity) {
-                updateQueue.push(entity->id);
+                entityRenderCalls[entity->id] = createRenderCall(entity->get<Comps>()...);
+                entitiesInRenderGroup.push_back(entity->id);
+
+                std::sort(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end());
+
                 changed = true;
             });
 
-            group->removeOfGroup([this](EntitySystem* ecsRef, _unique_id id) {
-                auto entity = ecsRef->getEntity(id);
-
-                if (entity->has<SimpleRenderCall>())
-                    ecsRef->detach<SimpleRenderCall>(entity);
+            group->removeOfGroup([this](EntitySystem*, _unique_id id) {
+                entityRenderCalls.erase(id);
+                entitiesInRenderGroup.erase(std::remove(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), id), entitiesInRenderGroup.end());
 
                 changed = true;
             });
         }
 
-        void execute() override
+        virtual void execute() override final
         {
-            // if (not changed)
-            //     return;
+            if (not changed)
+                return;
 
-            while (not updateQueue.empty())
+            std::vector<_unique_id> updateQueue;
+            std::vector<_unique_id> temp;
+
+            temp.assign(updateSet.begin(), updateSet.end());
+
+            std::sort(temp.begin(), temp.end());
+
+            std::set_intersection(entitiesInRenderGroup.begin(), entitiesInRenderGroup.end(), temp.begin(), temp.end(),
+                            std::back_inserter(updateQueue));
+
+            updateSet.clear();
+
+            for (const auto& entityId : updateQueue)
             {
-                auto entityId = updateQueue.front();
-
                 auto entity = ecsRef->getEntity(entityId);
 
                 if (not entity)
                 {
-                    updateQueue.pop();
+                    LOG_WARNING("SimpleRenderer", "Entity " << entityId << " NOT FOUND in ECS! Skipping...");
                     continue;
                 }
 
-                if (entity->has<SimpleRenderCall>())
-                {
-                    entity->get<SimpleRenderCall>()->call = createRenderCall(entity->get<Comps>()...);
-                }
-                else
-                {
-                    ecsRef->_attach<SimpleRenderCall>(entity, createRenderCall(entity->get<Comps>()...));
-                }
-
-                updateQueue.pop();
+                entityRenderCalls[entityId] = createRenderCall(entity->get<Comps>()...);
             }
 
             renderCallList.clear();
 
-            const auto& renderCallView = renderCallOwner.view();
+            renderCallList.reserve(entityRenderCalls.size());
 
-            renderCallList.reserve(renderCallView.nbComponents());
-
-            for (const auto& renderCall : renderCallView)
+            for (const auto& [entityId, renderCall] : entityRenderCalls)
             {
-                renderCallList.push_back(renderCall->call);
+                renderCallList.push_back(renderCall);
             }
 
             finishChanges();
         }
 
-        void onEvent(const EntityChangedEvent& event) override
+        virtual RenderCall createRenderCall(CompRef<Comps>... comps) = 0;
+
+        virtual void onEvent(const EntityChangedEvent& event) override final
         {
-            auto entity = ecsRef->getEntity(event.id);
-
-            if (not entity or not (entity->has<Comps>() or ...))
-                return;
-
-            updateQueue.push(event.id);
+            updateSet.insert(event.id);
 
             changed = true;
         }
 
-        // Forward window resize events to the virtual onResize hook below so
-        // subclasses can rebuild aspect-dependent state (projection matrices,
-        // framebuffers, etc.) without having to subscribe to ResizeEvent
-        // themselves — the System<...> listener pack is fixed at the base.
-        void onEvent(const ResizeEvent& event) override
+        virtual void onEvent(const ResizeEvent& event) override final
         {
             onResize(event.width, event.height);
         }
 
-        // Override in subclasses that need to react to window resize.
-        // Default: do nothing, which preserves the behavior of every 2D
-        // renderer whose scaling is handled by the engine's built-in
-        // `scale` uniform.
         virtual void onResize(float /*width*/, float /*height*/) {}
 
         Material* newMaterial(const std::string& name)
@@ -143,7 +120,6 @@ namespace pg
                     " textures, but " << textures.size() << " were provided.");
             }
 
-            // Set the material of the call with the correct textures
             if (masterRenderer->hasMaterial(materialKey))
             {
                 call.setMaterial(masterRenderer->getMaterialID(materialKey));
@@ -158,17 +134,13 @@ namespace pg
                 call.setMaterial(masterRenderer->registerMaterial(materialKey, material));
             }
 
-            // Resize the data to the number of attributes
             call.data.resize(material.nbAttributes);
         }
 
-        virtual void setupRenderer() = 0;
+        std::unordered_set<_unique_id> updateSet;
 
-        virtual RenderCall createRenderCall(CompRef<Comps>... comps) = 0;
-
-        std::queue<_unique_id> updateQueue;
-
-        Own<SimpleRenderCall> renderCallOwner;
+        std::unordered_map<_unique_id, RenderCall> entityRenderCalls;
+        std::vector<_unique_id> entitiesInRenderGroup;
 
         std::unordered_map<std::string, Material> materials;
     };
