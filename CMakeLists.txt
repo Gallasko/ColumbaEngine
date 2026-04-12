@@ -11,6 +11,7 @@ option(BUILD_STATIC_LIB "Build static library only" OFF)
 option(BUILD_EXAMPLES "Build example applications" ON)
 option(USE_CCACHE "Use ccache to speed up rebuilds" ON)
 option(SKIP_COMPONENT_GENERATION "Skip regeneration of component files (use existing generated files)" OFF)
+option(PROFILE_BUILD "Build profiling-friendly binaries (symbols + frame pointers, no stripping). Affects VoxelTest and any target opting in." OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -103,7 +104,14 @@ if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten")
     endif()
 
     if(${CMAKE_HOST_SYSTEM} MATCHES "Windows")
-        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pthread -Wa,-mbig-obj -s")
+        # NOTE: `-s` strips symbols at link time. Omit it for Debug builds, when
+        # USE_GDB is set, or when PROFILE_BUILD is on — otherwise VTune / gdb
+        # have nothing to resolve source lines against.
+        if(CMAKE_BUILD_TYPE MATCHES Debug OR USE_GDB OR PROFILE_BUILD)
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pthread -Wa,-mbig-obj")
+        else()
+            set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -pthread -Wa,-mbig-obj -s")
+        endif()
     endif()
 endif()
 
@@ -129,6 +137,20 @@ if(PG_PROFILE)
     message(STATUS "Profiling of systems is ENABLED")
 else()
     message(STATUS "Profiling of systems is DISABLED")
+endif()
+
+if(PROFILE_BUILD)
+    # External-profiler-friendly flags (VTune, perf, gprof, Superluminal, ...).
+    # Keeps frame pointers so stacks resolve, emits full DWARF debug info, and
+    # does NOT strip. Optimization level is picked so hotspots look like a real
+    # release build rather than O0/O1 noise.
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -g -ggdb3 -fno-omit-frame-pointer")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g -ggdb3 -fno-omit-frame-pointer")
+    if(NOT CMAKE_BUILD_TYPE MATCHES Debug)
+        set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -O2")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+    endif()
+    message(STATUS "PROFILE_BUILD is ENABLED (symbols kept, frame pointers, no strip)")
 endif()
 
 # Apply build-type specific flags directly to CMAKE_CXX_FLAGS
@@ -1030,6 +1052,13 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
+
+        # --- Profiling: always give VoxelTest full debug symbols + frame pointers.
+        # VTune/gdb need these to show source lines. `-ggdb3` emits the richest
+        # DWARF info GDB/VTune can consume; frame pointers keep call stacks clean.
+        # These flags are harmless in Release and required for Debug profiling.
+        target_compile_options(VoxelTest PRIVATE -g -ggdb3 -fno-omit-frame-pointer)
+        target_link_options(VoxelTest PRIVATE -g)
 
         ###
 
