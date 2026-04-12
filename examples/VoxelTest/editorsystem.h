@@ -43,7 +43,7 @@ namespace pg
 
         void init() override;
 
-        // Fill y=0 plane with a grey floor block on layer 0.
+        // Fill y=-1 plane with an alternating grey floor pattern on layer 0.
         void buildFloor();
 
         void onEvent(const OnSDLScanCode&   event) override;
@@ -106,6 +106,9 @@ namespace pg
         // Low-level place/remove — do not recurse into undo/redo stacks.
         void doPlace(const glm::ivec3& pos, const glm::vec4& color, int layerIdx);
         void doRemove(const glm::ivec3& pos);
+
+        // Create a standalone voxel entity at an arbitrary position (no canvas/layer).
+        EntityRef createVoxel(const glm::ivec3& pos, const glm::vec4& color);
 
         MasterRenderer*      mr     = nullptr;
         Window*              window = nullptr;

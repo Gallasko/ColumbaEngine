@@ -374,26 +374,26 @@ namespace pg
 
     glm::vec3 EditorSystem::screenToRay(int px, int py) const
     {
-        // NDC (Y flipped: screen Y grows down, NDC Y grows up)
+        const auto& cam = mr->getCamera();
+
+        // Convert pixel to NDC: (0,0)=top-left → (-1,+1), (W,H)=bottom-right → (+1,-1)
         const float ndcX = (2.0f * px / static_cast<float>(screenW)) - 1.0f;
         const float ndcY = 1.0f - (2.0f * py / static_cast<float>(screenH));
 
-        // Clip space ray pointing into -Z
-        const glm::vec4 clipRay(ndcX, ndcY, -1.0f, 1.0f);
+        // Scale by half-FOV to get view-plane offsets (tan of the half-angles).
+        const float tanHalfFov = std::tan(glm::radians(fovDegrees * 0.5f));
+        const float aspect     = static_cast<float>(screenW) / static_cast<float>(screenH);
 
-        // Eye space (undo projection)
-        const glm::mat4 proj = glm::perspective(
-            glm::radians(fovDegrees),
-            static_cast<float>(screenW) / static_cast<float>(screenH),
-            nearPlane, farPlane);
-        glm::vec4 eyeRay = glm::inverse(proj) * clipRay;
-        eyeRay = glm::vec4(eyeRay.x, eyeRay.y, -1.0f, 0.0f); // direction, not position
+        // Reconstruct world-space ray directly from the camera basis vectors.
+        // This is equivalent to inverse(proj * view) * clipRay but avoids
+        // matrix inversion and uses the exact same front/right/up the
+        // voxel3d shader sees through the `view` uniform.
+        const glm::vec3 dir = glm::normalize(
+            cam.front
+            + cam.right * (ndcX * aspect * tanHalfFov)
+            + cam.up    * (ndcY * tanHalfFov));
 
-        // World space (undo view)
-        const glm::mat4 view = const_cast<MasterRenderer*>(mr)->getCamera().getViewMatrix();
-        const glm::vec3 worldDir = glm::normalize(glm::vec3(glm::inverse(view) * eyeRay));
-
-        return worldDir;
+        return dir;
     }
 
     bool EditorSystem::raycast(int mouseX, int mouseY, glm::ivec3& hitCell, glm::ivec3& placeCell)
@@ -536,12 +536,7 @@ namespace pg
             return;
         }
 
-        auto ent = ecsRef->createEntity();
-        ecsRef->attach<VoxelComponent>(
-            ent,
-            glm::vec3(pos),
-            glm::vec3(1.0f),
-            color);
+        auto ent = createVoxel(pos, color);
 
         slot = ent;
         canvas->setLayer(pos.x, pos.y, pos.z, layerIdx);
@@ -558,17 +553,28 @@ namespace pg
         canvas->setLayer(pos.x, pos.y, pos.z, -1);
     }
 
+    EntityRef EditorSystem::createVoxel(const glm::ivec3& pos, const glm::vec4& color)
+    {
+        auto ent = ecsRef->createEntity();
+        ecsRef->attach<VoxelComponent>(
+            ent,
+            glm::vec3(pos),
+            glm::vec3(1.0f),
+            color);
+        return ent;
+    }
+
     void EditorSystem::buildFloor()
     {
-        if (!canvas || canvas->layers.empty())
+        if (not canvas)
             return;
 
-        // Neutral grey for the floor
-        const glm::vec4 floorColor{ 180.0f, 180.0f, 180.0f, 255.0f };
+        const glm::vec4 colorA{ 180.0f, 180.0f, 180.0f, 255.0f };
+        const glm::vec4 colorB{ 140.0f, 140.0f, 140.0f, 255.0f };
 
         for (int x = 0; x < canvas->W; ++x)
             for (int z = 0; z < canvas->D; ++z)
-                doPlace({ x, 0, z }, floorColor, 0);
+                createVoxel({ x, -1, z }, ((x + z) % 2 == 0) ? colorA : colorB);
     }
 
 } // namespace pg
