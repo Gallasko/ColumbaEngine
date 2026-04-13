@@ -8,7 +8,7 @@
 
 #include "voxelcomponents.h"
 #include "voxelrenderer.h"
-#include "camera3dcontroller.h"
+#include "camera3dcontrollereditor.h"
 #include "editorsystem.h"
 #include "editorui.h"
 
@@ -48,7 +48,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         canvas->layers.push_back(Layer{ "Layer 1", true, {} });
 
         // --- Systems ---
-        auto* cam    = ecs.createSystem<Camera3DController>(masterRenderer, input, &window);
+        auto* cam    = ecs.createSystem<Camera3DControllerEditor>(masterRenderer, input, &window);
         ecs.createSystem<VoxelRenderSystem>(masterRenderer, aspect);
         auto* editor = ecs.createSystem<EditorSystem>(masterRenderer, &window, cam, canvas.get());
 
@@ -61,12 +61,12 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // Execution ordering:
         //   EditorSystem first (updates editMode flag and blocks)
-        //   Camera3DController after EditorSystem (reads editMode)
+        //   Camera3DControllerEditor after EditorSystem (reads editMode)
         //   EditorUISystem after EditorSystem (reads editor state)
         //   MasterRenderer always runs last.
-        ecs.succeed<Camera3DController, EditorSystem>();
+        ecs.succeed<Camera3DControllerEditor, EditorSystem>();
         ecs.succeed<EditorUISystem, EditorSystem>();
-        ecs.succeed<MasterRenderer, Camera3DController>();
+        ecs.succeed<MasterRenderer, Camera3DControllerEditor>();
         ecs.succeed<MasterRenderer, VoxelRenderSystem>();
         ecs.succeed<MasterRenderer, EditorUISystem>();
 

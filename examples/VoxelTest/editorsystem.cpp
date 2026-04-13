@@ -2,7 +2,7 @@
 
 #include "editorsystem.h"
 
-#include "camera3dcontroller.h"
+#include "camera3dcontrollereditor.h"
 #include "voxelcomponents.h"
 
 #include "Renderer/renderer.h"
@@ -30,7 +30,7 @@ namespace pg
 
     EditorSystem::EditorSystem(MasterRenderer*     mr,
                                Window*             window,
-                               Camera3DController* cam,
+                               Camera3DControllerEditor* cam,
                                Canvas*             canvas)
         : mr(mr), window(window), cam(cam), canvas(canvas)
     {}

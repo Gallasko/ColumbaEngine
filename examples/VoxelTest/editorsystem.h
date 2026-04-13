@@ -11,7 +11,7 @@ namespace pg
 {
     class MasterRenderer;
     class Window;
-    struct Camera3DController;
+    struct Camera3DControllerEditor;
 
     /**
      * Core voxel-editor logic system.
@@ -36,7 +36,7 @@ namespace pg
     {
         EditorSystem(MasterRenderer*     mr,
                      Window*             window,
-                     Camera3DController* cam,
+                     Camera3DControllerEditor* cam,
                      Canvas*             canvas);
 
         std::string getSystemName() const override { return "Editor System"; }
@@ -107,7 +107,7 @@ namespace pg
 
         MasterRenderer*      mr     = nullptr;
         Window*              window = nullptr;
-        Camera3DController*  cam    = nullptr;
+        Camera3DControllerEditor*  cam    = nullptr;
 
         // Ghost preview entity (not stored in canvas, not undo-able).
         EntityRef ghostEntity;

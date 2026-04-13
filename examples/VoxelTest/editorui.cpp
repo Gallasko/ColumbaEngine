@@ -84,6 +84,7 @@ namespace pg
         // Create horizontal layout for swatches
         auto layout = makeHorizontalLayout(ecsRef, 0.0f, 0.0f, totalW, ss, false);
         layout.get<HorizontalLayout>()->spacing = static_cast<size_t>(sp);
+        layout.get<PositionComponent>()->setZ(4.0f);
         paletteLayout = layout.entity;
 
         // Anchor layout to horizontal center + bottom of screen
@@ -111,7 +112,7 @@ namespace pg
         }
 
         // Highlight (white border behind active swatch)
-        paletteHighlight = makeUIQuad(ecsRef, 0.0f, 0.0f, 0.0f,
+        paletteHighlight = makeUIQuad(ecsRef, 0.0f, 0.0f, 1.0f,
                                       ss + 4.0f, ss + 4.0f,
                                       {255.0f, 255.0f, 255.0f, 255.0f});
 

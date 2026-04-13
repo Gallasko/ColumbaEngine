@@ -826,6 +826,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelTest/cubemesh.cpp
             examples/VoxelTest/voxelrenderer.cpp
             examples/VoxelTest/camera3dcontroller.cpp
+            examples/VoxelTest/camera3dcontrollereditor.cpp
             examples/VoxelTest/editorsystem.cpp
             examples/VoxelTest/editorui.cpp
         )
@@ -1029,6 +1030,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelTest/cubemesh.cpp
             examples/VoxelTest/voxelrenderer.cpp
             examples/VoxelTest/camera3dcontroller.cpp
+            examples/VoxelTest/camera3dcontrollereditor.cpp
             examples/VoxelTest/editorsystem.cpp
             examples/VoxelTest/editorui.cpp
         )

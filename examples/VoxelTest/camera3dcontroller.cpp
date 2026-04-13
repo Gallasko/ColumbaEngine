@@ -41,11 +41,12 @@ namespace pg
     {
         // Seed the camera somewhere pulled back and slightly above the
         // ground plane so the whole test scene is visible on first frame.
+        // Point the camera at the centre of the base platform (8, 0, 8).
         masterRenderer->getCamera().init(
             glm::vec3(8.0f, 6.0f, 18.0f),   // position
             glm::vec3(0.0f, 1.0f, 0.0f),    // world up = +Y
-            -110.0f,                         // yaw (looking toward -Z and slightly -X)
-            -20.0f);                         // pitch (slightly downward)
+            -90.0f,                          // yaw (looking straight along -Z)
+            -31.0f);                         // pitch (down toward platform centre)
 
         // Lock the cursor to the window so the user can rotate the camera
         // freely without having to hold a mouse button. LAlt (handled in the
