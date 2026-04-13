@@ -334,9 +334,15 @@ namespace pg
             modalAddBtn = makeUIQuad(ecsRef, sx, sy, 54.0f,
                                      sw, sw,
                                      {40.0f, 80.0f, 40.0f, 220.0f});
-            modalAddLabel = makeUIText(ecsRef, sx + 8.0f, sy + 4.0f, 55.0f,
-                                       "+", 1.2f,
-                                       {220.0f, 220.0f, 220.0f, 255.0f});
+            // "+" crosshair bars (same pattern as layer panel add button)
+            modalAddCrossH = makeUIQuad(ecsRef,
+                                        sx + sw * 0.5f - 8.0f, sy + sw * 0.5f - 2.0f, 55.0f,
+                                        16.0f, 4.0f,
+                                        {220.0f, 220.0f, 220.0f, 255.0f});
+            modalAddCrossV = makeUIQuad(ecsRef,
+                                        sx + sw * 0.5f - 2.0f, sy + sw * 0.5f - 8.0f, 55.0f,
+                                        4.0f, 16.0f,
+                                        {220.0f, 220.0f, 220.0f, 255.0f});
         }
 
         // Position highlight on active swatch
@@ -356,11 +362,11 @@ namespace pg
         const float barW = static_cast<float>(ES::RGB_BAR_W);
         const float barH = static_cast<float>(ES::RGB_BAR_H);
         const float barGap = static_cast<float>(ES::RGB_BAR_GAP);
-        const float barX = mx + pad + 24.0f; // leave room for "R:" label
+        const float barX = mx + pad + 40.0f; // leave room for "R:" label
 
         // R bar
         creatorLabelR = makeUIText(ecsRef, mx + pad, creatorY + 2.0f, 55.0f,
-                                   "R:", 0.8f,
+                                   "R:", 1.0f,
                                    {255.0f, 100.0f, 100.0f, 255.0f});
         creatorBarR = makeUIQuad(ecsRef, barX, creatorY, 54.0f,
                                  barW, barH,
@@ -372,7 +378,7 @@ namespace pg
         // G bar
         const float gBarY = creatorY + barH + barGap;
         creatorLabelG = makeUIText(ecsRef, mx + pad, gBarY + 2.0f, 55.0f,
-                                   "G:", 0.8f,
+                                   "G:", 1.0f,
                                    {100.0f, 255.0f, 100.0f, 255.0f});
         creatorBarG = makeUIQuad(ecsRef, barX, gBarY, 54.0f,
                                  barW, barH,
@@ -384,7 +390,7 @@ namespace pg
         // B bar
         const float bBarY = gBarY + barH + barGap;
         creatorLabelB = makeUIText(ecsRef, mx + pad, bBarY + 2.0f, 55.0f,
-                                   "B:", 0.8f,
+                                   "B:", 1.0f,
                                    {100.0f, 100.0f, 255.0f, 255.0f});
         creatorBarB = makeUIQuad(ecsRef, barX, bBarY, 54.0f,
                                  barW, barH,
@@ -440,7 +446,8 @@ namespace pg
         setVis(modalTitle, true);
         setVis(modalHighlight, true);
         setVis(modalAddBtn, true);
-        setVis(modalAddLabel, true);
+        setVis(modalAddCrossH, true);
+        setVis(modalAddCrossV, true);
 
         // Only show swatches up to current palette size (rest are hidden/excess)
         const int paletteSize = static_cast<int>(editor->canvas->palette.size());
@@ -462,7 +469,8 @@ namespace pg
         setVis(modalTitle, false);
         setVis(modalHighlight, false);
         setVis(modalAddBtn, false);
-        setVis(modalAddLabel, false);
+        setVis(modalAddCrossH, false);
+        setVis(modalAddCrossV, false);
 
         for (auto& s : modalSwatches) setVis(s, false);
 
@@ -670,15 +678,17 @@ namespace pg
 
             if (auto* pos = ecsRef->getComponent<PositionComponent>(modalAddBtn.id))
             { pos->setX(sx); pos->setY(sy); }
-            if (auto* pos = ecsRef->getComponent<PositionComponent>(modalAddLabel.id))
-            { pos->setX(sx + 8.0f); pos->setY(sy + 4.0f); }
+            if (auto* pos = ecsRef->getComponent<PositionComponent>(modalAddCrossH.id))
+            { pos->setX(sx + sw * 0.5f - 8.0f); pos->setY(sy + sw * 0.5f - 2.0f); }
+            if (auto* pos = ecsRef->getComponent<PositionComponent>(modalAddCrossV.id))
+            { pos->setX(sx + sw * 0.5f - 2.0f); pos->setY(sy + sw * 0.5f - 8.0f); }
         }
 
         // Reposition color creator
         const float creatorY2 = gridY + static_cast<float>(rows) * (sw + sp) + pad;
         const float barH2 = static_cast<float>(ES::RGB_BAR_H);
         const float barGap2 = static_cast<float>(ES::RGB_BAR_GAP);
-        const float barX2 = mx + pad + 24.0f;
+        const float barX2 = mx + pad + 40.0f;
 
         auto setXY = [this](const EntityRef& e, float x, float y)
         {

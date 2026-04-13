@@ -168,6 +168,9 @@ namespace pg
         int mouseX = 0;
         int mouseY = 0;
 
+        // RGB bar drag state: 0=none, 1=R, 2=G, 3=B.
+        int draggingRGBBar = 0;
+
         std::vector<EditorCmd> undoStack;
         std::vector<EditorCmd> redoStack;
     };

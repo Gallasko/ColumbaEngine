@@ -113,7 +113,8 @@ namespace pg
         EntityRef modalTitle;          // "Palette" text
         std::vector<EntityRef> modalSwatches; // color swatch grid
         EntityRef modalAddBtn;         // "+" button
-        EntityRef modalAddLabel;
+        EntityRef modalAddCrossH;     // horizontal bar of "+"
+        EntityRef modalAddCrossV;     // vertical bar of "+"
         EntityRef modalHighlight;      // highlight on selected swatch
 
         // Color creator (inside modal)

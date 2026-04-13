@@ -193,6 +193,35 @@ namespace pg
         mouseX = event.x;
         mouseY = event.y;
 
+        // Handle RGB bar dragging
+        if (draggingRGBBar != 0)
+        {
+            // Stop dragging if left button is released
+            if (!(SDL_GetMouseState(nullptr, nullptr) & SDL_BUTTON(SDL_BUTTON_LEFT)))
+            {
+                draggingRGBBar = 0;
+            }
+            else if (paletteModalOpen && colorCreatorOpen)
+            {
+                // Recompute bar X from modal layout
+                const int paletteSize = static_cast<int>(canvas->palette.size());
+                const int totalItems = paletteSize + 1;
+                const int rows = (totalItems + MODAL_COLS - 1) / MODAL_COLS;
+                const int gridW = MODAL_COLS * (MODAL_SWATCH + MODAL_SWATCH_PAD) - MODAL_SWATCH_PAD;
+                const int modalW = gridW + MODAL_PAD * 2;
+                const int mx = (screenW - modalW) / 2;
+                const int barX = mx + MODAL_PAD + 40;
+
+                const int value = std::clamp((mouseX - barX) * 255 / RGB_BAR_W, 0, 255);
+
+                if (draggingRGBBar == 1)      creatorR = value;
+                else if (draggingRGBBar == 2) creatorG = value;
+                else if (draggingRGBBar == 3) creatorB = value;
+
+                return; // skip ghost update while dragging
+            }
+        }
+
         if (!editMode)
         {
             hideGhost();
@@ -355,13 +384,14 @@ namespace pg
             if (colorCreatorOpen)
             {
                 const int creatorY = gridY + rows * (sw + sp) + pad;
-                const int barX = mx + pad + 24;
+                const int barX = mx + pad + 40;
                 const int barW = RGB_BAR_W;
 
                 // R bar
                 if (px >= barX && px < barX + barW && py >= creatorY && py < creatorY + RGB_BAR_H)
                 {
                     creatorR = std::clamp((px - barX) * 255 / barW, 0, 255);
+                    draggingRGBBar = 1;
                     return true;
                 }
                 // G bar
@@ -369,6 +399,7 @@ namespace pg
                 if (px >= barX && px < barX + barW && py >= gBarY && py < gBarY + RGB_BAR_H)
                 {
                     creatorG = std::clamp((px - barX) * 255 / barW, 0, 255);
+                    draggingRGBBar = 2;
                     return true;
                 }
                 // B bar
@@ -376,6 +407,7 @@ namespace pg
                 if (px >= barX && px < barX + barW && py >= bBarY && py < bBarY + RGB_BAR_H)
                 {
                     creatorB = std::clamp((px - barX) * 255 / barW, 0, 255);
+                    draggingRGBBar = 3;
                     return true;
                 }
                 // Add button
