@@ -249,6 +249,45 @@ namespace pg
         glm::ivec3 hitCell{ -1,-1,-1 }, placeCell{ -1,-1,-1 };
         const bool hit = raycast(px, py, hitCell, placeCell);
 
+        // Color picker tool: sample color from clicked voxel
+        if (activeTool == EditorTool::ColorPick && !rightBtn)
+        {
+            if (hit && canvas->inBounds(hitCell.x, hitCell.y, hitCell.z)
+                    && !canvas->at(hitCell.x, hitCell.y, hitCell.z).empty())
+            {
+                auto vc = canvas->at(hitCell.x, hitCell.y, hitCell.z)->get<VoxelComponent>();
+                if (vc)
+                {
+                    // Find matching palette index
+                    const glm::vec4& col = vc->color;
+                    int foundIdx = -1;
+                    for (int i = 0; i < static_cast<int>(canvas->palette.size()); ++i)
+                    {
+                        const glm::vec4& pc = canvas->palette[static_cast<size_t>(i)];
+                        if (std::abs(pc.r - col.r) < 0.5f && std::abs(pc.g - col.g) < 0.5f
+                         && std::abs(pc.b - col.b) < 0.5f && std::abs(pc.a - col.a) < 0.5f)
+                        {
+                            foundIdx = i;
+                            break;
+                        }
+                    }
+
+                    if (foundIdx >= 0)
+                    {
+                        activeColor = foundIdx;
+                    }
+                    else
+                    {
+                        // Color not in palette — add it
+                        canvas->palette.push_back(col);
+                        activeColor = static_cast<int>(canvas->palette.size()) - 1;
+                    }
+                }
+            }
+            return;
+        }
+
+        // Place tool: left = place, right = remove
         bool acted = false;
         if (rightBtn)
         {
@@ -288,26 +327,154 @@ namespace pg
 
     bool EditorSystem::handleUIClick(int px, int py, bool /*rightBtn*/)
     {
-        // --- Palette bar (bottom-centre) ---
+        // --- Palette modal (consumes all clicks when open) ---
+        if (paletteModalOpen)
         {
-            const int totalW = PALETTE_SIZE * (SWATCH_SIZE + SWATCH_PADDING) - SWATCH_PADDING;
-            const int x0     = (screenW - totalW) / 2;
-            const int y0     = screenH - SWATCH_SIZE - PALETTE_MARGIN;
+            const int paletteSize = static_cast<int>(canvas->palette.size());
+            const int sw  = MODAL_SWATCH;
+            const int sp  = MODAL_SWATCH_PAD;
+            const int pad = MODAL_PAD;
 
-            if (py >= y0 && py <= y0 + SWATCH_SIZE
-             && px >= x0 && px <= x0 + totalW)
+            const int totalItems = paletteSize + 1;
+            const int rows = (totalItems + MODAL_COLS - 1) / MODAL_COLS;
+            const int gridW = MODAL_COLS * (sw + sp) - sp;
+            const int gridH = rows * (sw + sp) - sp;
+
+            const int modalW = gridW + pad * 2;
+            const int creatorH = RGB_BAR_H * 3 + RGB_BAR_GAP * 4 + 30 + 10;
+            const int titleH = 28;
+            const int modalH = titleH + gridH + pad * 2 + creatorH + pad;
+
+            const int mx = (screenW - modalW) / 2;
+            const int my = (screenH - modalH) / 2;
+
+            const int gridX = mx + pad;
+            const int gridY = my + titleH + pad;
+
+            // Check color creator first (if open)
+            if (colorCreatorOpen)
             {
-                const int idx = (px - x0) / (SWATCH_SIZE + SWATCH_PADDING);
-                if (idx >= 0 && idx < PALETTE_SIZE)
-                    activeColor = idx;
+                const int creatorY = gridY + rows * (sw + sp) + pad;
+                const int barX = mx + pad + 24;
+                const int barW = RGB_BAR_W;
+
+                // R bar
+                if (px >= barX && px < barX + barW && py >= creatorY && py < creatorY + RGB_BAR_H)
+                {
+                    creatorR = std::clamp((px - barX) * 255 / barW, 0, 255);
+                    return true;
+                }
+                // G bar
+                const int gBarY = creatorY + RGB_BAR_H + RGB_BAR_GAP;
+                if (px >= barX && px < barX + barW && py >= gBarY && py < gBarY + RGB_BAR_H)
+                {
+                    creatorG = std::clamp((px - barX) * 255 / barW, 0, 255);
+                    return true;
+                }
+                // B bar
+                const int bBarY = gBarY + RGB_BAR_H + RGB_BAR_GAP;
+                if (px >= barX && px < barX + barW && py >= bBarY && py < bBarY + RGB_BAR_H)
+                {
+                    creatorB = std::clamp((px - barX) * 255 / barW, 0, 255);
+                    return true;
+                }
+                // Add button
+                const int previewY = bBarY + RGB_BAR_H + RGB_BAR_GAP;
+                const int addBtnX = barX + sw + RGB_BAR_GAP;
+                if (px >= addBtnX && px < addBtnX + 50 && py >= previewY && py < previewY + sw)
+                {
+                    addColorToPalette({static_cast<float>(creatorR),
+                                       static_cast<float>(creatorG),
+                                       static_cast<float>(creatorB), 255.0f});
+                    return true;
+                }
+                // Cancel button
+                const int cancelBtnX = addBtnX + 50 + RGB_BAR_GAP;
+                if (px >= cancelBtnX && px < cancelBtnX + 60 && py >= previewY && py < previewY + sw)
+                {
+                    cancelColorCreator();
+                    return true;
+                }
+            }
+
+            // Check swatch clicks
+            for (int i = 0; i < paletteSize; ++i)
+            {
+                const int col = i % MODAL_COLS;
+                const int row = i / MODAL_COLS;
+                const int sx = gridX + col * (sw + sp);
+                const int sy = gridY + row * (sw + sp);
+
+                if (px >= sx && px < sx + sw && py >= sy && py < sy + sw)
+                {
+                    activeColor = i;
+                    paletteModalOpen = false;
+                    colorCreatorOpen = false;
+                    return true;
+                }
+            }
+
+            // Check "+" button
+            {
+                const int col = paletteSize % MODAL_COLS;
+                const int row = paletteSize / MODAL_COLS;
+                const int sx = gridX + col * (sw + sp);
+                const int sy = gridY + row * (sw + sp);
+
+                if (px >= sx && px < sx + sw && py >= sy && py < sy + sw)
+                {
+                    startColorCreator();
+                    return true;
+                }
+            }
+
+            // Click outside modal panel → close
+            if (px < mx || px > mx + modalW || py < my || py > my + modalH)
+            {
+                paletteModalOpen = false;
+                colorCreatorOpen = false;
+            }
+
+            return true; // consume all clicks while modal is open
+        }
+
+        // --- Toolbar (left side) ---
+        {
+            const int tx = TOOLBAR_X;
+            const int ty = TOOLBAR_Y;
+            const int btn = TOOLBAR_BTN;
+            const int gap = TOOLBAR_GAP;
+
+            // Place button
+            if (px >= tx && px < tx + btn && py >= ty && py < ty + btn)
+            {
+                activeTool = EditorTool::Place;
+                return true;
+            }
+
+            // Pick button
+            const int pickY = ty + btn + gap;
+            if (px >= tx && px < tx + btn && py >= pickY && py < pickY + btn)
+            {
+                activeTool = EditorTool::ColorPick;
+                return true;
+            }
+
+            // Color swatch button (opens palette modal)
+            const int colorY = ty + (btn + gap) * 2;
+            if (px >= tx && px < tx + btn && py >= colorY && py < colorY + btn)
+            {
+                togglePaletteModal();
                 return true;
             }
         }
 
-        // --- Layers panel (top-left) ---
+        // --- Layers panel (right side, below gizmo) ---
         {
-            const int x0 = LAYER_PANEL_X;
-            const int x1 = LAYER_PANEL_X + LAYER_PANEL_W;
+            const int gizmoBottomY = GIZMO_MARGIN + 4 * (GIZMO_BTN + GIZMO_GAP) + 8;
+            const int x0 = screenW - LAYER_PANEL_MARGIN_RIGHT - LAYER_PANEL_W;
+            const int x1 = x0 + LAYER_PANEL_W;
+            const int panelY = gizmoBottomY;
 
             if (px >= x0 && px <= x1)
             {
@@ -315,7 +482,7 @@ namespace pg
 
                 for (int i = 0; i < nbLayers; ++i)
                 {
-                    const int ry0 = LAYER_PANEL_Y + i * LAYER_ROW_H;
+                    const int ry0 = panelY + i * LAYER_ROW_H;
                     const int ry1 = ry0 + LAYER_ROW_H;
 
                     if (py >= ry0 && py < ry1)
@@ -329,7 +496,7 @@ namespace pg
                 }
 
                 // "+" Add layer button
-                const int addY0 = LAYER_PANEL_Y + nbLayers * LAYER_ROW_H;
+                const int addY0 = panelY + nbLayers * LAYER_ROW_H;
                 const int addY1 = addY0 + LAYER_ADD_BTN_H;
 
                 if (py >= addY0 && py < addY1)
@@ -381,11 +548,6 @@ namespace pg
 
         // --- Gizmo cube (top-right corner) ---
         {
-            //  Layout (grid positions):
-            //           [Top]          col 1, row 0
-            //  [Left]  [Front] [Right] col 0,1,2  row 1
-            //          [Bottom]        col 1, row 2
-            //           [Back]         col 1, row 3
             const int step  = GIZMO_BTN + GIZMO_GAP;
             const int gx0   = screenW - GIZMO_MARGIN - 3 * step + GIZMO_GAP;
             const int gy0   = GIZMO_MARGIN;
@@ -700,6 +862,44 @@ namespace pg
         for (int x = 0; x < canvas->W; ++x)
             for (int z = 0; z < canvas->D; ++z)
                 createVoxel({ x, -1, z }, ((x + z) % 2 == 0) ? colorA : colorB);
+    }
+
+    // =========================================================================
+    // Palette modal helpers
+    // =========================================================================
+
+    void EditorSystem::togglePaletteModal()
+    {
+        paletteModalOpen = !paletteModalOpen;
+        if (!paletteModalOpen)
+            colorCreatorOpen = false;
+    }
+
+    void EditorSystem::addColorToPalette(const glm::vec4& color)
+    {
+        canvas->palette.push_back(color);
+        activeColor = static_cast<int>(canvas->palette.size()) - 1;
+        colorCreatorOpen = false;
+        // Reset creator values
+        creatorR = 128;
+        creatorG = 128;
+        creatorB = 128;
+    }
+
+    void EditorSystem::startColorCreator()
+    {
+        colorCreatorOpen = true;
+        creatorR = 128;
+        creatorG = 128;
+        creatorB = 128;
+    }
+
+    void EditorSystem::cancelColorCreator()
+    {
+        colorCreatorOpen = false;
+        creatorR = 128;
+        creatorG = 128;
+        creatorB = 128;
     }
 
     // =========================================================================

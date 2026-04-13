@@ -10,10 +10,17 @@
 namespace pg
 {
     // --------------------------------------------------------------------------
-    // Palette — default 16 preset solid RGBA colors (0..255 per channel)
+    // Editor tools
     // --------------------------------------------------------------------------
-    static constexpr int PALETTE_SIZE = 16;
+    enum class EditorTool
+    {
+        Place,      // left-click places block, right-click removes
+        ColorPick,  // left-click samples color from existing voxel
+    };
 
+    // --------------------------------------------------------------------------
+    // Palette — default preset solid RGBA colors (0..255 per channel)
+    // --------------------------------------------------------------------------
     inline std::vector<glm::vec4> defaultPalette()
     {
         return {

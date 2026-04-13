@@ -20,7 +20,7 @@ namespace pg
     struct EditorUISystem
         : public System<InitSys, Listener<ResizeEvent>>
     {
-        EditorUISystem(MasterRenderer* masterRenderer, const EditorSystem* editor);
+        EditorUISystem(MasterRenderer* masterRenderer, EditorSystem* editor);
 
         std::string getSystemName() const override { return "Editor UI System"; }
 
@@ -32,26 +32,49 @@ namespace pg
         BaseCamera2D* uiCamera = nullptr;
 
     private:
-        void createPalette();
+        // Creation
+        void createToolbar();
         void createLayerPanel();
-        void updatePalette();
+        void createGizmoCube();
+        void createActionBar();
+        void createPaletteModal();
+
+        // Updates
+        void updateToolbar();
         void updateLayerPanel();
+        void updatePaletteModal();
+
+        // Helpers
         void repositionLayerPanel();
         void setAllVisible(bool visible);
 
-        const EditorSystem* editor = nullptr;
+        // Palette modal show/hide
+        void showPaletteModal();
+        void hidePaletteModal();
+        void rebuildModalSwatches();
+        void showColorCreator();
+        void hideColorCreator();
+        void updateColorCreatorFill();
+
+        EditorSystem* editor = nullptr;
         MasterRenderer* masterRenderer = nullptr;
 
         float screenW = 1280.0f;
         float screenH = 720.0f;
 
-        // Palette entities
-        EntityRef paletteLayout;
-        EntityRef paletteBackdrop;
-        EntityRef paletteHighlight;
-        std::array<EntityRef, PALETTE_SIZE> paletteSwatches;
+        // ---- Toolbar (left side) ----
+        EntityRef toolbarBackdrop;
+        EntityRef toolPlaceBtn;
+        EntityRef toolPlaceLabel;
+        EntityRef toolPickBtn;
+        EntityRef toolPickLabel;
+        EntityRef toolColorBtn;       // swatch showing active color, opens modal
+        EntityRef toolHighlight;      // selection indicator on active tool
 
-        // Layer panel entities
+        EditorTool cachedTool = EditorTool::Place;
+        int cachedToolColor = -1;
+
+        // ---- Layer panel (right side, below gizmo) ----
         EntityRef layerBackdrop;
         EntityRef layerAddBtn;
         EntityRef layerAddCrossH;
@@ -72,20 +95,38 @@ namespace pg
         uint16_t cachedVisBits   = 0;
         bool cachedEditMode      = true;
 
-        // Gizmo cube (top-right)
-        void createGizmoCube();
-        void createActionBar();
-
+        // ---- Gizmo cube (top-right) ----
         static constexpr int GIZMO_FACE_COUNT = 6;
         EntityRef gizmoFaces[GIZMO_FACE_COUNT];
         EntityRef gizmoLabels[GIZMO_FACE_COUNT];
 
-        // Action bar (top-centre)
+        // ---- Action bar (top-centre) ----
         EntityRef actionBarBackdrop;
         EntityRef actionBarOpenBtn;
         EntityRef actionBarSaveBtn;
         EntityRef actionBarOpenLabel;
         EntityRef actionBarSaveLabel;
+
+        // ---- Palette modal ----
+        EntityRef modalOverlay;        // full-screen semi-transparent backdrop
+        EntityRef modalPanel;          // modal background
+        EntityRef modalTitle;          // "Palette" text
+        std::vector<EntityRef> modalSwatches; // color swatch grid
+        EntityRef modalAddBtn;         // "+" button
+        EntityRef modalAddLabel;
+        EntityRef modalHighlight;      // highlight on selected swatch
+
+        // Color creator (inside modal)
+        EntityRef creatorBarR, creatorBarG, creatorBarB;       // background bars
+        EntityRef creatorFillR, creatorFillG, creatorFillB;    // fill quads
+        EntityRef creatorLabelR, creatorLabelG, creatorLabelB; // R/G/B value text
+        EntityRef creatorPreview;                              // preview swatch
+        EntityRef creatorAddBtn, creatorAddLabel;
+        EntityRef creatorCancelBtn, creatorCancelLabel;
+
+        bool cachedModalOpen = false;
+        bool cachedCreatorOpen = false;
+        int cachedPaletteSize = -1;
     };
 
 } // namespace pg

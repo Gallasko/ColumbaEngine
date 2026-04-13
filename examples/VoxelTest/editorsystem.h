@@ -59,12 +59,15 @@ namespace pg
 
         // UI panel layout — shared with EditorUISystem so both agree on rects.
         // All values are in pixels.
-        static constexpr int SWATCH_SIZE    = 32;
-        static constexpr int SWATCH_PADDING = 4;
-        static constexpr int PALETTE_MARGIN = 12; // from bottom of screen
 
-        static constexpr int LAYER_PANEL_X   = 10;
-        static constexpr int LAYER_PANEL_Y   = 10;
+        // Toolbar (left side)
+        static constexpr int TOOLBAR_X     = 10;
+        static constexpr int TOOLBAR_Y     = 60;
+        static constexpr int TOOLBAR_BTN   = 40;
+        static constexpr int TOOLBAR_GAP   = 4;
+
+        // Layer panel (right side, below gizmo)
+        static constexpr int LAYER_PANEL_MARGIN_RIGHT = 10;
         static constexpr int LAYER_PANEL_W   = 160;
         static constexpr int LAYER_ROW_H     = 28;
         static constexpr int LAYER_EYE_W     = 24;
@@ -78,9 +81,18 @@ namespace pg
         static constexpr int ACTION_BAR_MARGIN  = 10;
 
         // Gizmo cube (top-right corner)
-        static constexpr int GIZMO_BTN   = 40;   // button size in px
-        static constexpr int GIZMO_GAP   = 2;    // gap between buttons
-        static constexpr int GIZMO_MARGIN = 10;  // from top-right corner
+        static constexpr int GIZMO_BTN    = 40;   // button size in px
+        static constexpr int GIZMO_GAP    = 2;    // gap between buttons
+        static constexpr int GIZMO_MARGIN = 10;   // from top-right corner
+
+        // Palette modal (centered on screen)
+        static constexpr int MODAL_SWATCH  = 28;
+        static constexpr int MODAL_SWATCH_PAD = 4;
+        static constexpr int MODAL_COLS    = 8;
+        static constexpr int MODAL_PAD     = 12;
+        static constexpr int RGB_BAR_W     = 200;
+        static constexpr int RGB_BAR_H     = 20;
+        static constexpr int RGB_BAR_GAP   = 8;
 
         // Public state — read by EditorUIRenderer to draw the overlay.
         bool       editMode    = true;
@@ -89,6 +101,20 @@ namespace pg
         int        screenW     = 1280;
         int        screenH     = 720;
         Canvas*    canvas      = nullptr; // non-owning pointer to the app-owned Canvas
+
+        // Tool state
+        EditorTool activeTool       = EditorTool::Place;
+        bool       paletteModalOpen = false;
+        bool       colorCreatorOpen = false;
+        int        creatorR = 128;
+        int        creatorG = 128;
+        int        creatorB = 128;
+
+        // Palette modal helpers
+        void togglePaletteModal();
+        void addColorToPalette(const glm::vec4& color);
+        void startColorCreator();
+        void cancelColorCreator();
 
         // Current ghost (preview) cell — {-1,-1,-1} when none.
         glm::ivec3 ghostCell   = { -1, -1, -1 };
