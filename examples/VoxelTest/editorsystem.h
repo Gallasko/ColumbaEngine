@@ -91,6 +91,9 @@ namespace pg
         void loadProject(const std::string& path = "project.vxl.json");
         void exportToOBJ(const std::string& basePath = "export");
 
+        // Apply parsed project data to the canvas (used by both desktop and web load paths).
+        void applyProjectData(const ProjectData& data);
+
     private:
         // Clear all entities from the canvas (used before loading).
         void clearCanvas();

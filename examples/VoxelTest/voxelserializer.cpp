@@ -87,14 +87,9 @@ namespace pg
     // Save to JSON
     // =========================================================================
 
-    bool saveProjectToFile(const ProjectData& data, const std::string& path)
+    std::string saveProjectToString(const ProjectData& data)
     {
-        std::ofstream out(path);
-        if (!out.is_open())
-        {
-            LOG_ERROR(DOM, "Cannot open file for writing: " << path);
-            return false;
-        }
+        std::ostringstream out;
 
         out << "{\n";
         out << "  \"version\": 1,\n";
@@ -141,6 +136,20 @@ namespace pg
         out << "  ]\n";
 
         out << "}\n";
+
+        return out.str();
+    }
+
+    bool saveProjectToFile(const ProjectData& data, const std::string& path)
+    {
+        std::ofstream file(path);
+        if (!file.is_open())
+        {
+            LOG_ERROR(DOM, "Cannot open file for writing: " << path);
+            return false;
+        }
+
+        file << saveProjectToString(data);
 
         LOG_INFO(DOM, "Project saved to " << path << " (" << data.cells.size() << " cells)");
         return true;
@@ -204,18 +213,9 @@ namespace pg
         }
     }
 
-    bool loadProjectFromFile(const std::string& path, ProjectData& out)
+    bool loadProjectFromString(const std::string& json, ProjectData& out)
     {
-        std::ifstream file(path);
-        if (!file.is_open())
-        {
-            LOG_ERROR(DOM, "Cannot open file for reading: " << path);
-            return false;
-        }
-
-        std::string content((std::istreambuf_iterator<char>(file)),
-                             std::istreambuf_iterator<char>());
-        std::istringstream in(content);
+        std::istringstream in(json);
 
         out = ProjectData{};
 
@@ -393,6 +393,24 @@ namespace pg
                 // Stray number (shouldn't happen normally with our key-based parser)
             }
         }
+
+        return true;
+    }
+
+    bool loadProjectFromFile(const std::string& path, ProjectData& out)
+    {
+        std::ifstream file(path);
+        if (!file.is_open())
+        {
+            LOG_ERROR(DOM, "Cannot open file for reading: " << path);
+            return false;
+        }
+
+        std::string content((std::istreambuf_iterator<char>(file)),
+                             std::istreambuf_iterator<char>());
+
+        if (!loadProjectFromString(content, out))
+            return false;
 
         LOG_INFO(DOM, "Project loaded from " << path << " (" << out.cells.size() << " cells, "
                  << out.layers.size() << " layers)");

@@ -21,7 +21,14 @@
 #include <cmath>
 #include <algorithm>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#include <emscripten/threading.h>
+#include <cstdio>
+#include <fstream>
+#else
 #include "Helpers/tinyfiledialogs.h"
+#endif
 
 namespace pg
 {
@@ -688,35 +695,8 @@ namespace pg
         redoStack.clear();
     }
 
-    void EditorSystem::saveProject(const std::string& /*defaultPath*/)
+    void EditorSystem::applyProjectData(const ProjectData& data)
     {
-        if (!canvas) return;
-
-        char const* filters[] = { "*.vxl.json" };
-        char* result = tinyfd_saveFileDialog(
-            "Save Project", "project.vxl.json",
-            1, filters, "Voxel Project (*.vxl.json)");
-        if (!result) return;
-
-        auto data = gatherProjectData(*canvas);
-        saveProjectToFile(data, std::string(result));
-    }
-
-    void EditorSystem::loadProject(const std::string& /*defaultPath*/)
-    {
-        if (!canvas) return;
-
-        char const* filters[] = { "*.vxl.json" };
-        char* result = tinyfd_openFileDialog(
-            "Open Project", "",
-            1, filters, "Voxel Project (*.vxl.json)", 0);
-        if (!result) return;
-
-        ProjectData data;
-        if (!loadProjectFromFile(std::string(result), data))
-            return;
-
-        // Clear existing canvas
         clearCanvas();
 
         // Resize canvas if dimensions changed
@@ -756,6 +736,152 @@ namespace pg
         hideGhost();
     }
 
+#ifdef __EMSCRIPTEN__
+} // close namespace pg for extern "C" callback
+
+extern "C" {
+    EMSCRIPTEN_KEEPALIVE
+    void editorLoadProjectCallback(uintptr_t selfPtr, const char* data, int len)
+    {
+        auto* editor = reinterpret_cast<pg::EditorSystem*>(selfPtr);
+        std::string json(data, static_cast<size_t>(len));
+        pg::ProjectData pd;
+        if (pg::loadProjectFromString(json, pd))
+            editor->applyProjectData(pd);
+    }
+}
+
+namespace pg
+{
+    void EditorSystem::loadProject(const std::string& /*defaultPath*/)
+    {
+        if (!canvas) return;
+
+        uintptr_t self = reinterpret_cast<uintptr_t>(this);
+        MAIN_THREAD_EM_ASM({
+            var self = $0;
+            var input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.json';
+            input.style.display = 'none';
+            document.body.appendChild(input);
+            input.onchange = function(e) {
+                var file = e.target.files[0];
+                if (!file) { document.body.removeChild(input); return; }
+                var reader = new FileReader();
+                reader.onload = function() {
+                    var data = new Uint8Array(reader.result);
+                    var buf = _malloc(data.length + 1);
+                    HEAPU8.set(data, buf);
+                    HEAPU8[buf + data.length] = 0;
+                    _editorLoadProjectCallback(self, buf, data.length);
+                    _free(buf);
+                };
+                reader.readAsArrayBuffer(file);
+                document.body.removeChild(input);
+            };
+            input.click();
+        }, self);
+    }
+
+    void EditorSystem::saveProject(const std::string& /*defaultPath*/)
+    {
+        if (!canvas) return;
+
+        auto data = gatherProjectData(*canvas);
+        std::string json = saveProjectToString(data);
+
+        MAIN_THREAD_EM_ASM({
+            var json = UTF8ToString($0);
+            var blob = new Blob([json], {type: 'application/json'});
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'project.vxl.json';
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function() {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(a.href);
+            }, 100);
+        }, json.c_str());
+    }
+
+    void EditorSystem::exportToOBJ(const std::string& /*defaultPath*/)
+    {
+        if (!canvas) return;
+
+        // Write to virtual filesystem temp location
+        exportOBJ(*canvas, "/tmp/voxel_export");
+
+        // Read back and trigger browser downloads
+        auto readFile = [](const std::string& path) -> std::string {
+            std::ifstream f(path);
+            if (!f.is_open()) return "";
+            return std::string((std::istreambuf_iterator<char>(f)),
+                                std::istreambuf_iterator<char>());
+        };
+
+        std::string objData = readFile("/tmp/voxel_export.obj");
+        std::string mtlData = readFile("/tmp/voxel_export.mtl");
+
+        auto triggerDownload = [](const char* content, const char* filename) {
+            MAIN_THREAD_EM_ASM({
+                var text = UTF8ToString($0);
+                var blob = new Blob([text], {type: 'application/octet-stream'});
+                var a = document.createElement('a');
+                a.href = URL.createObjectURL(blob);
+                a.download = UTF8ToString($1);
+                document.body.appendChild(a);
+                a.click();
+                setTimeout(function() {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(a.href);
+                }, 100);
+            }, content, filename);
+        };
+
+        if (!objData.empty())
+            triggerDownload(objData.c_str(), "export.obj");
+        if (!mtlData.empty())
+            triggerDownload(mtlData.c_str(), "export.mtl");
+
+        std::remove("/tmp/voxel_export.obj");
+        std::remove("/tmp/voxel_export.mtl");
+    }
+
+#else
+
+    void EditorSystem::loadProject(const std::string& /*defaultPath*/)
+    {
+        if (!canvas) return;
+
+        char const* filters[] = { "*.vxl.json" };
+        char* result = tinyfd_openFileDialog(
+            "Open Project", "",
+            1, filters, "Voxel Project (*.vxl.json)", 0);
+        if (!result) return;
+
+        ProjectData data;
+        if (!loadProjectFromFile(std::string(result), data))
+            return;
+
+        applyProjectData(data);
+    }
+
+    void EditorSystem::saveProject(const std::string& /*defaultPath*/)
+    {
+        if (!canvas) return;
+
+        char const* filters[] = { "*.vxl.json" };
+        char* result = tinyfd_saveFileDialog(
+            "Save Project", "project.vxl.json",
+            1, filters, "Voxel Project (*.vxl.json)");
+        if (!result) return;
+
+        auto data = gatherProjectData(*canvas);
+        saveProjectToFile(data, std::string(result));
+    }
+
     void EditorSystem::exportToOBJ(const std::string& /*defaultPath*/)
     {
         if (!canvas) return;
@@ -773,5 +899,7 @@ namespace pg
 
         exportOBJ(*canvas, basePath);
     }
+
+#endif
 
 } // namespace pg
