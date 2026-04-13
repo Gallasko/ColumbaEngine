@@ -56,7 +56,6 @@ namespace pg
         EntityRef layerAddBtn;
         EntityRef layerAddCrossH;
         EntityRef layerAddCrossV;
-        EntityRef layerAddLabel;
 
         struct LayerRow
         {
@@ -67,10 +66,11 @@ namespace pg
         EntityRef layerLayout;
         std::vector<LayerRow> layerRows;
 
-        int cachedActiveColor = -1;
-        int cachedActiveLayer = -1;
-        int cachedLayerCount  = -1;
-        bool cachedEditMode   = true;
+        int cachedActiveColor    = -1;
+        int cachedActiveLayer    = -1;
+        int cachedLayerCount     = -1;
+        uint16_t cachedVisBits   = 0;
+        bool cachedEditMode      = true;
     };
 
 } // namespace pg

@@ -16,7 +16,7 @@ namespace pg
         EntityRef makeUIQuad(EntitySystem* ecs, float x, float y, float z,
                              float w, float h, const constant::Vector4D& color)
         {
-            auto comp = makeSimple2DShape(ecs, Shape2D::Square, w, h, color);
+            auto comp = makeUiSimple2DShape(ecs, Shape2D::Square, w, h, color);
             comp.get<PositionComponent>()->setX(x);
             comp.get<PositionComponent>()->setY(y);
             comp.get<PositionComponent>()->setZ(z);
@@ -103,7 +103,7 @@ namespace pg
                                      {20.0f, 20.0f, 20.0f, 180.0f});
         {
             auto layoutAnchor = layout.get<UiAnchor>();
-            auto bdAnchor = ecsRef->attach<UiAnchor>(paletteBackdrop);
+            auto bdAnchor = paletteBackdrop->get<UiAnchor>();
             bdAnchor->setTopAnchor(layoutAnchor->top);
             bdAnchor->setTopMargin(-sp);
             bdAnchor->setLeftAnchor(layoutAnchor->left);
@@ -111,7 +111,7 @@ namespace pg
         }
 
         // Highlight (white border behind active swatch)
-        paletteHighlight = makeUIQuad(ecsRef, 0.0f, 0.0f, 1.0f,
+        paletteHighlight = makeUIQuad(ecsRef, 0.0f, 0.0f, 0.0f,
                                       ss + 4.0f, ss + 4.0f,
                                       {255.0f, 255.0f, 255.0f, 255.0f});
 
@@ -122,10 +122,20 @@ namespace pg
             const glm::vec4& col = EDITOR_PALETTE[i];
 
             paletteSwatches[i] = makeUIQuad(
-                ecsRef, 0.0f, 0.0f, 2.0f, ss, ss,
+                ecsRef, 0.0f, 0.0f, 4.0f, ss, ss,
                 {col.r, col.g, col.b, 255.0f});
 
             layoutComp->addEntity(paletteSwatches[i]);
+        }
+
+        // Anchor highlight to first swatch so it starts in the right place
+        {
+            auto hlAnchor = paletteHighlight->get<UiAnchor>();
+            auto swAnchor = paletteSwatches[0]->get<UiAnchor>();
+            hlAnchor->setTopAnchor(swAnchor->top);
+            hlAnchor->setTopMargin(-2.0f);
+            hlAnchor->setLeftAnchor(swAnchor->left);
+            hlAnchor->setLeftMargin(-2.0f);
         }
     }
 
@@ -223,14 +233,13 @@ namespace pg
         cachedActiveColor = editor->activeColor;
 
         // Position highlight relative to the active swatch's actual position
-        auto* swatchPos = ecsRef->getComponent<PositionComponent>(
-            paletteSwatches[static_cast<size_t>(cachedActiveColor)].id);
-        auto* highlightPos = ecsRef->getComponent<PositionComponent>(paletteHighlight.id);
-        if (swatchPos && highlightPos)
-        {
-            highlightPos->setX(swatchPos->x - 2.0f);
-            highlightPos->setY(swatchPos->y - 2.0f);
-        }
+        auto hlAnchor = paletteHighlight->get<UiAnchor>();
+        auto swAnchor = paletteSwatches[cachedActiveColor]->get<UiAnchor>();
+        hlAnchor->setTopAnchor(swAnchor->top);
+        hlAnchor->setTopMargin(-2.0f);
+        hlAnchor->setLeftAnchor(swAnchor->left);
+        hlAnchor->setLeftMargin(-2.0f);
+
     }
 
     // =========================================================================
@@ -243,33 +252,24 @@ namespace pg
             ? static_cast<int>(editor->canvas->layers.size())
             : 0;
 
+        // Build current visibility bitmask
+        uint16_t visBits = 0;
+        for (int i = 0; i < nbLayers && i < 16; ++i)
+            if (editor->canvas->layers[static_cast<size_t>(i)].visible)
+                visBits |= (1u << i);
+
         const bool layerCountChanged = (nbLayers != cachedLayerCount);
-        const bool activeChanged = (editor->activeLayer != cachedActiveLayer);
+        const bool activeChanged     = (editor->activeLayer != cachedActiveLayer);
+        const bool visChanged        = (visBits != cachedVisBits);
 
-        if (!layerCountChanged && !activeChanged)
-        {
-            // Still need to check visibility changes per layer
-            bool visChanged = false;
-            for (int i = 0; i < nbLayers && i < static_cast<int>(layerRows.size()); ++i)
-            {
-                auto* eyeObj = ecsRef->getComponent<Simple2DObject>(layerRows[static_cast<size_t>(i)].eye.id);
-                if (!eyeObj) continue;
-                const bool vis = editor->canvas->layers[static_cast<size_t>(i)].visible;
-                const float targetAlpha = vis ? 240.0f : 80.0f;
-                if (eyeObj->colors.w != targetAlpha)
-                {
-                    visChanged = true;
-                    break;
-                }
-            }
-            if (!visChanged) return;
-        }
+        if (!layerCountChanged && !activeChanged && !visChanged)
+            return;
 
-        cachedLayerCount = nbLayers;
+        cachedLayerCount  = nbLayers;
         cachedActiveLayer = editor->activeLayer;
+        cachedVisBits     = visBits;
 
         using ES = EditorSystem;
-        const float px = static_cast<float>(ES::LAYER_PANEL_X);
         const float py = static_cast<float>(ES::LAYER_PANEL_Y);
         const float pw = static_cast<float>(ES::LAYER_PANEL_W);
         const float rh = static_cast<float>(ES::LAYER_ROW_H);
@@ -277,7 +277,7 @@ namespace pg
         const float bh = static_cast<float>(ES::LAYER_ADD_BTN_H);
 
         // Add new rows if layers were added
-        auto* layoutComp = ecsRef->getComponent<VerticalLayout>(layerLayout.id);
+        auto layoutComp = layerLayout->get<VerticalLayout>();
         while (static_cast<int>(layerRows.size()) < nbLayers)
         {
             const int i = static_cast<int>(layerRows.size());
@@ -288,15 +288,31 @@ namespace pg
                                        pw, rh - 2.0f,
                                        {60.0f, 60.0f, 100.0f, 200.0f});
 
-            // Eye visibility toggle
-            row.eye = makeUIQuad(ecsRef, px + 2.0f, 0.0f, 2.f,
+            // Eye visibility toggle — anchored to container
+            row.eye = makeUIQuad(ecsRef, 0.0f, 0.0f, 2.f,
                                  ew - 4.0f, rh - 10.0f,
                                  {200.0f, 200.0f, 200.0f, 240.0f});
+            {
+                auto eyeAnchor = row.eye->get<UiAnchor>();
+                auto containerAnchor = row.container->get<UiAnchor>();
+                eyeAnchor->setLeftAnchor(containerAnchor->left);
+                eyeAnchor->setLeftMargin(2.0f);
+                eyeAnchor->setTopAnchor(containerAnchor->top);
+                eyeAnchor->setTopMargin(4.0f);
+            }
 
-            // Layer name label
-            row.label = makeUIText(ecsRef, px + ew + 4.0f, 0.0f, 3.f,
+            // Layer name label — anchored to container
+            row.label = makeUIText(ecsRef, 0.0f, 0.0f, 3.f,
                                    "Layer " + std::to_string(i + 1), 1.f,
                                    {220.0f, 220.0f, 220.0f, 255.0f});
+            {
+                auto labelAnchor = row.label->get<UiAnchor>();
+                auto containerAnchor = row.container->get<UiAnchor>();
+                labelAnchor->setLeftAnchor(containerAnchor->left);
+                labelAnchor->setLeftMargin(ew + 4.0f);
+                labelAnchor->setTopAnchor(containerAnchor->top);
+                labelAnchor->setTopMargin(4.0f);
+            }
 
             if (layoutComp)
                 layoutComp->addEntity(row.container);
@@ -316,17 +332,19 @@ namespace pg
         }
 
         // Update backdrop height
-        const float panelH = static_cast<float>(nbLayers) * rh + bh + 4.0f;
-        auto* bdPos = ecsRef->getComponent<PositionComponent>(layerBackdrop.id);
-        if (bdPos) bdPos->setHeight(panelH + 4.0f);
+        if (layerCountChanged)
+        {
+            const float panelH = static_cast<float>(nbLayers) * rh + bh + 4.0f;
+            auto bdPos = layerBackdrop->get<PositionComponent>();
+            if (bdPos) bdPos->setHeight(panelH + 4.0f);
+        }
 
-        // Update existing rows
+        // Update existing rows — active highlight, visibility alpha, label text
         for (int i = 0; i < nbLayers; ++i)
         {
             auto& row = layerRows[static_cast<size_t>(i)];
 
-            // Active layer highlight
-            auto* rowObj = ecsRef->getComponent<Simple2DObject>(row.container.id);
+            auto rowObj = row.container->get<Simple2DObject>();
             if (rowObj)
             {
                 if (i == editor->activeLayer)
@@ -335,37 +353,14 @@ namespace pg
                     rowObj->setColors({60.0f, 60.0f, 100.0f, 0.0f});
             }
 
-            // Eye visibility alpha
-            auto* eyeObj = ecsRef->getComponent<Simple2DObject>(row.eye.id);
+            auto eyeObj = row.eye->get<Simple2DObject>();
             if (eyeObj)
             {
                 const bool vis = editor->canvas->layers[static_cast<size_t>(i)].visible;
                 eyeObj->setOpacity(vis ? 240.0f : 80.0f);
             }
 
-            // Position eye and label relative to the row container
-            auto* containerPos = ecsRef->getComponent<PositionComponent>(row.container.id);
-            if (containerPos)
-            {
-                const float ry = containerPos->y;
-
-                auto* eyePos = ecsRef->getComponent<PositionComponent>(row.eye.id);
-                if (eyePos)
-                {
-                    eyePos->setX(containerPos->x + 2.0f);
-                    eyePos->setY(ry + 4.0f);
-                }
-
-                auto* labelPos = ecsRef->getComponent<PositionComponent>(row.label.id);
-                if (labelPos)
-                {
-                    labelPos->setX(containerPos->x + ew + 4.0f);
-                    labelPos->setY(ry + 4.0f);
-                }
-            }
-
-            // Update label text if layer name changed
-            auto* ttf = ecsRef->getComponent<TTFText>(row.label.id);
+            auto ttf = row.label->get<TTFText>();
             if (ttf)
             {
                 const auto& layerName = editor->canvas->layers[static_cast<size_t>(i)].name;
@@ -374,19 +369,19 @@ namespace pg
             }
         }
 
-        // Reposition "+" button below last layer
-        const float addY = py + static_cast<float>(nbLayers) * rh;
-        auto* addPos = ecsRef->getComponent<PositionComponent>(layerAddBtn.id);
-        if (addPos) addPos->setY(addY);
+        // Reposition "+" button below last layer (only when count changed)
+        if (layerCountChanged)
+        {
+            const float addY = py + static_cast<float>(nbLayers) * rh;
+            auto addPos = layerAddBtn->get<PositionComponent>();
+            if (addPos) addPos->setY(addY);
 
-        auto* crossHPos = ecsRef->getComponent<PositionComponent>(layerAddCrossH.id);
-        if (crossHPos) crossHPos->setY(addY + bh * 0.5f - 2.0f);
+            auto crossHPos = layerAddCrossH->get<PositionComponent>();
+            if (crossHPos) crossHPos->setY(addY + bh * 0.5f - 2.0f);
 
-        auto* crossVPos = ecsRef->getComponent<PositionComponent>(layerAddCrossV.id);
-        if (crossVPos) crossVPos->setY(addY + bh * 0.5f - 8.0f);
-
-        auto* addLabelPos = ecsRef->getComponent<PositionComponent>(layerAddLabel.id);
-        if (addLabelPos) addLabelPos->setY(addY + 2.0f);
+            auto crossVPos = layerAddCrossV->get<PositionComponent>();
+            if (crossVPos) crossVPos->setY(addY + bh * 0.5f - 8.0f);
+        }
     }
 
     // =========================================================================
@@ -422,7 +417,6 @@ namespace pg
         setVis(layerAddBtn);
         setVis(layerAddCrossH);
         setVis(layerAddCrossV);
-        setVis(layerAddLabel);
         setVis(layerLayout);
 
         for (auto& row : layerRows)
