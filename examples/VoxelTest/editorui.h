@@ -74,10 +74,18 @@ namespace pg
 
         // Gizmo cube (top-right)
         void createGizmoCube();
+        void createActionBar();
 
         static constexpr int GIZMO_FACE_COUNT = 6;
         EntityRef gizmoFaces[GIZMO_FACE_COUNT];
         EntityRef gizmoLabels[GIZMO_FACE_COUNT];
+
+        // Action bar (top-centre)
+        EntityRef actionBarBackdrop;
+        EntityRef actionBarOpenBtn;
+        EntityRef actionBarSaveBtn;
+        EntityRef actionBarOpenLabel;
+        EntityRef actionBarSaveLabel;
     };
 
 } // namespace pg

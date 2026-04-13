@@ -70,6 +70,13 @@ namespace pg
         static constexpr int LAYER_EYE_W     = 24;
         static constexpr int LAYER_ADD_BTN_H = 24;
 
+        // Action bar (top-centre)
+        static constexpr int ACTION_BAR_BTN_W   = 64;
+        static constexpr int ACTION_BAR_BTN_H   = 28;
+        static constexpr int ACTION_BAR_GAP     = 8;
+        static constexpr int ACTION_BAR_PAD     = 8;
+        static constexpr int ACTION_BAR_MARGIN  = 10;
+
         // Gizmo cube (top-right corner)
         static constexpr int GIZMO_BTN   = 40;   // button size in px
         static constexpr int GIZMO_GAP   = 2;    // gap between buttons

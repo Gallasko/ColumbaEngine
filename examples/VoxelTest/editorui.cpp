@@ -68,6 +68,7 @@ namespace pg
         createPalette();
         createLayerPanel();
         createGizmoCube();
+        createActionBar();
     }
 
     // =========================================================================
@@ -222,6 +223,52 @@ namespace pg
     }
 
     // =========================================================================
+    // Action bar creation
+    // =========================================================================
+
+    void EditorUISystem::createActionBar()
+    {
+        using ES = EditorSystem;
+        const float btnW   = static_cast<float>(ES::ACTION_BAR_BTN_W);
+        const float btnH   = static_cast<float>(ES::ACTION_BAR_BTN_H);
+        const float gap    = static_cast<float>(ES::ACTION_BAR_GAP);
+        const float pad    = static_cast<float>(ES::ACTION_BAR_PAD);
+        const float margin = static_cast<float>(ES::ACTION_BAR_MARGIN);
+
+        const float contentW = btnW * 2.0f + gap;
+        const float totalW   = contentW + pad * 2.0f;
+        const float totalH   = btnH + pad * 2.0f;
+
+        const float x0 = (screenW - totalW) * 0.5f;
+        const float y0 = margin;
+
+        actionBarBackdrop = makeUIQuad(ecsRef, x0, y0, 0.0f,
+                                       totalW, totalH,
+                                       {20.0f, 20.0f, 20.0f, 180.0f});
+
+        const float openX = x0 + pad;
+        const float btnY  = y0 + pad;
+
+        actionBarOpenBtn = makeUIQuad(ecsRef, openX, btnY, 1.0f,
+                                      btnW, btnH,
+                                      {60.0f, 60.0f, 120.0f, 220.0f});
+
+        actionBarOpenLabel = makeUIText(ecsRef, openX + 12.0f, btnY + 6.0f, 2.0f,
+                                        "Open", 1.0f,
+                                        {220.0f, 220.0f, 220.0f, 255.0f});
+
+        const float saveX = openX + btnW + gap;
+
+        actionBarSaveBtn = makeUIQuad(ecsRef, saveX, btnY, 1.0f,
+                                      btnW, btnH,
+                                      {60.0f, 120.0f, 60.0f, 220.0f});
+
+        actionBarSaveLabel = makeUIText(ecsRef, saveX + 12.0f, btnY + 6.0f, 2.0f,
+                                        "Save", 1.0f,
+                                        {220.0f, 220.0f, 220.0f, 255.0f});
+    }
+
+    // =========================================================================
     // Resize
     // =========================================================================
 
@@ -270,6 +317,38 @@ namespace pg
                     p->setY(fy + 12.0f);
                 }
             }
+        }
+
+        // Reposition action bar to top-centre
+        {
+            using ES = EditorSystem;
+            const float btnW   = static_cast<float>(ES::ACTION_BAR_BTN_W);
+            const float btnH   = static_cast<float>(ES::ACTION_BAR_BTN_H);
+            const float gap    = static_cast<float>(ES::ACTION_BAR_GAP);
+            const float pad    = static_cast<float>(ES::ACTION_BAR_PAD);
+            const float margin = static_cast<float>(ES::ACTION_BAR_MARGIN);
+
+            const float contentW = btnW * 2.0f + gap;
+            const float totalW   = contentW + pad * 2.0f;
+
+            const float x0 = (screenW - totalW) * 0.5f;
+            const float y0 = margin;
+
+            auto setPos = [this](const EntityRef& e, float x, float y) {
+                if (auto* p = ecsRef->getComponent<PositionComponent>(e.id))
+                { p->setX(x); p->setY(y); }
+            };
+
+            setPos(actionBarBackdrop, x0, y0);
+
+            const float openX = x0 + pad;
+            const float btnY  = y0 + pad;
+            setPos(actionBarOpenBtn,   openX,         btnY);
+            setPos(actionBarOpenLabel, openX + 12.0f, btnY + 6.0f);
+
+            const float saveX = openX + btnW + gap;
+            setPos(actionBarSaveBtn,   saveX,         btnY);
+            setPos(actionBarSaveLabel, saveX + 12.0f, btnY + 6.0f);
         }
     }
 
@@ -506,6 +585,12 @@ namespace pg
             setVis(gizmoFaces[i]);
             setVis(gizmoLabels[i]);
         }
+
+        setVis(actionBarBackdrop);
+        setVis(actionBarOpenBtn);
+        setVis(actionBarSaveBtn);
+        setVis(actionBarOpenLabel);
+        setVis(actionBarSaveLabel);
     }
 
 } // namespace pg

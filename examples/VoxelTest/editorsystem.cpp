@@ -344,6 +344,41 @@ namespace pg
             }
         }
 
+        // --- Action bar (top-centre) ---
+        {
+            const int btnW    = ACTION_BAR_BTN_W;
+            const int btnH    = ACTION_BAR_BTN_H;
+            const int gap     = ACTION_BAR_GAP;
+            const int pad     = ACTION_BAR_PAD;
+            const int margin  = ACTION_BAR_MARGIN;
+
+            const int contentW = btnW * 2 + gap;
+            const int totalW   = contentW + pad * 2;
+            const int totalH   = btnH + pad * 2;
+
+            const int x0 = (screenW - totalW) / 2;
+            const int y0 = margin;
+
+            if (px >= x0 && px <= x0 + totalW && py >= y0 && py <= y0 + totalH)
+            {
+                const int btnX0_open = x0 + pad;
+                const int btnX1_open = btnX0_open + btnW;
+                const int btnX0_save = btnX1_open + gap;
+                const int btnX1_save = btnX0_save + btnW;
+                const int btnY0      = y0 + pad;
+                const int btnY1      = btnY0 + btnH;
+
+                if (py >= btnY0 && py <= btnY1)
+                {
+                    if (px >= btnX0_open && px <= btnX1_open)
+                        loadProject();
+                    else if (px >= btnX0_save && px <= btnX1_save)
+                        saveProject();
+                }
+                return true;
+            }
+        }
+
         // --- Gizmo cube (top-right corner) ---
         {
             //  Layout (grid positions):
