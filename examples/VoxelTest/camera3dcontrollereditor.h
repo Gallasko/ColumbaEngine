@@ -37,6 +37,9 @@ namespace pg
         float mouseSens  = 0.15f;    // degrees / pixel
         float zoomSpeed  = 2.0f;     // world units per scroll notch
 
+        // Snap the camera to a specific position and orientation.
+        void snapTo(const glm::vec3& position, float yaw, float pitch);
+
         // Set by EditorSystem on Tab: when true the controller yields cursor
         // and look control to the editor, but still allows WASD movement.
         bool editMode = false;

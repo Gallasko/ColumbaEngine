@@ -109,6 +109,18 @@ namespace pg
         cam.position += cam.front * (static_cast<float>(event.y) * zoomSpeed);
     }
 
+    void Camera3DControllerEditor::snapTo(const glm::vec3& pos, float newYaw, float newPitch)
+    {
+        if (not masterRenderer)
+            return;
+
+        auto& cam      = masterRenderer->getCamera();
+        cam.position   = pos;
+        cam.yaw        = newYaw;
+        cam.pitch      = newPitch;
+        cam.updateCameraVectors();
+    }
+
     void Camera3DControllerEditor::onEvent(const TickEvent& event)
     {
         if (not input or not masterRenderer)

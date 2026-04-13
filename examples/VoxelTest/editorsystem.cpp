@@ -314,6 +314,41 @@ namespace pg
             }
         }
 
+        // --- Gizmo cube (top-right corner) ---
+        {
+            //  Layout (grid positions):
+            //           [Top]          col 1, row 0
+            //  [Left]  [Front] [Right] col 0,1,2  row 1
+            //          [Bottom]        col 1, row 2
+            //           [Back]         col 1, row 3
+            const int step  = GIZMO_BTN + GIZMO_GAP;
+            const int gx0   = screenW - GIZMO_MARGIN - 3 * step + GIZMO_GAP;
+            const int gy0   = GIZMO_MARGIN;
+
+            struct GizmoFace { int col; int row; glm::vec3 pos; float yaw; float pitch; };
+            const GizmoFace faces[] = {
+                { 1, 0, {  8.0f, 30.0f,   8.0f }, -90.0f, -89.0f }, // Top
+                { 0, 1, {-14.0f, 10.0f,   8.0f },   0.0f, -15.0f }, // Left
+                { 1, 1, {  8.0f, 10.0f,  30.0f }, -90.0f, -15.0f }, // Front
+                { 2, 1, { 30.0f, 10.0f,   8.0f }, 180.0f, -15.0f }, // Right
+                { 1, 2, {  8.0f,-20.0f,   8.0f }, -90.0f,  89.0f }, // Bottom
+                { 1, 3, {  8.0f, 10.0f, -14.0f },  90.0f, -15.0f }, // Back
+            };
+
+            for (const auto& f : faces)
+            {
+                const int fx = gx0 + f.col * step;
+                const int fy = gy0 + f.row * step;
+
+                if (px >= fx && px < fx + GIZMO_BTN && py >= fy && py < fy + GIZMO_BTN)
+                {
+                    if (cam)
+                        cam->snapTo(f.pos, f.yaw, f.pitch);
+                    return true;
+                }
+            }
+        }
+
         return false;
     }
 

@@ -66,6 +66,11 @@ namespace pg
         static constexpr int LAYER_EYE_W     = 24;
         static constexpr int LAYER_ADD_BTN_H = 24;
 
+        // Gizmo cube (top-right corner)
+        static constexpr int GIZMO_BTN   = 40;   // button size in px
+        static constexpr int GIZMO_GAP   = 2;    // gap between buttons
+        static constexpr int GIZMO_MARGIN = 10;  // from top-right corner
+
         // Public state — read by EditorUIRenderer to draw the overlay.
         bool       editMode    = true;
         int        activeColor = 0;   // index into EDITOR_PALETTE

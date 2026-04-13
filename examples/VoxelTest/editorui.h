@@ -71,6 +71,13 @@ namespace pg
         int cachedLayerCount     = -1;
         uint16_t cachedVisBits   = 0;
         bool cachedEditMode      = true;
+
+        // Gizmo cube (top-right)
+        void createGizmoCube();
+
+        static constexpr int GIZMO_FACE_COUNT = 6;
+        EntityRef gizmoFaces[GIZMO_FACE_COUNT];
+        EntityRef gizmoLabels[GIZMO_FACE_COUNT];
     };
 
 } // namespace pg

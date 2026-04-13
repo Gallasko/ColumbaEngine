@@ -67,6 +67,7 @@ namespace pg
 
         createPalette();
         createLayerPanel();
+        createGizmoCube();
     }
 
     // =========================================================================
@@ -179,6 +180,48 @@ namespace pg
     }
 
     // =========================================================================
+    // Gizmo cube creation
+    // =========================================================================
+
+    void EditorUISystem::createGizmoCube()
+    {
+        using ES = EditorSystem;
+        const float btn  = static_cast<float>(ES::GIZMO_BTN);
+        const float gap  = static_cast<float>(ES::GIZMO_GAP);
+        const float step = btn + gap;
+        const float mg   = static_cast<float>(ES::GIZMO_MARGIN);
+
+        // Grid origin: top-right corner, 3 columns wide
+        const float gx0 = screenW - mg - 3.0f * step + gap;
+        const float gy0 = mg;
+
+        // Face definitions: name, column, row, color
+        struct FaceDef { const char* name; int col; int row; constant::Vector4D color; };
+        const FaceDef defs[GIZMO_FACE_COUNT] = {
+            { "Top",    1, 0, { 80.0f, 180.0f,  80.0f, 220.0f } },  // green
+            { "Left",   0, 1, { 180.0f,  80.0f,  80.0f, 220.0f } },  // red
+            { "Front",  1, 1, {  80.0f,  80.0f, 180.0f, 220.0f } },  // blue
+            { "Right",  2, 1, { 180.0f, 120.0f,  80.0f, 220.0f } },  // orange
+            { "Bot",    1, 2, {  80.0f, 120.0f,  80.0f, 220.0f } },  // dark green
+            { "Back",   1, 3, {  80.0f,  80.0f, 120.0f, 220.0f } },  // dark blue
+        };
+
+        for (int i = 0; i < GIZMO_FACE_COUNT; ++i)
+        {
+            const auto& d = defs[i];
+            const float fx = gx0 + static_cast<float>(d.col) * step;
+            const float fy = gy0 + static_cast<float>(d.row) * step;
+
+            gizmoFaces[i] = makeUIQuad(ecsRef, fx, fy, 5.0f, btn, btn, d.color);
+
+            // Center the label roughly in the button
+            gizmoLabels[i] = makeUIText(ecsRef, fx + 4.0f, fy + 12.0f, 6.0f,
+                                         d.name, 0.8f,
+                                         {255.0f, 255.0f, 255.0f, 255.0f});
+        }
+    }
+
+    // =========================================================================
     // Resize
     // =========================================================================
 
@@ -197,6 +240,37 @@ namespace pg
         }
 
         repositionLayerPanel();
+
+        // Reposition gizmo cube to top-right
+        {
+            using ES = EditorSystem;
+            const float btn  = static_cast<float>(ES::GIZMO_BTN);
+            const float gap  = static_cast<float>(ES::GIZMO_GAP);
+            const float step = btn + gap;
+            const float mg   = static_cast<float>(ES::GIZMO_MARGIN);
+            const float gx0  = screenW - mg - 3.0f * step + gap;
+            const float gy0  = mg;
+
+            const int cols[] = { 1, 0, 1, 2, 1, 1 };
+            const int rows[] = { 0, 1, 1, 1, 2, 3 };
+
+            for (int i = 0; i < GIZMO_FACE_COUNT; ++i)
+            {
+                const float fx = gx0 + static_cast<float>(cols[i]) * step;
+                const float fy = gy0 + static_cast<float>(rows[i]) * step;
+
+                if (auto* p = ecsRef->getComponent<PositionComponent>(gizmoFaces[i].id))
+                {
+                    p->setX(fx);
+                    p->setY(fy);
+                }
+                if (auto* p = ecsRef->getComponent<PositionComponent>(gizmoLabels[i].id))
+                {
+                    p->setX(fx + 4.0f);
+                    p->setY(fy + 12.0f);
+                }
+            }
+        }
     }
 
     // =========================================================================
@@ -425,6 +499,12 @@ namespace pg
             setVis(row.container);
             setVis(row.eye);
             setVis(row.label);
+        }
+
+        for (int i = 0; i < GIZMO_FACE_COUNT; ++i)
+        {
+            setVis(gizmoFaces[i]);
+            setVis(gizmoLabels[i]);
         }
     }
 
