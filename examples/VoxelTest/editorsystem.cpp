@@ -21,6 +21,8 @@
 #include <cmath>
 #include <algorithm>
 
+#include "Helpers/tinyfiledialogs.h"
+
 namespace pg
 {
     namespace
@@ -686,20 +688,32 @@ namespace pg
         redoStack.clear();
     }
 
-    void EditorSystem::saveProject(const std::string& path)
+    void EditorSystem::saveProject(const std::string& /*defaultPath*/)
     {
         if (!canvas) return;
+
+        char const* filters[] = { "*.vxl.json" };
+        char* result = tinyfd_saveFileDialog(
+            "Save Project", "project.vxl.json",
+            1, filters, "Voxel Project (*.vxl.json)");
+        if (!result) return;
 
         auto data = gatherProjectData(*canvas);
-        saveProjectToFile(data, path);
+        saveProjectToFile(data, std::string(result));
     }
 
-    void EditorSystem::loadProject(const std::string& path)
+    void EditorSystem::loadProject(const std::string& /*defaultPath*/)
     {
         if (!canvas) return;
 
+        char const* filters[] = { "*.vxl.json" };
+        char* result = tinyfd_openFileDialog(
+            "Open Project", "",
+            1, filters, "Voxel Project (*.vxl.json)", 0);
+        if (!result) return;
+
         ProjectData data;
-        if (!loadProjectFromFile(path, data))
+        if (!loadProjectFromFile(std::string(result), data))
             return;
 
         // Clear existing canvas
@@ -742,9 +756,21 @@ namespace pg
         hideGhost();
     }
 
-    void EditorSystem::exportToOBJ(const std::string& basePath)
+    void EditorSystem::exportToOBJ(const std::string& /*defaultPath*/)
     {
         if (!canvas) return;
+
+        char const* filters[] = { "*.obj" };
+        char* result = tinyfd_saveFileDialog(
+            "Export OBJ", "export.obj",
+            1, filters, "Wavefront OBJ (*.obj)");
+        if (!result) return;
+
+        // Strip .obj extension if present — exportOBJ adds it back
+        std::string basePath(result);
+        if (basePath.size() > 4 && basePath.substr(basePath.size() - 4) == ".obj")
+            basePath = basePath.substr(0, basePath.size() - 4);
+
         exportOBJ(*canvas, basePath);
     }
 
