@@ -10,27 +10,31 @@
 namespace pg
 {
     // --------------------------------------------------------------------------
-    // Palette — 16 preset solid RGBA colors (0..255 per channel)
+    // Palette — default 16 preset solid RGBA colors (0..255 per channel)
     // --------------------------------------------------------------------------
-    static const glm::vec4 EDITOR_PALETTE[16] = {
-        { 255,  64,  64, 255 }, // 0  red
-        { 255, 128,  64, 255 }, // 1  orange
-        { 255, 224,  64, 255 }, // 2  yellow
-        { 128, 224,  64, 255 }, // 3  lime
-        {  64, 200,  64, 255 }, // 4  green
-        {  64, 200, 128, 255 }, // 5  spring green
-        {  64, 200, 200, 255 }, // 6  cyan
-        {  64, 128, 255, 255 }, // 7  sky blue
-        {  64,  64, 255, 255 }, // 8  blue
-        { 128,  64, 255, 255 }, // 9  purple
-        { 255,  64, 255, 255 }, // 10 magenta
-        { 255,  64, 128, 255 }, // 11 pink
-        { 220, 220, 220, 255 }, // 12 light gray
-        { 140, 140, 140, 255 }, // 13 gray
-        {  60,  60,  60, 255 }, // 14 dark gray
-        { 255, 255, 255, 255 }, // 15 white
-    };
     static constexpr int PALETTE_SIZE = 16;
+
+    inline std::vector<glm::vec4> defaultPalette()
+    {
+        return {
+            { 255,  64,  64, 255 }, // 0  red
+            { 255, 128,  64, 255 }, // 1  orange
+            { 255, 224,  64, 255 }, // 2  yellow
+            { 128, 224,  64, 255 }, // 3  lime
+            {  64, 200,  64, 255 }, // 4  green
+            {  64, 200, 128, 255 }, // 5  spring green
+            {  64, 200, 200, 255 }, // 6  cyan
+            {  64, 128, 255, 255 }, // 7  sky blue
+            {  64,  64, 255, 255 }, // 8  blue
+            { 128,  64, 255, 255 }, // 9  purple
+            { 255,  64, 255, 255 }, // 10 magenta
+            { 255,  64, 128, 255 }, // 11 pink
+            { 220, 220, 220, 255 }, // 12 light gray
+            { 140, 140, 140, 255 }, // 13 gray
+            {  60,  60,  60, 255 }, // 14 dark gray
+            { 255, 255, 255, 255 }, // 15 white
+        };
+    }
 
     // --------------------------------------------------------------------------
     // Layer — a named set of cells; can be hidden
@@ -57,12 +61,14 @@ namespace pg
     {
         int W, H, D;
 
+        std::vector<glm::vec4> palette;
         std::vector<Layer>     layers;
         std::vector<EntityRef> cells;     // W*H*D, empty() == unoccupied
         std::vector<int>       cellLayer; // W*H*D, -1 == unoccupied
 
         Canvas(int W, int H, int D)
             : W(W), H(H), D(D)
+            , palette(defaultPalette())
             , cells(static_cast<size_t>(W * H * D))
             , cellLayer(static_cast<size_t>(W * H * D), -1)
         {}

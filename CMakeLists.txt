@@ -829,6 +829,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelTest/camera3dcontrollereditor.cpp
             examples/VoxelTest/editorsystem.cpp
             examples/VoxelTest/editorui.cpp
+            examples/VoxelTest/voxelserializer.cpp
         )
 
         target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
@@ -1033,6 +1034,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/VoxelTest/camera3dcontrollereditor.cpp
             examples/VoxelTest/editorsystem.cpp
             examples/VoxelTest/editorui.cpp
+            examples/VoxelTest/voxelserializer.cpp
         )
 
         target_link_libraries(VoxelTest PRIVATE ColumbaEngine)

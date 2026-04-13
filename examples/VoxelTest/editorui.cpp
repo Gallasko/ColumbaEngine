@@ -121,7 +121,7 @@ namespace pg
         auto layoutComp = layout.get<HorizontalLayout>();
         for (size_t i = 0; i < PALETTE_SIZE; ++i)
         {
-            const glm::vec4& col = EDITOR_PALETTE[i];
+            const glm::vec4& col = editor->canvas->palette[i];
 
             paletteSwatches[i] = makeUIQuad(
                 ecsRef, 0.0f, 0.0f, 4.0f, ss, ss,

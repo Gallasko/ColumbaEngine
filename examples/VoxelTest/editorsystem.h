@@ -6,6 +6,7 @@
 #include "Input/inputcomponent.h"
 
 #include "editorstate.h"
+#include "voxelserializer.h"
 
 namespace pg
 {
@@ -20,6 +21,9 @@ namespace pg
      *   Tab       — toggle edit / fly mode
      *   Ctrl+Z    — undo last command
      *   Ctrl+Y    — redo
+     *   Ctrl+S    — save project
+     *   Ctrl+O    — load project
+     *   Ctrl+E    — export OBJ
      *
      * Mouse (edit mode only):
      *   Left-click  — place block at the hovered empty cell under the cursor.
@@ -73,7 +77,7 @@ namespace pg
 
         // Public state — read by EditorUIRenderer to draw the overlay.
         bool       editMode    = true;
-        int        activeColor = 0;   // index into EDITOR_PALETTE
+        int        activeColor = 0;   // index into canvas->palette
         int        activeLayer = 0;   // index into canvas->layers
         int        screenW     = 1280;
         int        screenH     = 720;
@@ -82,7 +86,14 @@ namespace pg
         // Current ghost (preview) cell — {-1,-1,-1} when none.
         glm::ivec3 ghostCell   = { -1, -1, -1 };
 
+        // Save/load/export
+        void saveProject(const std::string& path = "project.vxl.json");
+        void loadProject(const std::string& path = "project.vxl.json");
+        void exportToOBJ(const std::string& basePath = "export");
+
     private:
+        // Clear all entities from the canvas (used before loading).
+        void clearCanvas();
         // Returns true if the screen pixel (px, py) falls inside any UI panel
         // and handles the interaction (color pick, layer toggle, etc.).
         bool handleUIClick(int px, int py, bool rightBtn);

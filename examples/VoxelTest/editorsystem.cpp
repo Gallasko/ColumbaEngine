@@ -89,6 +89,27 @@ namespace pg
             return;
         }
 
+        // Ctrl+S — save project
+        if (ctrl && event.key == SDL_SCANCODE_S)
+        {
+            saveProject();
+            return;
+        }
+
+        // Ctrl+O — load project
+        if (ctrl && event.key == SDL_SCANCODE_O)
+        {
+            loadProject();
+            return;
+        }
+
+        // Ctrl+E — export OBJ
+        if (ctrl && event.key == SDL_SCANCODE_E)
+        {
+            exportToOBJ();
+            return;
+        }
+
         // Ctrl+Y — redo
         if (ctrl && event.key == SDL_SCANCODE_Y && !redoStack.empty())
         {
@@ -117,7 +138,7 @@ namespace pg
         if (ghostEntity.empty())
             return;
 
-        const glm::vec4 col = EDITOR_PALETTE[static_cast<size_t>(activeColor)];
+        const glm::vec4 col = canvas->palette[static_cast<size_t>(activeColor)];
         // Semi-transparent version of the active color (alpha ~40%).
         const glm::vec4 ghostColor{ col.r, col.g, col.b, 100.0f };
 
@@ -544,7 +565,7 @@ namespace pg
             activeLayer = 0;
         }
 
-        const glm::vec4 color = EDITOR_PALETTE[static_cast<size_t>(activeColor)];
+        const glm::vec4 color = canvas->palette[static_cast<size_t>(activeColor)];
         const int       layer = std::min(activeLayer,
                                          static_cast<int>(canvas->layers.size()) - 1);
 
@@ -635,6 +656,96 @@ namespace pg
         for (int x = 0; x < canvas->W; ++x)
             for (int z = 0; z < canvas->D; ++z)
                 createVoxel({ x, -1, z }, ((x + z) % 2 == 0) ? colorA : colorB);
+    }
+
+    // =========================================================================
+    // Save / Load / Export
+    // =========================================================================
+
+    void EditorSystem::clearCanvas()
+    {
+        if (!canvas) return;
+
+        const int total = canvas->W * canvas->H * canvas->D;
+        for (int idx = 0; idx < total; ++idx)
+        {
+            auto& ent = canvas->cells[static_cast<size_t>(idx)];
+            if (!ent.empty())
+            {
+                ecsRef->removeEntity(ent.entity);
+                ent = EntityRef{};
+            }
+            canvas->cellLayer[static_cast<size_t>(idx)] = -1;
+        }
+
+        // Clear hidden data from all layers
+        for (auto& layer : canvas->layers)
+            layer.hiddenData.clear();
+
+        undoStack.clear();
+        redoStack.clear();
+    }
+
+    void EditorSystem::saveProject(const std::string& path)
+    {
+        if (!canvas) return;
+
+        auto data = gatherProjectData(*canvas);
+        saveProjectToFile(data, path);
+    }
+
+    void EditorSystem::loadProject(const std::string& path)
+    {
+        if (!canvas) return;
+
+        ProjectData data;
+        if (!loadProjectFromFile(path, data))
+            return;
+
+        // Clear existing canvas
+        clearCanvas();
+
+        // Resize canvas if dimensions changed
+        if (data.W != canvas->W || data.H != canvas->H || data.D != canvas->D)
+        {
+            canvas->W = data.W;
+            canvas->H = data.H;
+            canvas->D = data.D;
+            const size_t sz = static_cast<size_t>(data.W * data.H * data.D);
+            canvas->cells.assign(sz, EntityRef{});
+            canvas->cellLayer.assign(sz, -1);
+        }
+
+        // Restore palette
+        canvas->palette = data.palette;
+
+        // Restore layers
+        canvas->layers.clear();
+        for (const auto& ld : data.layers)
+            canvas->layers.push_back(Layer{ ld.name, ld.visible, {} });
+
+        // Place cells
+        for (const auto& cell : data.cells)
+        {
+            if (!canvas->inBounds(cell.pos.x, cell.pos.y, cell.pos.z))
+                continue;
+
+            const int ci = std::clamp(cell.colorIndex, 0, static_cast<int>(canvas->palette.size()) - 1);
+            const glm::vec4 color = canvas->palette[static_cast<size_t>(ci)];
+            const int li = std::clamp(cell.layerIndex, 0, static_cast<int>(canvas->layers.size()) - 1);
+
+            doPlace(cell.pos, color, li);
+        }
+
+        activeLayer = 0;
+        activeColor = 0;
+        hideGhost();
+    }
+
+    void EditorSystem::exportToOBJ(const std::string& basePath)
+    {
+        if (!canvas) return;
+        exportOBJ(*canvas, basePath);
     }
 
 } // namespace pg
