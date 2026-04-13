@@ -344,6 +344,16 @@ namespace pg
                 {
                     if (cam)
                         cam->snapTo(f.pos, f.yaw, f.pitch);
+
+                    // Refresh the ghost preview with the new camera orientation.
+                    glm::ivec3 newHit, newPlace;
+                    if (raycast(mouseX, mouseY, newHit, newPlace)
+                        && canvas->inBounds(newPlace.x, newPlace.y, newPlace.z)
+                        && canvas->at(newPlace.x, newPlace.y, newPlace.z).empty())
+                        updateGhost(newPlace);
+                    else
+                        hideGhost();
+
                     return true;
                 }
             }
@@ -459,7 +469,7 @@ namespace pg
                 return 1e30f;
             const float boundary = (step > 0)
                 ? std::floor(o) + 1.0f
-                : std::ceil(o)  - 1.0f;
+                : std::floor(o);
             return (boundary - o) / d;
         };
 
