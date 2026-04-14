@@ -15,6 +15,7 @@ namespace pg
     enum class EditorTool
     {
         Place,      // left-click places block, right-click removes
+        Erase,      // left-click removes block
         ColorPick,  // left-click samples color from existing voxel
     };
 

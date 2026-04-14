@@ -66,8 +66,10 @@ namespace pg
         EntityRef toolbarBackdrop;
         EntityRef toolPlaceBtn;
         EntityRef toolPlaceLabel;
-        EntityRef toolPickBtn;
-        EntityRef toolPickLabel;
+        EntityRef toolEraseBtn;
+        EntityRef toolEraseLabel;
+        EntityRef toolColorPickBtn;
+        EntityRef toolColorPickLabel;
         EntityRef toolColorBtn;       // swatch showing active color, opens modal
         EntityRef toolHighlight;      // selection indicator on active tool
 

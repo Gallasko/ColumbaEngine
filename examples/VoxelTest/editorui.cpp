@@ -84,8 +84,8 @@ namespace pg
         const float btn = static_cast<float>(ES::TOOLBAR_BTN);
         const float gap = static_cast<float>(ES::TOOLBAR_GAP);
 
-        // 3 buttons: Place, Pick, Color swatch
-        const float totalH = btn * 3.0f + gap * 2.0f + 8.0f; // 8 = padding
+        // 4 buttons: Place, Erase, ColorPick, Color swatch
+        const float totalH = btn * 4.0f + gap * 3.0f + 8.0f; // 8 = padding
         const float totalW = btn + 8.0f;
 
         // Backdrop
@@ -98,7 +98,7 @@ namespace pg
                                    btn, btn,
                                    {255.0f, 255.0f, 255.0f, 80.0f});
 
-        // Place button
+        // Place button (slot 0)
         const float placeY = ty;
         toolPlaceBtn = makeUIQuad(ecsRef, tx, placeY, 2.0f,
                                   btn, btn,
@@ -107,17 +107,26 @@ namespace pg
                                     "P", 1.0f,
                                     {220.0f, 220.0f, 220.0f, 255.0f});
 
-        // Pick button
-        const float pickY = ty + btn + gap;
-        toolPickBtn = makeUIQuad(ecsRef, tx, pickY, 2.0f,
-                                 btn, btn,
-                                 {120.0f, 60.0f, 60.0f, 220.0f});
-        toolPickLabel = makeUIText(ecsRef, tx + 14.0f, pickY + 12.0f, 3.0f,
-                                   "E", 1.0f,
-                                   {220.0f, 220.0f, 220.0f, 255.0f});
+        // Erase button (slot 1)
+        const float eraseY = ty + btn + gap;
+        toolEraseBtn = makeUIQuad(ecsRef, tx, eraseY, 2.0f,
+                                  btn, btn,
+                                  {120.0f, 60.0f, 60.0f, 220.0f});
+        toolEraseLabel = makeUIText(ecsRef, tx + 14.0f, eraseY + 12.0f, 3.0f,
+                                    "E", 1.0f,
+                                    {220.0f, 220.0f, 220.0f, 255.0f});
 
-        // Color swatch button (shows active color, opens palette modal)
-        const float colorY = ty + (btn + gap) * 2.0f;
+        // ColorPick button (slot 2)
+        const float pickY = ty + (btn + gap) * 2.0f;
+        toolColorPickBtn = makeUIQuad(ecsRef, tx, pickY, 2.0f,
+                                      btn, btn,
+                                      {60.0f, 120.0f, 80.0f, 220.0f});
+        toolColorPickLabel = makeUIText(ecsRef, tx + 14.0f, pickY + 12.0f, 3.0f,
+                                        "C", 1.0f,
+                                        {220.0f, 220.0f, 220.0f, 255.0f});
+
+        // Color swatch button (slot 3 — shows active color, opens palette modal)
+        const float colorY = ty + (btn + gap) * 3.0f;
         const glm::vec4& col = editor->canvas->palette[static_cast<size_t>(editor->activeColor)];
         toolColorBtn = makeUIQuad(ecsRef, tx, colorY, 2.0f,
                                   btn, btn,
@@ -865,9 +874,11 @@ namespace pg
         {
             cachedTool = editor->activeTool;
 
-            float hlY = ty;
-            if (cachedTool == EditorTool::ColorPick)
-                hlY = ty + btn + gap;
+            float hlY = ty; // Place (slot 0)
+            if (cachedTool == EditorTool::Erase)
+                hlY = ty + btn + gap;            // slot 1
+            else if (cachedTool == EditorTool::ColorPick)
+                hlY = ty + (btn + gap) * 2.0f;   // slot 2
 
             if (auto* pos = ecsRef->getComponent<PositionComponent>(toolHighlight.id))
                 pos->setY(hlY);
@@ -1150,8 +1161,10 @@ namespace pg
         setVis(toolHighlight);
         setVis(toolPlaceBtn);
         setVis(toolPlaceLabel);
-        setVis(toolPickBtn);
-        setVis(toolPickLabel);
+        setVis(toolEraseBtn);
+        setVis(toolEraseLabel);
+        setVis(toolColorPickBtn);
+        setVis(toolColorPickLabel);
         setVis(toolColorBtn);
 
         // Layer panel

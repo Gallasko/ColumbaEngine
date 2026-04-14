@@ -21,6 +21,9 @@ namespace pg
      *
      * Keyboard:
      *   Tab       — toggle edit / fly mode
+     *   P         — switch to Place tool
+     *   E         — switch to Erase tool
+     *   C         — switch to ColorPick tool
      *   Ctrl+Z    — undo last command
      *   Ctrl+Y    — redo
      *   Ctrl+S    — save project
@@ -28,8 +31,9 @@ namespace pg
      *   Ctrl+E    — export OBJ
      *
      * Mouse (edit mode only):
-     *   Left-click  — place block at the hovered empty cell under the cursor.
-     *   Right-click — remove the hovered block.
+     *   Place tool:     Left-click places, Right-click removes.
+     *   Erase tool:     Left-click removes the hovered block.
+     *   ColorPick tool: Left-click samples color from hovered block.
      *
      * Clicks over UI panels (palette, layers) are consumed by the UI and do
      * not reach the 3D world.

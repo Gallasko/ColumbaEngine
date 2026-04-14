@@ -97,6 +97,14 @@ namespace pg
 
         const bool ctrl = (event.mod & KMOD_CTRL) != 0;
 
+        // Tool shortcuts (non-Ctrl, edit mode only)
+        if (!ctrl && editMode)
+        {
+            if (event.key == SDL_SCANCODE_P) { activeTool = EditorTool::Place;     return; }
+            if (event.key == SDL_SCANCODE_E) { activeTool = EditorTool::Erase;     return; }
+            if (event.key == SDL_SCANCODE_C) { activeTool = EditorTool::ColorPick; return; }
+        }
+
         // Ctrl+Z — undo
         if (ctrl && event.key == SDL_SCANCODE_Z && !undoStack.empty())
         {
@@ -165,9 +173,18 @@ namespace pg
         if (ghostEntity.empty())
             return;
 
-        const glm::vec4 col = canvas->palette[static_cast<size_t>(activeColor)];
-        // Semi-transparent version of the active color (alpha ~40%).
-        const glm::vec4 ghostColor{ col.r, col.g, col.b, 100.0f };
+        glm::vec4 ghostColor;
+        if (activeTool == EditorTool::Erase)
+        {
+            // Dark overlay to indicate block will be deleted.
+            ghostColor = { 0.0f, 0.0f, 0.0f, 150.0f };
+        }
+        else
+        {
+            const glm::vec4 col = canvas->palette[static_cast<size_t>(activeColor)];
+            // Semi-transparent version of the active color (alpha ~40%).
+            ghostColor = { col.r, col.g, col.b, 100.0f };
+        }
 
         if (ghostCell == cell)
         {
@@ -257,13 +274,35 @@ namespace pg
         glm::ivec3 hitCell{ -1,-1,-1 }, placeCell{ -1,-1,-1 };
         const bool hit = raycast(mouseX, mouseY, hitCell, placeCell);
 
-        if (hit && canvas->inBounds(placeCell.x, placeCell.y, placeCell.z)
-                && canvas->at(placeCell.x, placeCell.y, placeCell.z).empty())
+        // if (activeTool == EditorTool::Erase)
+        // {
+        //     // In erase mode, ghost overlays the occupied block to darken it.
+        //     if (hit && canvas->inBounds(hitCell.x, hitCell.y, hitCell.z)
+        //             && !canvas->at(hitCell.x, hitCell.y, hitCell.z).empty())
+        //     {
+        //         updateGhost(hitCell);
+        //     }
+        //     else
+        //     {
+        //         hideGhost();
+        //     }
+        // }
+        // else
+        if (activeTool == EditorTool::Place)
         {
-            updateGhost(placeCell);
+            if (hit && canvas->inBounds(placeCell.x, placeCell.y, placeCell.z)
+                    && canvas->at(placeCell.x, placeCell.y, placeCell.z).empty())
+            {
+                updateGhost(placeCell);
+            }
+            else
+            {
+                hideGhost();
+            }
         }
         else
         {
+            // ColorPick — no ghost preview.
             hideGhost();
         }
     }
@@ -330,6 +369,27 @@ namespace pg
                         activeColor = static_cast<int>(canvas->palette.size()) - 1;
                     }
                 }
+            }
+            return;
+        }
+
+        // Erase tool: left-click removes the hit block
+        if (activeTool == EditorTool::Erase && !rightBtn)
+        {
+            if (hit && canvas->inBounds(hitCell.x, hitCell.y, hitCell.z)
+                    && !canvas->at(hitCell.x, hitCell.y, hitCell.z).empty())
+            {
+                removeBlock(hitCell);
+
+                // // Re-evaluate ghost after removal.
+                // ghostCell = { -1, -1, -1 };
+                // glm::ivec3 newHit{ -1,-1,-1 }, newPlace{ -1,-1,-1 };
+                // const bool newRayHit = raycast(px, py, newHit, newPlace);
+                // if (newRayHit && canvas->inBounds(newHit.x, newHit.y, newHit.z)
+                //               && !canvas->at(newHit.x, newHit.y, newHit.z).empty())
+                //     updateGhost(newHit);
+                // else
+                //     hideGhost();
             }
             return;
         }
@@ -495,23 +555,31 @@ namespace pg
             const int btn = TOOLBAR_BTN;
             const int gap = TOOLBAR_GAP;
 
-            // Place button
+            // Place button (slot 0)
             if (px >= tx && px < tx + btn && py >= ty && py < ty + btn)
             {
                 activeTool = EditorTool::Place;
                 return true;
             }
 
-            // Pick button
-            const int pickY = ty + btn + gap;
+            // Erase button (slot 1)
+            const int eraseY = ty + btn + gap;
+            if (px >= tx && px < tx + btn && py >= eraseY && py < eraseY + btn)
+            {
+                activeTool = EditorTool::Erase;
+                return true;
+            }
+
+            // ColorPick button (slot 2)
+            const int pickY = ty + (btn + gap) * 2;
             if (px >= tx && px < tx + btn && py >= pickY && py < pickY + btn)
             {
                 activeTool = EditorTool::ColorPick;
                 return true;
             }
 
-            // Color swatch button (opens palette modal)
-            const int colorY = ty + (btn + gap) * 2;
+            // Color swatch button (slot 3 — opens palette modal)
+            const int colorY = ty + (btn + gap) * 3;
             if (px >= tx && px < tx + btn && py >= colorY && py < colorY + btn)
             {
                 togglePaletteModal();
