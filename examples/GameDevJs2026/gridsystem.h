@@ -7,6 +7,7 @@
 #include "2D/texture.h"
 
 #include "grid.h"
+#include "buildingregistry.h"
 
 using namespace pg;
 
@@ -49,7 +50,7 @@ struct ConveyorEntry
 class GridSystem : public System<InitSys, Listener<TickEvent>>
 {
 public:
-    GridSystem() {}
+    GridSystem(BuildingRegistry* registry) : registry(registry) {}
 
     virtual std::string getSystemName() const override { return "Grid System"; }
 
@@ -96,7 +97,127 @@ public:
         deltaTime = 0.0f;
     }
 
-    // Place a tile on the grid
+    // Place a building on the grid using its BuildingDef
+    void placeBuilding(size_t layer, int x, int y, const BuildingDef& def, size_t direction, size_t conveyorTileIndex = LINE_RIGHT_1)
+    {
+        // Check all cells are free and in bounds
+        for (int dy = 0; dy < def.gridH; ++dy)
+            for (int dx = 0; dx < def.gridW; ++dx)
+                if (not grid.isInBounds(x + dx, y + dy) or
+                    grid.getCell(layer, x + dx, y + dy).tileId != 0)
+                    return;
+
+        auto [worldX, worldY] = grid.gridToWorld(x, y);
+        float z = grid.getLayer(layer).zIndex;
+        uint64_t entityId = 0;
+
+        if (def.isAnimated and not def.textureName.empty())
+        {
+            // Animated sprite (conveyor belts)
+            size_t frameIndex = conveyorTileIndex * NUM_ANIM_FRAMES + currentFrame;
+            std::string texName = def.textureName + "." + std::to_string(frameIndex);
+
+            auto tex = make2DTexture(ecsRef,
+                static_cast<float>(Grid::TILE_SIZE * def.gridW),
+                static_cast<float>(Grid::TILE_SIZE * def.gridH),
+                texName);
+
+            auto pos = tex.get<PositionComponent>();
+            pos->setX(worldX);
+            pos->setY(worldY);
+            pos->setZ(z);
+
+            tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+            entityId = tex.entity->id;
+
+            conveyors.push_back({entityId, conveyorTileIndex});
+        }
+        else if (not def.textureName.empty())
+        {
+            // Static texture
+            auto tex = make2DTexture(ecsRef,
+                static_cast<float>(Grid::TILE_SIZE * def.gridW),
+                static_cast<float>(Grid::TILE_SIZE * def.gridH),
+                def.textureName);
+
+            auto pos = tex.get<PositionComponent>();
+            pos->setX(worldX);
+            pos->setY(worldY);
+            pos->setZ(z);
+
+            tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+            entityId = tex.entity->id;
+        }
+        else
+        {
+            // Colored square placeholder
+            auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, def.color);
+            auto pos = shape.get<PositionComponent>();
+            pos->setX(worldX);
+            pos->setY(worldY);
+            pos->setZ(z);
+            pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def.gridW));
+            pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def.gridH));
+
+            shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+            entityId = shape.entity->id;
+        }
+
+        // Mark all cells in the footprint
+        for (int dy = 0; dy < def.gridH; ++dy)
+        {
+            for (int dx = 0; dx < def.gridW; ++dx)
+            {
+                auto& cell = grid.getCell(layer, x + dx, y + dy);
+                cell.tileId = def.tileId;
+                cell.direction = static_cast<uint8_t>(direction);
+                cell.ownerX = static_cast<int8_t>(x);
+                cell.ownerY = static_cast<int8_t>(y);
+                cell.isOwner = (dx == 0 and dy == 0);
+                cell.entityId = (dx == 0 and dy == 0) ? entityId : 0;
+            }
+        }
+    }
+
+    // Remove a building from the grid (handles multi-cell)
+    void removeBuilding(size_t layer, int x, int y)
+    {
+        if (not grid.isInBounds(x, y))
+            return;
+
+        auto& cell = grid.getCell(layer, x, y);
+        if (cell.tileId == 0)
+            return;
+
+        // Find the owner cell
+        int ox = cell.isOwner ? x : static_cast<int>(cell.ownerX);
+        int oy = cell.isOwner ? y : static_cast<int>(cell.ownerY);
+        auto& ownerCell = grid.getCell(layer, ox, oy);
+
+        // Remove entity
+        if (ownerCell.entityId != 0)
+        {
+            removeConveyorEntry(ownerCell.entityId);
+            ecsRef->removeEntity(ownerCell.entityId);
+        }
+
+        // Look up building def to know the footprint
+        const BuildingDef* def = registry->findByTileId(ownerCell.tileId);
+        int w = def ? def->gridW : 1;
+        int h = def ? def->gridH : 1;
+
+        // Clear all cells in the footprint
+        for (int dy = 0; dy < h; ++dy)
+        {
+            for (int dx = 0; dx < w; ++dx)
+            {
+                if (grid.isInBounds(ox + dx, oy + dy))
+                    grid.getCell(layer, ox + dx, oy + dy) = CellData{};
+            }
+        }
+    }
+
+    // Legacy: place a single-cell tile (kept for backward compat with setCell/clearCell calls)
     void setCell(size_t layer, int x, int y, uint16_t tileId, size_t conveyorTileIndex = LINE_RIGHT_1)
     {
         if (not grid.isInBounds(x, y))
@@ -161,6 +282,8 @@ public:
     size_t getTerrainLayer() const { return terrainLayer; }
     size_t getBuildingLayer() const { return buildingLayer; }
     size_t getItemLayer() const { return itemLayer; }
+
+    size_t getCurrentAnimFrame() const { return currentFrame; }
 
 private:
     static constexpr size_t NUM_ANIM_FRAMES = 8;
@@ -235,9 +358,13 @@ private:
             case 2: return {140.0f, 140.0f, 160.0f, 255.0f};  // Stone / building
             case 3: return {200.0f, 160.0f, 60.0f, 255.0f};   // Item / resource
             case 4: return {100.0f, 160.0f, 220.0f, 255.0f};  // Conveyor
+            case 5: return {200.0f, 100.0f, 60.0f, 255.0f};   // Furnace
+            case 6: return {120.0f, 80.0f, 180.0f, 255.0f};   // Assembler
             default: return {200.0f, 200.0f, 200.0f, 255.0f}; // Generic
         }
     }
+
+    BuildingRegistry* registry = nullptr;
 
     Grid grid;
     float deltaTime = 0.0f;

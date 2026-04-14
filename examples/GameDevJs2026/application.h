@@ -2,6 +2,7 @@
 #define APPLICATION_H
 
 #include "engine.h"
+#include "buildingregistry.h"
 
 class GameApp
 {
@@ -13,6 +14,7 @@ public:
 
 private:
     pg::Engine engine;
+    BuildingRegistry registry;
 };
 
 #endif

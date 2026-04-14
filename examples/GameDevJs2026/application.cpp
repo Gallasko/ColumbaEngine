@@ -10,6 +10,8 @@ using namespace pg;
 
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
+    registry = createDefaultRegistry();
+
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
         auto config = engine.getConfig();
@@ -27,15 +29,19 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<AsepriteFileAtlasLoader>(anim));
 
+        float screenW = static_cast<float>(config.width);
+        float screenH = static_cast<float>(config.height);
+
         // Camera must be created first so it exists before grid renders
         auto* cameraSystem = ecs.createSystem<CameraSystem>(
-            window.masterRenderer,
-            static_cast<float>(config.width),
-            static_cast<float>(config.height));
+            window.masterRenderer, screenW, screenH);
 
-        auto* gridSystem = ecs.createSystem<GridSystem>();
+        auto* gridSystem = ecs.createSystem<GridSystem>(&registry);
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem);
+        auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(
+            &registry, screenW, screenH);
+
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry);
     });
 }
 

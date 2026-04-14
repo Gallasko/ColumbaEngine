@@ -175,6 +175,8 @@ public:
     EntityRef getCameraEntity() const { return cameraEntity; }
     float getLastMouseX() const { return lastMouseX; }
     float getLastMouseY() const { return lastMouseY; }
+    float getScreenWidth() const { return baseWidth; }
+    float getScreenHeight() const { return baseHeight; }
 
 private:
     MasterRenderer* masterRenderer = nullptr;
