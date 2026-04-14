@@ -118,14 +118,22 @@ private:
 
     // Corner tile mapping: cornerTileMap[enterDir][exitDir]
     // enterDir/exitDir: 0=Right, 1=Down, 2=Left, 3=Up
-    // Note: exact mapping may need visual verification against sprite atlas
+    //
+    // (X,Y) in corner_XX_X_Y = the OPEN/EMPTY corner position:
+    //   (0,0) empty top-left    → belt bottom-right → connects Bottom+Right
+    //   (1,0) empty top-right   → belt bottom-left  → connects Bottom+Left
+    //   (0,1) empty bottom-left → belt top-right    → connects Top+Right
+    //   (1,1) empty bottom-right→ belt top-left     → connects Top+Left
+    //
+    // CW turns:  R→D=1_0, D→L=1_1, L→U=0_1, U→R=0_0
+    // CCW turns: R→U=1_1, D→R=0_1, L→D=0_0, U→L=1_0
     static constexpr size_t INVALID_CORNER = SIZE_MAX;
     static constexpr size_t cornerTileMap[4][4] = {
         //                exit: Right          Down             Left             Up
-        /* enter Right */ {INVALID_CORNER, CORNER_CW_0_0,  INVALID_CORNER, CORNER_CCW_0_0},
-        /* enter Down  */ {CORNER_CCW_1_1, INVALID_CORNER, CORNER_CW_1_0,  INVALID_CORNER},
-        /* enter Left  */ {INVALID_CORNER, CORNER_CCW_0_1, INVALID_CORNER, CORNER_CW_0_1},
-        /* enter Up    */ {CORNER_CW_1_1,  INVALID_CORNER, CORNER_CCW_1_0, INVALID_CORNER},
+        /* enter Right */ {INVALID_CORNER, CORNER_CW_1_0,  INVALID_CORNER, CORNER_CCW_1_1},
+        /* enter Down  */ {CORNER_CCW_0_1, INVALID_CORNER, CORNER_CW_1_1,  INVALID_CORNER},
+        /* enter Left  */ {INVALID_CORNER, CORNER_CCW_0_0, INVALID_CORNER, CORNER_CW_0_1},
+        /* enter Up    */ {CORNER_CW_0_0,  INVALID_CORNER, CORNER_CCW_1_0, INVALID_CORNER},
     };
 
     const BuildingDef& getSelectedDef() const

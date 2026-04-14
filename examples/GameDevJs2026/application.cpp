@@ -39,7 +39,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* gridSystem = ecs.createSystem<GridSystem>(&registry);
 
         auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(
-            &registry, screenW, screenH);
+            &registry, window.masterRenderer, screenW, screenH);
 
         ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry);
     });

@@ -4,10 +4,15 @@
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 #include "Input/inputcomponent.h"
+#include "Renderer/renderer.h"
+#include "Renderer/camera.h"
 
 #include "buildingregistry.h"
 
 using namespace pg;
+
+// Viewport index for the toolbar UI camera
+static constexpr size_t UI_VIEWPORT = 2;
 
 class ToolbarSystem : public System<InitSys, Listener<OnSDLScanCode>, QueuedListener<OnMouseClick>>
 {
@@ -17,13 +22,14 @@ public:
     static constexpr float SLOT_SPACING = 4.0f;
     static constexpr float SLOT_PADDING = 8.0f; // Padding from toolbar edges
 
-    ToolbarSystem(BuildingRegistry* registry, float screenWidth, float screenHeight)
-        : registry(registry), screenWidth(screenWidth), screenHeight(screenHeight) {}
+    ToolbarSystem(BuildingRegistry* registry, MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
+        : registry(registry), masterRenderer(masterRenderer), screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Toolbar System"; }
 
     void init() override
     {
+        createUICamera();
         createToolbarUI();
     }
 
@@ -48,8 +54,8 @@ public:
             return;
 
         // Determine which slot was clicked
-        float totalWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
-        float startX = (screenWidth - totalWidth) * 0.5f;
+        float totalSlotsWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
+        float startX = (screenWidth - totalSlotsWidth) * 0.5f;
 
         for (size_t i = 0; i < registry->count(); ++i)
         {
@@ -83,6 +89,16 @@ private:
         printf("Selected: %s\n", registry->get(index).name.c_str());
     }
 
+    void createUICamera()
+    {
+        // Create a 2D orthographic camera for the UI, registered as viewport 2
+        uiCameraEntity = ecsRef->createEntity();
+        auto cam = ecsRef->_attach<BaseCamera2D>(uiCameraEntity);
+        cam->setWidth(screenWidth);
+        cam->setHeight(screenHeight);
+        masterRenderer->queueRegisterCamera(uiCameraEntity->id);
+    }
+
     void createToolbarUI()
     {
         // Backdrop bar at bottom of screen
@@ -95,11 +111,11 @@ private:
         backdropPos->setZ(0.9f);
         backdropPos->setWidth(screenWidth);
         backdropPos->setHeight(TOOLBAR_HEIGHT);
-        // Viewport 0 = default screen-space (no setViewport needed)
+        backdrop.get<Simple2DObject>()->setViewport(UI_VIEWPORT);
 
         // Create slots centered horizontally
-        float totalWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
-        float startX = (screenWidth - totalWidth) * 0.5f;
+        float totalSlotsWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
+        float startX = (screenWidth - totalSlotsWidth) * 0.5f;
         float slotY = screenHeight - TOOLBAR_HEIGHT + SLOT_PADDING;
 
         for (size_t i = 0; i < registry->count(); ++i)
@@ -119,6 +135,7 @@ private:
                 pos->setX(slotX);
                 pos->setY(slotY);
                 pos->setZ(0.95f);
+                slot.get<Texture2DComponent>()->setViewport(UI_VIEWPORT);
 
                 slotId = slot.entity->id;
             }
@@ -133,6 +150,7 @@ private:
                 pos->setZ(0.95f);
                 pos->setWidth(SLOT_SIZE);
                 pos->setHeight(SLOT_SIZE);
+                slot.get<Simple2DObject>()->setViewport(UI_VIEWPORT);
 
                 slotId = slot.entity->id;
             }
@@ -148,6 +166,7 @@ private:
         hlPos->setZ(0.96f);
         hlPos->setWidth(SLOT_SIZE + 4.0f);
         hlPos->setHeight(SLOT_SIZE + 4.0f);
+        highlight.get<Simple2DObject>()->setViewport(UI_VIEWPORT);
 
         highlightEntityId = highlight.entity->id;
         updateHighlight();
@@ -173,9 +192,11 @@ private:
     }
 
     BuildingRegistry* registry = nullptr;
+    MasterRenderer* masterRenderer = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
+    EntityRef uiCameraEntity;
     size_t selectedSlot = 0;
     std::vector<uint64_t> slotEntityIds;
     uint64_t highlightEntityId = 0;
