@@ -97,7 +97,7 @@ public:
     }
 
     // Place a tile on the grid
-    void setCell(size_t layer, int x, int y, uint16_t tileId)
+    void setCell(size_t layer, int x, int y, uint16_t tileId, size_t conveyorTileIndex = LINE_RIGHT_1)
     {
         if (not grid.isInBounds(x, y))
             return;
@@ -123,7 +123,7 @@ public:
 
         if (tileId == 4) // Conveyor belt - use sprite
         {
-            createConveyorEntity(cell, worldX, worldY, z);
+            createConveyorEntity(cell, worldX, worldY, z, conveyorTileIndex);
         }
         else // Other tiles - use colored squares
         {
@@ -196,11 +196,8 @@ private:
         }
     }
 
-    void createConveyorEntity(CellData& cell, float worldX, float worldY, float z)
+    void createConveyorEntity(CellData& cell, float worldX, float worldY, float z, size_t tileIndex)
     {
-        // Default to right-facing middle tile
-        size_t tileIndex = LINE_RIGHT_1;
-
         // Use the current global animation frame so new conveyors are immediately in sync
         size_t frameIndex = tileIndex * NUM_ANIM_FRAMES + currentFrame;
         std::string texName = "Conveyor_Belt." + std::to_string(frameIndex);
