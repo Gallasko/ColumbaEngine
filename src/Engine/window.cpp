@@ -352,8 +352,9 @@ namespace pg
         LOG_INFO(DOM, "Enable depth testing");
         glEnable(GL_ALPHA_TEST);
         LOG_INFO(DOM, "Enable alpha testing");
+        // Blend is now managed per-draw-call via OpenGLState (default: on, SrcAlpha/OneMinusSrcAlpha).
+        // The initial GL state must match OpenGLState defaults so the first setState() diff is correct.
         glEnable(GL_BLEND);
-        LOG_INFO(DOM, "Enable blending");
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
         LOG_INFO(DOM, "GL functions set");
 
@@ -561,6 +562,13 @@ namespace pg
 
             case SDL_KEYDOWN:
                 LOG_MILE(DOM, "Key pressed : " << event.key.keysym.scancode);
+                // Todo make the key configurable
+                // F9 toggles borderless fullscreen. Gated on key.repeat == 0
+                // so holding the key doesn't spam the toggle at key-repeat rate.
+                if (event.key.keysym.scancode == SDL_SCANCODE_F9 and event.key.repeat == 0)
+                {
+                    toggleFullscreen();
+                }
                 inputHandler->registerKeyInput(event.key.keysym.scancode, Input::InputState::KEYPRESSED);
                 ecs->sendEvent(OnSDLScanCode{event.key.keysym.scancode, event.key.keysym.mod});
                 break;
@@ -577,9 +585,14 @@ namespace pg
             case SDL_MOUSEMOTION:
             {
                 Point2D currentPos {static_cast<float>(event.motion.x), static_cast<float>(event.motion.y)};
-                Point2D mouseDelta {(mousePos->x - currentPos.x) * xSensitivity, (currentPos.y - mousePos->y) * ySensitivity};
+                Point2D mouseDelta {(currentPos.x - mousePos->x) * xSensitivity, (currentPos.y - mousePos->y) * ySensitivity};
 
                 inputHandler->registerMouseMove(currentPos, mouseDelta);
+
+                // Forward the raw SDL motion (including xrel/yrel) so FPS-style
+                // look controllers can consume the delta directly without
+                // racing the main-thread input reset that zeroes mouseDelta.
+                ecs->sendEvent(OnSDLMouseMotion{event.motion.x, event.motion.y, event.motion.xrel, event.motion.yrel});
 
                 *mousePos = currentPos;
                 break;
@@ -652,6 +665,53 @@ namespace pg
         // }
 
         ecs->sendEvent(ResizeEvent{static_cast<float>(width), static_cast<float>(height)});
+    }
+
+    void Window::setCursorLocked(bool locked)
+    {
+        if (not window)
+            return;
+
+        if (locked)
+        {
+            SDL_ShowCursor(SDL_DISABLE);
+
+            // Use SDL_GetWindowSize rather than the cached width/height so we
+            // stay correct after a resize even if the cache is stale.
+            int w = 0, h = 0;
+            SDL_GetWindowSize(window, &w, &h);
+
+            const int cx = w / 2;
+            const int cy = h / 2;
+
+            SDL_WarpMouseInWindow(window, cx, cy);
+
+            // Keep the engine's own mousePos cache in sync so the next
+            // SDL_MOUSEMOTION delta computed in processEvents() is relative
+            // to the center, not to the stale pre-warp position.
+            if (mousePos)
+                *mousePos = Point2D{static_cast<float>(cx), static_cast<float>(cy)};
+        }
+        else
+        {
+            SDL_ShowCursor(SDL_ENABLE);
+        }
+    }
+
+    void Window::toggleFullscreen()
+    {
+        if (not window)
+            return;
+
+        const Uint32 flags = SDL_GetWindowFlags(window);
+        const bool currentlyFullscreen = (flags & SDL_WINDOW_FULLSCREEN_DESKTOP) != 0;
+
+        // SDL_WINDOW_FULLSCREEN_DESKTOP is a superset of SDL_WINDOW_FULLSCREEN
+        // in terms of flag bits, so the check above catches both.
+        if (SDL_SetWindowFullscreen(window, currentlyFullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP) != 0)
+        {
+            LOG_ERROR(DOM, "SDL_SetWindowFullscreen failed: " << SDL_GetError());
+        }
     }
 
     void Window::render()

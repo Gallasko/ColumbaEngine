@@ -24,6 +24,12 @@ if(USE_CCACHE)
         message(STATUS "Enabling ccache to speed up rebuilds")
         set(CMAKE_C_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
         set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+
+        # ccache + GCC/MinGW PCH need extra sloppiness, otherwise PCH-built TUs
+        # always miss the cache. These settings are safe for normal builds and
+        # are required for the PCH on ColumbaEngine to actually pay off.
+        # See: https://ccache.dev/manual/latest.html#_precompiled_headers
+        set(ENV{CCACHE_SLOPPINESS} "pch_defines,time_macros,include_file_mtime,include_file_ctime")
     else()
         message(WARNING "ccache requested but not found - install with: sudo apt install ccache")
     endif()
@@ -444,13 +450,31 @@ endif()
 # Create the full engine library with generated components
 add_library(ColumbaEngine STATIC ${ENGINESOURCE} ${GENERATED_COMPONENT_SOURCES})
 
-# Todo find why the pch doesn't work on windows
-if(MINGW)
-    set_target_properties(ColumbaEngine PROPERTIES DISABLE_PRECOMPILE_HEADERS ON)
-endif()
-
 # Set precompiled headers - but don't make them public for consumers
+# PCH is enabled on all platforms including MinGW. If you hit PCH-related
+# build errors on MinGW, the most common cause is ccache: make sure
+# CCACHE_SLOPPINESS includes pch_defines,time_macros (configured above).
 target_precompile_headers(ColumbaEngine PRIVATE src/Engine/stdafx.h)
+
+# # Unity build: batch source files together to share template instantiations
+# # and reduce redundant header parsing. Combined with PCH this is the biggest
+# # clean win for full-rebuild times.
+# #
+# # Batch size note: this engine has very heavy ECS templates (entitysystem.h,
+# # System<...> instantiations, taskflow). On 32-bit MinGW, cc1plus has a
+# # ~2 GB address-space limit and silently dies when a unity TU instantiates
+# # too many template specializations at once. Keep the batch size small —
+# # 4 is a safe value that still gives most of the unity-build benefit.
+# # 64-bit toolchains (msys2 mingw-w64, clang) can handle much larger batches.
+# #
+# # If you hit anonymous-namespace symbol clashes (e.g. multiple
+# # `static const char* DOM` in the same batch), either rename the offending
+# # symbol to be file-unique or set UNITY_BUILD_MODE to GROUP and audit the
+# # groupings manually.
+# set_target_properties(ColumbaEngine PROPERTIES
+#     UNITY_BUILD ON
+#     UNITY_BUILD_BATCH_SIZE 4
+# )
 
 # Make ColumbaEngine depend on component regeneration (native builds only)
 if(COMPONENT_DEFINITIONS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Emscripten" AND NOT SKIP_COMPONENT_GENERATION)
@@ -793,6 +817,29 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(VoxelTest examples/VoxelTest/main.cpp)
+
+        target_include_directories(VoxelTest PUBLIC examples/VoxelTest)
+
+        target_sources(VoxelTest PRIVATE
+            examples/VoxelTest/application.cpp
+            examples/VoxelTest/cubemesh.cpp
+            examples/VoxelTest/voxelrenderer.cpp
+            examples/VoxelTest/camera3dcontroller.cpp
+            examples/VoxelTest/camera3dcontrollereditor.cpp
+            examples/VoxelTest/editorsystem.cpp
+            examples/VoxelTest/editorui.cpp
+            examples/VoxelTest/voxelserializer.cpp
+        )
+
+        target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
+
+        set_target_properties(VoxelTest
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
     else()
         add_executable(ColumbaEngineEditor src/main.cpp)
 
@@ -972,6 +1019,25 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
         )
 
         target_link_libraries(StandardSys PRIVATE ColumbaEngine)
+
+        ###
+
+        add_executable(VoxelTest examples/VoxelTest/main.cpp)
+
+        target_include_directories(VoxelTest PUBLIC examples/VoxelTest)
+
+        target_sources(VoxelTest PRIVATE
+            examples/VoxelTest/application.cpp
+            examples/VoxelTest/cubemesh.cpp
+            examples/VoxelTest/voxelrenderer.cpp
+            examples/VoxelTest/camera3dcontroller.cpp
+            examples/VoxelTest/camera3dcontrollereditor.cpp
+            examples/VoxelTest/editorsystem.cpp
+            examples/VoxelTest/editorui.cpp
+            examples/VoxelTest/voxelserializer.cpp
+        )
+
+        target_link_libraries(VoxelTest PRIVATE ColumbaEngine)
 
         ###
 

@@ -604,16 +604,13 @@ namespace pg
 
     void MasterRenderer::setState(const OpenGLState& state)
     {
+        // Scissor
         if (currentState.scissorEnabled != state.scissorEnabled)
         {
             if (state.scissorEnabled)
-            {
                 glEnable(GL_SCISSOR_TEST);
-            }
             else
-            {
                 glDisable(GL_SCISSOR_TEST);
-            }
         }
 
         if (currentState.scissorBound != state.scissorBound)
@@ -623,6 +620,34 @@ namespace pg
 
             //glScissor defined the box from the bottom left corner (x, y, w, h);
             glScissor(state.scissorBound.x, (screenHeight - state.scissorBound.w) - state.scissorBound.y, state.scissorBound.z, state.scissorBound.w);
+        }
+
+        // Depth test
+        if (currentState.depthTestEnabled != state.depthTestEnabled)
+        {
+            if (state.depthTestEnabled)
+                glEnable(GL_DEPTH_TEST);
+            else
+                glDisable(GL_DEPTH_TEST);
+        }
+
+        if (currentState.depthFunc != state.depthFunc)
+        {
+            glDepthFunc(static_cast<GLenum>(state.depthFunc));
+        }
+
+        // Blend
+        if (currentState.blendEnabled != state.blendEnabled)
+        {
+            if (state.blendEnabled)
+                glEnable(GL_BLEND);
+            else
+                glDisable(GL_BLEND);
+        }
+
+        if (currentState.blendSrc != state.blendSrc or currentState.blendDst != state.blendDst)
+        {
+            glBlendFunc(static_cast<GLenum>(state.blendSrc), static_cast<GLenum>(state.blendDst));
         }
 
         currentState = state;
@@ -674,6 +699,7 @@ namespace pg
 
         if (viewport == 0)
         {
+            projection = camera.getProjectionMatrix();
             view = camera.getViewMatrix();
         }
         else
@@ -686,10 +712,8 @@ namespace pg
             }
             else
             {
+                projection = cameraList[cameraIndex]->getProjectionMatrix();
                 view = cameraList[cameraIndex]->getViewMatrix();
-
-                // Todo fix this
-                // projection = cameraList[cameraIndex]->getProjectionMatrix();
             }
         }
 

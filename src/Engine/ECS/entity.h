@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_set>
+#include <unordered_map>
 #include <algorithm>
 
 #include "entityref.h"
@@ -75,6 +76,10 @@ namespace pg
         // Todo make this mutable because it is only used for memoisation purposes
         // std::unordered_map<_unique_id, Entity*> componentList;
         std::unordered_set<_unique_id> componentList;
+
+        // Components that have been attached while the ECS is running but not yet flushed
+        // Maps component type id -> raw pointer to the heap-allocated pending component
+        std::unordered_map<_unique_id, void*> pendingComponents;
 
         //Todo overload operator delete to call ecsRef->deleteEntity(this);
 

@@ -50,7 +50,7 @@ void main()
 	//gl_Position = projection * view * scale * model * vec4(aPos, 1.0f);
 	//glPosition = projection * view * scale * model * vec4(aPos, 1.0f);
 
-	TexCoord = vec2((1 - aPos.x) * aTexCoord.x  + aPos.x * aTexCoord.z, (1 + aPos.y) * aTexCoord.y  + (-1.0f * aPos.y) * aTexCoord.a);
+	TexCoord = vec2((1.0 - aPos.x) * aTexCoord.x  + aPos.x * aTexCoord.z, (1.0 + aPos.y) * aTexCoord.y  + (-1.0 * aPos.y) * aTexCoord.a);
 	// TexCoord = vec2((1 - aPos.x) * aTexCoord.x, (1 + aPos.y) * aTexCoord.y);
 	// TexCoord = vec2((1.0f - aPos.x) * aTexCoord.x + aPos.x * aTexCoord.z, (1.0f - aPos.y) * aTexCoord.y + aPos.y * aTexCoord.a);
 
