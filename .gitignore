@@ -18,6 +18,7 @@ CMakeCache.txt
 /clang*
 save/*
 res/**/*.pgc
+res/ext/*
 profile_data.csv
 global.sz
 *.generated.*

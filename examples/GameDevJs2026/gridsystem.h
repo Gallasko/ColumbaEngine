@@ -2,6 +2,9 @@
 
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
+#include "2D/texture.h"
+#include "2D/animator2d.h"
+#include "Loaders/Aseprite/asepriteloader.h"
 
 #include "grid.h"
 
@@ -67,19 +70,26 @@ public:
         auto [worldX, worldY] = grid.gridToWorld(x, y);
         float z = grid.getLayer(layer).zIndex;
 
-        constant::Vector4D color = getTileColor(tileId);
+        if (tileId == 4) // Conveyor belt - use animated sprite
+        {
+            createConveyorEntity(cell, worldX, worldY, z);
+        }
+        else // Other tiles - use colored squares
+        {
+            constant::Vector4D color = getTileColor(tileId);
 
-        auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, color);
-        auto pos = shape.get<PositionComponent>();
-        pos->setX(worldX);
-        pos->setY(worldY);
-        pos->setZ(z);
-        pos->setWidth(static_cast<float>(Grid::TILE_SIZE));
-        pos->setHeight(static_cast<float>(Grid::TILE_SIZE));
+            auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, color);
+            auto pos = shape.get<PositionComponent>();
+            pos->setX(worldX);
+            pos->setY(worldY);
+            pos->setZ(z);
+            pos->setWidth(static_cast<float>(Grid::TILE_SIZE));
+            pos->setHeight(static_cast<float>(Grid::TILE_SIZE));
 
-        shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+            shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
 
-        cell.entityId = shape.entity->id;
+            cell.entityId = shape.entity->id;
+        }
     }
 
     // Remove a tile from the grid
@@ -130,6 +140,42 @@ private:
                 bgEntities.push_back(shape.entity->id);
             }
         }
+    }
+
+    void createConveyorEntity(CellData& cell, float worldX, float worldY, float z)
+    {
+        auto* asepriteLoader = ecsRef->getSystem<AsepriteLoader>();
+
+        // Default to right-facing middle tile animation
+        std::string animName = "line_right_1";
+
+        auto& frames = asepriteLoader->getAnimationFrames("Conveyor_Belt", animName);
+
+        if (frames.empty())
+        {
+            printf("GridSystem: No animation frames found for %s\n", animName.c_str());
+            return;
+        }
+
+        // Create textured entity with the first frame's texture
+        auto tex = make2DTexture(ecsRef,
+            static_cast<float>(Grid::TILE_SIZE),
+            static_cast<float>(Grid::TILE_SIZE),
+            frames[0].textureName);
+
+        auto pos = tex.get<PositionComponent>();
+        pos->setX(worldX);
+        pos->setY(worldY);
+        pos->setZ(z);
+
+        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+
+        // Attach animation component with looping enabled
+        auto anim = ecsRef->attach<Texture2DAnimationComponent>(tex.entity, frames, true, true);
+        anim->start();
+        anim->overrideViewport(GAME_VIEWPORT);
+
+        cell.entityId = tex.entity->id;
     }
 
     constant::Vector4D getTileColor(uint16_t tileId) const
