@@ -15,12 +15,8 @@ namespace pg
      * that share the same material into a single draw call, so one frame
      * with N voxels becomes one glDrawElementsInstanced with N instances.
      *
-     * Projection is seeded at init from the initial window aspect ratio and
-     * refreshed in onResize() whenever the window size changes (F9 toggles
-     * borderless fullscreen via Window::toggleFullscreen). The engine's
-     * `projection` uniform is always identity for viewport 0, so this
-     * renderer uses a custom `uProjection` uniform that it owns and mutates
-     * directly on the registered material.
+     * Projection is provided by Camera::getProjectionMatrix() and set by
+     * the master renderer via the `projection` uniform each frame.
      */
     struct VoxelRenderSystem : public SimpleRenderer<VoxelComponent>
     {
@@ -32,18 +28,10 @@ namespace pg
 
         RenderCall createRenderCall(CompRef<VoxelComponent> voxel) override;
 
-        // Rebuild the perspective projection from the new aspect ratio and
-        // push it onto the registered material so the next frame uses it.
+        // Update the camera's aspect ratio from the new window dimensions.
         void onResize(float width, float height) override;
 
-        // Camera parameters, matching a classic FPS projection.
-        float fovDegrees = 60.0f;
-        float nearPlane  = 0.1f;
-        float farPlane   = 500.0f;
-
     private:
-        float aspect = 16.0f / 9.0f;
-
         // Shared across all voxel render calls so the engine can batch them.
         std::shared_ptr<CubeMesh> sharedCube;
     };

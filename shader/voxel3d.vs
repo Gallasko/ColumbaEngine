@@ -3,13 +3,8 @@ layout (location = 1) in vec3 aWorldPos;
 layout (location = 2) in vec3 aSize;
 layout (location = 3) in vec4 aColors;
 
-// Engine-provided uniform (set each frame from masterRenderer->camera.getViewMatrix()).
 uniform mat4 view;
-
-// Our own perspective projection — we use a unique name so it doesn't collide
-// with the engine's hard-coded identity `projection` uniform that would
-// overwrite whatever we put in the material's uniform map.
-uniform mat4 uProjection;
+uniform mat4 projection;
 
 out vec4 ourColor;
 out vec3 vWorldPos;
@@ -20,7 +15,7 @@ void main()
     vec3 worldPos = aWorldPos + aPos * aSize;
     vWorldPos = worldPos;
 
-    gl_Position = uProjection * view * vec4(worldPos, 1.0);
+    gl_Position = projection * view * vec4(worldPos, 1.0);
 
     ourColor = aColors;
 }

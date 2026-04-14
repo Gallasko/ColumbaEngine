@@ -41,11 +41,12 @@ namespace pg
     {
         // Seed the camera somewhere pulled back and slightly above the
         // ground plane so the whole test scene is visible on first frame.
+        // Point the camera at the centre of the base platform (8, 0, 8).
         masterRenderer->getCamera().init(
             glm::vec3(8.0f, 6.0f, 18.0f),   // position
             glm::vec3(0.0f, 1.0f, 0.0f),    // world up = +Y
-            -110.0f,                         // yaw (looking toward -Z and slightly -X)
-            -20.0f);                         // pitch (slightly downward)
+            -90.0f,                          // yaw (looking straight along -Z)
+            -31.0f);                         // pitch (down toward platform centre)
 
         // Lock the cursor to the window so the user can rotate the camera
         // freely without having to hold a mouse button. LAlt (handled in the
@@ -90,9 +91,10 @@ namespace pg
             return;
         }
 
-        // While the cursor is unlocked (LAlt held) we ignore mouse motion so
-        // the user can click around the window without yanking the view.
-        if (not cursorLocked)
+        // While the cursor is unlocked (LAlt held or edit mode active) we
+        // ignore mouse motion so the user can interact with the UI / scene
+        // without yanking the view.
+        if (not cursorLocked or editMode)
             return;
 
         auto& cam = masterRenderer->getCamera();
@@ -150,7 +152,8 @@ namespace pg
 
         // --- Cursor lock toggle (hold LAlt to free the cursor) ---
         const bool altHeld    = input->isKeyPressed(SDL_SCANCODE_LALT);
-        const bool wantLocked = not altHeld;
+        // In edit mode the cursor is always free; LAlt is also honoured.
+        const bool wantLocked = not altHeld and not editMode;
 
         if (wantLocked != cursorLocked)
         {

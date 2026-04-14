@@ -66,31 +66,40 @@ namespace pg
         bool transparent = false;
     };
 
+    // GL constant mirrors so OpenGLState can live in a header without GL includes.
+    enum class DepthFunc : uint32_t
+    {
+        Never    = 0x0200, // GL_NEVER
+        Less     = 0x0201, // GL_LESS
+        Equal    = 0x0202, // GL_EQUAL
+        LEqual   = 0x0203, // GL_LEQUAL
+        Greater  = 0x0204, // GL_GREATER
+        NotEqual = 0x0205, // GL_NOTEQUAL
+        GEqual   = 0x0206, // GL_GEQUAL
+        Always   = 0x0207  // GL_ALWAYS
+    };
+
+    enum class BlendFactor : uint32_t
+    {
+        Zero             = 0,      // GL_ZERO
+        One              = 1,      // GL_ONE
+        SrcAlpha         = 0x0302, // GL_SRC_ALPHA
+        OneMinusSrcAlpha = 0x0303, // GL_ONE_MINUS_SRC_ALPHA
+        DstAlpha         = 0x0304, // GL_DST_ALPHA
+        OneMinusDstAlpha = 0x0305  // GL_ONE_MINUS_DST_ALPHA
+    };
+
     struct OpenGLState
     {
-        OpenGLState() {}
-        OpenGLState(const OpenGLState& rhs) : scissorEnabled(rhs.scissorEnabled), scissorBound(rhs.scissorBound) {}
-        OpenGLState(OpenGLState&& rhs) : scissorEnabled(std::move(rhs.scissorEnabled)), scissorBound(std::move(rhs.scissorBound)) {}
-
-        OpenGLState & operator=(const OpenGLState& rhs)
-        {
-            scissorEnabled = rhs.scissorEnabled;
-            scissorBound = rhs.scissorBound;
-
-            return *this;
-        }
-
-        OpenGLState & operator=(OpenGLState&& rhs)
-        {
-            scissorEnabled = std::move(rhs.scissorEnabled);
-            scissorBound = std::move(rhs.scissorBound);
-
-            return *this;
-        }
-
         bool operator==(const OpenGLState& rhs) const
         {
-            return scissorEnabled == rhs.scissorEnabled and scissorBound == rhs.scissorBound;
+            return scissorEnabled == rhs.scissorEnabled
+               and scissorBound   == rhs.scissorBound
+               and depthTestEnabled == rhs.depthTestEnabled
+               and depthFunc       == rhs.depthFunc
+               and blendEnabled    == rhs.blendEnabled
+               and blendSrc        == rhs.blendSrc
+               and blendDst        == rhs.blendDst;
         }
 
         bool operator!=(const OpenGLState& rhs) const
@@ -108,8 +117,18 @@ namespace pg
             scissorBound.w = h;
         }
 
+        // Scissor
         bool scissorEnabled = false;
         constant::Vector4D scissorBound;
+
+        // Depth
+        bool depthTestEnabled = false;
+        DepthFunc depthFunc   = DepthFunc::Less;
+
+        // Blend (defaults match engine startup: standard alpha blending)
+        bool blendEnabled     = true;
+        BlendFactor blendSrc  = BlendFactor::SrcAlpha;
+        BlendFactor blendDst  = BlendFactor::OneMinusSrcAlpha;
     };
 
     struct RenderCall
@@ -312,6 +331,10 @@ namespace pg
         std::vector<RenderCall> renderCallList;
 
         RenderStage renderStage;
+
+        // GL state applied to every render call produced by this renderer.
+        // Subclasses configure this in setupRenderer().
+        OpenGLState defaultState;
 
         bool changed = true;
         bool dirty = true;
