@@ -1,10 +1,10 @@
 #pragma once
 
+#include <algorithm>
+
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
-#include "2D/animator2d.h"
-#include "Loaders/Aseprite/asepriteloader.h"
 
 #include "grid.h"
 
@@ -12,6 +12,39 @@ using namespace pg;
 
 // Viewport index for the game camera (FollowCamera2D registers as cameraList[0] = viewport 1)
 static constexpr size_t GAME_VIEWPORT = 1;
+
+// Tile index in the atlas JSON frame ordering (tileIndex * 8 + block = frame index)
+enum ConveyorTileIndex : size_t
+{
+    CORNER_CW_0_0  = 0,
+    CORNER_CW_1_0  = 1,
+    CORNER_CW_0_1  = 2,
+    CORNER_CW_1_1  = 3,
+    CORNER_CCW_0_0 = 4,
+    CORNER_CCW_1_0 = 5,
+    CORNER_CCW_0_1 = 6,
+    CORNER_CCW_1_1 = 7,
+    LINE_UP_0      = 8,
+    LINE_UP_1      = 9,
+    LINE_UP_2      = 10,
+    LINE_DOWN_0    = 11,
+    LINE_DOWN_1    = 12,
+    LINE_DOWN_2    = 13,
+    LINE_LEFT_0    = 14,
+    LINE_LEFT_1    = 15,
+    LINE_LEFT_2    = 16,
+    LINE_LEFT_3    = 17,
+    LINE_RIGHT_0   = 18,
+    LINE_RIGHT_1   = 19,
+    LINE_RIGHT_2   = 20,
+    LINE_RIGHT_3   = 21,
+};
+
+struct ConveyorEntry
+{
+    uint64_t entityId = 0;
+    size_t tileIndex = 0;
+};
 
 class GridSystem : public System<InitSys, Listener<TickEvent>>
 {
@@ -34,6 +67,7 @@ public:
     virtual void onEvent(const TickEvent& event) override
     {
         deltaTime += event.tick / 1000.0f;
+        animElapsed += event.tick;
     }
 
     void execute() override
@@ -41,7 +75,23 @@ public:
         if (deltaTime <= 0.0f)
             return;
 
-        // Grid logic updates will go here (conveyor movement, etc.)
+        // Advance conveyor animation globally — all conveyors stay in sync
+        if (animElapsed >= FRAME_DURATION_MS and not conveyors.empty())
+        {
+            animElapsed -= FRAME_DURATION_MS;
+            currentFrame = (currentFrame + 1) % NUM_ANIM_FRAMES;
+
+            for (const auto& conv : conveyors)
+            {
+                auto ent = ecsRef->getEntity(conv.entityId);
+                if (not ent)
+                    continue;
+
+                auto tex = ent->get<Texture2DComponent>();
+                size_t frameIndex = conv.tileIndex * NUM_ANIM_FRAMES + currentFrame;
+                tex->setTexture("Conveyor_Belt." + std::to_string(frameIndex));
+            }
+        }
 
         deltaTime = 0.0f;
     }
@@ -57,6 +107,7 @@ public:
         // Remove existing entity if any
         if (cell.entityId != 0)
         {
+            removeConveyorEntry(cell.entityId);
             ecsRef->removeEntity(cell.entityId);
             cell.entityId = 0;
         }
@@ -70,7 +121,7 @@ public:
         auto [worldX, worldY] = grid.gridToWorld(x, y);
         float z = grid.getLayer(layer).zIndex;
 
-        if (tileId == 4) // Conveyor belt - use animated sprite
+        if (tileId == 4) // Conveyor belt - use sprite
         {
             createConveyorEntity(cell, worldX, worldY, z);
         }
@@ -112,9 +163,12 @@ public:
     size_t getItemLayer() const { return itemLayer; }
 
 private:
+    static constexpr size_t NUM_ANIM_FRAMES = 8;
+    static constexpr size_t FRAME_DURATION_MS = 100;
+
     void createGridBackground()
     {
-        constexpr float BG_Z = 0.0f; // Behind all layers (z/100 in shader, must be >= 0)
+        constexpr float BG_Z = 0.0f;
 
         for (int y = 0; y < Grid::HEIGHT; ++y)
         {
@@ -144,24 +198,17 @@ private:
 
     void createConveyorEntity(CellData& cell, float worldX, float worldY, float z)
     {
-        auto* asepriteLoader = ecsRef->getSystem<AsepriteLoader>();
+        // Default to right-facing middle tile
+        size_t tileIndex = LINE_RIGHT_1;
 
-        // Default to right-facing middle tile animation
-        std::string animName = "line_right_1";
+        // Use the current global animation frame so new conveyors are immediately in sync
+        size_t frameIndex = tileIndex * NUM_ANIM_FRAMES + currentFrame;
+        std::string texName = "Conveyor_Belt." + std::to_string(frameIndex);
 
-        auto& frames = asepriteLoader->getAnimationFrames("Conveyor_Belt", animName);
-
-        if (frames.empty())
-        {
-            printf("GridSystem: No animation frames found for %s\n", animName.c_str());
-            return;
-        }
-
-        // Create textured entity with the first frame's texture
         auto tex = make2DTexture(ecsRef,
             static_cast<float>(Grid::TILE_SIZE),
             static_cast<float>(Grid::TILE_SIZE),
-            frames[0].textureName);
+            texName);
 
         auto pos = tex.get<PositionComponent>();
         pos->setX(worldX);
@@ -170,12 +217,17 @@ private:
 
         tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
 
-        // Attach animation component with looping enabled
-        auto anim = ecsRef->attach<Texture2DAnimationComponent>(tex.entity, frames, true, true);
-        anim->start();
-        anim->overrideViewport(GAME_VIEWPORT);
-
         cell.entityId = tex.entity->id;
+
+        conveyors.push_back({cell.entityId, tileIndex});
+    }
+
+    void removeConveyorEntry(uint64_t entityId)
+    {
+        conveyors.erase(
+            std::remove_if(conveyors.begin(), conveyors.end(),
+                [entityId](const ConveyorEntry& e) { return e.entityId == entityId; }),
+            conveyors.end());
     }
 
     constant::Vector4D getTileColor(uint16_t tileId) const
@@ -192,6 +244,11 @@ private:
 
     Grid grid;
     float deltaTime = 0.0f;
+
+    // Conveyor animation state (global — all conveyors animate in sync)
+    size_t animElapsed = 0;
+    size_t currentFrame = 0;
+    std::vector<ConveyorEntry> conveyors;
 
     size_t terrainLayer = 0;
     size_t buildingLayer = 0;

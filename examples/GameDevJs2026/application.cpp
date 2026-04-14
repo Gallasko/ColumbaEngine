@@ -2,7 +2,6 @@
 #include "window.h"
 
 #include "Systems/basicsystems.h"
-#include "2D/animator2d.h"
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
 #include "gamesystem.h"
@@ -14,9 +13,6 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
         auto config = engine.getConfig();
-
-        // Animation system for sprite animations
-        ecs.createSystem<Texture2DAnimatorSystem>();
 
         // Aseprite loader for sprite atlas metadata
         auto* asepriteLoader = ecs.createSystem<AsepriteLoader>();
