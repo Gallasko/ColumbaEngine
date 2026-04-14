@@ -1124,6 +1124,18 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         target_link_libraries(EcsSerializationExample PRIVATE ColumbaEngine)
 
+        ###
+
+        add_executable(GameDevJs2026 examples/GameDevJs2026/main.cpp)
+
+        target_include_directories(GameDevJs2026 PUBLIC examples/GameDevJs2026)
+
+        target_sources(GameDevJs2026 PRIVATE
+            examples/GameDevJs2026/application.cpp
+        )
+
+        target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)
+
         # Only build tests if not building static lib only
         enable_testing()
 
