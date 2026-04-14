@@ -1,47 +1,64 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
-#include "2D/simple2dobject.h"
+#include "Input/inputcomponent.h"
+
+#include "gridsystem.h"
+#include "camerasystem.h"
 
 using namespace pg;
 
-class GameSystem : public System<InitSys, Listener<TickEvent>>
+class GameSystem : public System<InitSys, Listener<OnMouseClick>>
 {
 public:
-    GameSystem(float width = 820.0f, float height = 640.0f)
-        : screenWidth(width), screenHeight(height) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
     void init() override
     {
-        // Create a simple square to confirm rendering works
-        auto shape = makeSimple2DShape(ecsRef, Shape2D::Square,
-            screenWidth / 2 - 50, screenHeight / 2 - 50,
-            {100.0f, 180.0f, 255.0f, 255.0f});
-
-        auto pos = shape.get<PositionComponent>();
-        pos->width = 100.0f;
-        pos->height = 100.0f;
+        printf("GameSystem: Grid ready (%dx%d, tile %dpx)\n",
+            Grid::WIDTH, Grid::HEIGHT, Grid::TILE_SIZE);
     }
 
-    virtual void onEvent(const TickEvent& event) override
+    virtual void onEvent(const OnMouseClick& event) override
     {
-        deltaTime += event.tick / 1000.0f;
-    }
-
-    void execute() override
-    {
-        if (deltaTime == 0.0f)
+        if (event.button != SDL_BUTTON_LEFT)
             return;
 
-        // Idle game logic goes here
+        // Use tracked mouse position from camera system (event.pos may be unreliable for global listeners)
+        float mouseX = cameraSystem->getLastMouseX();
+        float mouseY = cameraSystem->getLastMouseY();
 
-        deltaTime = 0.0f;
+        auto worldPos = cameraSystem->screenToWorld(mouseX, mouseY);
+        auto& grid = gridSystem->getGrid();
+        auto [gridX, gridY] = grid.worldToGrid(worldPos.x, worldPos.y);
+
+        if (not grid.isInBounds(gridX, gridY))
+        {
+            printf("Click out of bounds: world(%.1f, %.1f) -> grid(%d, %d)\n",
+                worldPos.x, worldPos.y, gridX, gridY);
+            return;
+        }
+
+        // Toggle a building tile on click
+        auto buildingLayer = gridSystem->getBuildingLayer();
+        auto& cell = gridSystem->getCell(buildingLayer, gridX, gridY);
+
+        if (cell.tileId == 0)
+        {
+            gridSystem->setCell(buildingLayer, gridX, gridY, 4); // Conveyor
+            printf("Placed conveyor at grid(%d, %d)\n", gridX, gridY);
+        }
+        else
+        {
+            gridSystem->clearCell(buildingLayer, gridX, gridY);
+            printf("Removed tile at grid(%d, %d)\n", gridX, gridY);
+        }
     }
 
 private:
-    float screenWidth;
-    float screenHeight;
-    float deltaTime = 0.0f;
+    GridSystem* gridSystem = nullptr;
+    CameraSystem* cameraSystem = nullptr;
 };
