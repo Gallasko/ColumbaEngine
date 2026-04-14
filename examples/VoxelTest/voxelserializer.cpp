@@ -365,16 +365,28 @@ namespace pg
             else if (c == '{')
             {
                 if (section == Section::Layers)
+                {
                     currentLayer = LayerData{};
+                    section = Section::LayerEntry;
+                }
                 else if (section == Section::Cells)
+                {
                     currentCell = CellData{};
+                    section = Section::CellEntry;
+                }
             }
             else if (c == '}')
             {
-                if (section == Section::Layers && !currentLayer.name.empty())
+                if (section == Section::LayerEntry && !currentLayer.name.empty())
+                {
                     out.layers.push_back(currentLayer);
-                else if (section == Section::Cells)
+                    section = Section::Layers;
+                }
+                else if (section == Section::CellEntry)
+                {
                     out.cells.push_back(currentCell);
+                    section = Section::Cells;
+                }
             }
             else if (c == ',')
             {

@@ -56,6 +56,24 @@ namespace pg
             window->setCursorLocked(false);
     }
 
+    void EditorSystem::execute()
+    {
+        std::lock_guard<std::mutex> lock(pendingLoadMutex);
+        if (hasPendingLoad)
+        {
+            applyProjectData(pendingLoadData);
+            hasPendingLoad = false;
+            pendingLoadData = {};
+        }
+    }
+
+    void EditorSystem::queueProjectLoad(ProjectData data)
+    {
+        std::lock_guard<std::mutex> lock(pendingLoadMutex);
+        pendingLoadData = std::move(data);
+        hasPendingLoad = true;
+    }
+
     // =========================================================================
     // Keyboard
     // =========================================================================
@@ -986,8 +1004,9 @@ namespace pg
             canvas->layers.push_back(Layer{ ld.name, ld.visible, {} });
 
         // Place cells
-        for (const auto& cell : data.cells)
+        for (size_t i = 0; i < data.cells.size(); ++i)
         {
+            const auto& cell = data.cells[i];
             if (!canvas->inBounds(cell.pos.x, cell.pos.y, cell.pos.z))
                 continue;
 
@@ -1010,11 +1029,22 @@ extern "C" {
     EMSCRIPTEN_KEEPALIVE
     void editorLoadProjectCallback(uintptr_t selfPtr, const char* data, int len)
     {
-        auto* editor = reinterpret_cast<pg::EditorSystem*>(selfPtr);
-        std::string json(data, static_cast<size_t>(len));
-        pg::ProjectData pd;
-        if (pg::loadProjectFromString(json, pd))
-            editor->applyProjectData(pd);
+        try
+        {
+            auto* editor = reinterpret_cast<pg::EditorSystem*>(selfPtr);
+
+            std::string json(data, static_cast<size_t>(len));
+
+            pg::ProjectData pd;
+            bool ok = pg::loadProjectFromString(json, pd);
+
+            if (ok)
+                editor->queueProjectLoad(std::move(pd));
+        }
+        catch (const std::exception& e)
+        {
+            printf("[LOAD] EXCEPTION: %s\n", e.what());
+        }
     }
 }
 

@@ -8,6 +8,8 @@
 #include "editorstate.h"
 #include "voxelserializer.h"
 
+#include <mutex>
+
 namespace pg
 {
     class MasterRenderer;
@@ -46,6 +48,7 @@ namespace pg
         std::string getSystemName() const override { return "Editor System"; }
 
         void init() override;
+        void execute() override;
 
         // Fill y=-1 plane with an alternating grey floor pattern on layer 0.
         void buildFloor();
@@ -127,7 +130,15 @@ namespace pg
         // Apply parsed project data to the canvas (used by both desktop and web load paths).
         void applyProjectData(const ProjectData& data);
 
+        // Queue project data to be applied on the ECS thread (thread-safe).
+        void queueProjectLoad(ProjectData data);
+
     private:
+        // Pending load data — written from the main thread, consumed on the ECS thread.
+        std::mutex          pendingLoadMutex;
+        bool                hasPendingLoad = false;
+        ProjectData         pendingLoadData;
+
         // Clear all entities from the canvas (used before loading).
         void clearCanvas();
         // Returns true if the screen pixel (px, py) falls inside any UI panel
