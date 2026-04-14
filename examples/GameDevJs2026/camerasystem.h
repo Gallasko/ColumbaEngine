@@ -1,13 +1,18 @@
 #pragma once
 
-#include "ECS/entitysystem_fwd.h" // Needed for ResizeEvent before camera2d.h
+#include "ECS/entitysystem_fwd.h" // Needed for ResizeEvent
 #include "Systems/basicsystems.h"
-#include "2D/camera2d.h"
+#include "Renderer/renderer.h"
+#include "Renderer/camera.h"
 #include "Input/inputcomponent.h"
 
 #include "grid.h"
 
 using namespace pg;
+
+// Free-roam 2D camera using BaseCamera2D directly.
+// BaseCamera2D::x/y = top-left of viewport in world space.
+// We control x/y/width/height directly — no FollowCamera2D.
 
 class CameraSystem : public System<
     InitSys,
@@ -20,8 +25,8 @@ class CameraSystem : public System<
     Listener<OnMouseRelease>>
 {
 public:
-    CameraSystem(float screenWidth, float screenHeight)
-        : baseWidth(screenWidth), baseHeight(screenHeight) {}
+    CameraSystem(MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
+        : masterRenderer(masterRenderer), baseWidth(screenWidth), baseHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Camera System"; }
 
@@ -29,18 +34,21 @@ public:
     {
         cameraEntity = ecsRef->createEntity();
 
-        auto pos = ecsRef->attach<PositionComponent>(cameraEntity);
-        // Center camera on the grid (FollowCamera2D targets this position)
+        // _attach because BaseCamera2D doesn't derive from Ctor
+        cam = ecsRef->_attach<BaseCamera2D>(cameraEntity).operator->();
+
+        cam->setWidth(baseWidth);
+        cam->setHeight(baseHeight);
+
+        // Center camera on the grid
         float gridCenterX = Grid::WIDTH * Grid::TILE_SIZE * 0.5f;
         float gridCenterY = Grid::HEIGHT * Grid::TILE_SIZE * 0.5f;
-        pos->setX(gridCenterX);
-        pos->setY(gridCenterY);
+        cam->x = gridCenterX - baseWidth * 0.5f;
+        cam->y = gridCenterY - baseHeight * 0.5f;
+        cam->dirty = true;
 
-        auto followCam = ecsRef->attach<FollowCamera2D>(cameraEntity);
-        followCam->setSmoothFactor(1.0f);
-        followCam->setViewportWidth(baseWidth);
-        followCam->setViewportHeight(baseHeight);
-        followCam->useWindowViewport = false;
+        // Register with MasterRenderer → becomes viewport 1
+        masterRenderer->queueRegisterCamera(cameraEntity->id);
     }
 
     virtual void onEvent(const TickEvent& event) override
@@ -53,37 +61,30 @@ public:
         if (event.y == 0)
             return;
 
-        auto cam = ecsRef->getComponent<BaseCamera2D>(cameraEntity.id);
-        if (not cam)
-            return;
-
-        float oldWidth = cam->getWidth();
-        float oldHeight = cam->getHeight();
-
-        // Zoom in or out
+        float oldZoom = zoomLevel;
         zoomLevel *= (event.y > 0 ? 1.0f / 0.9f : 1.0f / 1.1f);
         zoomLevel = std::clamp(zoomLevel, minZoom, maxZoom);
 
-        float newWidth = baseWidth / zoomLevel;
-        float newHeight = baseHeight / zoomLevel;
+        if (std::abs(zoomLevel - oldZoom) < 1e-6f)
+            return;
 
-        // Zoom toward mouse position
+        float oldViewW = baseWidth / oldZoom;
+        float oldViewH = baseHeight / oldZoom;
+        float newViewW = baseWidth / zoomLevel;
+        float newViewH = baseHeight / zoomLevel;
+
+        // Zoom toward mouse: shift so world point under cursor stays fixed
         float mouseNormX = lastMouseX / baseWidth;
         float mouseNormY = lastMouseY / baseHeight;
+        float dw = oldViewW - newViewW;
+        float dh = oldViewH - newViewH;
 
-        cam->x += (oldWidth - newWidth) * mouseNormX;
-        cam->y += (oldHeight - newHeight) * mouseNormY;
+        cam->x += dw * mouseNormX;
+        cam->y += dh * mouseNormY;
         cam->dirty = true;
 
-        // Sync FollowCamera2D viewport
-        auto followCam = ecsRef->getComponent<FollowCamera2D>(cameraEntity.id);
-        if (followCam)
-        {
-            followCam->setViewportWidth(newWidth);
-            followCam->setViewportHeight(newHeight);
-        }
-
-        syncPositionToCamera(cam);
+        cam->setWidth(newViewW);
+        cam->setHeight(newViewH);
     }
 
     virtual void onEvent(const OnSDLMouseMotion& event) override
@@ -93,18 +94,11 @@ public:
 
         if (rightMouseDown)
         {
-            auto cam = ecsRef->getComponent<BaseCamera2D>(cameraEntity.id);
-            if (not cam)
-                return;
-
-            float scaleX = cam->getWidth() / baseWidth;
-            float scaleY = cam->getHeight() / baseHeight;
-
-            cam->x -= event.xrel * scaleX;
-            cam->y -= event.yrel * scaleY;
+            // Scale drag by current zoom (viewport width / screen width)
+            float scale = cam->getWidth() / baseWidth;
+            cam->x -= event.xrel * scale;
+            cam->y -= event.yrel * scale;
             cam->dirty = true;
-
-            syncPositionToCamera(cam);
         }
     }
 
@@ -151,35 +145,31 @@ public:
 
         if (moveUp or moveDown or moveLeft or moveRight)
         {
-            auto cam = ecsRef->getComponent<BaseCamera2D>(cameraEntity.id);
-            if (not cam)
-            {
-                deltaTime = 0.0f;
-                return;
-            }
-
             float speed = panSpeed / zoomLevel * deltaTime;
 
             if (moveUp)    cam->y -= speed;
             if (moveDown)  cam->y += speed;
             if (moveLeft)  cam->x -= speed;
             if (moveRight) cam->x += speed;
-            cam->dirty = true;
 
-            syncPositionToCamera(cam);
+            cam->dirty = true;
         }
 
         deltaTime = 0.0f;
     }
 
-    // Convert screen mouse position to world coordinates
+    // Custom screenToWorld that accounts for zoom
+    // (engine's version has width cancel out, ignoring zoom)
     constant::Vector2D screenToWorld(float screenX, float screenY)
     {
-        auto cam = ecsRef->getComponent<BaseCamera2D>(cameraEntity.id);
         if (not cam)
             return {0.0f, 0.0f};
 
-        return cam->screenToWorld(screenX, screenY);
+        float scaleX = cam->getWidth() / baseWidth;
+        float scaleY = cam->getHeight() / baseHeight;
+
+        return {cam->x + screenX * scaleX,
+                cam->y + screenY * scaleY};
     }
 
     EntityRef getCameraEntity() const { return cameraEntity; }
@@ -187,17 +177,9 @@ public:
     float getLastMouseY() const { return lastMouseY; }
 
 private:
-    void syncPositionToCamera(BaseCamera2D* cam)
-    {
-        auto pos = ecsRef->getComponent<PositionComponent>(cameraEntity.id);
-        if (pos)
-        {
-            pos->setX(cam->x + cam->getWidth() * 0.5f);
-            pos->setY(cam->y + cam->getHeight() * 0.5f);
-        }
-    }
-
+    MasterRenderer* masterRenderer = nullptr;
     EntityRef cameraEntity;
+    BaseCamera2D* cam = nullptr;
 
     float baseWidth;
     float baseHeight;

@@ -20,9 +20,9 @@ public:
     void init() override
     {
         // Create default layers
-        terrainLayer = grid.addLayer("terrain", 0.0f);
-        buildingLayer = grid.addLayer("buildings", 1.0f);
-        itemLayer = grid.addLayer("items", 2.0f);
+        terrainLayer = grid.addLayer("terrain", 1.0f);
+        buildingLayer = grid.addLayer("buildings", 2.0f);
+        itemLayer = grid.addLayer("items", 3.0f);
 
         // Draw grid background (checkerboard)
         createGridBackground();
@@ -104,7 +104,7 @@ public:
 private:
     void createGridBackground()
     {
-        constexpr float BG_Z = -1.0f; // Behind all layers
+        constexpr float BG_Z = 0.0f; // Behind all layers (z/100 in shader, must be >= 0)
 
         for (int y = 0; y < Grid::HEIGHT; ++y)
         {

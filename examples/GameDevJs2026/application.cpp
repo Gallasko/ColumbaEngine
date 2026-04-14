@@ -1,4 +1,5 @@
 #include "application.h"
+#include "window.h"
 
 #include "Systems/basicsystems.h"
 #include "gamesystem.h"
@@ -13,6 +14,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // Camera must be created first so it exists before grid renders
         auto* cameraSystem = ecs.createSystem<CameraSystem>(
+            window.masterRenderer,
             static_cast<float>(config.width),
             static_cast<float>(config.height));
 

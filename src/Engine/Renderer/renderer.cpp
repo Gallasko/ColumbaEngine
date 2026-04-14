@@ -717,6 +717,26 @@ namespace pg
             }
         }
 
+        // Todo make the scale matrix be calculated when the width/height are getting changed
+
+        // For 2D camera viewports, use the camera's viewport dimensions for zoom support
+        float effectiveWidth = static_cast<float>(screenWidth);
+        float effectiveHeight = static_cast<float>(screenHeight);
+
+        if (viewport > 0)
+        {
+            int camIdx = viewport - 1;
+
+            if (camIdx >= 0 and static_cast<size_t>(camIdx) < cameraList.size())
+            {
+                float camW = cameraList[camIdx]->getWidth();
+                float camH = cameraList[camIdx]->getHeight();
+
+                if (camW > 0.0f) effectiveWidth = camW;
+                if (camH > 0.0f) effectiveHeight = camH;
+            }
+        }
+
         shaderProgram->bind();
 
         if (call.state != currentState)
@@ -734,7 +754,7 @@ namespace pg
         glm::mat4 model = glm::mat4(1.0f);
         glm::mat4 scale = glm::mat4(1.0f);
 
-        scale = glm::scale(scale, glm::vec3(2.0f / screenWidth, 2.0f / screenHeight, 1.0f));
+        scale = glm::scale(scale, glm::vec3(2.0f / effectiveWidth, 2.0f / effectiveHeight, 1.0f));
 
         // Todo create a uniform feeder
 
@@ -792,6 +812,10 @@ namespace pg
         shaderProgram->setUniformValue("model", model);
         shaderProgram->setUniformValue("scale", scale);
         shaderProgram->setUniformValue("view", view);
+
+        // Override sWidth/sHeight with camera viewport dimensions for zoom support
+        shaderProgram->setUniformValue("sWidth", effectiveWidth);
+        shaderProgram->setUniformValue("sHeight", effectiveHeight);
 
         if (not call.mesh)
         {
