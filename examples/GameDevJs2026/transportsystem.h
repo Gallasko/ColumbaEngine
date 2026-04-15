@@ -265,25 +265,99 @@ private:
             }
         }
 
-        // Phase 2d: apply non-cycle moves
+        // Phase 2d: determine which non-cycle moves are allowed
+        std::vector<bool> allowed(moves.size(), false);
         for (size_t i = 0; i < moves.size(); ++i)
         {
             if (inCycle[i]) continue;
-
             const auto& m = moves[i];
-            bool destEmpty = beltGrid.get(m.toX, m.toY).itemId == ITEM_NONE;
+            allowed[i] = (targetCount[m.toY][m.toX] <= 1)
+                      or (winnerMoveIdx[m.toY][m.toX] == static_cast<int>(i));
+        }
 
-            bool allowed = (targetCount[m.toY][m.toX] <= 1)
-                        or (winnerMoveIdx[m.toY][m.toX] == static_cast<int>(i));
+        // Phase 2e: compute canMove[] via chain propagation
+        // A move can proceed if it's allowed AND its destination will be free
+        // (either already empty, or the item there will also move away)
+        std::vector<bool> canMove(moves.size(), false);
 
-            if (destEmpty and allowed)
+        for (size_t i = 0; i < moves.size(); ++i)
+        {
+            if (inCycle[i] or not allowed[i] or canMove[i]) continue;
+
+            // Trace chain forward to find if it ends at a free cell
+            std::vector<size_t> chain;
+            size_t cur = i;
+            bool reachesEmpty = false;
+
+            while (true)
             {
+                if (canMove[cur])
+                {
+                    // Destination item is already known to move away
+                    reachesEmpty = true;
+                    break;
+                }
+
+                if (inCycle[cur])
+                    break; // Full cycle cells stay occupied — chain cannot enter
+
+                if (not allowed[cur])
+                    break;
+
+                // Detect undetected cycles (loops with a contested entry point)
+                bool revisit = false;
+                for (size_t idx : chain)
+                    if (idx == cur) { revisit = true; break; }
+                if (revisit)
+                    break;
+
+                chain.push_back(cur);
+
+                const auto& m = moves[cur];
+                if (beltGrid.get(m.toX, m.toY).itemId == ITEM_NONE)
+                {
+                    reachesEmpty = true;
+                    break;
+                }
+
+                // Follow to the move originating from destination cell
+                int next = moveOrigin[m.toY][m.toX];
+                if (next < 0) break;
+                cur = static_cast<size_t>(next);
+            }
+
+            if (reachesEmpty)
+            {
+                for (size_t idx : chain)
+                    canMove[idx] = true;
+            }
+        }
+
+        // Phase 2f: apply canMove moves iteratively (tail-first)
+        // Process moves whose destination is currently empty; as items move they
+        // free cells for the next item in the chain, eliminating scan-order bias.
+        std::vector<bool> applied(moves.size(), false);
+        bool progress = true;
+        while (progress)
+        {
+            progress = false;
+            for (size_t i = 0; i < moves.size(); ++i)
+            {
+                if (not canMove[i] or applied[i]) continue;
+
+                const auto& m = moves[i];
+                if (beltGrid.get(m.toX, m.toY).itemId != ITEM_NONE)
+                    continue;
+
                 beltGrid.get(m.toX, m.toY).itemId = m.itemId;
                 beltGrid.get(m.fromX, m.fromY).itemId = ITEM_NONE;
                 moveItemVisual(m.fromX, m.fromY, m.toX, m.toY);
 
                 if (targetCount[m.toY][m.toX] > 1)
                     lastServedDir[m.toY][m.toX] = travelDirection(m.fromX, m.fromY, m.toX, m.toY);
+
+                applied[i] = true;
+                progress = true;
             }
         }
     }
