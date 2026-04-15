@@ -2,6 +2,7 @@
 
 #include "Systems/basicsystems.h"
 #include "2D/simple2dobject.h"
+#include "2D/texture.h"
 #include "UI/ttftext.h"
 #include "Input/inputcomponent.h"
 
@@ -220,18 +221,32 @@ private:
 
         auto [sx, sy] = slotScreenPos(index);
 
-        // Item colored square, centered inside the slot
+        // Item visual, centered inside the slot
         float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-        auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(stack.id));
+        const auto& def = itemRegistry->get(stack.id);
 
-        auto itemPos = item.get<PositionComponent>();
-        itemPos->setX(sx + itemOffset);
-        itemPos->setY(sy + itemOffset);
-        itemPos->setZ(99.0f);
-        itemPos->setWidth(ITEM_SIZE);
-        itemPos->setHeight(ITEM_SIZE);
-        item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
-        sv.itemEntityId = item.entity->id;
+        if (not def.textureName.empty())
+        {
+            auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, def.textureName);
+            auto itemPos = tex.get<PositionComponent>();
+            itemPos->setX(sx + itemOffset);
+            itemPos->setY(sy + itemOffset);
+            itemPos->setZ(99.0f);
+            tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
+            sv.itemEntityId = tex.entity->id;
+        }
+        else
+        {
+            auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(stack.id));
+            auto itemPos = item.get<PositionComponent>();
+            itemPos->setX(sx + itemOffset);
+            itemPos->setY(sy + itemOffset);
+            itemPos->setZ(99.0f);
+            itemPos->setWidth(ITEM_SIZE);
+            itemPos->setHeight(ITEM_SIZE);
+            item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
+            sv.itemEntityId = item.entity->id;
+        }
 
         // Stack count text at bottom-right of slot
         if (stack.count > 1)
@@ -359,15 +374,30 @@ private:
         float offsetX = 8.0f;
         float offsetY = 8.0f;
 
-        auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(heldItem.id));
-        auto itemPos = item.get<PositionComponent>();
-        itemPos->setX(lastMouseX + offsetX);
-        itemPos->setY(lastMouseY + offsetY);
-        itemPos->setZ(101.0f);
-        itemPos->setWidth(ITEM_SIZE);
-        itemPos->setHeight(ITEM_SIZE);
-        item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
-        heldItemEntityId = item.entity->id;
+        const auto& def = itemRegistry->get(heldItem.id);
+
+        if (not def.textureName.empty())
+        {
+            auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, def.textureName);
+            auto itemPos = tex.get<PositionComponent>();
+            itemPos->setX(lastMouseX + offsetX);
+            itemPos->setY(lastMouseY + offsetY);
+            itemPos->setZ(101.0f);
+            tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
+            heldItemEntityId = tex.entity->id;
+        }
+        else
+        {
+            auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(heldItem.id));
+            auto itemPos = item.get<PositionComponent>();
+            itemPos->setX(lastMouseX + offsetX);
+            itemPos->setY(lastMouseY + offsetY);
+            itemPos->setZ(101.0f);
+            itemPos->setWidth(ITEM_SIZE);
+            itemPos->setHeight(ITEM_SIZE);
+            item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
+            heldItemEntityId = item.entity->id;
+        }
 
         if (heldItem.count > 1)
         {

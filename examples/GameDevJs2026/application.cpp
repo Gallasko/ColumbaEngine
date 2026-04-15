@@ -5,6 +5,7 @@
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
 #include "UI/ttftext.h"
+#include "gridatlas.h"
 #include "craftingsystem.h"
 #include "minersystem.h"
 #include "playerinventory.h"
@@ -56,6 +57,13 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             minerMining.metadata.imagePath.c_str(),
             "",
             std::make_unique<AsepriteFileAtlasLoader>(minerMining));
+
+        // Load item icons as a grid atlas (5 cols × 5 rows of 16×16 icons, 23 used)
+        window.masterRenderer->registerAtlasTexture(
+            "Items",
+            "res/ext/Item Icons/Items.png",
+            "",
+            std::make_unique<GridAtlas>("Items.png", 80, 80, 16, 16, 5, 23));
 
         float screenW = static_cast<float>(config.width);
         float screenH = static_cast<float>(config.height);

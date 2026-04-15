@@ -70,19 +70,43 @@ inline ItemRegistry createDefaultItemRegistry()
     reg.items.push_back({ITEM_NONE, "None", "", ItemCategory::Resource, 0});
 
     // Raw resources (IDs 1-4)
-    reg.addItem({0, "Iron Ore",    "", ItemCategory::Resource, 50});
-    reg.addItem({0, "Copper Ore",  "", ItemCategory::Resource, 50});
-    reg.addItem({0, "Coal",        "", ItemCategory::Resource, 50});
-    reg.addItem({0, "Stone",       "", ItemCategory::Resource, 50});
+    reg.addItem({0, "Iron Ore",    "Items.8",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Copper Ore",  "Items.9",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Coal",        "Items.6",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Stone",       "Items.7",  ItemCategory::Resource, 50});
 
     // Intermediates (IDs 5-8)
-    reg.addItem({0, "Iron Plate",   "", ItemCategory::Intermediate, 100});
-    reg.addItem({0, "Copper Plate", "", ItemCategory::Intermediate, 100});
-    reg.addItem({0, "Iron Gear",    "", ItemCategory::Intermediate, 100});
-    reg.addItem({0, "Copper Wire",  "", ItemCategory::Intermediate, 100});
+    reg.addItem({0, "Iron Plate",   "Items.10", ItemCategory::Intermediate, 100});
+    reg.addItem({0, "Copper Plate", "Items.11", ItemCategory::Intermediate, 100});
+    reg.addItem({0, "Iron Gear",    "Items.14", ItemCategory::Intermediate, 100});
+    reg.addItem({0, "Copper Wire",  "Items.13", ItemCategory::Intermediate, 100});
 
     // Products (ID 9)
-    reg.addItem({0, "Circuit", "", ItemCategory::Product, 100});
+    reg.addItem({0, "Circuit", "Items.17", ItemCategory::Product, 100});
+
+    // Liquids / fuels (IDs 10-14)
+    reg.addItem({0, "Water",     "Items.0",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Petroleum", "Items.1",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Fuel",      "Items.2",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Acid",      "Items.3",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Biofuel",   "Items.4",  ItemCategory::Resource, 50});
+
+    // Raw resources (IDs 15-17)
+    reg.addItem({0, "Wood", "Items.5",  ItemCategory::Resource, 50});
+    reg.addItem({0, "Rock", "Items.20", ItemCategory::Resource, 50});
+    reg.addItem({0, "Ore",  "Items.21", ItemCategory::Resource, 50});
+
+    // Intermediates (IDs 18-20)
+    reg.addItem({0, "Steel",      "Items.12", ItemCategory::Intermediate, 100});
+    reg.addItem({0, "Copper Rod", "Items.15", ItemCategory::Intermediate, 100});
+    reg.addItem({0, "Iron Rod",   "Items.16", ItemCategory::Intermediate, 100});
+
+    // Products (IDs 21-22)
+    reg.addItem({0, "Processor",          "Items.18", ItemCategory::Product, 100});
+    reg.addItem({0, "Advanced Processor", "Items.19", ItemCategory::Product, 50});
+
+    // Utility (ID 23)
+    reg.addItem({0, "Electricity", "Items.22", ItemCategory::Resource, 0});
 
     return reg;
 }
