@@ -190,11 +190,12 @@ public:
         }
         else if (not def.textureName.empty())
         {
-            // Static texture
+            // Static texture (use first atlas frame)
+            std::string texName = def.textureName + ".0";
             auto tex = make2DTexture(ecsRef,
                 static_cast<float>(Grid::TILE_SIZE * def.gridW),
                 static_cast<float>(Grid::TILE_SIZE * def.gridH),
-                def.textureName);
+                texName);
 
             auto pos = tex.get<PositionComponent>();
             pos->setX(worldX);
@@ -536,6 +537,7 @@ private:
             case 4: return {100.0f, 160.0f, 220.0f, 255.0f};  // Conveyor
             case 5: return {200.0f, 100.0f, 60.0f, 255.0f};   // Furnace
             case 6: return {120.0f, 80.0f, 180.0f, 255.0f};   // Assembler
+            case 7: return {180.0f, 140.0f, 60.0f, 255.0f};   // Miner
             default: return {200.0f, 200.0f, 200.0f, 255.0f}; // Generic
         }
     }

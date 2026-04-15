@@ -93,5 +93,17 @@ inline BuildingRegistry createDefaultRegistry()
         false
     });
 
+    // Slot 3 (key 4): Miner (2x3)
+    reg.addBuilding({
+        7,                                             // tileId
+        "Miner",                                       // name
+        "Miner_Machine_1",                             // textureName (idle atlas)
+        {180.0f, 140.0f, 60.0f, 255.0f},              // color (fallback)
+        2, 3,                                          // 2x3
+        PlacementMode::ClickToPlace,
+        false,                                         // hasDirection
+        false                                          // isAnimated (managed by MinerSystem)
+    });
+
     return reg;
 }

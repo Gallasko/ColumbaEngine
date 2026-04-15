@@ -5,6 +5,7 @@
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
 #include "craftingsystem.h"
+#include "minersystem.h"
 #include "playerinventory.h"
 #include "gamesystem.h"
 
@@ -33,6 +34,26 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<AsepriteFileAtlasLoader>(anim));
 
+        // Load miner idle sprite atlas (single frame)
+        auto minerIdle = asepriteLoader->loadAnim(
+            "res/ext/Structures & Machines/Miner_Machine_1.json", "Miner_Idle");
+
+        window.masterRenderer->registerAtlasTexture(
+            minerIdle.filename,
+            minerIdle.metadata.imagePath.c_str(),
+            "",
+            std::make_unique<AsepriteFileAtlasLoader>(minerIdle));
+
+        // Load miner mining animation atlas (4 frames)
+        auto minerMining = asepriteLoader->loadAnim(
+            "res/ext/Structures & Machines/Miner_Machine_1_Mining.json", "Miner_Mining");
+
+        window.masterRenderer->registerAtlasTexture(
+            minerMining.filename,
+            minerMining.metadata.imagePath.c_str(),
+            "",
+            std::make_unique<AsepriteFileAtlasLoader>(minerMining));
+
         float screenW = static_cast<float>(config.width);
         float screenH = static_cast<float>(config.height);
 
@@ -46,6 +67,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* transportSystem = ecs.createSystem<TransportSystem>(gridSystem, &itemRegistry);
         ecs.createSystem<CraftingSystem>(
             gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
+        ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
         ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(
