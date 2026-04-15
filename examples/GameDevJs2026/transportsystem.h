@@ -368,6 +368,8 @@ private:
         }
     }
 
+    static constexpr float ITEM_Y_OFFSET = -2.0f; // Shift items slightly upward on belts
+
     void createItemVisual(int x, int y, ItemId id)
     {
         const auto& def = itemRegistry->get(id);
@@ -384,7 +386,7 @@ private:
             auto tex = make2DTexture(ecsRef, itemSize, itemSize, def.textureName);
             auto pos = tex.get<PositionComponent>();
             pos->setX(worldX + offset);
-            pos->setY(worldY + offset);
+            pos->setY(worldY + offset + ITEM_Y_OFFSET);
             pos->setZ(z);
             tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
             entityId = tex.entity->id;
@@ -396,7 +398,7 @@ private:
             auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, color);
             auto pos = shape.get<PositionComponent>();
             pos->setX(worldX + offset);
-            pos->setY(worldY + offset);
+            pos->setY(worldY + offset + ITEM_Y_OFFSET);
             pos->setZ(z);
             pos->setWidth(itemSize);
             pos->setHeight(itemSize);
@@ -435,7 +437,7 @@ private:
                 auto [worldX, worldY] = gridSystem->getGrid().gridToWorld(toX, toY);
                 auto pos = ent->get<PositionComponent>();
                 pos->setX(worldX + offset);
-                pos->setY(worldY + offset);
+                pos->setY(worldY + offset + ITEM_Y_OFFSET);
             }
         }
     }
