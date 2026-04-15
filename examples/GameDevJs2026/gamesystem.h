@@ -573,9 +573,15 @@ private:
         {
             auto [gx, gy] = dragPath[i];
 
-            // Skip if cell is occupied
-            if (gridSystem->getCell(layer, gx, gy).tileId != 0)
+            const auto& existing = gridSystem->getCell(layer, gx, gy);
+
+            // Skip non-conveyor occupied cells
+            if (existing.tileId != 0 and existing.tileId != 4)
                 continue;
+
+            // Remove existing conveyor to replace with new direction
+            if (existing.tileId == 4)
+                gridSystem->removeBuilding(layer, gx, gy);
 
             uint8_t enterDir, exitDir;
 
