@@ -258,6 +258,7 @@ private:
     {
         auto& inv = playerInv->getInventory();
         auto& slot = inv.getSlot(slotIndex);
+        int oldHeldFrom = heldFromSlot;
 
         if (slot.isEmpty())
         {
@@ -287,7 +288,6 @@ private:
                 // Update held visual text
                 destroyHeldVisual();
                 createHeldVisual();
-                updateHeldPosition();
             }
         }
         else
@@ -299,10 +299,13 @@ private:
             heldFromSlot = static_cast<int>(slotIndex);
             destroyHeldVisual();
             createHeldVisual();
-            updateHeldPosition();
         }
 
         refreshSlot(slotIndex);
+
+        // Also refresh the old source slot to clear any visual artifacts
+        if (oldHeldFrom >= 0 and oldHeldFrom != static_cast<int>(slotIndex))
+            refreshSlot(static_cast<size_t>(oldHeldFrom));
     }
 
     void cancelHeld()
@@ -342,9 +345,14 @@ private:
         if (heldItem.isEmpty())
             return;
 
+        float offsetX = 8.0f;
+        float offsetY = 8.0f;
+
         auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(heldItem.id));
         auto itemPos = item.get<PositionComponent>();
-        itemPos->setZ(99.5f);
+        itemPos->setX(lastMouseX + offsetX);
+        itemPos->setY(lastMouseY + offsetY);
+        itemPos->setZ(95.f);
         itemPos->setWidth(ITEM_SIZE);
         itemPos->setHeight(ITEM_SIZE);
         item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -354,7 +362,9 @@ private:
         {
             std::string countStr = std::to_string(heldItem.count);
             auto text = makeTTFText(ecsRef,
-                0.0f, 0.0f, 99.8f,
+                lastMouseX + offsetX + ITEM_SIZE - 4.0f,
+                lastMouseY + offsetY + ITEM_SIZE - 4.0f,
+                99.8f,
                 FONT_PATH, countStr, TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
             text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
