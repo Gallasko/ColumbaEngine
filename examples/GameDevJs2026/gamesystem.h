@@ -336,8 +336,14 @@ private:
         if (not canPlaceAt(gridX, gridY, def))
             return;
 
+        auto layer = gridSystem->getBuildingLayer();
         size_t tileIndex = def.hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
-        gridSystem->placeBuilding(gridSystem->getBuildingLayer(), gridX, gridY, def, currentDirection, tileIndex);
+        gridSystem->placeBuilding(layer, gridX, gridY, def, currentDirection, tileIndex);
+
+        // Update adjacent belts to reflect the new neighbor
+        for (int dy = 0; dy < def.gridH; ++dy)
+            for (int dx = 0; dx < def.gridW; ++dx)
+                gridSystem->updateNeighborBelts(layer, gridX + dx, gridY + dy);
     }
 
     void removeAtMouse()
@@ -490,6 +496,26 @@ private:
             }
 
             size_t tileIndex = resolveTileIndex(enterDir, exitDir);
+
+            // For straight pieces, resolve variant based on neighbor connectivity
+            if (enterDir == exitDir)
+            {
+                auto layer = gridSystem->getBuildingLayer();
+                uint8_t backDir = (exitDir + 2) % 4;
+
+                // Internal connectivity: connected if there's an adjacent cell in the path
+                bool connectedFront = (i < dragPath.size() - 1);
+                bool connectedBack  = (i > 0);
+
+                // External connectivity: check the grid for existing buildings
+                if (not connectedFront)
+                    connectedFront = gridSystem->isNeighborConnected(layer, gx, gy, exitDir);
+                if (not connectedBack)
+                    connectedBack = gridSystem->isNeighborConnected(layer, gx, gy, backDir);
+
+                tileIndex = resolveLineTileVariant(exitDir, connectedBack, connectedFront);
+            }
+
             size_t frameIndex = tileIndex * 8;
             std::string texName = def.textureName + "." + std::to_string(frameIndex);
 
@@ -528,6 +554,9 @@ private:
         auto layer = gridSystem->getBuildingLayer();
         const auto& def = getSelectedDef();
 
+        // Phase 1: Place all belt cells
+        std::vector<std::pair<int, int>> placedCells;
+
         for (size_t i = 0; i < dragPath.size(); ++i)
         {
             auto [gx, gy] = dragPath[i];
@@ -560,7 +589,16 @@ private:
 
             size_t tileIndex = resolveTileIndex(enterDir, exitDir);
             gridSystem->placeBuilding(layer, gx, gy, def, exitDir, tileIndex);
+            placedCells.push_back({gx, gy});
         }
+
+        // Phase 2: Resolve correct variants for all newly placed straight belts
+        for (const auto& [gx, gy] : placedCells)
+            gridSystem->resolveAndUpdateBelt(layer, gx, gy);
+
+        // Phase 3: Update existing neighbor belts adjacent to newly placed cells
+        for (const auto& [gx, gy] : placedCells)
+            gridSystem->updateNeighborBelts(layer, gx, gy);
 
         dragPath.clear();
     }

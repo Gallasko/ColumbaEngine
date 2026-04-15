@@ -14,6 +14,10 @@ using namespace pg;
 // Viewport index for the game camera (FollowCamera2D registers as cameraList[0] = viewport 1)
 static constexpr size_t GAME_VIEWPORT = 1;
 
+// Direction offsets: RIGHT=0, DOWN=1, LEFT=2, UP=3
+static constexpr int DIR_DX[4] = { 1, 0, -1, 0 };
+static constexpr int DIR_DY[4] = { 0, 1, 0, -1 };
+
 // Tile index in the atlas JSON frame ordering (tileIndex * 8 + block = frame index)
 enum ConveyorTileIndex : size_t
 {
@@ -46,6 +50,41 @@ struct ConveyorEntry
     uint64_t entityId = 0;
     size_t tileIndex = 0;
 };
+
+// Pick the correct LINE_*_N variant based on direction and neighbor connectivity.
+// For RIGHT/DOWN: _0 = ender at back, _2 = ender at front
+// For UP/LEFT:    _0 = ender at front, _2 = ender at back (inverted)
+// _1 = middle (connected both), _3 = standalone (LEFT/RIGHT only)
+static size_t resolveLineTileVariant(uint8_t exitDir, bool connectedBack, bool connectedFront)
+{
+    switch (exitDir)
+    {
+        case 0: // RIGHT: _0=ender back, _1=middle, _2=ender front, _3=standalone
+            if (connectedBack and connectedFront) return LINE_RIGHT_1;
+            if (connectedBack)                    return LINE_RIGHT_2;
+            if (connectedFront)                   return LINE_RIGHT_0;
+            return LINE_RIGHT_3;
+
+        case 1: // DOWN: _0=ender back, _1=middle, _2=ender front
+            if (connectedBack and connectedFront) return LINE_DOWN_1;
+            if (connectedBack)                    return LINE_DOWN_2;
+            if (connectedFront)                   return LINE_DOWN_0;
+            return LINE_DOWN_0;
+
+        case 2: // LEFT (inverted): _0=ender front, _1=middle, _2=ender back, _3=standalone
+            if (connectedBack and connectedFront) return LINE_LEFT_1;
+            if (connectedBack)                    return LINE_LEFT_0;
+            if (connectedFront)                   return LINE_LEFT_2;
+            return LINE_LEFT_3;
+
+        case 3: // UP (inverted): _0=ender front, _1=middle, _2=ender back
+            if (connectedBack and connectedFront) return LINE_UP_1;
+            if (connectedBack)                    return LINE_UP_0;
+            if (connectedFront)                   return LINE_UP_2;
+            return LINE_UP_0;
+    }
+    return LINE_RIGHT_1;
+}
 
 class GridSystem : public System<InitSys, Listener<TickEvent>>
 {
@@ -215,6 +254,11 @@ public:
                     grid.getCell(layer, ox + dx, oy + dy) = CellData{};
             }
         }
+
+        // Update adjacent belts that may now be disconnected
+        for (int dy = 0; dy < h; ++dy)
+            for (int dx = 0; dx < w; ++dx)
+                updateNeighborBelts(layer, ox + dx, oy + dy);
     }
 
     // Legacy: place a single-cell tile (kept for backward compat with setCell/clearCell calls)
@@ -284,6 +328,109 @@ public:
     size_t getItemLayer() const { return itemLayer; }
 
     size_t getCurrentAnimFrame() const { return currentFrame; }
+
+    // Check if the neighbor in direction checkDir from (x,y) is connectable.
+    // For belt neighbors: checks flow direction compatibility.
+    // For non-belt buildings (machines): always connectable.
+    bool isNeighborConnected(size_t layer, int x, int y, uint8_t checkDir) const
+    {
+        int nx = x + DIR_DX[checkDir];
+        int ny = y + DIR_DY[checkDir];
+
+        if (not grid.isInBounds(nx, ny))
+            return false;
+
+        const auto& neighbor = grid.getCell(layer, nx, ny);
+        if (neighbor.tileId == 0)
+            return false;
+
+        // Non-belt buildings (machines) are always connectable
+        if (neighbor.tileId != 4)
+            return true;
+
+        // Belt neighbor: check flow direction compatibility
+        uint8_t nExit = neighbor.direction;
+        uint8_t oppositeCheck = (checkDir + 2) % 4;
+
+        // Neighbor exits towards us (its output flows into our cell)
+        if (nExit == oppositeCheck)
+            return true;
+
+        // Neighbor's input faces us (its back side faces our cell, so it receives from us)
+        // For a straight belt, input = opposite of exit. (nExit + 2) % 4 == oppositeCheck => nExit == checkDir
+        if (nExit == checkDir)
+            return true;
+
+        return false;
+    }
+
+    // Update a conveyor's tile index and refresh its texture immediately
+    void updateConveyorTileIndex(size_t layer, int x, int y, size_t newTileIndex)
+    {
+        if (not grid.isInBounds(x, y))
+            return;
+
+        auto& cell = grid.getCell(layer, x, y);
+        if (cell.tileId != 4 or cell.entityId == 0)
+            return;
+
+        for (auto& conv : conveyors)
+        {
+            if (conv.entityId == cell.entityId)
+            {
+                conv.tileIndex = newTileIndex;
+
+                auto ent = ecsRef->getEntity(conv.entityId);
+                if (ent)
+                {
+                    size_t frameIndex = newTileIndex * NUM_ANIM_FRAMES + currentFrame;
+                    ent->get<Texture2DComponent>()->setTexture(
+                        "Conveyor_Belt." + std::to_string(frameIndex));
+                }
+                break;
+            }
+        }
+    }
+
+    // Re-evaluate a belt cell's variant based on its current neighbors. Skips corners.
+    void resolveAndUpdateBelt(size_t layer, int x, int y)
+    {
+        if (not grid.isInBounds(x, y))
+            return;
+
+        const auto& cell = grid.getCell(layer, x, y);
+        if (cell.tileId != 4 or cell.entityId == 0)
+            return;
+
+        // Check if this is a corner (tileIndex 0-7) — corners are always connected, skip
+        for (const auto& conv : conveyors)
+        {
+            if (conv.entityId == cell.entityId)
+            {
+                if (conv.tileIndex <= CORNER_CCW_1_1)
+                    return;
+                break;
+            }
+        }
+
+        uint8_t exitDir = cell.direction;
+        uint8_t backDir = (exitDir + 2) % 4;
+
+        bool connectedFront = isNeighborConnected(layer, x, y, exitDir);
+        bool connectedBack  = isNeighborConnected(layer, x, y, backDir);
+
+        size_t newTileIndex = resolveLineTileVariant(exitDir, connectedBack, connectedFront);
+        updateConveyorTileIndex(layer, x, y, newTileIndex);
+    }
+
+    // Update all 4 neighbors of (x,y) — call after placing or removing a building
+    void updateNeighborBelts(size_t layer, int x, int y)
+    {
+        for (int dir = 0; dir < 4; ++dir)
+        {
+            resolveAndUpdateBelt(layer, x + DIR_DX[dir], y + DIR_DY[dir]);
+        }
+    }
 
 private:
     static constexpr size_t NUM_ANIM_FRAMES = 8;
