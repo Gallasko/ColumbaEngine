@@ -83,6 +83,9 @@ public:
                 commitDragPath();
                 isDragging = false;
             }
+            // Safety: always clear any remaining drag ghosts on release
+            clearDragGhosts();
+            dragPath.clear();
             leftMouseDown = false;
         }
     }
@@ -402,16 +405,13 @@ private:
         if (cx == last.first and cy == last.second)
             return; // Same cell
 
-        // Check for backtracking: if current cell is second-to-last, pop
-        if (dragPath.size() >= 2)
+        // Check if target cell is already in the path → truncate the loop
+        int existingIdx = findInPath(cx, cy);
+        if (existingIdx >= 0)
         {
-            auto& prev = dragPath[dragPath.size() - 2];
-            if (cx == prev.first and cy == prev.second)
-            {
-                dragPath.pop_back();
-                updateDragGhosts();
-                return;
-            }
+            dragPath.resize(static_cast<size_t>(existingIdx) + 1);
+            updateDragGhosts();
+            return;
         }
 
         // Fill gap if mouse skipped cells (fast movement)
@@ -429,29 +429,41 @@ private:
         while (curX != cx)
         {
             curX += stepX;
-            if (not isAlreadyInPath(curX, curY))
-                dragPath.push_back({curX, curY});
+            int idx = findInPath(curX, curY);
+            if (idx >= 0)
+            {
+                dragPath.resize(static_cast<size_t>(idx) + 1);
+                updateDragGhosts();
+                return;
+            }
+            dragPath.push_back({curX, curY});
         }
 
         // Vertical steps
         while (curY != cy)
         {
             curY += stepY;
-            if (not isAlreadyInPath(curX, curY))
-                dragPath.push_back({curX, curY});
+            int idx = findInPath(curX, curY);
+            if (idx >= 0)
+            {
+                dragPath.resize(static_cast<size_t>(idx) + 1);
+                updateDragGhosts();
+                return;
+            }
+            dragPath.push_back({curX, curY});
         }
 
         updateDragGhosts();
     }
 
-    bool isAlreadyInPath(int x, int y) const
+    int findInPath(int x, int y) const
     {
-        for (const auto& p : dragPath)
+        for (size_t i = 0; i < dragPath.size(); ++i)
         {
-            if (p.first == x and p.second == y)
-                return true;
+            if (dragPath[i].first == x and dragPath[i].second == y)
+                return static_cast<int>(i);
         }
-        return false;
+        return -1;
     }
 
     void updateDragGhosts()
