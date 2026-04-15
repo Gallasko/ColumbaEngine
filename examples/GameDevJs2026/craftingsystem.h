@@ -97,7 +97,27 @@ private:
 
     void unregisterMachine(int x, int y)
     {
-        machines.erase(machineKey(x, y));
+        auto it = machines.find(machineKey(x, y));
+        if (it != machines.end())
+        {
+            auto& machine = it->second;
+
+            // Return input slot items to player
+            for (const auto& slot : machine.inputSlots.slots)
+            {
+                if (not slot.isEmpty())
+                    sendEvent(PlayerGainItemEvent{slot.id, slot.count});
+            }
+
+            // Return output slot items to player
+            for (const auto& slot : machine.outputSlots.slots)
+            {
+                if (not slot.isEmpty())
+                    sendEvent(PlayerGainItemEvent{slot.id, slot.count});
+            }
+
+            machines.erase(it);
+        }
     }
 
     void craftTick()

@@ -6,6 +6,7 @@
 
 #include "gridsystem.h"
 #include "itemregistry.h"
+#include "playerinventory.h"
 
 using namespace pg;
 
@@ -47,8 +48,13 @@ public:
     {
         if (event.tileId == 4)
         {
+            auto& cell = beltGrid.get(event.x, event.y);
+            if (cell.itemId != ITEM_NONE)
+            {
+                sendEvent(PlayerGainItemEvent{cell.itemId, 1});
+            }
             destroyItemVisual(event.x, event.y);
-            beltGrid.get(event.x, event.y).itemId = ITEM_NONE;
+            cell.itemId = ITEM_NONE;
         }
     }
 

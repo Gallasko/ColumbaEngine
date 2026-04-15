@@ -134,7 +134,7 @@ private:
         auto bdPos = backdrop.get<PositionComponent>();
         bdPos->setX(panelX);
         bdPos->setY(panelY);
-        bdPos->setZ(0.97f);
+        bdPos->setZ(97.0f);
         bdPos->setWidth(panelW);
         bdPos->setHeight(panelH);
         backdrop.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -152,7 +152,7 @@ private:
             auto pos = slot.get<PositionComponent>();
             pos->setX(sx);
             pos->setY(sy);
-            pos->setZ(0.975f);
+            pos->setZ(97.5f);
             pos->setWidth(SLOT_SIZE);
             pos->setHeight(SLOT_SIZE);
             slot.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -216,7 +216,7 @@ private:
         auto itemPos = item.get<PositionComponent>();
         itemPos->setX(sx + itemOffset);
         itemPos->setY(sy + itemOffset);
-        itemPos->setZ(0.98f);
+        itemPos->setZ(98.0f);
         itemPos->setWidth(ITEM_SIZE);
         itemPos->setHeight(ITEM_SIZE);
         item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -227,7 +227,7 @@ private:
         {
             std::string countStr = std::to_string(stack.count);
             auto text = makeTTFText(ecsRef,
-                sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 0.985f,
+                sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 98.5f,
                 FONT_PATH, countStr, TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
 
@@ -344,7 +344,7 @@ private:
 
         auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(heldItem.id));
         auto itemPos = item.get<PositionComponent>();
-        itemPos->setZ(0.995f);
+        itemPos->setZ(99.5f);
         itemPos->setWidth(ITEM_SIZE);
         itemPos->setHeight(ITEM_SIZE);
         item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -354,7 +354,7 @@ private:
         {
             std::string countStr = std::to_string(heldItem.count);
             auto text = makeTTFText(ecsRef,
-                0.0f, 0.0f, 0.998f,
+                0.0f, 0.0f, 99.8f,
                 FONT_PATH, countStr, TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
             text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);

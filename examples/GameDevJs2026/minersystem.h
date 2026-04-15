@@ -105,7 +105,20 @@ private:
 
     void unregisterMiner(int x, int y)
     {
-        miners.erase(machineKey(x, y));
+        auto it = miners.find(machineKey(x, y));
+        if (it != miners.end())
+        {
+            auto& miner = it->second;
+
+            // Return output slot items to player
+            for (const auto& slot : miner.outputSlots.slots)
+            {
+                if (not slot.isEmpty())
+                    sendEvent(PlayerGainItemEvent{slot.id, slot.count});
+            }
+
+            miners.erase(it);
+        }
     }
 
     void mineTick()
