@@ -99,7 +99,6 @@ public:
             updateHeldPosition();
     }
 
-private:
     // --- Open / Close ---
 
     void openInventory()
@@ -118,6 +117,7 @@ private:
         visible = false;
     }
 
+private:
     // --- Panel Creation / Destruction ---
 
     void createPanel()

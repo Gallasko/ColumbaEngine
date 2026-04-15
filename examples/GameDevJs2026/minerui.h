@@ -7,10 +7,13 @@
 
 #include "minersystem.h"
 #include "inventoryui.h" // for getItemColor
+#include "playerinventory.h"
 
 using namespace pg;
 
-class MinerUISystem : public System<Listener<OnSDLScanCode>, Listener<TickEvent>>
+class MinerUISystem : public System<Listener<OnSDLScanCode>,
+                                     Listener<TickEvent>,
+                                     QueuedListener<OnMouseClick>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -21,12 +24,15 @@ public:
     static constexpr float TITLE_SCALE = 0.4f;
     static constexpr float PROGRESS_BAR_HEIGHT = 8.0f;
     static constexpr float PROGRESS_BAR_WIDTH = SLOT_SIZE;
+    static constexpr float GAP_BETWEEN_PANELS = 8.0f;
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
     MinerUISystem(MinerSystem* minerSystem, ItemRegistry* itemRegistry,
+                  PlayerInventorySystem* playerInv, InventoryUISystem* inventoryUI,
                   float screenWidth, float screenHeight)
         : minerSystem(minerSystem), itemRegistry(itemRegistry),
+          playerInv(playerInv), inventoryUI(inventoryUI),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Miner UI System"; }
@@ -41,6 +47,11 @@ public:
         openMinerX = gridX;
         openMinerY = gridY;
         visible = true;
+
+        // Also open the player inventory beside us
+        if (inventoryUI and not inventoryUI->isOpen())
+            inventoryUI->openInventory();
+
         createPanel();
         refreshSlot();
     }
@@ -71,14 +82,41 @@ public:
         }
     }
 
+    virtual void onProcessEvent(const OnMouseClick& event) override
+    {
+        if (not visible or event.button != SDL_BUTTON_LEFT)
+            return;
+
+        if (isClickOnSlot(event.pos.x, event.pos.y))
+            transferToPlayer();
+    }
+
 private:
+    // Compute panel position: to the left of the inventory panel
+    float getPanelX() const
+    {
+        // Inventory panel dimensions (mirrored from InventoryUISystem constants)
+        float invW = InventoryUISystem::COLS * InventoryUISystem::SLOT_SIZE
+                   + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
+                   + 2 * InventoryUISystem::PANEL_PADDING;
+        float invX = (screenWidth - invW) * 0.5f;
+
+        float minerW = SLOT_SIZE + 2 * PANEL_PADDING;
+        return invX - GAP_BETWEEN_PANELS - minerW;
+    }
+
+    float getPanelY() const
+    {
+        float titleH = 20.0f;
+        float gapAfterTitle = 6.0f;
+        float gapAfterSlot = 8.0f;
+        float contentH = titleH + gapAfterTitle + SLOT_SIZE + gapAfterSlot + PROGRESS_BAR_HEIGHT;
+        float panelH = contentH + 2 * PANEL_PADDING;
+        return (screenHeight - panelH) * 0.5f;
+    }
+
     void createPanel()
     {
-        // Panel layout:
-        //   Title "Miner"
-        //   [output slot]
-        //   [progress bar]
-
         float titleH = 20.0f;
         float gapAfterTitle = 6.0f;
         float gapAfterSlot = 8.0f;
@@ -86,8 +124,8 @@ private:
         float contentH = titleH + gapAfterTitle + SLOT_SIZE + gapAfterSlot + PROGRESS_BAR_HEIGHT;
         float panelW = SLOT_SIZE + 2 * PANEL_PADDING;
         float panelH = contentH + 2 * PANEL_PADDING;
-        float panelX = (screenWidth - panelW) * 0.5f;
-        float panelY = (screenHeight - panelH) * 0.5f;
+        float panelX = getPanelX();
+        float panelY = getPanelY();
 
         // Backdrop
         auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
@@ -102,13 +140,15 @@ private:
         backdrop.get<Simple2DObject>()->setViewport(UI_VP);
         backdropEntityId = backdrop.entity->id;
 
-        // Title text "Miner"
-        float titleX = panelX + panelW * 0.5f;
-        float titleY = panelY + PANEL_PADDING + 4.0f;
+        // Title text "Miner" — create first, then center using its width
         auto title = makeTTFText(ecsRef,
-            titleX, titleY, 106.0f,
+            0.0f, panelY + PANEL_PADDING + 4.0f, 106.0f,
             FONT_PATH, "Miner", TITLE_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
+
+        float textW = title.get<TTFText>()->textWidth;
+        float titleX = panelX + (panelW - textW) * 0.5f;
+        title.get<PositionComponent>()->setX(titleX);
         title.get<TTFText>()->setViewport(UI_VP);
         titleEntityId = title.entity->id;
 
@@ -144,7 +184,7 @@ private:
         barBg.get<Simple2DObject>()->setViewport(UI_VP);
         progressBgEntityId = barBg.entity->id;
 
-        // Progress bar fill (starts at 0 width)
+        // Progress bar fill
         auto barFill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{80.0f, 200.0f, 80.0f, 255.0f});
 
@@ -237,6 +277,32 @@ private:
         }
     }
 
+    // --- Click Handling ---
+
+    bool isClickOnSlot(float x, float y) const
+    {
+        return x >= cachedSlotX and x <= cachedSlotX + SLOT_SIZE
+           and y >= cachedSlotY and y <= cachedSlotY + SLOT_SIZE;
+    }
+
+    void transferToPlayer()
+    {
+        MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+        if (not miner)
+            return;
+
+        auto& slot = miner->outputSlots.getSlot(0);
+        if (slot.isEmpty())
+            return;
+
+        // Transfer to player inventory
+        sendEvent(PlayerGainItemEvent{slot.id, slot.count});
+        slot.clear();
+        refreshSlot();
+    }
+
+    // --- Helpers ---
+
     void destroyEntity(uint64_t& id)
     {
         if (id != 0)
@@ -252,6 +318,8 @@ private:
 
     MinerSystem* minerSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
+    PlayerInventorySystem* playerInv = nullptr;
+    InventoryUISystem* inventoryUI = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

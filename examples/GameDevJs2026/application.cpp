@@ -84,7 +84,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             playerInvSystem, &itemRegistry, screenW, screenH);
 
         auto* minerUI = ecs.createSystem<MinerUISystem>(
-            minerSystem, &itemRegistry, screenW, screenH);
+            minerSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 
         ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem, inventoryUI, minerUI);
     });
