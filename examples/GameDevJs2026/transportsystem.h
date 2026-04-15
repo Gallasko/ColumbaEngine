@@ -151,17 +151,98 @@ private:
             }
         }
 
-        // Phase 2: resolve conflicts with round-robin for contested cells
+        // Phase 2a: count targets and detect cycles
         std::array<std::array<uint8_t, Grid::WIDTH>, Grid::HEIGHT> targetCount = {};
         for (const auto& m : moves)
             targetCount[m.toY][m.toX]++;
 
-        // For contested cells, pick a winner via round-robin
+        // Build spatial index: which move originates from each cell?
+        std::array<std::array<int, Grid::WIDTH>, Grid::HEIGHT> moveOrigin;
+        for (auto& row : moveOrigin) row.fill(-1);
+        for (size_t i = 0; i < moves.size(); ++i)
+            moveOrigin[moves[i].fromY][moves[i].fromX] = static_cast<int>(i);
+
+        // Detect cycles via chain-following (only through uncontested cells)
+        std::vector<bool> inCycle(moves.size(), false);
+        std::vector<uint8_t> visited(moves.size(), 0); // 0=unvisited, 1=in-progress, 2=done
+
+        for (size_t i = 0; i < moves.size(); ++i)
+        {
+            if (visited[i] != 0) continue;
+
+            std::vector<size_t> chain;
+            size_t cur = i;
+
+            while (true)
+            {
+                if (visited[cur] == 2) break;
+                if (visited[cur] == 1)
+                {
+                    // Found a cycle — mark all moves from cur onwards in the chain
+                    size_t j = 0;
+                    while (chain[j] != cur) ++j;
+                    for (; j < chain.size(); ++j)
+                        inCycle[chain[j]] = true;
+                    break;
+                }
+
+                visited[cur] = 1;
+                chain.push_back(cur);
+
+                const auto& m = moves[cur];
+                // Only follow through uncontested destinations
+                if (targetCount[m.toY][m.toX] > 1) break;
+                int next = moveOrigin[m.toY][m.toX];
+                if (next < 0) break;
+                cur = static_cast<size_t>(next);
+            }
+
+            for (size_t idx : chain)
+                visited[idx] = 2;
+        }
+
+        // Phase 2b: apply cycle moves atomically (snapshot entity IDs first)
+        std::vector<std::pair<size_t, uint64_t>> cycleEntityIds;
+        for (size_t i = 0; i < moves.size(); ++i)
+        {
+            if (not inCycle[i]) continue;
+            cycleEntityIds.push_back({i, beltGrid.get(moves[i].fromX, moves[i].fromY).entityId});
+        }
+
+        for (size_t i = 0; i < moves.size(); ++i)
+        {
+            if (not inCycle[i]) continue;
+            beltGrid.get(moves[i].toX, moves[i].toY).itemId = moves[i].itemId;
+        }
+
+        for (const auto& [idx, entityId] : cycleEntityIds)
+        {
+            const auto& m = moves[idx];
+            beltGrid.get(m.toX, m.toY).entityId = entityId;
+
+            if (entityId != 0)
+            {
+                auto ent = ecsRef->getEntity(entityId);
+                if (ent)
+                {
+                    float itemSize = static_cast<float>(Grid::TILE_SIZE) * 0.6f;
+                    float offset = (Grid::TILE_SIZE - itemSize) * 0.5f;
+                    auto [worldX, worldY] = grid.gridToWorld(m.toX, m.toY);
+                    auto pos = ent->get<PositionComponent>();
+                    pos->setX(worldX + offset);
+                    pos->setY(worldY + offset);
+                }
+            }
+        }
+
+        // Phase 2c: round-robin for contested non-cycle cells
         std::array<std::array<int, Grid::WIDTH>, Grid::HEIGHT> winnerMoveIdx;
         for (auto& row : winnerMoveIdx) row.fill(-1);
 
         for (size_t i = 0; i < moves.size(); ++i)
         {
+            if (inCycle[i]) continue;
+
             const auto& m = moves[i];
             if (targetCount[m.toY][m.toX] <= 1)
                 continue;
@@ -184,9 +265,11 @@ private:
             }
         }
 
-        // Apply moves
+        // Phase 2d: apply non-cycle moves
         for (size_t i = 0; i < moves.size(); ++i)
         {
+            if (inCycle[i]) continue;
+
             const auto& m = moves[i];
             bool destEmpty = beltGrid.get(m.toX, m.toY).itemId == ITEM_NONE;
 
@@ -199,7 +282,6 @@ private:
                 beltGrid.get(m.fromX, m.fromY).itemId = ITEM_NONE;
                 moveItemVisual(m.fromX, m.fromY, m.toX, m.toY);
 
-                // Advance round-robin state when a contested move succeeds
                 if (targetCount[m.toY][m.toX] > 1)
                     lastServedDir[m.toY][m.toX] = travelDirection(m.fromX, m.fromY, m.toX, m.toY);
             }
