@@ -54,16 +54,16 @@ struct ConveyorEntry
 // Pick the correct LINE_*_N variant based on direction and neighbor connectivity.
 // For RIGHT/DOWN: _0 = ender at back, _2 = ender at front
 // For UP/LEFT:    _0 = ender at front, _2 = ender at back (inverted)
-// _1 = middle (connected both), _3 = standalone (LEFT/RIGHT only)
+// _1 = middle (connected both)
 static size_t resolveLineTileVariant(uint8_t exitDir, bool connectedBack, bool connectedFront)
 {
     switch (exitDir)
     {
-        case 0: // RIGHT: _0=ender back, _1=middle, _2=ender front, _3=standalone
+        case 0: // RIGHT: _0=ender back, _1=middle, _2=ender front
             if (connectedBack and connectedFront) return LINE_RIGHT_1;
             if (connectedBack)                    return LINE_RIGHT_2;
             if (connectedFront)                   return LINE_RIGHT_0;
-            return LINE_RIGHT_3;
+            return LINE_RIGHT_0; // standalone: show back ender
 
         case 1: // DOWN: _0=ender back, _1=middle, _2=ender front
             if (connectedBack and connectedFront) return LINE_DOWN_1;
@@ -71,11 +71,11 @@ static size_t resolveLineTileVariant(uint8_t exitDir, bool connectedBack, bool c
             if (connectedFront)                   return LINE_DOWN_0;
             return LINE_DOWN_0;
 
-        case 2: // LEFT (inverted): _0=ender front, _1=middle, _2=ender back, _3=standalone
+        case 2: // LEFT (inverted): _0=ender front, _1=middle, _2=ender back
             if (connectedBack and connectedFront) return LINE_LEFT_1;
             if (connectedBack)                    return LINE_LEFT_0;
             if (connectedFront)                   return LINE_LEFT_2;
-            return LINE_LEFT_3;
+            return LINE_LEFT_2; // standalone: show back ender
 
         case 3: // UP (inverted): _0=ender front, _1=middle, _2=ender back
             if (connectedBack and connectedFront) return LINE_UP_1;
