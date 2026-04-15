@@ -8,12 +8,13 @@
 
 struct CellData
 {
-    uint16_t tileId = 0;    // 0 = empty
-    uint64_t entityId = 0;  // ECS entity id, 0 = no entity
-    uint8_t  direction = 0; // 0-3 rotation for directional buildings
-    int8_t   ownerX = 0;    // For multi-cell: grid X of the top-left owner cell
-    int8_t   ownerY = 0;    // For multi-cell: grid Y of the top-left owner cell
-    bool     isOwner = true; // True if this is the primary cell (holds the entity)
+    uint16_t tileId = 0;         // 0 = empty
+    uint64_t entityId = 0;       // ECS entity id, 0 = no entity
+    uint8_t  direction = 0;      // Exit direction (0-3)
+    uint8_t  enterDirection = 0; // Enter direction (same as direction for straight belts, differs for corners)
+    int8_t   ownerX = 0;         // For multi-cell: grid X of the top-left owner cell
+    int8_t   ownerY = 0;         // For multi-cell: grid Y of the top-left owner cell
+    bool     isOwner = true;     // True if this is the primary cell (holds the entity)
 };
 
 struct GridLayer

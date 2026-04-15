@@ -137,7 +137,7 @@ public:
     }
 
     // Place a building on the grid using its BuildingDef
-    void placeBuilding(size_t layer, int x, int y, const BuildingDef& def, size_t direction, size_t conveyorTileIndex = LINE_RIGHT_1)
+    void placeBuilding(size_t layer, int x, int y, const BuildingDef& def, size_t direction, size_t conveyorTileIndex = LINE_RIGHT_1, size_t enterDir = SIZE_MAX)
     {
         // Check all cells are free and in bounds
         for (int dy = 0; dy < def.gridH; ++dy)
@@ -203,6 +203,7 @@ public:
         }
 
         // Mark all cells in the footprint
+        uint8_t actualEnterDir = (enterDir == SIZE_MAX) ? static_cast<uint8_t>(direction) : static_cast<uint8_t>(enterDir);
         for (int dy = 0; dy < def.gridH; ++dy)
         {
             for (int dx = 0; dx < def.gridW; ++dx)
@@ -210,6 +211,7 @@ public:
                 auto& cell = grid.getCell(layer, x + dx, y + dy);
                 cell.tileId = def.tileId;
                 cell.direction = static_cast<uint8_t>(direction);
+                cell.enterDirection = actualEnterDir;
                 cell.ownerX = static_cast<int8_t>(x);
                 cell.ownerY = static_cast<int8_t>(y);
                 cell.isOwner = (dx == 0 and dy == 0);
@@ -330,7 +332,8 @@ public:
     size_t getCurrentAnimFrame() const { return currentFrame; }
 
     // Check if the neighbor in direction checkDir from (x,y) is connectable.
-    // For belt neighbors: checks flow direction compatibility.
+    // For belt neighbors: checks if the neighbor connects on the side facing us
+    // (using both enter and exit directions to handle corners correctly).
     // For non-belt buildings (machines): always connectable.
     bool isNeighborConnected(size_t layer, int x, int y, uint8_t checkDir) const
     {
@@ -348,17 +351,19 @@ public:
         if (neighbor.tileId != 4)
             return true;
 
-        // Belt neighbor: check flow direction compatibility
-        uint8_t nExit = neighbor.direction;
-        uint8_t oppositeCheck = (checkDir + 2) % 4;
+        // Belt neighbor: the neighbor connects on the side facing us if either
+        // its enter or exit direction points towards/away from us on that side.
+        // The side of the neighbor facing us is the opposite of checkDir.
+        uint8_t sideOfNeighborFacingUs = (checkDir + 2) % 4;
 
-        // Neighbor exits towards us (its output flows into our cell)
-        if (nExit == oppositeCheck)
+        // Neighbor's exit side faces us
+        if (neighbor.direction == sideOfNeighborFacingUs)
             return true;
 
-        // Neighbor's input faces us (its back side faces our cell, so it receives from us)
-        // For a straight belt, input = opposite of exit. (nExit + 2) % 4 == oppositeCheck => nExit == checkDir
-        if (nExit == checkDir)
+        // Neighbor's enter side faces us (enter direction is where items come FROM,
+        // so the enter side is the opposite of enterDirection)
+        uint8_t neighborEnterSide = (neighbor.enterDirection + 2) % 4;
+        if (neighborEnterSide == sideOfNeighborFacingUs)
             return true;
 
         return false;

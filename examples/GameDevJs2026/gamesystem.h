@@ -588,7 +588,7 @@ private:
             }
 
             size_t tileIndex = resolveTileIndex(enterDir, exitDir);
-            gridSystem->placeBuilding(layer, gx, gy, def, exitDir, tileIndex);
+            gridSystem->placeBuilding(layer, gx, gy, def, exitDir, tileIndex, enterDir);
             placedCells.push_back({gx, gy});
         }
 
