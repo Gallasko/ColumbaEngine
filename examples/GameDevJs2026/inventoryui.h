@@ -32,7 +32,7 @@ inline constant::Vector4D getItemColor(ItemId id)
     return colors[id];
 }
 
-class InventoryUISystem : public System<Listener<OnSDLScanCode>,
+class InventoryUISystem : public System<QueuedListener<OnSDLScanCode>,
                                         QueuedListener<OnMouseClick>,
                                         QueuedListener<OnSDLMouseMotion>>
 {
@@ -70,7 +70,7 @@ public:
 
     // --- Event Handlers ---
 
-    virtual void onEvent(const OnSDLScanCode& event) override
+    virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
         if (event.key == SDL_SCANCODE_TAB)
         {

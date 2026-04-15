@@ -11,8 +11,8 @@
 
 using namespace pg;
 
-class MinerUISystem : public System<Listener<OnSDLScanCode>,
-                                     Listener<TickEvent>,
+class MinerUISystem : public System<QueuedListener<OnSDLScanCode>,
+                                     QueuedListener<TickEvent>,
                                      QueuedListener<OnMouseClick>>
 {
 public:
@@ -77,7 +77,7 @@ public:
         openMinerY = -1;
     }
 
-    virtual void onEvent(const OnSDLScanCode& event) override
+    virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
         if (not visible)
             return;
@@ -86,7 +86,7 @@ public:
             close();
     }
 
-    virtual void onEvent(const TickEvent&) override
+    virtual void onProcessEvent(const TickEvent&) override
     {
         if (visible)
         {
