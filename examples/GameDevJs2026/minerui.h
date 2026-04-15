@@ -72,7 +72,9 @@ public:
             return isClickOnPanel(x, y);
         });
 
-        createPanel();
+        ensurePanelCreated();
+        setPanelVisibility(true);
+        lastDisplayedStack.clear();
         refreshSlot();
     }
 
@@ -85,10 +87,16 @@ public:
         // Unregister external click check
         inventoryUI->setExternalClickCheck(nullptr);
 
-        destroyPanel();
+        // Destroy item/text entities (created in prior frames, safely in pool)
+        destroyEntity(itemEntityId);
+        destroyEntity(countTextEntityId);
+
+        // Hide the panel skeleton (backdrop, title, slot bg, progress bars stay alive)
+        setPanelVisibility(false);
         visible = false;
         openMinerX = -1;
         openMinerY = -1;
+        lastDisplayedStack.clear();
     }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
@@ -102,11 +110,21 @@ public:
 
     virtual void onProcessEvent(const TickEvent&) override
     {
-        if (visible)
+        if (not visible)
+            return;
+
+        MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+        if (not miner)
         {
-            refreshSlot();
-            refreshProgressBar();
+            close();
+            return;
         }
+
+        const auto& stack = miner->outputSlots.getSlot(0);
+        if (stack.id != lastDisplayedStack.id or stack.count != lastDisplayedStack.count)
+            refreshSlot();
+
+        refreshProgressBar();
     }
 
     virtual void onProcessEvent(const OnMouseClick& event) override
@@ -153,6 +171,31 @@ private:
         float contentH = titleH + gapAfterTitle + SLOT_SIZE + gapAfterSlot + PROGRESS_BAR_HEIGHT;
         float panelH = contentH + 2 * PANEL_PADDING;
         return (screenHeight - panelH) * 0.5f;
+    }
+
+    void ensurePanelCreated()
+    {
+        if (panelCreated)
+            return;
+        createPanel();
+        setPanelVisibility(false);
+        panelCreated = true;
+    }
+
+    void setPanelVisibility(bool vis)
+    {
+        auto setVis = [this, vis](uint64_t id) {
+            if (id == 0) return;
+            auto ent = ecsRef->getEntity(id);
+            if (ent)
+                ent->get<PositionComponent>()->setVisibility(vis);
+        };
+
+        setVis(backdropEntityId);
+        setVis(titleEntityId);
+        setVis(slotBgEntityId);
+        setVis(progressBgEntityId);
+        setVis(progressFillEntityId);
     }
 
     void createPanel()
@@ -238,31 +281,19 @@ private:
         cachedSlotY = slotY;
     }
 
-    void destroyPanel()
-    {
-        destroyEntity(backdropEntityId);
-        destroyEntity(titleEntityId);
-        destroyEntity(slotBgEntityId);
-        destroyEntity(itemEntityId);
-        destroyEntity(countTextEntityId);
-        destroyEntity(progressBgEntityId);
-        destroyEntity(progressFillEntityId);
-    }
-
     void refreshSlot()
     {
         MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
         if (not miner)
-        {
-            close();
             return;
-        }
 
         // Destroy old item visual and text
         destroyEntity(itemEntityId);
         destroyEntity(countTextEntityId);
 
         const auto& stack = miner->outputSlots.getSlot(0);
+        lastDisplayedStack = stack;
+
         if (stack.isEmpty())
             return;
 
@@ -358,8 +389,11 @@ private:
     float screenHeight = 0.0f;
 
     bool visible = false;
+    bool panelCreated = false;
     int openMinerX = -1;
     int openMinerY = -1;
+
+    ItemStack lastDisplayedStack;
 
     // Cached layout positions
     float cachedSlotX = 0.0f;

@@ -183,20 +183,39 @@ public:
     void openInventory()
     {
         visible = true;
-        createPanel();
+        ensurePanelCreated();
+        setPanelVisibility(true);
         refreshAllSlots();
     }
 
     void closeInventory()
     {
         if (not heldItem.isEmpty())
-            cancelHeld();
+            cancelHeldDataOnly();
 
-        destroyPanel();
+        destroyHeldVisual();
+
+        for (auto& sv : slotVisuals)
+        {
+            destroyEntity(sv.itemEntityId);
+            destroyEntity(sv.textEntityId);
+        }
+
+        setPanelVisibility(false);
         visible = false;
     }
 
     void cancelHeld()
+    {
+        cancelHeldDataOnly();
+        if (visible)
+            refreshAllSlots();
+    }
+
+    // Returns the held item to its source without any visual refresh.
+    // Use this when the panel is about to be hidden (avoids creating
+    // deferred entities that would immediately leak on panel hide).
+    void cancelHeldDataOnly()
     {
         if (heldItem.isEmpty())
             return;
@@ -215,7 +234,6 @@ public:
                 slot = heldItem;
             else
                 playerInv->getInventory().insert(heldItem.id, heldItem.count, *itemRegistry);
-            refreshSlot(static_cast<size_t>(heldFromSlot));
         }
         else
         {
@@ -223,11 +241,33 @@ public:
         }
 
         clearHeld();
-        refreshAllSlots();
     }
 
 private:
-    // --- Panel Creation / Destruction ---
+    // --- Panel Creation / Visibility ---
+
+    void ensurePanelCreated()
+    {
+        if (panelCreated)
+            return;
+        createPanel();
+        setPanelVisibility(false);
+        panelCreated = true;
+    }
+
+    void setPanelVisibility(bool vis)
+    {
+        auto setVis = [this, vis](uint64_t id) {
+            if (id == 0) return;
+            auto ent = ecsRef->getEntity(id);
+            if (ent)
+                ent->get<PositionComponent>()->setVisibility(vis);
+        };
+
+        setVis(backdropEntityId);
+        for (auto& sv : slotVisuals)
+            setVis(sv.bgEntityId);
+    }
 
     void createPanel()
     {
@@ -270,25 +310,6 @@ private:
             slotVisuals[i].itemEntityId = 0;
             slotVisuals[i].textEntityId = 0;
         }
-    }
-
-    void destroyPanel()
-    {
-        // Destroy held visuals
-        destroyHeldVisual();
-
-        // Destroy slot visuals
-        for (auto& sv : slotVisuals)
-        {
-            destroyEntity(sv.bgEntityId);
-            destroyEntity(sv.itemEntityId);
-            destroyEntity(sv.textEntityId);
-        }
-        slotVisuals.clear();
-
-        // Destroy backdrop
-        destroyEntity(backdropEntityId);
-        backdropEntityId = 0;
     }
 
     // --- Slot Refresh ---
@@ -571,6 +592,7 @@ private:
     float screenHeight = 0.0f;
 
     bool visible = false;
+    bool panelCreated = false;
 
     uint64_t backdropEntityId = 0;
 
