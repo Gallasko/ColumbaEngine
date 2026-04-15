@@ -106,6 +106,16 @@ private:
         ItemId itemId;
     };
 
+    static uint8_t travelDirection(int fromX, int fromY, int toX, int toY)
+    {
+        int dx = toX - fromX;
+        int dy = toY - fromY;
+        if (dx > 0) return 0;
+        if (dy > 0) return 1;
+        if (dx < 0) return 2;
+        return 3;
+    }
+
     void transportTick()
     {
         size_t buildingLayer = gridSystem->getBuildingLayer();
@@ -141,22 +151,57 @@ private:
             }
         }
 
-        // Phase 2: resolve conflicts and apply moves
-        // Count how many items target each cell
+        // Phase 2: resolve conflicts with round-robin for contested cells
         std::array<std::array<uint8_t, Grid::WIDTH>, Grid::HEIGHT> targetCount = {};
         for (const auto& m : moves)
             targetCount[m.toY][m.toX]++;
 
-        for (const auto& m : moves)
+        // For contested cells, pick a winner via round-robin
+        std::array<std::array<int, Grid::WIDTH>, Grid::HEIGHT> winnerMoveIdx;
+        for (auto& row : winnerMoveIdx) row.fill(-1);
+
+        for (size_t i = 0; i < moves.size(); ++i)
         {
-            // Only move if destination is empty and not contested
-            if (beltGrid.get(m.toX, m.toY).itemId == ITEM_NONE and
-                targetCount[m.toY][m.toX] == 1)
+            const auto& m = moves[i];
+            if (targetCount[m.toY][m.toX] <= 1)
+                continue;
+
+            uint8_t dir = travelDirection(m.fromX, m.fromY, m.toX, m.toY);
+            uint8_t last = lastServedDir[m.toY][m.toX];
+            uint8_t dist = (dir + 4 - last - 1) % 4;
+
+            int cur = winnerMoveIdx[m.toY][m.toX];
+            if (cur < 0)
+            {
+                winnerMoveIdx[m.toY][m.toX] = static_cast<int>(i);
+            }
+            else
+            {
+                uint8_t curDir = travelDirection(moves[cur].fromX, moves[cur].fromY, m.toX, m.toY);
+                uint8_t curDist = (curDir + 4 - last - 1) % 4;
+                if (dist < curDist)
+                    winnerMoveIdx[m.toY][m.toX] = static_cast<int>(i);
+            }
+        }
+
+        // Apply moves
+        for (size_t i = 0; i < moves.size(); ++i)
+        {
+            const auto& m = moves[i];
+            bool destEmpty = beltGrid.get(m.toX, m.toY).itemId == ITEM_NONE;
+
+            bool allowed = (targetCount[m.toY][m.toX] <= 1)
+                        or (winnerMoveIdx[m.toY][m.toX] == static_cast<int>(i));
+
+            if (destEmpty and allowed)
             {
                 beltGrid.get(m.toX, m.toY).itemId = m.itemId;
                 beltGrid.get(m.fromX, m.fromY).itemId = ITEM_NONE;
-
                 moveItemVisual(m.fromX, m.fromY, m.toX, m.toY);
+
+                // Advance round-robin state when a contested move succeeds
+                if (targetCount[m.toY][m.toX] > 1)
+                    lastServedDir[m.toY][m.toX] = travelDirection(m.fromX, m.fromY, m.toX, m.toY);
             }
         }
     }
@@ -238,4 +283,7 @@ private:
 
     BeltItemGrid beltGrid;
     size_t tickAccumulator = 0;
+
+    // Round-robin state: last travel direction served at each cell
+    std::array<std::array<uint8_t, Grid::WIDTH>, Grid::HEIGHT> lastServedDir = {};
 };

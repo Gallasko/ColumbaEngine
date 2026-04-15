@@ -128,7 +128,12 @@ public:
             return;
 
         // Advance conveyor animation globally — all conveyors stay in sync
-        if (animElapsed >= FRAME_DURATION_MS and not conveyors.empty())
+        if (conveyors.empty())
+        {
+            // Reset accumulator so first placement doesn't fast-forward
+            animElapsed = 0;
+        }
+        else if (animElapsed >= FRAME_DURATION_MS)
         {
             animElapsed -= FRAME_DURATION_MS;
             currentFrame = (currentFrame + 1) % NUM_ANIM_FRAMES;

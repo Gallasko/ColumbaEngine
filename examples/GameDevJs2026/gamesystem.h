@@ -11,7 +11,7 @@
 
 using namespace pg;
 
-class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnMouseRelease>, Listener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
+class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, Listener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
     GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr)
@@ -83,7 +83,7 @@ public:
         }
     }
 
-    virtual void onEvent(const OnMouseRelease& event) override
+    virtual void onProcessEvent(const OnMouseRelease& event) override
     {
         if (event.button == SDL_BUTTON_LEFT)
         {
