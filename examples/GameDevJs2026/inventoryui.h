@@ -57,6 +57,17 @@ public:
 
     bool isOpen() const { return visible; }
 
+    bool isClickOnPanel(float x, float y) const
+    {
+        if (not visible) return false;
+        float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
+        float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
+        float panelX = (screenWidth - panelW) * 0.5f;
+        float panelY = (screenHeight - panelH) * 0.5f;
+        return x >= panelX and x <= panelX + panelW
+           and y >= panelY and y <= panelY + panelH;
+    }
+
     // --- Event Handlers ---
 
     virtual void onEvent(const OnSDLScanCode& event) override

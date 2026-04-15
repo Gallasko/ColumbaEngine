@@ -39,6 +39,19 @@ public:
 
     bool isOpen() const { return visible; }
 
+    bool isClickOnPanel(float x, float y) const
+    {
+        if (not visible) return false;
+        float panelX = getPanelX();
+        float panelY = getPanelY();
+        float panelW = SLOT_SIZE + 2 * PANEL_PADDING;
+        float titleH = 20.0f, gapAfterTitle = 6.0f, gapAfterSlot = 8.0f;
+        float contentH = titleH + gapAfterTitle + SLOT_SIZE + gapAfterSlot + PROGRESS_BAR_HEIGHT;
+        float panelH = contentH + 2 * PANEL_PADDING;
+        return x >= panelX and x <= panelX + panelW
+           and y >= panelY and y <= panelY + panelH;
+    }
+
     void open(int gridX, int gridY)
     {
         if (visible)
@@ -140,15 +153,11 @@ private:
         backdrop.get<Simple2DObject>()->setViewport(UI_VP);
         backdropEntityId = backdrop.entity->id;
 
-        // Title text "Miner" — create first, then center using its width
+        // Title text "Miner" — left-aligned with padding
         auto title = makeTTFText(ecsRef,
-            0.0f, panelY + PANEL_PADDING + 4.0f, 106.0f,
+            panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 106.0f,
             FONT_PATH, "Miner", TITLE_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
-
-        float textW = title.get<TTFText>()->textWidth;
-        float titleX = panelX + (panelW - textW) * 0.5f;
-        title.get<PositionComponent>()->setX(titleX);
         title.get<TTFText>()->setViewport(UI_VP);
         titleEntityId = title.entity->id;
 

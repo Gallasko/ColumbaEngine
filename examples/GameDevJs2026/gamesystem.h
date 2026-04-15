@@ -58,10 +58,28 @@ public:
 
     virtual void onProcessEvent(const OnMouseClick& event) override
     {
-        if (inventoryUI and inventoryUI->isOpen())
-            return;
-        if (minerUI and minerUI->isOpen())
-            return;
+        bool anyUIOpen = (inventoryUI and inventoryUI->isOpen())
+                      or (minerUI and minerUI->isOpen());
+
+        // Centralized click-outside-to-close for all UIs
+        if (anyUIOpen)
+        {
+            if (event.button == SDL_BUTTON_LEFT)
+            {
+                bool onAnyPanel = false;
+                if (inventoryUI and inventoryUI->isOpen())
+                    onAnyPanel = onAnyPanel or inventoryUI->isClickOnPanel(event.pos.x, event.pos.y);
+                if (minerUI and minerUI->isOpen())
+                    onAnyPanel = onAnyPanel or minerUI->isClickOnPanel(event.pos.x, event.pos.y);
+
+                if (not onAnyPanel)
+                {
+                    if (minerUI and minerUI->isOpen()) minerUI->close();
+                    if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
+                }
+            }
+            return; // Block all game input while any UI is open
+        }
 
         if (event.button == SDL_BUTTON_LEFT)
         {
@@ -113,9 +131,7 @@ public:
 
     virtual void onProcessEvent(const OnMouseRelease& event) override
     {
-        if (inventoryUI and inventoryUI->isOpen())
-            return;
-        if (minerUI and minerUI->isOpen())
+        if ((inventoryUI and inventoryUI->isOpen()) or (minerUI and minerUI->isOpen()))
             return;
 
         if (event.button == SDL_BUTTON_LEFT)
@@ -134,9 +150,7 @@ public:
 
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override
     {
-        if (inventoryUI and inventoryUI->isOpen())
-            return;
-        if (minerUI and minerUI->isOpen())
+        if ((inventoryUI and inventoryUI->isOpen()) or (minerUI and minerUI->isOpen()))
             return;
 
         updateCursorPosition();
