@@ -9,14 +9,15 @@
 #include "buildingregistry.h"
 #include "transportsystem.h"
 #include "inventoryui.h"
+#include "minerui.h"
 
 using namespace pg;
 
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, Listener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry), transportSystem(transportSystem), inventoryUI(inventoryUI) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -31,6 +32,8 @@ public:
     virtual void onEvent(const OnSDLScanCode& event) override
     {
         if (inventoryUI and inventoryUI->isOpen())
+            return;
+        if (minerUI and minerUI->isOpen())
             return;
 
         if (event.key == SDL_SCANCODE_R)
@@ -57,12 +60,30 @@ public:
     {
         if (inventoryUI and inventoryUI->isOpen())
             return;
+        if (minerUI and minerUI->isOpen())
+            return;
 
         if (event.button == SDL_BUTTON_LEFT)
         {
             // Skip if clicking on toolbar area
             if (isMouseOverToolbar())
                 return;
+
+            // Check if clicking on a miner — open its UI
+            if (minerUI)
+            {
+                auto [gx, gy] = getMouseGridPos();
+                auto layer = gridSystem->getBuildingLayer();
+                if (gridSystem->getGrid().isInBounds(gx, gy))
+                {
+                    const auto& cell = gridSystem->getCell(layer, gx, gy);
+                    if (cell.tileId == MinerSystem::MINER_TILE_ID)
+                    {
+                        minerUI->open(cell.ownerX, cell.ownerY);
+                        return;
+                    }
+                }
+            }
 
             const auto& def = getSelectedDef();
 
@@ -94,6 +115,8 @@ public:
     {
         if (inventoryUI and inventoryUI->isOpen())
             return;
+        if (minerUI and minerUI->isOpen())
+            return;
 
         if (event.button == SDL_BUTTON_LEFT)
         {
@@ -112,6 +135,8 @@ public:
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override
     {
         if (inventoryUI and inventoryUI->isOpen())
+            return;
+        if (minerUI and minerUI->isOpen())
             return;
 
         updateCursorPosition();
@@ -651,6 +676,7 @@ private:
     BuildingRegistry* registry = nullptr;
     TransportSystem* transportSystem = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
+    MinerUISystem* minerUI = nullptr;
 
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up
     bool leftMouseDown = false;

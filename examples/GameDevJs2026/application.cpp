@@ -9,6 +9,7 @@
 #include "minersystem.h"
 #include "playerinventory.h"
 #include "inventoryui.h"
+#include "minerui.h"
 #include "gamesystem.h"
 
 using namespace pg;
@@ -73,7 +74,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* transportSystem = ecs.createSystem<TransportSystem>(gridSystem, &itemRegistry);
         ecs.createSystem<CraftingSystem>(
             gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
-        ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
+        auto* minerSystem = ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(
@@ -82,7 +83,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* inventoryUI = ecs.createSystem<InventoryUISystem>(
             playerInvSystem, &itemRegistry, screenW, screenH);
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem, inventoryUI);
+        auto* minerUI = ecs.createSystem<MinerUISystem>(
+            minerSystem, &itemRegistry, screenW, screenH);
+
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem, inventoryUI, minerUI);
     });
 }
 

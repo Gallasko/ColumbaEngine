@@ -39,6 +39,12 @@ public:
 
     virtual std::string getSystemName() const override { return "Miner System"; }
 
+    MinerData* getMiner(int x, int y)
+    {
+        auto it = miners.find(machineKey(x, y));
+        return it != miners.end() ? &it->second : nullptr;
+    }
+
     virtual void onEvent(const TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
