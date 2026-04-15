@@ -13,28 +13,6 @@
 
 using namespace pg;
 
-// Item color lookup — items don't have textures yet, so use colored squares
-inline constant::Vector4D getItemColor(ItemId id)
-{
-    static const constant::Vector4D colors[] = {
-        {  0.0f,   0.0f,   0.0f,   0.0f},  // 0: None
-        {160.0f, 160.0f, 180.0f, 255.0f},  // 1: Iron Ore
-        {200.0f, 120.0f,  60.0f, 255.0f},  // 2: Copper Ore
-        { 40.0f,  40.0f,  40.0f, 255.0f},  // 3: Coal
-        {180.0f, 180.0f, 160.0f, 255.0f},  // 4: Stone
-        {200.0f, 200.0f, 220.0f, 255.0f},  // 5: Iron Plate
-        {220.0f, 140.0f,  80.0f, 255.0f},  // 6: Copper Plate
-        {140.0f, 140.0f, 160.0f, 255.0f},  // 7: Iron Gear
-        {240.0f, 160.0f,  40.0f, 255.0f},  // 8: Copper Wire
-        { 60.0f, 180.0f,  60.0f, 255.0f},  // 9: Circuit
-    };
-
-    constexpr size_t count = sizeof(colors) / sizeof(colors[0]);
-    if (id >= count)
-        return {200.0f, 200.0f, 60.0f, 255.0f}; // fallback yellow
-    return colors[id];
-}
-
 class InventoryUISystem : public System<QueuedListener<OnSDLScanCode>,
                                         QueuedListener<OnMouseClick>,
                                         QueuedListener<OnSDLMouseMotion>>
@@ -90,7 +68,7 @@ public:
         externalSourceSlot = &slot;
         slot.clear();
 
-        createHeldVisual();
+        showHeldVisual();
         updateHeldPosition();
     }
 
@@ -115,10 +93,7 @@ public:
             if (heldItem.count == 0)
                 clearHeld();
             else
-            {
-                destroyHeldVisual();
-                createHeldVisual();
-            }
+                showHeldVisual(); // Update count display
         }
         else
         {
@@ -127,8 +102,7 @@ public:
             heldItem = temp;
             externalSourceSlot = &slot;
             heldFromSlot = -1;
-            destroyHeldVisual();
-            createHeldVisual();
+            showHeldVisual();
         }
     }
 
@@ -193,12 +167,13 @@ public:
         if (not heldItem.isEmpty())
             cancelHeldDataOnly();
 
-        destroyHeldVisual();
+        hideHeldVisual();
 
-        for (auto& sv : slotVisuals)
+        // Hide all slot items
+        for (size_t i = 0; i < slotVisuals.size(); ++i)
         {
-            destroyEntity(sv.itemEntityId);
-            destroyEntity(sv.textEntityId);
+            setEntityVisibility(slotVisuals[i].itemEntityId, false);
+            setEntityVisibility(slotVisuals[i].textEntityId, false);
         }
 
         setPanelVisibility(false);
@@ -257,16 +232,9 @@ private:
 
     void setPanelVisibility(bool vis)
     {
-        auto setVis = [this, vis](uint64_t id) {
-            if (id == 0) return;
-            auto ent = ecsRef->getEntity(id);
-            if (ent)
-                ent->get<PositionComponent>()->setVisibility(vis);
-        };
-
-        setVis(backdropEntityId);
+        setEntityVisibility(backdropEntityId, vis);
         for (auto& sv : slotVisuals)
-            setVis(sv.bgEntityId);
+            setEntityVisibility(sv.bgEntityId, vis);
     }
 
     void createPanel()
@@ -289,12 +257,13 @@ private:
         backdrop.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
         backdropEntityId = backdrop.entity->id;
 
-        // Slot backgrounds
+        // Slot backgrounds + pre-created item + text entities
         slotVisuals.resize(PlayerInventorySystem::NUM_SLOTS);
         for (size_t i = 0; i < PlayerInventorySystem::NUM_SLOTS; ++i)
         {
             auto [sx, sy] = slotScreenPos(i);
 
+            // Slot background
             auto slot = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
                 constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
 
@@ -305,10 +274,45 @@ private:
             pos->setWidth(SLOT_SIZE);
             pos->setHeight(SLOT_SIZE);
             slot.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
-
             slotVisuals[i].bgEntityId = slot.entity->id;
-            slotVisuals[i].itemEntityId = 0;
-            slotVisuals[i].textEntityId = 0;
+
+            // Item texture entity (hidden by default)
+            float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
+            auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
+            auto itemPos = tex.get<PositionComponent>();
+            itemPos->setX(sx + itemOffset);
+            itemPos->setY(sy + itemOffset);
+            itemPos->setZ(99.0f);
+            itemPos->setVisibility(false);
+            tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
+            slotVisuals[i].itemEntityId = tex.entity->id;
+
+            // Count text entity (hidden by default)
+            auto text = makeTTFText(ecsRef,
+                sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
+                FONT_PATH, "", TEXT_SCALE,
+                {255.0f, 255.0f, 255.0f, 255.0f});
+            text.get<PositionComponent>()->setVisibility(false);
+            text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
+            slotVisuals[i].textEntityId = text.entity->id;
+        }
+
+        // Held item entity (hidden by default)
+        {
+            auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
+            auto itemPos = tex.get<PositionComponent>();
+            itemPos->setZ(101.0f);
+            itemPos->setVisibility(false);
+            tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
+            heldItemEntityId = tex.entity->id;
+
+            auto text = makeTTFText(ecsRef,
+                0.0f, 0.0f, 102.0f,
+                FONT_PATH, "", TEXT_SCALE,
+                {255.0f, 255.0f, 255.0f, 255.0f});
+            text.get<PositionComponent>()->setVisibility(false);
+            text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
+            heldTextEntityId = text.entity->id;
         }
     }
 
@@ -326,57 +330,37 @@ private:
             return;
 
         auto& sv = slotVisuals[index];
-
-        // Destroy old item visual and text
-        destroyEntity(sv.itemEntityId);
-        sv.itemEntityId = 0;
-        destroyEntity(sv.textEntityId);
-        sv.textEntityId = 0;
-
         const auto& stack = playerInv->getInventory().getSlot(index);
+
         if (stack.isEmpty())
-            return;
-
-        auto [sx, sy] = slotScreenPos(index);
-
-        // Item visual, centered inside the slot
-        float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-        const auto& def = itemRegistry->get(stack.id);
-
-        if (not def.textureName.empty())
         {
-            auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, def.textureName);
-            auto itemPos = tex.get<PositionComponent>();
-            itemPos->setX(sx + itemOffset);
-            itemPos->setY(sy + itemOffset);
-            itemPos->setZ(99.0f);
-            tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
-            sv.itemEntityId = tex.entity->id;
+            setEntityVisibility(sv.itemEntityId, false);
+            setEntityVisibility(sv.textEntityId, false);
+            return;
+        }
+
+        // Update item texture and show
+        const auto& def = itemRegistry->get(stack.id);
+        auto itemEnt = ecsRef->getEntity(sv.itemEntityId);
+        if (itemEnt)
+        {
+            itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
+            itemEnt->get<PositionComponent>()->setVisibility(true);
+        }
+
+        // Update count text
+        if (stack.count > 1)
+        {
+            auto textEnt = ecsRef->getEntity(sv.textEntityId);
+            if (textEnt)
+            {
+                textEnt->get<TTFText>()->setText(std::to_string(stack.count));
+                textEnt->get<PositionComponent>()->setVisibility(true);
+            }
         }
         else
         {
-            auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(stack.id));
-            auto itemPos = item.get<PositionComponent>();
-            itemPos->setX(sx + itemOffset);
-            itemPos->setY(sy + itemOffset);
-            itemPos->setZ(99.0f);
-            itemPos->setWidth(ITEM_SIZE);
-            itemPos->setHeight(ITEM_SIZE);
-            item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
-            sv.itemEntityId = item.entity->id;
-        }
-
-        // Stack count text at bottom-right of slot
-        if (stack.count > 1)
-        {
-            std::string countStr = std::to_string(stack.count);
-            auto text = makeTTFText(ecsRef,
-                sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
-                FONT_PATH, countStr, TEXT_SCALE,
-                {255.0f, 255.0f, 255.0f, 255.0f});
-
-            text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
-            sv.textEntityId = text.entity->id;
+            setEntityVisibility(sv.textEntityId, false);
         }
     }
 
@@ -395,7 +379,7 @@ private:
         slot.clear();
 
         refreshSlot(slotIndex);
-        createHeldVisual();
+        showHeldVisual();
         updateHeldPosition();
     }
 
@@ -421,10 +405,7 @@ private:
             if (heldItem.count == 0)
                 clearHeld();
             else
-            {
-                destroyHeldVisual();
-                createHeldVisual();
-            }
+                showHeldVisual(); // Update count display
         }
         else
         {
@@ -433,8 +414,7 @@ private:
             heldItem = temp;
             heldFromSlot = static_cast<int>(slotIndex);
             externalSourceSlot = nullptr;
-            destroyHeldVisual();
-            createHeldVisual();
+            showHeldVisual();
         }
 
         refreshSlot(slotIndex);
@@ -448,64 +428,47 @@ private:
         heldItem.clear();
         heldFromSlot = -1;
         externalSourceSlot = nullptr;
-        destroyHeldVisual();
+        hideHeldVisual();
     }
 
     // --- Held Item Visual ---
 
-    void createHeldVisual()
+    void showHeldVisual()
     {
         if (heldItem.isEmpty())
             return;
 
-        float offsetX = 8.0f;
-        float offsetY = 8.0f;
-
+        // Update held item texture and show
         const auto& def = itemRegistry->get(heldItem.id);
-
-        if (not def.textureName.empty())
+        auto itemEnt = ecsRef->getEntity(heldItemEntityId);
+        if (itemEnt)
         {
-            auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, def.textureName);
-            auto itemPos = tex.get<PositionComponent>();
-            itemPos->setX(lastMouseX + offsetX);
-            itemPos->setY(lastMouseY + offsetY);
-            itemPos->setZ(101.0f);
-            tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
-            heldItemEntityId = tex.entity->id;
-        }
-        else
-        {
-            auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(heldItem.id));
-            auto itemPos = item.get<PositionComponent>();
-            itemPos->setX(lastMouseX + offsetX);
-            itemPos->setY(lastMouseY + offsetY);
-            itemPos->setZ(101.0f);
-            itemPos->setWidth(ITEM_SIZE);
-            itemPos->setHeight(ITEM_SIZE);
-            item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
-            heldItemEntityId = item.entity->id;
+            itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
+            itemEnt->get<PositionComponent>()->setVisibility(true);
         }
 
-        if (heldItem.count > 1)
+        // Update held count text
+        auto textEnt = ecsRef->getEntity(heldTextEntityId);
+        if (textEnt)
         {
-            std::string countStr = std::to_string(heldItem.count);
-            auto text = makeTTFText(ecsRef,
-                lastMouseX + offsetX + ITEM_SIZE - 4.0f,
-                lastMouseY + offsetY + ITEM_SIZE - 4.0f,
-                102.0f,
-                FONT_PATH, countStr, TEXT_SCALE,
-                {255.0f, 255.0f, 255.0f, 255.0f});
-            text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
-            heldTextEntityId = text.entity->id;
+            if (heldItem.count > 1)
+            {
+                textEnt->get<TTFText>()->setText(std::to_string(heldItem.count));
+                textEnt->get<PositionComponent>()->setVisibility(true);
+            }
+            else
+            {
+                textEnt->get<PositionComponent>()->setVisibility(false);
+            }
         }
+
+        updateHeldPosition();
     }
 
-    void destroyHeldVisual()
+    void hideHeldVisual()
     {
-        destroyEntity(heldItemEntityId);
-        heldItemEntityId = 0;
-        destroyEntity(heldTextEntityId);
-        heldTextEntityId = 0;
+        setEntityVisibility(heldItemEntityId, false);
+        setEntityVisibility(heldTextEntityId, false);
     }
 
     void updateHeldPosition()
@@ -540,11 +503,6 @@ private:
 
     int slotAtPosition(float x, float y) const
     {
-        float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
-        float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
-        float panelX = (screenWidth - panelW) * 0.5f;
-        float panelY = (screenHeight - panelH) * 0.5f;
-
         for (size_t i = 0; i < PlayerInventorySystem::NUM_SLOTS; ++i)
         {
             auto [sx, sy] = slotScreenPos(i);
@@ -573,15 +531,12 @@ private:
 
     // --- Helpers ---
 
-    void destroyEntity(uint64_t& id)
+    void setEntityVisibility(uint64_t id, bool vis)
     {
-        if (id != 0)
-        {
-            auto ent = ecsRef->getEntity(id);
-            if (ent)
-                ecsRef->removeEntity(id);
-            id = 0;
-        }
+        if (id == 0) return;
+        auto ent = ecsRef->getEntity(id);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(vis);
     }
 
     // --- Members ---

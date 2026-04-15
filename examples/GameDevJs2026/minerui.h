@@ -7,7 +7,7 @@
 #include "Input/inputcomponent.h"
 
 #include "minersystem.h"
-#include "inventoryui.h" // for getItemColor
+#include "inventoryui.h"
 #include "playerinventory.h"
 
 using namespace pg;
@@ -87,11 +87,11 @@ public:
         // Unregister external click check
         inventoryUI->setExternalClickCheck(nullptr);
 
-        // Destroy item/text entities (created in prior frames, safely in pool)
-        destroyEntity(itemEntityId);
-        destroyEntity(countTextEntityId);
+        // Hide item/text entities
+        setEntityVisibility(itemEntityId, false);
+        setEntityVisibility(countTextEntityId, false);
 
-        // Hide the panel skeleton (backdrop, title, slot bg, progress bars stay alive)
+        // Hide the panel skeleton
         setPanelVisibility(false);
         visible = false;
         openMinerX = -1;
@@ -184,18 +184,11 @@ private:
 
     void setPanelVisibility(bool vis)
     {
-        auto setVis = [this, vis](uint64_t id) {
-            if (id == 0) return;
-            auto ent = ecsRef->getEntity(id);
-            if (ent)
-                ent->get<PositionComponent>()->setVisibility(vis);
-        };
-
-        setVis(backdropEntityId);
-        setVis(titleEntityId);
-        setVis(slotBgEntityId);
-        setVis(progressBgEntityId);
-        setVis(progressFillEntityId);
+        setEntityVisibility(backdropEntityId, vis);
+        setEntityVisibility(titleEntityId, vis);
+        setEntityVisibility(slotBgEntityId, vis);
+        setEntityVisibility(progressBgEntityId, vis);
+        setEntityVisibility(progressFillEntityId, vis);
     }
 
     void createPanel()
@@ -276,6 +269,26 @@ private:
         barFill.get<Simple2DObject>()->setViewport(UI_VP);
         progressFillEntityId = barFill.entity->id;
 
+        // Item texture entity (hidden by default)
+        float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
+        auto itemTex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
+        auto itemTexPos = itemTex.get<PositionComponent>();
+        itemTexPos->setX(slotX + itemOffset);
+        itemTexPos->setY(slotY + itemOffset);
+        itemTexPos->setZ(99.0f);
+        itemTexPos->setVisibility(false);
+        itemTex.get<Texture2DComponent>()->setViewport(UI_VP);
+        itemEntityId = itemTex.entity->id;
+
+        // Count text entity (hidden by default)
+        auto countText = makeTTFText(ecsRef,
+            slotX + SLOT_SIZE - 4.0f, slotY + SLOT_SIZE - 4.0f, 100.0f,
+            FONT_PATH, "", TEXT_SCALE,
+            {255.0f, 255.0f, 255.0f, 255.0f});
+        countText.get<PositionComponent>()->setVisibility(false);
+        countText.get<TTFText>()->setViewport(UI_VP);
+        countTextEntityId = countText.entity->id;
+
         // Store layout positions for refresh
         cachedSlotX = slotX;
         cachedSlotY = slotY;
@@ -287,54 +300,38 @@ private:
         if (not miner)
             return;
 
-        // Destroy old item visual and text
-        destroyEntity(itemEntityId);
-        destroyEntity(countTextEntityId);
-
         const auto& stack = miner->outputSlots.getSlot(0);
         lastDisplayedStack = stack;
 
         if (stack.isEmpty())
-            return;
-
-        // Item visual, centered inside the slot
-        float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
-        const auto& def = itemRegistry->get(stack.id);
-
-        if (not def.textureName.empty())
         {
-            auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, def.textureName);
-            auto itemPos = tex.get<PositionComponent>();
-            itemPos->setX(cachedSlotX + itemOffset);
-            itemPos->setY(cachedSlotY + itemOffset);
-            itemPos->setZ(99.0f);
-            tex.get<Texture2DComponent>()->setViewport(UI_VP);
-            itemEntityId = tex.entity->id;
+            setEntityVisibility(itemEntityId, false);
+            setEntityVisibility(countTextEntityId, false);
+            return;
+        }
+
+        // Update item texture and show
+        const auto& def = itemRegistry->get(stack.id);
+        auto itemEnt = ecsRef->getEntity(itemEntityId);
+        if (itemEnt)
+        {
+            itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
+            itemEnt->get<PositionComponent>()->setVisibility(true);
+        }
+
+        // Update count text
+        if (stack.count > 1)
+        {
+            auto textEnt = ecsRef->getEntity(countTextEntityId);
+            if (textEnt)
+            {
+                textEnt->get<TTFText>()->setText(std::to_string(stack.count));
+                textEnt->get<PositionComponent>()->setVisibility(true);
+            }
         }
         else
         {
-            auto item = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, getItemColor(stack.id));
-            auto itemPos = item.get<PositionComponent>();
-            itemPos->setX(cachedSlotX + itemOffset);
-            itemPos->setY(cachedSlotY + itemOffset);
-            itemPos->setZ(99.0f);
-            itemPos->setWidth(ITEM_SIZE);
-            itemPos->setHeight(ITEM_SIZE);
-            item.get<Simple2DObject>()->setViewport(UI_VP);
-            itemEntityId = item.entity->id;
-        }
-
-        // Stack count text at bottom-right of slot
-        if (stack.count > 1)
-        {
-            std::string countStr = std::to_string(stack.count);
-            auto text = makeTTFText(ecsRef,
-                cachedSlotX + SLOT_SIZE - 4.0f, cachedSlotY + SLOT_SIZE - 4.0f, 100.0f,
-                FONT_PATH, countStr, TEXT_SCALE,
-                {255.0f, 255.0f, 255.0f, 255.0f});
-
-            text.get<TTFText>()->setViewport(UI_VP);
-            countTextEntityId = text.entity->id;
+            setEntityVisibility(countTextEntityId, false);
         }
     }
 
@@ -368,15 +365,12 @@ private:
 
     // --- Helpers ---
 
-    void destroyEntity(uint64_t& id)
+    void setEntityVisibility(uint64_t id, bool vis)
     {
-        if (id != 0)
-        {
-            auto ent = ecsRef->getEntity(id);
-            if (ent)
-                ecsRef->removeEntity(id);
-            id = 0;
-        }
+        if (id == 0) return;
+        auto ent = ecsRef->getEntity(id);
+        if (ent)
+            ent->get<PositionComponent>()->setVisibility(vis);
     }
 
     // --- Members ---
