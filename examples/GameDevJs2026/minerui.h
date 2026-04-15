@@ -66,12 +66,25 @@ public:
         if (inventoryUI and not inventoryUI->isOpen())
             inventoryUI->openInventory();
 
+        // Register external click check so inventory doesn't cancel held items
+        // when clicking on our panel
+        inventoryUI->setExternalClickCheck([this](float x, float y) {
+            return isClickOnPanel(x, y);
+        });
+
         createPanel();
         refreshSlot();
     }
 
     void close()
     {
+        // Cancel any held item that came from our slot
+        if (inventoryUI and inventoryUI->hasHeldItem())
+            inventoryUI->cancelHeld();
+
+        // Unregister external click check
+        inventoryUI->setExternalClickCheck(nullptr);
+
         destroyPanel();
         visible = false;
         openMinerX = -1;
@@ -101,8 +114,21 @@ public:
         if (not visible or event.button != SDL_BUTTON_LEFT)
             return;
 
-        if (isClickOnSlot(event.pos.x, event.pos.y))
-            transferToPlayer();
+        if (not isClickOnSlot(event.pos.x, event.pos.y))
+            return;
+
+        MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
+        if (not miner)
+            return;
+
+        auto& slot = miner->outputSlots.getSlot(0);
+
+        if (inventoryUI->hasHeldItem())
+            inventoryUI->dropOnExternal(slot);
+        else
+            inventoryUI->pickUpFromExternal(slot);
+
+        refreshSlot();
     }
 
 private:
@@ -148,7 +174,7 @@ private:
         auto bdPos = backdrop.get<PositionComponent>();
         bdPos->setX(panelX);
         bdPos->setY(panelY);
-        bdPos->setZ(103.0f);
+        bdPos->setZ(97.0f);
         bdPos->setWidth(panelW);
         bdPos->setHeight(panelH);
         backdrop.get<Simple2DObject>()->setViewport(UI_VP);
@@ -156,7 +182,7 @@ private:
 
         // Title text "Miner" — left-aligned with padding
         auto title = makeTTFText(ecsRef,
-            panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 106.0f,
+            panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
             FONT_PATH, "Miner", TITLE_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         title.get<TTFText>()->setViewport(UI_VP);
@@ -172,7 +198,7 @@ private:
         auto slotPos = slot.get<PositionComponent>();
         slotPos->setX(slotX);
         slotPos->setY(slotY);
-        slotPos->setZ(104.0f);
+        slotPos->setZ(98.0f);
         slotPos->setWidth(SLOT_SIZE);
         slotPos->setHeight(SLOT_SIZE);
         slot.get<Simple2DObject>()->setViewport(UI_VP);
@@ -188,7 +214,7 @@ private:
         auto barBgPos = barBg.get<PositionComponent>();
         barBgPos->setX(barX);
         barBgPos->setY(barY);
-        barBgPos->setZ(104.0f);
+        barBgPos->setZ(98.0f);
         barBgPos->setWidth(PROGRESS_BAR_WIDTH);
         barBgPos->setHeight(PROGRESS_BAR_HEIGHT);
         barBg.get<Simple2DObject>()->setViewport(UI_VP);
@@ -201,7 +227,7 @@ private:
         auto barFillPos = barFill.get<PositionComponent>();
         barFillPos->setX(barX);
         barFillPos->setY(barY);
-        barFillPos->setZ(105.0f);
+        barFillPos->setZ(99.0f);
         barFillPos->setWidth(0.0f);
         barFillPos->setHeight(PROGRESS_BAR_HEIGHT);
         barFill.get<Simple2DObject>()->setViewport(UI_VP);
@@ -250,7 +276,7 @@ private:
             auto itemPos = tex.get<PositionComponent>();
             itemPos->setX(cachedSlotX + itemOffset);
             itemPos->setY(cachedSlotY + itemOffset);
-            itemPos->setZ(105.0f);
+            itemPos->setZ(99.0f);
             tex.get<Texture2DComponent>()->setViewport(UI_VP);
             itemEntityId = tex.entity->id;
         }
@@ -260,7 +286,7 @@ private:
             auto itemPos = item.get<PositionComponent>();
             itemPos->setX(cachedSlotX + itemOffset);
             itemPos->setY(cachedSlotY + itemOffset);
-            itemPos->setZ(105.0f);
+            itemPos->setZ(99.0f);
             itemPos->setWidth(ITEM_SIZE);
             itemPos->setHeight(ITEM_SIZE);
             item.get<Simple2DObject>()->setViewport(UI_VP);
@@ -272,7 +298,7 @@ private:
         {
             std::string countStr = std::to_string(stack.count);
             auto text = makeTTFText(ecsRef,
-                cachedSlotX + SLOT_SIZE - 4.0f, cachedSlotY + SLOT_SIZE - 4.0f, 106.0f,
+                cachedSlotX + SLOT_SIZE - 4.0f, cachedSlotY + SLOT_SIZE - 4.0f, 100.0f,
                 FONT_PATH, countStr, TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
 
@@ -307,22 +333,6 @@ private:
     {
         return x >= cachedSlotX and x <= cachedSlotX + SLOT_SIZE
            and y >= cachedSlotY and y <= cachedSlotY + SLOT_SIZE;
-    }
-
-    void transferToPlayer()
-    {
-        MinerData* miner = minerSystem->getMiner(openMinerX, openMinerY);
-        if (not miner)
-            return;
-
-        auto& slot = miner->outputSlots.getSlot(0);
-        if (slot.isEmpty())
-            return;
-
-        // Transfer to player inventory
-        sendEvent(PlayerGainItemEvent{slot.id, slot.count});
-        slot.clear();
-        refreshSlot();
     }
 
     // --- Helpers ---

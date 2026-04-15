@@ -9,6 +9,8 @@
 #include "playerinventory.h"
 #include "itemregistry.h"
 
+#include <functional>
+
 using namespace pg;
 
 // Item color lookup — items don't have textures yet, so use colored squares
@@ -69,6 +71,67 @@ public:
            and y >= panelY and y <= panelY + panelH;
     }
 
+    // --- External Slot Support (for miner UI, etc.) ---
+
+    bool hasHeldItem() const { return not heldItem.isEmpty(); }
+
+    void setExternalClickCheck(std::function<bool(float, float)> check)
+    {
+        externalClickCheck = std::move(check);
+    }
+
+    void pickUpFromExternal(ItemStack& slot)
+    {
+        if (slot.isEmpty() or not heldItem.isEmpty())
+            return;
+
+        heldItem = slot;
+        heldFromSlot = -1;
+        externalSourceSlot = &slot;
+        slot.clear();
+
+        createHeldVisual();
+        updateHeldPosition();
+    }
+
+    void dropOnExternal(ItemStack& slot)
+    {
+        if (heldItem.isEmpty())
+            return;
+
+        if (slot.isEmpty())
+        {
+            slot = heldItem;
+            clearHeld();
+        }
+        else if (slot.id == heldItem.id)
+        {
+            uint16_t maxStack = itemRegistry->get(slot.id).maxStack;
+            uint16_t space = maxStack - slot.count;
+            uint16_t toAdd = std::min(space, heldItem.count);
+            slot.count += toAdd;
+            heldItem.count -= toAdd;
+
+            if (heldItem.count == 0)
+                clearHeld();
+            else
+            {
+                destroyHeldVisual();
+                createHeldVisual();
+            }
+        }
+        else
+        {
+            ItemStack temp = slot;
+            slot = heldItem;
+            heldItem = temp;
+            externalSourceSlot = &slot;
+            heldFromSlot = -1;
+            destroyHeldVisual();
+            createHeldVisual();
+        }
+    }
+
     // --- Event Handlers ---
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override
@@ -90,9 +153,13 @@ public:
         int slot = slotAtPosition(event.pos.x, event.pos.y);
         if (slot < 0)
         {
-            // Click outside inventory — cancel held item
-            if (not heldItem.isEmpty())
-                cancelHeld();
+            // Check if click is on an external panel (e.g., miner UI)
+            if (externalClickCheck and externalClickCheck(event.pos.x, event.pos.y))
+                return; // Let the external system handle it
+
+            // Don't cancel held here — GameSystem handles click-outside-to-close
+            // which calls closeInventory() → cancelHeld(). Doing it here too
+            // would duplicate the item since both systems process the same event.
             return;
         }
 
@@ -127,6 +194,36 @@ public:
 
         destroyPanel();
         visible = false;
+    }
+
+    void cancelHeld()
+    {
+        if (heldItem.isEmpty())
+            return;
+
+        if (externalSourceSlot)
+        {
+            if (externalSourceSlot->isEmpty())
+                *externalSourceSlot = heldItem;
+            else
+                playerInv->getInventory().insert(heldItem.id, heldItem.count, *itemRegistry);
+        }
+        else if (heldFromSlot >= 0 and heldFromSlot < static_cast<int>(PlayerInventorySystem::NUM_SLOTS))
+        {
+            auto& slot = playerInv->getInventory().getSlot(static_cast<size_t>(heldFromSlot));
+            if (slot.isEmpty())
+                slot = heldItem;
+            else
+                playerInv->getInventory().insert(heldItem.id, heldItem.count, *itemRegistry);
+            refreshSlot(static_cast<size_t>(heldFromSlot));
+        }
+        else
+        {
+            playerInv->getInventory().insert(heldItem.id, heldItem.count, *itemRegistry);
+        }
+
+        clearHeld();
+        refreshAllSlots();
     }
 
 private:
@@ -273,6 +370,7 @@ private:
 
         heldItem = slot;
         heldFromSlot = static_cast<int>(slotIndex);
+        externalSourceSlot = nullptr;
         slot.clear();
 
         refreshSlot(slotIndex);
@@ -288,15 +386,11 @@ private:
 
         if (slot.isEmpty())
         {
-            // Place into empty slot
             slot = heldItem;
-            heldItem.clear();
-            heldFromSlot = -1;
-            destroyHeldVisual();
+            clearHeld();
         }
         else if (slot.id == heldItem.id)
         {
-            // Stack merge
             uint16_t maxStack = itemRegistry->get(slot.id).maxStack;
             uint16_t space = maxStack - slot.count;
             uint16_t toAdd = std::min(space, heldItem.count);
@@ -304,64 +398,36 @@ private:
             heldItem.count -= toAdd;
 
             if (heldItem.count == 0)
-            {
-                heldItem.clear();
-                heldFromSlot = -1;
-                destroyHeldVisual();
-            }
+                clearHeld();
             else
             {
-                // Update held visual text
                 destroyHeldVisual();
                 createHeldVisual();
             }
         }
         else
         {
-            // Swap
             ItemStack temp = slot;
             slot = heldItem;
             heldItem = temp;
             heldFromSlot = static_cast<int>(slotIndex);
+            externalSourceSlot = nullptr;
             destroyHeldVisual();
             createHeldVisual();
         }
 
         refreshSlot(slotIndex);
 
-        // Also refresh the old source slot to clear any visual artifacts
         if (oldHeldFrom >= 0 and oldHeldFrom != static_cast<int>(slotIndex))
             refreshSlot(static_cast<size_t>(oldHeldFrom));
     }
 
-    void cancelHeld()
+    void clearHeld()
     {
-        if (heldItem.isEmpty())
-            return;
-
-        if (heldFromSlot >= 0 and heldFromSlot < static_cast<int>(PlayerInventorySystem::NUM_SLOTS))
-        {
-            auto& slot = playerInv->getInventory().getSlot(static_cast<size_t>(heldFromSlot));
-            if (slot.isEmpty())
-            {
-                slot = heldItem;
-            }
-            else
-            {
-                // Source slot filled meanwhile — find first available
-                playerInv->getInventory().insert(heldItem.id, heldItem.count, *itemRegistry);
-            }
-            refreshSlot(static_cast<size_t>(heldFromSlot));
-        }
-        else
-        {
-            playerInv->getInventory().insert(heldItem.id, heldItem.count, *itemRegistry);
-        }
-
         heldItem.clear();
         heldFromSlot = -1;
+        externalSourceSlot = nullptr;
         destroyHeldVisual();
-        refreshAllSlots();
     }
 
     // --- Held Item Visual ---
@@ -518,8 +584,11 @@ private:
 
     ItemStack heldItem;
     int heldFromSlot = -1;
+    ItemStack* externalSourceSlot = nullptr;
     uint64_t heldItemEntityId = 0;
     uint64_t heldTextEntityId = 0;
+
+    std::function<bool(float, float)> externalClickCheck;
 
     float lastMouseX = 0.0f;
     float lastMouseY = 0.0f;
