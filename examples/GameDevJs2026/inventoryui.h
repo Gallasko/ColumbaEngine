@@ -152,7 +152,7 @@ private:
             auto pos = slot.get<PositionComponent>();
             pos->setX(sx);
             pos->setY(sy);
-            pos->setZ(97.5f);
+            pos->setZ(98.0f);
             pos->setWidth(SLOT_SIZE);
             pos->setHeight(SLOT_SIZE);
             slot.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -216,7 +216,7 @@ private:
         auto itemPos = item.get<PositionComponent>();
         itemPos->setX(sx + itemOffset);
         itemPos->setY(sy + itemOffset);
-        itemPos->setZ(98.0f);
+        itemPos->setZ(99.0f);
         itemPos->setWidth(ITEM_SIZE);
         itemPos->setHeight(ITEM_SIZE);
         item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -227,7 +227,7 @@ private:
         {
             std::string countStr = std::to_string(stack.count);
             auto text = makeTTFText(ecsRef,
-                sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 98.5f,
+                sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
                 FONT_PATH, countStr, TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
 
@@ -352,7 +352,7 @@ private:
         auto itemPos = item.get<PositionComponent>();
         itemPos->setX(lastMouseX + offsetX);
         itemPos->setY(lastMouseY + offsetY);
-        itemPos->setZ(95.f);
+        itemPos->setZ(101.0f);
         itemPos->setWidth(ITEM_SIZE);
         itemPos->setHeight(ITEM_SIZE);
         item.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
@@ -364,7 +364,7 @@ private:
             auto text = makeTTFText(ecsRef,
                 lastMouseX + offsetX + ITEM_SIZE - 4.0f,
                 lastMouseY + offsetY + ITEM_SIZE - 4.0f,
-                99.8f,
+                102.0f,
                 FONT_PATH, countStr, TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
             text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
