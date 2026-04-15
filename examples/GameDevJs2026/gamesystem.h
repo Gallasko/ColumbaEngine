@@ -7,14 +7,15 @@
 #include "camerasystem.h"
 #include "toolbarsystem.h"
 #include "buildingregistry.h"
+#include "transportsystem.h"
 
 using namespace pg;
 
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, Listener<OnMouseRelease>, Listener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry), transportSystem(transportSystem) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -37,6 +38,14 @@ public:
                 printf("Direction: %s\n", directionNames[currentDirection]);
                 updateGhostTexture();
             }
+        }
+
+        // Debug: T spawns an Iron Ore on the belt under the cursor
+        if (event.key == SDL_SCANCODE_T and transportSystem)
+        {
+            auto [gx, gy] = getMouseGridPos();
+            if (transportSystem->tryPlaceItem(gx, gy, 1))
+                printf("Debug: Spawned Iron Ore at (%d, %d)\n", gx, gy);
         }
     }
 
@@ -627,6 +636,7 @@ private:
     CameraSystem* cameraSystem = nullptr;
     ToolbarSystem* toolbarSystem = nullptr;
     BuildingRegistry* registry = nullptr;
+    TransportSystem* transportSystem = nullptr;
 
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up
     bool leftMouseDown = false;

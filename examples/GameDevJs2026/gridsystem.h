@@ -51,6 +51,18 @@ struct ConveyorEntry
     size_t tileIndex = 0;
 };
 
+struct BuildingPlacedEvent
+{
+    int x, y;
+    uint16_t tileId;
+};
+
+struct BuildingRemovedEvent
+{
+    int x, y;
+    uint16_t tileId;
+};
+
 // Pick the correct LINE_*_N variant based on direction and neighbor connectivity.
 // For RIGHT/DOWN: _0 = ender at back, _2 = ender at front
 // For UP/LEFT:    _0 = ender at front, _2 = ender at back (inverted)
@@ -218,6 +230,8 @@ public:
                 cell.entityId = (dx == 0 and dy == 0) ? entityId : 0;
             }
         }
+
+        sendEvent(BuildingPlacedEvent{x, y, def.tileId});
     }
 
     // Remove a building from the grid (handles multi-cell)
@@ -244,6 +258,7 @@ public:
 
         // Look up building def to know the footprint
         const BuildingDef* def = registry->findByTileId(ownerCell.tileId);
+        uint16_t savedTileId = ownerCell.tileId;
         int w = def ? def->gridW : 1;
         int h = def ? def->gridH : 1;
 
@@ -256,6 +271,8 @@ public:
                     grid.getCell(layer, ox + dx, oy + dy) = CellData{};
             }
         }
+
+        sendEvent(BuildingRemovedEvent{ox, oy, savedTileId});
 
         // Update adjacent belts that may now be disconnected
         for (int dy = 0; dy < h; ++dy)
@@ -330,6 +347,8 @@ public:
     size_t getItemLayer() const { return itemLayer; }
 
     size_t getCurrentAnimFrame() const { return currentFrame; }
+
+    const BuildingRegistry* getRegistry() const { return registry; }
 
     // Check if the neighbor in direction checkDir from (x,y) is connectable.
     // For belt neighbors: checks if the neighbor connects on the side facing us

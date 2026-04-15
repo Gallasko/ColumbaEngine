@@ -4,6 +4,8 @@
 #include "Systems/basicsystems.h"
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
+#include "craftingsystem.h"
+#include "playerinventory.h"
 #include "gamesystem.h"
 
 using namespace pg;
@@ -11,6 +13,8 @@ using namespace pg;
 GameApp::GameApp(const std::string &appName) : engine(appName)
 {
     registry = createDefaultRegistry();
+    itemRegistry = createDefaultItemRegistry();
+    recipeRegistry = createDefaultRecipeRegistry();
 
     engine.setSetupFunction([this](EntitySystem& ecs, Window& window)
     {
@@ -38,10 +42,16 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         auto* gridSystem = ecs.createSystem<GridSystem>(&registry);
 
+        // Inventory and crafting systems (must come after GridSystem)
+        auto* transportSystem = ecs.createSystem<TransportSystem>(gridSystem, &itemRegistry);
+        ecs.createSystem<CraftingSystem>(
+            gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
+        ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
+
         auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(
             &registry, window.masterRenderer, screenW, screenH);
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry);
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem);
     });
 }
 
