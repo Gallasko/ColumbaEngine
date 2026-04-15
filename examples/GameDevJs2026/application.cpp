@@ -4,9 +4,11 @@
 #include "Systems/basicsystems.h"
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
+#include "UI/ttftext.h"
 #include "craftingsystem.h"
 #include "minersystem.h"
 #include "playerinventory.h"
+#include "inventoryui.h"
 #include "gamesystem.h"
 
 using namespace pg;
@@ -57,6 +59,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         float screenW = static_cast<float>(config.width);
         float screenH = static_cast<float>(config.height);
 
+        // TTF text system for UI text rendering
+        auto* ttfSys = ecs.createSystem<TTFTextSystem>(window.masterRenderer);
+        ttfSys->registerFont("res/font/Inter/static/Inter_28pt-Light.ttf");
+
         // Camera must be created first so it exists before grid renders
         auto* cameraSystem = ecs.createSystem<CameraSystem>(
             window.masterRenderer, screenW, screenH);
@@ -68,12 +74,15 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<CraftingSystem>(
             gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
         ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
-        ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
+        auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(
             &registry, window.masterRenderer, screenW, screenH);
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem);
+        auto* inventoryUI = ecs.createSystem<InventoryUISystem>(
+            playerInvSystem, &itemRegistry, screenW, screenH);
+
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem, inventoryUI);
     });
 }
 

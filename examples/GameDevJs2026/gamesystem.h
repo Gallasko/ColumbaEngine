@@ -8,14 +8,15 @@
 #include "toolbarsystem.h"
 #include "buildingregistry.h"
 #include "transportsystem.h"
+#include "inventoryui.h"
 
 using namespace pg;
 
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, Listener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry), transportSystem(transportSystem) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry), transportSystem(transportSystem), inventoryUI(inventoryUI) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -29,6 +30,9 @@ public:
 
     virtual void onEvent(const OnSDLScanCode& event) override
     {
+        if (inventoryUI and inventoryUI->isOpen())
+            return;
+
         if (event.key == SDL_SCANCODE_R)
         {
             const auto& def = getSelectedDef();
@@ -51,6 +55,9 @@ public:
 
     virtual void onProcessEvent(const OnMouseClick& event) override
     {
+        if (inventoryUI and inventoryUI->isOpen())
+            return;
+
         if (event.button == SDL_BUTTON_LEFT)
         {
             // Skip if clicking on toolbar area
@@ -85,6 +92,9 @@ public:
 
     virtual void onProcessEvent(const OnMouseRelease& event) override
     {
+        if (inventoryUI and inventoryUI->isOpen())
+            return;
+
         if (event.button == SDL_BUTTON_LEFT)
         {
             if (isDragging)
@@ -101,6 +111,9 @@ public:
 
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override
     {
+        if (inventoryUI and inventoryUI->isOpen())
+            return;
+
         updateCursorPosition();
 
         if (isDragging)
@@ -637,6 +650,7 @@ private:
     ToolbarSystem* toolbarSystem = nullptr;
     BuildingRegistry* registry = nullptr;
     TransportSystem* transportSystem = nullptr;
+    InventoryUISystem* inventoryUI = nullptr;
 
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up
     bool leftMouseDown = false;
