@@ -6,6 +6,7 @@
 #include "transportsystem.h"
 #include "reciperegistry.h"
 #include "machinekey.h"
+#include "saveserialization.h"
 
 using namespace pg;
 
@@ -23,7 +24,8 @@ struct MachineData
 
 class CraftingSystem : public System<InitSys, Listener<TickEvent>,
                                      Listener<BuildingPlacedEvent>,
-                                     Listener<BuildingRemovedEvent>>
+                                     Listener<BuildingRemovedEvent>,
+                                     SaveSys>
 {
 public:
     static constexpr size_t CRAFT_TICK_MS = 250;
@@ -35,7 +37,11 @@ public:
 
     virtual std::string getSystemName() const override { return "Crafting System"; }
 
-    void init() override {}
+    void init() override;
+
+    // SaveSys
+    virtual void save(Archive& archive) override;
+    virtual void load(const UnserializedObject& serializedString) override;
 
     virtual void onEvent(const TickEvent& event) override
     {
@@ -69,4 +75,7 @@ private:
 
     std::unordered_map<uint32_t, MachineData> machines;
     size_t tickAccumulator = 0;
+
+    // Pending save data
+    std::unordered_map<uint32_t, MachineData> pendingMachines;
 };

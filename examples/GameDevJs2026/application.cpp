@@ -12,6 +12,7 @@
 #include "inventoryui.h"
 #include "minerui.h"
 #include "insertersystem.h"
+#include "saveserialization.h"
 #include "gamesystem.h"
 #include "worldfacts.h"
 #include "handcraftingsystem.h"

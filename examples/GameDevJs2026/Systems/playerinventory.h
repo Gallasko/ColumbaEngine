@@ -3,6 +3,7 @@
 #include "Systems/basicsystems.h"
 #include "inventory.h"
 #include "worldfacts.h"
+#include "saveserialization.h"
 
 using namespace pg;
 
@@ -20,7 +21,8 @@ struct PlayerLoseItemEvent
 
 class PlayerInventorySystem : public System<InitSys,
                                             Listener<PlayerGainItemEvent>,
-                                            Listener<PlayerLoseItemEvent>>
+                                            Listener<PlayerLoseItemEvent>,
+                                            SaveSys>
 {
 public:
     static constexpr size_t NUM_SLOTS = 20;
@@ -31,6 +33,10 @@ public:
     virtual std::string getSystemName() const override { return "Player Inventory System"; }
 
     void init() override;
+
+    // SaveSys
+    virtual void save(Archive& archive) override;
+    virtual void load(const UnserializedObject& serializedString) override;
 
     virtual void onEvent(const PlayerGainItemEvent& event) override;
 
@@ -47,4 +53,5 @@ public:
 private:
     ItemRegistry* itemRegistry = nullptr;
     Inventory inventory;
+    std::vector<ItemStack> pendingSlots;
 };

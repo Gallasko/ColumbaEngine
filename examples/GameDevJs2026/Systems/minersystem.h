@@ -7,6 +7,7 @@
 #include "inventory.h"
 #include "terrain.h"
 #include "machinekey.h"
+#include "saveserialization.h"
 
 using namespace pg;
 
@@ -27,9 +28,10 @@ struct MinerData
     ItemId producedItem = ITEM_NONE;
 };
 
-class MinerSystem : public System<Listener<TickEvent>,
+class MinerSystem : public System<InitSys, Listener<TickEvent>,
                                    Listener<BuildingPlacedEvent>,
-                                   Listener<BuildingRemovedEvent>>
+                                   Listener<BuildingRemovedEvent>,
+                                   SaveSys>
 {
 public:
     static constexpr uint16_t MINER_TILE_ID = 7;
@@ -42,6 +44,12 @@ public:
         : gridSystem(gridSystem), transportSystem(transportSystem), itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Miner System"; }
+
+    void init() override;
+
+    // SaveSys
+    virtual void save(Archive& archive) override;
+    virtual void load(const UnserializedObject& serializedString) override;
 
     MinerData* getMiner(int x, int y)
     {
@@ -75,6 +83,7 @@ private:
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, MinerData> miners;
+    std::unordered_map<uint32_t, MinerData> pendingMiners;
     size_t tickAccumulator = 0;
     size_t animAccumulator = 0;
 };

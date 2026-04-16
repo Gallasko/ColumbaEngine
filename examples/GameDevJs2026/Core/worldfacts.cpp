@@ -1,7 +1,21 @@
 #include "worldfacts.h"
 
+#include <cstdio>
+
 namespace pg
 {
+    void WorldFacts::save(Archive& archive)
+    {
+        serialize(archive, "factMap", factMap);
+        printf("WorldFacts: saved %zu facts\n", factMap.size());
+    }
+
+    void WorldFacts::load(const UnserializedObject& serializedString)
+    {
+        defaultDeserialize(serializedString, "factMap", factMap);
+        printf("WorldFacts: loaded %zu facts\n", factMap.size());
+    }
+
     bool FactChecker::check(const std::unordered_map<std::string, ElementType>& map) const
     {
         const auto& it = map.find(name);

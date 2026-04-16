@@ -6,6 +6,76 @@
 #include <algorithm>
 #include <cstdio>
 
+void GridSystem::save(Archive& archive)
+{
+    // Save terrain grid as flat list of uint8_t values
+    std::vector<unsigned int> terrainFlat;
+    terrainFlat.reserve(Grid::WIDTH * Grid::HEIGHT);
+    for (int y = 0; y < Grid::HEIGHT; ++y)
+        for (int x = 0; x < Grid::WIDTH; ++x)
+            terrainFlat.push_back(static_cast<unsigned int>(terrainGrid[y][x]));
+    serialize(archive, "terrain", terrainFlat);
+
+    // Save buildings — only owner cells
+    std::vector<SavedBuilding> buildings;
+    for (int y = 0; y < Grid::HEIGHT; ++y)
+    {
+        for (int x = 0; x < Grid::WIDTH; ++x)
+        {
+            const auto& cell = grid.getCell(buildingLayer, x, y);
+            if (cell.tileId == 0 or not cell.isOwner)
+                continue;
+
+            SavedBuilding sb;
+            sb.x = x;
+            sb.y = y;
+            sb.tileId = cell.tileId;
+            sb.direction = cell.direction;
+            sb.enterDirection = cell.enterDirection;
+            sb.conveyorTileIndex = LINE_RIGHT_1; // default
+
+            // Find conveyor tile index if this is a belt
+            if (cell.tileId == 4 and cell.entityId != 0)
+            {
+                for (const auto& conv : conveyors)
+                {
+                    if (conv.entityId == cell.entityId)
+                    {
+                        sb.conveyorTileIndex = conv.tileIndex;
+                        break;
+                    }
+                }
+            }
+            buildings.push_back(sb);
+        }
+    }
+    serialize(archive, "buildings", buildings);
+    printf("GridSystem: saved %zu terrain cells, %zu buildings\n",
+           terrainFlat.size(), buildings.size());
+}
+
+void GridSystem::load(const UnserializedObject& serializedString)
+{
+    // Load terrain as flat vector then unpack into 2D grid
+    std::vector<unsigned int> terrainFlat;
+    defaultDeserialize(serializedString, "terrain", terrainFlat);
+
+    if (terrainFlat.size() == static_cast<size_t>(Grid::WIDTH * Grid::HEIGHT))
+    {
+        hasPendingLoad = true;
+        for (int y = 0; y < Grid::HEIGHT; ++y)
+            for (int x = 0; x < Grid::WIDTH; ++x)
+                pendingTerrain[y][x] = static_cast<TerrainType>(terrainFlat[y * Grid::WIDTH + x]);
+    }
+
+    defaultDeserialize(serializedString, "buildings", pendingBuildings);
+    if (not pendingBuildings.empty())
+        hasPendingLoad = true;
+
+    printf("GridSystem: loaded %zu terrain cells, %zu buildings\n",
+           terrainFlat.size(), pendingBuildings.size());
+}
+
 void GridSystem::init()
 {
     // Create default layers
@@ -13,8 +83,49 @@ void GridSystem::init()
     buildingLayer = grid.addLayer("buildings", 2.0f);
     itemLayer = grid.addLayer("items", 3.0f);
 
-    // Procedurally generate the starting canvas and render its terrain
-    generateAndRenderTerrain();
+    if (hasPendingLoad)
+    {
+        // Restore terrain from save
+        terrainGrid = pendingTerrain;
+
+        // Reconstruct treeInstances from the saved terrain grid
+        // (renderTerrain uses this list for the tree sprite pass).
+        treeInstances.clear();
+        for (int y = 0; y <= Grid::HEIGHT - TREE_H; ++y)
+        {
+            for (int x = 0; x <= Grid::WIDTH - TREE_W; ++x)
+            {
+                bool allTree = true;
+                for (int dy = 0; dy < TREE_H and allTree; ++dy)
+                    for (int dx = 0; dx < TREE_W and allTree; ++dx)
+                        if (terrainGrid[y + dy][x + dx] != TerrainType::Tree)
+                            allTree = false;
+                if (allTree)
+                {
+                    treeInstances.push_back({x, y});
+                    x += TREE_W - 1; // skip past this tree's width
+                }
+            }
+        }
+
+        renderTerrain();
+
+        // Restore buildings (without emitting BuildingPlacedEvent)
+        for (const auto& sb : pendingBuildings)
+        {
+            const BuildingDef* def = registry->findByTileId(sb.tileId);
+            if (def)
+                restoreBuilding(buildingLayer, sb.x, sb.y, *def,
+                                sb.direction, sb.conveyorTileIndex, sb.enterDirection);
+        }
+        pendingBuildings.clear();
+        hasPendingLoad = false;
+    }
+    else
+    {
+        // Procedurally generate the starting canvas and render its terrain
+        generateAndRenderTerrain();
+    }
 }
 
 void GridSystem::regenerateTerrain(uint32_t seed)
@@ -144,6 +255,83 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
     }
 
     sendEvent(BuildingPlacedEvent{x, y, def.tileId});
+}
+
+void GridSystem::restoreBuilding(size_t layer, int x, int y, const BuildingDef& def,
+                                  size_t direction, size_t conveyorTileIndex, size_t enterDir)
+{
+    // Same as placeBuilding but skips validation and BuildingPlacedEvent.
+    // Used during save-file restoration when other systems aren't created yet.
+    auto [worldX, worldY] = grid.gridToWorld(x, y);
+    float z = grid.getLayer(layer).zIndex;
+    uint64_t entityId = 0;
+
+    if (def.isAnimated and not def.textureName.empty())
+    {
+        size_t frameIndex = conveyorTileIndex * NUM_ANIM_FRAMES + currentFrame;
+        std::string texName = def.textureName + "." + std::to_string(frameIndex);
+
+        auto tex = make2DTexture(ecsRef,
+            static_cast<float>(Grid::TILE_SIZE * def.gridW),
+            static_cast<float>(Grid::TILE_SIZE * def.gridH),
+            texName);
+
+        auto pos = tex.get<PositionComponent>();
+        pos->setX(worldX);
+        pos->setY(worldY);
+        pos->setZ(z);
+
+        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        entityId = tex.entity->id;
+
+        conveyors.push_back({entityId, conveyorTileIndex});
+    }
+    else if (not def.textureName.empty())
+    {
+        std::string texName = def.textureName + ".0";
+        auto tex = make2DTexture(ecsRef,
+            static_cast<float>(Grid::TILE_SIZE * def.gridW),
+            static_cast<float>(Grid::TILE_SIZE * def.gridH),
+            texName);
+
+        auto pos = tex.get<PositionComponent>();
+        pos->setX(worldX);
+        pos->setY(worldY);
+        pos->setZ(z);
+
+        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        entityId = tex.entity->id;
+    }
+    else
+    {
+        auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, def.color);
+        auto pos = shape.get<PositionComponent>();
+        pos->setX(worldX);
+        pos->setY(worldY);
+        pos->setZ(z);
+        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def.gridW));
+        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def.gridH));
+
+        shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+        entityId = shape.entity->id;
+    }
+
+    uint8_t actualEnterDir = static_cast<uint8_t>(enterDir);
+    for (int dy = 0; dy < def.gridH; ++dy)
+    {
+        for (int dx = 0; dx < def.gridW; ++dx)
+        {
+            auto& cell = grid.getCell(layer, x + dx, y + dy);
+            cell.tileId = def.tileId;
+            cell.direction = static_cast<uint8_t>(direction);
+            cell.enterDirection = actualEnterDir;
+            cell.ownerX = static_cast<int8_t>(x);
+            cell.ownerY = static_cast<int8_t>(y);
+            cell.isOwner = (dx == 0 and dy == 0);
+            cell.entityId = (dx == 0 and dy == 0) ? entityId : 0;
+        }
+    }
+    // Note: no BuildingPlacedEvent — other systems restore their own state from save.
 }
 
 void GridSystem::removeBuilding(size_t layer, int x, int y)
@@ -338,6 +526,19 @@ void GridSystem::updateNeighborBelts(size_t layer, int x, int y)
 
 void GridSystem::generateAndRenderTerrain(uint32_t seed)
 {
+    GenerationParams params;
+    params.seed = seed;
+
+    auto gen = CanvasGenerator::generate(params);
+    terrainGrid = gen.terrain;
+    orePatches = gen.orePatches;
+    treeInstances = gen.trees;
+
+    renderTerrain();
+}
+
+void GridSystem::renderTerrain()
+{
     // All terrain stays inside integer z planes that sit below the building
     // layer (z=2) and item layer (z=3). Within the same z-plane, render
     // order controls stacking — we draw ground first, then grass, then
@@ -346,14 +547,6 @@ void GridSystem::generateAndRenderTerrain(uint32_t seed)
     constexpr float GRASS_Z   = 1.0f;
     constexpr float OVERLAY_Z = 1.0f;
     constexpr float TREE_Z    = 1.0f;
-
-    GenerationParams params;
-    params.seed = seed;
-
-    auto gen = CanvasGenerator::generate(params);
-    terrainGrid = gen.terrain;
-    orePatches = gen.orePatches;
-    treeInstances = gen.trees;
 
     // Two-pass autotile: cells whose grass autotile can't be represented
     // (encircled by ore, etc.) must render as plain dirt, AND their

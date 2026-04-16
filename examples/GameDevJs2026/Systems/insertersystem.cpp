@@ -1,9 +1,65 @@
 #include "insertersystem.h"
+#include "saveserialization.h"
 
 #include "2D/texture.h"
 #include "playerinventory.h"
 
 #include <cmath>
+#include <cstdio>
+
+void InserterSystem::save(Archive& archive)
+{
+    serialize(archive, "inserters", inserters);
+    printf("InserterSystem: saved %zu inserters\n", inserters.size());
+}
+
+void InserterSystem::load(const UnserializedObject& serializedString)
+{
+    defaultDeserialize(serializedString, "inserters", pendingInserters);
+    printf("InserterSystem: loaded %zu inserters\n", pendingInserters.size());
+}
+
+void InserterSystem::init()
+{
+    if (pendingInserters.empty()) return;
+
+    size_t buildingLayer = gridSystem->getBuildingLayer();
+
+    for (auto& [key, ins] : pendingInserters)
+    {
+        // Grab the entity ID from the grid cell (placed by GridSystem restore)
+        const auto& cell = gridSystem->getGrid().getCell(buildingLayer, ins.x, ins.y);
+        ins.entityId = cell.entityId;
+
+        // Do the lazy init immediately (resize arm to 48x48, set texture)
+        auto ent = ecsRef->getEntity(ins.entityId);
+        if (ent)
+        {
+            auto pos = ent->get<PositionComponent>();
+            float armSize = static_cast<float>(Grid::TILE_SIZE) * 3.0f;
+            float cellOffset = static_cast<float>(Grid::TILE_SIZE);
+            auto [wx, wy] = gridSystem->getGrid().gridToWorld(ins.x, ins.y);
+            pos->setX(wx - cellOffset);
+            pos->setY(wy - cellOffset);
+            pos->setWidth(armSize);
+            pos->setHeight(armSize);
+            pos->setZ(pos->getZ() + 1.5f);
+
+            ins.initialized = true;
+            updateArmTexture(ins);
+        }
+
+        // If carrying an item, recreate the held item visual
+        if (ins.heldItem != ITEM_NONE)
+            createHeldItemVisual(ins);
+
+        printf("InserterSystem: restored inserter at (%d, %d), dir=%u, state=%u, heldItem=%u\n",
+               ins.x, ins.y, ins.direction, static_cast<unsigned>(ins.state), ins.heldItem);
+    }
+
+    inserters = std::move(pendingInserters);
+    pendingInserters.clear();
+}
 
 void InserterSystem::onEvent(const BuildingPlacedEvent& event)
 {

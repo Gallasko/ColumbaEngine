@@ -6,6 +6,7 @@
 #include "buildingregistry.h"
 #include "canvasgenerator.h"
 #include "terrain.h"
+#include "saveserialization.h"
 
 using namespace pg;
 
@@ -96,7 +97,7 @@ inline size_t resolveLineTileVariant(uint8_t exitDir, bool connectedBack, bool c
     return LINE_RIGHT_1;
 }
 
-class GridSystem : public System<InitSys, Listener<TickEvent>>
+class GridSystem : public System<InitSys, Listener<TickEvent>, SaveSys>
 {
 public:
     GridSystem(BuildingRegistry* registry) : registry(registry) {}
@@ -104,6 +105,10 @@ public:
     virtual std::string getSystemName() const override { return "Grid System"; }
 
     void init() override;
+
+    // SaveSys
+    virtual void save(Archive& archive) override;
+    virtual void load(const UnserializedObject& serializedString) override;
 
     // Query the terrain type at a given grid cell (returns None for out-of-bounds).
     TerrainType getTerrainAt(int x, int y) const
@@ -194,6 +199,15 @@ private:
     // Procedurally generate the canvas terrain (grass / ores / trees / rocks) and render it.
     void generateAndRenderTerrain(uint32_t seed = 0xC0FFEEu);
 
+    // Render terrain visuals from the current terrainGrid (shared by both
+    // fresh generation and save-file restoration).
+    void renderTerrain();
+
+    // Restore a building from save data (like placeBuilding but skips
+    // BuildingPlacedEvent since other systems haven't been created yet).
+    void restoreBuilding(size_t layer, int x, int y, const BuildingDef& def,
+                         size_t direction, size_t conveyorTileIndex, size_t enterDir);
+
     // Pick the autotile frame for a grass cell from Environment_Tileset.
     uint16_t grassAutotileFrame(int x, int y, const RenderAsDirtGrid& renderAsDirt) const;
 
@@ -230,4 +244,9 @@ private:
     TerrainGrid                terrainGrid{};
     std::vector<OrePatch>      orePatches;
     std::vector<TreeInstance>  treeInstances;
+
+    // Pending save data (populated by load(), applied by init())
+    bool hasPendingLoad = false;
+    TerrainGrid pendingTerrain{};
+    std::vector<SavedBuilding> pendingBuildings;
 };

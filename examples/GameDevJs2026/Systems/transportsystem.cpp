@@ -1,9 +1,62 @@
 #include "transportsystem.h"
+#include "saveserialization.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
 
 #include "playerinventory.h"
+
+#include <cstdio>
+
+namespace pg
+{
+    template <>
+    void serialize(Archive& archive, const SavedBeltItem& value)
+    {
+        archive.startSerialization("SavedBeltItem");
+        serialize(archive, "x", value.x);
+        serialize(archive, "y", value.y);
+        serialize(archive, "itemId", static_cast<unsigned int>(value.itemId));
+        archive.endSerialization();
+    }
+
+    template <>
+    SavedBeltItem deserialize(const UnserializedObject& s)
+    {
+        SavedBeltItem result;
+        if (s.isNull()) return result;
+        defaultDeserialize(s, "x", result.x);
+        defaultDeserialize(s, "y", result.y);
+        unsigned int itemId = 0;
+        defaultDeserialize(s, "itemId", itemId);
+        result.itemId = static_cast<ItemId>(itemId);
+        return result;
+    }
+}
+
+void TransportSystem::save(Archive& archive)
+{
+    std::vector<SavedBeltItem> items;
+    for (int y = 0; y < Grid::HEIGHT; ++y)
+        for (int x = 0; x < Grid::WIDTH; ++x)
+            if (beltGrid.get(x, y).itemId != ITEM_NONE)
+                items.push_back({x, y, beltGrid.get(x, y).itemId});
+    serialize(archive, "beltItems", items);
+    printf("TransportSystem: saved %zu belt items\n", items.size());
+}
+
+void TransportSystem::load(const UnserializedObject& serializedString)
+{
+    defaultDeserialize(serializedString, "beltItems", pendingBeltItems);
+    printf("TransportSystem: loaded %zu belt items\n", pendingBeltItems.size());
+}
+
+void TransportSystem::init()
+{
+    for (const auto& item : pendingBeltItems)
+        tryPlaceItem(item.x, item.y, item.itemId);
+    pendingBeltItems.clear();
+}
 
 void TransportSystem::onEvent(const BuildingRemovedEvent& event)
 {

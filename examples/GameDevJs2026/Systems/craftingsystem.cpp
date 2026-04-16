@@ -2,6 +2,29 @@
 
 #include "playerinventory.h"
 
+#include <cstdio>
+
+void CraftingSystem::save(Archive& archive)
+{
+    serialize(archive, "machines", machines);
+    printf("CraftingSystem: saved %zu machines\n", machines.size());
+}
+
+void CraftingSystem::load(const UnserializedObject& serializedString)
+{
+    defaultDeserialize(serializedString, "machines", pendingMachines);
+    printf("CraftingSystem: loaded %zu machines\n", pendingMachines.size());
+}
+
+void CraftingSystem::init()
+{
+    if (not pendingMachines.empty())
+    {
+        machines = std::move(pendingMachines);
+        pendingMachines.clear();
+    }
+}
+
 void CraftingSystem::onEvent(const BuildingPlacedEvent& event)
 {
     if (event.tileId == 5 or event.tileId == 6)

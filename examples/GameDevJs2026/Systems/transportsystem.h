@@ -24,7 +24,13 @@ struct BeltItemGrid
     const BeltCell& get(int x, int y) const { return cells[y][x]; }
 };
 
-class TransportSystem : public System<InitSys, Listener<TickEvent>, Listener<BuildingRemovedEvent>>
+struct SavedBeltItem
+{
+    int x = 0, y = 0;
+    ItemId itemId = ITEM_NONE;
+};
+
+class TransportSystem : public System<InitSys, Listener<TickEvent>, Listener<BuildingRemovedEvent>, SaveSys>
 {
 public:
     static constexpr size_t TRANSPORT_TICK_MS = 250;
@@ -34,7 +40,11 @@ public:
 
     virtual std::string getSystemName() const override { return "Transport System"; }
 
-    void init() override {}
+    void init() override;
+
+    // SaveSys
+    virtual void save(Archive& archive) override;
+    virtual void load(const UnserializedObject& serializedString) override;
 
     virtual void onEvent(const TickEvent& event) override
     {
@@ -91,4 +101,7 @@ private:
 
     // Round-robin state: last travel direction served at each cell
     std::array<std::array<uint8_t, Grid::WIDTH>, Grid::HEIGHT> lastServedDir = {};
+
+    // Pending save data
+    std::vector<SavedBeltItem> pendingBeltItems;
 };

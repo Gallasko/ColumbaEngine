@@ -1,8 +1,7 @@
 #pragma once
 
 // Lightweight port of GameOff's gamefacts.h for GameDevJs2026.
-// Saving/loading is intentionally dropped here; only the runtime fact
-// tracking + FactChecker is retained for recipe-unlock gating.
+// Fact data is persisted via the engine's SaveSys framework.
 
 #include "ECS/entitysystem.h"
 #include "ECS/system.h"
@@ -98,9 +97,14 @@ namespace pg
 
     struct WorldFacts : public System<Listener<AddFact>,
                                       Listener<RemoveFact>,
-                                      Listener<IncreaseFact>>
+                                      Listener<IncreaseFact>,
+                                      SaveSys>
     {
         virtual std::string getSystemName() const override { return "WorldFacts"; }
+
+        // SaveSys
+        virtual void save(Archive& archive) override;
+        virtual void load(const UnserializedObject& serializedString) override;
 
         virtual void onEvent(const AddFact& event) override;
         virtual void onEvent(const RemoveFact& event) override;

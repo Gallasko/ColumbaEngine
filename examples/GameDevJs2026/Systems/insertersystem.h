@@ -7,6 +7,7 @@
 #include "minersystem.h"
 #include "craftingsystem.h"
 #include "machinekey.h"
+#include "saveserialization.h"
 
 using namespace pg;
 
@@ -31,9 +32,10 @@ struct InserterData
     uint64_t heldItemEntityId = 0; // Visual entity for item being carried
 };
 
-class InserterSystem : public System<Listener<TickEvent>,
+class InserterSystem : public System<InitSys, Listener<TickEvent>,
                                       Listener<BuildingPlacedEvent>,
-                                      Listener<BuildingRemovedEvent>>
+                                      Listener<BuildingRemovedEvent>,
+                                      SaveSys>
 {
 public:
     static constexpr uint16_t INSERTER_TILE_ID = 8;
@@ -54,6 +56,12 @@ public:
           itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Inserter System"; }
+
+    void init() override;
+
+    // SaveSys
+    virtual void save(Archive& archive) override;
+    virtual void load(const UnserializedObject& serializedString) override;
 
     virtual void onEvent(const TickEvent& event) override
     {
@@ -97,5 +105,6 @@ private:
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, InserterData> inserters;
+    std::unordered_map<uint32_t, InserterData> pendingInserters;
     size_t tickAccumulator = 0;
 };

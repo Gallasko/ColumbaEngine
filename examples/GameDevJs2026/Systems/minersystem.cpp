@@ -1,9 +1,47 @@
 #include "minersystem.h"
+#include "saveserialization.h"
 
 #include "2D/texture.h"
 #include "playerinventory.h"
 
 #include <cstdio>
+
+void MinerSystem::save(Archive& archive)
+{
+    serialize(archive, "miners", miners);
+    printf("MinerSystem: saved %zu miners\n", miners.size());
+}
+
+void MinerSystem::load(const UnserializedObject& serializedString)
+{
+    defaultDeserialize(serializedString, "miners", pendingMiners);
+    printf("MinerSystem: loaded %zu miners\n", pendingMiners.size());
+}
+
+void MinerSystem::init()
+{
+    if (pendingMiners.empty()) return;
+
+    size_t buildingLayer = gridSystem->getBuildingLayer();
+
+    for (auto& [key, miner] : pendingMiners)
+    {
+        // Grab the entity ID from the grid cell (placed by GridSystem restore)
+        const auto& cell = gridSystem->getGrid().getCell(buildingLayer, miner.ownerX, miner.ownerY);
+        miner.entityId = cell.entityId;
+        miner.producedItem = resolveOreUnder(miner.ownerX, miner.ownerY);
+
+        // Reset animation state (visual-only, not worth saving)
+        miner.animFrame = 0;
+        miner.animElapsed = 0;
+
+        printf("MinerSystem: restored miner at (%d, %d), producedItem=%u, isMining=%d\n",
+               miner.ownerX, miner.ownerY, miner.producedItem, miner.isMining);
+    }
+
+    miners = std::move(pendingMiners);
+    pendingMiners.clear();
+}
 
 void MinerSystem::onEvent(const BuildingPlacedEvent& event)
 {

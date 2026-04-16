@@ -1141,6 +1141,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Core/gridatlas.cpp
             examples/GameDevJs2026/Core/canvasgenerator.cpp
             examples/GameDevJs2026/Core/worldfacts.cpp
+            examples/GameDevJs2026/Core/saveserialization.cpp
             examples/GameDevJs2026/Registries/inventory.cpp
             examples/GameDevJs2026/Registries/itemregistry.cpp
             examples/GameDevJs2026/Registries/buildingregistry.cpp
