@@ -1,96 +1,47 @@
-#pragma once
+#include "reciperegistry.h"
 
-#include "inventory.h"
-#include "worldfacts.h"
-
-#include <vector>
-#include <string>
-
-struct RecipeIngredient
+void RecipeRegistry::addRecipe(const Recipe& recipe)
 {
-    ItemId   id;
-    uint16_t count;
-};
+    recipes.push_back(recipe);
+}
 
-// Where a recipe is crafted. Each recipe belongs to exactly one category,
-// which controls *who* can select it:
-//  - HandCraft:  Player-driven, triggered from the inventory UI.
-//  - Furnace:    Auto-matched by the Furnace machine (tileId 5).
-//  - Assembler:  Auto-matched by the Assembler machine (tileId 6).
-//  - AutoCrafter: Player-configurable auto machine (future).
-enum class RecipeCategory : uint8_t
+std::vector<const Recipe*> RecipeRegistry::getRecipesForMachine(uint16_t tileId) const
 {
-    HandCraft,
-    Furnace,
-    Assembler,
-    AutoCrafter
-};
+    std::vector<const Recipe*> result;
+    for (const auto& r : recipes)
+        if (r.machineType == tileId and
+            (r.category == RecipeCategory::Furnace or r.category == RecipeCategory::Assembler))
+            result.push_back(&r);
+    return result;
+}
 
-struct Recipe
+const Recipe* RecipeRegistry::findMatchingRecipe(uint16_t machineType,
+                                                 const Inventory& inputSlots) const
 {
-    std::string name;
-    uint16_t    machineType = 0;    // tileId of the machine (5=Furnace, 6=Assembler). 0 for HandCraft/AutoCrafter.
-    std::vector<RecipeIngredient> inputs;
-    std::vector<RecipeIngredient> outputs;
-    size_t      craftTimeMs = 2000;
-
-    RecipeCategory category = RecipeCategory::HandCraft;
-
-    // All checkers must pass against the current fact map for this recipe to
-    // be visible/usable. Empty = always unlocked.
-    std::vector<pg::FactChecker> unlockConditions;
-};
-
-struct RecipeRegistry
-{
-    std::vector<Recipe> recipes;
-
-    void addRecipe(const Recipe& recipe)
+    for (const auto& recipe : recipes)
     {
-        recipes.push_back(recipe);
-    }
+        if (recipe.machineType != machineType)
+            continue;
+        if (recipe.category == RecipeCategory::HandCraft or
+            recipe.category == RecipeCategory::AutoCrafter)
+            continue;
 
-    std::vector<const Recipe*> getRecipesForMachine(uint16_t tileId) const
-    {
-        std::vector<const Recipe*> result;
-        for (const auto& r : recipes)
-            if (r.machineType == tileId and
-                (r.category == RecipeCategory::Furnace or r.category == RecipeCategory::Assembler))
-                result.push_back(&r);
-        return result;
-    }
-
-    // Find the first recipe whose inputs are satisfiable by the given inventory.
-    // Only machine-category recipes are considered here — hand-craft recipes
-    // are driven separately by HandCraftingSystem.
-    const Recipe* findMatchingRecipe(uint16_t machineType,
-                                     const Inventory& inputSlots) const
-    {
-        for (const auto& recipe : recipes)
+        bool allSatisfied = true;
+        for (const auto& input : recipe.inputs)
         {
-            if (recipe.machineType != machineType)
-                continue;
-            if (recipe.category == RecipeCategory::HandCraft or
-                recipe.category == RecipeCategory::AutoCrafter)
-                continue;
-
-            bool allSatisfied = true;
-            for (const auto& input : recipe.inputs)
+            if (not inputSlots.hasAtLeast(input.id, input.count))
             {
-                if (not inputSlots.hasAtLeast(input.id, input.count))
-                {
-                    allSatisfied = false;
-                    break;
-                }
+                allSatisfied = false;
+                break;
             }
-            if (allSatisfied)
-                return &recipe;
         }
-        return nullptr;
+        if (allSatisfied)
+            return &recipe;
     }
-};
+    return nullptr;
+}
 
-inline RecipeRegistry createDefaultRecipeRegistry()
+RecipeRegistry createDefaultRecipeRegistry()
 {
     RecipeRegistry reg;
 

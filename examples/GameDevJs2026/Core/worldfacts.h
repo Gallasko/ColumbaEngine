@@ -93,32 +93,7 @@ namespace pg
         ElementType value;
         FactCheckEquality equality = FactCheckEquality::None;
 
-        bool check(const std::unordered_map<std::string, ElementType>& map) const
-        {
-            const auto& it = map.find(name);
-            if (it == map.end())
-                return false;
-
-            try
-            {
-                switch (equality)
-                {
-                case FactCheckEquality::Lesser:       return (it->second <  value).isTrue();
-                case FactCheckEquality::LesserEqual:  return (it->second <= value).isTrue();
-                case FactCheckEquality::Equal:        return (it->second == value).isTrue();
-                case FactCheckEquality::NotEqual:     return (it->second != value).isTrue();
-                case FactCheckEquality::Greater:      return (it->second >  value).isTrue();
-                case FactCheckEquality::GreaterEqual: return (it->second >= value).isTrue();
-                case FactCheckEquality::None:
-                default:
-                    return false;
-                }
-            }
-            catch (const std::exception&)
-            {
-                return false;
-            }
-        }
+        bool check(const std::unordered_map<std::string, ElementType>& map) const;
     };
 
     struct WorldFacts : public System<Listener<AddFact>,
@@ -127,54 +102,11 @@ namespace pg
     {
         virtual std::string getSystemName() const override { return "WorldFacts"; }
 
-        virtual void onEvent(const AddFact& event) override
-        {
-            factMap[event.name] = event.value;
-            factMetadata[event.name] = event.metadata;
-            changedFacts.push_back(event.name);
-            changed = true;
-        }
+        virtual void onEvent(const AddFact& event) override;
+        virtual void onEvent(const RemoveFact& event) override;
+        virtual void onEvent(const IncreaseFact& event) override;
 
-        virtual void onEvent(const RemoveFact& event) override
-        {
-            auto it = factMap.find(event.name);
-            if (it != factMap.end())
-            {
-                factMap.erase(it);
-                factMetadata.erase(event.name);
-            }
-            changedFacts.push_back(event.name);
-            changed = true;
-        }
-
-        virtual void onEvent(const IncreaseFact& event) override
-        {
-            auto it = factMap.find(event.name);
-            if (it != factMap.end())
-            {
-                try
-                {
-                    factMap[event.name] = it->second + event.value;
-                }
-                catch (const std::exception&)
-                {
-                    return;
-                }
-            }
-            else
-            {
-                factMap[event.name] = event.value;
-                factMetadata[event.name] = event.metadata;
-            }
-            changedFacts.push_back(event.name);
-            changed = true;
-        }
-
-        void setDefaultFact(const std::string& name, const ElementType& value)
-        {
-            if (factMap.find(name) == factMap.end())
-                factMap[name] = value;
-        }
+        void setDefaultFact(const std::string& name, const ElementType& value);
 
         template <typename Type>
         void setDefaultFact(const std::string& name, Type value)
@@ -182,15 +114,7 @@ namespace pg
             setDefaultFact(name, ElementType{value});
         }
 
-        virtual void execute() override
-        {
-            if (changed)
-            {
-                ecsRef->sendEvent(WorldFactsUpdate{&factMap, changedFacts});
-                changedFacts.clear();
-                changed = false;
-            }
-        }
+        virtual void execute() override;
 
         std::vector<std::string> changedFacts;
         bool changed = false;

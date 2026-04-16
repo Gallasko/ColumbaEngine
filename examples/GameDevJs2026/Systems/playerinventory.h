@@ -30,25 +30,11 @@ public:
 
     virtual std::string getSystemName() const override { return "Player Inventory System"; }
 
-    void init() override
-    {
-        inventory = Inventory(NUM_SLOTS);
-    }
+    void init() override;
 
-    virtual void onEvent(const PlayerGainItemEvent& event) override
-    {
-        inventory.insert(event.id, event.count, *itemRegistry);
+    virtual void onEvent(const PlayerGainItemEvent& event) override;
 
-        // Seed discovery facts on first pickup so recipes can unlock.
-        const auto& def = itemRegistry->get(event.id);
-        if (def.name == "Coal")
-            sendEvent(AddFact{"discovered_coal", ElementType{true}});
-    }
-
-    virtual void onEvent(const PlayerLoseItemEvent& event) override
-    {
-        inventory.remove(event.id, event.count);
-    }
+    virtual void onEvent(const PlayerLoseItemEvent& event) override;
 
     const Inventory& getInventory() const { return inventory; }
     Inventory& getInventory() { return inventory; }

@@ -1,68 +1,24 @@
-#pragma once
+#include "itemregistry.h"
 
-#include <string>
-#include <vector>
-#include <unordered_map>
-#include <cstdint>
-
-using ItemId = uint16_t;
-static constexpr ItemId ITEM_NONE = 0;
-
-enum class ItemCategory : uint8_t
+ItemId ItemRegistry::addItem(const ItemDef& def)
 {
-    Resource,
-    Intermediate,
-    Product,
-    Building
-};
+    ItemId assignedId = static_cast<ItemId>(items.size());
+    ItemDef copy = def;
+    copy.id = assignedId;
+    nameToId[copy.name] = assignedId;
+    items.push_back(copy);
+    return assignedId;
+}
 
-struct ItemDef
+const ItemDef* ItemRegistry::findByName(const std::string& name) const
 {
-    ItemId       id          = ITEM_NONE;
-    std::string  name;
-    std::string  textureName; // Atlas frame name or "" for color fallback
-    ItemCategory category    = ItemCategory::Resource;
-    uint16_t     maxStack    = 50;
-};
+    auto it = nameToId.find(name);
+    if (it != nameToId.end())
+        return &items[it->second];
+    return nullptr;
+}
 
-struct ItemStack
-{
-    ItemId   id    = ITEM_NONE;
-    uint16_t count = 0;
-
-    bool isEmpty() const { return id == ITEM_NONE or count == 0; }
-    void clear() { id = ITEM_NONE; count = 0; }
-};
-
-struct ItemRegistry
-{
-    std::vector<ItemDef> items;
-    std::unordered_map<std::string, ItemId> nameToId;
-
-    ItemId addItem(const ItemDef& def)
-    {
-        ItemId assignedId = static_cast<ItemId>(items.size());
-        ItemDef copy = def;
-        copy.id = assignedId;
-        nameToId[copy.name] = assignedId;
-        items.push_back(copy);
-        return assignedId;
-    }
-
-    const ItemDef& get(ItemId id) const { return items[id]; }
-
-    const ItemDef* findByName(const std::string& name) const
-    {
-        auto it = nameToId.find(name);
-        if (it != nameToId.end())
-            return &items[it->second];
-        return nullptr;
-    }
-
-    size_t count() const { return items.size(); }
-};
-
-inline ItemRegistry createDefaultItemRegistry()
+ItemRegistry createDefaultItemRegistry()
 {
     ItemRegistry reg;
 

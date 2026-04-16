@@ -1128,10 +1128,36 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         add_executable(GameDevJs2026 examples/GameDevJs2026/main.cpp)
 
-        target_include_directories(GameDevJs2026 PUBLIC examples/GameDevJs2026)
+        target_include_directories(GameDevJs2026 PUBLIC
+            examples/GameDevJs2026
+            examples/GameDevJs2026/Core
+            examples/GameDevJs2026/Registries
+            examples/GameDevJs2026/Systems
+            examples/GameDevJs2026/UI
+        )
 
         target_sources(GameDevJs2026 PRIVATE
             examples/GameDevJs2026/application.cpp
+            examples/GameDevJs2026/Core/gridatlas.cpp
+            examples/GameDevJs2026/Core/canvasgenerator.cpp
+            examples/GameDevJs2026/Core/worldfacts.cpp
+            examples/GameDevJs2026/Registries/inventory.cpp
+            examples/GameDevJs2026/Registries/itemregistry.cpp
+            examples/GameDevJs2026/Registries/buildingregistry.cpp
+            examples/GameDevJs2026/Registries/reciperegistry.cpp
+            examples/GameDevJs2026/Systems/camerasystem.cpp
+            examples/GameDevJs2026/Systems/gridsystem.cpp
+            examples/GameDevJs2026/Systems/gamesystem.cpp
+            examples/GameDevJs2026/Systems/minersystem.cpp
+            examples/GameDevJs2026/Systems/transportsystem.cpp
+            examples/GameDevJs2026/Systems/insertersystem.cpp
+            examples/GameDevJs2026/Systems/craftingsystem.cpp
+            examples/GameDevJs2026/Systems/handcraftingsystem.cpp
+            examples/GameDevJs2026/Systems/playerinventory.cpp
+            examples/GameDevJs2026/UI/toolbarsystem.cpp
+            examples/GameDevJs2026/UI/inventoryui.cpp
+            examples/GameDevJs2026/UI/minerui.cpp
+            examples/GameDevJs2026/UI/craftingui.cpp
         )
 
         target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)
