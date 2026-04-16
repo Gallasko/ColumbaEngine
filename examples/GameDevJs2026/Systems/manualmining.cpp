@@ -124,6 +124,18 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
 
 void ManualMiningSystem::createProgressBar()
 {
+    // White outline (drawn behind the background, slightly larger)
+    auto outline = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        constant::Vector4D{255.0f, 255.0f, 255.0f, 220.0f});
+
+    auto outlinePos = outline.get<PositionComponent>();
+    outlinePos->setX(-1000.0f); // Hidden
+    outlinePos->setZ(7.9f);
+    outlinePos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
+    outlinePos->setHeight(BAR_HEIGHT + BAR_OUTLINE * 2.0f);
+    outline.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    progressOutlineEntityId = outline.entity->id;
+
     // Background bar (dark)
     auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{20.0f, 20.0f, 20.0f, 180.0f});
@@ -161,6 +173,15 @@ void ManualMiningSystem::updateProgressBar()
     float barX = wx + (tileSize - BAR_WIDTH) * 0.5f;
     float barY = wy + BAR_OFFSET_Y;
 
+    // Position outline (slightly larger, offset by -BAR_OUTLINE)
+    auto outlineEnt = ecsRef->getEntity(progressOutlineEntityId);
+    if (outlineEnt)
+    {
+        auto pos = outlineEnt->get<PositionComponent>();
+        pos->setX(barX - BAR_OUTLINE);
+        pos->setY(barY - BAR_OUTLINE);
+    }
+
     // Position background
     auto bgEnt = ecsRef->getEntity(progressBgEntityId);
     if (bgEnt)
@@ -186,6 +207,10 @@ void ManualMiningSystem::updateProgressBar()
 
 void ManualMiningSystem::hideProgressBar()
 {
+    auto outlineEnt = ecsRef->getEntity(progressOutlineEntityId);
+    if (outlineEnt)
+        outlineEnt->get<PositionComponent>()->setX(-1000.0f);
+
     auto bgEnt = ecsRef->getEntity(progressBgEntityId);
     if (bgEnt)
         bgEnt->get<PositionComponent>()->setX(-1000.0f);

@@ -2,6 +2,7 @@
 #include "window.h"
 
 #include "Systems/basicsystems.h"
+#include "Renderer/camera.h"
 #include "Loaders/Aseprite/asepriteloader.h"
 #include "Loaders/Aseprite/asepritefileatlasloader.h"
 #include "UI/ttftext.h"
@@ -161,6 +162,15 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<InserterSystem>(
             gridSystem, transportSystem, minerSystem, craftingSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
+
+        // UI camera at viewport 2 — needed by hotbar, inventory panel, crafting UI, etc.
+        {
+            auto uiCam = ecs.createEntity();
+            auto cam = ecs._attach<BaseCamera2D>(uiCam);
+            cam->setWidth(screenW);
+            cam->setHeight(screenH);
+            window.masterRenderer->queueRegisterCamera(uiCam->id);
+        }
 
         auto* hotbar = ecs.createSystem<HotbarSystem>(
             playerInvSystem, &itemRegistry, &registry, screenW, screenH);

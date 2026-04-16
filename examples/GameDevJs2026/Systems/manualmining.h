@@ -50,6 +50,7 @@ private:
     static constexpr size_t DECAY_TIMEOUT_MS = 2000;
     static constexpr float BAR_WIDTH = 20.0f;
     static constexpr float BAR_HEIGHT = 3.0f;
+    static constexpr float BAR_OUTLINE = 1.0f;
     static constexpr float BAR_OFFSET_Y = -5.0f;
 
     // Progress bar
@@ -79,6 +80,7 @@ private:
     size_t decayTimer = 0;
 
     // Progress bar entities
+    uint64_t progressOutlineEntityId = 0;
     uint64_t progressBgEntityId = 0;
     uint64_t progressFillEntityId = 0;
 
