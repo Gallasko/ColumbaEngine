@@ -652,15 +652,16 @@ private:
             // Interior corner frames: cols 3-4, rows 0 and 2.
             // The tileset's top row of inner corners shows the SOUTH notches
             // (dirt bleeds in from the bottom), and the bottom row shows the
-            // NORTH notches:
+            // NORTH notches. The column ordering mirrors across rows (east-
+            // then-west on the top, west-then-east on the bottom):
             //   frame  3 (col 3 row 0) -> SE inner corner
             //   frame  4 (col 4 row 0) -> SW inner corner
-            //   frame 27 (col 3 row 2) -> NE inner corner
-            //   frame 28 (col 4 row 2) -> NW inner corner
+            //   frame 16 (col 3 row 2) -> NW inner corner
+            //   frame 15 (col 4 row 1) -> NE inner corner
             if (not hasSE) return 3;
             if (not hasSW) return 4;
-            if (not hasNE) return 27;
-            if (not hasNW) return 28;
+            if (not hasNW) return 16;
+            if (not hasNE) return 15;
 
             // Fully surrounded by grass: use the base fill tile, sprinkling in
             // rare variations so the interior doesn't look flat.
