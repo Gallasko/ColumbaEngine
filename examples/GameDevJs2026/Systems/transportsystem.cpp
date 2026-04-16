@@ -47,15 +47,12 @@ void TransportSystem::save(Archive& archive)
 
 void TransportSystem::load(const UnserializedObject& serializedString)
 {
-    defaultDeserialize(serializedString, "beltItems", pendingBeltItems);
-    printf("TransportSystem: loaded %zu belt items\n", pendingBeltItems.size());
-}
+    std::vector<SavedBeltItem> items;
+    defaultDeserialize(serializedString, "beltItems", items);
+    printf("TransportSystem: loaded %zu belt items\n", items.size());
 
-void TransportSystem::init()
-{
-    for (const auto& item : pendingBeltItems)
+    for (const auto& item : items)
         tryPlaceItem(item.x, item.y, item.itemId);
-    pendingBeltItems.clear();
 }
 
 void TransportSystem::onEvent(const BuildingRemovedEvent& event)

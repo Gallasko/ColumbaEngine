@@ -14,33 +14,22 @@ void MinerSystem::save(Archive& archive)
 
 void MinerSystem::load(const UnserializedObject& serializedString)
 {
-    defaultDeserialize(serializedString, "miners", pendingMiners);
-    printf("MinerSystem: loaded %zu miners\n", pendingMiners.size());
-}
-
-void MinerSystem::init()
-{
-    if (pendingMiners.empty()) return;
+    defaultDeserialize(serializedString, "miners", miners);
+    printf("MinerSystem: loaded %zu miners\n", miners.size());
 
     size_t buildingLayer = gridSystem->getBuildingLayer();
 
-    for (auto& [key, miner] : pendingMiners)
+    for (auto& [key, miner] : miners)
     {
-        // Grab the entity ID from the grid cell (placed by GridSystem restore)
         const auto& cell = gridSystem->getGrid().getCell(buildingLayer, miner.ownerX, miner.ownerY);
         miner.entityId = cell.entityId;
         miner.producedItem = resolveOreUnder(miner.ownerX, miner.ownerY);
-
-        // Reset animation state (visual-only, not worth saving)
         miner.animFrame = 0;
         miner.animElapsed = 0;
 
         printf("MinerSystem: restored miner at (%d, %d), producedItem=%u, isMining=%d\n",
                miner.ownerX, miner.ownerY, miner.producedItem, miner.isMining);
     }
-
-    miners = std::move(pendingMiners);
-    pendingMiners.clear();
 }
 
 void MinerSystem::onEvent(const BuildingPlacedEvent& event)

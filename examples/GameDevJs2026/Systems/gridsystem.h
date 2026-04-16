@@ -245,8 +245,4 @@ private:
     std::vector<OrePatch>      orePatches;
     std::vector<TreeInstance>  treeInstances;
 
-    // Pending save data (populated by load(), applied by init())
-    bool hasPendingLoad = false;
-    TerrainGrid pendingTerrain{};
-    std::vector<SavedBuilding> pendingBuildings;
 };

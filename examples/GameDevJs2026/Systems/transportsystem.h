@@ -30,7 +30,7 @@ struct SavedBeltItem
     ItemId itemId = ITEM_NONE;
 };
 
-class TransportSystem : public System<InitSys, Listener<TickEvent>, Listener<BuildingRemovedEvent>, SaveSys>
+class TransportSystem : public System<Listener<TickEvent>, Listener<BuildingRemovedEvent>, SaveSys>
 {
 public:
     static constexpr size_t TRANSPORT_TICK_MS = 250;
@@ -39,8 +39,6 @@ public:
         : gridSystem(gridSystem), itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Transport System"; }
-
-    void init() override;
 
     // SaveSys
     virtual void save(Archive& archive) override;
@@ -102,6 +100,4 @@ private:
     // Round-robin state: last travel direction served at each cell
     std::array<std::array<uint8_t, Grid::WIDTH>, Grid::HEIGHT> lastServedDir = {};
 
-    // Pending save data
-    std::vector<SavedBeltItem> pendingBeltItems;
 };

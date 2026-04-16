@@ -56,24 +56,60 @@ void GridSystem::save(Archive& archive)
 
 void GridSystem::load(const UnserializedObject& serializedString)
 {
-    // Load terrain as flat vector then unpack into 2D grid
+    // init() already ran (layers exist, fresh terrain generated).
+    // If we have save data, replace the fresh terrain and restore buildings.
+
     std::vector<unsigned int> terrainFlat;
     defaultDeserialize(serializedString, "terrain", terrainFlat);
 
-    if (terrainFlat.size() == static_cast<size_t>(Grid::WIDTH * Grid::HEIGHT))
-    {
-        hasPendingLoad = true;
-        for (int y = 0; y < Grid::HEIGHT; ++y)
-            for (int x = 0; x < Grid::WIDTH; ++x)
-                pendingTerrain[y][x] = static_cast<TerrainType>(terrainFlat[y * Grid::WIDTH + x]);
-    }
-
-    defaultDeserialize(serializedString, "buildings", pendingBuildings);
-    if (not pendingBuildings.empty())
-        hasPendingLoad = true;
+    std::vector<SavedBuilding> buildings;
+    defaultDeserialize(serializedString, "buildings", buildings);
 
     printf("GridSystem: loaded %zu terrain cells, %zu buildings\n",
-           terrainFlat.size(), pendingBuildings.size());
+           terrainFlat.size(), buildings.size());
+
+    if (terrainFlat.size() != static_cast<size_t>(Grid::WIDTH * Grid::HEIGHT))
+        return;
+
+    // Clear the freshly generated terrain entities
+    for (uint64_t id : bgEntities)
+        ecsRef->removeEntity(id);
+    bgEntities.clear();
+
+    // Restore terrain grid
+    for (int y = 0; y < Grid::HEIGHT; ++y)
+        for (int x = 0; x < Grid::WIDTH; ++x)
+            terrainGrid[y][x] = static_cast<TerrainType>(terrainFlat[y * Grid::WIDTH + x]);
+
+    // Reconstruct treeInstances from saved terrain
+    treeInstances.clear();
+    for (int y = 0; y <= Grid::HEIGHT - TREE_H; ++y)
+    {
+        for (int x = 0; x <= Grid::WIDTH - TREE_W; ++x)
+        {
+            bool allTree = true;
+            for (int dy = 0; dy < TREE_H and allTree; ++dy)
+                for (int dx = 0; dx < TREE_W and allTree; ++dx)
+                    if (terrainGrid[y + dy][x + dx] != TerrainType::Tree)
+                        allTree = false;
+            if (allTree)
+            {
+                treeInstances.push_back({x, y});
+                x += TREE_W - 1;
+            }
+        }
+    }
+
+    renderTerrain();
+
+    // Restore buildings (without emitting BuildingPlacedEvent)
+    for (const auto& sb : buildings)
+    {
+        const BuildingDef* def = registry->findByTileId(sb.tileId);
+        if (def)
+            restoreBuilding(buildingLayer, sb.x, sb.y, *def,
+                            sb.direction, sb.conveyorTileIndex, sb.enterDirection);
+    }
 }
 
 void GridSystem::init()
@@ -83,49 +119,8 @@ void GridSystem::init()
     buildingLayer = grid.addLayer("buildings", 2.0f);
     itemLayer = grid.addLayer("items", 3.0f);
 
-    if (hasPendingLoad)
-    {
-        // Restore terrain from save
-        terrainGrid = pendingTerrain;
-
-        // Reconstruct treeInstances from the saved terrain grid
-        // (renderTerrain uses this list for the tree sprite pass).
-        treeInstances.clear();
-        for (int y = 0; y <= Grid::HEIGHT - TREE_H; ++y)
-        {
-            for (int x = 0; x <= Grid::WIDTH - TREE_W; ++x)
-            {
-                bool allTree = true;
-                for (int dy = 0; dy < TREE_H and allTree; ++dy)
-                    for (int dx = 0; dx < TREE_W and allTree; ++dx)
-                        if (terrainGrid[y + dy][x + dx] != TerrainType::Tree)
-                            allTree = false;
-                if (allTree)
-                {
-                    treeInstances.push_back({x, y});
-                    x += TREE_W - 1; // skip past this tree's width
-                }
-            }
-        }
-
-        renderTerrain();
-
-        // Restore buildings (without emitting BuildingPlacedEvent)
-        for (const auto& sb : pendingBuildings)
-        {
-            const BuildingDef* def = registry->findByTileId(sb.tileId);
-            if (def)
-                restoreBuilding(buildingLayer, sb.x, sb.y, *def,
-                                sb.direction, sb.conveyorTileIndex, sb.enterDirection);
-        }
-        pendingBuildings.clear();
-        hasPendingLoad = false;
-    }
-    else
-    {
-        // Procedurally generate the starting canvas and render its terrain
-        generateAndRenderTerrain();
-    }
+    // Generate fresh terrain (load() will replace it if a save exists)
+    generateAndRenderTerrain();
 }
 
 void GridSystem::regenerateTerrain(uint32_t seed)

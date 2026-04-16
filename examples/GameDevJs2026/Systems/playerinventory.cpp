@@ -10,23 +10,19 @@ void PlayerInventorySystem::save(Archive& archive)
 
 void PlayerInventorySystem::load(const UnserializedObject& serializedString)
 {
-    defaultDeserialize(serializedString, "slots", pendingSlots);
-    printf("PlayerInventory: loaded %zu slots\n", pendingSlots.size());
+    std::vector<ItemStack> slots;
+    defaultDeserialize(serializedString, "slots", slots);
+    printf("PlayerInventory: loaded %zu slots\n", slots.size());
+
+    // init() already ran and created the 20-slot inventory — fill directly
+    size_t count = std::min(slots.size(), static_cast<size_t>(NUM_SLOTS));
+    for (size_t i = 0; i < count; ++i)
+        inventory.slots[i] = slots[i];
 }
 
 void PlayerInventorySystem::init()
 {
     inventory = Inventory(NUM_SLOTS);
-
-    // Apply pending save data if we loaded from file
-    if (not pendingSlots.empty())
-    {
-        // Ensure we don't exceed the slot count
-        size_t count = std::min(pendingSlots.size(), static_cast<size_t>(NUM_SLOTS));
-        for (size_t i = 0; i < count; ++i)
-            inventory.slots[i] = pendingSlots[i];
-        pendingSlots.clear();
-    }
 }
 
 void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)

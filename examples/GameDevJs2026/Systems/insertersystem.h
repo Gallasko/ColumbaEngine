@@ -32,7 +32,7 @@ struct InserterData
     uint64_t heldItemEntityId = 0; // Visual entity for item being carried
 };
 
-class InserterSystem : public System<InitSys, Listener<TickEvent>,
+class InserterSystem : public System<Listener<TickEvent>,
                                       Listener<BuildingPlacedEvent>,
                                       Listener<BuildingRemovedEvent>,
                                       SaveSys>
@@ -56,8 +56,6 @@ public:
           itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Inserter System"; }
-
-    void init() override;
 
     // SaveSys
     virtual void save(Archive& archive) override;
@@ -105,6 +103,5 @@ private:
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, InserterData> inserters;
-    std::unordered_map<uint32_t, InserterData> pendingInserters;
     size_t tickAccumulator = 0;
 };

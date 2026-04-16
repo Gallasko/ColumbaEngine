@@ -12,17 +12,8 @@ void CraftingSystem::save(Archive& archive)
 
 void CraftingSystem::load(const UnserializedObject& serializedString)
 {
-    defaultDeserialize(serializedString, "machines", pendingMachines);
-    printf("CraftingSystem: loaded %zu machines\n", pendingMachines.size());
-}
-
-void CraftingSystem::init()
-{
-    if (not pendingMachines.empty())
-    {
-        machines = std::move(pendingMachines);
-        pendingMachines.clear();
-    }
+    defaultDeserialize(serializedString, "machines", machines);
+    printf("CraftingSystem: loaded %zu machines\n", machines.size());
 }
 
 void CraftingSystem::onEvent(const BuildingPlacedEvent& event)

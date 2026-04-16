@@ -22,7 +22,7 @@ struct MachineData
     size_t craftProgress = 0;   // Milliseconds elapsed on current craft
 };
 
-class CraftingSystem : public System<InitSys, Listener<TickEvent>,
+class CraftingSystem : public System<Listener<TickEvent>,
                                      Listener<BuildingPlacedEvent>,
                                      Listener<BuildingRemovedEvent>,
                                      SaveSys>
@@ -36,8 +36,6 @@ public:
           itemRegistry(itemRegistry), recipeRegistry(recipeRegistry) {}
 
     virtual std::string getSystemName() const override { return "Crafting System"; }
-
-    void init() override;
 
     // SaveSys
     virtual void save(Archive& archive) override;
@@ -76,6 +74,4 @@ private:
     std::unordered_map<uint32_t, MachineData> machines;
     size_t tickAccumulator = 0;
 
-    // Pending save data
-    std::unordered_map<uint32_t, MachineData> pendingMachines;
 };

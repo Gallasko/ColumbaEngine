@@ -53,5 +53,4 @@ public:
 private:
     ItemRegistry* itemRegistry = nullptr;
     Inventory inventory;
-    std::vector<ItemStack> pendingSlots;
 };

@@ -15,19 +15,13 @@ void InserterSystem::save(Archive& archive)
 
 void InserterSystem::load(const UnserializedObject& serializedString)
 {
-    defaultDeserialize(serializedString, "inserters", pendingInserters);
-    printf("InserterSystem: loaded %zu inserters\n", pendingInserters.size());
-}
-
-void InserterSystem::init()
-{
-    if (pendingInserters.empty()) return;
+    defaultDeserialize(serializedString, "inserters", inserters);
+    printf("InserterSystem: loaded %zu inserters\n", inserters.size());
 
     size_t buildingLayer = gridSystem->getBuildingLayer();
 
-    for (auto& [key, ins] : pendingInserters)
+    for (auto& [key, ins] : inserters)
     {
-        // Grab the entity ID from the grid cell (placed by GridSystem restore)
         const auto& cell = gridSystem->getGrid().getCell(buildingLayer, ins.x, ins.y);
         ins.entityId = cell.entityId;
 
@@ -49,16 +43,12 @@ void InserterSystem::init()
             updateArmTexture(ins);
         }
 
-        // If carrying an item, recreate the held item visual
         if (ins.heldItem != ITEM_NONE)
             createHeldItemVisual(ins);
 
         printf("InserterSystem: restored inserter at (%d, %d), dir=%u, state=%u, heldItem=%u\n",
                ins.x, ins.y, ins.direction, static_cast<unsigned>(ins.state), ins.heldItem);
     }
-
-    inserters = std::move(pendingInserters);
-    pendingInserters.clear();
 }
 
 void InserterSystem::onEvent(const BuildingPlacedEvent& event)

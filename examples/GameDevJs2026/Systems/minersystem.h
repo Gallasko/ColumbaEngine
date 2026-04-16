@@ -28,7 +28,7 @@ struct MinerData
     ItemId producedItem = ITEM_NONE;
 };
 
-class MinerSystem : public System<InitSys, Listener<TickEvent>,
+class MinerSystem : public System<Listener<TickEvent>,
                                    Listener<BuildingPlacedEvent>,
                                    Listener<BuildingRemovedEvent>,
                                    SaveSys>
@@ -44,8 +44,6 @@ public:
         : gridSystem(gridSystem), transportSystem(transportSystem), itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Miner System"; }
-
-    void init() override;
 
     // SaveSys
     virtual void save(Archive& archive) override;
@@ -83,7 +81,6 @@ private:
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, MinerData> miners;
-    std::unordered_map<uint32_t, MinerData> pendingMiners;
     size_t tickAccumulator = 0;
     size_t animAccumulator = 0;
 };
