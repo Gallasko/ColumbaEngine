@@ -406,6 +406,8 @@ private:
                     return false;
                 if (gridSystem->getCell(layer, cx, cy).tileId != 0)
                     return false;
+                if (isBlockingTerrain(gridSystem->getTerrainAt(cx, cy)))
+                    return false;
             }
         return true;
     }

@@ -182,11 +182,12 @@ public:
     // Place a building on the grid using its BuildingDef
     void placeBuilding(size_t layer, int x, int y, const BuildingDef& def, size_t direction, size_t conveyorTileIndex = LINE_RIGHT_1, size_t enterDir = SIZE_MAX)
     {
-        // Check all cells are free and in bounds
+        // Check all cells are free, in bounds, and not on blocking terrain.
         for (int dy = 0; dy < def.gridH; ++dy)
             for (int dx = 0; dx < def.gridW; ++dx)
                 if (not grid.isInBounds(x + dx, y + dy) or
-                    grid.getCell(layer, x + dx, y + dy).tileId != 0)
+                    grid.getCell(layer, x + dx, y + dy).tileId != 0 or
+                    isBlockingTerrain(getTerrainAt(x + dx, y + dy)))
                     return;
 
         auto [worldX, worldY] = grid.gridToWorld(x, y);
@@ -495,9 +496,19 @@ private:
     // Procedurally generate the canvas terrain (grass / ores / trees / rocks) and render it.
     void generateAndRenderTerrain(uint32_t seed = 0xC0FFEEu)
     {
-        constexpr float GROUND_Z  = 0.5f;
-        constexpr float OVERLAY_Z = 0.7f;
-        constexpr float TREE_Z    = 0.9f;
+        // All terrain stays inside integer z planes that sit below the building
+        // layer (z=2) and item layer (z=3). Within the same z-plane, render
+        // order controls stacking — we draw ground first, then grass, then
+        // single-tile overlays, and finally trees in a separate pass.
+        constexpr float GROUND_Z  = 0.0f;
+        constexpr float GRASS_Z   = 1.0f;
+        constexpr float OVERLAY_Z = 1.0f;
+        constexpr float TREE_Z    = 1.0f;
+
+        // "Plain grass fill" frame indices inside Environment_Tileset. The grass
+        // autotile sets are 3 rows tall; these are the fill variants the user
+        // identified as plain-grass-looking (no visible autotile edges).
+        static constexpr uint16_t GRASS_FRAMES[] = { 11, 12, 14, 23, 24 };
 
         GenerationParams params;
         params.seed = seed;
@@ -507,7 +518,7 @@ private:
         orePatches = gen.orePatches;
         treeInstances = gen.trees;
 
-        // Per-cell pass: ground base + single-tile overlays (ores, rocks).
+        // Per-cell pass: ground base + grass + single-tile overlays (ores, rocks).
         // Trees are rendered afterwards from the instance list so each occupies
         // exactly one 2x3 sprite anchored to its footprint.
         for (int y = 0; y < Grid::HEIGHT; ++y)
@@ -521,6 +532,21 @@ private:
                     Grid::TILE_SIZE, Grid::TILE_SIZE);
 
                 TerrainType t = terrainGrid[y][x];
+
+                // Grass goes under everything except trees; trees already mark their
+                // footprint as Tree, so we also paint grass under a tree's cells for
+                // cases where sub-pixel transparency in the tree sprite shows through.
+                if (t == TerrainType::Grass or t == TerrainType::Tree)
+                {
+                    // Deterministic per-cell variant pick (stable across rerolls
+                    // of the same seed). Classic 2D spatial hash constants.
+                    uint32_t h = static_cast<uint32_t>(x) * 73856093u
+                               ^ static_cast<uint32_t>(y) * 19349663u;
+                    uint16_t frame = GRASS_FRAMES[h % (sizeof(GRASS_FRAMES) / sizeof(GRASS_FRAMES[0]))];
+
+                    spawnTextureTile("Environment_Tileset." + std::to_string(frame),
+                        worldX, worldY, GRASS_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);
+                }
 
                 switch (t)
                 {
@@ -552,7 +578,7 @@ private:
                             Grid::TILE_SIZE, Grid::TILE_SIZE);
                         break;
 
-                    // Trees and grass have no per-cell sprite; trees are rendered below.
+                    // Grass handled above; trees are rendered in the pass below.
                     case TerrainType::Grass:
                     case TerrainType::Tree:
                     default:

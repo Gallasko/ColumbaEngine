@@ -27,6 +27,13 @@ inline bool isOre(TerrainType t)
         or t == TerrainType::OreStone;
 }
 
+// Terrain that blocks building placement. Rocks and trees are solid obstacles;
+// grass and ore are walkable/buildable (miners need to sit on ore).
+inline bool isBlockingTerrain(TerrainType t)
+{
+    return t == TerrainType::Rock or t == TerrainType::Tree;
+}
+
 // Map terrain type to the ItemId produced by a miner on that tile.
 // Matches the IDs assigned in createDefaultItemRegistry() at itemregistry.h:
 //   Iron Ore = 1, Copper Ore = 2, Coal = 3, Stone = 4
