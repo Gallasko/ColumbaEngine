@@ -559,42 +559,18 @@ private:
                         worldX, worldY, GRASS_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);
                 }
 
-                switch (t)
+                if (isOre(t))
                 {
-                    case TerrainType::OreIron:
-                        // Use the center frame of the 3x3 ore tileset for all cells
-                        // (full autotiling is a follow-up pass).
-                        spawnTextureTile("Iron_Ore_Tiles.4", worldX, worldY, OVERLAY_Z,
-                            Grid::TILE_SIZE, Grid::TILE_SIZE);
-                        break;
-
-                    case TerrainType::OreCoal:
-                        spawnTextureTile("Coal_Tiles.4", worldX, worldY, OVERLAY_Z,
-                            Grid::TILE_SIZE, Grid::TILE_SIZE);
-                        break;
-
-                    case TerrainType::OreStone:
-                        spawnTextureTile("Rock_Tiles.4", worldX, worldY, OVERLAY_Z,
-                            Grid::TILE_SIZE, Grid::TILE_SIZE);
-                        break;
-
-                    case TerrainType::OreCopper:
-                        // No dedicated tileset — reuse the single copper-rock sprite.
-                        spawnTextureTile("Copper_Rock.0", worldX, worldY, OVERLAY_Z,
-                            Grid::TILE_SIZE, Grid::TILE_SIZE);
-                        break;
-
-                    case TerrainType::Rock:
-                        spawnTextureTile("Rock_Tile.0", worldX, worldY, OVERLAY_Z,
-                            Grid::TILE_SIZE, Grid::TILE_SIZE);
-                        break;
-
-                    // Grass handled above; trees are rendered in the pass below.
-                    case TerrainType::Grass:
-                    case TerrainType::Tree:
-                    default:
-                        break;
+                    uint16_t frame = oreAutotileFrame(x, y, t);
+                    spawnTextureTile("Environment_Tileset." + std::to_string(frame),
+                        worldX, worldY, OVERLAY_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);
                 }
+                else if (t == TerrainType::Rock)
+                {
+                    spawnTextureTile("Rock_Tile.0", worldX, worldY, OVERLAY_Z,
+                        Grid::TILE_SIZE, Grid::TILE_SIZE);
+                }
+                // Grass handled above; trees are rendered in the pass below.
             }
         }
 
@@ -607,6 +583,57 @@ private:
                 static_cast<float>(Grid::TILE_SIZE * TREE_W),
                 static_cast<float>(Grid::TILE_SIZE * TREE_H));
         }
+    }
+
+    // Pick the autotile frame for an ore cell from Environment_Tileset.
+    // The last 3 rows of the tileset (rows 18-20) hold 4 ore-type 3x3 blocks in
+    // the order rocks / coal / iron / copper. Each block uses the standard
+    // 3x3 layout where the 8 border tiles represent neighbor presence and the
+    // center (row 1, col 1) is the solid fill used when the tile is surrounded
+    // by same-ore neighbors on all sides or is isolated.
+    uint16_t oreAutotileFrame(int x, int y, TerrainType t) const
+    {
+        // Atlas is row-major with 12 cols (see application.cpp registration).
+        constexpr uint16_t ATLAS_COLS = 12;
+
+        // Top-left frame index of each ore's 3x3 block.
+        uint16_t baseOffset;
+        switch (t)
+        {
+            case TerrainType::OreStone:  baseOffset = 18 * ATLAS_COLS + 0; break; // 216
+            case TerrainType::OreCoal:   baseOffset = 18 * ATLAS_COLS + 3; break; // 219
+            case TerrainType::OreIron:   baseOffset = 18 * ATLAS_COLS + 6; break; // 222
+            case TerrainType::OreCopper: baseOffset = 18 * ATLAS_COLS + 9; break; // 225
+            default:                     baseOffset = 18 * ATLAS_COLS + 6; break;
+        }
+
+        auto sameOre = [&](int nx, int ny)
+        {
+            if (not grid.isInBounds(nx, ny))
+                return false;
+            return terrainGrid[ny][nx] == t;
+        };
+
+        bool hasN = sameOre(x,     y - 1);
+        bool hasS = sameOre(x,     y + 1);
+        bool hasW = sameOre(x - 1, y);
+        bool hasE = sameOre(x + 1, y);
+
+        // Pick the sub-row: top row if the cell has open sky above, bottom row
+        // if it has open sky below, middle otherwise (includes the "fully
+        // surrounded" and "fully isolated" cases, both of which render as the
+        // solid center tile).
+        int localRow;
+        if (not hasN and hasS)      localRow = 0;
+        else if (hasN and not hasS) localRow = 2;
+        else                        localRow = 1;
+
+        int localCol;
+        if (not hasW and hasE)      localCol = 0;
+        else if (hasW and not hasE) localCol = 2;
+        else                        localCol = 1;
+
+        return static_cast<uint16_t>(baseOffset + localRow * ATLAS_COLS + localCol);
     }
 
     // Helper: spawn a textured tile at a world position and record it for cleanup.
