@@ -505,15 +505,6 @@ private:
         constexpr float OVERLAY_Z = 1.0f;
         constexpr float TREE_Z    = 1.0f;
 
-        // Grass rendering uses Environment_Tileset. The atlas is row-major with
-        // cols=12 (see application.cpp), so frame i -> (i % 12, i / 12). The
-        // grass autotile region is the first 3 rows (frames 0-35). Most cells
-        // use frame 13 (plain fill) with a handful of rarer variations
-        // sprinkled in for subtle variety.
-        constexpr uint16_t GRASS_BASE = 13;
-        static constexpr uint16_t GRASS_VARIATIONS[] = { 10, 11, 22, 23 };
-        constexpr uint32_t VARIATION_EVERY = 12; // ~1 in 12 cells picks a variation
-
         GenerationParams params;
         params.seed = seed;
 
@@ -540,23 +531,22 @@ private:
                 // Grass is painted under grass, tree, and rock cells so that
                 // transparent pixels in the tree/rock sprites show grass (not
                 // dirt) behind them, and so the environment looks uniformly
-                // green between decorations.
+                // green between decorations. Near ore patches the grass
+                // auto-tiles to a dirt edge via grassAutotileFrame. When the
+                // cell is encircled by ore (or otherwise unrepresentable by
+                // the autotile), grassAutotileFrame returns the GRASS_AS_DIRT
+                // sentinel and we skip the overlay so the Ground.0 base shows
+                // through as plain dirt.
                 if (t == TerrainType::Grass
                  or t == TerrainType::Tree
                  or t == TerrainType::Rock)
                 {
-                    // Deterministic per-cell pick (stable across rerolls of
-                    // the same seed). Most cells draw the base grass tile;
-                    // roughly 1 in VARIATION_EVERY cells draws a variation.
-                    uint32_t h = static_cast<uint32_t>(x) * 73856093u
-                               ^ static_cast<uint32_t>(y) * 19349663u;
-                    uint16_t frame = GRASS_BASE;
-                    if (h % VARIATION_EVERY == 0)
-                        frame = GRASS_VARIATIONS[(h / VARIATION_EVERY)
-                            % (sizeof(GRASS_VARIATIONS) / sizeof(GRASS_VARIATIONS[0]))];
-
-                    spawnTextureTile("Environment_Tileset." + std::to_string(frame),
-                        worldX, worldY, GRASS_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);
+                    uint16_t frame = grassAutotileFrame(x, y);
+                    if (frame != GRASS_AS_DIRT)
+                    {
+                        spawnTextureTile("Environment_Tileset." + std::to_string(frame),
+                            worldX, worldY, GRASS_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);
+                    }
                 }
 
                 if (isOre(t))
@@ -583,6 +573,106 @@ private:
                 static_cast<float>(Grid::TILE_SIZE * TREE_W),
                 static_cast<float>(Grid::TILE_SIZE * TREE_H));
         }
+    }
+
+    // Sentinel returned by grassAutotileFrame() when the cell is encircled by
+    // ore (or in any configuration the 9-tile grass autotile can't represent).
+    // The caller skips drawing a grass overlay for that cell so the Ground.0
+    // base tile shows through as plain dirt.
+    static constexpr uint16_t GRASS_AS_DIRT = 0xFFFF;
+
+    // Pick the autotile frame for a grass cell from Environment_Tileset.
+    // The first 3 rows of the tileset hold the grass-to-dirt autotile:
+    //   - Cols 0-2 are the standard 3x3 block (TL/T/TR, L/C/R, BL/B/BR)
+    //     where any non-grass-like cardinal neighbor produces a dirt edge.
+    //   - Cols 3-4 of rows 0 and 2 are the 4 interior corners used when all
+    //     four cardinal neighbors are grass but a diagonal neighbor is ore
+    //     (producing a small dirt poke in that corner).
+    // Grass / Tree / Rock cells all count as "grass" for autotiling because
+    // they share the same grass background. Out-of-bounds is treated as grass
+    // so the canvas edge doesn't spawn an unwanted dirt transition.
+    //
+    // Returns GRASS_AS_DIRT when the cell is encircled by ore or otherwise
+    // can't be represented by the 9-tile + inner-corner set (3+ ore sides,
+    // or opposite-pair ore sides forming a grass strip).
+    uint16_t grassAutotileFrame(int x, int y) const
+    {
+        constexpr uint16_t ATLAS_COLS = 12;
+        constexpr uint16_t GRASS_BASE = 13;
+        static constexpr uint16_t GRASS_VARIATIONS[] = { 10, 11, 22, 23 };
+        constexpr uint32_t VARIATION_EVERY = 12;
+
+        auto isGrassLike = [&](int nx, int ny)
+        {
+            if (not grid.isInBounds(nx, ny))
+                return true;
+            return not isOre(terrainGrid[ny][nx]);
+        };
+
+        bool hasN = isGrassLike(x,     y - 1);
+        bool hasS = isGrassLike(x,     y + 1);
+        bool hasW = isGrassLike(x - 1, y);
+        bool hasE = isGrassLike(x + 1, y);
+
+        // The 9-tile autotile can only express 0/1/2 ore sides, and when
+        // there are exactly 2 ore sides they must be adjacent (forming a
+        // corner). Anything else has no valid tile, so render as dirt.
+        int oreSides = 0;
+        if (not hasN) ++oreSides;
+        if (not hasS) ++oreSides;
+        if (not hasW) ++oreSides;
+        if (not hasE) ++oreSides;
+
+        const bool oppositeOnly = (oreSides == 2) and
+            (((not hasN) and (not hasS)) or ((not hasW) and (not hasE)));
+
+        if (oreSides >= 3 or oppositeOnly)
+            return GRASS_AS_DIRT;
+
+        int localRow;
+        if (not hasN and hasS)      localRow = 0;
+        else if (hasN and not hasS) localRow = 2;
+        else                        localRow = 1;
+
+        int localCol;
+        if (not hasW and hasE)      localCol = 0;
+        else if (hasW and not hasE) localCol = 2;
+        else                        localCol = 1;
+
+        // If we landed on the center cell (all 4 cardinals are grass-like),
+        // check diagonals for interior-corner transitions. Priority order
+        // NW > NE > SW > SE is arbitrary but deterministic.
+        if (localRow == 1 and localCol == 1 and hasN and hasS and hasE and hasW)
+        {
+            bool hasNW = isGrassLike(x - 1, y - 1);
+            bool hasNE = isGrassLike(x + 1, y - 1);
+            bool hasSW = isGrassLike(x - 1, y + 1);
+            bool hasSE = isGrassLike(x + 1, y + 1);
+
+            // Interior corner frames: cols 3-4, rows 0 and 2.
+            // The tileset's top row of inner corners shows the SOUTH notches
+            // (dirt bleeds in from the bottom), and the bottom row shows the
+            // NORTH notches:
+            //   frame  3 (col 3 row 0) -> SE inner corner
+            //   frame  4 (col 4 row 0) -> SW inner corner
+            //   frame 27 (col 3 row 2) -> NE inner corner
+            //   frame 28 (col 4 row 2) -> NW inner corner
+            if (not hasSE) return 3;
+            if (not hasSW) return 4;
+            if (not hasNE) return 27;
+            if (not hasNW) return 28;
+
+            // Fully surrounded by grass: use the base fill tile, sprinkling in
+            // rare variations so the interior doesn't look flat.
+            uint32_t h = static_cast<uint32_t>(x) * 73856093u
+                       ^ static_cast<uint32_t>(y) * 19349663u;
+            if (h % VARIATION_EVERY == 0)
+                return GRASS_VARIATIONS[(h / VARIATION_EVERY)
+                    % (sizeof(GRASS_VARIATIONS) / sizeof(GRASS_VARIATIONS[0]))];
+            return GRASS_BASE;
+        }
+
+        return static_cast<uint16_t>(localRow * ATLAS_COLS + localCol);
     }
 
     // Pick the autotile frame for an ore cell from Environment_Tileset.
