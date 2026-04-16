@@ -20,6 +20,7 @@
 #include "worldfacts.h"
 #include "handcraftingsystem.h"
 #include "craftingui.h"
+#include "Systems/tween.h"
 
 using namespace pg;
 
@@ -192,6 +193,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* craftingUI = ecs.createSystem<CraftingUISystem>(
             handCrafting, &recipeRegistry, &itemRegistry, playerInvSystem,
             worldFacts, inventoryUI, screenW, screenH);
+
+        ecs.createSystem<TweenSystem>();
 
         auto* manualMining = ecs.createSystem<ManualMiningSystem>(
             gridSystem, cameraSystem, playerInvSystem, &itemRegistry, screenW, screenH);

@@ -9,6 +9,16 @@
 #include <cstdio>
 #include <cmath>
 
+namespace {
+    struct LambdaCallable : public pg::AbstractCallable
+    {
+        std::function<void()> fn;
+        LambdaCallable(std::function<void()> f) : fn(std::move(f)) {}
+        void call(pg::EntitySystem* const) noexcept override { if (fn) fn(); }
+        void serialize(pg::Archive&) const noexcept override {}
+    };
+}
+
 void ManualMiningSystem::init()
 {
     createProgressBar();
@@ -36,7 +46,7 @@ void ManualMiningSystem::execute()
                 currentHits = 0;
                 targetGridX = -1;
                 targetGridY = -1;
-                hideProgressBar();
+                startBarFadeOut();
             }
         }
     }
@@ -91,6 +101,7 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
 
     currentHits++;
     decayTimer = 0;
+    cancelBarFade();
     updateProgressBar();
 
     if (currentHits >= requiredHits)
@@ -118,7 +129,7 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
         currentHits = 0;
         targetGridX = -1;
         targetGridY = -1;
-        hideProgressBar();
+        startBarFadeOut();
     }
 }
 
@@ -130,7 +141,7 @@ void ManualMiningSystem::createProgressBar()
 
     auto outlinePos = outline.get<PositionComponent>();
     outlinePos->setX(-1000.0f); // Hidden
-    outlinePos->setZ(7.9f);
+    outlinePos->setZ(9.f);
     outlinePos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
     outlinePos->setHeight(BAR_HEIGHT + BAR_OUTLINE * 2.0f);
     outline.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
@@ -142,7 +153,7 @@ void ManualMiningSystem::createProgressBar()
 
     auto bgPos = bg.get<PositionComponent>();
     bgPos->setX(-1000.0f); // Hidden
-    bgPos->setZ(8.0f);
+    bgPos->setZ(10.f);
     bgPos->setWidth(BAR_WIDTH);
     bgPos->setHeight(BAR_HEIGHT);
     bg.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
@@ -154,7 +165,7 @@ void ManualMiningSystem::createProgressBar()
 
     auto fillPos = fill.get<PositionComponent>();
     fillPos->setX(-1000.0f); // Hidden
-    fillPos->setZ(8.1f);
+    fillPos->setZ(11.f);
     fillPos->setWidth(0.0f);
     fillPos->setHeight(BAR_HEIGHT);
     fill.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
@@ -173,25 +184,27 @@ void ManualMiningSystem::updateProgressBar()
     float barX = wx + (tileSize - BAR_WIDTH) * 0.5f;
     float barY = wy + BAR_OFFSET_Y;
 
-    // Position outline (slightly larger, offset by -BAR_OUTLINE)
+    // Position outline and restore full opacity
     auto outlineEnt = ecsRef->getEntity(progressOutlineEntityId);
     if (outlineEnt)
     {
         auto pos = outlineEnt->get<PositionComponent>();
         pos->setX(barX - BAR_OUTLINE);
         pos->setY(barY - BAR_OUTLINE);
+        outlineEnt->get<Simple2DObject>()->setOpacity(220.0f);
     }
 
-    // Position background
+    // Position background and restore full opacity
     auto bgEnt = ecsRef->getEntity(progressBgEntityId);
     if (bgEnt)
     {
         auto pos = bgEnt->get<PositionComponent>();
         pos->setX(barX);
         pos->setY(barY);
+        bgEnt->get<Simple2DObject>()->setOpacity(180.0f);
     }
 
-    // Position and size fill
+    // Position and size fill, restore full opacity
     float fillRatio = static_cast<float>(currentHits) / static_cast<float>(requiredHits);
     float fillWidth = BAR_WIDTH * fillRatio;
 
@@ -202,6 +215,67 @@ void ManualMiningSystem::updateProgressBar()
         pos->setX(barX);
         pos->setY(barY);
         pos->setWidth(fillWidth);
+        fillEnt->get<Simple2DObject>()->setOpacity(220.0f);
+    }
+}
+
+void ManualMiningSystem::startBarFadeOut()
+{
+    cancelBarFade();
+
+    uint64_t outlineId = progressOutlineEntityId;
+    uint64_t bgId = progressBgEntityId;
+    uint64_t fillId = progressFillEntityId;
+
+    auto tweenEnt = ecsRef->createEntity();
+    fadeTweenEntityId = tweenEnt->id;
+
+    // Easing: hold full opacity for 500ms, then linear fade over next 500ms
+    auto easing = [](float t) -> float {
+        if (t < 0.5f) return 0.0f;
+        return (t - 0.5f) * 2.0f;
+    };
+
+    auto* ecs = ecsRef;
+
+    auto onUpdate = [ecs, outlineId, bgId, fillId](const TweenValue& value) {
+        float fade = std::get<float>(value);
+        auto setAlpha = [ecs](uint64_t id, float baseAlpha, float f) {
+            auto ent = ecs->getEntity(id);
+            if (ent)
+                ent->get<Simple2DObject>()->setOpacity(baseAlpha * f);
+        };
+        setAlpha(outlineId, 220.0f, fade);
+        setAlpha(bgId, 180.0f, fade);
+        setAlpha(fillId, 220.0f, fade);
+    };
+
+    auto onComplete = std::make_shared<LambdaCallable>([this]() {
+        hideProgressBar();
+        fadeTweenEntityId = 0;
+    });
+
+    ecsRef->_attach<TweenComponent>(tweenEnt,
+        TweenValue{1.0f}, TweenValue{0.0f}, BAR_FADE_TOTAL_MS,
+        onUpdate, onComplete, 1, false, false, easing);
+}
+
+void ManualMiningSystem::cancelBarFade()
+{
+    if (fadeTweenEntityId != 0)
+    {
+        ecsRef->removeEntity(fadeTweenEntityId);
+        fadeTweenEntityId = 0;
+
+        // Restore full opacity
+        auto setAlpha = [this](uint64_t id, float alpha) {
+            auto ent = ecsRef->getEntity(id);
+            if (ent)
+                ent->get<Simple2DObject>()->setOpacity(alpha);
+        };
+        setAlpha(progressOutlineEntityId, 220.0f);
+        setAlpha(progressBgEntityId, 180.0f);
+        setAlpha(progressFillEntityId, 220.0f);
     }
 }
 

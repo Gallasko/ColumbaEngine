@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
+#include "Systems/tween.h"
 #include "Input/inputcomponent.h"
 
 #include "gridsystem.h"
@@ -52,10 +53,13 @@ private:
     static constexpr float BAR_HEIGHT = 3.0f;
     static constexpr float BAR_OUTLINE = 1.0f;
     static constexpr float BAR_OFFSET_Y = -5.0f;
+    static constexpr float BAR_FADE_TOTAL_MS = 1000.0f;
 
     // Progress bar
     void createProgressBar();
     void updateProgressBar();
+    void startBarFadeOut();
+    void cancelBarFade();
     void hideProgressBar();
 
     // Ghost float animation
@@ -83,6 +87,7 @@ private:
     uint64_t progressOutlineEntityId = 0;
     uint64_t progressBgEntityId = 0;
     uint64_t progressFillEntityId = 0;
+    uint64_t fadeTweenEntityId = 0;
 
     // Dependencies
     GridSystem* gridSystem = nullptr;
