@@ -88,8 +88,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             std::make_unique<GridAtlas>("Grass_Tileset.png", 80, 48, 16, 16, 5, 15));
 
         // Multi-terrain environment tileset: 12 cols x 21 rows of 16x16 frames.
-        // The first 4 rows (frames 0-47) are grass tiles; other rows contain
-        // water, sand, path variants we don't use yet.
+        // Frame layout is row-major (frame i -> col i%12, row i/12). The first
+        // 3 rows (frames 0-35) are grass autotile tiles; other rows contain
+        // water / sand / path variants we don't use yet.
         window.masterRenderer->registerAtlasTexture(
             "Environment_Tileset",
             "res/ext/Tileset & Environment/Environment_Tileset.png",

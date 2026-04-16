@@ -505,10 +505,14 @@ private:
         constexpr float OVERLAY_Z = 1.0f;
         constexpr float TREE_Z    = 1.0f;
 
-        // "Plain grass fill" frame indices inside Environment_Tileset. The grass
-        // autotile sets are 3 rows tall; these are the fill variants the user
-        // identified as plain-grass-looking (no visible autotile edges).
-        static constexpr uint16_t GRASS_FRAMES[] = { 11, 12, 14, 23, 24 };
+        // Grass rendering uses Environment_Tileset. The atlas is row-major with
+        // cols=12 (see application.cpp), so frame i -> (i % 12, i / 12). The
+        // grass autotile region is the first 3 rows (frames 0-35). Most cells
+        // use frame 13 (plain fill) with a handful of rarer variations
+        // sprinkled in for subtle variety.
+        constexpr uint16_t GRASS_BASE = 13;
+        static constexpr uint16_t GRASS_VARIATIONS[] = { 10, 11, 22, 23 };
+        constexpr uint32_t VARIATION_EVERY = 12; // ~1 in 12 cells picks a variation
 
         GenerationParams params;
         params.seed = seed;
@@ -533,16 +537,23 @@ private:
 
                 TerrainType t = terrainGrid[y][x];
 
-                // Grass goes under everything except trees; trees already mark their
-                // footprint as Tree, so we also paint grass under a tree's cells for
-                // cases where sub-pixel transparency in the tree sprite shows through.
-                if (t == TerrainType::Grass or t == TerrainType::Tree)
+                // Grass is painted under grass, tree, and rock cells so that
+                // transparent pixels in the tree/rock sprites show grass (not
+                // dirt) behind them, and so the environment looks uniformly
+                // green between decorations.
+                if (t == TerrainType::Grass
+                 or t == TerrainType::Tree
+                 or t == TerrainType::Rock)
                 {
-                    // Deterministic per-cell variant pick (stable across rerolls
-                    // of the same seed). Classic 2D spatial hash constants.
+                    // Deterministic per-cell pick (stable across rerolls of
+                    // the same seed). Most cells draw the base grass tile;
+                    // roughly 1 in VARIATION_EVERY cells draws a variation.
                     uint32_t h = static_cast<uint32_t>(x) * 73856093u
                                ^ static_cast<uint32_t>(y) * 19349663u;
-                    uint16_t frame = GRASS_FRAMES[h % (sizeof(GRASS_FRAMES) / sizeof(GRASS_FRAMES[0]))];
+                    uint16_t frame = GRASS_BASE;
+                    if (h % VARIATION_EVERY == 0)
+                        frame = GRASS_VARIATIONS[(h / VARIATION_EVERY)
+                            % (sizeof(GRASS_VARIATIONS) / sizeof(GRASS_VARIATIONS[0]))];
 
                     spawnTextureTile("Environment_Tileset." + std::to_string(frame),
                         worldX, worldY, GRASS_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);

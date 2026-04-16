@@ -40,7 +40,7 @@ struct GenerationParams
     int                       maxOrePatches = 3;
     int                       patchRadiusMin = 2;
     int                       patchRadiusMax = 4;
-    float                     treeDensity   = 0.04f;
+    float                     treeDensity   = 0.02f;
     float                     rockDensity   = 0.02f;
     int                       edgeMargin    = 3;
     std::vector<TerrainType>  allowedOres   = {
