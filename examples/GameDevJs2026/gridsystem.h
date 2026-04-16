@@ -513,6 +513,37 @@ private:
         orePatches = gen.orePatches;
         treeInstances = gen.trees;
 
+        // Two-pass autotile: cells whose grass autotile can't be represented
+        // (encircled by ore, etc.) must render as plain dirt, AND their
+        // neighbors must treat them as non-grass so the dirt edge continues
+        // cleanly instead of turning into a stray grass corner. We compute
+        // `renderAsDirt` to a fixpoint first, then consult it during both the
+        // render-loop skip decision and the autotile neighbor lookup.
+        RenderAsDirtGrid renderAsDirt{};
+        bool changed = true;
+        while (changed)
+        {
+            changed = false;
+            for (int y = 0; y < Grid::HEIGHT; ++y)
+            {
+                for (int x = 0; x < Grid::WIDTH; ++x)
+                {
+                    TerrainType t = terrainGrid[y][x];
+                    if (t != TerrainType::Grass
+                     and t != TerrainType::Tree
+                     and t != TerrainType::Rock)
+                        continue;
+                    if (renderAsDirt[y][x])
+                        continue;
+                    if (grassAutotileFrame(x, y, renderAsDirt) == GRASS_AS_DIRT)
+                    {
+                        renderAsDirt[y][x] = true;
+                        changed = true;
+                    }
+                }
+            }
+        }
+
         // Per-cell pass: ground base + grass + single-tile overlays (ores, rocks).
         // Trees are rendered afterwards from the instance list so each occupies
         // exactly one 2x3 sprite anchored to its footprint.
@@ -532,21 +563,17 @@ private:
                 // transparent pixels in the tree/rock sprites show grass (not
                 // dirt) behind them, and so the environment looks uniformly
                 // green between decorations. Near ore patches the grass
-                // auto-tiles to a dirt edge via grassAutotileFrame. When the
-                // cell is encircled by ore (or otherwise unrepresentable by
-                // the autotile), grassAutotileFrame returns the GRASS_AS_DIRT
-                // sentinel and we skip the overlay so the Ground.0 base shows
-                // through as plain dirt.
-                if (t == TerrainType::Grass
-                 or t == TerrainType::Tree
-                 or t == TerrainType::Rock)
+                // auto-tiles to a dirt edge via grassAutotileFrame. Cells
+                // flagged by the fixpoint above skip the overlay entirely so
+                // the Ground.0 base shows through as plain dirt.
+                if ((t == TerrainType::Grass
+                  or t == TerrainType::Tree
+                  or t == TerrainType::Rock)
+                 and not renderAsDirt[y][x])
                 {
-                    uint16_t frame = grassAutotileFrame(x, y);
-                    if (frame != GRASS_AS_DIRT)
-                    {
-                        spawnTextureTile("Environment_Tileset." + std::to_string(frame),
-                            worldX, worldY, GRASS_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);
-                    }
+                    uint16_t frame = grassAutotileFrame(x, y, renderAsDirt);
+                    spawnTextureTile("Environment_Tileset." + std::to_string(frame),
+                        worldX, worldY, GRASS_Z, Grid::TILE_SIZE, Grid::TILE_SIZE);
                 }
 
                 if (isOre(t))
@@ -581,6 +608,12 @@ private:
     // base tile shows through as plain dirt.
     static constexpr uint16_t GRASS_AS_DIRT = 0xFFFF;
 
+    // Shape of the per-cell boolean map used by grassAutotileFrame's two-pass
+    // logic. `true` means the grass cell at (x,y) should render as plain dirt
+    // (its grass overlay is skipped). Built by the fixpoint pass in
+    // generateAndRenderTerrain before the render loop runs.
+    using RenderAsDirtGrid = std::array<std::array<bool, Grid::WIDTH>, Grid::HEIGHT>;
+
     // Pick the autotile frame for a grass cell from Environment_Tileset.
     // The first 3 rows of the tileset hold the grass-to-dirt autotile:
     //   - Cols 0-2 are the standard 3x3 block (TL/T/TR, L/C/R, BL/B/BR)
@@ -592,10 +625,15 @@ private:
     // they share the same grass background. Out-of-bounds is treated as grass
     // so the canvas edge doesn't spawn an unwanted dirt transition.
     //
-    // Returns GRASS_AS_DIRT when the cell is encircled by ore or otherwise
-    // can't be represented by the 9-tile + inner-corner set (3+ ore sides,
-    // or opposite-pair ore sides forming a grass strip).
-    uint16_t grassAutotileFrame(int x, int y) const
+    // `renderAsDirt` tracks which cells will be drawn as dirt (because they
+    // themselves are unrepresentable). Those cells are treated as non-grass
+    // when picking the autotile for their neighbors, so the edges line up
+    // with the visual dirt patch instead of producing a jagged grass corner.
+    //
+    // Returns GRASS_AS_DIRT when the cell is encircled by ore/dirt or
+    // otherwise can't be represented by the 9-tile + inner-corner set (3+
+    // non-grass sides, or opposite-pair non-grass sides forming a strip).
+    uint16_t grassAutotileFrame(int x, int y, const RenderAsDirtGrid& renderAsDirt) const
     {
         constexpr uint16_t ATLAS_COLS = 12;
         constexpr uint16_t GRASS_BASE = 13;
@@ -606,7 +644,14 @@ private:
         {
             if (not grid.isInBounds(nx, ny))
                 return true;
-            return not isOre(terrainGrid[ny][nx]);
+            if (isOre(terrainGrid[ny][nx]))
+                return false;
+            // A grass/tree/rock cell flagged as dirt by the fixpoint pass is
+            // visually dirt, so it must break up grass autotiling just like
+            // an ore cell would.
+            if (renderAsDirt[ny][nx])
+                return false;
+            return true;
         };
 
         bool hasN = isGrassLike(x,     y - 1);
