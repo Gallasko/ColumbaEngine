@@ -13,14 +13,15 @@
 #include "transportsystem.h"
 #include "inventoryui.h"
 #include "minerui.h"
+#include "craftingui.h"
 
 using namespace pg;
 
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr, CraftingUISystem* craftingUI = nullptr)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem), toolbarSystem(toolbarSystem), registry(registry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI), craftingUI(craftingUI) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -37,6 +38,8 @@ public:
         if (inventoryUI and inventoryUI->isOpen())
             return;
         if (minerUI and minerUI->isOpen())
+            return;
+        if (craftingUI and craftingUI->isOpen())
             return;
 
         if (event.key == SDL_SCANCODE_R)
@@ -65,7 +68,8 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override
     {
         bool anyUIOpen = (inventoryUI and inventoryUI->isOpen())
-                      or (minerUI and minerUI->isOpen());
+                      or (minerUI and minerUI->isOpen())
+                      or (craftingUI and craftingUI->isOpen());
 
         // Centralized click-outside-to-close for all UIs
         if (anyUIOpen)
@@ -77,11 +81,15 @@ public:
                     onAnyPanel = onAnyPanel or inventoryUI->isClickOnPanel(event.pos.x, event.pos.y);
                 if (minerUI and minerUI->isOpen())
                     onAnyPanel = onAnyPanel or minerUI->isClickOnPanel(event.pos.x, event.pos.y);
+                if (craftingUI and craftingUI->isOpen())
+                    onAnyPanel = onAnyPanel or craftingUI->isClickOnPanel(event.pos.x, event.pos.y);
 
                 if (not onAnyPanel)
                 {
                     if (minerUI and minerUI->isOpen()) minerUI->close();
                     if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
+                    // craftingUI tracks inventory visibility on its own tick,
+                    // so closing the inventory will close it shortly after.
                 }
             }
             return; // Block all game input while any UI is open
@@ -137,7 +145,9 @@ public:
 
     virtual void onProcessEvent(const OnMouseRelease& event) override
     {
-        if ((inventoryUI and inventoryUI->isOpen()) or (minerUI and minerUI->isOpen()))
+        if ((inventoryUI and inventoryUI->isOpen())
+         or (minerUI and minerUI->isOpen())
+         or (craftingUI and craftingUI->isOpen()))
             return;
 
         if (event.button == SDL_BUTTON_LEFT)
@@ -156,7 +166,9 @@ public:
 
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override
     {
-        if ((inventoryUI and inventoryUI->isOpen()) or (minerUI and minerUI->isOpen()))
+        if ((inventoryUI and inventoryUI->isOpen())
+         or (minerUI and minerUI->isOpen())
+         or (craftingUI and craftingUI->isOpen()))
             return;
 
         updateCursorPosition();
@@ -719,6 +731,7 @@ private:
     TransportSystem* transportSystem = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
     MinerUISystem* minerUI = nullptr;
+    CraftingUISystem* craftingUI = nullptr;
 
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up
     bool leftMouseDown = false;

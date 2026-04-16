@@ -187,6 +187,17 @@ public:
             refreshAllSlots();
     }
 
+    // Refresh all slot visuals to match the current player inventory state.
+    // Safe to call from external systems (e.g. HandCraftingSystem after a
+    // craft completes). Does nothing if the panel hasn't been built yet.
+    void refreshAllSlots()
+    {
+        if (not panelCreated)
+            return;
+        for (size_t i = 0; i < PlayerInventorySystem::NUM_SLOTS; ++i)
+            refreshSlot(i);
+    }
+
     // Returns the held item to its source without any visual refresh.
     // Use this when the panel is about to be hidden (avoids creating
     // deferred entities that would immediately leak on panel hide).
@@ -317,12 +328,6 @@ private:
     }
 
     // --- Slot Refresh ---
-
-    void refreshAllSlots()
-    {
-        for (size_t i = 0; i < PlayerInventorySystem::NUM_SLOTS; ++i)
-            refreshSlot(i);
-    }
 
     void refreshSlot(size_t index)
     {

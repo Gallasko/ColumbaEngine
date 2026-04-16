@@ -13,6 +13,9 @@
 #include "minerui.h"
 #include "insertersystem.h"
 #include "gamesystem.h"
+#include "worldfacts.h"
+#include "handcraftingsystem.h"
+#include "craftingui.h"
 
 using namespace pg;
 
@@ -165,7 +168,19 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* minerUI = ecs.createSystem<MinerUISystem>(
             minerSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem, inventoryUI, minerUI);
+        // World facts (progression/discovery state) must exist before the
+        // hand-crafting system and crafting UI query it for unlock checks.
+        auto* worldFacts = ecs.createSystem<WorldFacts>();
+        worldFacts->setDefaultFact("discovered_coal", false);
+
+        auto* handCrafting = ecs.createSystem<HandCraftingSystem>(
+            playerInvSystem, &itemRegistry, &recipeRegistry, worldFacts);
+
+        auto* craftingUI = ecs.createSystem<CraftingUISystem>(
+            handCrafting, &recipeRegistry, &itemRegistry, playerInvSystem,
+            worldFacts, inventoryUI, screenW, screenH);
+
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem, inventoryUI, minerUI, craftingUI);
     });
 }
 

@@ -2,6 +2,7 @@
 
 #include "Systems/basicsystems.h"
 #include "inventory.h"
+#include "worldfacts.h"
 
 using namespace pg;
 
@@ -37,6 +38,11 @@ public:
     virtual void onEvent(const PlayerGainItemEvent& event) override
     {
         inventory.insert(event.id, event.count, *itemRegistry);
+
+        // Seed discovery facts on first pickup so recipes can unlock.
+        const auto& def = itemRegistry->get(event.id);
+        if (def.name == "Coal")
+            sendEvent(AddFact{"discovered_coal", ElementType{true}});
     }
 
     virtual void onEvent(const PlayerLoseItemEvent& event) override
