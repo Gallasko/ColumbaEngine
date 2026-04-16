@@ -127,6 +127,33 @@ private:
         size_t buildingLayer = gridSystem->getBuildingLayer();
         const auto& grid = gridSystem->getGrid();
 
+        // Sync visual positions for items placed externally (e.g., by inserters)
+        // whose entity wasn't available when first moved
+        for (int y = 0; y < Grid::HEIGHT; ++y)
+        {
+            for (int x = 0; x < Grid::WIDTH; ++x)
+            {
+                auto& cell = beltGrid.get(x, y);
+                if (cell.itemId == ITEM_NONE or cell.entityId == 0) continue;
+
+                auto ent = ecsRef->getEntity(cell.entityId);
+                if (not ent) continue;
+
+                auto [wx, wy] = grid.gridToWorld(x, y);
+                float itemSize = static_cast<float>(Grid::TILE_SIZE) * 0.6f;
+                float offset = (Grid::TILE_SIZE - itemSize) * 0.5f;
+                auto pos = ent->get<PositionComponent>();
+                float targetX = wx + offset;
+                float targetY = wy + offset + ITEM_Y_OFFSET;
+
+                if (pos->getX() != targetX or pos->getY() != targetY)
+                {
+                    pos->setX(targetX);
+                    pos->setY(targetY);
+                }
+            }
+        }
+
         std::vector<MoveEntry> moves;
 
         // Phase 1: collect intended moves for all belt items

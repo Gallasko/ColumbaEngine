@@ -26,6 +26,7 @@ struct InserterData
     InserterState state = InserterState::Idle;
     ItemId heldItem = ITEM_NONE;
     size_t animFrame = 0;       // Current frame in the 5-frame swing (0-4)
+    bool initialized = false;   // Deferred init (entity not available at register time)
 
     uint64_t heldItemEntityId = 0; // Visual entity for item being carried
 };
@@ -109,14 +110,6 @@ private:
         data.direction = cell.direction;
         data.entityId = cell.entityId;
 
-        // Set initial texture to pickup frame for this direction
-        auto ent = ecsRef->getEntity(data.entityId);
-        if (ent and ent->has<Texture2DComponent>())
-        {
-            ent->get<Texture2DComponent>()->setTexture(
-                "Robotic_Arms_1." + std::to_string(PICKUP_FRAME[data.direction]));
-        }
-
         inserters[machineKey(x, y)] = data;
     }
 
@@ -144,6 +137,31 @@ private:
             {
                 case InserterState::Idle:
                 {
+                    if (not ins.initialized)
+                    {
+                        auto ent = ecsRef->getEntity(ins.entityId);
+                        if (ent)
+                        {
+                            // Resize from 16x16 to 48x48 (3 tiles), centered on cell
+                            auto pos = ent->get<PositionComponent>();
+                            float armSize = static_cast<float>(Grid::TILE_SIZE) * 3.0f;
+                            float cellOffset = static_cast<float>(Grid::TILE_SIZE);
+                            auto [wx, wy] = gridSystem->getGrid().gridToWorld(ins.x, ins.y);
+                            pos->setX(wx - cellOffset);
+                            pos->setY(wy - cellOffset);
+                            pos->setWidth(armSize);
+                            pos->setHeight(armSize);
+                            pos->setZ(pos->getZ() + 0.5f);
+
+                            // Set correct idle texture for this direction
+                            ent->get<Texture2DComponent>()->setTexture(
+                                "Robotic_Arms_1." + std::to_string(PICKUP_FRAME[ins.direction]));
+
+                            ins.initialized = true;
+                        }
+                        break; // Skip pickup until initialized
+                    }
+
                     if (tryPickup(ins))
                     {
                         ins.state = InserterState::Swinging;
