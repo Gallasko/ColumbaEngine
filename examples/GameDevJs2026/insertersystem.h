@@ -3,6 +3,8 @@
 #include "Systems/basicsystems.h"
 #include "2D/texture.h"
 
+#include <cmath>
+
 #include "gridsystem.h"
 #include "transportsystem.h"
 #include "minersystem.h"
@@ -380,21 +382,38 @@ private:
             return;
 
         float t = static_cast<float>(ins.animFrame) / static_cast<float>(SWING_FRAMES - 1);
+        float halfTile = static_cast<float>(Grid::TILE_SIZE) * 0.5f;
 
+        // Arc center = inserter cell center
+        auto [iwx, iwy] = gridSystem->getGrid().gridToWorld(ins.x, ins.y);
+        float cx = iwx + halfTile;
+        float cy = iwy + halfTile;
+
+        // Pickup cell center
         int pickupX = ins.x - DIR_DX[ins.direction];
         int pickupY = ins.y - DIR_DY[ins.direction];
-        int dropX = ins.x + DIR_DX[ins.direction];
-        int dropY = ins.y + DIR_DY[ins.direction];
-
         auto [pw, ph] = gridSystem->getGrid().gridToWorld(pickupX, pickupY);
-        auto [dw, dh] = gridSystem->getGrid().gridToWorld(dropX, dropY);
+        float pcx = pw + halfTile;
+        float pcy = ph + halfTile;
 
-        float itemSize = static_cast<float>(Grid::TILE_SIZE) * 0.5f;
-        float offset = (Grid::TILE_SIZE - itemSize) * 0.5f;
+        // Start angle from center to pickup position
+        float startAngle = std::atan2(pcy - cy, pcx - cx);
+
+        // Sweep direction: horizontal dirs (0,2) sweep +π, vertical dirs (1,3) sweep -π
+        // This matches the sprite rotation accounting for Y-axis inversion
+        float sweep = (ins.direction == 0 or ins.direction == 2)
+            ?  static_cast<float>(M_PI)
+            : -static_cast<float>(M_PI);
+
+        float angle = startAngle + t * sweep;
+        float radius = static_cast<float>(Grid::TILE_SIZE);
+
+        float itemSize = halfTile; // 0.5 * TILE_SIZE
+        float itemOffset = itemSize * 0.5f;
 
         auto pos = ent->get<PositionComponent>();
-        pos->setX(pw + (dw - pw) * t + offset);
-        pos->setY(ph + (dh - ph) * t + offset);
+        pos->setX(cx + radius * std::cos(angle) - itemOffset);
+        pos->setY(cy + radius * std::sin(angle) - itemOffset);
     }
 
     void destroyHeldItemVisual(InserterData& ins)
