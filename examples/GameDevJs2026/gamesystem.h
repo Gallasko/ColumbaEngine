@@ -250,15 +250,15 @@ private:
             }
             else // Non-conveyor directional (inserter, etc.)
             {
-                static constexpr size_t IDLE_FRAME[4] = {0, 6, 4, 2};
+                static constexpr size_t IDLE_FRAME[4] = {0, 2, 4, 6};
                 frameIndex = def.hasDirection ? IDLE_FRAME[currentDirection] : 0;
             }
             std::string texName = def.textureName + "." + std::to_string(frameIndex);
 
-            auto ghost = make2DTexture(ecsRef,
-                static_cast<float>(Grid::TILE_SIZE),
-                static_cast<float>(Grid::TILE_SIZE),
-                texName);
+            float ghostSize = (def.tileId == 8)
+                ? static_cast<float>(Grid::TILE_SIZE) * 3.0f
+                : static_cast<float>(Grid::TILE_SIZE);
+            auto ghost = make2DTexture(ecsRef, ghostSize, ghostSize, texName);
 
             ghost.get<PositionComponent>()->setZ(9.0f);
             ghost.get<PositionComponent>()->setX(-1000.0f);
@@ -322,8 +322,10 @@ private:
                 if (ghostEnt)
                 {
                     auto pos = ghostEnt->get<PositionComponent>();
-                    pos->setX(wx);
-                    pos->setY(wy);
+                    float ghostOffset = (getSelectedDef().tileId == 8)
+                        ? -static_cast<float>(Grid::TILE_SIZE) : 0.0f;
+                    pos->setX(wx + ghostOffset);
+                    pos->setY(wy + ghostOffset);
 
                     // Tint ghost red if placement is invalid
                     const auto& def = getSelectedDef();
@@ -377,7 +379,7 @@ private:
         }
         else // Non-conveyor directional (inserter, etc.)
         {
-            static constexpr size_t IDLE_FRAME[4] = {0, 6, 4, 2};
+            static constexpr size_t IDLE_FRAME[4] = {0, 2, 4, 6};
             frameIndex = IDLE_FRAME[currentDirection];
         }
         std::string texName = def.textureName + "." + std::to_string(frameIndex);

@@ -44,7 +44,7 @@ public:
     // Pickup (idle) frame for each direction
     // The 8 sprite frames go clockwise: 0=left, 2=down, 4=right, 6=up
     // Pickup is behind the arm (opposite of direction)
-    static constexpr size_t PICKUP_FRAME[4] = {0, 6, 4, 2}; // RIGHT, DOWN, LEFT, UP
+    static constexpr size_t PICKUP_FRAME[4] = {0, 2, 4, 6}; // RIGHT, DOWN, LEFT, UP
 
     InserterSystem(GridSystem* gridSystem, TransportSystem* transportSystem,
                    MinerSystem* minerSystem, CraftingSystem* craftingSystem,
@@ -151,7 +151,7 @@ private:
                             pos->setY(wy - cellOffset);
                             pos->setWidth(armSize);
                             pos->setHeight(armSize);
-                            pos->setZ(pos->getZ() + 0.5f);
+                            pos->setZ(pos->getZ() + 1.5f); // Above items layer (z=3.0)
 
                             // Set correct idle texture for this direction
                             ent->get<Texture2DComponent>()->setTexture(
