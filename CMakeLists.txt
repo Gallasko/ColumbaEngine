@@ -1155,7 +1155,8 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Systems/craftingsystem.cpp
             examples/GameDevJs2026/Systems/handcraftingsystem.cpp
             examples/GameDevJs2026/Systems/playerinventory.cpp
-            examples/GameDevJs2026/UI/toolbarsystem.cpp
+            examples/GameDevJs2026/Systems/manualmining.cpp
+            examples/GameDevJs2026/UI/hotbarsystem.cpp
             examples/GameDevJs2026/UI/inventoryui.cpp
             examples/GameDevJs2026/UI/minerui.cpp
             examples/GameDevJs2026/UI/craftingui.cpp

@@ -14,7 +14,8 @@ void PlayerInventorySystem::load(const UnserializedObject& serializedString)
     defaultDeserialize(serializedString, "slots", slots);
     printf("PlayerInventory: loaded %zu slots\n", slots.size());
 
-    // init() already ran and created the 20-slot inventory — fill directly
+    // init() already ran and created the 29-slot inventory — fill directly
+    // (old saves with fewer slots are handled by the min below)
     size_t count = std::min(slots.size(), static_cast<size_t>(NUM_SLOTS));
     for (size_t i = 0; i < count; ++i)
         inventory.slots[i] = slots[i];
@@ -23,6 +24,13 @@ void PlayerInventorySystem::load(const UnserializedObject& serializedString)
 void PlayerInventorySystem::init()
 {
     inventory = Inventory(NUM_SLOTS);
+
+    // Starting hotbar items (slots 20-28) — gives the player basic buildings
+    inventory.getSlot(HOTBAR_START + 0) = {24, 50};  // 50 Conveyor Belts
+    inventory.getSlot(HOTBAR_START + 1) = {25, 10};  // 10 Furnaces
+    inventory.getSlot(HOTBAR_START + 2) = {26, 5};   // 5 Assemblers
+    inventory.getSlot(HOTBAR_START + 3) = {27, 10};  // 10 Miners
+    inventory.getSlot(HOTBAR_START + 4) = {28, 20};  // 20 Inserters
 }
 
 void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)

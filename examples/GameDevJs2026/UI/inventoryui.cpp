@@ -148,7 +148,7 @@ void InventoryUISystem::refreshAllSlots()
 {
     if (not panelCreated)
         return;
-    for (size_t i = 0; i < PlayerInventorySystem::NUM_SLOTS; ++i)
+    for (size_t i = 0; i < PlayerInventorySystem::MAIN_SLOTS; ++i)
         refreshSlot(i);
 }
 
@@ -164,7 +164,7 @@ void InventoryUISystem::cancelHeldDataOnly()
         else
             playerInv->getInventory().insert(heldItem.id, heldItem.count, *itemRegistry);
     }
-    else if (heldFromSlot >= 0 and heldFromSlot < static_cast<int>(PlayerInventorySystem::NUM_SLOTS))
+    else if (heldFromSlot >= 0 and heldFromSlot < static_cast<int>(PlayerInventorySystem::MAIN_SLOTS))
     {
         auto& slot = playerInv->getInventory().getSlot(static_cast<size_t>(heldFromSlot));
         if (slot.isEmpty())
@@ -217,8 +217,8 @@ void InventoryUISystem::createPanel()
     backdropEntityId = backdrop.entity->id;
 
     // Slot backgrounds + pre-created item + text entities
-    slotVisuals.resize(PlayerInventorySystem::NUM_SLOTS);
-    for (size_t i = 0; i < PlayerInventorySystem::NUM_SLOTS; ++i)
+    slotVisuals.resize(PlayerInventorySystem::MAIN_SLOTS);
+    for (size_t i = 0; i < PlayerInventorySystem::MAIN_SLOTS; ++i)
     {
         auto [sx, sy] = slotScreenPos(i);
 
@@ -448,7 +448,7 @@ void InventoryUISystem::updateHeldPosition()
 
 int InventoryUISystem::slotAtPosition(float x, float y) const
 {
-    for (size_t i = 0; i < PlayerInventorySystem::NUM_SLOTS; ++i)
+    for (size_t i = 0; i < PlayerInventorySystem::MAIN_SLOTS; ++i)
     {
         auto [sx, sy] = slotScreenPos(i);
         if (x >= sx and x <= sx + SLOT_SIZE and

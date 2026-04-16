@@ -14,6 +14,8 @@
 #include "insertersystem.h"
 #include "saveserialization.h"
 #include "gamesystem.h"
+#include "hotbarsystem.h"
+#include "manualmining.h"
 #include "worldfacts.h"
 #include "handcraftingsystem.h"
 #include "craftingui.h"
@@ -160,8 +162,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             gridSystem, transportSystem, minerSystem, craftingSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
-        auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(
-            &registry, window.masterRenderer, screenW, screenH);
+        auto* hotbar = ecs.createSystem<HotbarSystem>(
+            playerInvSystem, &itemRegistry, &registry, screenW, screenH);
 
         auto* inventoryUI = ecs.createSystem<InventoryUISystem>(
             playerInvSystem, &itemRegistry, screenW, screenH);
@@ -181,7 +183,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             handCrafting, &recipeRegistry, &itemRegistry, playerInvSystem,
             worldFacts, inventoryUI, screenW, screenH);
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, toolbarSystem, &registry, transportSystem, inventoryUI, minerUI, craftingUI);
+        auto* manualMining = ecs.createSystem<ManualMiningSystem>(
+            gridSystem, cameraSystem, playerInvSystem, &itemRegistry, screenW, screenH);
+
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining);
     });
 }
 

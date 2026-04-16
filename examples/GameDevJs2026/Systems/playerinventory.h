@@ -25,7 +25,10 @@ class PlayerInventorySystem : public System<InitSys,
                                             SaveSys>
 {
 public:
-    static constexpr size_t NUM_SLOTS = 20;
+    static constexpr size_t NUM_SLOTS = 29;
+    static constexpr size_t MAIN_SLOTS = 20;
+    static constexpr size_t HOTBAR_START = 20;
+    static constexpr size_t HOTBAR_COUNT = 9;
 
     PlayerInventorySystem(ItemRegistry* itemRegistry)
         : itemRegistry(itemRegistry) {}

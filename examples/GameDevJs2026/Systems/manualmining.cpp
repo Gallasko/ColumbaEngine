@@ -1,0 +1,250 @@
+#include "manualmining.h"
+
+#include "2D/simple2dobject.h"
+#include "2D/texture.h"
+
+#include <SDL2/SDL.h>
+
+#include <algorithm>
+#include <cstdio>
+#include <cmath>
+
+void ManualMiningSystem::init()
+{
+    createProgressBar();
+}
+
+void ManualMiningSystem::onEvent(const TickEvent& event)
+{
+    tickAccumulator += event.tick;
+    frameDelta += event.tick;
+}
+
+void ManualMiningSystem::execute()
+{
+    // Process accumulated time in 100ms chunks for decay timer
+    while (tickAccumulator >= 100)
+    {
+        tickAccumulator -= 100;
+
+        // Decay: if no clicks for DECAY_TIMEOUT_MS, reset mining progress
+        if (currentHits > 0)
+        {
+            decayTimer += 100;
+            if (decayTimer >= DECAY_TIMEOUT_MS)
+            {
+                currentHits = 0;
+                targetGridX = -1;
+                targetGridY = -1;
+                hideProgressBar();
+            }
+        }
+    }
+
+    // Tick ghost animations with real frame delta
+    if (frameDelta > 0)
+    {
+        tickGhostAnimations(frameDelta);
+        frameDelta = 0;
+    }
+}
+
+void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
+{
+    if (not miningEnabled)
+        return;
+
+    if (event.button != SDL_BUTTON_LEFT)
+        return;
+
+    // Skip clicks on hotbar area
+    if (event.pos.y > screenHeight - hotbarHeight)
+        return;
+
+    auto worldPos = cameraSystem->screenToWorld(event.pos.x, event.pos.y);
+    auto [gx, gy] = gridSystem->getGrid().worldToGrid(worldPos.x, worldPos.y);
+
+    if (not gridSystem->getGrid().isInBounds(gx, gy))
+        return;
+
+    // Don't mine if there's a building on this tile
+    auto layer = gridSystem->getBuildingLayer();
+    if (gridSystem->getCell(layer, gx, gy).tileId != 0)
+        return;
+
+    TerrainType terrain = gridSystem->getTerrainAt(gx, gy);
+    if (not isMinableTerrain(terrain))
+        return;
+
+    int hitsNeeded = terrainHitsRequired(terrain);
+    if (hitsNeeded <= 0)
+        return;
+
+    // If clicking a different tile, reset progress
+    if (gx != targetGridX or gy != targetGridY)
+    {
+        targetGridX = gx;
+        targetGridY = gy;
+        currentHits = 0;
+        requiredHits = hitsNeeded;
+    }
+
+    currentHits++;
+    decayTimer = 0;
+    updateProgressBar();
+
+    if (currentHits >= requiredHits)
+    {
+        // Mining complete!
+        ItemId itemId = terrainToItem(terrain);
+        uint16_t count = 1;
+
+        // Trees yield 2 wood, rocks yield 2 stone
+        if (terrain == TerrainType::Tree or terrain == TerrainType::Rock)
+            count = 2;
+
+        sendEvent(PlayerGainItemEvent{itemId, count});
+
+        // Ghost animation at the tile position
+        auto [wx, wy] = gridSystem->getGrid().gridToWorld(gx, gy);
+        spawnGhostAnimation(wx, wy, itemId);
+
+        printf("Mined %s at (%d,%d) — gained %d x item %d\n",
+            terrain == TerrainType::Tree ? "tree" :
+            terrain == TerrainType::Rock ? "rock" : "ore",
+            gx, gy, count, itemId);
+
+        // Reset state (terrain stays — not depleted)
+        currentHits = 0;
+        targetGridX = -1;
+        targetGridY = -1;
+        hideProgressBar();
+    }
+}
+
+void ManualMiningSystem::createProgressBar()
+{
+    // Background bar (dark)
+    auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        constant::Vector4D{20.0f, 20.0f, 20.0f, 180.0f});
+
+    auto bgPos = bg.get<PositionComponent>();
+    bgPos->setX(-1000.0f); // Hidden
+    bgPos->setZ(8.0f);
+    bgPos->setWidth(BAR_WIDTH);
+    bgPos->setHeight(BAR_HEIGHT);
+    bg.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    progressBgEntityId = bg.entity->id;
+
+    // Fill bar (green)
+    auto fill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        constant::Vector4D{60.0f, 200.0f, 60.0f, 220.0f});
+
+    auto fillPos = fill.get<PositionComponent>();
+    fillPos->setX(-1000.0f); // Hidden
+    fillPos->setZ(8.1f);
+    fillPos->setWidth(0.0f);
+    fillPos->setHeight(BAR_HEIGHT);
+    fill.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    progressFillEntityId = fill.entity->id;
+}
+
+void ManualMiningSystem::updateProgressBar()
+{
+    if (targetGridX < 0 or targetGridY < 0)
+        return;
+
+    auto [wx, wy] = gridSystem->getGrid().gridToWorld(targetGridX, targetGridY);
+
+    // Center the bar above the tile
+    float tileSize = static_cast<float>(Grid::TILE_SIZE);
+    float barX = wx + (tileSize - BAR_WIDTH) * 0.5f;
+    float barY = wy + BAR_OFFSET_Y;
+
+    // Position background
+    auto bgEnt = ecsRef->getEntity(progressBgEntityId);
+    if (bgEnt)
+    {
+        auto pos = bgEnt->get<PositionComponent>();
+        pos->setX(barX);
+        pos->setY(barY);
+    }
+
+    // Position and size fill
+    float fillRatio = static_cast<float>(currentHits) / static_cast<float>(requiredHits);
+    float fillWidth = BAR_WIDTH * fillRatio;
+
+    auto fillEnt = ecsRef->getEntity(progressFillEntityId);
+    if (fillEnt)
+    {
+        auto pos = fillEnt->get<PositionComponent>();
+        pos->setX(barX);
+        pos->setY(barY);
+        pos->setWidth(fillWidth);
+    }
+}
+
+void ManualMiningSystem::hideProgressBar()
+{
+    auto bgEnt = ecsRef->getEntity(progressBgEntityId);
+    if (bgEnt)
+        bgEnt->get<PositionComponent>()->setX(-1000.0f);
+
+    auto fillEnt = ecsRef->getEntity(progressFillEntityId);
+    if (fillEnt)
+        fillEnt->get<PositionComponent>()->setX(-1000.0f);
+}
+
+void ManualMiningSystem::spawnGhostAnimation(float worldX, float worldY, ItemId itemId)
+{
+    const auto& def = itemRegistry->get(itemId);
+    float size = 12.0f;
+    float tileSize = static_cast<float>(Grid::TILE_SIZE);
+
+    auto ghost = make2DTexture(ecsRef, size, size, def.textureName);
+    auto pos = ghost.get<PositionComponent>();
+    pos->setX(worldX + (tileSize - size) * 0.5f);
+    pos->setY(worldY);
+    pos->setZ(11.0f);
+    ghost.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+    ghost.get<Texture2DComponent>()->setOpacity(1.0f);
+
+    GhostAnim anim;
+    anim.entityId = ghost.entity->id;
+    anim.startY = worldY;
+    anim.endY = worldY - 24.0f;
+    anim.elapsed = 0.0f;
+    activeGhosts.push_back(anim);
+}
+
+void ManualMiningSystem::tickGhostAnimations(size_t deltaMs)
+{
+    float delta = static_cast<float>(deltaMs);
+
+    for (auto it = activeGhosts.begin(); it != activeGhosts.end(); )
+    {
+        it->elapsed += delta;
+        float t = std::min(it->elapsed / GhostAnim::DURATION, 1.0f);
+
+        // Ease-out quad: t * (2 - t)
+        float eased = t * (2.0f - t);
+
+        auto ent = ecsRef->getEntity(it->entityId);
+        if (ent)
+        {
+            ent->get<PositionComponent>()->setY(it->startY + (it->endY - it->startY) * eased);
+            ent->get<Texture2DComponent>()->setOpacity(1.0f - t);
+        }
+
+        if (t >= 1.0f)
+        {
+            if (ent)
+                ecsRef->removeEntity(it->entityId);
+            it = activeGhosts.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}

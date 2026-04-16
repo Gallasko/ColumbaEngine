@@ -18,11 +18,12 @@ enum class ItemCategory : uint8_t
 
 struct ItemDef
 {
-    ItemId       id          = ITEM_NONE;
+    ItemId       id              = ITEM_NONE;
     std::string  name;
-    std::string  textureName; // Atlas frame name or "" for color fallback
-    ItemCategory category    = ItemCategory::Resource;
-    uint16_t     maxStack    = 50;
+    std::string  textureName;     // Atlas frame name or "" for color fallback
+    ItemCategory category        = ItemCategory::Resource;
+    uint16_t     maxStack        = 50;
+    uint16_t     buildingTileId  = 0; // Non-zero = placeable building (maps to BuildingDef tileId)
 };
 
 struct ItemStack
@@ -44,6 +45,8 @@ struct ItemRegistry
     const ItemDef& get(ItemId id) const { return items[id]; }
 
     const ItemDef* findByName(const std::string& name) const;
+
+    const ItemDef* findByBuildingTileId(uint16_t tileId) const;
 
     size_t count() const { return items.size(); }
 };

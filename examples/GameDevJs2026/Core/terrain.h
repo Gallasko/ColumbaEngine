@@ -48,3 +48,40 @@ inline ItemId oreToItem(TerrainType t)
         default:                     return ITEM_NONE;
     }
 }
+
+// Returns true for terrain types the player can manually mine by clicking.
+inline bool isMinableTerrain(TerrainType t)
+{
+    return isOre(t) or t == TerrainType::Tree or t == TerrainType::Rock;
+}
+
+// Map any minable terrain type to the ItemId it yields when manually mined.
+// Extends oreToItem() to also cover trees (Wood=15) and rocks (Stone=4).
+inline ItemId terrainToItem(TerrainType t)
+{
+    switch (t)
+    {
+        case TerrainType::OreIron:   return 1;   // Iron Ore
+        case TerrainType::OreCopper: return 2;   // Copper Ore
+        case TerrainType::OreCoal:   return 3;   // Coal
+        case TerrainType::OreStone:  return 4;   // Stone
+        case TerrainType::Tree:      return 15;  // Wood
+        case TerrainType::Rock:      return 4;   // Stone
+        default:                     return ITEM_NONE;
+    }
+}
+
+// Number of hits required to mine each terrain type by hand.
+inline int terrainHitsRequired(TerrainType t)
+{
+    switch (t)
+    {
+        case TerrainType::Tree:      return 5;
+        case TerrainType::Rock:      return 3;
+        case TerrainType::OreIron:   return 6;
+        case TerrainType::OreCopper: return 6;
+        case TerrainType::OreCoal:   return 4;
+        case TerrainType::OreStone:  return 4;
+        default:                     return 0;
+    }
+}

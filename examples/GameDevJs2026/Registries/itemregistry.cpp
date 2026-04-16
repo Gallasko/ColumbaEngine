@@ -18,6 +18,16 @@ const ItemDef* ItemRegistry::findByName(const std::string& name) const
     return nullptr;
 }
 
+const ItemDef* ItemRegistry::findByBuildingTileId(uint16_t tileId) const
+{
+    for (const auto& item : items)
+    {
+        if (item.buildingTileId == tileId)
+            return &item;
+    }
+    return nullptr;
+}
+
 ItemRegistry createDefaultItemRegistry()
 {
     ItemRegistry reg;
@@ -63,6 +73,13 @@ ItemRegistry createDefaultItemRegistry()
 
     // Utility (ID 23)
     reg.addItem({0, "Electricity", "Items.22", ItemCategory::Resource, 0});
+
+    // Buildings (IDs 24-28) — placeable from hotbar, linked to BuildingDef by tileId
+    reg.addItem({0, "Conveyor Belt", "Conveyor_Belt.152", ItemCategory::Building, 100, 4});
+    reg.addItem({0, "Furnace",       "Items.10",          ItemCategory::Building, 50,  5});
+    reg.addItem({0, "Assembler",     "Items.17",          ItemCategory::Building, 50,  6});
+    reg.addItem({0, "Miner",         "Miner_Machine_1.0", ItemCategory::Building, 50,  7});
+    reg.addItem({0, "Inserter",      "Robotic_Arms_1.0",  ItemCategory::Building, 50,  8});
 
     return reg;
 }

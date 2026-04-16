@@ -17,6 +17,10 @@ void GameSystem::init()
         Grid::WIDTH, Grid::HEIGHT, Grid::TILE_SIZE);
 
     createCursorEntities();
+
+    // Sync manual mining enabled state with initial hotbar selection
+    if (manualMining)
+        manualMining->setEnabled(not hasBuildingSelected());
 }
 
 void GameSystem::onProcessEvent(const OnSDLScanCode& event)
@@ -30,8 +34,8 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
 
     if (event.key == SDL_SCANCODE_R)
     {
-        const auto& def = getSelectedDef();
-        if (def.hasDirection)
+        const auto* def = getSelectedBuildingDef();
+        if (def and def->hasDirection)
         {
             currentDirection = (currentDirection + 1) % 4;
             printf("Direction: %s\n", directionNames[currentDirection]);
@@ -74,8 +78,6 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             {
                 if (minerUI and minerUI->isOpen()) minerUI->close();
                 if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
-                // craftingUI tracks inventory visibility on its own tick,
-                // so closing the inventory will close it shortly after.
             }
         }
         return; // Block all game input while any UI is open
@@ -83,8 +85,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
 
     if (event.button == SDL_BUTTON_LEFT)
     {
-        // Skip if clicking on toolbar area
-        if (isMouseOverToolbar())
+        // Skip if clicking on hotbar area
+        if (isMouseOverHotbar())
             return;
 
         // Check if clicking on a miner — open its UI
@@ -103,25 +105,29 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             }
         }
 
-        const auto& def = getSelectedDef();
+        const auto* def = getSelectedBuildingDef();
 
-        if (def.mode == PlacementMode::LineDrag)
+        if (def)
         {
-            // Start line drag
-            auto [gx, gy] = getMouseGridPos();
-            if (gridSystem->getGrid().isInBounds(gx, gy))
+            // Building is selected — place it
+            if (def->mode == PlacementMode::LineDrag)
             {
-                isDragging = true;
-                dragPath.clear();
-                dragPath.push_back({gx, gy});
-                updateDragGhosts();
+                auto [gx, gy] = getMouseGridPos();
+                if (gridSystem->getGrid().isInBounds(gx, gy))
+                {
+                    isDragging = true;
+                    dragPath.clear();
+                    dragPath.push_back({gx, gy});
+                    updateDragGhosts();
+                }
+            }
+            else
+            {
+                leftMouseDown = true;
+                placeAtMouse();
             }
         }
-        else
-        {
-            leftMouseDown = true;
-            placeAtMouse();
-        }
+        // else: no building selected — ManualMiningSystem handles mining clicks
     }
     else if (event.button == SDL_BUTTON_RIGHT)
     {
@@ -163,17 +169,21 @@ void GameSystem::onProcessEvent(const OnSDLMouseMotion& event)
     {
         updateDragPathWithMouse();
     }
-    else if (leftMouseDown)
+    else if (leftMouseDown and hasBuildingSelected())
     {
         placeAtMouse();
     }
 
     // Detect building selection changes to rebuild ghost
-    size_t currentSlot = getSelectedSlot();
-    if (currentSlot != lastSelectedSlot)
+    const auto* currentDef = getSelectedBuildingDef();
+    if (currentDef != lastBuildingDef)
     {
-        lastSelectedSlot = currentSlot;
+        lastBuildingDef = currentDef;
         rebuildGhostForSelectedBuilding();
+
+        // Update mining system: enabled when no building is selected
+        if (manualMining)
+            manualMining->setEnabled(currentDef == nullptr);
     }
 }
 
@@ -194,7 +204,7 @@ void GameSystem::createCursorEntities()
     cursor.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
     cursorEntityId = cursor.entity->id;
 
-    // Ghost block — preview of selected building
+    // Ghost block — preview of selected building (if any)
     rebuildGhostForSelectedBuilding();
 }
 
@@ -209,25 +219,38 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         ghostEntityId = 0;
     }
 
-    const auto& def = getSelectedDef();
+    const auto* def = getSelectedBuildingDef();
 
-    if (not def.textureName.empty() and def.gridW == 1 and def.gridH == 1)
+    // No building selected — reset cursor to 1x1 and hide ghost
+    if (not def)
+    {
+        auto cursorEnt = ecsRef->getEntity(cursorEntityId);
+        if (cursorEnt)
+        {
+            auto pos = cursorEnt->get<PositionComponent>();
+            pos->setWidth(static_cast<float>(Grid::TILE_SIZE));
+            pos->setHeight(static_cast<float>(Grid::TILE_SIZE));
+        }
+        return;
+    }
+
+    if (not def->textureName.empty() and def->gridW == 1 and def->gridH == 1)
     {
         // Textured ghost (conveyors, inserters, etc.)
         size_t frameIndex;
-        if (def.tileId == 4) // Conveyor
+        if (def->tileId == 4) // Conveyor
         {
-            size_t tileIndex = def.hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
+            size_t tileIndex = def->hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
             frameIndex = tileIndex * 8;
         }
         else // Non-conveyor directional (inserter, etc.)
         {
             static constexpr size_t IDLE_FRAME[4] = {0, 2, 4, 6};
-            frameIndex = def.hasDirection ? IDLE_FRAME[currentDirection] : 0;
+            frameIndex = def->hasDirection ? IDLE_FRAME[currentDirection] : 0;
         }
-        std::string texName = def.textureName + "." + std::to_string(frameIndex);
+        std::string texName = def->textureName + "." + std::to_string(frameIndex);
 
-        float ghostSize = (def.tileId == 8)
+        float ghostSize = (def->tileId == 8)
             ? static_cast<float>(Grid::TILE_SIZE) * 3.0f
             : static_cast<float>(Grid::TILE_SIZE);
         auto ghost = make2DTexture(ecsRef, ghostSize, ghostSize, texName);
@@ -241,15 +264,15 @@ void GameSystem::rebuildGhostForSelectedBuilding()
     else
     {
         // Colored ghost for placeholder / multi-cell buildings
-        auto color = def.color;
+        auto color = def->color;
         color.w = 100.0f; // Semi-transparent alpha
 
         auto ghost = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, color);
         auto pos = ghost.get<PositionComponent>();
         pos->setZ(9.0f);
         pos->setX(-1000.0f);
-        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def.gridW));
-        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def.gridH));
+        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def->gridW));
+        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def->gridH));
 
         ghost.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
         ghostEntityId = ghost.entity->id;
@@ -260,8 +283,8 @@ void GameSystem::rebuildGhostForSelectedBuilding()
     if (cursorEnt)
     {
         auto pos = cursorEnt->get<PositionComponent>();
-        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def.gridW));
-        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def.gridH));
+        pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def->gridW));
+        pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def->gridH));
     }
 }
 
@@ -287,26 +310,26 @@ void GameSystem::updateCursorPosition()
             pos->setY(wy);
         }
 
-        // Update ghost position (hidden during line drag)
-        if (not isDragging)
+        // Update ghost position (hidden during line drag, or when no building selected)
+        const auto* def = getSelectedBuildingDef();
+        if (not isDragging and def)
         {
             auto ghostEnt = ecsRef->getEntity(ghostEntityId);
             if (ghostEnt)
             {
                 auto pos = ghostEnt->get<PositionComponent>();
-                float ghostOffset = (getSelectedDef().tileId == 8)
+                float ghostOffset = (def->tileId == 8)
                     ? -static_cast<float>(Grid::TILE_SIZE) : 0.0f;
                 pos->setX(wx + ghostOffset);
                 pos->setY(wy + ghostOffset);
 
                 // Tint ghost red if placement is invalid
-                const auto& def = getSelectedDef();
-                bool canPlace = canPlaceAt(gridX, gridY, def);
+                bool canPlace = canPlaceAt(gridX, gridY, *def);
 
                 if (ghostEnt->has<Simple2DObject>())
                 {
                     auto tint = canPlace
-                        ? constant::Vector4D{def.color.x, def.color.y, def.color.z, 100.0f}
+                        ? constant::Vector4D{def->color.x, def->color.y, def->color.z, 100.0f}
                         : constant::Vector4D{255.0f, 60.0f, 60.0f, 100.0f};
                     ghostEnt->get<Simple2DObject>()->setColors(tint);
                 }
@@ -315,6 +338,13 @@ void GameSystem::updateCursorPosition()
                     ghostEnt->get<Texture2DComponent>()->setOpacity(canPlace ? 0.4f : 0.15f);
                 }
             }
+        }
+        else if (not isDragging and ghostEntityId != 0)
+        {
+            // No building selected, hide ghost
+            auto ghostEnt = ecsRef->getEntity(ghostEntityId);
+            if (ghostEnt)
+                ghostEnt->get<PositionComponent>()->setX(-1000.0f);
         }
     }
     else
@@ -335,8 +365,8 @@ void GameSystem::updateCursorPosition()
 
 void GameSystem::updateGhostTexture()
 {
-    const auto& def = getSelectedDef();
-    if (def.textureName.empty() or not def.hasDirection)
+    const auto* def = getSelectedBuildingDef();
+    if (not def or def->textureName.empty() or not def->hasDirection)
         return;
 
     auto ghostEnt = ecsRef->getEntity(ghostEntityId);
@@ -344,7 +374,7 @@ void GameSystem::updateGhostTexture()
         return;
 
     size_t frameIndex;
-    if (def.tileId == 4) // Conveyor
+    if (def->tileId == 4) // Conveyor
     {
         size_t tileIndex = DIRECTION_TILE_INDEX[currentDirection];
         frameIndex = tileIndex * 8;
@@ -354,7 +384,7 @@ void GameSystem::updateGhostTexture()
         static constexpr size_t IDLE_FRAME[4] = {0, 2, 4, 6};
         frameIndex = IDLE_FRAME[currentDirection];
     }
-    std::string texName = def.textureName + "." + std::to_string(frameIndex);
+    std::string texName = def->textureName + "." + std::to_string(frameIndex);
 
     ghostEnt->get<Texture2DComponent>()->setTexture(texName);
 }
@@ -388,20 +418,31 @@ std::pair<int, int> GameSystem::getMouseGridPos() const
 
 void GameSystem::placeAtMouse()
 {
-    auto [gridX, gridY] = getMouseGridPos();
-    const auto& def = getSelectedDef();
+    const auto* def = getSelectedBuildingDef();
+    if (not def)
+        return;
 
-    if (not canPlaceAt(gridX, gridY, def))
+    // Check if hotbar slot has items remaining
+    const auto& item = hotbar->getSelectedItem();
+    if (item.isEmpty())
+        return;
+
+    auto [gridX, gridY] = getMouseGridPos();
+
+    if (not canPlaceAt(gridX, gridY, *def))
         return;
 
     auto layer = gridSystem->getBuildingLayer();
-    size_t tileIndex = def.hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
-    gridSystem->placeBuilding(layer, gridX, gridY, def, currentDirection, tileIndex);
+    size_t tileIndex = def->hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
+    gridSystem->placeBuilding(layer, gridX, gridY, *def, currentDirection, tileIndex);
 
     // Update adjacent belts to reflect the new neighbor
-    for (int dy = 0; dy < def.gridH; ++dy)
-        for (int dx = 0; dx < def.gridW; ++dx)
+    for (int dy = 0; dy < def->gridH; ++dy)
+        for (int dx = 0; dx < def->gridW; ++dx)
             gridSystem->updateNeighborBelts(layer, gridX + dx, gridY + dy);
+
+    // Consume one building item from hotbar
+    hotbar->consumeSelectedItem(1);
 }
 
 void GameSystem::removeAtMouse()
@@ -410,14 +451,32 @@ void GameSystem::removeAtMouse()
     if (not gridSystem->getGrid().isInBounds(gridX, gridY))
         return;
 
-    gridSystem->removeBuilding(gridSystem->getBuildingLayer(), gridX, gridY);
+    auto layer = gridSystem->getBuildingLayer();
+    const auto& cell = gridSystem->getCell(layer, gridX, gridY);
+    if (cell.tileId == 0)
+        return;
+
+    // Find the building item to return to inventory
+    uint16_t tileId = cell.isOwner ? cell.tileId
+        : gridSystem->getCell(layer, cell.ownerX, cell.ownerY).tileId;
+
+    gridSystem->removeBuilding(layer, gridX, gridY);
+
+    // Return the building item to the player
+    if (itemRegistry)
+    {
+        const auto* itemDef = itemRegistry->findByBuildingTileId(tileId);
+        if (itemDef)
+            sendEvent(PlayerGainItemEvent{itemDef->id, 1});
+    }
 }
 
-bool GameSystem::isMouseOverToolbar() const
+bool GameSystem::isMouseOverHotbar() const
 {
+    if (not hotbar)
+        return false;
     float mouseY = cameraSystem->getLastMouseY();
-    float screenH = cameraSystem->getScreenHeight();
-    return mouseY > screenH - TOOLBAR_HEIGHT;
+    return hotbar->isMouseOverHotbar(mouseY);
 }
 
 // --- Line Drag ---
@@ -471,14 +530,12 @@ void GameSystem::updateDragPathWithMouse()
     int dx = cx - last.first;
     int dy = cy - last.second;
 
-    // Step one cell at a time, horizontal first then vertical
     int stepX = (dx > 0) ? 1 : (dx < 0) ? -1 : 0;
     int stepY = (dy > 0) ? 1 : (dy < 0) ? -1 : 0;
 
     int curX = last.first;
     int curY = last.second;
 
-    // Horizontal steps
     while (curX != cx)
     {
         curX += stepX;
@@ -492,7 +549,6 @@ void GameSystem::updateDragPathWithMouse()
         dragPath.push_back({curX, curY});
     }
 
-    // Vertical steps
     while (curY != cy)
     {
         curY += stepY;
@@ -521,15 +577,16 @@ int GameSystem::findInPath(int x, int y) const
 
 void GameSystem::updateDragGhosts()
 {
-    // Clear old ghosts
     clearDragGhosts();
 
-    // Hide the regular ghost during drag
     auto ghostEnt = ecsRef->getEntity(ghostEntityId);
     if (ghostEnt)
         ghostEnt->get<PositionComponent>()->setX(-1000.0f);
 
-    const auto& def = getSelectedDef();
+    const auto* def = getSelectedBuildingDef();
+    if (not def)
+        return;
+
     auto& grid = gridSystem->getGrid();
 
     for (size_t i = 0; i < dragPath.size(); ++i)
@@ -537,7 +594,6 @@ void GameSystem::updateDragGhosts()
         auto [gx, gy] = dragPath[i];
         auto [wx, wy] = grid.gridToWorld(gx, gy);
 
-        // Compute enter/exit direction for this cell
         uint8_t enterDir, exitDir;
 
         if (dragPath.size() == 1)
@@ -562,17 +618,14 @@ void GameSystem::updateDragGhosts()
 
         size_t tileIndex = resolveTileIndex(enterDir, exitDir);
 
-        // For straight pieces, resolve variant based on neighbor connectivity
         if (enterDir == exitDir)
         {
             auto layer = gridSystem->getBuildingLayer();
             uint8_t backDir = (exitDir + 2) % 4;
 
-            // Internal connectivity: connected if there's an adjacent cell in the path
             bool connectedFront = (i < dragPath.size() - 1);
             bool connectedBack  = (i > 0);
 
-            // External connectivity: check the grid for existing buildings
             if (not connectedFront)
                 connectedFront = gridSystem->isNeighborConnected(layer, gx, gy, exitDir);
             if (not connectedBack)
@@ -582,7 +635,7 @@ void GameSystem::updateDragGhosts()
         }
 
         size_t frameIndex = tileIndex * 8;
-        std::string texName = def.textureName + "." + std::to_string(frameIndex);
+        std::string texName = def->textureName + "." + std::to_string(frameIndex);
 
         auto ghost = make2DTexture(ecsRef,
             static_cast<float>(Grid::TILE_SIZE),
@@ -617,14 +670,20 @@ void GameSystem::commitDragPath()
     clearDragGhosts();
 
     auto layer = gridSystem->getBuildingLayer();
-    const auto& def = getSelectedDef();
+    const auto* def = getSelectedBuildingDef();
+    if (not def)
+        return;
 
-    // Phase 1: Place all belt cells
     std::vector<std::pair<int, int>> placedCells;
 
     for (size_t i = 0; i < dragPath.size(); ++i)
     {
         auto [gx, gy] = dragPath[i];
+
+        // Check if we have items remaining
+        const auto& item = hotbar->getSelectedItem();
+        if (item.isEmpty())
+            break;
 
         const auto& existing = gridSystem->getCell(layer, gx, gy);
 
@@ -659,8 +718,11 @@ void GameSystem::commitDragPath()
         }
 
         size_t tileIndex = resolveTileIndex(enterDir, exitDir);
-        gridSystem->placeBuilding(layer, gx, gy, def, exitDir, tileIndex, enterDir);
+        gridSystem->placeBuilding(layer, gx, gy, *def, exitDir, tileIndex, enterDir);
         placedCells.push_back({gx, gy});
+
+        // Consume one building item per placed cell
+        hotbar->consumeSelectedItem(1);
     }
 
     // Phase 2: Resolve correct variants for all newly placed straight belts
