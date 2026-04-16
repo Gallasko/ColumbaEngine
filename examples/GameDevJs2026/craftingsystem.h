@@ -173,8 +173,6 @@ private:
                 }
             }
 
-            // Phase 3: push output items to adjacent output belts
-            pushToBelts(machine, grid, buildingLayer);
         }
     }
 
@@ -218,55 +216,6 @@ private:
                         ItemId taken = transportSystem->tryTakeItem(nx, ny);
                         if (taken != ITEM_NONE)
                             machine.inputSlots.insert(taken, 1, *itemRegistry);
-                    }
-                }
-            }
-        }
-    }
-
-    // Push output items onto belts that source FROM the machine
-    void pushToBelts(MachineData& machine, const Grid& grid, size_t buildingLayer)
-    {
-        const BuildingDef* def = gridSystem->getRegistry()->findByTileId(machine.machineType);
-        int w = def ? def->gridW : 1;
-        int h = def ? def->gridH : 1;
-
-        for (int dy = 0; dy < h; ++dy)
-        {
-            for (int dx = 0; dx < w; ++dx)
-            {
-                int mx = machine.ownerX + dx;
-                int my = machine.ownerY + dy;
-
-                for (int dir = 0; dir < 4; ++dir)
-                {
-                    int nx = mx + DIR_DX[dir];
-                    int ny = my + DIR_DY[dir];
-
-                    if (not grid.isInBounds(nx, ny)) continue;
-
-                    const auto& neighborCell = grid.getCell(buildingLayer, nx, ny);
-                    if (neighborCell.tileId != 4) continue;
-
-                    // Belt must source FROM the machine:
-                    // the belt's enter side should face towards this machine cell
-                    uint8_t beltEnterSide = (neighborCell.enterDirection + 2) % 4;
-                    int beltSourceX = nx + DIR_DX[beltEnterSide];
-                    int beltSourceY = ny + DIR_DY[beltEnterSide];
-
-                    if (beltSourceX != mx or beltSourceY != my)
-                        continue;
-
-                    for (auto& slot : machine.outputSlots.slots)
-                    {
-                        if (slot.isEmpty()) continue;
-
-                        if (transportSystem->tryPlaceItem(nx, ny, slot.id))
-                        {
-                            slot.count -= 1;
-                            if (slot.count == 0) slot.clear();
-                            return; // One item per tick per machine output
-                        }
                     }
                 }
             }

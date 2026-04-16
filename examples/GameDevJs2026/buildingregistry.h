@@ -105,5 +105,17 @@ inline BuildingRegistry createDefaultRegistry()
         false                                          // isAnimated (managed by MinerSystem)
     });
 
+    // Slot 4 (key 5): Inserter arm (1x1)
+    reg.addBuilding({
+        8,                                             // tileId
+        "Inserter",                                    // name
+        "Robotic_Arms_1",                              // textureName
+        {220.0f, 160.0f, 60.0f, 255.0f},              // color (orange fallback)
+        1, 1,                                          // 1x1
+        PlacementMode::ClickToPlace,
+        true,                                          // hasDirection (R to rotate)
+        false                                          // isAnimated (managed by InserterSystem)
+    });
+
     return reg;
 }

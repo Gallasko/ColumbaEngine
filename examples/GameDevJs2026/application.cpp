@@ -11,6 +11,7 @@
 #include "playerinventory.h"
 #include "inventoryui.h"
 #include "minerui.h"
+#include "insertersystem.h"
 #include "gamesystem.h"
 
 using namespace pg;
@@ -65,6 +66,13 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<GridAtlas>("Items.png", 80, 80, 16, 16, 5, 23));
 
+        // Load robotic arm sprite sheet (8 frames of 48x48 in a 384x48 strip)
+        window.masterRenderer->registerAtlasTexture(
+            "Robotic_Arms_1",
+            "res/ext/Automation Components/Robotic_Arms_1.png",
+            "",
+            std::make_unique<GridAtlas>("Robotic_Arms_1.png", 384, 48, 48, 48, 8, 8));
+
         float screenW = static_cast<float>(config.width);
         float screenH = static_cast<float>(config.height);
 
@@ -80,9 +88,11 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // Inventory and crafting systems (must come after GridSystem)
         auto* transportSystem = ecs.createSystem<TransportSystem>(gridSystem, &itemRegistry);
-        ecs.createSystem<CraftingSystem>(
+        auto* craftingSystem = ecs.createSystem<CraftingSystem>(
             gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
         auto* minerSystem = ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
+        ecs.createSystem<InserterSystem>(
+            gridSystem, transportSystem, minerSystem, craftingSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         auto* toolbarSystem = ecs.createSystem<ToolbarSystem>(

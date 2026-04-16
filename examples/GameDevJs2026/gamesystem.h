@@ -241,9 +241,18 @@ private:
 
         if (not def.textureName.empty() and def.gridW == 1 and def.gridH == 1)
         {
-            // Textured ghost (conveyors etc.)
-            size_t tileIndex = def.hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
-            size_t frameIndex = tileIndex * 8;
+            // Textured ghost (conveyors, inserters, etc.)
+            size_t frameIndex;
+            if (def.tileId == 4) // Conveyor
+            {
+                size_t tileIndex = def.hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
+                frameIndex = tileIndex * 8;
+            }
+            else // Non-conveyor directional (inserter, etc.)
+            {
+                static constexpr size_t IDLE_FRAME[4] = {0, 6, 4, 2};
+                frameIndex = def.hasDirection ? IDLE_FRAME[currentDirection] : 0;
+            }
             std::string texName = def.textureName + "." + std::to_string(frameIndex);
 
             auto ghost = make2DTexture(ecsRef,
@@ -360,8 +369,17 @@ private:
         if (not ghostEnt)
             return;
 
-        size_t tileIndex = DIRECTION_TILE_INDEX[currentDirection];
-        size_t frameIndex = tileIndex * 8;
+        size_t frameIndex;
+        if (def.tileId == 4) // Conveyor
+        {
+            size_t tileIndex = DIRECTION_TILE_INDEX[currentDirection];
+            frameIndex = tileIndex * 8;
+        }
+        else // Non-conveyor directional (inserter, etc.)
+        {
+            static constexpr size_t IDLE_FRAME[4] = {0, 6, 4, 2};
+            frameIndex = IDLE_FRAME[currentDirection];
+        }
         std::string texName = def.textureName + "." + std::to_string(frameIndex);
 
         ghostEnt->get<Texture2DComponent>()->setTexture(texName);
