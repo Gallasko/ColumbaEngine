@@ -1,5 +1,8 @@
 #pragma once
 
+#include <ctime>
+#include <random>
+
 #include "Systems/basicsystems.h"
 #include "Input/inputcomponent.h"
 
@@ -13,7 +16,7 @@
 
 using namespace pg;
 
-class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, Listener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
+class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
     GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, ToolbarSystem* toolbarSystem, BuildingRegistry* registry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr)
@@ -29,7 +32,7 @@ public:
         createCursorEntities();
     }
 
-    virtual void onEvent(const OnSDLScanCode& event) override
+    virtual void onProcessEvent(const OnSDLScanCode& event) override
     {
         if (inventoryUI and inventoryUI->isOpen())
             return;
@@ -47,12 +50,15 @@ public:
             }
         }
 
-        // Debug: T spawns an Iron Ore on the belt under the cursor
-        if (event.key == SDL_SCANCODE_T and transportSystem)
+        // Debug: T rerolls the canvas with a fresh seed so we can eyeball
+        // different procgen outputs. Player-placed buildings are preserved;
+        // only terrain entities are destroyed and regenerated.
+        if (event.key == SDL_SCANCODE_T and gridSystem)
         {
-            auto [gx, gy] = getMouseGridPos();
-            if (transportSystem->tryPlaceItem(gx, gy, 1))
-                printf("Debug: Spawned Iron Ore at (%d, %d)\n", gx, gy);
+            std::random_device rd;
+            uint32_t newSeed = rd();
+            if (newSeed == 0) newSeed = static_cast<uint32_t>(std::time(nullptr));
+            gridSystem->regenerateTerrain(newSeed);
         }
     }
 

@@ -6,6 +6,7 @@
 #include "gridsystem.h"
 #include "transportsystem.h"
 #include "inventory.h"
+#include "terrain.h"
 
 using namespace pg;
 
@@ -20,6 +21,10 @@ struct MinerData
     size_t animFrame = 0;       // current animation frame (0-3)
     size_t animElapsed = 0;     // ms since last frame change
     bool isMining = false;
+
+    // Ore type produced, resolved from the terrain under the miner at placement.
+    // ITEM_NONE means the miner is sitting on non-ore terrain and cannot produce.
+    ItemId producedItem = ITEM_NONE;
 };
 
 class MinerSystem : public System<Listener<TickEvent>,
@@ -32,7 +37,6 @@ public:
     static constexpr size_t MINE_TIME_MS = 2000;
     static constexpr size_t ANIM_FRAME_DURATION_MS = 200;
     static constexpr size_t NUM_ANIM_FRAMES = 4;
-    static constexpr ItemId PRODUCED_ITEM = 1; // Iron Ore
 
     MinerSystem(GridSystem* gridSystem, TransportSystem* transportSystem, ItemRegistry* itemRegistry)
         : gridSystem(gridSystem), transportSystem(transportSystem), itemRegistry(itemRegistry) {}
@@ -95,6 +99,48 @@ public:
     }
 
 private:
+    // Pick the ore the miner will produce by scanning its 2x3 footprint and taking
+    // the majority ore type. Returns ITEM_NONE if no cells under the miner are ore.
+    ItemId resolveOreUnder(int ownerX, int ownerY) const
+    {
+        // Miner footprint is 2 wide x 3 tall (see buildingregistry.h miner def).
+        constexpr int W = 2;
+        constexpr int H = 3;
+
+        int counts[5] = {0, 0, 0, 0, 0}; // indices: iron, copper, coal, stone, other
+        for (int dy = 0; dy < H; ++dy)
+        {
+            for (int dx = 0; dx < W; ++dx)
+            {
+                TerrainType t = gridSystem->getTerrainAt(ownerX + dx, ownerY + dy);
+                switch (t)
+                {
+                    case TerrainType::OreIron:   counts[0]++; break;
+                    case TerrainType::OreCopper: counts[1]++; break;
+                    case TerrainType::OreCoal:   counts[2]++; break;
+                    case TerrainType::OreStone:  counts[3]++; break;
+                    default: break;
+                }
+            }
+        }
+
+        int best = -1;
+        int bestIdx = -1;
+        for (int i = 0; i < 4; ++i)
+        {
+            if (counts[i] > best)
+            {
+                best = counts[i];
+                bestIdx = i;
+            }
+        }
+
+        if (best <= 0) return ITEM_NONE;
+
+        static constexpr ItemId idForSlot[4] = {1, 2, 3, 4};
+        return idForSlot[bestIdx];
+    }
+
     void registerMiner(int x, int y)
     {
         size_t buildingLayer = gridSystem->getBuildingLayer();
@@ -105,6 +151,12 @@ private:
         data.ownerY = y;
         data.entityId = cell.entityId;
         data.outputSlots = Inventory(1);
+        data.producedItem = resolveOreUnder(x, y);
+
+        if (data.producedItem == ITEM_NONE)
+            printf("Miner at (%d, %d): placed off ore, idle.\n", x, y);
+        else
+            printf("Miner at (%d, %d): producing item %u.\n", x, y, data.producedItem);
 
         miners[machineKey(x, y)] = data;
     }
@@ -129,12 +181,22 @@ private:
 
     void mineTick()
     {
-        size_t buildingLayer = gridSystem->getBuildingLayer();
-        const auto& grid = gridSystem->getGrid();
-
         for (auto& [key, miner] : miners)
         {
-            bool canMine = miner.outputSlots.canAccept(PRODUCED_ITEM, *itemRegistry);
+            // Miners placed on non-ore terrain never produce.
+            if (miner.producedItem == ITEM_NONE)
+            {
+                if (miner.isMining)
+                {
+                    miner.isMining = false;
+                    auto ent = ecsRef->getEntity(miner.entityId);
+                    if (ent and ent->has<Texture2DComponent>())
+                        ent->get<Texture2DComponent>()->setTexture("Miner_Machine_1.0");
+                }
+                continue;
+            }
+
+            bool canMine = miner.outputSlots.canAccept(miner.producedItem, *itemRegistry);
 
             if (canMine)
             {
@@ -149,7 +211,7 @@ private:
 
                 if (miner.mineProgress >= MINE_TIME_MS)
                 {
-                    miner.outputSlots.insert(PRODUCED_ITEM, 1, *itemRegistry);
+                    miner.outputSlots.insert(miner.producedItem, 1, *itemRegistry);
                     miner.mineProgress = 0;
                 }
             }

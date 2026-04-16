@@ -8,6 +8,8 @@
 
 #include "grid.h"
 #include "buildingregistry.h"
+#include "canvasgenerator.h"
+#include "terrain.h"
 
 using namespace pg;
 
@@ -112,8 +114,32 @@ public:
         buildingLayer = grid.addLayer("buildings", 2.0f);
         itemLayer = grid.addLayer("items", 3.0f);
 
-        // Draw grid background (checkerboard)
-        createGridBackground();
+        // Procedurally generate the starting canvas and render its terrain
+        generateAndRenderTerrain();
+    }
+
+    // Query the terrain type at a given grid cell (returns None for out-of-bounds).
+    TerrainType getTerrainAt(int x, int y) const
+    {
+        if (not grid.isInBounds(x, y))
+            return TerrainType::None;
+        return terrainGrid[y][x];
+    }
+
+    const std::vector<OrePatch>& getOrePatches() const { return orePatches; }
+
+    // Destroy all procgen terrain entities and regenerate the canvas with a new seed.
+    // Player-placed buildings are untouched (they live on the building layer with
+    // their own entity ids, not in bgEntities). Useful as a dev tool to eyeball seeds.
+    void regenerateTerrain(uint32_t seed)
+    {
+        printf("GridSystem: regenerating terrain with seed 0x%08X\n", seed);
+
+        for (uint64_t id : bgEntities)
+            ecsRef->removeEntity(id);
+        bgEntities.clear();
+
+        generateAndRenderTerrain(seed);
     }
 
     virtual void onEvent(const TickEvent& event) override
@@ -466,34 +492,97 @@ private:
     static constexpr size_t NUM_ANIM_FRAMES = 8;
     static constexpr size_t FRAME_DURATION_MS = 100;
 
-    void createGridBackground()
+    // Procedurally generate the canvas terrain (grass / ores / trees / rocks) and render it.
+    void generateAndRenderTerrain(uint32_t seed = 0xC0FFEEu)
     {
-        constexpr float BG_Z = 0.0f;
+        constexpr float GROUND_Z  = 0.5f;
+        constexpr float OVERLAY_Z = 0.7f;
+        constexpr float TREE_Z    = 0.9f;
 
+        GenerationParams params;
+        params.seed = seed;
+
+        auto gen = CanvasGenerator::generate(params);
+        terrainGrid = gen.terrain;
+        orePatches = gen.orePatches;
+        treeInstances = gen.trees;
+
+        // Per-cell pass: ground base + single-tile overlays (ores, rocks).
+        // Trees are rendered afterwards from the instance list so each occupies
+        // exactly one 2x3 sprite anchored to its footprint.
         for (int y = 0; y < Grid::HEIGHT; ++y)
         {
             for (int x = 0; x < Grid::WIDTH; ++x)
             {
-                bool dark = (x + y) % 2 == 0;
-                constant::Vector4D color = dark
-                    ? constant::Vector4D{60.0f, 65.0f, 75.0f, 255.0f}
-                    : constant::Vector4D{75.0f, 80.0f, 90.0f, 255.0f};
-
                 auto [worldX, worldY] = grid.gridToWorld(x, y);
 
-                auto shape = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, color);
-                auto pos = shape.get<PositionComponent>();
-                pos->setX(worldX);
-                pos->setY(worldY);
-                pos->setZ(BG_Z);
-                pos->setWidth(static_cast<float>(Grid::TILE_SIZE));
-                pos->setHeight(static_cast<float>(Grid::TILE_SIZE));
+                // Always draw a ground base so gaps between non-grass tiles look natural.
+                spawnTextureTile("Ground.0", worldX, worldY, GROUND_Z,
+                    Grid::TILE_SIZE, Grid::TILE_SIZE);
 
-                shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+                TerrainType t = terrainGrid[y][x];
 
-                bgEntities.push_back(shape.entity->id);
+                switch (t)
+                {
+                    case TerrainType::OreIron:
+                        // Use the center frame of the 3x3 ore tileset for all cells
+                        // (full autotiling is a follow-up pass).
+                        spawnTextureTile("Iron_Ore_Tiles.4", worldX, worldY, OVERLAY_Z,
+                            Grid::TILE_SIZE, Grid::TILE_SIZE);
+                        break;
+
+                    case TerrainType::OreCoal:
+                        spawnTextureTile("Coal_Tiles.4", worldX, worldY, OVERLAY_Z,
+                            Grid::TILE_SIZE, Grid::TILE_SIZE);
+                        break;
+
+                    case TerrainType::OreStone:
+                        spawnTextureTile("Rock_Tiles.4", worldX, worldY, OVERLAY_Z,
+                            Grid::TILE_SIZE, Grid::TILE_SIZE);
+                        break;
+
+                    case TerrainType::OreCopper:
+                        // No dedicated tileset — reuse the single copper-rock sprite.
+                        spawnTextureTile("Copper_Rock.0", worldX, worldY, OVERLAY_Z,
+                            Grid::TILE_SIZE, Grid::TILE_SIZE);
+                        break;
+
+                    case TerrainType::Rock:
+                        spawnTextureTile("Rock_Tile.0", worldX, worldY, OVERLAY_Z,
+                            Grid::TILE_SIZE, Grid::TILE_SIZE);
+                        break;
+
+                    // Trees and grass have no per-cell sprite; trees are rendered below.
+                    case TerrainType::Grass:
+                    case TerrainType::Tree:
+                    default:
+                        break;
+                }
             }
         }
+
+        // Whole-struct tree pass: one 2x3 sprite per TreeInstance, anchored flush with
+        // its top-left cell so trees never clip past the canvas edges.
+        for (const auto& tree : treeInstances)
+        {
+            auto [tx, ty] = grid.gridToWorld(tree.anchorX, tree.anchorY);
+            spawnTextureTile("Tree.0", tx, ty, TREE_Z,
+                static_cast<float>(Grid::TILE_SIZE * TREE_W),
+                static_cast<float>(Grid::TILE_SIZE * TREE_H));
+        }
+    }
+
+    // Helper: spawn a textured tile at a world position and record it for cleanup.
+    void spawnTextureTile(const std::string& texName, float worldX, float worldY, float z,
+                          float width, float height)
+    {
+        auto tex = make2DTexture(ecsRef, width, height, texName);
+        auto pos = tex.get<PositionComponent>();
+        pos->setX(worldX);
+        pos->setY(worldY);
+        pos->setZ(z);
+        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        bgEntities.push_back(tex.entity->id);
     }
 
     void createConveyorEntity(CellData& cell, float worldX, float worldY, float z, size_t tileIndex)
@@ -557,4 +646,9 @@ private:
     size_t itemLayer = 0;
 
     std::vector<uint64_t> bgEntities;
+
+    // Procedurally generated terrain data (parallel to the terrain grid layer).
+    TerrainGrid                terrainGrid{};
+    std::vector<OrePatch>      orePatches;
+    std::vector<TreeInstance>  treeInstances;
 };

@@ -73,6 +73,57 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<GridAtlas>("Robotic_Arms_1.png", 384, 48, 48, 48, 8, 8));
 
+        // Environment tilesets for procedurally generated canvases.
+        // Single-tile bases used as-is; multi-tile tilesets are 3x3 where frame 4 is the center.
+        window.masterRenderer->registerAtlasTexture(
+            "Ground",
+            "res/ext/Tileset & Environment/Ground_Tile.png",
+            "",
+            std::make_unique<GridAtlas>("Ground_Tile.png", 16, 16, 16, 16, 1, 1));
+
+        window.masterRenderer->registerAtlasTexture(
+            "Grass_Tileset",
+            "res/ext/Tileset & Environment/Grass_Tileset.png",
+            "",
+            std::make_unique<GridAtlas>("Grass_Tileset.png", 80, 48, 16, 16, 5, 15));
+
+        window.masterRenderer->registerAtlasTexture(
+            "Iron_Ore_Tiles",
+            "res/ext/Tileset & Environment/Iron_Ore_Tiles.png",
+            "",
+            std::make_unique<GridAtlas>("Iron_Ore_Tiles.png", 48, 48, 16, 16, 3, 9));
+
+        window.masterRenderer->registerAtlasTexture(
+            "Coal_Tiles",
+            "res/ext/Tileset & Environment/Coal_Tiles.png",
+            "",
+            std::make_unique<GridAtlas>("Coal_Tiles.png", 48, 48, 16, 16, 3, 9));
+
+        window.masterRenderer->registerAtlasTexture(
+            "Rock_Tiles",
+            "res/ext/Tileset & Environment/Rock_Tiles.png",
+            "",
+            std::make_unique<GridAtlas>("Rock_Tiles.png", 48, 48, 16, 16, 3, 9));
+
+        window.masterRenderer->registerAtlasTexture(
+            "Copper_Rock",
+            "res/ext/Tileset & Environment/Copper_Rock.png",
+            "",
+            std::make_unique<GridAtlas>("Copper_Rock.png", 16, 16, 16, 16, 1, 1));
+
+        window.masterRenderer->registerAtlasTexture(
+            "Rock_Tile",
+            "res/ext/Tileset & Environment/Rock_Tile.png",
+            "",
+            std::make_unique<GridAtlas>("Rock_Tile.png", 16, 16, 16, 16, 1, 1));
+
+        // Tree sprite: 32x48 single image; treated as a 1x1 atlas of a 32x48 frame.
+        window.masterRenderer->registerAtlasTexture(
+            "Tree",
+            "res/ext/Tileset & Environment/Tree.png",
+            "",
+            std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 48, 1, 1));
+
         float screenW = static_cast<float>(config.width);
         float screenH = static_cast<float>(config.height);
 
