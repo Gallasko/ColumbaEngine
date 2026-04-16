@@ -399,11 +399,8 @@ private:
         // Start angle from center to pickup position
         float startAngle = std::atan2(pcy - cy, pcx - cx);
 
-        // Sweep direction: horizontal dirs (0,2) sweep +π, vertical dirs (1,3) sweep -π
-        // This matches the sprite rotation accounting for Y-axis inversion
-        float sweep = (ins.direction == 0 or ins.direction == 2)
-            ?  static_cast<float>(M_PI)
-            : -static_cast<float>(M_PI);
+        // Sweep π radians (semicircle) clockwise matching arm animation
+        float sweep = static_cast<float>(M_PI);
 
         float angle = startAngle + t * sweep;
         float radius = static_cast<float>(Grid::TILE_SIZE);
