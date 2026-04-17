@@ -32,20 +32,20 @@ void ManualMiningSystem::onEvent(const TickEvent& event)
 
 void ManualMiningSystem::execute()
 {
-    // Process accumulated time in 100ms chunks for decay timer
+    // Process accumulated time in 100ms chunks for idle fade
     while (tickAccumulator >= 100)
     {
         tickAccumulator -= 100;
 
-        // Decay: if no clicks for DECAY_TIMEOUT_MS, reset mining progress
         if (currentHits > 0)
         {
-            decayTimer += 100;
-            if (decayTimer >= DECAY_TIMEOUT_MS)
+            barIdleTimer += 100;
+
+            // Bar starts fading after BAR_IDLE_MS of no clicks;
+            // progress resets when the fade completes (in tween onComplete)
+            if (not barFadeStarted and barIdleTimer >= BAR_IDLE_MS)
             {
-                currentHits = 0;
-                targetGridX = -1;
-                targetGridY = -1;
+                barFadeStarted = true;
                 startBarFadeOut();
             }
         }
@@ -101,6 +101,8 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
 
     currentHits++;
     decayTimer = 0;
+    barIdleTimer = 0;
+    barFadeStarted = false;
     cancelBarFade();
     updateProgressBar();
 
@@ -129,6 +131,8 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
         currentHits = 0;
         targetGridX = -1;
         targetGridY = -1;
+        barIdleTimer = 0;
+        barFadeStarted = false;
         startBarFadeOut();
     }
 }
@@ -230,12 +234,6 @@ void ManualMiningSystem::startBarFadeOut()
     auto tweenEnt = ecsRef->createEntity();
     fadeTweenEntityId = tweenEnt->id;
 
-    // Easing: hold full opacity for 500ms, then linear fade over next 500ms
-    auto easing = [](float t) -> float {
-        if (t < 0.5f) return 0.0f;
-        return (t - 0.5f) * 2.0f;
-    };
-
     auto* ecs = ecsRef;
 
     auto onUpdate = [ecs, outlineId, bgId, fillId](const TweenValue& value) {
@@ -253,11 +251,14 @@ void ManualMiningSystem::startBarFadeOut()
     auto onComplete = std::make_shared<LambdaCallable>([this]() {
         hideProgressBar();
         fadeTweenEntityId = 0;
+        currentHits = 0;
+        targetGridX = -1;
+        targetGridY = -1;
     });
 
     ecsRef->_attach<TweenComponent>(tweenEnt,
-        TweenValue{1.0f}, TweenValue{0.0f}, BAR_FADE_TOTAL_MS,
-        onUpdate, onComplete, 1, false, false, easing);
+        TweenValue{1.0f}, TweenValue{0.0f}, BAR_FADE_DURATION_MS,
+        onUpdate, onComplete);
 }
 
 void ManualMiningSystem::cancelBarFade()

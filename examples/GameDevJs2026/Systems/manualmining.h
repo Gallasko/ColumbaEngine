@@ -48,12 +48,13 @@ public:
     void setHotbarHeight(float h) { hotbarHeight = h; }
 
 private:
-    static constexpr size_t DECAY_TIMEOUT_MS = 2000;
+    static constexpr size_t DECAY_TIMEOUT_MS = 2000;  // Progress resets after 2s
+    static constexpr size_t BAR_IDLE_MS = 500;         // Bar starts fading after 500ms
+    static constexpr float BAR_FADE_DURATION_MS = 500.0f;
     static constexpr float BAR_WIDTH = 20.0f;
     static constexpr float BAR_HEIGHT = 3.0f;
     static constexpr float BAR_OUTLINE = 1.0f;
     static constexpr float BAR_OFFSET_Y = -5.0f;
-    static constexpr float BAR_FADE_TOTAL_MS = 1000.0f;
 
     // Progress bar
     void createProgressBar();
@@ -82,6 +83,8 @@ private:
     int currentHits = 0;
     int requiredHits = 0;
     size_t decayTimer = 0;
+    size_t barIdleTimer = 0;
+    bool barFadeStarted = false;
 
     // Progress bar entities
     uint64_t progressOutlineEntityId = 0;
