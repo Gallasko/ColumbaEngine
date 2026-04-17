@@ -133,5 +133,14 @@ RecipeRegistry createDefaultRecipeRegistry()
         }
     });
 
+    // Stone Pickaxe (hand): 3 Stone + 2 Wood → 1 Stone Pickaxe. Always available.
+    // Item IDs: 4=Stone, 15=Wood, 29=Stone Pickaxe
+    reg.addRecipe({
+        "Craft Stone Pickaxe",
+        0, {{4, 3}, {15, 2}}, {{29, 1}}, 3000,
+        RecipeCategory::HandCraft,
+        {}
+    });
+
     return reg;
 }

@@ -81,5 +81,8 @@ ItemRegistry createDefaultItemRegistry()
     reg.addItem({0, "Miner",         "Miner_Machine_1.0", ItemCategory::Building, 50,  7});
     reg.addItem({0, "Inserter",      "Robotic_Arms_1.0",  ItemCategory::Building, 50,  8});
 
+    // Tools (ID 29)
+    reg.addItem({0, "Stone Pickaxe", "PixelwoodIcons.71", ItemCategory::Product, 1});
+
     return reg;
 }

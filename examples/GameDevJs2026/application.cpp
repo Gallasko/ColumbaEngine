@@ -142,6 +142,13 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<GridAtlas>("Tree.png", 32, 48, 32, 48, 1, 1));
 
+        // Pixelwood Valley icon pack: 21 cols × 15 rows of 16×16 icons (315 total)
+        window.masterRenderer->registerAtlasTexture(
+            "PixelwoodIcons",
+            "res/ext/Pixelwood Valley Icon Pack 1.0/1.0/Items 16x16.png",
+            "",
+            std::make_unique<GridAtlas>("Items 16x16.png", 336, 240, 16, 16, 21, 315));
+
         float screenW = static_cast<float>(config.width);
         float screenH = static_cast<float>(config.height);
 
