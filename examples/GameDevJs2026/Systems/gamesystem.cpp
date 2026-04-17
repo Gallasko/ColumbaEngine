@@ -76,7 +76,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
 
             if (not onAnyPanel)
             {
-                if (minerUI and minerUI->isOpen()) minerUI->close();
+                // Closing inventory cascades to miner and crafting via events
                 if (inventoryUI and inventoryUI->isOpen()) inventoryUI->closeInventory();
             }
         }

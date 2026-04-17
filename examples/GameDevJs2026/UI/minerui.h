@@ -11,7 +11,8 @@ using namespace pg;
 
 class MinerUISystem : public System<QueuedListener<OnSDLScanCode>,
                                      QueuedListener<TickEvent>,
-                                     QueuedListener<OnMouseClick>>
+                                     QueuedListener<OnMouseClick>,
+                                     Listener<InventoryClosedEvent>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -45,6 +46,7 @@ public:
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onEvent(const InventoryClosedEvent&) override;
 
 private:
     // Compute panel position: to the left of the inventory panel

@@ -19,13 +19,6 @@ bool CraftingUISystem::isClickOnPanel(float x, float y) const
 
 void CraftingUISystem::onProcessEvent(const TickEvent&)
 {
-    bool invOpen = inventoryUI and inventoryUI->isOpen();
-
-    if (invOpen and not visible)
-        open();
-    else if (not invOpen and visible)
-        close();
-
     if (visible)
     {
         refreshProgressBar();
@@ -34,6 +27,18 @@ void CraftingUISystem::onProcessEvent(const TickEvent&)
         // refresh each tick — cheap enough for ~6 rows.
         refreshRows();
     }
+}
+
+void CraftingUISystem::onEvent(const InventoryOpenedEvent&)
+{
+    if (not visible)
+        open();
+}
+
+void CraftingUISystem::onEvent(const InventoryClosedEvent&)
+{
+    if (visible)
+        close();
 }
 
 void CraftingUISystem::onEvent(const HandCraftCompletedEvent&)

@@ -18,7 +18,9 @@ class CraftingUISystem : public System<InitSys,
                                        QueuedListener<OnSDLScanCode>,
                                        QueuedListener<OnMouseClick>,
                                        QueuedListener<TickEvent>,
-                                       Listener<HandCraftCompletedEvent>>
+                                       Listener<HandCraftCompletedEvent>,
+                                       Listener<InventoryOpenedEvent>,
+                                       Listener<InventoryClosedEvent>>
 {
 public:
     static constexpr size_t UI_VP = 2;
@@ -67,6 +69,8 @@ public:
 
     virtual void onProcessEvent(const TickEvent&) override;
     virtual void onEvent(const HandCraftCompletedEvent&) override;
+    virtual void onEvent(const InventoryOpenedEvent&) override;
+    virtual void onEvent(const InventoryClosedEvent&) override;
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
 

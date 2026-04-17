@@ -70,7 +70,13 @@ void MinerUISystem::onProcessEvent(const OnSDLScanCode& event)
     if (not visible)
         return;
 
-    if (event.key == SDL_SCANCODE_ESCAPE or event.key == SDL_SCANCODE_TAB)
+    if (event.key == SDL_SCANCODE_ESCAPE)
+        close();
+}
+
+void MinerUISystem::onEvent(const InventoryClosedEvent&)
+{
+    if (visible)
         close();
 }
 

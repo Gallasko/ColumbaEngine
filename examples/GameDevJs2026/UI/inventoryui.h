@@ -10,7 +10,11 @@
 
 using namespace pg;
 
-class InventoryUISystem : public System<QueuedListener<OnSDLScanCode>,
+struct InventoryOpenedEvent {};
+struct InventoryClosedEvent {};
+
+class InventoryUISystem : public System<InitSys,
+                                        QueuedListener<OnSDLScanCode>,
                                         QueuedListener<OnMouseClick>,
                                         QueuedListener<OnSDLMouseMotion>>
 {
@@ -32,6 +36,8 @@ public:
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Inventory UI System"; }
+
+    void init() override;
 
     bool isOpen() const { return visible; }
 

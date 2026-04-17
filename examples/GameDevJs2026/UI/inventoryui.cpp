@@ -8,6 +8,11 @@
 
 #include <algorithm>
 
+void InventoryUISystem::init()
+{
+    ensurePanelCreated();
+}
+
 bool InventoryUISystem::isClickOnPanel(float x, float y) const
 {
     if (not visible) return false;
@@ -117,6 +122,7 @@ void InventoryUISystem::openInventory()
     ensurePanelCreated();
     setPanelVisibility(true);
     refreshAllSlots();
+    ecsRef->sendEvent(InventoryOpenedEvent{});
 }
 
 void InventoryUISystem::closeInventory()
@@ -135,6 +141,7 @@ void InventoryUISystem::closeInventory()
 
     setPanelVisibility(false);
     visible = false;
+    ecsRef->sendEvent(InventoryClosedEvent{});
 }
 
 void InventoryUISystem::cancelHeld()
