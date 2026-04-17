@@ -40,6 +40,10 @@ public:
     static constexpr float BUTTON_GAP = 8.0f;
     static constexpr float GAP_BETWEEN_PANELS = 8.0f;
 
+    static constexpr size_t MAX_INPUTS    = 3;
+    static constexpr float INGR_ICON_SIZE = 16.0f;
+    static constexpr float INGR_SLOT_W   = 40.0f;
+
     static constexpr float TEXT_SCALE = 0.28f;
     static constexpr float TITLE_SCALE = 0.38f;
 
@@ -102,7 +106,6 @@ private:
     // --- Rendering -----------------------------------------------------
 
     void refreshRows();
-    std::string buildIngredientSummary(const Recipe& recipe) const;
 
     enum class RowTint
     {
@@ -153,10 +156,11 @@ private:
 
     struct RowVisual
     {
-        uint64_t bgEntityId = 0;
-        uint64_t itemEntityId = 0;
-        uint64_t nameEntityId = 0;
-        uint64_t statusEntityId = 0;
+        uint64_t bgEntityId         = 0;
+        uint64_t outputItemEntityId = 0;
+        uint64_t nameEntityId       = 0;
+        std::array<uint64_t, MAX_INPUTS> ingrIconEntityId  = {};
+        std::array<uint64_t, MAX_INPUTS> ingrCountEntityId = {};
     };
     std::vector<RowVisual> rowVisuals;
 

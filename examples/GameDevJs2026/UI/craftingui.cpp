@@ -185,9 +185,13 @@ void CraftingUISystem::hideRowVisuals()
 {
     for (auto& row : rowVisuals)
     {
-        setEntityVisibility(row.itemEntityId, false);
+        setEntityVisibility(row.outputItemEntityId, false);
         setEntityVisibility(row.nameEntityId, false);
-        setEntityVisibility(row.statusEntityId, false);
+        for (size_t j = 0; j < MAX_INPUTS; ++j)
+        {
+            setEntityVisibility(row.ingrIconEntityId[j],  false);
+            setEntityVisibility(row.ingrCountEntityId[j], false);
+        }
     }
 }
 
@@ -240,7 +244,7 @@ void CraftingUISystem::createPanel()
         bg.get<Simple2DObject>()->setViewport(UI_VP);
         rowVisuals[i].bgEntityId = bg.entity->id;
 
-        // Item icon
+        // Output item icon (left side)
         float itemY = ry + (ROW_HEIGHT - ITEM_SIZE) * 0.5f;
         auto item = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
         auto itemPos = item.get<PositionComponent>();
@@ -249,25 +253,38 @@ void CraftingUISystem::createPanel()
         itemPos->setZ(99.0f);
         itemPos->setVisibility(false);
         item.get<Texture2DComponent>()->setViewport(UI_VP);
-        rowVisuals[i].itemEntityId = item.entity->id;
+        rowVisuals[i].outputItemEntityId = item.entity->id;
 
         // Recipe name
+        float textAreaX = listX + 6.0f + ITEM_SIZE + 6.0f;
         auto name = makeTTFText(ecsRef,
-            listX + 6.0f + ITEM_SIZE + 6.0f, ry + 4.0f, 100.0f,
+            textAreaX, ry + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         name.get<TTFText>()->setViewport(UI_VP);
         name.get<PositionComponent>()->setVisibility(false);
         rowVisuals[i].nameEntityId = name.entity->id;
 
-        // Ingredient / status line
-        auto status = makeTTFText(ecsRef,
-            listX + 6.0f + ITEM_SIZE + 6.0f, ry + 22.0f, 100.0f,
-            FONT_PATH, "", TEXT_SCALE,
-            {180.0f, 180.0f, 190.0f, 255.0f});
-        status.get<TTFText>()->setViewport(UI_VP);
-        status.get<PositionComponent>()->setVisibility(false);
-        rowVisuals[i].statusEntityId = status.entity->id;
+        // Ingredient icon + count text slots
+        float ingrY = ry + ROW_HEIGHT - INGR_ICON_SIZE - 3.0f;
+        for (size_t j = 0; j < MAX_INPUTS; ++j)
+        {
+            float ix = textAreaX + static_cast<float>(j) * INGR_SLOT_W;
+
+            auto icon = make2DTexture(ecsRef, INGR_ICON_SIZE, INGR_ICON_SIZE, "NoneIcon");
+            auto iPos = icon.get<PositionComponent>();
+            iPos->setX(ix); iPos->setY(ingrY); iPos->setZ(99.0f);
+            iPos->setVisibility(false);
+            icon.get<Texture2DComponent>()->setViewport(UI_VP);
+            rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
+
+            auto cnt = makeTTFText(ecsRef,
+                ix + INGR_ICON_SIZE + 2.0f, ingrY + 2.0f, 100.0f,
+                FONT_PATH, "", 0.22f, {200.0f, 200.0f, 210.0f, 255.0f});
+            cnt.get<TTFText>()->setViewport(UI_VP);
+            cnt.get<PositionComponent>()->setVisibility(false);
+            rowVisuals[i].ingrCountEntityId[j] = cnt.entity->id;
+        }
     }
 
     // Progress bar
@@ -409,9 +426,13 @@ void CraftingUISystem::refreshRows()
     {
         for (auto& row : rowVisuals)
         {
-            setEntityVisibility(row.itemEntityId, false);
+            setEntityVisibility(row.outputItemEntityId, false);
             setEntityVisibility(row.nameEntityId, false);
-            setEntityVisibility(row.statusEntityId, false);
+            for (size_t j = 0; j < MAX_INPUTS; ++j)
+            {
+                setEntityVisibility(row.ingrIconEntityId[j],  false);
+                setEntityVisibility(row.ingrCountEntityId[j], false);
+            }
             tintRow(row.bgEntityId, RowTint::Idle);
         }
         return;
@@ -426,9 +447,13 @@ void CraftingUISystem::refreshRows()
 
         if (absIdx >= visibleRecipes.size())
         {
-            setEntityVisibility(row.itemEntityId, false);
+            setEntityVisibility(row.outputItemEntityId, false);
             setEntityVisibility(row.nameEntityId, false);
-            setEntityVisibility(row.statusEntityId, false);
+            for (size_t j = 0; j < MAX_INPUTS; ++j)
+            {
+                setEntityVisibility(row.ingrIconEntityId[j],  false);
+                setEntityVisibility(row.ingrCountEntityId[j], false);
+            }
             tintRow(row.bgEntityId, RowTint::Idle);
             continue;
         }
@@ -440,16 +465,25 @@ void CraftingUISystem::refreshRows()
         if (not recipe.outputs.empty())
         {
             const auto& outDef = itemRegistry->get(recipe.outputs.front().id);
-            auto itemEnt = ecsRef->getEntity(row.itemEntityId);
+            auto itemEnt = ecsRef->getEntity(row.outputItemEntityId);
             if (itemEnt)
             {
                 itemEnt->get<Texture2DComponent>()->setTexture(outDef.textureName);
-                itemEnt->get<PositionComponent>()->setVisibility(true);
+                auto pos = itemEnt->get<PositionComponent>();
+                float iconW = ITEM_SIZE * outDef.iconWidthRatio;
+                float ry = cachedListY + rowIdx * (ROW_HEIGHT + ROW_SPACING);
+                float baseX = cachedListX + 6.0f;
+                float baseY = ry + (ROW_HEIGHT - ITEM_SIZE) * 0.5f;
+                pos->setWidth(iconW);
+                pos->setHeight(ITEM_SIZE);
+                pos->setX(baseX + (ITEM_SIZE - iconW) * 0.5f);
+                pos->setY(baseY);
+                pos->setVisibility(true);
             }
         }
         else
         {
-            setEntityVisibility(row.itemEntityId, false);
+            setEntityVisibility(row.outputItemEntityId, false);
         }
 
         // Recipe name
@@ -460,12 +494,33 @@ void CraftingUISystem::refreshRows()
             nameEnt->get<PositionComponent>()->setVisibility(true);
         }
 
-        // Status line: "have/need" for each input.
-        auto statusEnt = ecsRef->getEntity(row.statusEntityId);
-        if (statusEnt)
+        // Ingredient icons + count labels
+        for (size_t j = 0; j < MAX_INPUTS; ++j)
         {
-            statusEnt->get<TTFText>()->setText(buildIngredientSummary(recipe));
-            statusEnt->get<PositionComponent>()->setVisibility(true);
+            if (j < recipe.inputs.size())
+            {
+                const auto& in  = recipe.inputs[j];
+                const auto& def = itemRegistry->get(in.id);
+
+                auto iconEnt = ecsRef->getEntity(row.ingrIconEntityId[j]);
+                if (iconEnt)
+                {
+                    iconEnt->get<Texture2DComponent>()->setTexture(def.textureName);
+                    iconEnt->get<PositionComponent>()->setVisibility(true);
+                }
+
+                auto cntEnt = ecsRef->getEntity(row.ingrCountEntityId[j]);
+                if (cntEnt)
+                {
+                    cntEnt->get<TTFText>()->setText(std::to_string(in.count) + "x");
+                    cntEnt->get<PositionComponent>()->setVisibility(true);
+                }
+            }
+            else
+            {
+                setEntityVisibility(row.ingrIconEntityId[j],  false);
+                setEntityVisibility(row.ingrCountEntityId[j], false);
+            }
         }
 
         // Background tint: selected / can-craft / insufficient.
@@ -480,25 +535,6 @@ void CraftingUISystem::refreshRows()
     }
 }
 
-std::string CraftingUISystem::buildIngredientSummary(const Recipe& recipe) const
-{
-    const auto& inv = playerInv->getInventory();
-    std::string out;
-    for (size_t i = 0; i < recipe.inputs.size(); ++i)
-    {
-        const auto& in = recipe.inputs[i];
-        const auto& def = itemRegistry->get(in.id);
-        uint16_t have = inv.countItem(in.id);
-
-        if (i > 0) out += ", ";
-        out += std::to_string(have);
-        out += "/";
-        out += std::to_string(in.count);
-        out += " ";
-        out += def.name;
-    }
-    return out;
-}
 
 void CraftingUISystem::tintRow(uint64_t bgId, RowTint tint)
 {

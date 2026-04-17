@@ -76,8 +76,8 @@ ItemRegistry createDefaultItemRegistry()
 
     // Buildings (IDs 24-28) — placeable from hotbar, linked to BuildingDef by tileId
     reg.addItem({0, "Conveyor Belt", "Conveyor_Belt.152", ItemCategory::Building, 100, 4});
-    reg.addItem({0, "Furnace",       "Items.10",          ItemCategory::Building, 50,  5});
-    reg.addItem({0, "Assembler",     "Items.17",          ItemCategory::Building, 50,  6});
+    reg.addItem({0, "Furnace",       "Stone_Furnace.0",          ItemCategory::Building, 50,  5, 0, 1.0f, 2.0f/3.0f});
+    reg.addItem({0, "Assembler",     "Assembler_Machine_1.0",    ItemCategory::Building, 50,  6});
     reg.addItem({0, "Miner",         "Miner_Machine_1.0", ItemCategory::Building, 50,  7});
     reg.addItem({0, "Inserter",      "Robotic_Arms_1.0",  ItemCategory::Building, 50,  8});
 

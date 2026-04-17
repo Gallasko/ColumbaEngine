@@ -126,6 +126,8 @@ private:
         uint64_t bgEntityId = 0;
         uint64_t itemEntityId = 0;
         uint64_t textEntityId = 0;
+        float itemBaseX = 0.0f;
+        float itemBaseY = 0.0f;
     };
     std::vector<SlotVisual> slotVisuals;
 

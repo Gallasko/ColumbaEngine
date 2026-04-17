@@ -26,6 +26,7 @@ struct ItemDef
     uint16_t     buildingTileId  = 0; // Non-zero = placeable building (maps to BuildingDef tileId)
     uint8_t      toolTier        = 0;   // 0=not a tool, 1=stone, 2=iron, etc.
     float        miningSpeedMult = 1.0f; // Multiplier: 2.0 = halves required hits
+    float        iconWidthRatio  = 1.0f; // Width:height ratio for icon display (e.g. 2/3 for furnace)
 };
 
 struct ItemStack

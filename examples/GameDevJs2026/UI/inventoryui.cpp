@@ -252,6 +252,8 @@ void InventoryUISystem::createPanel()
         itemPos->setVisibility(false);
         tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
         slotVisuals[i].itemEntityId = tex.entity->id;
+        slotVisuals[i].itemBaseX = sx + itemOffset;
+        slotVisuals[i].itemBaseY = sy + itemOffset;
 
         // Count text entity (hidden by default)
         auto text = makeTTFText(ecsRef,
@@ -303,7 +305,13 @@ void InventoryUISystem::refreshSlot(size_t index)
     if (itemEnt)
     {
         itemEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-        itemEnt->get<PositionComponent>()->setVisibility(true);
+        auto pos = itemEnt->get<PositionComponent>();
+        float iconW = ITEM_SIZE * def.iconWidthRatio;
+        pos->setWidth(iconW);
+        pos->setHeight(ITEM_SIZE);
+        pos->setX(sv.itemBaseX + (ITEM_SIZE - iconW) * 0.5f);
+        pos->setY(sv.itemBaseY);
+        pos->setVisibility(true);
     }
 
     // Update count text
