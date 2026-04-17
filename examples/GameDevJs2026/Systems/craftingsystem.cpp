@@ -152,8 +152,21 @@ void CraftingSystem::craftTick()
         // Phase 2: try to start or continue crafting
         if (machine.currentRecipe == nullptr)
         {
-            machine.currentRecipe = recipeRegistry->findMatchingRecipe(
-                machine.machineType, machine.inputSlots);
+            const Recipe* matched = nullptr;
+            if (machine.lockedRecipe)
+            {
+                bool ok = true;
+                for (const auto& input : machine.lockedRecipe->inputs)
+                    if (not machine.inputSlots.hasAtLeast(input.id, input.count))
+                        { ok = false; break; }
+                if (ok) matched = machine.lockedRecipe;
+            }
+            else
+            {
+                matched = recipeRegistry->findMatchingRecipe(
+                    machine.machineType, machine.inputSlots);
+            }
+            machine.currentRecipe = matched;
 
             if (machine.currentRecipe)
             {

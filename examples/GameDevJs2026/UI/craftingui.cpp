@@ -115,6 +115,15 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
                               && (lastClickRowAbs == static_cast<int>(absIndex))
                               && (now - lastClickTime <= 400u);
 
+            // In machine mode: every click locks/selects the recipe
+            selectedIndex = absIndex;
+            if (activeMachineType != 0 && machineSelectCallback)
+            {
+                const Recipe& recipe = recipeRegistry->recipes[visibleRecipes[absIndex]];
+                machineSelectCallback(recipe);
+            }
+
+            // Double-click: additionally feed items from player inventory
             if (isDoubleClick && machineFeedCallback)
             {
                 const Recipe& recipe = recipeRegistry->recipes[visibleRecipes[absIndex]];
@@ -128,7 +137,6 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
                 lastClickRowAbs = static_cast<int>(absIndex);
             }
 
-            selectedIndex = absIndex;
             refreshRows();
         }
     }
@@ -155,13 +163,27 @@ void CraftingUISystem::onProcessEvent(const OnSDLMouseWheel& event)
 // setMachineMode / clearMachineMode
 // ---------------------------------------------------------------------------
 
-void CraftingUISystem::setMachineMode(uint16_t tileId)
+void CraftingUISystem::setMachineMode(uint16_t tileId, const Recipe* initialLocked)
 {
     activeMachineType = tileId;
     selectedIndex = 0;
     scrollOffset = 0;
     if (visible)
         applyModeToPanel();
+
+    if (initialLocked)
+    {
+        for (size_t i = 0; i < visibleRecipes.size(); ++i)
+        {
+            if (&recipeRegistry->recipes[visibleRecipes[i]] == initialLocked)
+            {
+                selectedIndex = i;
+                ensureSelectionVisible();
+                refreshRows();
+                break;
+            }
+        }
+    }
 }
 
 void CraftingUISystem::clearMachineMode()

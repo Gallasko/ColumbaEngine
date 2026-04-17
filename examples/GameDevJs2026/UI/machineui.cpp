@@ -38,10 +38,17 @@ void MachineUISystem::open(int gridX, int gridY, uint16_t tileId)
     // Must happen before openInventory() so it takes effect when the panel opens.
     if (craftingUI)
     {
+        MachineData* machine = craftingSystem->getMachine(gridX, gridY);
+        const Recipe* locked = machine ? machine->lockedRecipe : nullptr;
+
         craftingUI->setMachineFeedCallback([this](const Recipe& recipe) {
             feedMachineFromPlayer(recipe);
         });
-        craftingUI->setMachineMode(tileId);
+        craftingUI->setMachineSelectCallback([this](const Recipe& recipe) {
+            MachineData* m = craftingSystem->getMachine(openMachineX, openMachineY);
+            if (m) m->lockedRecipe = &recipe;
+        });
+        craftingUI->setMachineMode(tileId, locked);
     }
 
     if (inventoryUI and not inventoryUI->isOpen())
@@ -69,6 +76,7 @@ void MachineUISystem::close()
     if (craftingUI)
     {
         craftingUI->setMachineFeedCallback(nullptr);
+        craftingUI->setMachineSelectCallback(nullptr);
         craftingUI->clearMachineMode();
     }
 

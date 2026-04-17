@@ -19,6 +19,7 @@ struct MachineData
     Inventory outputSlots;
 
     const Recipe* currentRecipe = nullptr;
+    const Recipe* lockedRecipe  = nullptr; // If set, only this recipe is ever tried
     size_t craftProgress = 0;   // Milliseconds elapsed on current craft
 
     // Animation state (runtime-only; restored from grid on load)

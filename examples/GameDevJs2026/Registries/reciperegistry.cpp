@@ -79,6 +79,23 @@ RecipeRegistry createDefaultRecipeRegistry()
         6, {{5, 1}, {8, 3}}, {{9, 1}}, 3000,
         RecipeCategory::Assembler, {}
     });
+    // Item IDs: 5=Iron Plate, 7=Iron Gear, 8=Copper Wire, 24=Conveyor Belt, 28=Inserter
+    reg.addRecipe({
+        "Make Conveyor Belt",
+        6, {{5, 1}, {7, 1}}, {{24, 1}}, 500,
+        RecipeCategory::Assembler, {}
+    });
+    reg.addRecipe({
+        "Make Inserter",
+        6, {{5, 1}, {8, 1}}, {{28, 1}}, 1000,
+        RecipeCategory::Assembler, {}
+    });
+    // Item IDs: 5=Iron Plate, 7=Iron Gear, 27=Miner
+    reg.addRecipe({
+        "Make Miner",
+        6, {{5, 3}, {7, 2}}, {{27, 1}}, 2000,
+        RecipeCategory::Assembler, {}
+    });
 
     // ===== Hand-craft recipes =====
     //
@@ -151,6 +168,36 @@ RecipeRegistry createDefaultRecipeRegistry()
         RecipeCategory::HandCraft,
         {
             pg::FactChecker{std::string("crafted_stone_pickaxe"), 1, pg::FactCheckEquality::GreaterEqual}
+        }
+    });
+
+    // Craft Conveyor Belt: 2 Iron Plate + 1 Iron Gear → 1 Conveyor Belt.
+    // Slower than the assembler but available by hand.
+    reg.addRecipe({
+        "Craft Conveyor Belt",
+        0, {{5, 2}, {7, 1}}, {{24, 1}}, 3000,
+        RecipeCategory::HandCraft, {}
+    });
+
+    // Craft Inserter: 2 Iron Plate + 2 Copper Wire → 1 Inserter.
+    // Gated behind crafting an Iron Gear (i.e. having iron production).
+    reg.addRecipe({
+        "Craft Inserter",
+        0, {{5, 2}, {8, 2}}, {{28, 1}}, 4000,
+        RecipeCategory::HandCraft,
+        {
+            pg::FactChecker{std::string("crafted_iron_gear"), 1, pg::FactCheckEquality::GreaterEqual}
+        }
+    });
+
+    // Craft Miner: 4 Iron Plate + 3 Iron Gear → 1 Miner.
+    // Gated behind crafting an Iron Gear.
+    reg.addRecipe({
+        "Craft Miner",
+        0, {{5, 4}, {7, 3}}, {{27, 1}}, 6000,
+        RecipeCategory::HandCraft,
+        {
+            pg::FactChecker{std::string("crafted_iron_gear"), 1, pg::FactCheckEquality::GreaterEqual}
         }
     });
 

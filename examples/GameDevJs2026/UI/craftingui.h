@@ -77,7 +77,7 @@ public:
     // Switch the recipe list to show recipes for the given machine type.
     // Call before openInventory() so it takes effect when the panel opens.
     // Also safe to call while the panel is already open.
-    void setMachineMode(uint16_t tileId);
+    void setMachineMode(uint16_t tileId, const Recipe* initialLocked = nullptr);
     void clearMachineMode();
 
     // Set a callback invoked when the player double-clicks a recipe row in
@@ -85,6 +85,13 @@ public:
     void setMachineFeedCallback(std::function<void(const Recipe&)> cb)
     {
         machineFeedCallback = std::move(cb);
+    }
+
+    // Set a callback invoked on every single click in machine mode.
+    // MachineUISystem sets this to lock the chosen recipe onto the machine.
+    void setMachineSelectCallback(std::function<void(const Recipe&)> cb)
+    {
+        machineSelectCallback = std::move(cb);
     }
 
     // --- Inventory sync ------------------------------------------------
@@ -208,6 +215,8 @@ private:
 
     // Machine-mode double-click to feed
     std::function<void(const Recipe&)> machineFeedCallback;
+    // Machine-mode single-click to lock recipe
+    std::function<void(const Recipe&)> machineSelectCallback;
     uint32_t lastClickTime   = 0;
     int      lastClickRowAbs = -1;
 };
