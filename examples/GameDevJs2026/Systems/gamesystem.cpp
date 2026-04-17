@@ -31,6 +31,8 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
         return;
     if (craftingUI and craftingUI->isOpen())
         return;
+    if (machineUI and machineUI->isOpen())
+        return;
 
     if (event.key == SDL_SCANCODE_R)
     {
@@ -59,7 +61,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
 {
     bool anyUIOpen = (inventoryUI and inventoryUI->isOpen())
                   or (minerUI and minerUI->isOpen())
-                  or (craftingUI and craftingUI->isOpen());
+                  or (craftingUI and craftingUI->isOpen())
+                  or (machineUI and machineUI->isOpen());
 
     // Centralized click-outside-to-close for all UIs
     if (anyUIOpen)
@@ -73,6 +76,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                 onAnyPanel = onAnyPanel or minerUI->isClickOnPanel(event.pos.x, event.pos.y);
             if (craftingUI and craftingUI->isOpen())
                 onAnyPanel = onAnyPanel or craftingUI->isClickOnPanel(event.pos.x, event.pos.y);
+            if (machineUI and machineUI->isOpen())
+                onAnyPanel = onAnyPanel or machineUI->isClickOnPanel(event.pos.x, event.pos.y);
 
             if (not onAnyPanel)
             {
@@ -100,6 +105,22 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                 if (cell.tileId == MinerSystem::MINER_TILE_ID)
                 {
                     minerUI->open(cell.ownerX, cell.ownerY);
+                    return;
+                }
+            }
+        }
+
+        // Check if clicking on a furnace or assembler — open machine UI
+        if (machineUI)
+        {
+            auto [gx, gy] = getMouseGridPos();
+            auto layer = gridSystem->getBuildingLayer();
+            if (gridSystem->getGrid().isInBounds(gx, gy))
+            {
+                const auto& cell = gridSystem->getCell(layer, gx, gy);
+                if (cell.tileId == 5 or cell.tileId == 6)
+                {
+                    machineUI->open(cell.ownerX, cell.ownerY, cell.tileId);
                     return;
                 }
             }
@@ -139,7 +160,8 @@ void GameSystem::onProcessEvent(const OnMouseRelease& event)
 {
     if ((inventoryUI and inventoryUI->isOpen())
      or (minerUI and minerUI->isOpen())
-     or (craftingUI and craftingUI->isOpen()))
+     or (craftingUI and craftingUI->isOpen())
+     or (machineUI and machineUI->isOpen()))
         return;
 
     if (event.button == SDL_BUTTON_LEFT)
@@ -160,7 +182,8 @@ void GameSystem::onProcessEvent(const OnSDLMouseMotion& event)
 {
     if ((inventoryUI and inventoryUI->isOpen())
      or (minerUI and minerUI->isOpen())
-     or (craftingUI and craftingUI->isOpen()))
+     or (craftingUI and craftingUI->isOpen())
+     or (machineUI and machineUI->isOpen()))
         return;
 
     updateCursorPosition();
@@ -234,26 +257,35 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         return;
     }
 
-    if (not def->textureName.empty() and def->gridW == 1 and def->gridH == 1)
+    if (not def->textureName.empty())
     {
-        // Textured ghost (conveyors, inserters, etc.)
-        size_t frameIndex;
-        if (def->tileId == 4) // Conveyor
-        {
-            size_t tileIndex = def->hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
-            frameIndex = tileIndex * 8;
-        }
-        else // Non-conveyor directional (inserter, etc.)
-        {
-            static constexpr size_t IDLE_FRAME[4] = {0, 2, 4, 6};
-            frameIndex = def->hasDirection ? IDLE_FRAME[currentDirection] : 0;
-        }
-        std::string texName = def->textureName + "." + std::to_string(frameIndex);
+        // Textured ghost — works for both 1x1 (conveyors, inserters) and larger buildings
+        float ghostW = static_cast<float>(Grid::TILE_SIZE * def->gridW);
+        float ghostH = static_cast<float>(Grid::TILE_SIZE * def->gridH);
 
-        float ghostSize = (def->tileId == 8)
-            ? static_cast<float>(Grid::TILE_SIZE) * 3.0f
-            : static_cast<float>(Grid::TILE_SIZE);
-        auto ghost = make2DTexture(ecsRef, ghostSize, ghostSize, texName);
+        size_t frameIndex = 0;
+        if (def->gridW == 1 and def->gridH == 1)
+        {
+            if (def->tileId == 4) // Conveyor
+            {
+                size_t tileIndex = def->hasDirection ? DIRECTION_TILE_INDEX[currentDirection] : 0;
+                frameIndex = tileIndex * 8;
+            }
+            else // Non-conveyor directional (inserter, etc.)
+            {
+                static constexpr size_t IDLE_FRAME[4] = {0, 2, 4, 6};
+                frameIndex = def->hasDirection ? IDLE_FRAME[currentDirection] : 0;
+            }
+            // Inserter ghost is oversized to show the arm
+            if (def->tileId == 8)
+            {
+                ghostW = static_cast<float>(Grid::TILE_SIZE) * 3.0f;
+                ghostH = ghostW;
+            }
+        }
+
+        std::string texName = def->textureName + "." + std::to_string(frameIndex);
+        auto ghost = make2DTexture(ecsRef, ghostW, ghostH, texName);
 
         ghost.get<PositionComponent>()->setZ(9.0f);
         ghost.get<PositionComponent>()->setX(-1000.0f);
@@ -263,9 +295,9 @@ void GameSystem::rebuildGhostForSelectedBuilding()
     }
     else
     {
-        // Colored ghost for placeholder / multi-cell buildings
+        // Colored ghost for buildings with no texture
         auto color = def->color;
-        color.w = 100.0f; // Semi-transparent alpha
+        color.w = 100.0f;
 
         auto ghost = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f, color);
         auto pos = ghost.get<PositionComponent>();

@@ -20,6 +20,11 @@ struct MachineData
 
     const Recipe* currentRecipe = nullptr;
     size_t craftProgress = 0;   // Milliseconds elapsed on current craft
+
+    // Animation state (runtime-only; restored from grid on load)
+    uint64_t entityId = 0;
+    size_t animFrame = 0;
+    bool isCrafting = false;
 };
 
 class CraftingSystem : public System<Listener<TickEvent>,
@@ -28,7 +33,10 @@ class CraftingSystem : public System<Listener<TickEvent>,
                                      SaveSys>
 {
 public:
-    static constexpr size_t CRAFT_TICK_MS = 250;
+    static constexpr size_t CRAFT_TICK_MS          = 250;
+    static constexpr size_t ANIM_FRAME_DURATION_MS = 200;
+    static constexpr size_t FURNACE_ANIM_FRAMES    = 3;
+    static constexpr size_t ASSEMBLER_ANIM_FRAMES  = 4;
 
     CraftingSystem(GridSystem* gridSystem, TransportSystem* transportSystem,
                    ItemRegistry* itemRegistry, RecipeRegistry* recipeRegistry)
@@ -44,6 +52,7 @@ public:
     virtual void onEvent(const TickEvent& event) override
     {
         tickAccumulator += static_cast<size_t>(event.tick);
+        animAccumulator += static_cast<size_t>(event.tick);
     }
 
     virtual void onEvent(const BuildingPlacedEvent& event) override;
@@ -73,5 +82,6 @@ private:
 
     std::unordered_map<uint32_t, MachineData> machines;
     size_t tickAccumulator = 0;
+    size_t animAccumulator = 0;
 
 };

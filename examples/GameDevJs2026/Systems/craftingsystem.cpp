@@ -1,6 +1,7 @@
 #include "craftingsystem.h"
 
 #include "playerinventory.h"
+#include "2D/texture.h"
 
 #include <cstdio>
 
@@ -14,6 +15,16 @@ void CraftingSystem::load(const UnserializedObject& serializedString)
 {
     defaultDeserialize(serializedString, "machines", machines);
     printf("CraftingSystem: loaded %zu machines\n", machines.size());
+
+    // Restore runtime-only state not persisted to disk
+    size_t buildingLayer = gridSystem->getBuildingLayer();
+    for (auto& [key, machine] : machines)
+    {
+        const auto& cell = gridSystem->getGrid().getCell(buildingLayer, machine.ownerX, machine.ownerY);
+        machine.entityId = cell.entityId;
+        machine.animFrame = 0;
+        machine.isCrafting = (machine.currentRecipe != nullptr);
+    }
 }
 
 void CraftingSystem::onEvent(const BuildingPlacedEvent& event)
@@ -30,6 +41,34 @@ void CraftingSystem::onEvent(const BuildingRemovedEvent& event)
 
 void CraftingSystem::execute()
 {
+    // Advance animation for all active machines
+    if (animAccumulator >= ANIM_FRAME_DURATION_MS)
+    {
+        animAccumulator -= ANIM_FRAME_DURATION_MS;
+
+        for (auto& [key, machine] : machines)
+        {
+            if (not machine.isCrafting)
+                continue;
+
+            size_t numFrames = (machine.machineType == 5)
+                ? FURNACE_ANIM_FRAMES
+                : ASSEMBLER_ANIM_FRAMES;
+
+            machine.animFrame = (machine.animFrame + 1) % numFrames;
+
+            auto ent = ecsRef->getEntity(machine.entityId);
+            if (ent and ent->has<Texture2DComponent>())
+            {
+                std::string atlas = (machine.machineType == 5)
+                    ? "Stone_Furnace_Active"
+                    : "Assembler_Machine_1_Running";
+                ent->get<Texture2DComponent>()->setTexture(
+                    atlas + "." + std::to_string(machine.animFrame));
+            }
+        }
+    }
+
     while (tickAccumulator >= CRAFT_TICK_MS)
     {
         tickAccumulator -= CRAFT_TICK_MS;
@@ -54,6 +93,11 @@ void CraftingSystem::registerMachine(int x, int y, uint16_t tileId)
         data.inputSlots = Inventory(2);
         data.outputSlots = Inventory(1);
     }
+
+    // Capture entity spawned by GridSystem for texture swapping
+    size_t buildingLayer = gridSystem->getBuildingLayer();
+    const auto& cell = gridSystem->getGrid().getCell(buildingLayer, x, y);
+    data.entityId = cell.entityId;
 
     machines[machineKey(x, y)] = data;
 }
@@ -105,6 +149,22 @@ void CraftingSystem::craftTick()
                 for (const auto& input : machine.currentRecipe->inputs)
                     machine.inputSlots.remove(input.id, input.count);
                 machine.craftProgress = 0;
+
+                // Start animation
+                if (not machine.isCrafting)
+                {
+                    machine.isCrafting = true;
+                    machine.animFrame = 0;
+
+                    auto ent = ecsRef->getEntity(machine.entityId);
+                    if (ent and ent->has<Texture2DComponent>())
+                    {
+                        std::string atlas = (machine.machineType == 5)
+                            ? "Stone_Furnace_Active"
+                            : "Assembler_Machine_1_Running";
+                        ent->get<Texture2DComponent>()->setTexture(atlas + ".0");
+                    }
+                }
             }
         }
 
@@ -131,8 +191,21 @@ void CraftingSystem::craftTick()
                         machine.outputSlots.insert(output.id, output.count, *itemRegistry);
                     machine.currentRecipe = nullptr;
                     machine.craftProgress = 0;
+
+                    // Stop animation, return to idle texture
+                    machine.isCrafting = false;
+                    machine.animFrame = 0;
+
+                    auto ent = ecsRef->getEntity(machine.entityId);
+                    if (ent and ent->has<Texture2DComponent>())
+                    {
+                        std::string idle = (machine.machineType == 5)
+                            ? "Stone_Furnace.0"
+                            : "Assembler_Machine_1.0";
+                        ent->get<Texture2DComponent>()->setTexture(idle);
+                    }
                 }
-                // else: output full, craft stalls
+                // else: output full, craft stalls — isCrafting stays true, animation continues
             }
         }
 

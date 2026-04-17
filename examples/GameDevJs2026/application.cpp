@@ -12,6 +12,7 @@
 #include "playerinventory.h"
 #include "inventoryui.h"
 #include "minerui.h"
+#include "machineui.h"
 #include "insertersystem.h"
 #include "saveserialization.h"
 #include "gamesystem.h"
@@ -66,6 +67,34 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             minerMining.metadata.imagePath.c_str(),
             "",
             std::make_unique<AsepriteFileAtlasLoader>(minerMining));
+
+        // Load furnace idle sprite atlas (single frame 32x48)
+        window.masterRenderer->registerAtlasTexture(
+            "Stone_Furnace",
+            "res/ext/Structures & Machines/Stone_Furnace.png",
+            "",
+            std::make_unique<GridAtlas>("Stone_Furnace.png", 32, 48, 32, 48, 1, 1));
+
+        // Load furnace active animation atlas (3 frames of 32x64 in a 96x64 strip)
+        window.masterRenderer->registerAtlasTexture(
+            "Stone_Furnace_Active",
+            "res/ext/Structures & Machines/Stone_Furnace_Active.png",
+            "",
+            std::make_unique<GridAtlas>("Stone_Furnace_Active.png", 96, 64, 32, 64, 3, 3));
+
+        // Load assembler idle sprite atlas (single frame 32x48)
+        window.masterRenderer->registerAtlasTexture(
+            "Assembler_Machine_1",
+            "res/ext/Structures & Machines/Assembler_Machine_1.png",
+            "",
+            std::make_unique<GridAtlas>("Assembler_Machine_1.png", 32, 48, 32, 48, 1, 1));
+
+        // Load assembler running animation atlas (4 frames of 32x48 in a 128x48 strip)
+        window.masterRenderer->registerAtlasTexture(
+            "Assembler_Machine_1_Running",
+            "res/ext/Structures & Machines/Assembler_Machine_1_Running.png",
+            "",
+            std::make_unique<GridAtlas>("Assembler_Machine_1_Running.png", 128, 48, 32, 48, 4, 4));
 
         // Load item icons as a grid atlas (5 cols × 5 rows of 16×16 icons, 23 used)
         window.masterRenderer->registerAtlasTexture(
@@ -191,6 +220,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* minerUI = ecs.createSystem<MinerUISystem>(
             minerSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 
+        auto* machineUI = ecs.createSystem<MachineUISystem>(
+            craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
+
         // World facts (progression/discovery state) must exist before the
         // hand-crafting system and crafting UI query it for unlock checks.
         auto* worldFacts = ecs.createSystem<WorldFacts>();
@@ -208,7 +240,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* manualMining = ecs.createSystem<ManualMiningSystem>(
             gridSystem, cameraSystem, playerInvSystem, &itemRegistry, hotbar, screenW, screenH);
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining);
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI);
     });
 }
 

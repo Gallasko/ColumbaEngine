@@ -31,28 +31,28 @@ BuildingRegistry createDefaultRegistry()
         true                                           // isAnimated
     });
 
-    // Slot 1 (key 2): Furnace placeholder
+    // Slot 1 (key 2): Furnace (2x3)
     reg.addBuilding({
         5,
         "Furnace",
-        "",
+        "Stone_Furnace",                               // idle atlas
         {200.0f, 100.0f, 60.0f, 255.0f},
-        1, 1,
+        2, 3,                                          // 2x3 matches sprite (32x48)
         PlacementMode::ClickToPlace,
         false,
-        false
+        false                                          // animation managed by CraftingSystem
     });
 
-    // Slot 2 (key 3): Assembler placeholder (2x2)
+    // Slot 2 (key 3): Assembler (2x3)
     reg.addBuilding({
         6,
         "Assembler",
-        "",
+        "Assembler_Machine_1",                         // idle atlas
         {120.0f, 80.0f, 180.0f, 255.0f},
-        2, 2,
+        2, 3,                                          // 2x3 matches sprite (32x48)
         PlacementMode::ClickToPlace,
         false,
-        false
+        false                                          // animation managed by CraftingSystem
     });
 
     // Slot 3 (key 4): Miner (2x3)

@@ -154,5 +154,21 @@ RecipeRegistry createDefaultRecipeRegistry()
         }
     });
 
+    // Craft Furnace: 5 Stone → 1 Furnace (always available)
+    // Item IDs: 4=Stone, 25=Furnace
+    reg.addRecipe({
+        "Craft Furnace",
+        0, {{4, 5}}, {{25, 1}}, 5000,
+        RecipeCategory::HandCraft, {}
+    });
+
+    // Craft Assembler: 5 Iron Plate + 3 Iron Gear → 1 Assembler (always available)
+    // Item IDs: 5=Iron Plate, 7=Iron Gear, 26=Assembler
+    reg.addRecipe({
+        "Craft Assembler",
+        0, {{5, 5}, {7, 3}}, {{26, 1}}, 10000,
+        RecipeCategory::HandCraft, {}
+    });
+
     return reg;
 }
