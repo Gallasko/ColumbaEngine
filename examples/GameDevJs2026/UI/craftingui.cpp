@@ -144,7 +144,7 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
 
 void CraftingUISystem::onProcessEvent(const OnSDLMouseWheel& event)
 {
-    if (not visible or visibleRecipes.empty())
+    if (not visible or not panelCreated or visibleRecipes.empty())
         return;
 
     int maxOffset = static_cast<int>(visibleRecipes.size()) - static_cast<int>(VISIBLE_ROWS);

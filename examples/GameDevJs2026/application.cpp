@@ -22,6 +22,7 @@
 #include "handcraftingsystem.h"
 #include "craftingui.h"
 #include "tooltipsystem.h"
+#include "autosavesystem.h"
 #include "Systems/tween.h"
 
 using namespace pg;
@@ -247,6 +248,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<TooltipSystem>(
             inventoryUI, hotbar, machineUI, playerInvSystem,
             &itemRegistry, &recipeRegistry, screenW, screenH);
+
+        ecs.createSystem<AutoSaveSystem>();
 
         ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI);
     });
