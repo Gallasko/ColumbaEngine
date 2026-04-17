@@ -8,6 +8,8 @@
 #include "itemregistry.h"
 #include "buildingregistry.h"
 
+class InventoryUISystem;
+
 using namespace pg;
 
 inline constexpr size_t HOTBAR_SLOTS = 9;
@@ -73,6 +75,8 @@ public:
         return mouseY > screenHeight - HOTBAR_HEIGHT;
     }
 
+    void setInventoryUI(InventoryUISystem* inv) { inventoryUI = inv; }
+
     // Consume one item from the selected hotbar slot (after building placement)
     void consumeSelectedItem(uint16_t count = 1);
 
@@ -97,6 +101,7 @@ private:
     PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
     BuildingRegistry* buildingRegistry = nullptr;
+    InventoryUISystem* inventoryUI = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

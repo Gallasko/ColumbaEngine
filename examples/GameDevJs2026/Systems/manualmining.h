@@ -70,6 +70,12 @@ private:
     void cancelBarFade();
     void hideProgressBar();
 
+    // Wrong-tier error bar
+    void createErrorBar();
+    void playWrongTierAnimation(int gx, int gy);
+    void cancelErrorAnimation();
+    void hideErrorBar();
+
     // Tool queries
     uint8_t getEquippedToolTier() const;
     float getEquippedMiningSpeed() const;
@@ -102,6 +108,11 @@ private:
     uint64_t progressBgEntityId = 0;
     uint64_t progressFillEntityId = 0;
     uint64_t fadeTweenEntityId = 0;
+
+    // Error bar entities (separate from progress bar)
+    uint64_t errorOutlineEntityId = 0;
+    uint64_t errorFillEntityId = 0;
+    uint64_t errorTweenEntityId = 0;
 
     // Dependencies
     GridSystem* gridSystem = nullptr;

@@ -22,6 +22,7 @@ namespace {
 void ManualMiningSystem::init()
 {
     createProgressBar();
+    createErrorBar();
 }
 
 void ManualMiningSystem::onEvent(const TickEvent& event)
@@ -120,7 +121,10 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
     uint8_t requiredTier = terrainTier(terrain);
     uint8_t equippedTier = getEquippedToolTier();
     if (equippedTier < requiredTier)
+    {
+        playWrongTierAnimation(gx, gy);
         return;
+    }
 
     int baseHits = terrainHitsRequired(terrain);
     if (baseHits <= 0)
@@ -330,6 +334,130 @@ void ManualMiningSystem::hideProgressBar()
         bgEnt->get<PositionComponent>()->setX(-1000.0f);
 
     auto fillEnt = ecsRef->getEntity(progressFillEntityId);
+    if (fillEnt)
+        fillEnt->get<PositionComponent>()->setX(-1000.0f);
+}
+
+void ManualMiningSystem::createErrorBar()
+{
+    // Red outline
+    auto outline = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        constant::Vector4D{200.0f, 60.0f, 60.0f, 220.0f});
+
+    auto outlinePos = outline.get<PositionComponent>();
+    outlinePos->setX(-1000.0f);
+    outlinePos->setZ(9.f);
+    outlinePos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
+    outlinePos->setHeight(BAR_HEIGHT + BAR_OUTLINE * 2.0f);
+    outline.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    errorOutlineEntityId = outline.entity->id;
+
+    // Red fill (full width)
+    auto fill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+        constant::Vector4D{220.0f, 50.0f, 50.0f, 220.0f});
+
+    auto fillPos = fill.get<PositionComponent>();
+    fillPos->setX(-1000.0f);
+    fillPos->setZ(11.f);
+    fillPos->setWidth(BAR_WIDTH);
+    fillPos->setHeight(BAR_HEIGHT);
+    fill.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    errorFillEntityId = fill.entity->id;
+}
+
+void ManualMiningSystem::playWrongTierAnimation(int gx, int gy)
+{
+    cancelErrorAnimation();
+
+    auto [wx, wy] = gridSystem->getGrid().gridToWorld(gx, gy);
+    float tileSize = static_cast<float>(Grid::TILE_SIZE);
+    float barX = wx + (tileSize - BAR_WIDTH) * 0.5f;
+    float barY = wy + BAR_OFFSET_Y;
+
+    // Position error bar above the tile, full width
+    auto outlineEnt = ecsRef->getEntity(errorOutlineEntityId);
+    if (outlineEnt)
+    {
+        auto pos = outlineEnt->get<PositionComponent>();
+        pos->setX(barX - BAR_OUTLINE);
+        pos->setY(barY - BAR_OUTLINE);
+        pos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
+        outlineEnt->get<Simple2DObject>()->setOpacity(220.0f);
+    }
+
+    auto fillEnt = ecsRef->getEntity(errorFillEntityId);
+    if (fillEnt)
+    {
+        auto pos = fillEnt->get<PositionComponent>();
+        pos->setX(barX);
+        pos->setY(barY);
+        pos->setWidth(BAR_WIDTH);
+        fillEnt->get<Simple2DObject>()->setOpacity(220.0f);
+    }
+
+    // Tween: squeeze from full width to 0 while fading out
+    uint64_t outlineId = errorOutlineEntityId;
+    uint64_t fillId = errorFillEntityId;
+
+    auto tweenEnt = ecsRef->createEntity();
+    errorTweenEntityId = tweenEnt->id;
+
+    auto* ecs = ecsRef;
+    float barXCapture = barX;
+
+    auto onUpdate = [ecs, outlineId, fillId, barXCapture](const TweenValue& value) {
+        float t = std::get<float>(value); // 1.0 -> 0.0
+
+        float width = BAR_WIDTH * t;
+        float offsetX = (BAR_WIDTH - width) * 0.5f;
+
+        auto oEnt = ecs->getEntity(outlineId);
+        if (oEnt)
+        {
+            auto pos = oEnt->get<PositionComponent>();
+            pos->setX(barXCapture - BAR_OUTLINE + offsetX);
+            pos->setWidth(width + BAR_OUTLINE * 2.0f);
+            oEnt->get<Simple2DObject>()->setOpacity(220.0f * t);
+        }
+
+        auto fEnt = ecs->getEntity(fillId);
+        if (fEnt)
+        {
+            auto pos = fEnt->get<PositionComponent>();
+            pos->setX(barXCapture + offsetX);
+            pos->setWidth(width);
+            fEnt->get<Simple2DObject>()->setOpacity(220.0f * t);
+        }
+    };
+
+    auto onComplete = std::make_shared<LambdaCallable>([this]() {
+        hideErrorBar();
+        errorTweenEntityId = 0;
+    });
+
+    static constexpr float SQUEEZE_DURATION_MS = 400.0f;
+    ecsRef->_attach<TweenComponent>(tweenEnt,
+        TweenValue{1.0f}, TweenValue{0.0f}, SQUEEZE_DURATION_MS,
+        onUpdate, onComplete);
+}
+
+void ManualMiningSystem::cancelErrorAnimation()
+{
+    if (errorTweenEntityId != 0)
+    {
+        ecsRef->removeEntity(errorTweenEntityId);
+        errorTweenEntityId = 0;
+    }
+    hideErrorBar();
+}
+
+void ManualMiningSystem::hideErrorBar()
+{
+    auto outlineEnt = ecsRef->getEntity(errorOutlineEntityId);
+    if (outlineEnt)
+        outlineEnt->get<PositionComponent>()->setX(-1000.0f);
+
+    auto fillEnt = ecsRef->getEntity(errorFillEntityId);
     if (fillEnt)
         fillEnt->get<PositionComponent>()->setX(-1000.0f);
 }

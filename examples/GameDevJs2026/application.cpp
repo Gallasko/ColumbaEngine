@@ -186,6 +186,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* inventoryUI = ecs.createSystem<InventoryUISystem>(
             playerInvSystem, &itemRegistry, screenW, screenH);
 
+        hotbar->setInventoryUI(inventoryUI);
+
         auto* minerUI = ecs.createSystem<MinerUISystem>(
             minerSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 

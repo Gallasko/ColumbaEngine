@@ -1,4 +1,5 @@
 #include "hotbarsystem.h"
+#include "inventoryui.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -40,8 +41,24 @@ void HotbarSystem::onProcessEvent(const OnMouseClick& event)
         return;
 
     int slot = slotAtPosition(event.pos.x, event.pos.y);
-    if (slot >= 0)
-        selectSlot(static_cast<size_t>(slot));
+    if (slot < 0)
+        return;
+
+    // When inventory is open, handle item transfers
+    if (inventoryUI and inventoryUI->isOpen())
+    {
+        auto& hotbarSlot = getHotbarSlot(static_cast<size_t>(slot));
+
+        if (inventoryUI->hasHeldItem())
+            inventoryUI->dropOnExternal(hotbarSlot);
+        else
+            inventoryUI->pickUpFromExternal(hotbarSlot);
+
+        refreshSlot(static_cast<size_t>(slot));
+        return;
+    }
+
+    selectSlot(static_cast<size_t>(slot));
 }
 
 void HotbarSystem::onProcessEvent(const OnSDLMouseMotion& event)
