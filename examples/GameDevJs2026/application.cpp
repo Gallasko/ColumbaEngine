@@ -22,6 +22,7 @@
 #include "handcraftingsystem.h"
 #include "craftingui.h"
 #include "tooltipsystem.h"
+#include "tutorialsystem.h"
 #include "autosavesystem.h"
 #include "Systems/tween.h"
 
@@ -248,6 +249,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<TooltipSystem>(
             inventoryUI, hotbar, machineUI, playerInvSystem,
             &itemRegistry, &recipeRegistry, screenW, screenH);
+
+        ecs.createSystem<TutorialSystem>(worldFacts, &recipeRegistry);
 
         ecs.createSystem<AutoSaveSystem>();
 
