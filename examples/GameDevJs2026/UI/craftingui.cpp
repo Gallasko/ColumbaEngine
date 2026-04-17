@@ -101,6 +101,14 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
             ecsRef->sendEvent(HandCraftCancel{});
             return;
         }
+
+        // Tab click
+        int tabIdx = tabAtPosition(x, y);
+        if (tabIdx >= 0)
+        {
+            setActiveTab(static_cast<CraftTab>(tabIdx));
+            return;
+        }
     }
 
     // Row hit test
@@ -211,13 +219,24 @@ void CraftingUISystem::applyModeToPanel()
         }
     }
 
-    // Show/hide hand-craft-only elements (buttons + progress bar)
+    // Show/hide hand-craft-only elements (buttons + progress bar + tabs)
     setEntityVisibility(craftButtonBgEntityId,   handCraft);
     setEntityVisibility(craftButtonTextEntityId, handCraft);
     setEntityVisibility(cancelButtonBgEntityId,   handCraft);
     setEntityVisibility(cancelButtonTextEntityId, handCraft);
     setEntityVisibility(progressBgEntityId,       handCraft);
     setEntityVisibility(progressFillEntityId,     handCraft);
+    for (auto& tab : tabVisuals)
+    {
+        setEntityVisibility(tab.bgEntityId, handCraft);
+        setEntityVisibility(tab.textEntityId, handCraft);
+    }
+
+    if (handCraft)
+    {
+        activeTab = CraftTab::All;
+        refreshTabHighlights();
+    }
 
     rebuildVisibleRecipes();
     refreshRows();
@@ -275,6 +294,7 @@ float CraftingUISystem::getPanelHeight() const
     float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
     return 2 * PANEL_PADDING
          + TITLE_H + GAP_AFTER_TITLE
+         + TAB_ROW_H + GAP_AFTER_TABS
          + listH
          + GAP_AFTER_LIST + PROGRESS_BAR_H
          + GAP_AFTER_BAR + BUTTON_H;
@@ -299,6 +319,11 @@ void CraftingUISystem::setPanelVisibility(bool vis)
     setEntityVisibility(craftButtonTextEntityId, vis);
     setEntityVisibility(cancelButtonBgEntityId, vis);
     setEntityVisibility(cancelButtonTextEntityId, vis);
+    for (auto& tab : tabVisuals)
+    {
+        setEntityVisibility(tab.bgEntityId, vis);
+        setEntityVisibility(tab.textEntityId, vis);
+    }
     for (auto& row : rowVisuals)
         setEntityVisibility(row.bgEntityId, vis);
     // Item + name visibility is driven by refreshRows()
@@ -347,9 +372,43 @@ void CraftingUISystem::createPanel()
     title.get<TTFText>()->setViewport(UI_VP);
     titleEntityId = title.entity->id;
 
+    // Tab buttons (between title and recipe list)
+    {
+        float tabRowY = py + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+        cachedTabY = tabRowY;
+        float contentW = pw - 2 * PANEL_PADDING;
+        float tabW = (contentW - (TAB_COUNT - 1) * TAB_GAP) / static_cast<float>(TAB_COUNT);
+
+        static const char* tabLabels[TAB_COUNT] = {"All", "Tools", "Mach.", "Misc"};
+
+        for (size_t i = 0; i < TAB_COUNT; ++i)
+        {
+            float tx = px + PANEL_PADDING + i * (tabW + TAB_GAP);
+
+            auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+                constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
+            auto bgPos = bg.get<PositionComponent>();
+            bgPos->setX(tx);
+            bgPos->setY(tabRowY);
+            bgPos->setZ(98.0f);
+            bgPos->setWidth(tabW);
+            bgPos->setHeight(TAB_ROW_H);
+            bg.get<Simple2DObject>()->setViewport(UI_VP);
+            tabVisuals[i].bgEntityId = bg.entity->id;
+
+            auto label = makeTTFText(ecsRef,
+                tx + 4.0f, tabRowY + 3.0f, 100.0f,
+                FONT_PATH, tabLabels[i], TEXT_SCALE,
+                {255.0f, 255.0f, 255.0f, 255.0f});
+            label.get<TTFText>()->setViewport(UI_VP);
+            tabVisuals[i].textEntityId = label.entity->id;
+        }
+    }
+
     // Row skeletons
     float listX = px + PANEL_PADDING;
-    float listY = py + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
+    float listY = py + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                + TAB_ROW_H + GAP_AFTER_TABS;
     float rowW = pw - 2 * PANEL_PADDING;
 
     rowVisuals.resize(VISIBLE_ROWS);
@@ -490,6 +549,8 @@ void CraftingUISystem::createPanel()
     cachedListX = listX;
     cachedListY = listY;
     cachedRowW = rowW;
+
+    refreshTabHighlights();
 }
 
 void CraftingUISystem::rebuildVisibleRecipes()
@@ -517,6 +578,8 @@ void CraftingUISystem::rebuildVisibleRecipes()
             if (r.category != RecipeCategory::HandCraft)
                 continue;
             if (not handCrafting->isUnlocked(r))
+                continue;
+            if (activeTab != CraftTab::All and classifyRecipe(r) != activeTab)
                 continue;
             visibleRecipes.push_back(i);
         }
@@ -716,6 +779,76 @@ void CraftingUISystem::refreshProgressBar()
         return;
     float ratio = handCrafting ? handCrafting->getProgressRatio() : 0.0f;
     fillEnt->get<PositionComponent>()->setWidth(cachedBarMaxW * ratio);
+}
+
+// ---------------------------------------------------------------------------
+// Tab helpers
+// ---------------------------------------------------------------------------
+
+CraftingUISystem::CraftTab CraftingUISystem::classifyRecipe(const Recipe& recipe) const
+{
+    if (recipe.outputs.empty())
+        return CraftTab::Misc;
+
+    const auto& outDef = itemRegistry->get(recipe.outputs.front().id);
+
+    if (outDef.toolTier > 0)
+        return CraftTab::Tools;
+
+    if (outDef.buildingTileId != 0)
+        return CraftTab::Machines;
+
+    return CraftTab::Misc;
+}
+
+void CraftingUISystem::setActiveTab(CraftTab tab)
+{
+    if (tab == activeTab)
+        return;
+
+    activeTab = tab;
+    selectedIndex = 0;
+    scrollOffset = 0;
+
+    refreshTabHighlights();
+    rebuildVisibleRecipes();
+    refreshRows();
+}
+
+int CraftingUISystem::tabAtPosition(float x, float y) const
+{
+    if (y < cachedTabY or y > cachedTabY + TAB_ROW_H)
+        return -1;
+
+    float contentW = PANEL_WIDTH - 2 * PANEL_PADDING;
+    float tabW = (contentW - (TAB_COUNT - 1) * TAB_GAP) / static_cast<float>(TAB_COUNT);
+    float tabStartX = getPanelX() + PANEL_PADDING;
+
+    for (size_t i = 0; i < TAB_COUNT; ++i)
+    {
+        float tx = tabStartX + i * (tabW + TAB_GAP);
+        if (x >= tx and x <= tx + tabW)
+            return static_cast<int>(i);
+    }
+    return -1;
+}
+
+void CraftingUISystem::refreshTabHighlights()
+{
+    for (size_t i = 0; i < TAB_COUNT; ++i)
+    {
+        auto ent = ecsRef->getEntity(tabVisuals[i].bgEntityId);
+        if (not ent)
+            continue;
+
+        constant::Vector4D c;
+        if (static_cast<size_t>(activeTab) == i)
+            c = {80.0f, 140.0f, 200.0f, 240.0f};   // Active: bright blue
+        else
+            c = {50.0f, 50.0f, 60.0f, 200.0f};      // Inactive: default dark
+
+        ent->get<Simple2DObject>()->setColors(c);
+    }
 }
 
 void CraftingUISystem::requestCraft()

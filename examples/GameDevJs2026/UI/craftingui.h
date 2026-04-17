@@ -45,6 +45,21 @@ public:
     static constexpr float BUTTON_GAP = 8.0f;
     static constexpr float GAP_BETWEEN_PANELS = 8.0f;
 
+    // Crafting sub-tabs visible in hand-craft mode only
+    enum class CraftTab : uint8_t
+    {
+        All,
+        Tools,
+        Machines,
+        Misc,
+        COUNT
+    };
+
+    static constexpr size_t TAB_COUNT      = static_cast<size_t>(CraftTab::COUNT);
+    static constexpr float  TAB_ROW_H      = 20.0f;
+    static constexpr float  TAB_GAP        = 2.0f;
+    static constexpr float  GAP_AFTER_TABS = 6.0f;
+
     static constexpr size_t MAX_INPUTS    = 3;
     static constexpr float INGR_ICON_SIZE = 16.0f;
     static constexpr float INGR_SLOT_W   = 40.0f;
@@ -151,6 +166,13 @@ private:
     void tintRow(uint64_t bgId, RowTint tint);
     void refreshProgressBar();
 
+    // --- Tabs ----------------------------------------------------------
+
+    CraftTab classifyRecipe(const Recipe& recipe) const;
+    void setActiveTab(CraftTab tab);
+    int  tabAtPosition(float x, float y) const;
+    void refreshTabHighlights();
+
     // --- Craft request -------------------------------------------------
 
     void requestCraft();
@@ -198,6 +220,15 @@ private:
         std::array<uint64_t, MAX_INPUTS> ingrCountEntityId = {};
     };
     std::vector<RowVisual> rowVisuals;
+
+    struct TabVisual
+    {
+        uint64_t bgEntityId   = 0;
+        uint64_t textEntityId = 0;
+    };
+    std::array<TabVisual, TAB_COUNT> tabVisuals = {};
+    CraftTab activeTab = CraftTab::All;
+    float cachedTabY = 0.0f;
 
     uint64_t backdropEntityId = 0;
     uint64_t titleEntityId = 0;
