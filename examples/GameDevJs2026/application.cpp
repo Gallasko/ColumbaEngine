@@ -204,7 +204,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<TweenSystem>();
 
         auto* manualMining = ecs.createSystem<ManualMiningSystem>(
-            gridSystem, cameraSystem, playerInvSystem, &itemRegistry, screenW, screenH);
+            gridSystem, cameraSystem, playerInvSystem, &itemRegistry, hotbar, screenW, screenH);
 
         ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining);
     });

@@ -66,7 +66,7 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
     {
         if (event.button == SDL_BUTTON_LEFT)
         {
-            bool onAnyPanel = false;
+            bool onAnyPanel = (hotbar and hotbar->isMouseOverHotbar(event.pos.y));
             if (inventoryUI and inventoryUI->isOpen())
                 onAnyPanel = onAnyPanel or inventoryUI->isClickOnPanel(event.pos.x, event.pos.y);
             if (minerUI and minerUI->isOpen())

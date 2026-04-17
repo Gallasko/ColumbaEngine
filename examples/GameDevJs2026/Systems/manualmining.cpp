@@ -30,6 +30,36 @@ void ManualMiningSystem::onEvent(const TickEvent& event)
     frameDelta += event.tick;
 }
 
+void ManualMiningSystem::onEvent(const InventoryOpenedEvent&)
+{
+    uiOpen = true;
+}
+
+void ManualMiningSystem::onEvent(const InventoryClosedEvent&)
+{
+    uiOpen = false;
+}
+
+uint8_t ManualMiningSystem::getEquippedToolTier() const
+{
+    if (not hotbar)
+        return 0;
+    const auto& item = hotbar->getSelectedItem();
+    if (item.isEmpty())
+        return 0;
+    return itemRegistry->get(item.id).toolTier;
+}
+
+float ManualMiningSystem::getEquippedMiningSpeed() const
+{
+    if (not hotbar)
+        return 1.0f;
+    const auto& item = hotbar->getSelectedItem();
+    if (item.isEmpty())
+        return 1.0f;
+    return itemRegistry->get(item.id).miningSpeedMult;
+}
+
 void ManualMiningSystem::execute()
 {
     // Process accumulated time in 100ms chunks for idle fade
@@ -61,7 +91,7 @@ void ManualMiningSystem::execute()
 
 void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
 {
-    if (not miningEnabled)
+    if (not miningEnabled or uiOpen)
         return;
 
     if (event.button != SDL_BUTTON_LEFT)
@@ -86,12 +116,21 @@ void ManualMiningSystem::onProcessEvent(const OnMouseClick& event)
     if (not isMinableTerrain(terrain))
         return;
 
-    int hitsNeeded = terrainHitsRequired(terrain);
-    if (hitsNeeded <= 0)
+    // Check tool tier requirement
+    uint8_t requiredTier = terrainTier(terrain);
+    uint8_t equippedTier = getEquippedToolTier();
+    if (equippedTier < requiredTier)
         return;
 
-    // If clicking a different tile, reset progress
-    if (gx != targetGridX or gy != targetGridY)
+    int baseHits = terrainHitsRequired(terrain);
+    if (baseHits <= 0)
+        return;
+
+    float speedMult = getEquippedMiningSpeed();
+    int hitsNeeded = std::max(1, static_cast<int>(std::ceil(baseHits / speedMult)));
+
+    // If clicking a different tile or tool changed hits, reset progress
+    if (gx != targetGridX or gy != targetGridY or hitsNeeded != requiredHits)
     {
         targetGridX = gx;
         targetGridY = gy;

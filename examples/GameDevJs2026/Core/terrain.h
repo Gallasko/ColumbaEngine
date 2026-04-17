@@ -71,6 +71,22 @@ inline ItemId terrainToItem(TerrainType t)
     }
 }
 
+// Minimum tool tier required to mine this terrain.
+// 0 = bare hands, 1 = stone tools, 2 = iron tools.
+inline uint8_t terrainTier(TerrainType t)
+{
+    switch (t)
+    {
+        case TerrainType::Tree:      return 0;
+        case TerrainType::Rock:      return 0;
+        case TerrainType::OreStone:  return 0;
+        case TerrainType::OreCoal:   return 1;
+        case TerrainType::OreCopper: return 1;
+        case TerrainType::OreIron:   return 2;
+        default:                     return 0;
+    }
+}
+
 // Number of hits required to mine each terrain type by hand.
 inline int terrainHitsRequired(TerrainType t)
 {

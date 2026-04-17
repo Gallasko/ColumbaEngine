@@ -8,6 +8,8 @@
 #include "camerasystem.h"
 #include "playerinventory.h"
 #include "itemregistry.h"
+#include "inventoryui.h"
+#include "hotbarsystem.h"
 #include "terrain.h"
 
 using namespace pg;
@@ -23,14 +25,17 @@ struct ManualMineCompletedEvent
 
 class ManualMiningSystem : public System<InitSys,
                                           Listener<TickEvent>,
+                                          Listener<InventoryOpenedEvent>,
+                                          Listener<InventoryClosedEvent>,
                                           QueuedListener<OnMouseClick>>
 {
 public:
     ManualMiningSystem(GridSystem* gridSystem, CameraSystem* cameraSystem,
                        PlayerInventorySystem* playerInv, ItemRegistry* itemRegistry,
+                       HotbarSystem* hotbar,
                        float screenWidth, float screenHeight)
         : gridSystem(gridSystem), cameraSystem(cameraSystem),
-          playerInv(playerInv), itemRegistry(itemRegistry),
+          playerInv(playerInv), itemRegistry(itemRegistry), hotbar(hotbar),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
 
     virtual std::string getSystemName() const override { return "Manual Mining System"; }
@@ -39,6 +44,8 @@ public:
     void execute() override;
 
     virtual void onEvent(const TickEvent& event) override;
+    virtual void onEvent(const InventoryOpenedEvent&) override;
+    virtual void onEvent(const InventoryClosedEvent&) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
 
     // Called by GameSystem to enable/disable mining (disabled when a building is selected)
@@ -62,6 +69,10 @@ private:
     void startBarFadeOut();
     void cancelBarFade();
     void hideProgressBar();
+
+    // Tool queries
+    uint8_t getEquippedToolTier() const;
+    float getEquippedMiningSpeed() const;
 
     // Ghost float animation
     void spawnGhostAnimation(float worldX, float worldY, ItemId itemId);
@@ -97,11 +108,13 @@ private:
     CameraSystem* cameraSystem = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     ItemRegistry* itemRegistry = nullptr;
+    HotbarSystem* hotbar = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
     float hotbarHeight = 48.0f;
 
     bool miningEnabled = true;
+    bool uiOpen = false;
     size_t tickAccumulator = 0;
     size_t frameDelta = 0; // Raw delta for ghost animations
 };

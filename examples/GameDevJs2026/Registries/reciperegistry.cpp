@@ -142,5 +142,17 @@ RecipeRegistry createDefaultRecipeRegistry()
         {}
     });
 
+    // Iron Pickaxe (hand): 3 Iron Plate + 2 Wood → 1 Iron Pickaxe.
+    // Unlocks after crafting a Stone Pickaxe.
+    // Item IDs: 5=Iron Plate, 15=Wood, 30=Iron Pickaxe
+    reg.addRecipe({
+        "Craft Iron Pickaxe",
+        0, {{5, 3}, {15, 2}}, {{30, 1}}, 4000,
+        RecipeCategory::HandCraft,
+        {
+            pg::FactChecker{std::string("crafted_stone_pickaxe"), 1, pg::FactCheckEquality::GreaterEqual}
+        }
+    });
+
     return reg;
 }
