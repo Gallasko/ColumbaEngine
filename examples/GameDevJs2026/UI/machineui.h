@@ -9,6 +9,8 @@
 
 using namespace pg;
 
+class CraftingUISystem;
+
 // Side-panel UI for Furnace (tileId 5) and Assembler (tileId 6).
 // Shows input slot(s), output slot and a crafting progress bar.
 // Mirrors the MinerUISystem pattern exactly.
@@ -46,6 +48,8 @@ public:
     bool isOpen() const { return visible; }
 
     bool isClickOnPanel(float x, float y) const;
+
+    void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
 
     void open(int gridX, int gridY, uint16_t tileId);
     void close();
@@ -97,6 +101,7 @@ private:
     ItemRegistry* itemRegistry = nullptr;
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
+    CraftingUISystem* craftingUI = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 

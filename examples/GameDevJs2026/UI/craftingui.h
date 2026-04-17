@@ -14,10 +14,12 @@ using namespace pg;
 // Docked side-panel (right of the inventory) that lists the player's
 // unlocked hand-craft recipes, lets them pick one, and shows a progress
 // bar while a craft is in-flight.
+// In machine mode (setMachineMode) it shows that machine's recipes instead.
 class CraftingUISystem : public System<InitSys,
                                        QueuedListener<OnSDLScanCode>,
                                        QueuedListener<OnMouseClick>,
                                        QueuedListener<TickEvent>,
+                                       QueuedListener<OnSDLMouseWheel>,
                                        Listener<HandCraftCompletedEvent>,
                                        Listener<InventoryOpenedEvent>,
                                        Listener<InventoryClosedEvent>>
@@ -69,6 +71,12 @@ public:
 
     void init() override {}
 
+    // Switch the recipe list to show recipes for the given machine type.
+    // Call before openInventory() so it takes effect when the panel opens.
+    // Also safe to call while the panel is already open.
+    void setMachineMode(uint16_t tileId);
+    void clearMachineMode();
+
     // --- Inventory sync ------------------------------------------------
 
     virtual void onProcessEvent(const TickEvent&) override;
@@ -77,6 +85,7 @@ public:
     virtual void onEvent(const InventoryClosedEvent&) override;
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
+    virtual void onProcessEvent(const OnSDLMouseWheel& event) override;
 
 private:
     // --- Open / close --------------------------------------------------
@@ -102,6 +111,12 @@ private:
     void rebuildVisibleRecipes();
     void moveSelection(int delta);
     void ensureSelectionVisible();
+
+    // --- Mode visuals --------------------------------------------------
+
+    // Apply title / button / progress-bar visibility for the current
+    // activeMachineType, then rebuild and refresh the recipe list.
+    void applyModeToPanel();
 
     // --- Rendering -----------------------------------------------------
 
@@ -149,6 +164,9 @@ private:
 
     bool visible = false;
     bool panelCreated = false;
+
+    // 0 = hand-craft mode; 5 = Furnace; 6 = Assembler
+    uint16_t activeMachineType = 0;
 
     std::vector<size_t> visibleRecipes; // Indices into recipeRegistry->recipes
     size_t selectedIndex = 0;

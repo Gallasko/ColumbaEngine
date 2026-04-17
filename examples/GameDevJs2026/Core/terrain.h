@@ -82,7 +82,7 @@ inline uint8_t terrainTier(TerrainType t)
         case TerrainType::OreStone:  return 0;
         case TerrainType::OreCoal:   return 1;
         case TerrainType::OreCopper: return 1;
-        case TerrainType::OreIron:   return 2;
+        case TerrainType::OreIron:   return 1;
         default:                     return 0;
     }
 }

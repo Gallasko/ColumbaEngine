@@ -71,18 +71,20 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     float x = event.pos.x;
     float y = event.pos.y;
 
-    // Craft button
-    if (isPointInRect(x, y, craftButtonX, craftButtonY, BUTTON_W, BUTTON_H))
+    // Craft / Cancel buttons only active in hand-craft mode
+    if (activeMachineType == 0)
     {
-        requestCraft();
-        return;
-    }
+        if (isPointInRect(x, y, craftButtonX, craftButtonY, BUTTON_W, BUTTON_H))
+        {
+            requestCraft();
+            return;
+        }
 
-    // Cancel button
-    if (isPointInRect(x, y, cancelButtonX, cancelButtonY, BUTTON_W, BUTTON_H))
-    {
-        ecsRef->sendEvent(HandCraftCancel{});
-        return;
+        if (isPointInRect(x, y, cancelButtonX, cancelButtonY, BUTTON_W, BUTTON_H))
+        {
+            ecsRef->sendEvent(HandCraftCancel{});
+            return;
+        }
     }
 
     // Row hit test
@@ -98,14 +100,82 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     }
 }
 
+void CraftingUISystem::onProcessEvent(const OnSDLMouseWheel& event)
+{
+    if (not visible or visibleRecipes.empty())
+        return;
+
+    int maxOffset = static_cast<int>(visibleRecipes.size()) - static_cast<int>(VISIBLE_ROWS);
+    if (maxOffset <= 0)
+        return;
+
+    // SDL: event.y > 0 = scroll up = show earlier recipes (decrease offset)
+    int newOffset = static_cast<int>(scrollOffset) - event.y;
+    if (newOffset < 0) newOffset = 0;
+    if (newOffset > maxOffset) newOffset = maxOffset;
+    scrollOffset = static_cast<size_t>(newOffset);
+    refreshRows();
+}
+
+// ---------------------------------------------------------------------------
+// setMachineMode / clearMachineMode
+// ---------------------------------------------------------------------------
+
+void CraftingUISystem::setMachineMode(uint16_t tileId)
+{
+    activeMachineType = tileId;
+    selectedIndex = 0;
+    scrollOffset = 0;
+    if (visible)
+        applyModeToPanel();
+}
+
+void CraftingUISystem::clearMachineMode()
+{
+    activeMachineType = 0;
+    selectedIndex = 0;
+    scrollOffset = 0;
+    if (visible)
+        applyModeToPanel();
+}
+
+void CraftingUISystem::applyModeToPanel()
+{
+    bool handCraft = (activeMachineType == 0);
+
+    // Update title text
+    if (titleEntityId != 0)
+    {
+        auto titleEnt = ecsRef->getEntity(titleEntityId);
+        if (titleEnt)
+        {
+            const char* text = (activeMachineType == 5) ? "Furnace" :
+                               (activeMachineType == 6) ? "Assembler" : "Craft";
+            titleEnt->get<TTFText>()->setText(text);
+        }
+    }
+
+    // Show/hide hand-craft-only elements (buttons + progress bar)
+    setEntityVisibility(craftButtonBgEntityId,   handCraft);
+    setEntityVisibility(craftButtonTextEntityId, handCraft);
+    setEntityVisibility(cancelButtonBgEntityId,   handCraft);
+    setEntityVisibility(cancelButtonTextEntityId, handCraft);
+    setEntityVisibility(progressBgEntityId,       handCraft);
+    setEntityVisibility(progressFillEntityId,     handCraft);
+
+    rebuildVisibleRecipes();
+    refreshRows();
+}
+
+// ---------------------------------------------------------------------------
+// open / close
+// ---------------------------------------------------------------------------
+
 void CraftingUISystem::open()
 {
     visible = true;
     ensurePanelCreated();
-    rebuildVisibleRecipes();
 
-    // Pair our click region with the inventory UI so clicks on our
-    // panel don't cancel held items / close the inventory.
     if (inventoryUI)
     {
         inventoryUI->setExternalClickCheck(
@@ -113,16 +183,15 @@ void CraftingUISystem::open()
     }
 
     setPanelVisibility(true);
-    refreshRows();
+    applyModeToPanel();
     refreshProgressBar();
 }
 
 void CraftingUISystem::close()
 {
     visible = false;
+    activeMachineType = 0;
 
-    // Only clear the external click check if it's still pointing at us.
-    // (Other UIs may have overridden it — best-effort.)
     if (inventoryUI)
         inventoryUI->setExternalClickCheck(nullptr);
 
@@ -369,14 +438,31 @@ void CraftingUISystem::createPanel()
 void CraftingUISystem::rebuildVisibleRecipes()
 {
     visibleRecipes.clear();
-    for (size_t i = 0; i < recipeRegistry->recipes.size(); ++i)
+
+    if (activeMachineType != 0)
     {
-        const Recipe& r = recipeRegistry->recipes[i];
-        if (r.category != RecipeCategory::HandCraft)
-            continue;
-        if (not handCrafting->isUnlocked(r))
-            continue;
-        visibleRecipes.push_back(i);
+        // Machine mode: show all recipes for this machine type
+        RecipeCategory cat = (activeMachineType == 5) ? RecipeCategory::Furnace
+                                                      : RecipeCategory::Assembler;
+        for (size_t i = 0; i < recipeRegistry->recipes.size(); ++i)
+        {
+            const Recipe& r = recipeRegistry->recipes[i];
+            if (r.category == cat and r.machineType == activeMachineType)
+                visibleRecipes.push_back(i);
+        }
+    }
+    else
+    {
+        // Hand-craft mode
+        for (size_t i = 0; i < recipeRegistry->recipes.size(); ++i)
+        {
+            const Recipe& r = recipeRegistry->recipes[i];
+            if (r.category != RecipeCategory::HandCraft)
+                continue;
+            if (not handCrafting->isUnlocked(r))
+                continue;
+            visibleRecipes.push_back(i);
+        }
     }
 
     if (visibleRecipes.empty())
@@ -523,18 +609,26 @@ void CraftingUISystem::refreshRows()
             }
         }
 
-        // Background tint: selected / can-craft / insufficient.
+        // Background tint
         RowTint tint = RowTint::Idle;
-        if (absIdx == selectedIndex)
-            tint = handCrafting->canCraft(recipe) ? RowTint::SelectedOk : RowTint::SelectedBad;
-        else if (handCrafting->canCraft(recipe))
-            tint = RowTint::CanCraft;
+        if (activeMachineType == 0)
+        {
+            // Hand-craft mode: colour by can-craft status
+            if (absIdx == selectedIndex)
+                tint = handCrafting->canCraft(recipe) ? RowTint::SelectedOk : RowTint::SelectedBad;
+            else if (handCrafting->canCraft(recipe))
+                tint = RowTint::CanCraft;
+            else
+                tint = RowTint::Insufficient;
+        }
         else
-            tint = RowTint::Insufficient;
+        {
+            // Machine mode: just highlight selected
+            tint = (absIdx == selectedIndex) ? RowTint::SelectedOk : RowTint::Idle;
+        }
         tintRow(row.bgEntityId, tint);
     }
 }
-
 
 void CraftingUISystem::tintRow(uint64_t bgId, RowTint tint)
 {
@@ -557,6 +651,9 @@ void CraftingUISystem::tintRow(uint64_t bgId, RowTint tint)
 
 void CraftingUISystem::refreshProgressBar()
 {
+    if (activeMachineType != 0)
+        return; // Progress bar is hidden in machine mode
+
     auto fillEnt = ecsRef->getEntity(progressFillEntityId);
     if (not fillEnt)
         return;

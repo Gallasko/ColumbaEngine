@@ -77,13 +77,13 @@ ItemRegistry createDefaultItemRegistry()
     // Buildings (IDs 24-28) — placeable from hotbar, linked to BuildingDef by tileId
     reg.addItem({0, "Conveyor Belt", "Conveyor_Belt.152", ItemCategory::Building, 100, 4});
     reg.addItem({0, "Furnace",       "Stone_Furnace.0",          ItemCategory::Building, 50,  5, 0, 1.0f, 2.0f/3.0f});
-    reg.addItem({0, "Assembler",     "Assembler_Machine_1.0",    ItemCategory::Building, 50,  6});
+    reg.addItem({0, "Assembler",     "Assembler_Machine_1.0",    ItemCategory::Building, 50,  6, 0, 1.0f, 2.0f/3.0f});
     reg.addItem({0, "Miner",         "Miner_Machine_1.0", ItemCategory::Building, 50,  7});
     reg.addItem({0, "Inserter",      "Robotic_Arms_1.0",  ItemCategory::Building, 50,  8});
 
     // Tools (IDs 29-30)
-    reg.addItem({0, "Stone Pickaxe", "PixelwoodIcons.71", ItemCategory::Product, 1, 0, 1, 1.5f});
-    reg.addItem({0, "Iron Pickaxe",  "PixelwoodIcons.71", ItemCategory::Product, 1, 0, 2, 2.0f});
+    reg.addItem({0, "Stone Pickaxe", "PixelwoodIcons.72", ItemCategory::Product, 1, 0, 1, 1.5f});
+    reg.addItem({0, "Iron Pickaxe",  "PixelwoodIcons.73", ItemCategory::Product, 1, 0, 2, 2.0f});
 
     return reg;
 }

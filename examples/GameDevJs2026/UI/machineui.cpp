@@ -1,4 +1,5 @@
 #include "machineui.h"
+#include "craftingui.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -33,6 +34,11 @@ void MachineUISystem::open(int gridX, int gridY, uint16_t tileId)
     openMachineType = tileId;
     visible = true;
 
+    // Switch the crafting-recipe panel to show this machine's recipes.
+    // Must happen before openInventory() so it takes effect when the panel opens.
+    if (craftingUI)
+        craftingUI->setMachineMode(tileId);
+
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
 
@@ -53,6 +59,10 @@ void MachineUISystem::close()
         inventoryUI->cancelHeld();
 
     inventoryUI->setExternalClickCheck(nullptr);
+
+    // Return the crafting-recipe panel to hand-craft mode.
+    if (craftingUI)
+        craftingUI->clearMachineMode();
 
     // Hide item/count entities
     for (int i = 0; i < 2; ++i)

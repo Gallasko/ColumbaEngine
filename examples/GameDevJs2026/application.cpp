@@ -235,6 +235,8 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             handCrafting, &recipeRegistry, &itemRegistry, playerInvSystem,
             worldFacts, inventoryUI, screenW, screenH);
 
+        machineUI->setCraftingUI(craftingUI);
+
         ecs.createSystem<TweenSystem>();
 
         auto* manualMining = ecs.createSystem<ManualMiningSystem>(
