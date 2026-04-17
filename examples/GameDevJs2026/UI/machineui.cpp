@@ -37,7 +37,12 @@ void MachineUISystem::open(int gridX, int gridY, uint16_t tileId)
     // Switch the crafting-recipe panel to show this machine's recipes.
     // Must happen before openInventory() so it takes effect when the panel opens.
     if (craftingUI)
+    {
+        craftingUI->setMachineFeedCallback([this](const Recipe& recipe) {
+            feedMachineFromPlayer(recipe);
+        });
         craftingUI->setMachineMode(tileId);
+    }
 
     if (inventoryUI and not inventoryUI->isOpen())
         inventoryUI->openInventory();
@@ -62,7 +67,10 @@ void MachineUISystem::close()
 
     // Return the crafting-recipe panel to hand-craft mode.
     if (craftingUI)
+    {
+        craftingUI->setMachineFeedCallback(nullptr);
         craftingUI->clearMachineMode();
+    }
 
     // Hide item/count entities
     for (int i = 0; i < 2; ++i)
@@ -401,6 +409,32 @@ void MachineUISystem::refreshProgressBar()
     auto fillEnt = ecsRef->getEntity(progressFillEntityId);
     if (fillEnt)
         fillEnt->get<PositionComponent>()->setWidth(cachedBarMaxW * progress);
+}
+
+// ---------------------------------------------------------------------------
+// Feed machine from player inventory (double-click callback)
+// ---------------------------------------------------------------------------
+
+void MachineUISystem::feedMachineFromPlayer(const Recipe& recipe)
+{
+    MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
+    if (not machine) return;
+
+    // Check player has all ingredients before touching any inventory
+    for (const auto& ing : recipe.inputs)
+        if (not playerInv->hasItem(ing.id, ing.count))
+            return;
+
+    // Transfer each ingredient from player to machine input slots
+    for (const auto& ing : recipe.inputs)
+    {
+        playerInv->getInventory().remove(ing.id, ing.count);
+        machine->inputSlots.insert(ing.id, ing.count, *itemRegistry);
+    }
+
+    refreshAllSlots();
+    if (inventoryUI)
+        inventoryUI->refreshAllSlots();
 }
 
 // ---------------------------------------------------------------------------

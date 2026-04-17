@@ -9,6 +9,9 @@
 #include "reciperegistry.h"
 #include "worldfacts.h"
 
+#include <functional>
+#include <cstdint>
+
 using namespace pg;
 
 // Docked side-panel (right of the inventory) that lists the player's
@@ -46,8 +49,8 @@ public:
     static constexpr float INGR_ICON_SIZE = 16.0f;
     static constexpr float INGR_SLOT_W   = 40.0f;
 
-    static constexpr float TEXT_SCALE = 0.28f;
-    static constexpr float TITLE_SCALE = 0.38f;
+    static constexpr float TEXT_SCALE = 0.4f;
+    static constexpr float TITLE_SCALE = 0.5f;
 
     static constexpr const char* FONT_PATH = "res/font/Inter/static/Inter_28pt-Light.ttf";
 
@@ -76,6 +79,13 @@ public:
     // Also safe to call while the panel is already open.
     void setMachineMode(uint16_t tileId);
     void clearMachineMode();
+
+    // Set a callback invoked when the player double-clicks a recipe row in
+    // machine mode.  MachineUISystem sets this to feed the open machine.
+    void setMachineFeedCallback(std::function<void(const Recipe&)> cb)
+    {
+        machineFeedCallback = std::move(cb);
+    }
 
     // --- Inventory sync ------------------------------------------------
 
@@ -195,4 +205,9 @@ private:
     float cancelButtonX = 0.0f, cancelButtonY = 0.0f;
     float cachedBarX = 0.0f, cachedBarMaxW = 0.0f;
     float cachedListX = 0.0f, cachedListY = 0.0f, cachedRowW = 0.0f;
+
+    // Machine-mode double-click to feed
+    std::function<void(const Recipe&)> machineFeedCallback;
+    uint32_t lastClickTime   = 0;
+    int      lastClickRowAbs = -1;
 };

@@ -1,4 +1,5 @@
 #include "camerasystem.h"
+#include "inventoryui.h"
 
 #include <SDL2/SDL.h>
 
@@ -29,6 +30,11 @@ void CameraSystem::init()
 void CameraSystem::onEvent(const OnSDLMouseWheel& event)
 {
     if (event.y == 0)
+        return;
+
+    // Don't zoom terrain when the inventory/crafting panel is open —
+    // the wheel event should go to the crafting list scroll instead.
+    if (inventoryUI and inventoryUI->isOpen())
         return;
 
     float oldZoom = zoomLevel;

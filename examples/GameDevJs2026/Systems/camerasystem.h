@@ -10,6 +10,8 @@
 
 using namespace pg;
 
+class InventoryUISystem;
+
 // Free-roam 2D camera using BaseCamera2D directly.
 // BaseCamera2D::x/y = top-left of viewport in world space.
 // We control x/y/width/height directly — no FollowCamera2D.
@@ -27,6 +29,8 @@ class CameraSystem : public System<
 public:
     CameraSystem(MasterRenderer* masterRenderer, float screenWidth, float screenHeight)
         : masterRenderer(masterRenderer), baseWidth(screenWidth), baseHeight(screenHeight) {}
+
+    void setInventoryUI(InventoryUISystem* inv) { inventoryUI = inv; }
 
     virtual std::string getSystemName() const override { return "Camera System"; }
 
@@ -77,4 +81,6 @@ private:
     bool moveDown = false;
     bool moveLeft = false;
     bool moveRight = false;
+
+    InventoryUISystem* inventoryUI = nullptr;
 };

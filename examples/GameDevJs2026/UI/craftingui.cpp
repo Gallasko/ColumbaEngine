@@ -5,6 +5,22 @@
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
+#include <cstring>
+
+// Strip common crafting prefixes from recipe names shown in the UI.
+static std::string stripCraftingPrefix(const std::string& name)
+{
+    static const char* prefixes[] = {
+        "Hand-Smelt ", "Hand-Craft ", "Smelt ", "Make ", "Craft "
+    };
+    for (const char* p : prefixes)
+    {
+        size_t len = std::strlen(p);
+        if (name.size() > len && name.compare(0, len, p) == 0)
+            return name.substr(len);
+    }
+    return name;
+}
 
 bool CraftingUISystem::isClickOnPanel(float x, float y) const
 {
@@ -94,6 +110,24 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
         size_t absIndex = scrollOffset + static_cast<size_t>(rowIndex);
         if (absIndex < visibleRecipes.size())
         {
+            uint32_t now = static_cast<uint32_t>(SDL_GetTicks());
+            bool isDoubleClick = (activeMachineType != 0)
+                              && (lastClickRowAbs == static_cast<int>(absIndex))
+                              && (now - lastClickTime <= 400u);
+
+            if (isDoubleClick && machineFeedCallback)
+            {
+                const Recipe& recipe = recipeRegistry->recipes[visibleRecipes[absIndex]];
+                machineFeedCallback(recipe);
+                lastClickTime   = 0;
+                lastClickRowAbs = -1;
+            }
+            else
+            {
+                lastClickTime   = now;
+                lastClickRowAbs = static_cast<int>(absIndex);
+            }
+
             selectedIndex = absIndex;
             refreshRows();
         }
@@ -349,7 +383,7 @@ void CraftingUISystem::createPanel()
 
             auto cnt = makeTTFText(ecsRef,
                 ix + INGR_ICON_SIZE + 2.0f, ingrY + 2.0f, 100.0f,
-                FONT_PATH, "", 0.22f, {200.0f, 200.0f, 210.0f, 255.0f});
+                FONT_PATH, "", TEXT_SCALE, {200.0f, 200.0f, 210.0f, 255.0f});
             cnt.get<TTFText>()->setViewport(UI_VP);
             cnt.get<PositionComponent>()->setVisibility(false);
             rowVisuals[i].ingrCountEntityId[j] = cnt.entity->id;
@@ -572,11 +606,11 @@ void CraftingUISystem::refreshRows()
             setEntityVisibility(row.outputItemEntityId, false);
         }
 
-        // Recipe name
+        // Recipe name (strip redundant "Craft "/"Smelt "/etc. prefix)
         auto nameEnt = ecsRef->getEntity(row.nameEntityId);
         if (nameEnt)
         {
-            nameEnt->get<TTFText>()->setText(recipe.name);
+            nameEnt->get<TTFText>()->setText(stripCraftingPrefix(recipe.name));
             nameEnt->get<PositionComponent>()->setVisibility(true);
         }
 

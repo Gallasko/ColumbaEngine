@@ -59,6 +59,10 @@ public:
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
 
+    // Called by the machine-feed callback when the player double-clicks a recipe.
+    // Checks the player has all ingredients and moves them into the machine input slots.
+    void feedMachineFromPlayer(const Recipe& recipe);
+
 private:
     // Panel width  = 2*SLOT_SIZE + ARROW_GAP + 2*PANEL_PADDING = 124px
     // Panel height = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
