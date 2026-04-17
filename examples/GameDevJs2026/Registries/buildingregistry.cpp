@@ -37,7 +37,7 @@ BuildingRegistry createDefaultRegistry()
         "Furnace",
         "Stone_Furnace",                               // idle atlas
         {200.0f, 100.0f, 60.0f, 255.0f},
-        2, 3,                                          // 2x3 matches sprite (32x48)
+        2, 3,                                          // 2x3 matches idle sprite (32x48)
         PlacementMode::ClickToPlace,
         false,
         false                                          // animation managed by CraftingSystem

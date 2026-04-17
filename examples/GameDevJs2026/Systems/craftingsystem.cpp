@@ -24,6 +24,18 @@ void CraftingSystem::load(const UnserializedObject& serializedString)
         machine.entityId = cell.entityId;
         machine.animFrame = 0;
         machine.isCrafting = (machine.currentRecipe != nullptr);
+
+        // Furnace active sprite is 64px tall; restore correct size after load
+        if (machine.machineType == 5 and machine.isCrafting)
+        {
+            auto ent = ecsRef->getEntity(machine.entityId);
+            if (ent)
+            {
+                auto pos = ent->get<PositionComponent>();
+                pos->setY(pos->getY() - 16.0f);
+                pos->setHeight(64.0f);
+            }
+        }
     }
 }
 
@@ -164,6 +176,13 @@ void CraftingSystem::craftTick()
                             : "Assembler_Machine_1_Running";
                         ent->get<Texture2DComponent>()->setTexture(atlas + ".0");
                     }
+                    // Furnace active sprite is 32x64 (grows upward by 16px)
+                    if (machine.machineType == 5 and ent)
+                    {
+                        auto pos = ent->get<PositionComponent>();
+                        pos->setY(pos->getY() - 16.0f);
+                        pos->setHeight(64.0f);
+                    }
                 }
             }
         }
@@ -203,6 +222,13 @@ void CraftingSystem::craftTick()
                             ? "Stone_Furnace.0"
                             : "Assembler_Machine_1.0";
                         ent->get<Texture2DComponent>()->setTexture(idle);
+                    }
+                    // Restore furnace to idle size (32x48)
+                    if (machine.machineType == 5 and ent)
+                    {
+                        auto pos = ent->get<PositionComponent>();
+                        pos->setY(pos->getY() + 16.0f);
+                        pos->setHeight(48.0f);
                     }
                 }
                 // else: output full, craft stalls — isCrafting stays true, animation continues
