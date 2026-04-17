@@ -1161,6 +1161,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/minerui.cpp
             examples/GameDevJs2026/UI/craftingui.cpp
             examples/GameDevJs2026/UI/machineui.cpp
+            examples/GameDevJs2026/UI/tooltipsystem.cpp
         )
 
         target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)

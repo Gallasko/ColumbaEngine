@@ -67,6 +67,15 @@ void HotbarSystem::onProcessEvent(const OnSDLMouseMotion& event)
     lastMouseY = static_cast<float>(event.y);
 }
 
+ItemId HotbarSystem::itemAtPosition(float x, float y) const
+{
+    int idx = slotAtPosition(x, y);
+    if (idx < 0) return ITEM_NONE;
+    const auto& stack = playerInv->getInventory()
+        .getSlot(PlayerInventorySystem::HOTBAR_START + static_cast<size_t>(idx));
+    return stack.isEmpty() ? ITEM_NONE : stack.id;
+}
+
 void HotbarSystem::selectSlot(size_t index)
 {
     if (index == selectedSlot)

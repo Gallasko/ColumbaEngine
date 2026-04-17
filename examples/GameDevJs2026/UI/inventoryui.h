@@ -43,6 +43,10 @@ public:
 
     bool isClickOnPanel(float x, float y) const;
 
+    // Returns the ItemId under screen-space (x,y), or ITEM_NONE if panel is
+    // closed or the position is not over a non-empty slot.
+    ItemId itemAtPosition(float x, float y) const;
+
     // --- External Slot Support (for miner UI, etc.) ---
 
     bool hasHeldItem() const { return not heldItem.isEmpty(); }

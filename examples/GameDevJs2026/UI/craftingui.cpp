@@ -374,19 +374,20 @@ void CraftingUISystem::createPanel()
         {
             float ix = textAreaX + static_cast<float>(j) * INGR_SLOT_W;
 
-            auto icon = make2DTexture(ecsRef, INGR_ICON_SIZE, INGR_ICON_SIZE, "NoneIcon");
-            auto iPos = icon.get<PositionComponent>();
-            iPos->setX(ix); iPos->setY(ingrY); iPos->setZ(99.0f);
-            iPos->setVisibility(false);
-            icon.get<Texture2DComponent>()->setViewport(UI_VP);
-            rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
-
+            // Count label first ("Nx"), then icon to its right
             auto cnt = makeTTFText(ecsRef,
-                ix + INGR_ICON_SIZE + 2.0f, ingrY + 2.0f, 100.0f,
+                ix, ingrY + 2.0f, 100.0f,
                 FONT_PATH, "", TEXT_SCALE, {200.0f, 200.0f, 210.0f, 255.0f});
             cnt.get<TTFText>()->setViewport(UI_VP);
             cnt.get<PositionComponent>()->setVisibility(false);
             rowVisuals[i].ingrCountEntityId[j] = cnt.entity->id;
+
+            auto icon = make2DTexture(ecsRef, INGR_ICON_SIZE, INGR_ICON_SIZE, "NoneIcon");
+            auto iPos = icon.get<PositionComponent>();
+            iPos->setX(ix + 22.0f); iPos->setY(ingrY); iPos->setZ(99.0f);
+            iPos->setVisibility(false);
+            icon.get<Texture2DComponent>()->setViewport(UI_VP);
+            rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
         }
     }
 

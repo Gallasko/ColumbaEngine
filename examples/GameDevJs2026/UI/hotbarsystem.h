@@ -75,6 +75,9 @@ public:
         return mouseY > screenHeight - HOTBAR_HEIGHT;
     }
 
+    // Returns the ItemId at screen-space (x, y), or ITEM_NONE if not over a slot.
+    ItemId itemAtPosition(float x, float y) const;
+
     void setInventoryUI(InventoryUISystem* inv) { inventoryUI = inv; }
 
     // Consume one item from the selected hotbar slot (after building placement)

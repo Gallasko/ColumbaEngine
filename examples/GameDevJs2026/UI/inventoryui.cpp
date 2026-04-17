@@ -24,6 +24,15 @@ bool InventoryUISystem::isClickOnPanel(float x, float y) const
        and y >= panelY and y <= panelY + panelH;
 }
 
+ItemId InventoryUISystem::itemAtPosition(float x, float y) const
+{
+    if (not visible) return ITEM_NONE;
+    int idx = slotAtPosition(x, y);
+    if (idx < 0) return ITEM_NONE;
+    const auto& stack = playerInv->getInventory().getSlot(static_cast<size_t>(idx));
+    return stack.isEmpty() ? ITEM_NONE : stack.id;
+}
+
 void InventoryUISystem::pickUpFromExternal(ItemStack& slot)
 {
     if (slot.isEmpty() or not heldItem.isEmpty())

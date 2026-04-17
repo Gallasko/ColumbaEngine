@@ -46,6 +46,7 @@ public:
     virtual std::string getSystemName() const override { return "Machine UI System"; }
 
     bool isOpen() const { return visible; }
+    uint16_t getOpenMachineType() const { return openMachineType; }
 
     bool isClickOnPanel(float x, float y) const;
 

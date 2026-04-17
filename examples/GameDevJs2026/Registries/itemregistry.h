@@ -27,6 +27,10 @@ struct ItemDef
     uint8_t      toolTier        = 0;   // 0=not a tool, 1=stone, 2=iron, etc.
     float        miningSpeedMult = 1.0f; // Multiplier: 2.0 = halves required hits
     float        iconWidthRatio  = 1.0f; // Width:height ratio for icon display (e.g. 2/3 for furnace)
+    std::string  description;            // Short tooltip description (empty = no description shown)
+    uint8_t      worldSourceTier = 255;  // Tier of tool needed to mine from world:
+                                         //   0=bare hands, 1=stone pickaxe, 2=iron pickaxe,
+                                         //   255=not obtainable from world
 };
 
 struct ItemStack
