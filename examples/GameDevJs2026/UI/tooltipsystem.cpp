@@ -336,7 +336,7 @@ TooltipSystem::TooltipContent TooltipSystem::buildContent(ItemId id) const
         // Source line: "Furnace — 2.0s"
         float secs = static_cast<float>(recipe->craftTimeMs) / 1000.0f;
         char buf[64];
-        std::snprintf(buf, sizeof(buf), "%s  —  %.1fs",
+        std::snprintf(buf, sizeof(buf), "%s - %.1fs",
             machineLabel(recipe->machineType), secs);
         c.sourceLine = buf;
 

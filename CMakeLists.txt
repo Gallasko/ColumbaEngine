@@ -840,6 +840,53 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(GameDevJs2026 examples/GameDevJs2026/main.cpp)
+
+        target_include_directories(GameDevJs2026 PUBLIC
+            examples/GameDevJs2026
+            examples/GameDevJs2026/Core
+            examples/GameDevJs2026/Registries
+            examples/GameDevJs2026/Systems
+            examples/GameDevJs2026/UI
+        )
+
+        target_sources(GameDevJs2026 PRIVATE
+            examples/GameDevJs2026/application.cpp
+            examples/GameDevJs2026/Core/gridatlas.cpp
+            examples/GameDevJs2026/Core/canvasgenerator.cpp
+            examples/GameDevJs2026/Core/worldfacts.cpp
+            examples/GameDevJs2026/Core/saveserialization.cpp
+            examples/GameDevJs2026/Registries/inventory.cpp
+            examples/GameDevJs2026/Registries/itemregistry.cpp
+            examples/GameDevJs2026/Registries/buildingregistry.cpp
+            examples/GameDevJs2026/Registries/reciperegistry.cpp
+            examples/GameDevJs2026/Systems/camerasystem.cpp
+            examples/GameDevJs2026/Systems/gridsystem.cpp
+            examples/GameDevJs2026/Systems/gamesystem.cpp
+            examples/GameDevJs2026/Systems/minersystem.cpp
+            examples/GameDevJs2026/Systems/transportsystem.cpp
+            examples/GameDevJs2026/Systems/insertersystem.cpp
+            examples/GameDevJs2026/Systems/craftingsystem.cpp
+            examples/GameDevJs2026/Systems/handcraftingsystem.cpp
+            examples/GameDevJs2026/Systems/playerinventory.cpp
+            examples/GameDevJs2026/Systems/manualmining.cpp
+            examples/GameDevJs2026/UI/hotbarsystem.cpp
+            examples/GameDevJs2026/UI/inventoryui.cpp
+            examples/GameDevJs2026/UI/minerui.cpp
+            examples/GameDevJs2026/UI/craftingui.cpp
+            examples/GameDevJs2026/UI/machineui.cpp
+            examples/GameDevJs2026/UI/tooltipsystem.cpp
+            examples/GameDevJs2026/UI/tutorialsystem.cpp
+        )
+
+        target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)
+
+        set_target_properties(GameDevJs2026
+            PROPERTIES SUFFIX ".html"
+            LINK_FLAGS "-sWASMFS -s FORCE_FILESYSTEM=1 -sPTHREAD_POOL_SIZE=4 -pthread -s ALLOW_MEMORY_GROWTH=1 -s USE_WEBGL2=1 -s FULL_ES3=1 -s SAFE_HEAP=1 ${USE_FLAGS}")
+
+        ###
+
     else()
         add_executable(ColumbaEngineEditor src/main.cpp)
 
