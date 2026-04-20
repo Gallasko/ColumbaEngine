@@ -102,20 +102,24 @@ RecipeRegistry createDefaultRecipeRegistry()
     // Unlocked-by-default recipes let the player bootstrap production by
     // hand; fact-gated recipes appear as the player discovers / progresses.
 
-    // Iron Gear (hand): basic progression item, always available.
+    // Iron Gear (hand): unlocks once the player has obtained Iron Plate.
     reg.addRecipe({
         "Craft Iron Gear",
         0, {{5, 2}}, {{7, 1}}, 2500,
         RecipeCategory::HandCraft,
-        {}
+        {
+            pg::FactChecker{std::string("discovered_iron_plate"), true, pg::FactCheckEquality::Equal}
+        }
     });
 
-    // Copper Wire (hand): always available.
+    // Copper Wire (hand): unlocks once the player has obtained Copper Plate.
     reg.addRecipe({
         "Craft Copper Wire",
         0, {{6, 1}}, {{8, 2}}, 2000,
         RecipeCategory::HandCraft,
-        {}
+        {
+            pg::FactChecker{std::string("discovered_copper_plate"), true, pg::FactCheckEquality::Equal}
+        }
     });
 
     // Hand-smelt Iron Plate: unlocks once the player has mined Coal at

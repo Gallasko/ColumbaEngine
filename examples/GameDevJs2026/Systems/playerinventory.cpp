@@ -30,10 +30,23 @@ void PlayerInventorySystem::onEvent(const PlayerGainItemEvent& event)
 {
     inventory.insert(event.id, event.count, *itemRegistry);
 
-    // Seed discovery facts on first pickup so recipes can unlock.
-    const auto& def = itemRegistry->get(event.id);
-    if (def.name == "Coal")
-        sendEvent(AddFact{"discovered_coal", ElementType{true}});
+    // Fire a discovered_<name> fact on every item pickup so recipes,
+    // quests and tutorial steps can gate on any item without hardcoding.
+    if (event.id != ITEM_NONE)
+    {
+        const auto& def = itemRegistry->get(event.id);
+        std::string factName = "discovered_";
+        for (char c : def.name)
+        {
+            if (c == ' ')
+                factName.push_back('_');
+            else if (c >= 'A' && c <= 'Z')
+                factName.push_back(static_cast<char>(c - 'A' + 'a'));
+            else
+                factName.push_back(c);
+        }
+        sendEvent(AddFact{factName, ElementType{true}});
+    }
 }
 
 void PlayerInventorySystem::onEvent(const PlayerLoseItemEvent& event)

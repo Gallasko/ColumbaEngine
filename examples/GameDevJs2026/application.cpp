@@ -243,8 +243,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         // World facts (progression/discovery state) must exist before the
         // hand-crafting system and crafting UI query it for unlock checks.
+        // Discovery facts (discovered_<item>) are set generically by
+        // PlayerInventorySystem on first pickup — no defaults needed.
         auto* worldFacts = ecs.createSystem<WorldFacts>();
-        worldFacts->setDefaultFact("discovered_coal", false);
 
         auto* handCrafting = ecs.createSystem<HandCraftingSystem>(
             playerInvSystem, &itemRegistry, &recipeRegistry, worldFacts);
