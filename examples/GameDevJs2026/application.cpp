@@ -204,13 +204,14 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         // UI camera at viewport 2 — needed by hotbar, inventory panel, crafting UI, etc.
+        auto uiCam = ecs.createEntity();
         {
-            auto uiCam = ecs.createEntity();
             auto cam = ecs._attach<BaseCamera2D>(uiCam);
             cam->setWidth(screenW);
             cam->setHeight(screenH);
             window.masterRenderer->queueRegisterCamera(uiCam->id);
         }
+        cameraSystem->setUiCameraEntity(uiCam);
 
         auto* hotbar = ecs.createSystem<HotbarSystem>(
             playerInvSystem, &itemRegistry, &registry, screenW, screenH);

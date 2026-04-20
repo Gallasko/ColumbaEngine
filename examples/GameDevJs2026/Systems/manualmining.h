@@ -25,6 +25,7 @@ struct ManualMineCompletedEvent
 
 class ManualMiningSystem : public System<InitSys,
                                           Listener<TickEvent>,
+                                          Listener<ResizeEvent>,
                                           Listener<InventoryOpenedEvent>,
                                           Listener<InventoryClosedEvent>,
                                           QueuedListener<OnMouseClick>>
@@ -44,6 +45,11 @@ public:
     void execute() override;
 
     virtual void onEvent(const TickEvent& event) override;
+    virtual void onEvent(const ResizeEvent& event) override
+    {
+        screenWidth = event.width;
+        screenHeight = event.height;
+    }
     virtual void onEvent(const InventoryOpenedEvent&) override;
     virtual void onEvent(const InventoryClosedEvent&) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;

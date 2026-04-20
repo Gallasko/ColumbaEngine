@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
+#include "ECS/entitysystem_fwd.h"
 #include "Input/inputcomponent.h"
 
 #include "inventoryui.h"
@@ -18,7 +19,8 @@ using namespace pg;
 // The tooltip displays the item name, category, description, and how to obtain it
 // (crafting recipe or world mining source).  When the machine UI is open the
 // recipe shown is filtered to prefer that machine's recipes.
-class TooltipSystem : public System<QueuedListener<OnSDLMouseMotion>,
+class TooltipSystem : public System<Listener<ResizeEvent>,
+                                    QueuedListener<OnSDLMouseMotion>,
                                     QueuedListener<TickEvent>>
 {
 public:
@@ -47,6 +49,12 @@ public:
           screenWidth(screenW), screenHeight(screenH) {}
 
     virtual std::string getSystemName() const override { return "Tooltip System"; }
+
+    virtual void onEvent(const ResizeEvent& event) override
+    {
+        screenWidth = event.width;
+        screenHeight = event.height;
+    }
 
     virtual void onProcessEvent(const OnSDLMouseMotion& event) override;
     virtual void onProcessEvent(const TickEvent& event) override;

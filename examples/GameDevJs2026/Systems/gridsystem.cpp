@@ -523,6 +523,7 @@ void GridSystem::generateAndRenderTerrain(uint32_t seed)
 {
     GenerationParams params;
     params.seed = seed;
+    params.requiredOres = {TerrainType::OreStone, TerrainType::OreIron, TerrainType::OreCopper};
 
     auto gen = CanvasGenerator::generate(params);
     terrainGrid = gen.terrain;

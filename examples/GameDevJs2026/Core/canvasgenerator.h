@@ -47,6 +47,7 @@ struct GenerationParams
         TerrainType::OreCoal,
         TerrainType::OreStone
     };
+    std::vector<TerrainType>  requiredOres  = {};  // Always placed first
 };
 
 // Flat 32x32 terrain grid for one canvas.

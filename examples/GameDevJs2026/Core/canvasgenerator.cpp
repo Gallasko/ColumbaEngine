@@ -122,14 +122,32 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
         for (int x = 0; x < GridLayer::WIDTH; ++x)
             result.terrain[y][x] = TerrainType::Grass;
 
-    // 2. Decide how many ore patches (subset of 1-3 per canvas).
-    int desiredCount = rng.rangeInt(params.minOrePatches, params.maxOrePatches);
-    if (desiredCount > static_cast<int>(params.allowedOres.size()))
-        desiredCount = static_cast<int>(params.allowedOres.size());
-
-    // Pick distinct ore types.
+    // 2a. Place required ore patches first (guaranteed on this canvas).
     std::vector<TerrainType> pool = params.allowedOres;
-    for (int i = 0; i < desiredCount and not pool.empty(); ++i)
+    for (const auto& reqOre : params.requiredOres)
+    {
+        OrePatch patch;
+        patch.ore     = reqOre;
+        patch.radius  = rng.rangeInt(params.patchRadiusMin, params.patchRadiusMax);
+        patch.centerX = rng.rangeInt(params.edgeMargin, GridLayer::WIDTH  - 1 - params.edgeMargin);
+        patch.centerY = rng.rangeInt(params.edgeMargin, GridLayer::HEIGHT - 1 - params.edgeMargin);
+
+        paintBlob(result.terrain, patch, rng);
+        result.orePatches.push_back(patch);
+
+        // Remove from pool so it won't be duplicated by random selection.
+        auto it = std::find(pool.begin(), pool.end(), reqOre);
+        if (it != pool.end())
+            pool.erase(it);
+    }
+
+    // 2b. Fill remaining budget with random ore patches.
+    int desiredCount = rng.rangeInt(params.minOrePatches, params.maxOrePatches);
+    int remaining = desiredCount - static_cast<int>(params.requiredOres.size());
+    if (remaining > static_cast<int>(pool.size()))
+        remaining = static_cast<int>(pool.size());
+
+    for (int i = 0; i < remaining and not pool.empty(); ++i)
     {
         int idx = rng.rangeInt(0, static_cast<int>(pool.size()) - 1);
         TerrainType ore = pool[idx];
@@ -141,7 +159,6 @@ CanvasGenResult CanvasGenerator::generate(const GenerationParams& params)
         patch.centerX = rng.rangeInt(params.edgeMargin, GridLayer::WIDTH  - 1 - params.edgeMargin);
         patch.centerY = rng.rangeInt(params.edgeMargin, GridLayer::HEIGHT - 1 - params.edgeMargin);
 
-        // Paint a noisy blob.
         paintBlob(result.terrain, patch, rng);
         result.orePatches.push_back(patch);
     }

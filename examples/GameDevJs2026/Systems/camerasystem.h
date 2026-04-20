@@ -19,6 +19,7 @@ class InventoryUISystem;
 class CameraSystem : public System<
     InitSys,
     Listener<TickEvent>,
+    Listener<ResizeEvent>,
     Listener<OnSDLMouseWheel>,
     Listener<OnSDLMouseMotion>,
     Listener<OnSDLScanCode>,
@@ -31,6 +32,7 @@ public:
         : masterRenderer(masterRenderer), baseWidth(screenWidth), baseHeight(screenHeight) {}
 
     void setInventoryUI(InventoryUISystem* inv) { inventoryUI = inv; }
+    void setUiCameraEntity(EntityRef entity) { uiCameraEntity = entity; }
 
     virtual std::string getSystemName() const override { return "Camera System"; }
 
@@ -41,6 +43,7 @@ public:
         deltaTime += event.tick / 1000.0f;
     }
 
+    virtual void onEvent(const ResizeEvent& event) override;
     virtual void onEvent(const OnSDLMouseWheel& event) override;
     virtual void onEvent(const OnSDLMouseMotion& event) override;
     virtual void onEvent(const OnMouseClick& event) override;
@@ -83,4 +86,5 @@ private:
     bool moveRight = false;
 
     InventoryUISystem* inventoryUI = nullptr;
+    EntityRef uiCameraEntity;
 };

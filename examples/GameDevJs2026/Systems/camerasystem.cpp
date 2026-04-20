@@ -27,6 +27,42 @@ void CameraSystem::init()
     masterRenderer->queueRegisterCamera(cameraEntity->id);
 }
 
+void CameraSystem::onEvent(const ResizeEvent& event)
+{
+    float newBaseW = event.width;
+    float newBaseH = event.height;
+
+    // Keep current world center fixed
+    float oldViewW = cam->getWidth();
+    float oldViewH = cam->getHeight();
+    float centerX = cam->x + oldViewW * 0.5f;
+    float centerY = cam->y + oldViewH * 0.5f;
+
+    baseWidth  = newBaseW;
+    baseHeight = newBaseH;
+
+    float newViewW = baseWidth / zoomLevel;
+    float newViewH = baseHeight / zoomLevel;
+
+    cam->setWidth(newViewW);
+    cam->setHeight(newViewH);
+    cam->x = centerX - newViewW * 0.5f;
+    cam->y = centerY - newViewH * 0.5f;
+    cam->dirty = true;
+
+    // Also update the UI camera
+    if (uiCameraEntity)
+    {
+        auto uiCam = uiCameraEntity->get<BaseCamera2D>();
+        if (uiCam)
+        {
+            uiCam->setWidth(newBaseW);
+            uiCam->setHeight(newBaseH);
+            uiCam->dirty = true;
+        }
+    }
+}
+
 void CameraSystem::onEvent(const OnSDLMouseWheel& event)
 {
     if (event.y == 0)
