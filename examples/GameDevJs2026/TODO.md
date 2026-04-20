@@ -33,3 +33,6 @@
 3. Tutorial — replace with static controls overlay
 4. Assembler UI — leave as automation-only
 5. **Never cut:** Building recipes + Furnace UI + Starting items
+
+replacing belt actually destroy them
+Launching a hand craft and have it complete in the background make all the inventory items visible for nothing

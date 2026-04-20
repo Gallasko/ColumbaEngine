@@ -1,5 +1,6 @@
 #include "depotsystem.h"
 #include "playerinventory.h"
+#include "worldfacts.h"
 
 #include <cstdio>
 
@@ -34,6 +35,11 @@ void DepotSystem::registerDepot(int x, int y)
     data.ownerY = y;
 
     depots[machineKey(x, y)] = data;
+
+    // First depot ever → unlock mission HUD button
+    if (depots.size() == 1)
+        sendEvent(pg::AddFact{"depot_placed", pg::ElementType(true)});
+
     printf("DepotSystem: registered depot at (%d, %d)\n", x, y);
 }
 

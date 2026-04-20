@@ -871,6 +871,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Systems/handcraftingsystem.cpp
             examples/GameDevJs2026/Systems/playerinventory.cpp
             examples/GameDevJs2026/Systems/manualmining.cpp
+            examples/GameDevJs2026/Systems/depotsystem.cpp
             examples/GameDevJs2026/UI/hotbarsystem.cpp
             examples/GameDevJs2026/UI/inventoryui.cpp
             examples/GameDevJs2026/UI/minerui.cpp
@@ -880,6 +881,10 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
             examples/GameDevJs2026/UI/machinedemosystem.cpp
+            examples/GameDevJs2026/UI/depotui.cpp
+            examples/GameDevJs2026/UI/hudbarsystem.cpp
+            examples/GameDevJs2026/Systems/missionsystem.cpp
+            examples/GameDevJs2026/UI/missionui.cpp
         )
 
         target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)
@@ -1224,6 +1229,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Systems/handcraftingsystem.cpp
             examples/GameDevJs2026/Systems/playerinventory.cpp
             examples/GameDevJs2026/Systems/manualmining.cpp
+            examples/GameDevJs2026/Systems/depotsystem.cpp
             examples/GameDevJs2026/UI/hotbarsystem.cpp
             examples/GameDevJs2026/UI/inventoryui.cpp
             examples/GameDevJs2026/UI/minerui.cpp
@@ -1233,6 +1239,10 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
             examples/GameDevJs2026/UI/machinedemosystem.cpp
+            examples/GameDevJs2026/UI/depotui.cpp
+            examples/GameDevJs2026/UI/hudbarsystem.cpp
+            examples/GameDevJs2026/Systems/missionsystem.cpp
+            examples/GameDevJs2026/UI/missionui.cpp
         )
 
         target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)

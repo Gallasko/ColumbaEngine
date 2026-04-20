@@ -29,6 +29,9 @@
 #include "tutorialsystem.h"
 #include "autosavesystem.h"
 #include "machinedemosystem.h"
+#include "hudbarsystem.h"
+#include "missionsystem.h"
+#include "missionui.h"
 #include "Systems/tween.h"
 
 using namespace pg;
@@ -279,6 +282,14 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         machineUI->setMachineDemo(machineDemo);
         craftingUI->setMachineDemo(machineDemo);
+
+        auto* missionSystem = ecs.createSystem<MissionSystem>(depotSystem, worldFacts);
+
+        auto* missionUI = ecs.createSystem<MissionUISystem>(
+            missionSystem, depotSystem, playerInvSystem, screenW, screenH);
+
+        auto* hudBar = ecs.createSystem<HudBarSystem>(inventoryUI, worldFacts, screenW, screenH);
+        hudBar->setMissionUIToggle([missionUI]() { missionUI->toggle(); });
 
         ecs.createSystem<AutoSaveSystem>();
 
