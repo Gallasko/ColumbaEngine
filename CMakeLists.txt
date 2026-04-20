@@ -1102,6 +1102,23 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
 
         ###
 
+        add_executable(AtlasPicker examples/AtlasPicker/main.cpp)
+
+        target_include_directories(AtlasPicker PUBLIC
+            examples/AtlasPicker
+            examples/GameDevJs2026/Core
+        )
+
+        target_sources(AtlasPicker PRIVATE
+            examples/AtlasPicker/application.cpp
+            examples/AtlasPicker/atlaspickersystem.cpp
+            examples/GameDevJs2026/Core/gridatlas.cpp
+        )
+
+        target_link_libraries(AtlasPicker PRIVATE ColumbaEngine)
+
+        ###
+
         add_executable(PgCompiler examples/PgCompiler/main.cpp)
 
         target_include_directories(PgCompiler PUBLIC examples/PgCompiler)
