@@ -161,7 +161,6 @@ private:
     DemoSimBelt belts[MAX_BELTS] = {};
     size_t beltCount = 0;
     size_t beltAnimFrame = 0;
-    size_t beltAnimCounter = 0;
     DemoSimMachine machines[MAX_MACHINES] = {};
     size_t machineCount = 0;
 

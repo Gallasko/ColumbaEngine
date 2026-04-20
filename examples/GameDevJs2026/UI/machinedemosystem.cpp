@@ -35,7 +35,9 @@ static const std::vector<DemoScenario>& getDemos()
 void MachineDemoSystem::onEvent(const TickEvent& event)
 {
     if (open)
+    {
         tickAccumulator += static_cast<size_t>(event.tick);
+    }
 }
 
 void MachineDemoSystem::onEvent(const OnSDLScanCode& event)
@@ -286,7 +288,6 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
     inserterCount = 0;
     beltCount = 0;
     beltAnimFrame = 0;
-    beltAnimCounter = 0;
     machineCount = 0;
     for (size_t i = 0; i < MAX_ITEMS; ++i)
         items[i].active = false;
@@ -421,6 +422,17 @@ void MachineDemoSystem::simulationTick()
     tickBelts();
     tickInserters();
     tickMachines();
+
+    // Advance belt animation frame (synced with simulation tick)
+    beltAnimFrame = (beltAnimFrame + 1) % 8;
+    static constexpr size_t DIR_TO_TILE[4] = {LINE_RIGHT_1, LINE_DOWN_1, LINE_LEFT_1, LINE_UP_1};
+    for (size_t i = 0; i < beltCount; ++i)
+    {
+        size_t frame = DIR_TO_TILE[belts[i].direction] * 8 + beltAnimFrame;
+        auto ent = ecsRef->getEntity(belts[i].entityId);
+        if (ent && ent->has<Texture2DComponent>())
+            ent->get<Texture2DComponent>()->setTexture("Conveyor_Belt." + std::to_string(frame));
+    }
 }
 
 void MachineDemoSystem::tickSpawns()
@@ -641,8 +653,8 @@ void MachineDemoSystem::tickMachines()
             if (mach.processTimer >= 10) // 10 ticks to smelt
             {
                 mach.processTimer = 0;
-                // Transform input into output (iron ore -> iron bar for demo)
-                uint16_t outputItem = 2; // Iron bar (simplified)
+                // Transform input into output (iron ore -> iron plate for demo)
+                uint16_t outputItem = 5; // Iron Plate
                 freeItem(mach.inputItemIndex);
                 mach.inputItemIndex = -1;
 
@@ -697,23 +709,6 @@ void MachineDemoSystem::updateRendering()
         if (!items[i].active)
             continue;
         updateItemPosition(items[i]);
-    }
-
-    // Animate belt sprites (cycle through 8 frames per tile variant)
-    beltAnimCounter++;
-    if (beltAnimCounter >= 4) // Slow down: advance frame every ~4 render calls
-    {
-        beltAnimCounter = 0;
-        beltAnimFrame = (beltAnimFrame + 1) % 8;
-
-        static constexpr size_t DIR_TO_TILE[4] = {LINE_RIGHT_1, LINE_DOWN_1, LINE_LEFT_1, LINE_UP_1};
-        for (size_t i = 0; i < beltCount; ++i)
-        {
-            size_t frame = DIR_TO_TILE[belts[i].direction] * 8 + beltAnimFrame;
-            auto ent = ecsRef->getEntity(belts[i].entityId);
-            if (ent && ent->has<Texture2DComponent>())
-                ent->get<Texture2DComponent>()->setTexture("Conveyor_Belt." + std::to_string(frame));
-        }
     }
 }
 
