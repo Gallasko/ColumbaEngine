@@ -17,13 +17,10 @@ void InventoryUISystem::init()
 bool InventoryUISystem::isClickOnPanel(float x, float y) const
 {
     if (not visible) return false;
-    auto bdEnt = ecsRef->getEntity(backdropEntityId);
-    if (not bdEnt) return false;
-    auto bdPos = bdEnt->get<PositionComponent>();
-    float panelX = bdPos->getX();
-    float panelY = bdPos->getY();
-    float panelW = bdPos->getWidth();
-    float panelH = bdPos->getHeight();
+    float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float panelX = (screenWidth - panelW) * 0.5f;
+    float panelY = (screenHeight - panelH) * 0.5f;
     return x >= panelX and x <= panelX + panelW
        and y >= panelY and y <= panelY + panelH;
 }
@@ -316,13 +313,15 @@ void InventoryUISystem::refreshSlot(size_t index)
         return;
     }
 
-    // Read slot bg position (auto-updated by anchoring)
-    auto slotEnt = ecsRef->getEntity(sv.bgEntityId);
-    if (not slotEnt)
-        return;
-    auto slotPos = slotEnt->get<PositionComponent>();
-    float slotX = slotPos->getX();
-    float slotY = slotPos->getY();
+    // Compute slot position from screen dimensions (avoids anchor resolution timing issues)
+    float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float bdX = (screenWidth - panelW) * 0.5f;
+    float bdY = (screenHeight - panelH) * 0.5f;
+    size_t col = index % COLS;
+    size_t row = index / COLS;
+    float slotX = bdX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
+    float slotY = bdY + PANEL_PADDING + row * (SLOT_SIZE + SLOT_SPACING);
     float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
 
     // Update item texture and show
@@ -492,13 +491,17 @@ void InventoryUISystem::updateHeldPosition()
 
 int InventoryUISystem::slotAtPosition(float x, float y) const
 {
+    float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float bdX = (screenWidth - panelW) * 0.5f;
+    float bdY = (screenHeight - panelH) * 0.5f;
+
     for (size_t i = 0; i < slotVisuals.size(); ++i)
     {
-        auto slotEnt = ecsRef->getEntity(slotVisuals[i].bgEntityId);
-        if (not slotEnt) continue;
-        auto pos = slotEnt->get<PositionComponent>();
-        float sx = pos->getX();
-        float sy = pos->getY();
+        size_t col = i % COLS;
+        size_t row = i / COLS;
+        float sx = bdX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
+        float sy = bdY + PANEL_PADDING + row * (SLOT_SIZE + SLOT_SPACING);
         if (x >= sx and x <= sx + SLOT_SIZE and
             y >= sy and y <= sy + SLOT_SIZE)
         {
@@ -510,22 +513,14 @@ int InventoryUISystem::slotAtPosition(float x, float y) const
 
 std::pair<float, float> InventoryUISystem::slotScreenPos(size_t index) const
 {
-    if (index < slotVisuals.size())
-    {
-        auto slotEnt = ecsRef->getEntity(slotVisuals[index].bgEntityId);
-        if (slotEnt)
-        {
-            auto pos = slotEnt->get<PositionComponent>();
-            return {pos->getX(), pos->getY()};
-        }
-    }
-
-    // Fallback — should not happen after panel creation
+    float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2.0f * PANEL_PADDING;
+    float bdX = (screenWidth - panelW) * 0.5f;
+    float bdY = (screenHeight - panelH) * 0.5f;
     size_t col = index % COLS;
     size_t row = index / COLS;
-    float x = PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
-    float y = PANEL_PADDING + row * (SLOT_SIZE + SLOT_SPACING);
-    return {x, y};
+    return {bdX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING),
+            bdY + PANEL_PADDING + row * (SLOT_SIZE + SLOT_SPACING)};
 }
 
 void InventoryUISystem::setEntityVisibility(uint64_t id, bool vis)
