@@ -1,5 +1,4 @@
 #include "machinedemosystem.h"
-#include "hotbarsystem.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -57,6 +56,33 @@ void MachineDemoSystem::onProcessEvent(const OnMouseClick& event)
 
 void MachineDemoSystem::execute()
 {
+    if (pendingClose)
+    {
+        pendingClose = false;
+        open = false;
+        destroyPanel();
+        printf("MachineDemoSystem: closed demo\n");
+    }
+
+    if (pendingOpen)
+    {
+        pendingOpen = false;
+        for (const auto& demo : getDemos())
+        {
+            if (demo.tileId == pendingTileId)
+            {
+                currentScenario = demo;
+                createPanel();
+                initSimulation(currentScenario);
+                open = true;
+                tickAccumulator = 0;
+                spawnTickCounter = 0;
+                printf("MachineDemoSystem: opened demo for tileId %u\n", pendingTileId);
+                break;
+            }
+        }
+    }
+
     if (not open)
         return;
 
@@ -70,113 +96,28 @@ void MachineDemoSystem::execute()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Help icon (? button)
-// ─────────────────────────────────────────────────────────────────────────────
-
-void MachineDemoSystem::ensureHelpIconCreated()
-{
-    if (helpIconCreated)
-        return;
-    helpIconCreated = true;
-
-    // Background square
-    auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
-        {60.0f, 60.0f, 80.0f, 220.0f});
-    auto bgPos = bg.get<PositionComponent>();
-    bgPos->setWidth(HELP_ICON_SIZE);
-    bgPos->setHeight(HELP_ICON_SIZE);
-    bgPos->setZ(150.0f);
-    bgPos->setVisibility(false);
-    bg.get<Simple2DObject>()->setViewport(UI_VP);
-    helpIconBgId = bg.entity->id;
-
-    // "?" text
-    auto txt = makeTTFText(ecsRef,
-        0.0f, 0.0f, 151.0f,
-        FONT_PATH, "?", 0.35f,
-        {255.0f, 255.0f, 255.0f, 255.0f});
-    txt.get<TTFText>()->setViewport(UI_VP);
-    txt.get<PositionComponent>()->setVisibility(false);
-    helpIconTextId = txt.entity->id;
-}
-
-void MachineDemoSystem::updateHelpIconVisibility()
-{
-    auto* def = hotbar->getSelectedBuildingDef();
-    bool shouldShow = (def != nullptr) && !open;
-
-    // Check if this building has a demo
-    if (shouldShow)
-    {
-        bool hasDemo = false;
-        for (const auto& d : getDemos())
-        {
-            if (d.tileId == def->tileId)
-            {
-                hasDemo = true;
-                break;
-            }
-        }
-        shouldShow = hasDemo;
-    }
-
-    if (shouldShow == helpIconVisible)
-        return;
-
-    helpIconVisible = shouldShow;
-
-    auto bgEnt = ecsRef->getEntity(helpIconBgId);
-    auto txtEnt = ecsRef->getEntity(helpIconTextId);
-    if (!bgEnt || !txtEnt)
-        return;
-
-    bgEnt->get<PositionComponent>()->setVisibility(shouldShow);
-    txtEnt->get<PositionComponent>()->setVisibility(shouldShow);
-
-    if (shouldShow)
-    {
-        // Position to the right of the hotbar
-        float hotbarW = HOTBAR_SLOTS * (HotbarSystem::SLOT_SIZE + HotbarSystem::SLOT_SPACING);
-        float hotbarX = (screenW - hotbarW) * 0.5f;
-        float iconX = hotbarX + hotbarW + 8.0f;
-        float iconY = screenH - HotbarSystem::HOTBAR_HEIGHT + (HotbarSystem::HOTBAR_HEIGHT - HELP_ICON_SIZE) * 0.5f;
-
-        bgEnt->get<PositionComponent>()->setX(iconX);
-        bgEnt->get<PositionComponent>()->setY(iconY);
-        txtEnt->get<PositionComponent>()->setX(iconX + 5.0f);
-        txtEnt->get<PositionComponent>()->setY(iconY + 2.0f);
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Open / Close
 // ─────────────────────────────────────────────────────────────────────────────
 
+bool MachineDemoSystem::hasDemoForTile(uint16_t tileId) const
+{
+    for (const auto& d : getDemos())
+    {
+        if (d.tileId == tileId)
+            return true;
+    }
+    return false;
+}
+
 void MachineDemoSystem::openDemo(uint16_t tileId)
 {
-    // Find scenario
-    for (const auto& demo : getDemos())
-    {
-        if (demo.tileId == tileId)
-        {
-            currentScenario = demo;
-            createPanel();
-            initSimulation(currentScenario);
-            open = true;
-            tickAccumulator = 0;
-            spawnTickCounter = 0;
-            printf("MachineDemoSystem: opened demo for tileId %u\n", tileId);
-            return;
-        }
-    }
-    printf("MachineDemoSystem: no demo found for tileId %u\n", tileId);
+    pendingOpen = true;
+    pendingTileId = tileId;
 }
 
 void MachineDemoSystem::closeDemo()
 {
-    open = false;
-    destroyPanel();
-    printf("MachineDemoSystem: closed demo\n");
+    pendingClose = true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -229,7 +170,7 @@ void MachineDemoSystem::createPanel()
     auto bdPos = bd.get<PositionComponent>();
     bdPos->setX(px);
     bdPos->setY(py);
-    bdPos->setZ(200.0f);
+    bdPos->setZ(195.0f);
     bdPos->setWidth(pw);
     bdPos->setHeight(ph);
     bdPos->setVisibility(true);
@@ -238,7 +179,7 @@ void MachineDemoSystem::createPanel()
 
     // Title
     auto title = makeTTFText(ecsRef,
-        px + PADDING, py + PADDING, 201.0f,
+        px + PADDING, py + PADDING, 198.0f,
         FONT_PATH, currentScenario.title, TITLE_SCALE,
         {255.0f, 210.0f, 80.0f, 255.0f});
     title.get<TTFText>()->setViewport(UI_VP);
@@ -246,7 +187,7 @@ void MachineDemoSystem::createPanel()
 
     // Description
     auto desc = makeTTFText(ecsRef,
-        px + PADDING, py + PADDING + 22.0f, 201.0f,
+        px + PADDING, py + PADDING + 22.0f, 198.0f,
         FONT_PATH, currentScenario.description, DESC_SCALE,
         {210.0f, 210.0f, 210.0f, 255.0f});
     desc.get<TTFText>()->setViewport(UI_VP);
@@ -258,7 +199,7 @@ void MachineDemoSystem::createPanel()
     auto cbPos = closeBtn.get<PositionComponent>();
     cbPos->setX(px + pw - CLOSE_BTN_SIZE - 4.0f);
     cbPos->setY(py + 4.0f);
-    cbPos->setZ(202.0f);
+    cbPos->setZ(199.0f);
     cbPos->setWidth(CLOSE_BTN_SIZE);
     cbPos->setHeight(CLOSE_BTN_SIZE);
     cbPos->setVisibility(true);
@@ -267,7 +208,7 @@ void MachineDemoSystem::createPanel()
 
     // Close button text "X"
     auto closeTxt = makeTTFText(ecsRef,
-        px + pw - CLOSE_BTN_SIZE + 2.0f, py + 6.0f, 203.0f,
+        px + pw - CLOSE_BTN_SIZE + 2.0f, py + 6.0f, 199.0f,
         FONT_PATH, "X", 0.35f,
         {255.0f, 255.0f, 255.0f, 255.0f});
     closeTxt.get<TTFText>()->setViewport(UI_VP);
@@ -344,6 +285,8 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
 {
     inserterCount = 0;
     beltCount = 0;
+    beltAnimFrame = 0;
+    beltAnimCounter = 0;
     machineCount = 0;
     for (size_t i = 0; i < MAX_ITEMS; ++i)
         items[i].active = false;
@@ -367,12 +310,15 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 belt.direction = tile.direction;
                 belt.carriedItemIndex = -1;
 
-                // Create belt sprite entity
-                auto tex = make2DTexture(ecsRef, DEMO_TILE_SIZE, DEMO_TILE_SIZE, "Conveyor_Belt");
+                // Belt frame: tileIndex * 8 + animFrame(0)
+                static constexpr size_t DIR_TO_TILE[4] = {LINE_RIGHT_1, LINE_DOWN_1, LINE_LEFT_1, LINE_UP_1};
+                size_t beltFrame = DIR_TO_TILE[tile.direction] * 8;
+                auto tex = make2DTexture(ecsRef, DEMO_TILE_SIZE, DEMO_TILE_SIZE,
+                    "Conveyor_Belt." + std::to_string(beltFrame));
                 auto pos = tex.get<PositionComponent>();
                 pos->setX(worldX);
                 pos->setY(worldY);
-                pos->setZ(201.0f);
+                pos->setZ(196.0f);
                 pos->setVisibility(true);
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
                 belt.entityId = tex.entity->id;
@@ -394,15 +340,14 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 // Create inserter arm sprite - 3x scale centered
                 float armSize = DEMO_TILE_SIZE * 3.0f;
                 float offset = DEMO_TILE_SIZE;
-                auto tex = make2DTexture(ecsRef, armSize, armSize, "Robotic_Arms_1");
+                std::string armTex = "Robotic_Arms_1." + std::to_string(INSERTER_PICKUP_FRAME[tile.direction]);
+                auto tex = make2DTexture(ecsRef, armSize, armSize, armTex);
                 auto pos = tex.get<PositionComponent>();
                 pos->setX(worldX - offset);
                 pos->setY(worldY - offset);
-                pos->setZ(203.0f);
+                pos->setZ(197.0f);
                 pos->setVisibility(true);
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
-                tex.get<Texture2DComponent>()->setTexture(
-                    "Robotic_Arms_1." + std::to_string(INSERTER_PICKUP_FRAME[tile.direction]));
                 ins.entityId = tex.entity->id;
                 inserterCount++;
                 break;
@@ -420,7 +365,7 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 mach.outputItemIndex = -1;
                 mach.processTimer = 0;
 
-                const char* texName = (tile.tileId == 5) ? "Stone_Furnace" : "Assembler_Machine_1";
+                std::string texName = (tile.tileId == 5) ? "Stone_Furnace.0" : "Assembler_Machine_1.0";
                 float w = DEMO_TILE_SIZE * 2.0f;
                 float h = DEMO_TILE_SIZE * 3.0f;
 
@@ -428,7 +373,7 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 auto pos = tex.get<PositionComponent>();
                 pos->setX(worldX);
                 pos->setY(worldY);
-                pos->setZ(201.0f);
+                pos->setZ(197.0f);
                 pos->setVisibility(true);
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
                 mach.entityId = tex.entity->id;
@@ -450,11 +395,11 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 float w = DEMO_TILE_SIZE * 2.0f;
                 float h = DEMO_TILE_SIZE * 3.0f;
 
-                auto tex = make2DTexture(ecsRef, w, h, "Miner_Machine_1");
+                auto tex = make2DTexture(ecsRef, w, h, "Miner_Machine_1.0");
                 auto pos = tex.get<PositionComponent>();
                 pos->setX(worldX);
                 pos->setY(worldY);
-                pos->setZ(201.0f);
+                pos->setZ(197.0f);
                 pos->setVisibility(true);
                 tex.get<Texture2DComponent>()->setViewport(UI_VP);
                 mach.entityId = tex.entity->id;
@@ -504,7 +449,9 @@ void MachineDemoSystem::tickSpawns()
 
 void MachineDemoSystem::tickBelts()
 {
-    for (size_t i = 0; i < beltCount; ++i)
+    // Iterate in reverse so downstream belts process first —
+    // prevents items from cascading through all belts in one tick.
+    for (size_t i = beltCount; i-- > 0;)
     {
         auto& belt = belts[i];
         if (belt.carriedItemIndex < 0)
@@ -751,6 +698,23 @@ void MachineDemoSystem::updateRendering()
             continue;
         updateItemPosition(items[i]);
     }
+
+    // Animate belt sprites (cycle through 8 frames per tile variant)
+    beltAnimCounter++;
+    if (beltAnimCounter >= 4) // Slow down: advance frame every ~4 render calls
+    {
+        beltAnimCounter = 0;
+        beltAnimFrame = (beltAnimFrame + 1) % 8;
+
+        static constexpr size_t DIR_TO_TILE[4] = {LINE_RIGHT_1, LINE_DOWN_1, LINE_LEFT_1, LINE_UP_1};
+        for (size_t i = 0; i < beltCount; ++i)
+        {
+            size_t frame = DIR_TO_TILE[belts[i].direction] * 8 + beltAnimFrame;
+            auto ent = ecsRef->getEntity(belts[i].entityId);
+            if (ent && ent->has<Texture2DComponent>())
+                ent->get<Texture2DComponent>()->setTexture("Conveyor_Belt." + std::to_string(frame));
+        }
+    }
 }
 
 void MachineDemoSystem::updateInserterSprite(DemoSimInserter& ins)
@@ -825,7 +789,7 @@ int MachineDemoSystem::allocateItem(uint16_t itemId, float x, float y)
             auto pos = tex.get<PositionComponent>();
             pos->setX(x);
             pos->setY(y);
-            pos->setZ(202.0f);
+            pos->setZ(198.0f);
             pos->setVisibility(true);
             tex.get<Texture2DComponent>()->setViewport(UI_VP);
             items[i].entityId = tex.entity->id;
@@ -865,19 +829,6 @@ bool MachineDemoSystem::isClickOnCloseBtn(float x, float y) const
            y >= by && y <= by + CLOSE_BTN_SIZE;
 }
 
-bool MachineDemoSystem::isClickOnHelpIcon(float x, float y) const
-{
-    if (!helpIconCreated || !helpIconVisible)
-        return false;
-
-    auto ent = ecsRef->getEntity(helpIconBgId);
-    if (!ent) return false;
-    auto pos = ent->get<PositionComponent>();
-    float ix = pos->getX();
-    float iy = pos->getY();
-    return x >= ix && x <= ix + HELP_ICON_SIZE &&
-           y >= iy && y <= iy + HELP_ICON_SIZE;
-}
 
 size_t MachineDemoSystem::getInserterSpriteFrame(uint8_t direction, size_t animFrame, bool returning)
 {

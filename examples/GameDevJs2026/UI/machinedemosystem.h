@@ -8,8 +8,6 @@
 #include "itemregistry.h"
 #include "gridsystem.h"
 
-class HotbarSystem;
-
 using namespace pg;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -71,8 +69,6 @@ public:
     static constexpr float CLOSE_BTN_SIZE = 24.0f;
     static constexpr float TITLE_SCALE = 0.45f;
     static constexpr float DESC_SCALE = 0.30f;
-    static constexpr float HELP_ICON_SIZE = 20.0f;
-
     static constexpr size_t TICK_INTERVAL_MS = 100;
     static constexpr size_t MAX_ITEMS = 16;
     static constexpr size_t MAX_INSERTERS = 4;
@@ -88,11 +84,9 @@ public:
 
     MachineDemoSystem(BuildingRegistry* buildingRegistry,
                       ItemRegistry* itemRegistry,
-                      HotbarSystem* hotbar,
                       float screenW, float screenH)
         : buildingRegistry(buildingRegistry),
           itemRegistry(itemRegistry),
-          hotbar(hotbar),
           screenW(screenW), screenH(screenH) {}
 
     virtual std::string getSystemName() const override { return "Machine Demo System"; }
@@ -104,13 +98,11 @@ public:
     void execute() override;
 
     bool isOpen() const { return open; }
+    bool hasDemoForTile(uint16_t tileId) const;
     void openDemo(uint16_t tileId);
     void closeDemo();
 
 private:
-    void ensureHelpIconCreated();
-    void updateHelpIconVisibility();
-
     // Panel
     void createPanel();
     void destroyPanel();
@@ -142,7 +134,6 @@ private:
     void freeItem(int index);
     bool isClickOnPanel(float x, float y) const;
     bool isClickOnCloseBtn(float x, float y) const;
-    bool isClickOnHelpIcon(float x, float y) const;
 
     static size_t getInserterSpriteFrame(uint8_t direction, size_t animFrame, bool returning);
 
@@ -150,11 +141,13 @@ private:
 
     BuildingRegistry* buildingRegistry = nullptr;
     ItemRegistry* itemRegistry = nullptr;
-    HotbarSystem* hotbar = nullptr;
     float screenW, screenH;
 
     bool open = false;
     bool panelCreated = false;
+    bool pendingOpen = false;
+    bool pendingClose = false;
+    uint16_t pendingTileId = 0;
     size_t tickAccumulator = 0;
     size_t spawnTickCounter = 0;
 
@@ -167,6 +160,8 @@ private:
     size_t inserterCount = 0;
     DemoSimBelt belts[MAX_BELTS] = {};
     size_t beltCount = 0;
+    size_t beltAnimFrame = 0;
+    size_t beltAnimCounter = 0;
     DemoSimMachine machines[MAX_MACHINES] = {};
     size_t machineCount = 0;
 
@@ -177,9 +172,4 @@ private:
     uint64_t closeBtnId = 0;
     uint64_t closeBtnTextId = 0;
 
-    // Help icon (? button next to hotbar)
-    uint64_t helpIconBgId = 0;
-    uint64_t helpIconTextId = 0;
-    bool helpIconCreated = false;
-    bool helpIconVisible = false;
 };

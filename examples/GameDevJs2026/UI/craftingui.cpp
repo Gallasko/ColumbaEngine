@@ -1,4 +1,5 @@
 #include "craftingui.h"
+#include "machinedemosystem.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -122,6 +123,37 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
         {
             setActiveTab(static_cast<CraftTab>(tabIdx));
             return;
+        }
+    }
+
+    // Per-row "?" demo button click (hand-craft mode)
+    if (activeMachineType == 0 and machineDemo)
+    {
+        for (size_t i = 0; i < rowVisuals.size(); ++i)
+        {
+            auto demoEnt = ecsRef->getEntity(rowVisuals[i].demoBtnEntityId);
+            if (not demoEnt) continue;
+            auto demoPos = demoEnt->get<PositionComponent>();
+            if (not demoPos->isVisible()) continue;
+            // Hit area slightly larger than the "?" text
+            if (isPointInRect(x, y, demoPos->getX() - 4.0f, demoPos->getY(),
+                              20.0f, ROW_HEIGHT))
+            {
+                size_t absIdx = scrollOffset + i;
+                if (absIdx < visibleRecipes.size())
+                {
+                    const Recipe& recipe = recipeRegistry->recipes[visibleRecipes[absIdx]];
+                    if (not recipe.outputs.empty())
+                    {
+                        uint16_t buildTile = itemRegistry->get(recipe.outputs.front().id).buildingTileId;
+                        if (buildTile != 0)
+                        {
+                            machineDemo->openDemo(buildTile);
+                            return;
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -336,6 +368,7 @@ void CraftingUISystem::hideRowVisuals()
     {
         setEntityVisibility(row.outputItemEntityId, false);
         setEntityVisibility(row.nameEntityId, false);
+        setEntityVisibility(row.demoBtnEntityId, false);
         for (size_t j = 0; j < MAX_INPUTS; ++j)
         {
             setEntityVisibility(row.ingrIconEntityId[j],  false);
@@ -484,6 +517,15 @@ void CraftingUISystem::createPanel()
             icon.get<Texture2DComponent>()->setViewport(UI_VP);
             rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
         }
+
+        // Per-row "?" demo button (hidden; shown in refreshRows for machine recipes)
+        auto demoBtn = makeTTFText(ecsRef,
+            0.0f, 0.0f, 100.0f,
+            FONT_PATH, "?", TEXT_SCALE,
+            {180.0f, 180.0f, 255.0f, 255.0f});
+        demoBtn.get<TTFText>()->setViewport(UI_VP);
+        demoBtn.get<PositionComponent>()->setVisibility(false);
+        rowVisuals[i].demoBtnEntityId = demoBtn.entity->id;
     }
 
     // Progress bar — anchored to backdrop
@@ -661,6 +703,7 @@ void CraftingUISystem::refreshRows()
         {
             setEntityVisibility(row.outputItemEntityId, false);
             setEntityVisibility(row.nameEntityId, false);
+            setEntityVisibility(row.demoBtnEntityId, false);
             for (size_t j = 0; j < MAX_INPUTS; ++j)
             {
                 setEntityVisibility(row.ingrIconEntityId[j],  false);
@@ -682,6 +725,7 @@ void CraftingUISystem::refreshRows()
         {
             setEntityVisibility(row.outputItemEntityId, false);
             setEntityVisibility(row.nameEntityId, false);
+            setEntityVisibility(row.demoBtnEntityId, false);
             for (size_t j = 0; j < MAX_INPUTS; ++j)
             {
                 setEntityVisibility(row.ingrIconEntityId[j],  false);
@@ -792,6 +836,31 @@ void CraftingUISystem::refreshRows()
             tint = (absIdx == selectedIndex) ? RowTint::SelectedOk : RowTint::Idle;
         }
         tintRow(row.bgEntityId, tint);
+
+        // Per-row "?" demo button (hand-craft mode only, for machine recipes with a demo)
+        bool showDemo = false;
+        if (activeMachineType == 0 and machineDemo and not recipe.outputs.empty())
+        {
+            uint16_t buildTile = itemRegistry->get(recipe.outputs.front().id).buildingTileId;
+            if (buildTile != 0 and machineDemo->hasDemoForTile(buildTile))
+                showDemo = true;
+        }
+        if (showDemo)
+        {
+            auto demoEnt = ecsRef->getEntity(row.demoBtnEntityId);
+            if (demoEnt)
+            {
+                float rowW = rowBgPos->getWidth();
+                auto demoPos = demoEnt->get<PositionComponent>();
+                demoPos->setX(rowX + rowW - 14.0f);
+                demoPos->setY(rowY + 4.0f);
+                demoPos->setVisibility(true);
+            }
+        }
+        else
+        {
+            setEntityVisibility(row.demoBtnEntityId, false);
+        }
     }
 }
 

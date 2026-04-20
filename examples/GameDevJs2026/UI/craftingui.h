@@ -12,6 +12,8 @@
 #include <functional>
 #include <cstdint>
 
+class MachineDemoSystem;
+
 using namespace pg;
 
 // Docked side-panel (right of the inventory) that lists the player's
@@ -81,6 +83,8 @@ public:
           itemRegistry(itemRegistry), playerInv(playerInv),
           worldFacts(worldFacts), inventoryUI(inventoryUI),
           screenWidth(screenWidth), screenHeight(screenHeight) {}
+
+    void setMachineDemo(MachineDemoSystem* demo) { machineDemo = demo; }
 
     virtual std::string getSystemName() const override { return "Crafting UI System"; }
 
@@ -223,6 +227,7 @@ private:
         uint64_t bgEntityId         = 0;
         uint64_t outputItemEntityId = 0;
         uint64_t nameEntityId       = 0;
+        uint64_t demoBtnEntityId    = 0;
         std::array<uint64_t, MAX_INPUTS> ingrIconEntityId  = {};
         std::array<uint64_t, MAX_INPUTS> ingrCountEntityId = {};
     };
@@ -244,6 +249,8 @@ private:
     uint64_t craftButtonTextEntityId = 0;
     uint64_t cancelButtonBgEntityId = 0;
     uint64_t cancelButtonTextEntityId = 0;
+
+    MachineDemoSystem* machineDemo = nullptr;
 
     // Machine-mode double-click to feed
     std::function<void(const Recipe&)> machineFeedCallback;

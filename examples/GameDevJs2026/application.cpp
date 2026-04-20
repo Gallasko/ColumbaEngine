@@ -269,9 +269,10 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         ecs.createSystem<TutorialSystem>(worldFacts, &recipeRegistry);
 
         auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
-            &registry, &itemRegistry, hotbar, screenW, screenH);
+            &registry, &itemRegistry, screenW, screenH);
 
         machineUI->setMachineDemo(machineDemo);
+        craftingUI->setMachineDemo(machineDemo);
 
         ecs.createSystem<AutoSaveSystem>();
 
