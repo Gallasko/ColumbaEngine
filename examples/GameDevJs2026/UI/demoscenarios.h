@@ -83,22 +83,23 @@ inline DemoScenario createMinerDemo()
     DemoScenario s;
     s.tileId = 7;
     s.title = "Miner";
-    s.description = "Place on ore. Outputs to adjacent belt.";
-    s.gridW = 7;
+    s.description = "Place on ore. Use inserter to move output to belt.";
+    s.gridW = 8;
     s.gridH = 4;
 
-    // Miner at (1,0) occupying 2x3 -> (1,0)-(2,2)
+    // Miner at (1,0) occupying (1,0)-(2,2)
     s.tiles.push_back({1, 0, 7, 0}); // miner
 
-    // Belt going right starting at (3,1) - adjacent to miner output
-    s.tiles.push_back({3, 1, 4, 0});
+    // Inserter at (3,1) facing right -> picks from miner area (2,1), drops on belt (4,1)
+    s.tiles.push_back({3, 1, 8, 0}); // inserter facing right
+
+    // Belt going right starting at (4,1)
     s.tiles.push_back({4, 1, 4, 0});
     s.tiles.push_back({5, 1, 4, 0});
     s.tiles.push_back({6, 1, 4, 0});
+    s.tiles.push_back({7, 1, 4, 0});
 
-    // Miner produces items periodically (simulated)
-    s.itemSpawns.push_back({1, 3, 1, 25}); // iron ore appears at miner output
-
+    // No item spawns — miner produces output internally
     return s;
 }
 
@@ -131,6 +132,39 @@ inline DemoScenario createFurnaceDemo()
 
     // Items spawn on input belt
     s.itemSpawns.push_back({1, 0, 1, 20}); // iron ore
+
+    return s;
+}
+
+inline DemoScenario createAssemblerDemo()
+{
+    DemoScenario s;
+    s.tileId = 6;
+    s.title = "Assembler";
+    s.description = "Crafts intermediate goods. Use inserters to automate.";
+    s.gridW = 9;
+    s.gridH = 4;
+
+    // Input belt going right at y=1
+    s.tiles.push_back({0, 1, 4, 0});
+    s.tiles.push_back({1, 1, 4, 0});
+    s.tiles.push_back({2, 1, 4, 0});
+
+    // Input inserter at (3,1) facing right -> picks from belt(2,1), drops into assembler
+    s.tiles.push_back({3, 1, 8, 0});
+
+    // Assembler at (4,0) occupying (4,0)-(5,2)
+    s.tiles.push_back({4, 0, 6, 0});
+
+    // Output inserter at (6,1) facing right -> picks from assembler, drops onto belt
+    s.tiles.push_back({6, 1, 8, 0});
+
+    // Output belt going right
+    s.tiles.push_back({7, 1, 4, 0});
+    s.tiles.push_back({8, 1, 4, 0});
+
+    // Items spawn on input belt: iron plates
+    s.itemSpawns.push_back({5, 0, 1, 20}); // iron plate
 
     return s;
 }

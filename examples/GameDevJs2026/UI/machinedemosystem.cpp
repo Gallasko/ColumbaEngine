@@ -19,6 +19,7 @@ static std::vector<DemoScenario> buildDemos()
     demos.push_back(createConveyorDemo());
     demos.push_back(createMinerDemo());
     demos.push_back(createFurnaceDemo());
+    demos.push_back(createAssemblerDemo());
     return demos;
 }
 
@@ -639,10 +640,22 @@ void MachineDemoSystem::tickMachines()
     {
         auto& mach = machines[i];
 
-        // Miner: periodically produce output
+        // Miner: periodically produce output (no input needed)
         if (mach.tileId == 7)
         {
-            // Miner output is handled via spawn system
+            if (mach.outputItemIndex < 0)
+            {
+                mach.processTimer++;
+                if (mach.processTimer >= 15)
+                {
+                    mach.processTimer = 0;
+                    float ox = gridOriginX();
+                    float oy = gridOriginY();
+                    float mx = ox + mach.gridX * DEMO_TILE_SIZE + DEMO_TILE_SIZE;
+                    float my = oy + mach.gridY * DEMO_TILE_SIZE + DEMO_TILE_SIZE;
+                    mach.outputItemIndex = allocateItem(1, mx, my); // Iron Ore
+                }
+            }
             continue;
         }
 
@@ -650,11 +663,13 @@ void MachineDemoSystem::tickMachines()
         if (mach.inputItemIndex >= 0 && mach.outputItemIndex < 0)
         {
             mach.processTimer++;
-            if (mach.processTimer >= 10) // 10 ticks to smelt
+            if (mach.processTimer >= 10)
             {
                 mach.processTimer = 0;
-                // Transform input into output (iron ore -> iron plate for demo)
-                uint16_t outputItem = 5; // Iron Plate
+                // Determine output based on machine type
+                uint16_t outputItem = (mach.tileId == 5) ? 5  // Furnace: Iron Plate
+                                    : (mach.tileId == 6) ? 7  // Assembler: Iron Gear
+                                    : 5;
                 freeItem(mach.inputItemIndex);
                 mach.inputItemIndex = -1;
 
