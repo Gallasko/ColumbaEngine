@@ -2,6 +2,7 @@
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -16,10 +17,13 @@ void InventoryUISystem::init()
 bool InventoryUISystem::isClickOnPanel(float x, float y) const
 {
     if (not visible) return false;
-    float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
-    float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
-    float panelX = (screenWidth - panelW) * 0.5f;
-    float panelY = (screenHeight - panelH) * 0.5f;
+    auto bdEnt = ecsRef->getEntity(backdropEntityId);
+    if (not bdEnt) return false;
+    auto bdPos = bdEnt->get<PositionComponent>();
+    float panelX = bdPos->getX();
+    float panelY = bdPos->getY();
+    float panelW = bdPos->getWidth();
+    float panelH = bdPos->getHeight();
     return x >= panelX and x <= panelX + panelW
        and y >= panelY and y <= panelY + panelH;
 }
@@ -214,59 +218,63 @@ void InventoryUISystem::setPanelVisibility(bool vis)
 
 void InventoryUISystem::createPanel()
 {
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    auto windowAnchor = windowEnt->get<UiAnchor>();
+
     float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
     float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
-    float panelX = (screenWidth - panelW) * 0.5f;
-    float panelY = (screenHeight - panelH) * 0.5f;
 
-    // Backdrop
+    // Backdrop — centered in __MainWindow
     auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
 
     auto bdPos = backdrop.get<PositionComponent>();
-    bdPos->setX(panelX);
-    bdPos->setY(panelY);
     bdPos->setZ(97.0f);
     bdPos->setWidth(panelW);
     bdPos->setHeight(panelH);
     backdrop.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
     backdropEntityId = backdrop.entity->id;
 
+    auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
+    bdAnchor->centeredIn(windowAnchor);
+
     // Slot backgrounds + pre-created item + text entities
     slotVisuals.resize(PlayerInventorySystem::MAIN_SLOTS);
     for (size_t i = 0; i < PlayerInventorySystem::MAIN_SLOTS; ++i)
     {
-        auto [sx, sy] = slotScreenPos(i);
+        size_t col = i % COLS;
+        size_t row = i / COLS;
+        float slotLeftMargin = PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
+        float slotTopMargin  = PANEL_PADDING + row * (SLOT_SIZE + SLOT_SPACING);
 
-        // Slot background
+        // Slot background — anchored to backdrop
         auto slot = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
 
         auto pos = slot.get<PositionComponent>();
-        pos->setX(sx);
-        pos->setY(sy);
         pos->setZ(98.0f);
         pos->setWidth(SLOT_SIZE);
         pos->setHeight(SLOT_SIZE);
         slot.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
         slotVisuals[i].bgEntityId = slot.entity->id;
 
+        auto slotAnchor = ecsRef->attach<UiAnchor>(slot.entity);
+        slotAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        slotAnchor->setLeftMargin(slotLeftMargin);
+        slotAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        slotAnchor->setTopMargin(slotTopMargin);
+
         // Item texture entity (hidden by default)
-        float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
         auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
         auto itemPos = tex.get<PositionComponent>();
-        itemPos->setX(sx + itemOffset);
-        itemPos->setY(sy + itemOffset);
         itemPos->setZ(99.0f);
         itemPos->setVisibility(false);
         tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
         slotVisuals[i].itemEntityId = tex.entity->id;
-        slotVisuals[i].itemBaseX = sx + itemOffset;
-        slotVisuals[i].itemBaseY = sy + itemOffset;
 
         // Count text entity (hidden by default)
         auto text = makeTTFText(ecsRef,
-            sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
+            0.0f, 0.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         text.get<PositionComponent>()->setVisibility(false);
@@ -308,6 +316,15 @@ void InventoryUISystem::refreshSlot(size_t index)
         return;
     }
 
+    // Read slot bg position (auto-updated by anchoring)
+    auto slotEnt = ecsRef->getEntity(sv.bgEntityId);
+    if (not slotEnt)
+        return;
+    auto slotPos = slotEnt->get<PositionComponent>();
+    float slotX = slotPos->getX();
+    float slotY = slotPos->getY();
+    float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
+
     // Update item texture and show
     const auto& def = itemRegistry->get(stack.id);
     auto itemEnt = ecsRef->getEntity(sv.itemEntityId);
@@ -318,8 +335,8 @@ void InventoryUISystem::refreshSlot(size_t index)
         float iconW = ITEM_SIZE * def.iconWidthRatio;
         pos->setWidth(iconW);
         pos->setHeight(ITEM_SIZE);
-        pos->setX(sv.itemBaseX + (ITEM_SIZE - iconW) * 0.5f);
-        pos->setY(sv.itemBaseY);
+        pos->setX(slotX + itemOffset + (ITEM_SIZE - iconW) * 0.5f);
+        pos->setY(slotY + itemOffset);
         pos->setVisibility(true);
     }
 
@@ -330,7 +347,10 @@ void InventoryUISystem::refreshSlot(size_t index)
         if (textEnt)
         {
             textEnt->get<TTFText>()->setText(std::to_string(stack.count));
-            textEnt->get<PositionComponent>()->setVisibility(true);
+            auto pos = textEnt->get<PositionComponent>();
+            pos->setX(slotX + SLOT_SIZE - 4.0f);
+            pos->setY(slotY + SLOT_SIZE - 4.0f);
+            pos->setVisibility(true);
         }
     }
     else
@@ -472,9 +492,13 @@ void InventoryUISystem::updateHeldPosition()
 
 int InventoryUISystem::slotAtPosition(float x, float y) const
 {
-    for (size_t i = 0; i < PlayerInventorySystem::MAIN_SLOTS; ++i)
+    for (size_t i = 0; i < slotVisuals.size(); ++i)
     {
-        auto [sx, sy] = slotScreenPos(i);
+        auto slotEnt = ecsRef->getEntity(slotVisuals[i].bgEntityId);
+        if (not slotEnt) continue;
+        auto pos = slotEnt->get<PositionComponent>();
+        float sx = pos->getX();
+        float sy = pos->getY();
         if (x >= sx and x <= sx + SLOT_SIZE and
             y >= sy and y <= sy + SLOT_SIZE)
         {
@@ -486,15 +510,21 @@ int InventoryUISystem::slotAtPosition(float x, float y) const
 
 std::pair<float, float> InventoryUISystem::slotScreenPos(size_t index) const
 {
-    float panelW = COLS * SLOT_SIZE + (COLS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
-    float panelH = ROWS * SLOT_SIZE + (ROWS - 1) * SLOT_SPACING + 2 * PANEL_PADDING;
-    float panelX = (screenWidth - panelW) * 0.5f;
-    float panelY = (screenHeight - panelH) * 0.5f;
+    if (index < slotVisuals.size())
+    {
+        auto slotEnt = ecsRef->getEntity(slotVisuals[index].bgEntityId);
+        if (slotEnt)
+        {
+            auto pos = slotEnt->get<PositionComponent>();
+            return {pos->getX(), pos->getY()};
+        }
+    }
 
+    // Fallback — should not happen after panel creation
     size_t col = index % COLS;
     size_t row = index / COLS;
-    float x = panelX + PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
-    float y = panelY + PANEL_PADDING + row * (SLOT_SIZE + SLOT_SPACING);
+    float x = PANEL_PADDING + col * (SLOT_SIZE + SLOT_SPACING);
+    float y = PANEL_PADDING + row * (SLOT_SIZE + SLOT_SPACING);
     return {x, y};
 }
 

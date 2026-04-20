@@ -19,6 +19,7 @@ using namespace pg;
 // bar while a craft is in-flight.
 // In machine mode (setMachineMode) it shows that machine's recipes instead.
 class CraftingUISystem : public System<InitSys,
+                                       Listener<ResizeEvent>,
                                        QueuedListener<OnSDLScanCode>,
                                        QueuedListener<OnMouseClick>,
                                        QueuedListener<TickEvent>,
@@ -109,6 +110,14 @@ public:
         machineSelectCallback = std::move(cb);
     }
 
+    // --- Resize -------------------------------------------------------
+
+    virtual void onEvent(const ResizeEvent& event) override
+    {
+        screenWidth = event.width;
+        screenHeight = event.height;
+    }
+
     // --- Inventory sync ------------------------------------------------
 
     virtual void onProcessEvent(const TickEvent&) override;
@@ -127,8 +136,6 @@ private:
 
     // --- Layout --------------------------------------------------------
 
-    float getPanelX() const;
-    float getPanelY() const;
     float getPanelHeight() const;
 
     // --- Panel creation ------------------------------------------------
@@ -228,7 +235,6 @@ private:
     };
     std::array<TabVisual, TAB_COUNT> tabVisuals = {};
     CraftTab activeTab = CraftTab::All;
-    float cachedTabY = 0.0f;
 
     uint64_t backdropEntityId = 0;
     uint64_t titleEntityId = 0;
@@ -238,11 +244,6 @@ private:
     uint64_t craftButtonTextEntityId = 0;
     uint64_t cancelButtonBgEntityId = 0;
     uint64_t cancelButtonTextEntityId = 0;
-
-    float craftButtonX = 0.0f, craftButtonY = 0.0f;
-    float cancelButtonX = 0.0f, cancelButtonY = 0.0f;
-    float cachedBarX = 0.0f, cachedBarMaxW = 0.0f;
-    float cachedListX = 0.0f, cachedListY = 0.0f, cachedRowW = 0.0f;
 
     // Machine-mode double-click to feed
     std::function<void(const Recipe&)> machineFeedCallback;

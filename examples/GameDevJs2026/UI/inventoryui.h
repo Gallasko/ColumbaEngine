@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
+#include "ECS/entitysystem_fwd.h"
 #include "Input/inputcomponent.h"
 
 #include "playerinventory.h"
@@ -14,6 +15,7 @@ struct InventoryOpenedEvent {};
 struct InventoryClosedEvent {};
 
 class InventoryUISystem : public System<InitSys,
+                                        Listener<ResizeEvent>,
                                         QueuedListener<OnSDLScanCode>,
                                         QueuedListener<OnMouseClick>,
                                         QueuedListener<OnSDLMouseMotion>>
@@ -40,6 +42,7 @@ public:
     void init() override;
 
     bool isOpen() const { return visible; }
+    uint64_t getBackdropEntityId() const { return backdropEntityId; }
 
     bool isClickOnPanel(float x, float y) const;
 
@@ -60,6 +63,14 @@ public:
     void dropOnExternal(ItemStack& slot);
 
     // --- Event Handlers ---
+
+    virtual void onEvent(const ResizeEvent& event) override
+    {
+        screenWidth = event.width;
+        screenHeight = event.height;
+        if (visible)
+            refreshAllSlots();
+    }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
@@ -130,8 +141,6 @@ private:
         uint64_t bgEntityId = 0;
         uint64_t itemEntityId = 0;
         uint64_t textEntityId = 0;
-        float itemBaseX = 0.0f;
-        float itemBaseY = 0.0f;
     };
     std::vector<SlotVisual> slotVisuals;
 

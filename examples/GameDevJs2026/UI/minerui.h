@@ -9,7 +9,8 @@
 
 using namespace pg;
 
-class MinerUISystem : public System<QueuedListener<OnSDLScanCode>,
+class MinerUISystem : public System<Listener<ResizeEvent>,
+                                     QueuedListener<OnSDLScanCode>,
                                      QueuedListener<TickEvent>,
                                      QueuedListener<OnMouseClick>,
                                      Listener<InventoryClosedEvent>>
@@ -42,6 +43,12 @@ public:
 
     void open(int gridX, int gridY);
     void close();
+
+    virtual void onEvent(const ResizeEvent& event) override
+    {
+        screenWidth = event.width;
+        screenHeight = event.height;
+    }
 
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const TickEvent&) override;

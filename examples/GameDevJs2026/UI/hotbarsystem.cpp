@@ -3,6 +3,7 @@
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -12,6 +13,16 @@
 void HotbarSystem::init()
 {
     createHotbarUI();
+}
+
+void HotbarSystem::onEvent(const ResizeEvent& event)
+{
+    screenWidth = event.width;
+    screenHeight = event.height;
+
+    // Slot bgs are anchored and auto-reposition; refresh items/texts to match
+    refreshAllSlots();
+    updateHighlight();
 }
 
 void HotbarSystem::onEvent(const OnSDLScanCode& event)
@@ -112,59 +123,71 @@ void HotbarSystem::consumeSelectedItem(uint16_t count)
 
 void HotbarSystem::createHotbarUI()
 {
-    // Backdrop bar at bottom of screen
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    auto windowId = windowEnt->id;
+
+    // Backdrop — anchored to __MainWindow: fills width, sticks to bottom
     auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{30.0f, 30.0f, 40.0f, 200.0f});
 
     auto backdropPos = backdrop.get<PositionComponent>();
-    backdropPos->setX(0.0f);
-    backdropPos->setY(screenHeight - HOTBAR_HEIGHT);
     backdropPos->setZ(0.9f);
-    backdropPos->setWidth(screenWidth);
     backdropPos->setHeight(HOTBAR_HEIGHT);
     backdrop.get<Simple2DObject>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
 
-    // Create 9 slots centered horizontally
-    float totalSlotsWidth = HOTBAR_SLOTS * SLOT_SIZE + (HOTBAR_SLOTS - 1) * SLOT_SPACING;
-    float startX = (screenWidth - totalSlotsWidth) * 0.5f;
-    float slotY = screenHeight - HOTBAR_HEIGHT + SLOT_PADDING;
+    auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
+    bdAnchor->setLeftAnchor(PosAnchor{windowId, AnchorType::Left});
+    bdAnchor->setRightAnchor(PosAnchor{windowId, AnchorType::Right});
+    bdAnchor->setBottomAnchor(PosAnchor{windowId, AnchorType::Bottom});
 
+    // Invisible container — centered horizontally in backdrop, at top + padding
+    float totalSlotsWidth = HOTBAR_SLOTS * SLOT_SIZE + (HOTBAR_SLOTS - 1) * SLOT_SPACING;
+    auto container = ecsRef->createEntity();
+    auto containerPos = ecsRef->attach<PositionComponent>(container);
+    containerPos->setWidth(totalSlotsWidth);
+    containerPos->setHeight(SLOT_SIZE);
+    containerEntityId = container->id;
+
+    auto cAnchor = ecsRef->attach<UiAnchor>(container);
+    cAnchor->setHorizontalCenter(PosAnchor{backdropEntityId, AnchorType::HorizontalCenter});
+    cAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+    cAnchor->setTopMargin(SLOT_PADDING);
+
+    // Slots — anchored to container
     slotVisuals.resize(HOTBAR_SLOTS);
 
     for (size_t i = 0; i < HOTBAR_SLOTS; ++i)
     {
-        float slotX = startX + i * (SLOT_SIZE + SLOT_SPACING);
+        float slotLeftMargin = static_cast<float>(i) * (SLOT_SIZE + SLOT_SPACING);
 
         // Slot background
         auto slotBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
 
         auto bgPos = slotBg.get<PositionComponent>();
-        bgPos->setX(slotX);
-        bgPos->setY(slotY);
         bgPos->setZ(0.95f);
         bgPos->setWidth(SLOT_SIZE);
         bgPos->setHeight(SLOT_SIZE);
         slotBg.get<Simple2DObject>()->setViewport(UI_VP);
         slotVisuals[i].bgEntityId = slotBg.entity->id;
 
-        // Item texture entity (hidden by default, updated on refresh)
-        float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
+        auto slotAnchor = ecsRef->attach<UiAnchor>(slotBg.entity);
+        slotAnchor->setLeftAnchor(PosAnchor{containerEntityId, AnchorType::Left});
+        slotAnchor->setLeftMargin(slotLeftMargin);
+        slotAnchor->setTopAnchor(PosAnchor{containerEntityId, AnchorType::Top});
+
+        // Item texture entity (hidden; positioned in refreshSlot)
         auto tex = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
         auto itemPos = tex.get<PositionComponent>();
-        itemPos->setX(slotX + itemOffset);
-        itemPos->setY(slotY + itemOffset);
         itemPos->setZ(0.96f);
         itemPos->setVisibility(false);
         tex.get<Texture2DComponent>()->setViewport(UI_VP);
         slotVisuals[i].itemEntityId = tex.entity->id;
-        slotVisuals[i].itemBaseX = slotX + itemOffset;
-        slotVisuals[i].itemBaseY = slotY + itemOffset;
 
-        // Count text entity (hidden by default)
+        // Count text entity (hidden; positioned in refreshSlot)
         auto text = makeTTFText(ecsRef,
-            slotX + SLOT_SIZE - 4.0f, slotY + SLOT_SIZE - 4.0f, 0.97f,
+            0.0f, 0.0f, 0.97f,
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         text.get<PositionComponent>()->setVisibility(false);
@@ -192,18 +215,22 @@ void HotbarSystem::updateHighlight()
     if (selectedSlot >= slotVisuals.size())
         return;
 
-    auto slotEnt = ecsRef->getEntity(slotVisuals[selectedSlot].bgEntityId);
     auto hlEnt = ecsRef->getEntity(highlightEntityId);
-
-    if (not slotEnt or not hlEnt)
+    if (not hlEnt)
         return;
 
-    auto slotPos = slotEnt->get<PositionComponent>();
-    auto hlPos = hlEnt->get<PositionComponent>();
+    auto slotBgId = slotVisuals[selectedSlot].bgEntityId;
 
-    // Center highlight around the slot
-    hlPos->setX(slotPos->getX() - 2.0f);
-    hlPos->setY(slotPos->getY() - 2.0f);
+    // Anchor highlight to the selected slot bg (auto-follows on resize)
+    auto hlAnchor = hlEnt->get<UiAnchor>();
+    if (not hlAnchor)
+        hlAnchor = ecsRef->attach<UiAnchor>(hlEnt);
+
+    hlAnchor->clearAnchors();
+    hlAnchor->setLeftAnchor(PosAnchor{slotBgId, AnchorType::Left});
+    hlAnchor->setLeftMargin(-2.0f);
+    hlAnchor->setTopAnchor(PosAnchor{slotBgId, AnchorType::Top});
+    hlAnchor->setTopMargin(-2.0f);
 }
 
 void HotbarSystem::refreshAllSlots()
@@ -234,6 +261,15 @@ void HotbarSystem::refreshSlot(size_t index)
         return;
     }
 
+    // Read slot bg position (auto-updated by anchoring)
+    auto slotEnt = ecsRef->getEntity(sv.bgEntityId);
+    if (not slotEnt)
+        return;
+    auto slotPos = slotEnt->get<PositionComponent>();
+    float slotX = slotPos->getX();
+    float slotY = slotPos->getY();
+    float itemOffset = (SLOT_SIZE - ITEM_SIZE) * 0.5f;
+
     // Update item texture and show
     const auto& def = itemRegistry->get(stack.id);
     auto itemEnt = ecsRef->getEntity(sv.itemEntityId);
@@ -244,19 +280,22 @@ void HotbarSystem::refreshSlot(size_t index)
         float iconW = ITEM_SIZE * def.iconWidthRatio;
         pos->setWidth(iconW);
         pos->setHeight(ITEM_SIZE);
-        pos->setX(sv.itemBaseX + (ITEM_SIZE - iconW) * 0.5f);
-        pos->setY(sv.itemBaseY);
+        pos->setX(slotX + itemOffset + (ITEM_SIZE - iconW) * 0.5f);
+        pos->setY(slotY + itemOffset);
         pos->setVisibility(true);
     }
 
-    // Update count text
+    // Update count text position and show
     if (stack.count > 1)
     {
         auto textEnt = ecsRef->getEntity(sv.textEntityId);
         if (textEnt)
         {
             textEnt->get<TTFText>()->setText(std::to_string(stack.count));
-            textEnt->get<PositionComponent>()->setVisibility(true);
+            auto pos = textEnt->get<PositionComponent>();
+            pos->setX(slotX + SLOT_SIZE - 4.0f);
+            pos->setY(slotY + SLOT_SIZE - 4.0f);
+            pos->setVisibility(true);
         }
     }
     else

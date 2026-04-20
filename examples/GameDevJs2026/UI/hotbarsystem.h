@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Systems/basicsystems.h"
+#include "ECS/entitysystem_fwd.h"
 #include "Input/inputcomponent.h"
 #include "Renderer/renderer.h"
 
@@ -16,6 +17,7 @@ inline constexpr size_t HOTBAR_SLOTS = 9;
 
 class HotbarSystem : public System<InitSys,
                                     Listener<OnSDLScanCode>,
+                                    Listener<ResizeEvent>,
                                     Listener<PlayerGainItemEvent>,
                                     Listener<PlayerLoseItemEvent>,
                                     QueuedListener<OnMouseClick>,
@@ -45,6 +47,7 @@ public:
 
     // Event handlers
     virtual void onEvent(const OnSDLScanCode& event) override;
+    virtual void onEvent(const ResizeEvent& event) override;
     virtual void onEvent(const PlayerGainItemEvent& event) override;
     virtual void onEvent(const PlayerLoseItemEvent& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
@@ -115,12 +118,11 @@ private:
         uint64_t bgEntityId = 0;
         uint64_t itemEntityId = 0;
         uint64_t textEntityId = 0;
-        float itemBaseX = 0.0f;
-        float itemBaseY = 0.0f;
     };
     std::vector<SlotVisual> slotVisuals;
     uint64_t highlightEntityId = 0;
     uint64_t backdropEntityId = 0;
+    uint64_t containerEntityId = 0;
 
     float lastMouseX = 0.0f;
     float lastMouseY = 0.0f;

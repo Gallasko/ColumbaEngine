@@ -2,6 +2,7 @@
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
+#include "2D/position.h"
 #include "UI/ttftext.h"
 
 #include <SDL2/SDL.h>
@@ -26,10 +27,13 @@ bool CraftingUISystem::isClickOnPanel(float x, float y) const
 {
     if (not visible)
         return false;
-    float px = getPanelX();
-    float py = getPanelY();
-    float pw = PANEL_WIDTH;
-    float ph = getPanelHeight();
+    auto bdEnt = ecsRef->getEntity(backdropEntityId);
+    if (not bdEnt) return false;
+    auto bdPos = bdEnt->get<PositionComponent>();
+    float px = bdPos->getX();
+    float py = bdPos->getY();
+    float pw = bdPos->getWidth();
+    float ph = bdPos->getHeight();
     return x >= px and x <= px + pw and y >= py and y <= py + ph;
 }
 
@@ -90,16 +94,26 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
     // Craft / Cancel buttons only active in hand-craft mode
     if (activeMachineType == 0)
     {
-        if (isPointInRect(x, y, craftButtonX, craftButtonY, BUTTON_W, BUTTON_H))
+        auto craftBtnEnt = ecsRef->getEntity(craftButtonBgEntityId);
+        if (craftBtnEnt)
         {
-            requestCraft();
-            return;
+            auto pos = craftBtnEnt->get<PositionComponent>();
+            if (isPointInRect(x, y, pos->getX(), pos->getY(), BUTTON_W, BUTTON_H))
+            {
+                requestCraft();
+                return;
+            }
         }
 
-        if (isPointInRect(x, y, cancelButtonX, cancelButtonY, BUTTON_W, BUTTON_H))
+        auto cancelBtnEnt = ecsRef->getEntity(cancelButtonBgEntityId);
+        if (cancelBtnEnt)
         {
-            ecsRef->sendEvent(HandCraftCancel{});
-            return;
+            auto pos = cancelBtnEnt->get<PositionComponent>();
+            if (isPointInRect(x, y, pos->getX(), pos->getY(), BUTTON_W, BUTTON_H))
+            {
+                ecsRef->sendEvent(HandCraftCancel{});
+                return;
+            }
         }
 
         // Tab click
@@ -274,21 +288,6 @@ void CraftingUISystem::close()
     hideRowVisuals();
 }
 
-float CraftingUISystem::getPanelX() const
-{
-    float invW = InventoryUISystem::COLS * InventoryUISystem::SLOT_SIZE
-               + (InventoryUISystem::COLS - 1) * InventoryUISystem::SLOT_SPACING
-               + 2 * InventoryUISystem::PANEL_PADDING;
-    float invX = (screenWidth - invW) * 0.5f;
-    return invX + invW + GAP_BETWEEN_PANELS;
-}
-
-float CraftingUISystem::getPanelY() const
-{
-    float ph = getPanelHeight();
-    return (screenHeight - ph) * 0.5f;
-}
-
 float CraftingUISystem::getPanelHeight() const
 {
     float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
@@ -347,35 +346,46 @@ void CraftingUISystem::hideRowVisuals()
 
 void CraftingUISystem::createPanel()
 {
-    float px = getPanelX();
-    float py = getPanelY();
+    auto windowEnt = ecsRef->getEntity("__MainWindow");
+    auto windowId  = windowEnt->id;
+    uint64_t invBackdropId = inventoryUI->getBackdropEntityId();
+
     float pw = PANEL_WIDTH;
     float ph = getPanelHeight();
+    float rowW = pw - 2 * PANEL_PADDING;
 
-    // Backdrop
+    // Backdrop — anchored to inventory right + gap, vertically centered in window
     auto backdrop = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{20.0f, 20.0f, 30.0f, 220.0f});
     auto bdPos = backdrop.get<PositionComponent>();
-    bdPos->setX(px);
-    bdPos->setY(py);
     bdPos->setZ(97.0f);
     bdPos->setWidth(pw);
     bdPos->setHeight(ph);
     backdrop.get<Simple2DObject>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
 
-    // Title
+    auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
+    bdAnchor->setLeftAnchor(PosAnchor{invBackdropId, AnchorType::Right});
+    bdAnchor->setLeftMargin(GAP_BETWEEN_PANELS);
+    bdAnchor->setVerticalCenter(PosAnchor{windowId, AnchorType::VerticalCenter});
+
+    // Title — anchored to backdrop
     auto title = makeTTFText(ecsRef,
-        px + PANEL_PADDING, py + PANEL_PADDING + 4.0f, 100.0f,
+        0.0f, 0.0f, 100.0f,
         FONT_PATH, "Craft", TITLE_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
     title.get<TTFText>()->setViewport(UI_VP);
     titleEntityId = title.entity->id;
 
+    auto titleAnchor = ecsRef->attach<UiAnchor>(title.entity);
+    titleAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+    titleAnchor->setLeftMargin(PANEL_PADDING);
+    titleAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+    titleAnchor->setTopMargin(PANEL_PADDING + 4.0f);
+
     // Tab buttons (between title and recipe list)
     {
-        float tabRowY = py + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
-        cachedTabY = tabRowY;
+        float tabTopMargin = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE;
         float contentW = pw - 2 * PANEL_PADDING;
         float tabW = (contentW - (TAB_COUNT - 1) * TAB_GAP) / static_cast<float>(TAB_COUNT);
 
@@ -383,81 +393,85 @@ void CraftingUISystem::createPanel()
 
         for (size_t i = 0; i < TAB_COUNT; ++i)
         {
-            float tx = px + PANEL_PADDING + i * (tabW + TAB_GAP);
+            float tabLeftMargin = PANEL_PADDING + i * (tabW + TAB_GAP);
 
             auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
                 constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
             auto bgPos = bg.get<PositionComponent>();
-            bgPos->setX(tx);
-            bgPos->setY(tabRowY);
             bgPos->setZ(98.0f);
             bgPos->setWidth(tabW);
             bgPos->setHeight(TAB_ROW_H);
             bg.get<Simple2DObject>()->setViewport(UI_VP);
             tabVisuals[i].bgEntityId = bg.entity->id;
 
+            auto tabAnchor = ecsRef->attach<UiAnchor>(bg.entity);
+            tabAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+            tabAnchor->setLeftMargin(tabLeftMargin);
+            tabAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+            tabAnchor->setTopMargin(tabTopMargin);
+
             auto label = makeTTFText(ecsRef,
-                tx + 4.0f, tabRowY + 3.0f, 100.0f,
+                0.0f, 0.0f, 100.0f,
                 FONT_PATH, tabLabels[i], TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
             label.get<TTFText>()->setViewport(UI_VP);
             tabVisuals[i].textEntityId = label.entity->id;
+
+            auto labelAnchor = ecsRef->attach<UiAnchor>(label.entity);
+            labelAnchor->setLeftAnchor(PosAnchor{tabVisuals[i].bgEntityId, AnchorType::Left});
+            labelAnchor->setLeftMargin(4.0f);
+            labelAnchor->setTopAnchor(PosAnchor{tabVisuals[i].bgEntityId, AnchorType::Top});
+            labelAnchor->setTopMargin(3.0f);
         }
     }
 
-    // Row skeletons
-    float listX = px + PANEL_PADDING;
-    float listY = py + PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
-                + TAB_ROW_H + GAP_AFTER_TABS;
-    float rowW = pw - 2 * PANEL_PADDING;
+    // Row skeletons — anchored to backdrop
+    float listTopMargin = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                        + TAB_ROW_H + GAP_AFTER_TABS;
 
     rowVisuals.resize(VISIBLE_ROWS);
     for (size_t i = 0; i < VISIBLE_ROWS; ++i)
     {
-        float ry = listY + i * (ROW_HEIGHT + ROW_SPACING);
+        float rowTopMargin = listTopMargin + i * (ROW_HEIGHT + ROW_SPACING);
 
         // Row background
         auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{50.0f, 50.0f, 60.0f, 200.0f});
         auto bgPos = bg.get<PositionComponent>();
-        bgPos->setX(listX);
-        bgPos->setY(ry);
         bgPos->setZ(98.0f);
         bgPos->setWidth(rowW);
         bgPos->setHeight(ROW_HEIGHT);
         bg.get<Simple2DObject>()->setViewport(UI_VP);
         rowVisuals[i].bgEntityId = bg.entity->id;
 
-        // Output item icon (left side)
-        float itemY = ry + (ROW_HEIGHT - ITEM_SIZE) * 0.5f;
+        auto rowAnchor = ecsRef->attach<UiAnchor>(bg.entity);
+        rowAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        rowAnchor->setLeftMargin(PANEL_PADDING);
+        rowAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        rowAnchor->setTopMargin(rowTopMargin);
+
+        // Output item icon (hidden; positioned in refreshRows)
         auto item = make2DTexture(ecsRef, ITEM_SIZE, ITEM_SIZE, "NoneIcon");
         auto itemPos = item.get<PositionComponent>();
-        itemPos->setX(listX + 6.0f);
-        itemPos->setY(itemY);
         itemPos->setZ(99.0f);
         itemPos->setVisibility(false);
         item.get<Texture2DComponent>()->setViewport(UI_VP);
         rowVisuals[i].outputItemEntityId = item.entity->id;
 
-        // Recipe name
-        float textAreaX = listX + 6.0f + ITEM_SIZE + 6.0f;
+        // Recipe name (hidden; positioned in refreshRows)
         auto name = makeTTFText(ecsRef,
-            textAreaX, ry + 4.0f, 100.0f,
+            0.0f, 0.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         name.get<TTFText>()->setViewport(UI_VP);
         name.get<PositionComponent>()->setVisibility(false);
         rowVisuals[i].nameEntityId = name.entity->id;
 
-        // Ingredient icon + count text slots
-        float ingrY = ry + ROW_HEIGHT - INGR_ICON_SIZE - 3.0f;
+        // Ingredient icon + count text slots (hidden; positioned in refreshRows)
         for (size_t j = 0; j < MAX_INPUTS; ++j)
         {
-            float ix = textAreaX + static_cast<float>(j) * INGR_SLOT_W;
-
-            // Count label first ("Nx"), then icon to its right
             auto cnt = makeTTFText(ecsRef,
-                ix, ingrY + 2.0f, 100.0f,
+                0.0f, 0.0f, 100.0f,
                 FONT_PATH, "", TEXT_SCALE, {200.0f, 200.0f, 210.0f, 255.0f});
             cnt.get<TTFText>()->setViewport(UI_VP);
             cnt.get<PositionComponent>()->setVisibility(false);
@@ -465,90 +479,103 @@ void CraftingUISystem::createPanel()
 
             auto icon = make2DTexture(ecsRef, INGR_ICON_SIZE, INGR_ICON_SIZE, "NoneIcon");
             auto iPos = icon.get<PositionComponent>();
-            iPos->setX(ix + 22.0f); iPos->setY(ingrY); iPos->setZ(99.0f);
+            iPos->setZ(99.0f);
             iPos->setVisibility(false);
             icon.get<Texture2DComponent>()->setViewport(UI_VP);
             rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
         }
     }
 
-    // Progress bar
-    float barX = listX;
-    float barY = listY + VISIBLE_ROWS * ROW_HEIGHT
-               + (VISIBLE_ROWS - 1) * ROW_SPACING + GAP_AFTER_LIST;
-    float barW = rowW;
+    // Progress bar — anchored to backdrop
+    float barTopMargin = listTopMargin + VISIBLE_ROWS * ROW_HEIGHT
+                       + (VISIBLE_ROWS - 1) * ROW_SPACING + GAP_AFTER_LIST;
 
     auto barBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{40.0f, 40.0f, 50.0f, 220.0f});
     auto barBgPos = barBg.get<PositionComponent>();
-    barBgPos->setX(barX);
-    barBgPos->setY(barY);
     barBgPos->setZ(98.0f);
-    barBgPos->setWidth(barW);
+    barBgPos->setWidth(rowW);
     barBgPos->setHeight(PROGRESS_BAR_H);
     barBg.get<Simple2DObject>()->setViewport(UI_VP);
     progressBgEntityId = barBg.entity->id;
 
+    auto barBgAnchor = ecsRef->attach<UiAnchor>(barBg.entity);
+    barBgAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+    barBgAnchor->setLeftMargin(PANEL_PADDING);
+    barBgAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+    barBgAnchor->setTopMargin(barTopMargin);
+
     auto barFill = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{80.0f, 200.0f, 80.0f, 255.0f});
     auto barFillPos = barFill.get<PositionComponent>();
-    barFillPos->setX(barX);
-    barFillPos->setY(barY);
     barFillPos->setZ(99.0f);
     barFillPos->setWidth(0.0f);
     barFillPos->setHeight(PROGRESS_BAR_H);
     barFill.get<Simple2DObject>()->setViewport(UI_VP);
     progressFillEntityId = barFill.entity->id;
 
-    cachedBarX = barX;
-    cachedBarMaxW = barW;
+    auto barFillAnchor = ecsRef->attach<UiAnchor>(barFill.entity);
+    barFillAnchor->setLeftAnchor(PosAnchor{progressBgEntityId, AnchorType::Left});
+    barFillAnchor->setTopAnchor(PosAnchor{progressBgEntityId, AnchorType::Top});
 
-    // Buttons (Craft on the left, Cancel on the right)
-    float buttonsY = barY + PROGRESS_BAR_H + GAP_AFTER_BAR;
-    craftButtonX = listX;
-    craftButtonY = buttonsY;
-    cancelButtonX = listX + BUTTON_W + BUTTON_GAP;
-    cancelButtonY = buttonsY;
+    // Buttons — anchored to backdrop
+    float buttonsTopMargin = barTopMargin + PROGRESS_BAR_H + GAP_AFTER_BAR;
 
     auto craftBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{70.0f, 130.0f, 80.0f, 240.0f});
     auto craftBgPos = craftBg.get<PositionComponent>();
-    craftBgPos->setX(craftButtonX);
-    craftBgPos->setY(craftButtonY);
     craftBgPos->setZ(98.0f);
     craftBgPos->setWidth(BUTTON_W);
     craftBgPos->setHeight(BUTTON_H);
     craftBg.get<Simple2DObject>()->setViewport(UI_VP);
     craftButtonBgEntityId = craftBg.entity->id;
 
+    auto craftBgAnchor = ecsRef->attach<UiAnchor>(craftBg.entity);
+    craftBgAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+    craftBgAnchor->setLeftMargin(PANEL_PADDING);
+    craftBgAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+    craftBgAnchor->setTopMargin(buttonsTopMargin);
+
     auto craftText = makeTTFText(ecsRef,
-        craftButtonX + 18.0f, craftButtonY + 5.0f, 100.0f,
+        0.0f, 0.0f, 100.0f,
         FONT_PATH, "Craft", TEXT_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
     craftText.get<TTFText>()->setViewport(UI_VP);
     craftButtonTextEntityId = craftText.entity->id;
 
+    auto craftTextAnchor = ecsRef->attach<UiAnchor>(craftText.entity);
+    craftTextAnchor->setLeftAnchor(PosAnchor{craftButtonBgEntityId, AnchorType::Left});
+    craftTextAnchor->setLeftMargin(18.0f);
+    craftTextAnchor->setTopAnchor(PosAnchor{craftButtonBgEntityId, AnchorType::Top});
+    craftTextAnchor->setTopMargin(5.0f);
+
     auto cancelBg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
         constant::Vector4D{130.0f, 70.0f, 70.0f, 240.0f});
     auto cancelBgPos = cancelBg.get<PositionComponent>();
-    cancelBgPos->setX(cancelButtonX);
-    cancelBgPos->setY(cancelButtonY);
     cancelBgPos->setZ(98.0f);
     cancelBgPos->setWidth(BUTTON_W);
     cancelBgPos->setHeight(BUTTON_H);
     cancelBg.get<Simple2DObject>()->setViewport(UI_VP);
     cancelButtonBgEntityId = cancelBg.entity->id;
 
+    auto cancelBgAnchor = ecsRef->attach<UiAnchor>(cancelBg.entity);
+    cancelBgAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+    cancelBgAnchor->setLeftMargin(PANEL_PADDING + BUTTON_W + BUTTON_GAP);
+    cancelBgAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+    cancelBgAnchor->setTopMargin(buttonsTopMargin);
+
     auto cancelText = makeTTFText(ecsRef,
-        cancelButtonX + 16.0f, cancelButtonY + 5.0f, 100.0f,
+        0.0f, 0.0f, 100.0f,
         FONT_PATH, "Cancel", TEXT_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
     cancelText.get<TTFText>()->setViewport(UI_VP);
     cancelButtonTextEntityId = cancelText.entity->id;
 
-    cachedListX = listX;
-    cachedListY = listY;
-    cachedRowW = rowW;
+    auto cancelTextAnchor = ecsRef->attach<UiAnchor>(cancelText.entity);
+    cancelTextAnchor->setLeftAnchor(PosAnchor{cancelButtonBgEntityId, AnchorType::Left});
+    cancelTextAnchor->setLeftMargin(16.0f);
+    cancelTextAnchor->setTopAnchor(PosAnchor{cancelButtonBgEntityId, AnchorType::Top});
+    cancelTextAnchor->setTopMargin(5.0f);
 
     refreshTabHighlights();
 }
@@ -664,6 +691,13 @@ void CraftingUISystem::refreshRows()
             continue;
         }
 
+        // Read row bg position (auto-updated by anchoring)
+        auto rowBgEnt = ecsRef->getEntity(row.bgEntityId);
+        if (not rowBgEnt) continue;
+        auto rowBgPos = rowBgEnt->get<PositionComponent>();
+        float rowX = rowBgPos->getX();
+        float rowY = rowBgPos->getY();
+
         size_t recipeIdx = visibleRecipes[absIdx];
         const Recipe& recipe = recipeRegistry->recipes[recipeIdx];
 
@@ -677,9 +711,8 @@ void CraftingUISystem::refreshRows()
                 itemEnt->get<Texture2DComponent>()->setTexture(outDef.textureName);
                 auto pos = itemEnt->get<PositionComponent>();
                 float iconW = ITEM_SIZE * outDef.iconWidthRatio;
-                float ry = cachedListY + rowIdx * (ROW_HEIGHT + ROW_SPACING);
-                float baseX = cachedListX + 6.0f;
-                float baseY = ry + (ROW_HEIGHT - ITEM_SIZE) * 0.5f;
+                float baseX = rowX + 6.0f;
+                float baseY = rowY + (ROW_HEIGHT - ITEM_SIZE) * 0.5f;
                 pos->setWidth(iconW);
                 pos->setHeight(ITEM_SIZE);
                 pos->setX(baseX + (ITEM_SIZE - iconW) * 0.5f);
@@ -693,33 +726,45 @@ void CraftingUISystem::refreshRows()
         }
 
         // Recipe name (strip redundant "Craft "/"Smelt "/etc. prefix)
+        float textAreaX = rowX + 6.0f + ITEM_SIZE + 6.0f;
         auto nameEnt = ecsRef->getEntity(row.nameEntityId);
         if (nameEnt)
         {
             nameEnt->get<TTFText>()->setText(stripCraftingPrefix(recipe.name));
-            nameEnt->get<PositionComponent>()->setVisibility(true);
+            auto namePos = nameEnt->get<PositionComponent>();
+            namePos->setX(textAreaX);
+            namePos->setY(rowY + 4.0f);
+            namePos->setVisibility(true);
         }
 
         // Ingredient icons + count labels
+        float ingrY = rowY + ROW_HEIGHT - INGR_ICON_SIZE - 3.0f;
         for (size_t j = 0; j < MAX_INPUTS; ++j)
         {
             if (j < recipe.inputs.size())
             {
                 const auto& in  = recipe.inputs[j];
                 const auto& def = itemRegistry->get(in.id);
-
-                auto iconEnt = ecsRef->getEntity(row.ingrIconEntityId[j]);
-                if (iconEnt)
-                {
-                    iconEnt->get<Texture2DComponent>()->setTexture(def.textureName);
-                    iconEnt->get<PositionComponent>()->setVisibility(true);
-                }
+                float ix = textAreaX + static_cast<float>(j) * INGR_SLOT_W;
 
                 auto cntEnt = ecsRef->getEntity(row.ingrCountEntityId[j]);
                 if (cntEnt)
                 {
                     cntEnt->get<TTFText>()->setText(std::to_string(in.count) + "x");
-                    cntEnt->get<PositionComponent>()->setVisibility(true);
+                    auto cntPos = cntEnt->get<PositionComponent>();
+                    cntPos->setX(ix);
+                    cntPos->setY(ingrY + 2.0f);
+                    cntPos->setVisibility(true);
+                }
+
+                auto iconEnt = ecsRef->getEntity(row.ingrIconEntityId[j]);
+                if (iconEnt)
+                {
+                    iconEnt->get<Texture2DComponent>()->setTexture(def.textureName);
+                    auto iPos = iconEnt->get<PositionComponent>();
+                    iPos->setX(ix + 22.0f);
+                    iPos->setY(ingrY);
+                    iPos->setVisibility(true);
                 }
             }
             else
@@ -777,8 +822,10 @@ void CraftingUISystem::refreshProgressBar()
     auto fillEnt = ecsRef->getEntity(progressFillEntityId);
     if (not fillEnt)
         return;
+    auto barBgEnt = ecsRef->getEntity(progressBgEntityId);
+    float barMaxW = barBgEnt ? barBgEnt->get<PositionComponent>()->getWidth() : 0.0f;
     float ratio = handCrafting ? handCrafting->getProgressRatio() : 0.0f;
-    fillEnt->get<PositionComponent>()->setWidth(cachedBarMaxW * ratio);
+    fillEnt->get<PositionComponent>()->setWidth(barMaxW * ratio);
 }
 
 // ---------------------------------------------------------------------------
@@ -817,17 +864,15 @@ void CraftingUISystem::setActiveTab(CraftTab tab)
 
 int CraftingUISystem::tabAtPosition(float x, float y) const
 {
-    if (y < cachedTabY or y > cachedTabY + TAB_ROW_H)
-        return -1;
-
-    float contentW = PANEL_WIDTH - 2 * PANEL_PADDING;
-    float tabW = (contentW - (TAB_COUNT - 1) * TAB_GAP) / static_cast<float>(TAB_COUNT);
-    float tabStartX = getPanelX() + PANEL_PADDING;
-
     for (size_t i = 0; i < TAB_COUNT; ++i)
     {
-        float tx = tabStartX + i * (tabW + TAB_GAP);
-        if (x >= tx and x <= tx + tabW)
+        auto tabEnt = ecsRef->getEntity(tabVisuals[i].bgEntityId);
+        if (not tabEnt) continue;
+        auto pos = tabEnt->get<PositionComponent>();
+        float tx = pos->getX();
+        float ty = pos->getY();
+        float tw = pos->getWidth();
+        if (x >= tx and x <= tx + tw and y >= ty and y <= ty + TAB_ROW_H)
             return static_cast<int>(i);
     }
     return -1;
@@ -866,12 +911,15 @@ void CraftingUISystem::requestCraft()
 
 int CraftingUISystem::rowAtPosition(float x, float y) const
 {
-    if (x < cachedListX or x > cachedListX + cachedRowW)
-        return -1;
-    for (size_t i = 0; i < VISIBLE_ROWS; ++i)
+    for (size_t i = 0; i < rowVisuals.size(); ++i)
     {
-        float ry = cachedListY + i * (ROW_HEIGHT + ROW_SPACING);
-        if (y >= ry and y <= ry + ROW_HEIGHT)
+        auto rowEnt = ecsRef->getEntity(rowVisuals[i].bgEntityId);
+        if (not rowEnt) continue;
+        auto pos = rowEnt->get<PositionComponent>();
+        float rx = pos->getX();
+        float ry = pos->getY();
+        float rw = pos->getWidth();
+        if (x >= rx and x <= rx + rw and y >= ry and y <= ry + ROW_HEIGHT)
             return static_cast<int>(i);
     }
     return -1;
