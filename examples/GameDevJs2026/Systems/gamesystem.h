@@ -12,6 +12,7 @@
 #include "minerui.h"
 #include "craftingui.h"
 #include "machineui.h"
+#include "storageui.h"
 #include "manualmining.h"
 
 using namespace pg;
@@ -19,8 +20,8 @@ using namespace pg;
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUISystem* machineUI = nullptr)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), hotbar(hotbar), registry(registry), itemRegistry(itemRegistry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI), craftingUI(craftingUI), manualMining(manualMining), machineUI(machineUI) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUISystem* machineUI = nullptr, StorageUISystem* storageUI = nullptr)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem), hotbar(hotbar), registry(registry), itemRegistry(itemRegistry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI), craftingUI(craftingUI), manualMining(manualMining), machineUI(machineUI), storageUI(storageUI) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -91,6 +92,7 @@ private:
     CraftingUISystem* craftingUI = nullptr;
     ManualMiningSystem* manualMining = nullptr;
     MachineUISystem* machineUI = nullptr;
+    StorageUISystem* storageUI = nullptr;
 
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up
     bool leftMouseDown = false;

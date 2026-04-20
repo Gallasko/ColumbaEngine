@@ -3,6 +3,7 @@
 #include "craftingsystem.h"
 #include "minersystem.h"
 #include "insertersystem.h"
+#include "storagesystem.h"
 
 namespace pg
 {
@@ -183,6 +184,31 @@ namespace pg
         result.heldItem = static_cast<ItemId>(heldItem);
 
         defaultDeserialize(s, "animFrame", result.animFrame);
+
+        return result;
+    }
+
+    // ===== StorageData =====
+
+    template <>
+    void serialize(Archive& archive, const StorageData& value)
+    {
+        archive.startSerialization("StorageData");
+        serialize(archive, "ownerX", value.ownerX);
+        serialize(archive, "ownerY", value.ownerY);
+        serialize(archive, "inventory", value.inventory);
+        archive.endSerialization();
+    }
+
+    template <>
+    StorageData deserialize(const UnserializedObject& s)
+    {
+        StorageData result;
+        if (s.isNull()) return result;
+
+        defaultDeserialize(s, "ownerX", result.ownerX);
+        defaultDeserialize(s, "ownerY", result.ownerY);
+        defaultDeserialize(s, "inventory", result.inventory);
 
         return result;
     }

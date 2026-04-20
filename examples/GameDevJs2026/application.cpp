@@ -14,6 +14,8 @@
 #include "minerui.h"
 #include "machineui.h"
 #include "insertersystem.h"
+#include "storagesystem.h"
+#include "storageui.h"
 #include "saveserialization.h"
 #include "gamesystem.h"
 #include "hotbarsystem.h"
@@ -113,6 +115,13 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             "",
             std::make_unique<GridAtlas>("Robotic_Arms_1.png", 384, 48, 48, 48, 8, 8));
 
+        // Load crate sprite (16x16 single frame) for storage building
+        window.masterRenderer->registerAtlasTexture(
+            "Crate",
+            "res/ext/Automation Components/Crate.png",
+            "",
+            std::make_unique<GridAtlas>("Crate.png", 16, 16, 16, 16, 1, 1));
+
         // Environment tilesets for procedurally generated canvases.
         // Single-tile bases used as-is; multi-tile tilesets are 3x3 where frame 4 is the center.
         window.masterRenderer->registerAtlasTexture(
@@ -199,8 +208,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
         auto* craftingSystem = ecs.createSystem<CraftingSystem>(
             gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
         auto* minerSystem = ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
+        auto* storageSystem = ecs.createSystem<StorageSystem>(gridSystem, &itemRegistry);
         ecs.createSystem<InserterSystem>(
-            gridSystem, transportSystem, minerSystem, craftingSystem, &itemRegistry);
+            gridSystem, transportSystem, minerSystem, craftingSystem, storageSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         // UI camera at viewport 2 — needed by hotbar, inventory panel, crafting UI, etc.
@@ -227,6 +237,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         auto* machineUI = ecs.createSystem<MachineUISystem>(
             craftingSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
+
+        auto* storageUI = ecs.createSystem<StorageUISystem>(
+            storageSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 
         // World facts (progression/discovery state) must exist before the
         // hand-crafting system and crafting UI query it for unlock checks.
@@ -255,7 +268,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<AutoSaveSystem>();
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI);
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI);
     });
 }
 

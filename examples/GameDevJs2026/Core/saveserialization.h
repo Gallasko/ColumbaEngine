@@ -30,6 +30,7 @@ struct SavedBuilding
 struct MachineData;
 struct MinerData;
 struct InserterData;
+struct StorageData;
 enum class InserterState : uint8_t;
 
 namespace pg
@@ -57,6 +58,10 @@ namespace pg
     // InserterData (save-only subset)
     template <> void serialize(Archive& archive, const InserterData& value);
     template <> InserterData deserialize(const UnserializedObject& s);
+
+    // StorageData
+    template <> void serialize(Archive& archive, const StorageData& value);
+    template <> StorageData deserialize(const UnserializedObject& s);
 
     // TerrainType (as uint8_t)
     template <> void serialize(Archive& archive, const TerrainType& value);

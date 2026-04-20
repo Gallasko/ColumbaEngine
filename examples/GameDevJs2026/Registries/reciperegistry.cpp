@@ -217,5 +217,13 @@ RecipeRegistry createDefaultRecipeRegistry()
         RecipeCategory::HandCraft, {}
     });
 
+    // Craft Storage: 4 Wood → 1 Storage (always available)
+    // Item IDs: 15=Wood, 31=Storage
+    reg.addRecipe({
+        "Craft Storage",
+        0, {{15, 4}}, {{31, 1}}, 3000,
+        RecipeCategory::HandCraft, {}
+    });
+
     return reg;
 }

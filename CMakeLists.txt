@@ -867,6 +867,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Systems/transportsystem.cpp
             examples/GameDevJs2026/Systems/insertersystem.cpp
             examples/GameDevJs2026/Systems/craftingsystem.cpp
+            examples/GameDevJs2026/Systems/storagesystem.cpp
             examples/GameDevJs2026/Systems/handcraftingsystem.cpp
             examples/GameDevJs2026/Systems/playerinventory.cpp
             examples/GameDevJs2026/Systems/manualmining.cpp
@@ -875,6 +876,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/minerui.cpp
             examples/GameDevJs2026/UI/craftingui.cpp
             examples/GameDevJs2026/UI/machineui.cpp
+            examples/GameDevJs2026/UI/storageui.cpp
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
         )
@@ -1200,6 +1202,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/Systems/transportsystem.cpp
             examples/GameDevJs2026/Systems/insertersystem.cpp
             examples/GameDevJs2026/Systems/craftingsystem.cpp
+            examples/GameDevJs2026/Systems/storagesystem.cpp
             examples/GameDevJs2026/Systems/handcraftingsystem.cpp
             examples/GameDevJs2026/Systems/playerinventory.cpp
             examples/GameDevJs2026/Systems/manualmining.cpp
@@ -1208,6 +1211,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/minerui.cpp
             examples/GameDevJs2026/UI/craftingui.cpp
             examples/GameDevJs2026/UI/machineui.cpp
+            examples/GameDevJs2026/UI/storageui.cpp
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
         )

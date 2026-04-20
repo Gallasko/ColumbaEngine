@@ -6,6 +6,7 @@
 #include "transportsystem.h"
 #include "minersystem.h"
 #include "craftingsystem.h"
+#include "storagesystem.h"
 #include "machinekey.h"
 #include "saveserialization.h"
 
@@ -50,10 +51,10 @@ public:
 
     InserterSystem(GridSystem* gridSystem, TransportSystem* transportSystem,
                    MinerSystem* minerSystem, CraftingSystem* craftingSystem,
-                   ItemRegistry* itemRegistry)
+                   StorageSystem* storageSystem, ItemRegistry* itemRegistry)
         : gridSystem(gridSystem), transportSystem(transportSystem),
           minerSystem(minerSystem), craftingSystem(craftingSystem),
-          itemRegistry(itemRegistry) {}
+          storageSystem(storageSystem), itemRegistry(itemRegistry) {}
 
     virtual std::string getSystemName() const override { return "Inserter System"; }
 
@@ -100,6 +101,7 @@ private:
     TransportSystem* transportSystem = nullptr;
     MinerSystem* minerSystem = nullptr;
     CraftingSystem* craftingSystem = nullptr;
+    StorageSystem* storageSystem = nullptr;
     ItemRegistry* itemRegistry = nullptr;
 
     std::unordered_map<uint32_t, InserterData> inserters;

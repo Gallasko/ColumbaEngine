@@ -273,6 +273,26 @@ bool InserterSystem::tryPickup(InserterData& ins)
         return false;
     }
 
+    // Pick from storage
+    if (cell.tileId == StorageSystem::STORAGE_TILE_ID)
+    {
+        StorageData* storage = storageSystem->getStorage(pickupX, pickupY);
+        if (storage)
+        {
+            for (auto& slot : storage->inventory.slots)
+            {
+                if (not slot.isEmpty())
+                {
+                    ins.heldItem = slot.id;
+                    slot.count -= 1;
+                    if (slot.count == 0) slot.clear();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     return false;
 }
 
@@ -310,6 +330,19 @@ bool InserterSystem::tryDrop(InserterData& ins)
         if (machine and machine->inputSlots.canAccept(ins.heldItem, *itemRegistry))
         {
             machine->inputSlots.insert(ins.heldItem, 1, *itemRegistry);
+            ins.heldItem = ITEM_NONE;
+            return true;
+        }
+        return false;
+    }
+
+    // Drop into storage
+    if (cell.tileId == StorageSystem::STORAGE_TILE_ID)
+    {
+        StorageData* storage = storageSystem->getStorage(dropX, dropY);
+        if (storage and storage->inventory.canAccept(ins.heldItem, *itemRegistry))
+        {
+            storage->inventory.insert(ins.heldItem, 1, *itemRegistry);
             ins.heldItem = ITEM_NONE;
             return true;
         }

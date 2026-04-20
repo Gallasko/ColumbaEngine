@@ -79,5 +79,17 @@ BuildingRegistry createDefaultRegistry()
         false                                          // isAnimated (managed by InserterSystem)
     });
 
+    // Slot 5 (key 6): Storage (1x1)
+    reg.addBuilding({
+        9,                                             // tileId
+        "Storage",                                     // name
+        "Crate",                                       // textureName
+        {160.0f, 120.0f, 80.0f, 255.0f},              // color (brown fallback)
+        1, 1,                                          // 1x1
+        PlacementMode::ClickToPlace,
+        false,                                         // hasDirection
+        false                                          // isAnimated
+    });
+
     return reg;
 }
