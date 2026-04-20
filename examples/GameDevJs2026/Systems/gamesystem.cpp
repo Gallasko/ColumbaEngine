@@ -37,6 +37,8 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
         return;
     if (storageUI and storageUI->isOpen())
         return;
+    if (depotUI and depotUI->isOpen())
+        return;
 
     if (event.key == SDL_SCANCODE_R)
     {
@@ -70,7 +72,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                   or (minerUI and minerUI->isOpen())
                   or (craftingUI and craftingUI->isOpen())
                   or (machineUI and machineUI->isOpen())
-                  or (storageUI and storageUI->isOpen());
+                  or (storageUI and storageUI->isOpen())
+                  or (depotUI and depotUI->isOpen());
 
     // Centralized click-outside-to-close for all UIs
     if (anyUIOpen)
@@ -88,6 +91,8 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
                 onAnyPanel = onAnyPanel or machineUI->isClickOnPanel(event.pos.x, event.pos.y);
             if (storageUI and storageUI->isOpen())
                 onAnyPanel = onAnyPanel or storageUI->isClickOnPanel(event.pos.x, event.pos.y);
+            if (depotUI and depotUI->isOpen())
+                onAnyPanel = onAnyPanel or depotUI->isClickOnPanel(event.pos.x, event.pos.y);
 
             if (not onAnyPanel)
             {
@@ -152,6 +157,24 @@ void GameSystem::onProcessEvent(const OnMouseClick& event)
             }
         }
 
+        // Check if clicking on a depot — open depot UI
+        if (depotUI)
+        {
+            auto [gx, gy] = getMouseGridPos();
+            auto layer = gridSystem->getBuildingLayer();
+            if (gridSystem->getGrid().isInBounds(gx, gy))
+            {
+                const auto& cell = gridSystem->getCell(layer, gx, gy);
+                if (cell.tileId == DepotSystem::DEPOT_TILE_ID)
+                {
+                    int ox = cell.isOwner ? gx : static_cast<int>(cell.ownerX);
+                    int oy = cell.isOwner ? gy : static_cast<int>(cell.ownerY);
+                    depotUI->open(ox, oy);
+                    return;
+                }
+            }
+        }
+
         const auto* def = getSelectedBuildingDef();
 
         if (def)
@@ -188,7 +211,8 @@ void GameSystem::onProcessEvent(const OnMouseRelease& event)
      or (minerUI and minerUI->isOpen())
      or (craftingUI and craftingUI->isOpen())
      or (machineUI and machineUI->isOpen())
-     or (storageUI and storageUI->isOpen()))
+     or (storageUI and storageUI->isOpen())
+     or (depotUI and depotUI->isOpen()))
         return;
 
     if (event.button == SDL_BUTTON_LEFT)
@@ -211,7 +235,8 @@ void GameSystem::onProcessEvent(const OnSDLMouseMotion& event)
      or (minerUI and minerUI->isOpen())
      or (craftingUI and craftingUI->isOpen())
      or (machineUI and machineUI->isOpen())
-     or (storageUI and storageUI->isOpen()))
+     or (storageUI and storageUI->isOpen())
+     or (depotUI and depotUI->isOpen()))
         return;
 
     updateCursorPosition();

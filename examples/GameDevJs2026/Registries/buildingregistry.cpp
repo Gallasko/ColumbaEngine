@@ -91,5 +91,17 @@ BuildingRegistry createDefaultRegistry()
         false                                          // isAnimated
     });
 
+    // Slot 6 (key 7): Depot (2x2)
+    reg.addBuilding({
+        10,                                            // tileId
+        "Depot",                                       // name
+        "",                                            // textureName (placeholder — uses color fallback)
+        {60.0f, 120.0f, 200.0f, 255.0f},              // color (blue fallback)
+        2, 2,                                          // 2x2
+        PlacementMode::ClickToPlace,
+        false,                                         // hasDirection
+        false                                          // isAnimated
+    });
+
     return reg;
 }

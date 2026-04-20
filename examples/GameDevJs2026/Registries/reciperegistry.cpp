@@ -97,6 +97,27 @@ RecipeRegistry createDefaultRecipeRegistry()
         RecipeCategory::Assembler, {}
     });
 
+    // Item IDs: 7=Iron Gear, 8=Copper Wire, 32=Motor
+    reg.addRecipe({
+        "Make Motor",
+        6, {{7, 2}, {8, 2}}, {{32, 1}}, 3000,
+        RecipeCategory::Assembler, {}
+    });
+
+    // Item IDs: 9=Circuit, 5=Iron Plate, 21=Processor
+    reg.addRecipe({
+        "Make Processor",
+        6, {{9, 2}, {5, 1}}, {{21, 1}}, 5000,
+        RecipeCategory::Assembler, {}
+    });
+
+    // Item IDs: 21=Processor, 32=Motor, 9=Circuit, 33=Robot Core
+    reg.addRecipe({
+        "Make Robot Core",
+        6, {{21, 1}, {32, 2}}, {{33, 1}}, 8000,
+        RecipeCategory::Assembler, {}
+    });
+
     // ===== Hand-craft recipes =====
     //
     // Unlocked-by-default recipes let the player bootstrap production by
@@ -227,6 +248,18 @@ RecipeRegistry createDefaultRecipeRegistry()
         "Craft Storage",
         0, {{15, 4}}, {{31, 1}}, 3000,
         RecipeCategory::HandCraft, {}
+    });
+
+    // Craft Depot: 5 Iron Plate + 3 Iron Gear + 1 Circuit → 1 Depot
+    // Gated behind discovering Circuit.
+    // Item IDs: 5=Iron Plate, 7=Iron Gear, 9=Circuit, 34=Depot
+    reg.addRecipe({
+        "Craft Depot",
+        0, {{5, 5}, {7, 3}, {9, 1}}, {{34, 1}}, 8000,
+        RecipeCategory::HandCraft,
+        {
+            pg::FactChecker{std::string("discovered_circuit"), true, pg::FactCheckEquality::Equal}
+        }
     });
 
     return reg;

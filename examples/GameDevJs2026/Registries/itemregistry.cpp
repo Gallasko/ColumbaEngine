@@ -89,5 +89,17 @@ ItemRegistry createDefaultItemRegistry()
     // Storage (ID 31)
     reg.addItem({0, "Storage", "Crate.0", ItemCategory::Building, 50, 9, 0, 1.0f, 1.0f, "A simple chest that stores items."});
 
+    // Motor (ID 32) — placeholder icon
+    reg.addItem({0, "Motor", "PixelwoodIcons.100", ItemCategory::Intermediate, 50, 0, 0, 1.0f, 1.0f, "A compact motor for robotics."});
+
+    // Robot Core (ID 33) — placeholder icon
+    reg.addItem({0, "Robot Core", "PixelwoodIcons.101", ItemCategory::Product, 20, 0, 0, 1.0f, 1.0f, "The brain of an autonomous robot."});
+
+    // Depot (ID 34) — placeholder icon
+    reg.addItem({0, "Depot", "PixelwoodIcons.102", ItemCategory::Building, 10, 10, 0, 1.0f, 1.0f, "Sends robots on missions for resources."});
+
+    // Ticket (ID 35) — placeholder icon
+    reg.addItem({0, "Ticket", "PixelwoodIcons.103", ItemCategory::Resource, 999, 0, 0, 1.0f, 1.0f, "Mission reward currency."});
+
     return reg;
 }

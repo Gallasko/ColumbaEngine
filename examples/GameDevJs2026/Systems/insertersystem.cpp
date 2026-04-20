@@ -293,6 +293,28 @@ bool InserterSystem::tryPickup(InserterData& ins)
         return false;
     }
 
+    // Pick from depot
+    if (cell.tileId == DepotSystem::DEPOT_TILE_ID)
+    {
+        int ox = cell.isOwner ? pickupX : static_cast<int>(cell.ownerX);
+        int oy = cell.isOwner ? pickupY : static_cast<int>(cell.ownerY);
+        DepotData* depot = depotSystem->getDepot(ox, oy);
+        if (depot)
+        {
+            for (auto& slot : depot->inventory.slots)
+            {
+                if (not slot.isEmpty())
+                {
+                    ins.heldItem = slot.id;
+                    slot.count -= 1;
+                    if (slot.count == 0) slot.clear();
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     return false;
 }
 
@@ -343,6 +365,21 @@ bool InserterSystem::tryDrop(InserterData& ins)
         if (storage and storage->inventory.canAccept(ins.heldItem, *itemRegistry))
         {
             storage->inventory.insert(ins.heldItem, 1, *itemRegistry);
+            ins.heldItem = ITEM_NONE;
+            return true;
+        }
+        return false;
+    }
+
+    // Drop into depot
+    if (cell.tileId == DepotSystem::DEPOT_TILE_ID)
+    {
+        int ox = cell.isOwner ? dropX : static_cast<int>(cell.ownerX);
+        int oy = cell.isOwner ? dropY : static_cast<int>(cell.ownerY);
+        DepotData* depot = depotSystem->getDepot(ox, oy);
+        if (depot and depot->inventory.canAccept(ins.heldItem, *itemRegistry))
+        {
+            depot->inventory.insert(ins.heldItem, 1, *itemRegistry);
             ins.heldItem = ITEM_NONE;
             return true;
         }

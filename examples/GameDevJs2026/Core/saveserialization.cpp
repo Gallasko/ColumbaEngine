@@ -4,6 +4,7 @@
 #include "minersystem.h"
 #include "insertersystem.h"
 #include "storagesystem.h"
+#include "depotsystem.h"
 
 namespace pg
 {
@@ -204,6 +205,31 @@ namespace pg
     StorageData deserialize(const UnserializedObject& s)
     {
         StorageData result;
+        if (s.isNull()) return result;
+
+        defaultDeserialize(s, "ownerX", result.ownerX);
+        defaultDeserialize(s, "ownerY", result.ownerY);
+        defaultDeserialize(s, "inventory", result.inventory);
+
+        return result;
+    }
+
+    // ===== DepotData =====
+
+    template <>
+    void serialize(Archive& archive, const DepotData& value)
+    {
+        archive.startSerialization("DepotData");
+        serialize(archive, "ownerX", value.ownerX);
+        serialize(archive, "ownerY", value.ownerY);
+        serialize(archive, "inventory", value.inventory);
+        archive.endSerialization();
+    }
+
+    template <>
+    DepotData deserialize(const UnserializedObject& s)
+    {
+        DepotData result;
         if (s.isNull()) return result;
 
         defaultDeserialize(s, "ownerX", result.ownerX);

@@ -31,6 +31,7 @@ struct MachineData;
 struct MinerData;
 struct InserterData;
 struct StorageData;
+struct DepotData;
 enum class InserterState : uint8_t;
 
 namespace pg
@@ -62,6 +63,10 @@ namespace pg
     // StorageData
     template <> void serialize(Archive& archive, const StorageData& value);
     template <> StorageData deserialize(const UnserializedObject& s);
+
+    // DepotData
+    template <> void serialize(Archive& archive, const DepotData& value);
+    template <> DepotData deserialize(const UnserializedObject& s);
 
     // TerrainType (as uint8_t)
     template <> void serialize(Archive& archive, const TerrainType& value);

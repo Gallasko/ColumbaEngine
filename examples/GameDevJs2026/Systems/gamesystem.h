@@ -13,6 +13,7 @@
 #include "craftingui.h"
 #include "machineui.h"
 #include "storageui.h"
+#include "depotui.h"
 #include "manualmining.h"
 #include "machinedemosystem.h"
 
@@ -21,8 +22,8 @@ using namespace pg;
 class GameSystem : public System<InitSys, QueuedListener<OnMouseClick>, QueuedListener<OnMouseRelease>, QueuedListener<OnSDLScanCode>, QueuedListener<OnSDLMouseMotion>>
 {
 public:
-    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUISystem* machineUI = nullptr, StorageUISystem* storageUI = nullptr, MachineDemoSystem* machineDemo = nullptr)
-        : gridSystem(gridSystem), cameraSystem(cameraSystem), hotbar(hotbar), registry(registry), itemRegistry(itemRegistry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI), craftingUI(craftingUI), manualMining(manualMining), machineUI(machineUI), storageUI(storageUI), machineDemo(machineDemo) {}
+    GameSystem(GridSystem* gridSystem, CameraSystem* cameraSystem, HotbarSystem* hotbar, BuildingRegistry* registry, ItemRegistry* itemRegistry, TransportSystem* transportSystem = nullptr, InventoryUISystem* inventoryUI = nullptr, MinerUISystem* minerUI = nullptr, CraftingUISystem* craftingUI = nullptr, ManualMiningSystem* manualMining = nullptr, MachineUISystem* machineUI = nullptr, StorageUISystem* storageUI = nullptr, DepotUISystem* depotUI = nullptr, MachineDemoSystem* machineDemo = nullptr)
+        : gridSystem(gridSystem), cameraSystem(cameraSystem), hotbar(hotbar), registry(registry), itemRegistry(itemRegistry), transportSystem(transportSystem), inventoryUI(inventoryUI), minerUI(minerUI), craftingUI(craftingUI), manualMining(manualMining), machineUI(machineUI), storageUI(storageUI), depotUI(depotUI), machineDemo(machineDemo) {}
 
     virtual std::string getSystemName() const override { return "Game System"; }
 
@@ -94,6 +95,7 @@ private:
     ManualMiningSystem* manualMining = nullptr;
     MachineUISystem* machineUI = nullptr;
     StorageUISystem* storageUI = nullptr;
+    DepotUISystem* depotUI = nullptr;
     MachineDemoSystem* machineDemo = nullptr;
 
     size_t currentDirection = 0; // 0=Right, 1=Down, 2=Left, 3=Up

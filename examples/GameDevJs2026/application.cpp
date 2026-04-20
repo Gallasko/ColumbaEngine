@@ -16,6 +16,8 @@
 #include "insertersystem.h"
 #include "storagesystem.h"
 #include "storageui.h"
+#include "depotsystem.h"
+#include "depotui.h"
 #include "saveserialization.h"
 #include "gamesystem.h"
 #include "hotbarsystem.h"
@@ -210,8 +212,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
             gridSystem, transportSystem, &itemRegistry, &recipeRegistry);
         auto* minerSystem = ecs.createSystem<MinerSystem>(gridSystem, transportSystem, &itemRegistry);
         auto* storageSystem = ecs.createSystem<StorageSystem>(gridSystem, &itemRegistry);
+        auto* depotSystem = ecs.createSystem<DepotSystem>(gridSystem, &itemRegistry);
         ecs.createSystem<InserterSystem>(
-            gridSystem, transportSystem, minerSystem, craftingSystem, storageSystem, &itemRegistry);
+            gridSystem, transportSystem, minerSystem, craftingSystem, storageSystem, depotSystem, &itemRegistry);
         auto* playerInvSystem = ecs.createSystem<PlayerInventorySystem>(&itemRegistry);
 
         // UI camera at viewport 2 — needed by hotbar, inventory panel, crafting UI, etc.
@@ -241,6 +244,9 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         auto* storageUI = ecs.createSystem<StorageUISystem>(
             storageSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
+
+        auto* depotUI = ecs.createSystem<DepotUISystem>(
+            depotSystem, &itemRegistry, playerInvSystem, inventoryUI, screenW, screenH);
 
         // World facts (progression/discovery state) must exist before the
         // hand-crafting system and crafting UI query it for unlock checks.
@@ -276,7 +282,7 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<AutoSaveSystem>();
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, machineDemo);
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, depotUI, machineDemo);
     });
 }
 
