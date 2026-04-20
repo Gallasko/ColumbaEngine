@@ -12,7 +12,8 @@
 
 using namespace pg;
 
-class TutorialSystem : public System<Listener<PlayerGainItemEvent>,
+class TutorialSystem : public System<Listener<OnSDLScanCode>,
+                                      Listener<PlayerGainItemEvent>,
                                       Listener<InventoryOpenedEvent>,
                                       Listener<HandCraftCompletedEvent>,
                                       Listener<BuildingPlacedEvent>,
@@ -27,7 +28,7 @@ public:
     static constexpr float  BODY_SCALE  = 0.30f;
     static constexpr float  PANEL_X     = 10.0f;
     static constexpr float  PANEL_Y     = 10.0f;
-    static constexpr int    TOTAL_STEPS = 7;
+    static constexpr int    TOTAL_STEPS = 9;
 
     static constexpr const char* FONT_PATH =
         "res/font/Inter/static/Inter_28pt-Light.ttf";
@@ -40,6 +41,7 @@ public:
     virtual std::string getSystemName() const override
         { return "Tutorial System"; }
 
+    virtual void onEvent(const OnSDLScanCode& event) override;
     virtual void onEvent(const PlayerGainItemEvent& event) override;
     virtual void onEvent(const InventoryOpenedEvent& event) override;
     virtual void onEvent(const HandCraftCompletedEvent& event) override;

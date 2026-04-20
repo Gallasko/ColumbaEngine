@@ -84,7 +84,7 @@ ItemRegistry createDefaultItemRegistry()
 
     // Tools (IDs 29-30)
     reg.addItem({0, "Stone Pickaxe", "PixelwoodIcons.72", ItemCategory::Product, 1, 0, 1, 1.5f, 1.0f, "Tier 1 mining tool. Unlocks coal, copper and iron ore."});
-    reg.addItem({0, "Iron Pickaxe",  "PixelwoodIcons.73", ItemCategory::Product, 1, 0, 2, 2.0f, 1.0f, "Tier 2 mining tool. Mines faster."});
+    reg.addItem({0, "Iron Pickaxe",  "PixelwoodIcons.70", ItemCategory::Product, 1, 0, 2, 2.0f, 1.0f, "Tier 2 mining tool. Mines faster."});
 
     // Storage (ID 31)
     reg.addItem({0, "Storage", "Crate.0", ItemCategory::Building, 50, 9, 0, 1.0f, 1.0f, "A simple chest that stores items."});

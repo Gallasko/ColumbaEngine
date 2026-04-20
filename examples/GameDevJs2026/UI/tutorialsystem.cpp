@@ -3,44 +3,58 @@
 #include "2D/simple2dobject.h"
 #include "UI/ttftext.h"
 
+#include <SDL2/SDL.h>
+
 // ---------------------------------------------------------------------------
 // Step definitions
 // ---------------------------------------------------------------------------
 
 const TutorialSystem::StepDef TutorialSystem::STEPS[] = {
-    {"Welcome!",            "Click on a tree or rock to gather resources."},
+    {"Welcome!",            "Use WASD to move the camera and scroll to zoom."},
+    {"Great!",              "Click on a tree or rock to gather resources."},
     {"Resources gathered!", "Press TAB to open your inventory."},
     {"Inventory opened!",   "Craft a Stone Pickaxe from the crafting menu."},
     {"Pickaxe crafted!",    "Equip it in hotbar. Mine coal or iron ore!"},
     {"Ore mined!",          "Craft a Furnace and place it on the ground."},
-    {"Furnace placed!",     "Place a Miner on an ore deposit."},
-    {"Miner placed!",       "Connect machines with Belts & Inserters."},
+    {"Furnace placed!",     "Craft an Assembler (in Mach tab) and place it down."},
+    {"Assembler placed!",   "Place a Miner on an ore deposit."},
+    {"Miner placed!",       "Connect machines with Inserters."},
 };
 
 // ---------------------------------------------------------------------------
 // Event handlers
 // ---------------------------------------------------------------------------
 
+void TutorialSystem::onEvent(const OnSDLScanCode& event)
+{
+    if (currentStep == 0)
+    {
+        if (event.key == SDL_SCANCODE_W || event.key == SDL_SCANCODE_A ||
+            event.key == SDL_SCANCODE_S || event.key == SDL_SCANCODE_D)
+            pendingAdvance = true;
+    }
+}
+
 void TutorialSystem::onEvent(const PlayerGainItemEvent& event)
 {
-    // Step 0: gather wood or stone
-    if (currentStep == 0 && (event.id == 15 || event.id == 4))
+    // Step 1: gather wood or stone
+    if (currentStep == 1 && (event.id == 15 || event.id == 4))
         pendingAdvance = true;
 
-    // Step 3: mine coal or iron ore
-    if (currentStep == 3 && (event.id == 1 || event.id == 3))
+    // Step 4: mine coal or iron ore
+    if (currentStep == 4 && (event.id == 1 || event.id == 3))
         pendingAdvance = true;
 }
 
 void TutorialSystem::onEvent(const InventoryOpenedEvent&)
 {
-    if (currentStep == 1)
+    if (currentStep == 2)
         pendingAdvance = true;
 }
 
 void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
 {
-    if (currentStep != 2)
+    if (currentStep != 3)
         return;
 
     if (event.recipeIndex < recipeRegistry->recipes.size())
@@ -59,11 +73,13 @@ void TutorialSystem::onEvent(const HandCraftCompletedEvent& event)
 
 void TutorialSystem::onEvent(const BuildingPlacedEvent& event)
 {
-    if (currentStep == 4 && event.tileId == 5)                          // Furnace
+    if (currentStep == 5 && event.tileId == 5)   // Furnace
         pendingAdvance = true;
-    if (currentStep == 5 && event.tileId == 7)                          // Miner
+    if (currentStep == 6 && event.tileId == 6)   // Assembler
         pendingAdvance = true;
-    if (currentStep == 6 && (event.tileId == 4 || event.tileId == 8))   // Belt or Inserter
+    if (currentStep == 7 && event.tileId == 7)   // Miner
+        pendingAdvance = true;
+    if (currentStep == 8 && event.tileId == 8)   // Inserter
         pendingAdvance = true;
 }
 
