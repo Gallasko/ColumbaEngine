@@ -10,6 +10,7 @@
 using namespace pg;
 
 class CraftingUISystem;
+class MachineDemoSystem;
 
 // Side-panel UI for Furnace (tileId 5) and Assembler (tileId 6).
 // Shows input slot(s), output slot and a crafting progress bar.
@@ -52,6 +53,7 @@ public:
     bool isClickOnPanel(float x, float y) const;
 
     void setCraftingUI(CraftingUISystem* ui) { craftingUI = ui; }
+    void setMachineDemo(MachineDemoSystem* demo) { machineDemo = demo; }
 
     void open(int gridX, int gridY, uint16_t tileId);
     void close();
@@ -114,6 +116,7 @@ private:
     PlayerInventorySystem* playerInv = nullptr;
     InventoryUISystem* inventoryUI = nullptr;
     CraftingUISystem* craftingUI = nullptr;
+    MachineDemoSystem* machineDemo = nullptr;
     float screenWidth = 0.0f;
     float screenHeight = 0.0f;
 
@@ -142,4 +145,6 @@ private:
     uint64_t outputCountEntityId  = 0;
     uint64_t progressBgEntityId   = 0;
     uint64_t progressFillEntityId = 0;
+    uint64_t demoBtnBgEntityId    = 0;
+    uint64_t demoBtnTextEntityId  = 0;
 };

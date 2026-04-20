@@ -1,5 +1,6 @@
 #include "machineui.h"
 #include "craftingui.h"
+#include "machinedemosystem.h"
 
 #include "2D/simple2dobject.h"
 #include "2D/texture.h"
@@ -133,6 +134,22 @@ void MachineUISystem::onProcessEvent(const OnMouseClick& event)
     if (not visible or event.button != SDL_BUTTON_LEFT)
         return;
 
+    // Check "?" demo button click
+    if (machineDemo and demoBtnBgEntityId != 0)
+    {
+        float btnSize = 20.0f;
+        float btnX = getPanelX() + getPanelWidth() - PANEL_PADDING - btnSize;
+        float btnY = getPanelY() + PANEL_PADDING;
+        if (event.pos.x >= btnX and event.pos.x <= btnX + btnSize
+            and event.pos.y >= btnY and event.pos.y <= btnY + btnSize)
+        {
+            uint16_t tileId = openMachineType;
+            close();
+            machineDemo->openDemo(tileId);
+            return;
+        }
+    }
+
     MachineData* machine = craftingSystem->getMachine(openMachineX, openMachineY);
     if (not machine)
         return;
@@ -204,6 +221,8 @@ void MachineUISystem::setPanelVisibility(bool vis)
     setEntityVisibility(outputSlotBgEntityId, vis);
     setEntityVisibility(progressBgEntityId,   vis);
     setEntityVisibility(progressFillEntityId, vis);
+    setEntityVisibility(demoBtnBgEntityId,    vis);
+    setEntityVisibility(demoBtnTextEntityId,  vis);
 }
 
 void MachineUISystem::updateForMachineType()
@@ -343,6 +362,26 @@ void MachineUISystem::createPanel()
     makeItemAndCount(inputColX, inputSlot0Y, inputItemEntityId[0], inputCountEntityId[0]);
     makeItemAndCount(inputColX, inputSlot1Y, inputItemEntityId[1], inputCountEntityId[1]);
     makeItemAndCount(outputColX, outputSlotY, outputItemEntityId, outputCountEntityId);
+
+    // "?" demo button (top-right of panel)
+    {
+        float btnSize = 20.0f;
+        float btnX = panelX + panelW - PANEL_PADDING - btnSize;
+        float btnY = panelY + PANEL_PADDING;
+        auto bg = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+            constant::Vector4D{60.0f, 60.0f, 100.0f, 220.0f});
+        auto pos = bg.get<PositionComponent>();
+        pos->setX(btnX); pos->setY(btnY); pos->setZ(100.0f);
+        pos->setWidth(btnSize); pos->setHeight(btnSize);
+        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        demoBtnBgEntityId = bg.entity->id;
+
+        auto txt = makeTTFText(ecsRef,
+            btnX + 5.0f, btnY + 2.0f, 101.0f,
+            FONT_PATH, "?", 0.35f, {255.0f, 255.0f, 255.0f, 255.0f});
+        txt.get<TTFText>()->setViewport(UI_VP);
+        demoBtnTextEntityId = txt.entity->id;
+    }
 }
 
 // ---------------------------------------------------------------------------

@@ -26,6 +26,7 @@
 #include "tooltipsystem.h"
 #include "tutorialsystem.h"
 #include "autosavesystem.h"
+#include "machinedemosystem.h"
 #include "Systems/tween.h"
 
 using namespace pg;
@@ -267,9 +268,14 @@ GameApp::GameApp(const std::string &appName) : engine(appName)
 
         ecs.createSystem<TutorialSystem>(worldFacts, &recipeRegistry);
 
+        auto* machineDemo = ecs.createSystem<MachineDemoSystem>(
+            &registry, &itemRegistry, hotbar, screenW, screenH);
+
+        machineUI->setMachineDemo(machineDemo);
+
         ecs.createSystem<AutoSaveSystem>();
 
-        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI);
+        ecs.createSystem<GameSystem>(gridSystem, cameraSystem, hotbar, &registry, &itemRegistry, transportSystem, inventoryUI, minerUI, craftingUI, manualMining, machineUI, storageUI, machineDemo);
     });
 }
 

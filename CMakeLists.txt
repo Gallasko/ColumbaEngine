@@ -879,6 +879,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/storageui.cpp
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
+            examples/GameDevJs2026/UI/machinedemosystem.cpp
         )
 
         target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)
@@ -1231,6 +1232,7 @@ if(NOT BUILD_STATIC_LIB AND BUILD_EXAMPLES)
             examples/GameDevJs2026/UI/storageui.cpp
             examples/GameDevJs2026/UI/tooltipsystem.cpp
             examples/GameDevJs2026/UI/tutorialsystem.cpp
+            examples/GameDevJs2026/UI/machinedemosystem.cpp
         )
 
         target_link_libraries(GameDevJs2026 PRIVATE ColumbaEngine)

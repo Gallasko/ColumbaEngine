@@ -25,6 +25,8 @@ void GameSystem::init()
 
 void GameSystem::onProcessEvent(const OnSDLScanCode& event)
 {
+    if (machineDemo and machineDemo->isOpen())
+        return;
     if (inventoryUI and inventoryUI->isOpen())
         return;
     if (minerUI and minerUI->isOpen())
@@ -61,6 +63,9 @@ void GameSystem::onProcessEvent(const OnSDLScanCode& event)
 
 void GameSystem::onProcessEvent(const OnMouseClick& event)
 {
+    if (machineDemo and machineDemo->isOpen())
+        return;
+
     bool anyUIOpen = (inventoryUI and inventoryUI->isOpen())
                   or (minerUI and minerUI->isOpen())
                   or (craftingUI and craftingUI->isOpen())

@@ -1,6 +1,7 @@
 #include "craftingsystem.h"
 
 #include "playerinventory.h"
+#include "worldfacts.h"
 #include "2D/texture.h"
 
 #include <cstdio>
@@ -220,7 +221,25 @@ void CraftingSystem::craftTick()
                 if (canOutput)
                 {
                     for (const auto& output : machine.currentRecipe->outputs)
+                    {
                         machine.outputSlots.insert(output.id, output.count, *itemRegistry);
+
+                        // Emit crafted_ and discovered_ facts so recipe
+                        // unlock gates work for machine-produced items too.
+                        const auto& def = itemRegistry->get(output.id);
+                        std::string itemSnake;
+                        for (char c : def.name)
+                        {
+                            if (c == ' ')
+                                itemSnake.push_back('_');
+                            else if (c >= 'A' and c <= 'Z')
+                                itemSnake.push_back(static_cast<char>(c - 'A' + 'a'));
+                            else
+                                itemSnake.push_back(c);
+                        }
+                        ecsRef->sendEvent(pg::IncreaseFact{"crafted_" + itemSnake, static_cast<int>(output.count)});
+                        ecsRef->sendEvent(pg::AddFact{"discovered_" + itemSnake, ElementType{true}});
+                    }
                     machine.currentRecipe = nullptr;
                     machine.craftProgress = 0;
 
