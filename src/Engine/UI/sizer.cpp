@@ -2,6 +2,21 @@
 
 #include "sizer.h"
 
+#include "UI/focusable.h"
+#include "Systems/oneventcomponent.h"
+#include "Input/inputcomponent.h"
+#include "ECS/callable.h"
+
+#ifdef __EMSCRIPTEN__
+#include <SDL2/SDL.h>
+#else
+    #ifdef __linux__
+    #include <SDL2/SDL.h>
+    #elif _WIN32
+    #include <SDL.h>
+    #endif
+#endif
+
 namespace pg
 {
     namespace
@@ -247,6 +262,135 @@ namespace pg
         }
     }
 
+    void LayoutSystem::onProcessEvent(const SetVerticalScrollBarEvent& event)
+    {
+        auto layoutEnt = ecsRef->getEntity(event.layoutId);
+        auto scrollBarEnt = ecsRef->getEntity(event.scrollBarId);
+
+        if (not layoutEnt or not scrollBarEnt)
+            return;
+
+        setupScrollBarInteraction(scrollBarEnt, event.layoutId, true);
+        layoutUpdate.insert(layoutEnt);
+    }
+
+    void LayoutSystem::onProcessEvent(const SetHorizontalScrollBarEvent& event)
+    {
+        auto layoutEnt = ecsRef->getEntity(event.layoutId);
+        auto scrollBarEnt = ecsRef->getEntity(event.scrollBarId);
+
+        if (not layoutEnt or not scrollBarEnt)
+            return;
+
+        setupScrollBarInteraction(scrollBarEnt, event.layoutId, false);
+        layoutUpdate.insert(layoutEnt);
+    }
+
+    void LayoutSystem::setupScrollBarInteraction(EntityRef scrollBarEntity, _unique_id layoutId, bool isVertical)
+    {
+        if (not scrollBarEntity->has<FocusableComponent>())
+            ecsRef->attach<FocusableComponent>(scrollBarEntity);
+
+        if (not scrollBarEntity->has<MouseLeftClickComponent>())
+            ecsRef->attach<MouseLeftClickComponent>(scrollBarEntity, makeCallable<OnFocus>(scrollBarEntity.id), MouseStateTrigger::OnPress);
+
+        if (scrollBarEntity->has<OnEventComponent>())
+            ecsRef->detach<OnEventComponent>(scrollBarEntity);
+
+        auto ecs = ecsRef;
+
+        if (isVertical)
+        {
+            std::function<void(const OnMouseMove&)> dragCallback = [layoutId, ecs](const OnMouseMove& event)
+            {
+                if (not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
+                    return;
+
+                auto layoutEnt = ecs->getEntity(layoutId);
+                if (not layoutEnt)
+                    return;
+
+                BaseLayout* view = nullptr;
+                if (layoutEnt->has<VerticalLayout>())
+                    view = layoutEnt->get<VerticalLayout>();
+                else if (layoutEnt->has<HorizontalLayout>())
+                    view = layoutEnt->get<HorizontalLayout>();
+
+                if (not view or view->verticalScrollBar.empty())
+                    return;
+
+                auto focus = view->verticalScrollBar.get<FocusableComponent>();
+                if (not focus or not focus->focused)
+                    return;
+
+                auto viewUi = layoutEnt->get<PositionComponent>();
+
+                float contentHeight = view->contentHeight;
+                float viewHeight = viewUi->height;
+
+                if (contentHeight <= viewHeight)
+                    return;
+
+                float thumbHeight = (viewHeight / contentHeight) * viewHeight;
+                float trackLength = viewHeight - thumbHeight;
+
+                float relativePos = event.pos.y - viewUi->y - thumbHeight / 2.0f;
+                relativePos = std::max(0.0f, std::min(relativePos, trackLength));
+
+                view->yOffset = (relativePos / trackLength) * (contentHeight - viewHeight);
+
+                ecs->sendEvent(LayoutScrolledEvent{layoutId});
+            };
+
+            ecsRef->attach<OnEventComponent>(scrollBarEntity, dragCallback);
+        }
+        else
+        {
+            std::function<void(const OnMouseMove&)> dragCallback = [layoutId, ecs](const OnMouseMove& event)
+            {
+                if (not event.inputHandler->isButtonPressed(SDL_BUTTON_LEFT))
+                    return;
+
+                auto layoutEnt = ecs->getEntity(layoutId);
+                if (not layoutEnt)
+                    return;
+
+                BaseLayout* view = nullptr;
+                if (layoutEnt->has<HorizontalLayout>())
+                    view = layoutEnt->get<HorizontalLayout>();
+                else if (layoutEnt->has<VerticalLayout>())
+                    view = layoutEnt->get<VerticalLayout>();
+
+                if (not view or view->horizontalScrollBar.empty())
+                    return;
+
+                auto focus = view->horizontalScrollBar.get<FocusableComponent>();
+                if (not focus or not focus->focused)
+                    return;
+
+                auto viewUi = layoutEnt->get<PositionComponent>();
+
+                float contentWidth = view->contentWidth;
+                float viewWidth = viewUi->width;
+
+                if (contentWidth <= viewWidth)
+                    return;
+
+                float thumbWidth = (viewWidth / contentWidth) * viewWidth;
+                float trackLength = viewWidth - thumbWidth;
+
+                float relativePos = event.pos.x - viewUi->x - thumbWidth / 2.0f;
+                relativePos = std::max(0.0f, std::min(relativePos, trackLength));
+
+                view->xOffset = (relativePos / trackLength) * (contentWidth - viewWidth);
+
+                ecs->sendEvent(LayoutScrolledEvent{layoutId});
+            };
+
+            ecsRef->attach<OnEventComponent>(scrollBarEntity, dragCallback);
+        }
+    }
+
     void LayoutSystem::onProcessEvent(const ClearLayoutEvent& event)
     {
         clear(event.entityIds);
@@ -434,7 +578,10 @@ namespace pg
 
     void LayoutSystem::updateHorizontalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos)
     {
-        if (areNotAlmostEqual(viewUi->width, view->contentWidth) and areNotAlmostEqual(view->contentWidth, 0))
+        // Pin scroll bar to the bottom edge of the layout
+        sbPos->setY(viewUi->y + viewUi->height - sbPos->height);
+
+        if (viewUi->isRenderable() and view->contentWidth > viewUi->width and areNotAlmostEqual(view->contentWidth, 0))
         {
             float thumbWidth = (viewUi->width / view->contentWidth) * viewUi->width;
             sbPos->setX(viewUi->x + (view->xOffset / (view->contentWidth - viewUi->width)) * (viewUi->width - thumbWidth));
@@ -449,7 +596,10 @@ namespace pg
 
     void LayoutSystem::updateVerticalScrollBar(PositionComponent* viewUi, BaseLayout* view, PositionComponent* sbPos)
     {
-        if (areNotAlmostEqual(viewUi->height, view->contentHeight) and areNotAlmostEqual(view->contentHeight, 0))
+        // Pin scroll bar to the right edge of the layout
+        sbPos->setX(viewUi->x + viewUi->width - sbPos->width);
+
+        if (viewUi->isRenderable() and view->contentHeight > viewUi->height and areNotAlmostEqual(view->contentHeight, 0))
         {
             float thumbHeight = (viewUi->height / view->contentHeight) * viewUi->height;
             sbPos->setY(viewUi->y + (view->yOffset / (view->contentHeight - viewUi->height)) * (viewUi->height - thumbHeight));
