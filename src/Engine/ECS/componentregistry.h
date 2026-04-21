@@ -810,6 +810,8 @@ namespace pg
         // Todo always check if the component was not initialized in between calls to make sure to update the correct one
         Comp* operator->();
 
+        Comp* operator->() const;
+
         operator Comp*();
 
         inline bool empty() const { return component == nullptr; }

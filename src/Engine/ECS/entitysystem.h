@@ -1305,6 +1305,20 @@ namespace pg
     }
 
     template <typename Comp>
+    Comp* CompRef<Comp>::operator->() const
+    {
+        if (initialized)
+            return component;
+        else
+        {
+            // Try to find the component in the ecs to update this ref
+            auto comp = ecsRef->getComponent<Comp>(entityId);
+
+            return comp;
+        }
+    }
+
+    template <typename Comp>
     CompRef<Comp>::operator Comp*()
     {
         if (initialized)
