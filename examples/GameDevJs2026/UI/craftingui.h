@@ -26,6 +26,8 @@ class CraftingUISystem : public System<InitSys,
                                        QueuedListener<OnMouseClick>,
                                        QueuedListener<TickEvent>,
                                        QueuedListener<OnSDLMouseWheel>,
+                                       QueuedListener<OnMouseMove>,
+                                       QueuedListener<OnMouseRelease>,
                                        Listener<HandCraftCompletedEvent>,
                                        Listener<InventoryOpenedEvent>,
                                        Listener<InventoryClosedEvent>>
@@ -47,7 +49,7 @@ public:
     static constexpr float BUTTON_W = 80.0f;
     static constexpr float BUTTON_GAP = 8.0f;
     static constexpr float GAP_BETWEEN_PANELS = 8.0f;
-    static constexpr float SCROLLBAR_WIDTH = 4.0f;
+    static constexpr float SCROLLBAR_WIDTH = 8.0f;
 
     // Crafting sub-tabs visible in hand-craft mode only
     enum class CraftTab : uint8_t
@@ -132,6 +134,8 @@ public:
     virtual void onProcessEvent(const OnSDLScanCode& event) override;
     virtual void onProcessEvent(const OnMouseClick& event) override;
     virtual void onProcessEvent(const OnSDLMouseWheel& event) override;
+    virtual void onProcessEvent(const OnMouseMove& event) override;
+    virtual void onProcessEvent(const OnMouseRelease& event) override;
 
 private:
     // --- Open / close --------------------------------------------------
@@ -199,6 +203,12 @@ private:
         return x >= rx and x <= rx + rw and y >= ry and y <= ry + rh;
     }
 
+    // Compute scrollbar track area from the backdrop position (reliable for anchored entities).
+    struct TrackRect { float x, y, w, h; };
+    TrackRect getScrollTrackRect() const;
+
+    void scrollToTrackY(float mouseY);
+
     // --- Helpers -------------------------------------------------------
 
     void setEntityVisibility(uint64_t id, bool vis);
@@ -253,6 +263,7 @@ private:
     uint64_t cancelButtonTextEntityId = 0;
     uint64_t scrollTrackEntityId = 0;
     uint64_t scrollThumbEntityId = 0;
+    bool draggingScrollbar = false;
 
     MachineDemoSystem* machineDemo = nullptr;
 

@@ -157,26 +157,16 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
         }
     }
 
-    // Scrollbar track click — jump scroll position to where the user clicked
+    // Scrollbar track click — jump to position + start drag
     if (visibleRecipes.size() > VISIBLE_ROWS)
     {
-        auto trackEnt = ecsRef->getEntity(scrollTrackEntityId);
-        if (trackEnt)
+        auto tr = getScrollTrackRect();
+        // Wider hit area (8px padding on each side) for easier clicking
+        if (isPointInRect(x, y, tr.x - 8.0f, tr.y, tr.w + 16.0f, tr.h))
         {
-            auto trackPos = trackEnt->get<PositionComponent>();
-            float tx = trackPos->getX();
-            float ty = trackPos->getY();
-            float th = trackPos->getHeight();
-            if (isPointInRect(x, y, tx, ty, SCROLLBAR_WIDTH, th))
-            {
-                float ratio = (y - ty) / th;
-                size_t maxOffset = visibleRecipes.size() - VISIBLE_ROWS;
-                scrollOffset = static_cast<size_t>(ratio * static_cast<float>(maxOffset) + 0.5f);
-                if (scrollOffset > maxOffset)
-                    scrollOffset = maxOffset;
-                refreshRows();
-                return;
-            }
+            draggingScrollbar = true;
+            scrollToTrackY(y);
+            return;
         }
     }
 
@@ -335,6 +325,7 @@ void CraftingUISystem::close()
 {
     visible = false;
     activeMachineType = 0;
+    draggingScrollbar = false;
 
     if (inventoryUI)
         inventoryUI->setExternalClickCheck(nullptr);
@@ -563,7 +554,7 @@ void CraftingUISystem::createPanel()
         auto scrollTrack = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{40.0f, 40.0f, 50.0f, 150.0f});
         auto trackPos = scrollTrack.get<PositionComponent>();
-        trackPos->setZ(98.0f);
+        trackPos->setZ(100.0f);
         trackPos->setWidth(SCROLLBAR_WIDTH);
         trackPos->setHeight(listH);
         trackPos->setVisibility(false);
@@ -579,7 +570,7 @@ void CraftingUISystem::createPanel()
         auto scrollThumb = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
             constant::Vector4D{120.0f, 120.0f, 140.0f, 220.0f});
         auto thumbPos = scrollThumb.get<PositionComponent>();
-        thumbPos->setZ(99.0f);
+        thumbPos->setZ(101.0f);
         thumbPos->setWidth(SCROLLBAR_WIDTH);
         thumbPos->setHeight(40.0f);
         thumbPos->setVisibility(false);
@@ -916,7 +907,7 @@ void CraftingUISystem::refreshRows()
             {
                 float rowW = rowBgPos->getWidth();
                 auto demoPos = demoEnt->get<PositionComponent>();
-                demoPos->setX(rowX + rowW - 14.0f);
+                demoPos->setX(rowX + rowW - 14.0f - SCROLLBAR_WIDTH - 4.0f);
                 demoPos->setY(rowY + 4.0f);
                 demoPos->setVisibility(true);
             }
@@ -1095,4 +1086,56 @@ void CraftingUISystem::setEntityVisibility(uint64_t id, bool vis)
     auto ent = ecsRef->getEntity(id);
     if (ent)
         ent->get<PositionComponent>()->setVisibility(vis);
+}
+
+// ---------------------------------------------------------------------------
+// Scrollbar drag helpers
+// ---------------------------------------------------------------------------
+
+CraftingUISystem::TrackRect CraftingUISystem::getScrollTrackRect() const
+{
+    auto bdEnt = ecsRef->getEntity(backdropEntityId);
+    if (not bdEnt)
+        return {0, 0, 0, 0};
+    auto bdPos = bdEnt->get<PositionComponent>();
+    float bx = bdPos->getX();
+    float by = bdPos->getY();
+
+    float listTopMargin = PANEL_PADDING + TITLE_H + GAP_AFTER_TITLE
+                        + TAB_ROW_H + GAP_AFTER_TABS;
+    float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
+
+    return { bx + PANEL_WIDTH - PANEL_PADDING - SCROLLBAR_WIDTH,
+             by + listTopMargin,
+             SCROLLBAR_WIDTH,
+             listH };
+}
+
+void CraftingUISystem::scrollToTrackY(float mouseY)
+{
+    auto tr = getScrollTrackRect();
+    if (tr.h <= 0.0f)
+        return;
+
+    float ratio = (mouseY - tr.y) / tr.h;
+    if (ratio < 0.0f) ratio = 0.0f;
+    if (ratio > 1.0f) ratio = 1.0f;
+
+    size_t maxOffset = visibleRecipes.size() - VISIBLE_ROWS;
+    scrollOffset = static_cast<size_t>(ratio * static_cast<float>(maxOffset) + 0.5f);
+    if (scrollOffset > maxOffset)
+        scrollOffset = maxOffset;
+    refreshRows();
+}
+
+void CraftingUISystem::onProcessEvent(const OnMouseMove& event)
+{
+    if (not draggingScrollbar or not visible)
+        return;
+    scrollToTrackY(event.pos.y);
+}
+
+void CraftingUISystem::onProcessEvent(const OnMouseRelease& event)
+{
+    draggingScrollbar = false;
 }
