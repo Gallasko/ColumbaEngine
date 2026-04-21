@@ -127,7 +127,7 @@ void TutorialSystem::ensureCreated()
     bdPos->setWidth(PANEL_W);
     bdPos->setHeight(PANEL_H);
     bdPos->setVisibility(true);
-    bd.get<Simple2DObject>()->setViewport(UI_VP);
+    bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
 
     // Title text (gold)
@@ -135,7 +135,7 @@ void TutorialSystem::ensureCreated()
         PANEL_X + PADDING, PANEL_Y + PADDING, 101.0f,
         FONT_PATH, STEPS[currentStep].title, TITLE_SCALE,
         {255.0f, 210.0f, 80.0f, 255.0f});
-    title.get<TTFText>()->setViewport(UI_VP);
+    title.get<ViewportComponent>()->setViewport(UI_VP);
     titleId = title.entity->id;
 
     // Body text (light grey)
@@ -143,7 +143,7 @@ void TutorialSystem::ensureCreated()
         PANEL_X + PADDING, PANEL_Y + PADDING + 22.0f, 101.0f,
         FONT_PATH, STEPS[currentStep].body, BODY_SCALE,
         {210.0f, 210.0f, 210.0f, 255.0f});
-    body.get<TTFText>()->setViewport(UI_VP);
+    body.get<ViewportComponent>()->setViewport(UI_VP);
     bodyId = body.entity->id;
 
     visible = true;

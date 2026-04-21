@@ -229,7 +229,7 @@ void InventoryUISystem::createPanel()
     bdPos->setZ(97.0f);
     bdPos->setWidth(panelW);
     bdPos->setHeight(panelH);
-    backdrop.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
+    backdrop.get<ViewportComponent>()->setViewport(INV_UI_VIEWPORT);
     backdropEntityId = backdrop.entity->id;
 
     auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
@@ -252,7 +252,7 @@ void InventoryUISystem::createPanel()
         pos->setZ(98.0f);
         pos->setWidth(SLOT_SIZE);
         pos->setHeight(SLOT_SIZE);
-        slot.get<Simple2DObject>()->setViewport(INV_UI_VIEWPORT);
+        slot.get<ViewportComponent>()->setViewport(INV_UI_VIEWPORT);
         slotVisuals[i].bgEntityId = slot.entity->id;
 
         auto slotAnchor = ecsRef->attach<UiAnchor>(slot.entity);
@@ -266,7 +266,7 @@ void InventoryUISystem::createPanel()
         auto itemPos = tex.get<PositionComponent>();
         itemPos->setZ(99.0f);
         itemPos->setVisibility(false);
-        tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(INV_UI_VIEWPORT);
         slotVisuals[i].itemEntityId = tex.entity->id;
 
         // Count text entity (hidden by default)
@@ -275,7 +275,7 @@ void InventoryUISystem::createPanel()
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         text.get<PositionComponent>()->setVisibility(false);
-        text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
+        text.get<ViewportComponent>()->setViewport(INV_UI_VIEWPORT);
         slotVisuals[i].textEntityId = text.entity->id;
     }
 
@@ -285,7 +285,7 @@ void InventoryUISystem::createPanel()
         auto itemPos = tex.get<PositionComponent>();
         itemPos->setZ(101.0f);
         itemPos->setVisibility(false);
-        tex.get<Texture2DComponent>()->setViewport(INV_UI_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(INV_UI_VIEWPORT);
         heldItemEntityId = tex.entity->id;
 
         auto text = makeTTFText(ecsRef,
@@ -293,7 +293,7 @@ void InventoryUISystem::createPanel()
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         text.get<PositionComponent>()->setVisibility(false);
-        text.get<TTFText>()->setViewport(INV_UI_VIEWPORT);
+        text.get<ViewportComponent>()->setViewport(INV_UI_VIEWPORT);
         heldTextEntityId = text.entity->id;
     }
 }

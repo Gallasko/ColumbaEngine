@@ -195,7 +195,7 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
         pos->setY(worldY);
         pos->setZ(z);
 
-        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = tex.entity->id;
 
         conveyors.push_back({entityId, conveyorTileIndex});
@@ -214,7 +214,7 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
         pos->setY(worldY);
         pos->setZ(z);
 
-        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = tex.entity->id;
     }
     else
@@ -228,7 +228,7 @@ void GridSystem::placeBuilding(size_t layer, int x, int y, const BuildingDef& de
         pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def.gridW));
         pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def.gridH));
 
-        shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+        shape.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = shape.entity->id;
     }
 
@@ -276,7 +276,7 @@ void GridSystem::restoreBuilding(size_t layer, int x, int y, const BuildingDef& 
         pos->setY(worldY);
         pos->setZ(z);
 
-        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = tex.entity->id;
 
         conveyors.push_back({entityId, conveyorTileIndex});
@@ -294,7 +294,7 @@ void GridSystem::restoreBuilding(size_t layer, int x, int y, const BuildingDef& 
         pos->setY(worldY);
         pos->setZ(z);
 
-        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = tex.entity->id;
     }
     else
@@ -307,7 +307,7 @@ void GridSystem::restoreBuilding(size_t layer, int x, int y, const BuildingDef& 
         pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def.gridW));
         pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def.gridH));
 
-        shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+        shape.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = shape.entity->id;
     }
 
@@ -414,7 +414,7 @@ void GridSystem::setCell(size_t layer, int x, int y, const std::string& tileName
         pos->setWidth(static_cast<float>(Grid::TILE_SIZE));
         pos->setHeight(static_cast<float>(Grid::TILE_SIZE));
 
-        shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+        shape.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
 
         cell.entityId = shape.entity->id;
     }
@@ -774,7 +774,7 @@ void GridSystem::spawnTextureTile(const std::string& texName, float worldX, floa
     pos->setX(worldX);
     pos->setY(worldY);
     pos->setZ(z);
-    tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+    tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     bgEntities.push_back(tex.entity->id);
 }
 
@@ -794,7 +794,7 @@ void GridSystem::createConveyorEntity(CellData& cell, float worldX, float worldY
     pos->setY(worldY);
     pos->setZ(z);
 
-    tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+    tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
 
     cell.entityId = tex.entity->id;
 

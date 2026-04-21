@@ -83,7 +83,7 @@ void ToolbarSystem::createToolbarUI()
     backdropPos->setZ(0.9f);
     backdropPos->setWidth(screenWidth);
     backdropPos->setHeight(TOOLBAR_HEIGHT);
-    backdrop.get<Simple2DObject>()->setViewport(UI_VIEWPORT);
+    backdrop.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
 
     // Create slots centered horizontally
     float totalSlotsWidth = registry->count() * SLOT_SIZE + (registry->count() - 1) * SLOT_SPACING;
@@ -107,7 +107,7 @@ void ToolbarSystem::createToolbarUI()
             pos->setX(slotX);
             pos->setY(slotY);
             pos->setZ(0.95f);
-            slot.get<Texture2DComponent>()->setViewport(UI_VIEWPORT);
+            slot.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
 
             slotId = slot.entity->id;
         }
@@ -122,7 +122,7 @@ void ToolbarSystem::createToolbarUI()
             pos->setZ(0.95f);
             pos->setWidth(SLOT_SIZE);
             pos->setHeight(SLOT_SIZE);
-            slot.get<Simple2DObject>()->setViewport(UI_VIEWPORT);
+            slot.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
 
             slotId = slot.entity->id;
         }
@@ -138,7 +138,7 @@ void ToolbarSystem::createToolbarUI()
     hlPos->setZ(0.96f);
     hlPos->setWidth(SLOT_SIZE + 4.0f);
     hlPos->setHeight(SLOT_SIZE + 4.0f);
-    highlight.get<Simple2DObject>()->setViewport(UI_VIEWPORT);
+    highlight.get<ViewportComponent>()->setViewport(UI_VIEWPORT);
 
     highlightEntityId = highlight.entity->id;
     updateHighlight();

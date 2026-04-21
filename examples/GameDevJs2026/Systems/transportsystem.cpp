@@ -398,7 +398,7 @@ void TransportSystem::createItemVisual(int x, int y, ItemId id)
         pos->setX(worldX + offset);
         pos->setY(worldY + offset + ITEM_Y_OFFSET);
         pos->setZ(z);
-        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = tex.entity->id;
     }
     else
@@ -412,7 +412,7 @@ void TransportSystem::createItemVisual(int x, int y, ItemId id)
         pos->setZ(z);
         pos->setWidth(itemSize);
         pos->setHeight(itemSize);
-        shape.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+        shape.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         entityId = shape.entity->id;
     }
 

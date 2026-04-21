@@ -416,7 +416,7 @@ void InserterSystem::createHeldItemVisual(InserterData& ins)
         auto tex = make2DTexture(ecsRef, itemSize, itemSize, itemDef.textureName);
         auto pos = tex.get<PositionComponent>();
         pos->setZ(z);
-        tex.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        tex.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         ins.heldItemEntityId = tex.entity->id;
     }
 

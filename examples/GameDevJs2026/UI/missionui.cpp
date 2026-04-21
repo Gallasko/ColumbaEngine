@@ -184,7 +184,7 @@ void MissionUISystem::createPanel()
         auto pos = bd.get<PositionComponent>();
         pos->setX(px); pos->setY(py); pos->setZ(97.0f);
         pos->setWidth(PANEL_W); pos->setHeight(panelH);
-        bd.get<Simple2DObject>()->setViewport(UI_VP);
+        bd.get<ViewportComponent>()->setViewport(UI_VP);
         backdropId = bd.entity->id;
     }
 
@@ -192,7 +192,7 @@ void MissionUISystem::createPanel()
     {
         auto t = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
             FONT_PATH, "MISSIONS", TITLE_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         titleTextId = t.entity->id;
     }
 
@@ -204,12 +204,12 @@ void MissionUISystem::createPanel()
         auto pos = bg.get<PositionComponent>();
         pos->setX(cbx); pos->setY(curY); pos->setZ(99.0f);
         pos->setWidth(CLOSE_SIZE); pos->setHeight(CLOSE_SIZE);
-        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
         closeBtnBgId = bg.entity->id;
 
         auto txt = makeTTFText(ecsRef, cbx + 6.0f, curY + 2.0f, 100.0f,
             FONT_PATH, "X", BTN_TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        txt.get<TTFText>()->setViewport(UI_VP);
+        txt.get<ViewportComponent>()->setViewport(UI_VP);
         closeBtnTextId = txt.entity->id;
     }
     curY += TITLE_H;
@@ -218,7 +218,7 @@ void MissionUISystem::createPanel()
     {
         auto h = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
             FONT_PATH, "AVAILABLE:", TEXT_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
-        h.get<TTFText>()->setViewport(UI_VP);
+        h.get<ViewportComponent>()->setViewport(UI_VP);
         availHeaderId = h.entity->id;
     }
     curY += SECTION_H;
@@ -235,19 +235,19 @@ void MissionUISystem::createPanel()
         auto pos = bg.get<PositionComponent>();
         pos->setX(px + PADDING); pos->setY(rowY); pos->setZ(98.0f);
         pos->setWidth(PANEL_W - 2 * PADDING); pos->setHeight(ROW_H);
-        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
         row.bgId = bg.entity->id;
 
         // Name
         auto name = makeTTFText(ecsRef, px + PADDING + 4.0f, rowY + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        name.get<TTFText>()->setViewport(UI_VP);
+        name.get<ViewportComponent>()->setViewport(UI_VP);
         row.nameId = name.entity->id;
 
         // Info (cost + duration)
         auto info = makeTTFText(ecsRef, px + PADDING + 180.0f, rowY + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {180.0f, 180.0f, 180.0f, 255.0f});
-        info.get<TTFText>()->setViewport(UI_VP);
+        info.get<ViewportComponent>()->setViewport(UI_VP);
         row.infoId = info.entity->id;
 
         // Button
@@ -260,12 +260,12 @@ void MissionUISystem::createPanel()
         auto bpos = btnBg.get<PositionComponent>();
         bpos->setX(bx); bpos->setY(row.btnY); bpos->setZ(99.0f);
         bpos->setWidth(BTN_W); bpos->setHeight(BTN_H);
-        btnBg.get<Simple2DObject>()->setViewport(UI_VP);
+        btnBg.get<ViewportComponent>()->setViewport(UI_VP);
         row.btnBgId = btnBg.entity->id;
 
         auto btnTxt = makeTTFText(ecsRef, bx + 12.0f, row.btnY + 3.0f, 100.0f,
             FONT_PATH, "GO", BTN_TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        btnTxt.get<TTFText>()->setViewport(UI_VP);
+        btnTxt.get<ViewportComponent>()->setViewport(UI_VP);
         row.btnTextId = btnTxt.entity->id;
     }
     curY += numDefRows * (ROW_H + ROW_GAP);
@@ -274,7 +274,7 @@ void MissionUISystem::createPanel()
     {
         auto h = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
             FONT_PATH, "ACTIVE:", TEXT_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
-        h.get<TTFText>()->setViewport(UI_VP);
+        h.get<ViewportComponent>()->setViewport(UI_VP);
         activeHeaderId = h.entity->id;
     }
     curY += SECTION_H;
@@ -290,13 +290,13 @@ void MissionUISystem::createPanel()
         auto pos = bg.get<PositionComponent>();
         pos->setX(px + PADDING); pos->setY(rowY); pos->setZ(98.0f);
         pos->setWidth(PANEL_W - 2 * PADDING); pos->setHeight(ROW_H);
-        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
         row.bgId = bg.entity->id;
 
         // Name
         auto name = makeTTFText(ecsRef, px + PADDING + 4.0f, rowY + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        name.get<TTFText>()->setViewport(UI_VP);
+        name.get<ViewportComponent>()->setViewport(UI_VP);
         row.nameId = name.entity->id;
 
         // Progress bar bg
@@ -309,7 +309,7 @@ void MissionUISystem::createPanel()
         auto pbPos = pbBg.get<PositionComponent>();
         pbPos->setX(pbX); pbPos->setY(pbY); pbPos->setZ(98.5f);
         pbPos->setWidth(pbW); pbPos->setHeight(PROGRESS_H);
-        pbBg.get<Simple2DObject>()->setViewport(UI_VP);
+        pbBg.get<ViewportComponent>()->setViewport(UI_VP);
         row.progressBgId = pbBg.entity->id;
 
         // Progress bar fill
@@ -318,13 +318,13 @@ void MissionUISystem::createPanel()
         auto pfPos = pbFill.get<PositionComponent>();
         pfPos->setX(pbX); pfPos->setY(pbY); pfPos->setZ(98.6f);
         pfPos->setWidth(0.0f); pfPos->setHeight(PROGRESS_H);
-        pbFill.get<Simple2DObject>()->setViewport(UI_VP);
+        pbFill.get<ViewportComponent>()->setViewport(UI_VP);
         row.progressFillId = pbFill.entity->id;
 
         // Status text (percent or "DONE")
         auto status = makeTTFText(ecsRef, pbX + pbW + 4.0f, rowY + 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {180.0f, 180.0f, 180.0f, 255.0f});
-        status.get<TTFText>()->setViewport(UI_VP);
+        status.get<ViewportComponent>()->setViewport(UI_VP);
         row.statusId = status.entity->id;
 
         // CLAIM button
@@ -337,12 +337,12 @@ void MissionUISystem::createPanel()
         auto bpos = btnBg.get<PositionComponent>();
         bpos->setX(bx); bpos->setY(row.btnY); bpos->setZ(99.0f);
         bpos->setWidth(BTN_W); bpos->setHeight(BTN_H);
-        btnBg.get<Simple2DObject>()->setViewport(UI_VP);
+        btnBg.get<ViewportComponent>()->setViewport(UI_VP);
         row.btnBgId = btnBg.entity->id;
 
         auto btnTxt = makeTTFText(ecsRef, bx + 4.0f, row.btnY + 3.0f, 100.0f,
             FONT_PATH, "CLAIM", BTN_TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        btnTxt.get<TTFText>()->setViewport(UI_VP);
+        btnTxt.get<ViewportComponent>()->setViewport(UI_VP);
         row.btnTextId = btnTxt.entity->id;
     }
     curY += MAX_ACTIVE_ROWS * (ROW_H + ROW_GAP);
@@ -351,7 +351,7 @@ void MissionUISystem::createPanel()
     {
         auto h = makeTTFText(ecsRef, px + PADDING, curY, 100.0f,
             FONT_PATH, "SHOP:", TEXT_SCALE, {180.0f, 180.0f, 200.0f, 255.0f});
-        h.get<TTFText>()->setViewport(UI_VP);
+        h.get<ViewportComponent>()->setViewport(UI_VP);
         shopHeaderId = h.entity->id;
     }
     curY += SECTION_H;
@@ -359,7 +359,7 @@ void MissionUISystem::createPanel()
     {
         auto lbl = makeTTFText(ecsRef, px + PADDING + 4.0f, curY + 4.0f, 100.0f,
             FONT_PATH, "Extra Mission Slot", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        lbl.get<TTFText>()->setViewport(UI_VP);
+        lbl.get<ViewportComponent>()->setViewport(UI_VP);
         shopLabelId = lbl.entity->id;
 
         float bx = px + PANEL_W - PADDING - BTN_W - 4.0f;
@@ -371,12 +371,12 @@ void MissionUISystem::createPanel()
         auto bpos = btnBg.get<PositionComponent>();
         bpos->setX(bx); bpos->setY(shopBtnY); bpos->setZ(99.0f);
         bpos->setWidth(BTN_W); bpos->setHeight(BTN_H);
-        btnBg.get<Simple2DObject>()->setViewport(UI_VP);
+        btnBg.get<ViewportComponent>()->setViewport(UI_VP);
         shopBtnBgId = btnBg.entity->id;
 
         auto btnTxt = makeTTFText(ecsRef, bx + 8.0f, shopBtnY + 3.0f, 100.0f,
             FONT_PATH, "BUY", BTN_TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        btnTxt.get<TTFText>()->setViewport(UI_VP);
+        btnTxt.get<ViewportComponent>()->setViewport(UI_VP);
         shopBtnTextId = btnTxt.entity->id;
     }
 }

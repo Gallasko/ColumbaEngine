@@ -177,7 +177,7 @@ void MachineDemoSystem::createPanel()
     bdPos->setWidth(pw);
     bdPos->setHeight(ph);
     bdPos->setVisibility(true);
-    bd.get<Simple2DObject>()->setViewport(UI_VP);
+    bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
 
     // Title
@@ -185,7 +185,7 @@ void MachineDemoSystem::createPanel()
         px + PADDING, py + PADDING, 198.0f,
         FONT_PATH, currentScenario.title, TITLE_SCALE,
         {255.0f, 210.0f, 80.0f, 255.0f});
-    title.get<TTFText>()->setViewport(UI_VP);
+    title.get<ViewportComponent>()->setViewport(UI_VP);
     titleId = title.entity->id;
 
     // Description
@@ -193,7 +193,7 @@ void MachineDemoSystem::createPanel()
         px + PADDING, py + PADDING + 22.0f, 198.0f,
         FONT_PATH, currentScenario.description, DESC_SCALE,
         {210.0f, 210.0f, 210.0f, 255.0f});
-    desc.get<TTFText>()->setViewport(UI_VP);
+    desc.get<ViewportComponent>()->setViewport(UI_VP);
     descId = desc.entity->id;
 
     // Close button background
@@ -206,7 +206,7 @@ void MachineDemoSystem::createPanel()
     cbPos->setWidth(CLOSE_BTN_SIZE);
     cbPos->setHeight(CLOSE_BTN_SIZE);
     cbPos->setVisibility(true);
-    closeBtn.get<Simple2DObject>()->setViewport(UI_VP);
+    closeBtn.get<ViewportComponent>()->setViewport(UI_VP);
     closeBtnId = closeBtn.entity->id;
 
     // Close button text "X"
@@ -214,7 +214,7 @@ void MachineDemoSystem::createPanel()
         px + pw - CLOSE_BTN_SIZE + 2.0f, py + 6.0f, 199.0f,
         FONT_PATH, "X", 0.35f,
         {255.0f, 255.0f, 255.0f, 255.0f});
-    closeTxt.get<TTFText>()->setViewport(UI_VP);
+    closeTxt.get<ViewportComponent>()->setViewport(UI_VP);
     closeBtnTextId = closeTxt.entity->id;
 
     panelCreated = true;
@@ -321,7 +321,7 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 pos->setY(worldY);
                 pos->setZ(196.0f);
                 pos->setVisibility(true);
-                tex.get<Texture2DComponent>()->setViewport(UI_VP);
+                tex.get<ViewportComponent>()->setViewport(UI_VP);
                 belt.entityId = tex.entity->id;
                 beltCount++;
             }
@@ -348,7 +348,7 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 pos->setY(worldY - offset);
                 pos->setZ(197.0f);
                 pos->setVisibility(true);
-                tex.get<Texture2DComponent>()->setViewport(UI_VP);
+                tex.get<ViewportComponent>()->setViewport(UI_VP);
                 ins.entityId = tex.entity->id;
                 inserterCount++;
             }
@@ -375,7 +375,7 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 pos->setY(worldY);
                 pos->setZ(197.0f);
                 pos->setVisibility(true);
-                tex.get<Texture2DComponent>()->setViewport(UI_VP);
+                tex.get<ViewportComponent>()->setViewport(UI_VP);
                 mach.entityId = tex.entity->id;
                 machineCount++;
             }
@@ -401,7 +401,7 @@ void MachineDemoSystem::initSimulation(const DemoScenario& scenario)
                 pos->setY(worldY);
                 pos->setZ(197.0f);
                 pos->setVisibility(true);
-                tex.get<Texture2DComponent>()->setViewport(UI_VP);
+                tex.get<ViewportComponent>()->setViewport(UI_VP);
                 mach.entityId = tex.entity->id;
                 machineCount++;
             }
@@ -798,7 +798,7 @@ int MachineDemoSystem::allocateItem(uint16_t itemId, float x, float y)
             pos->setY(y);
             pos->setZ(198.0f);
             pos->setVisibility(true);
-            tex.get<Texture2DComponent>()->setViewport(UI_VP);
+            tex.get<ViewportComponent>()->setViewport(UI_VP);
             items[i].entityId = tex.entity->id;
 
             return static_cast<int>(i);

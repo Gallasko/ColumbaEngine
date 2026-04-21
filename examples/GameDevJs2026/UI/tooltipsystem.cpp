@@ -64,7 +64,7 @@ void TooltipSystem::ensureCreated()
     bdPos->setX(0.0f); bdPos->setY(0.0f); bdPos->setZ(103.0f);
     bdPos->setWidth(TOOLTIP_W); bdPos->setHeight(40.0f);
     bdPos->setVisibility(false);
-    bd.get<Simple2DObject>()->setViewport(UI_VP);
+    bd.get<ViewportComponent>()->setViewport(UI_VP);
     backdropId = bd.entity->id;
 
     // Icon
@@ -72,7 +72,7 @@ void TooltipSystem::ensureCreated()
     auto iPos = icon.get<PositionComponent>();
     iPos->setX(0.0f); iPos->setY(0.0f); iPos->setZ(104.0f);
     iPos->setVisibility(false);
-    icon.get<Texture2DComponent>()->setViewport(UI_VP);
+    icon.get<ViewportComponent>()->setViewport(UI_VP);
     iconId = icon.entity->id;
 
     // Text lines
@@ -81,7 +81,7 @@ void TooltipSystem::ensureCreated()
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
             FONT_PATH, "", NAME_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[0] = t.entity->id;
     }
@@ -90,7 +90,7 @@ void TooltipSystem::ensureCreated()
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
             FONT_PATH, "", BODY_SCALE,
             {160.0f, 190.0f, 220.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[1] = t.entity->id;
     }
@@ -99,7 +99,7 @@ void TooltipSystem::ensureCreated()
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
             FONT_PATH, "", BODY_SCALE,
             {210.0f, 210.0f, 210.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[2] = t.entity->id;
     }
@@ -108,7 +108,7 @@ void TooltipSystem::ensureCreated()
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
             FONT_PATH, "", BODY_SCALE,
             {255.0f, 210.0f, 80.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[3] = t.entity->id;
     }
@@ -117,7 +117,7 @@ void TooltipSystem::ensureCreated()
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
             FONT_PATH, "", BODY_SCALE,
             {210.0f, 210.0f, 210.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[4] = t.entity->id;
     }
@@ -126,7 +126,7 @@ void TooltipSystem::ensureCreated()
         auto t = makeTTFText(ecsRef, 0.0f, 0.0f, 104.0f,
             FONT_PATH, "", BODY_SCALE,
             {210.0f, 210.0f, 210.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         t.get<PositionComponent>()->setVisibility(false);
         lineIds[5] = t.entity->id;
     }

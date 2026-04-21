@@ -173,7 +173,7 @@ void DepotUISystem::createPanel()
         auto pos = bd.get<PositionComponent>();
         pos->setX(panelX); pos->setY(panelY); pos->setZ(97.0f);
         pos->setWidth(panelW); pos->setHeight(panelH);
-        bd.get<Simple2DObject>()->setViewport(UI_VP);
+        bd.get<ViewportComponent>()->setViewport(UI_VP);
         backdropEntityId = bd.entity->id;
     }
 
@@ -182,7 +182,7 @@ void DepotUISystem::createPanel()
         auto t = makeTTFText(ecsRef,
             panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
             FONT_PATH, "Depot", TITLE_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         titleEntityId = t.entity->id;
     }
 
@@ -204,7 +204,7 @@ void DepotUISystem::createPanel()
         auto pos = slotBg.get<PositionComponent>();
         pos->setX(sx); pos->setY(sy); pos->setZ(98.0f);
         pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<Simple2DObject>()->setViewport(UI_VP);
+        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
         slotBgEntityId[i] = slotBg.entity->id;
 
         // Item texture
@@ -213,7 +213,7 @@ void DepotUISystem::createPanel()
         auto iPos = itemTex.get<PositionComponent>();
         iPos->setX(sx + offset); iPos->setY(sy + offset); iPos->setZ(99.0f);
         iPos->setVisibility(false);
-        itemTex.get<Texture2DComponent>()->setViewport(UI_VP);
+        itemTex.get<ViewportComponent>()->setViewport(UI_VP);
         slotItemEntityId[i] = itemTex.entity->id;
 
         // Count text
@@ -221,7 +221,7 @@ void DepotUISystem::createPanel()
             sx + SLOT_SIZE - 4.0f, sy + SLOT_SIZE - 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         countTxt.get<PositionComponent>()->setVisibility(false);
-        countTxt.get<TTFText>()->setViewport(UI_VP);
+        countTxt.get<ViewportComponent>()->setViewport(UI_VP);
         slotCountEntityId[i] = countTxt.entity->id;
     }
 }

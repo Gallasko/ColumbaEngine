@@ -277,7 +277,7 @@ void GameSystem::createCursorEntities()
     cursorPos->setZ(10.0f);
     cursorPos->setX(-1000.0f);
 
-    cursor.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    cursor.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     cursorEntityId = cursor.entity->id;
 
     // Ghost block — preview of selected building (if any)
@@ -343,7 +343,7 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         ghost.get<PositionComponent>()->setZ(9.0f);
         ghost.get<PositionComponent>()->setX(-1000.0f);
         ghost.get<Texture2DComponent>()->setOpacity(0.4f);
-        ghost.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        ghost.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         ghostEntityId = ghost.entity->id;
     }
     else
@@ -359,7 +359,7 @@ void GameSystem::rebuildGhostForSelectedBuilding()
         pos->setWidth(static_cast<float>(Grid::TILE_SIZE * def->gridW));
         pos->setHeight(static_cast<float>(Grid::TILE_SIZE * def->gridH));
 
-        ghost.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+        ghost.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
         ghostEntityId = ghost.entity->id;
     }
 
@@ -733,7 +733,7 @@ void GameSystem::updateDragGhosts()
         pos->setZ(9.0f);
 
         ghost.get<Texture2DComponent>()->setOpacity(0.4f);
-        ghost.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+        ghost.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
 
         dragGhostEntityIds.push_back(ghost.entity->id);
     }

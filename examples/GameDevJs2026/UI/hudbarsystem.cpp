@@ -83,7 +83,7 @@ void HudBarSystem::createButtons()
         bgPos->setZ(95.0f);
         bgPos->setWidth(BUTTON_SIZE);
         bgPos->setHeight(BUTTON_SIZE);
-        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
         buttonBgId[i] = bg.entity->id;
 
         // Icon centered in button
@@ -93,7 +93,7 @@ void HudBarSystem::createButtons()
         iconPos->setX(bx + iconOffset);
         iconPos->setY(by + iconOffset);
         iconPos->setZ(96.0f);
-        icon.get<Texture2DComponent>()->setViewport(UI_VP);
+        icon.get<ViewportComponent>()->setViewport(UI_VP);
         buttonIconId[i] = icon.entity->id;
     }
 

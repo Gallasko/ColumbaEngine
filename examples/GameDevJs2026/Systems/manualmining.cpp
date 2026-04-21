@@ -191,7 +191,7 @@ void ManualMiningSystem::createProgressBar()
     outlinePos->setZ(9.f);
     outlinePos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
     outlinePos->setHeight(BAR_HEIGHT + BAR_OUTLINE * 2.0f);
-    outline.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    outline.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     progressOutlineEntityId = outline.entity->id;
 
     // Background bar (dark)
@@ -203,7 +203,7 @@ void ManualMiningSystem::createProgressBar()
     bgPos->setZ(10.f);
     bgPos->setWidth(BAR_WIDTH);
     bgPos->setHeight(BAR_HEIGHT);
-    bg.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    bg.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     progressBgEntityId = bg.entity->id;
 
     // Fill bar (green)
@@ -215,7 +215,7 @@ void ManualMiningSystem::createProgressBar()
     fillPos->setZ(11.f);
     fillPos->setWidth(0.0f);
     fillPos->setHeight(BAR_HEIGHT);
-    fill.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    fill.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     progressFillEntityId = fill.entity->id;
 }
 
@@ -349,7 +349,7 @@ void ManualMiningSystem::createErrorBar()
     outlinePos->setZ(9.f);
     outlinePos->setWidth(BAR_WIDTH + BAR_OUTLINE * 2.0f);
     outlinePos->setHeight(BAR_HEIGHT + BAR_OUTLINE * 2.0f);
-    outline.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    outline.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     errorOutlineEntityId = outline.entity->id;
 
     // Red fill (full width)
@@ -361,7 +361,7 @@ void ManualMiningSystem::createErrorBar()
     fillPos->setZ(11.f);
     fillPos->setWidth(BAR_WIDTH);
     fillPos->setHeight(BAR_HEIGHT);
-    fill.get<Simple2DObject>()->setViewport(GAME_VIEWPORT);
+    fill.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     errorFillEntityId = fill.entity->id;
 }
 
@@ -473,7 +473,7 @@ void ManualMiningSystem::spawnGhostAnimation(float worldX, float worldY, ItemId 
     pos->setX(worldX + (tileSize - size) * 0.5f);
     pos->setY(worldY);
     pos->setZ(11.0f);
-    ghost.get<Texture2DComponent>()->setViewport(GAME_VIEWPORT);
+    ghost.get<ViewportComponent>()->setViewport(GAME_VIEWPORT);
     ghost.get<Texture2DComponent>()->setOpacity(1.0f);
 
     GhostAnim anim;

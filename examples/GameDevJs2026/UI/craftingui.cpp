@@ -413,7 +413,7 @@ void CraftingUISystem::createPanel()
     bdPos->setZ(97.0f);
     bdPos->setWidth(pw);
     bdPos->setHeight(ph);
-    backdrop.get<Simple2DObject>()->setViewport(UI_VP);
+    backdrop.get<ViewportComponent>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
 
     auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
@@ -426,7 +426,7 @@ void CraftingUISystem::createPanel()
         0.0f, 0.0f, 100.0f,
         FONT_PATH, "Craft", TITLE_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
-    title.get<TTFText>()->setViewport(UI_VP);
+    title.get<ViewportComponent>()->setViewport(UI_VP);
     titleEntityId = title.entity->id;
 
     auto titleAnchor = ecsRef->attach<UiAnchor>(title.entity);
@@ -453,7 +453,7 @@ void CraftingUISystem::createPanel()
             bgPos->setZ(98.0f);
             bgPos->setWidth(tabW);
             bgPos->setHeight(TAB_ROW_H);
-            bg.get<Simple2DObject>()->setViewport(UI_VP);
+            bg.get<ViewportComponent>()->setViewport(UI_VP);
             tabVisuals[i].bgEntityId = bg.entity->id;
 
             auto tabAnchor = ecsRef->attach<UiAnchor>(bg.entity);
@@ -466,7 +466,7 @@ void CraftingUISystem::createPanel()
                 0.0f, 0.0f, 100.0f,
                 FONT_PATH, tabLabels[i], TEXT_SCALE,
                 {255.0f, 255.0f, 255.0f, 255.0f});
-            label.get<TTFText>()->setViewport(UI_VP);
+            label.get<ViewportComponent>()->setViewport(UI_VP);
             tabVisuals[i].textEntityId = label.entity->id;
 
             auto labelAnchor = ecsRef->attach<UiAnchor>(label.entity);
@@ -493,7 +493,7 @@ void CraftingUISystem::createPanel()
         bgPos->setZ(98.0f);
         bgPos->setWidth(rowW);
         bgPos->setHeight(ROW_HEIGHT);
-        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
         rowVisuals[i].bgEntityId = bg.entity->id;
 
         auto rowAnchor = ecsRef->attach<UiAnchor>(bg.entity);
@@ -507,7 +507,7 @@ void CraftingUISystem::createPanel()
         auto itemPos = item.get<PositionComponent>();
         itemPos->setZ(99.0f);
         itemPos->setVisibility(false);
-        item.get<Texture2DComponent>()->setViewport(UI_VP);
+        item.get<ViewportComponent>()->setViewport(UI_VP);
         rowVisuals[i].outputItemEntityId = item.entity->id;
 
         // Recipe name (hidden; positioned in refreshRows)
@@ -515,7 +515,7 @@ void CraftingUISystem::createPanel()
             0.0f, 0.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
-        name.get<TTFText>()->setViewport(UI_VP);
+        name.get<ViewportComponent>()->setViewport(UI_VP);
         name.get<PositionComponent>()->setVisibility(false);
         rowVisuals[i].nameEntityId = name.entity->id;
 
@@ -525,7 +525,7 @@ void CraftingUISystem::createPanel()
             auto cnt = makeTTFText(ecsRef,
                 0.0f, 0.0f, 100.0f,
                 FONT_PATH, "", TEXT_SCALE, {200.0f, 200.0f, 210.0f, 255.0f});
-            cnt.get<TTFText>()->setViewport(UI_VP);
+            cnt.get<ViewportComponent>()->setViewport(UI_VP);
             cnt.get<PositionComponent>()->setVisibility(false);
             rowVisuals[i].ingrCountEntityId[j] = cnt.entity->id;
 
@@ -533,7 +533,7 @@ void CraftingUISystem::createPanel()
             auto iPos = icon.get<PositionComponent>();
             iPos->setZ(99.0f);
             iPos->setVisibility(false);
-            icon.get<Texture2DComponent>()->setViewport(UI_VP);
+            icon.get<ViewportComponent>()->setViewport(UI_VP);
             rowVisuals[i].ingrIconEntityId[j] = icon.entity->id;
         }
 
@@ -542,7 +542,7 @@ void CraftingUISystem::createPanel()
             0.0f, 0.0f, 100.0f,
             FONT_PATH, "?", TEXT_SCALE,
             {180.0f, 180.0f, 255.0f, 255.0f});
-        demoBtn.get<TTFText>()->setViewport(UI_VP);
+        demoBtn.get<ViewportComponent>()->setViewport(UI_VP);
         demoBtn.get<PositionComponent>()->setVisibility(false);
         rowVisuals[i].demoBtnEntityId = demoBtn.entity->id;
     }
@@ -558,7 +558,7 @@ void CraftingUISystem::createPanel()
         trackPos->setWidth(SCROLLBAR_WIDTH);
         trackPos->setHeight(listH);
         trackPos->setVisibility(false);
-        scrollTrack.get<Simple2DObject>()->setViewport(UI_VP);
+        scrollTrack.get<ViewportComponent>()->setViewport(UI_VP);
         scrollTrackEntityId = scrollTrack.entity->id;
 
         auto trackAnchor = ecsRef->attach<UiAnchor>(scrollTrack.entity);
@@ -574,7 +574,7 @@ void CraftingUISystem::createPanel()
         thumbPos->setWidth(SCROLLBAR_WIDTH);
         thumbPos->setHeight(40.0f);
         thumbPos->setVisibility(false);
-        scrollThumb.get<Simple2DObject>()->setViewport(UI_VP);
+        scrollThumb.get<ViewportComponent>()->setViewport(UI_VP);
         scrollThumbEntityId = scrollThumb.entity->id;
 
         auto thumbAnchor = ecsRef->attach<UiAnchor>(scrollThumb.entity);
@@ -593,7 +593,7 @@ void CraftingUISystem::createPanel()
     barBgPos->setZ(98.0f);
     barBgPos->setWidth(rowW);
     barBgPos->setHeight(PROGRESS_BAR_H);
-    barBg.get<Simple2DObject>()->setViewport(UI_VP);
+    barBg.get<ViewportComponent>()->setViewport(UI_VP);
     progressBgEntityId = barBg.entity->id;
 
     auto barBgAnchor = ecsRef->attach<UiAnchor>(barBg.entity);
@@ -608,7 +608,7 @@ void CraftingUISystem::createPanel()
     barFillPos->setZ(99.0f);
     barFillPos->setWidth(0.0f);
     barFillPos->setHeight(PROGRESS_BAR_H);
-    barFill.get<Simple2DObject>()->setViewport(UI_VP);
+    barFill.get<ViewportComponent>()->setViewport(UI_VP);
     progressFillEntityId = barFill.entity->id;
 
     auto barFillAnchor = ecsRef->attach<UiAnchor>(barFill.entity);
@@ -624,7 +624,7 @@ void CraftingUISystem::createPanel()
     craftBgPos->setZ(98.0f);
     craftBgPos->setWidth(BUTTON_W);
     craftBgPos->setHeight(BUTTON_H);
-    craftBg.get<Simple2DObject>()->setViewport(UI_VP);
+    craftBg.get<ViewportComponent>()->setViewport(UI_VP);
     craftButtonBgEntityId = craftBg.entity->id;
 
     auto craftBgAnchor = ecsRef->attach<UiAnchor>(craftBg.entity);
@@ -637,7 +637,7 @@ void CraftingUISystem::createPanel()
         0.0f, 0.0f, 100.0f,
         FONT_PATH, "Craft", TEXT_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
-    craftText.get<TTFText>()->setViewport(UI_VP);
+    craftText.get<ViewportComponent>()->setViewport(UI_VP);
     craftButtonTextEntityId = craftText.entity->id;
 
     auto craftTextAnchor = ecsRef->attach<UiAnchor>(craftText.entity);
@@ -652,7 +652,7 @@ void CraftingUISystem::createPanel()
     cancelBgPos->setZ(98.0f);
     cancelBgPos->setWidth(BUTTON_W);
     cancelBgPos->setHeight(BUTTON_H);
-    cancelBg.get<Simple2DObject>()->setViewport(UI_VP);
+    cancelBg.get<ViewportComponent>()->setViewport(UI_VP);
     cancelButtonBgEntityId = cancelBg.entity->id;
 
     auto cancelBgAnchor = ecsRef->attach<UiAnchor>(cancelBg.entity);
@@ -665,7 +665,7 @@ void CraftingUISystem::createPanel()
         0.0f, 0.0f, 100.0f,
         FONT_PATH, "Cancel", TEXT_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
-    cancelText.get<TTFText>()->setViewport(UI_VP);
+    cancelText.get<ViewportComponent>()->setViewport(UI_VP);
     cancelButtonTextEntityId = cancelText.entity->id;
 
     auto cancelTextAnchor = ecsRef->attach<UiAnchor>(cancelText.entity);

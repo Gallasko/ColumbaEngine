@@ -279,7 +279,7 @@ void MachineUISystem::createPanel()
         auto pos = bd.get<PositionComponent>();
         pos->setX(panelX); pos->setY(panelY); pos->setZ(97.0f);
         pos->setWidth(panelW); pos->setHeight(panelH);
-        bd.get<Simple2DObject>()->setViewport(UI_VP);
+        bd.get<ViewportComponent>()->setViewport(UI_VP);
         backdropEntityId = bd.entity->id;
     }
 
@@ -288,7 +288,7 @@ void MachineUISystem::createPanel()
         auto t = makeTTFText(ecsRef,
             panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
             FONT_PATH, "Machine", TITLE_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
-        t.get<TTFText>()->setViewport(UI_VP);
+        t.get<ViewportComponent>()->setViewport(UI_VP);
         titleEntityId = t.entity->id;
     }
 
@@ -301,7 +301,7 @@ void MachineUISystem::createPanel()
         auto pos = slotBg.get<PositionComponent>();
         pos->setX(inputColX); pos->setY(sy); pos->setZ(98.0f);
         pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<Simple2DObject>()->setViewport(UI_VP);
+        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
         inputSlotBgEntityId[i] = slotBg.entity->id;
     }
 
@@ -312,7 +312,7 @@ void MachineUISystem::createPanel()
         auto pos = slotBg.get<PositionComponent>();
         pos->setX(outputColX); pos->setY(outputSlotY); pos->setZ(98.0f);
         pos->setWidth(SLOT_SIZE); pos->setHeight(SLOT_SIZE);
-        slotBg.get<Simple2DObject>()->setViewport(UI_VP);
+        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
         outputSlotBgEntityId = slotBg.entity->id;
     }
 
@@ -323,7 +323,7 @@ void MachineUISystem::createPanel()
         auto pos = bg.get<PositionComponent>();
         pos->setX(cachedBarX); pos->setY(barY); pos->setZ(98.0f);
         pos->setWidth(cachedBarMaxW); pos->setHeight(PROGRESS_H);
-        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
         progressBgEntityId = bg.entity->id;
     }
 
@@ -334,7 +334,7 @@ void MachineUISystem::createPanel()
         auto pos = fill.get<PositionComponent>();
         pos->setX(cachedBarX); pos->setY(barY); pos->setZ(99.0f);
         pos->setWidth(0.0f); pos->setHeight(PROGRESS_H);
-        fill.get<Simple2DObject>()->setViewport(UI_VP);
+        fill.get<ViewportComponent>()->setViewport(UI_VP);
         progressFillEntityId = fill.entity->id;
     }
 
@@ -347,14 +347,14 @@ void MachineUISystem::createPanel()
         auto iPos = itemTex.get<PositionComponent>();
         iPos->setX(slotX + offset); iPos->setY(slotY + offset); iPos->setZ(99.0f);
         iPos->setVisibility(false);
-        itemTex.get<Texture2DComponent>()->setViewport(UI_VP);
+        itemTex.get<ViewportComponent>()->setViewport(UI_VP);
         outItemId = itemTex.entity->id;
 
         auto countTxt = makeTTFText(ecsRef,
             slotX + SLOT_SIZE - 4.0f, slotY + SLOT_SIZE - 4.0f, 100.0f,
             FONT_PATH, "", TEXT_SCALE, {255.0f, 255.0f, 255.0f, 255.0f});
         countTxt.get<PositionComponent>()->setVisibility(false);
-        countTxt.get<TTFText>()->setViewport(UI_VP);
+        countTxt.get<ViewportComponent>()->setViewport(UI_VP);
         outCountId = countTxt.entity->id;
     };
 
@@ -372,13 +372,13 @@ void MachineUISystem::createPanel()
         auto pos = bg.get<PositionComponent>();
         pos->setX(btnX); pos->setY(btnY); pos->setZ(100.0f);
         pos->setWidth(btnSize); pos->setHeight(btnSize);
-        bg.get<Simple2DObject>()->setViewport(UI_VP);
+        bg.get<ViewportComponent>()->setViewport(UI_VP);
         demoBtnBgEntityId = bg.entity->id;
 
         auto txt = makeTTFText(ecsRef,
             btnX + 5.0f, btnY + 2.0f, 101.0f,
             FONT_PATH, "?", 0.35f, {255.0f, 255.0f, 255.0f, 255.0f});
-        txt.get<TTFText>()->setViewport(UI_VP);
+        txt.get<ViewportComponent>()->setViewport(UI_VP);
         demoBtnTextEntityId = txt.entity->id;
     }
 }

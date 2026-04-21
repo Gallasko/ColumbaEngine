@@ -183,7 +183,7 @@ void MinerUISystem::createPanel()
     bdPos->setZ(97.0f);
     bdPos->setWidth(panelW);
     bdPos->setHeight(panelH);
-    backdrop.get<Simple2DObject>()->setViewport(UI_VP);
+    backdrop.get<ViewportComponent>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
 
     // Title text "Miner" — left-aligned with padding
@@ -191,7 +191,7 @@ void MinerUISystem::createPanel()
         panelX + PANEL_PADDING, panelY + PANEL_PADDING + 4.0f, 100.0f,
         FONT_PATH, "Miner", TITLE_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
-    title.get<TTFText>()->setViewport(UI_VP);
+    title.get<ViewportComponent>()->setViewport(UI_VP);
     titleEntityId = title.entity->id;
 
     // Slot background
@@ -207,7 +207,7 @@ void MinerUISystem::createPanel()
     slotPos->setZ(98.0f);
     slotPos->setWidth(SLOT_SIZE);
     slotPos->setHeight(SLOT_SIZE);
-    slot.get<Simple2DObject>()->setViewport(UI_VP);
+    slot.get<ViewportComponent>()->setViewport(UI_VP);
     slotBgEntityId = slot.entity->id;
 
     // Progress bar background
@@ -223,7 +223,7 @@ void MinerUISystem::createPanel()
     barBgPos->setZ(98.0f);
     barBgPos->setWidth(PROGRESS_BAR_WIDTH);
     barBgPos->setHeight(PROGRESS_BAR_HEIGHT);
-    barBg.get<Simple2DObject>()->setViewport(UI_VP);
+    barBg.get<ViewportComponent>()->setViewport(UI_VP);
     progressBgEntityId = barBg.entity->id;
 
     // Progress bar fill
@@ -236,7 +236,7 @@ void MinerUISystem::createPanel()
     barFillPos->setZ(99.0f);
     barFillPos->setWidth(0.0f);
     barFillPos->setHeight(PROGRESS_BAR_HEIGHT);
-    barFill.get<Simple2DObject>()->setViewport(UI_VP);
+    barFill.get<ViewportComponent>()->setViewport(UI_VP);
     progressFillEntityId = barFill.entity->id;
 
     // Item texture entity (hidden by default)
@@ -247,7 +247,7 @@ void MinerUISystem::createPanel()
     itemTexPos->setY(slotY + itemOffset);
     itemTexPos->setZ(99.0f);
     itemTexPos->setVisibility(false);
-    itemTex.get<Texture2DComponent>()->setViewport(UI_VP);
+    itemTex.get<ViewportComponent>()->setViewport(UI_VP);
     itemEntityId = itemTex.entity->id;
 
     // Count text entity (hidden by default)
@@ -256,7 +256,7 @@ void MinerUISystem::createPanel()
         FONT_PATH, "", TEXT_SCALE,
         {255.0f, 255.0f, 255.0f, 255.0f});
     countText.get<PositionComponent>()->setVisibility(false);
-    countText.get<TTFText>()->setViewport(UI_VP);
+    countText.get<ViewportComponent>()->setViewport(UI_VP);
     countTextEntityId = countText.entity->id;
 
     // Store layout positions for refresh

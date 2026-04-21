@@ -133,7 +133,7 @@ void HotbarSystem::createHotbarUI()
     auto backdropPos = backdrop.get<PositionComponent>();
     backdropPos->setZ(0.9f);
     backdropPos->setHeight(HOTBAR_HEIGHT);
-    backdrop.get<Simple2DObject>()->setViewport(UI_VP);
+    backdrop.get<ViewportComponent>()->setViewport(UI_VP);
     backdropEntityId = backdrop.entity->id;
 
     auto bdAnchor = ecsRef->attach<UiAnchor>(backdrop.entity);
@@ -169,7 +169,7 @@ void HotbarSystem::createHotbarUI()
         bgPos->setZ(0.95f);
         bgPos->setWidth(SLOT_SIZE);
         bgPos->setHeight(SLOT_SIZE);
-        slotBg.get<Simple2DObject>()->setViewport(UI_VP);
+        slotBg.get<ViewportComponent>()->setViewport(UI_VP);
         slotVisuals[i].bgEntityId = slotBg.entity->id;
 
         auto slotAnchor = ecsRef->attach<UiAnchor>(slotBg.entity);
@@ -182,7 +182,7 @@ void HotbarSystem::createHotbarUI()
         auto itemPos = tex.get<PositionComponent>();
         itemPos->setZ(0.96f);
         itemPos->setVisibility(false);
-        tex.get<Texture2DComponent>()->setViewport(UI_VP);
+        tex.get<ViewportComponent>()->setViewport(UI_VP);
         slotVisuals[i].itemEntityId = tex.entity->id;
 
         // Count text entity (hidden; positioned in refreshSlot)
@@ -191,7 +191,7 @@ void HotbarSystem::createHotbarUI()
             FONT_PATH, "", TEXT_SCALE,
             {255.0f, 255.0f, 255.0f, 255.0f});
         text.get<PositionComponent>()->setVisibility(false);
-        text.get<TTFText>()->setViewport(UI_VP);
+        text.get<ViewportComponent>()->setViewport(UI_VP);
         slotVisuals[i].textEntityId = text.entity->id;
     }
 
@@ -203,7 +203,7 @@ void HotbarSystem::createHotbarUI()
     hlPos->setZ(0.98f);
     hlPos->setWidth(SLOT_SIZE + 4.0f);
     hlPos->setHeight(SLOT_SIZE + 4.0f);
-    highlight.get<Simple2DObject>()->setViewport(UI_VP);
+    highlight.get<ViewportComponent>()->setViewport(UI_VP);
     highlightEntityId = highlight.entity->id;
 
     updateHighlight();
