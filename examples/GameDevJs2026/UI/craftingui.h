@@ -47,6 +47,7 @@ public:
     static constexpr float BUTTON_W = 80.0f;
     static constexpr float BUTTON_GAP = 8.0f;
     static constexpr float GAP_BETWEEN_PANELS = 8.0f;
+    static constexpr float SCROLLBAR_WIDTH = 4.0f;
 
     // Crafting sub-tabs visible in hand-craft mode only
     enum class CraftTab : uint8_t
@@ -176,6 +177,7 @@ private:
 
     void tintRow(uint64_t bgId, RowTint tint);
     void refreshProgressBar();
+    void refreshScrollbar();
 
     // --- Tabs ----------------------------------------------------------
 
@@ -249,6 +251,8 @@ private:
     uint64_t craftButtonTextEntityId = 0;
     uint64_t cancelButtonBgEntityId = 0;
     uint64_t cancelButtonTextEntityId = 0;
+    uint64_t scrollTrackEntityId = 0;
+    uint64_t scrollThumbEntityId = 0;
 
     MachineDemoSystem* machineDemo = nullptr;
 

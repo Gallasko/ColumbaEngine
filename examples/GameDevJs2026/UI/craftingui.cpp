@@ -157,6 +157,29 @@ void CraftingUISystem::onProcessEvent(const OnMouseClick& event)
         }
     }
 
+    // Scrollbar track click — jump scroll position to where the user clicked
+    if (visibleRecipes.size() > VISIBLE_ROWS)
+    {
+        auto trackEnt = ecsRef->getEntity(scrollTrackEntityId);
+        if (trackEnt)
+        {
+            auto trackPos = trackEnt->get<PositionComponent>();
+            float tx = trackPos->getX();
+            float ty = trackPos->getY();
+            float th = trackPos->getHeight();
+            if (isPointInRect(x, y, tx, ty, SCROLLBAR_WIDTH, th))
+            {
+                float ratio = (y - ty) / th;
+                size_t maxOffset = visibleRecipes.size() - VISIBLE_ROWS;
+                scrollOffset = static_cast<size_t>(ratio * static_cast<float>(maxOffset) + 0.5f);
+                if (scrollOffset > maxOffset)
+                    scrollOffset = maxOffset;
+                refreshRows();
+                return;
+            }
+        }
+    }
+
     // Row hit test
     int rowIndex = rowAtPosition(x, y);
     if (rowIndex >= 0)
@@ -358,8 +381,13 @@ void CraftingUISystem::setPanelVisibility(bool vis)
     for (auto& row : rowVisuals)
         setEntityVisibility(row.bgEntityId, vis);
     // Item + name visibility is driven by refreshRows()
+    // Scrollbar visibility is driven by refreshScrollbar()
     if (not vis)
+    {
         hideRowVisuals();
+        setEntityVisibility(scrollTrackEntityId, false);
+        setEntityVisibility(scrollThumbEntityId, false);
+    }
 }
 
 void CraftingUISystem::hideRowVisuals()
@@ -526,6 +554,42 @@ void CraftingUISystem::createPanel()
         demoBtn.get<TTFText>()->setViewport(UI_VP);
         demoBtn.get<PositionComponent>()->setVisibility(false);
         rowVisuals[i].demoBtnEntityId = demoBtn.entity->id;
+    }
+
+    // Scrollbar (track + thumb) — anchored to backdrop, right edge of list area
+    {
+        float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
+
+        auto scrollTrack = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+            constant::Vector4D{40.0f, 40.0f, 50.0f, 150.0f});
+        auto trackPos = scrollTrack.get<PositionComponent>();
+        trackPos->setZ(98.0f);
+        trackPos->setWidth(SCROLLBAR_WIDTH);
+        trackPos->setHeight(listH);
+        trackPos->setVisibility(false);
+        scrollTrack.get<Simple2DObject>()->setViewport(UI_VP);
+        scrollTrackEntityId = scrollTrack.entity->id;
+
+        auto trackAnchor = ecsRef->attach<UiAnchor>(scrollTrack.entity);
+        trackAnchor->setLeftAnchor(PosAnchor{backdropEntityId, AnchorType::Left});
+        trackAnchor->setLeftMargin(pw - PANEL_PADDING - SCROLLBAR_WIDTH);
+        trackAnchor->setTopAnchor(PosAnchor{backdropEntityId, AnchorType::Top});
+        trackAnchor->setTopMargin(listTopMargin);
+
+        auto scrollThumb = makeSimple2DShape(ecsRef, Shape2D::Square, 0.0f, 0.0f,
+            constant::Vector4D{120.0f, 120.0f, 140.0f, 220.0f});
+        auto thumbPos = scrollThumb.get<PositionComponent>();
+        thumbPos->setZ(99.0f);
+        thumbPos->setWidth(SCROLLBAR_WIDTH);
+        thumbPos->setHeight(40.0f);
+        thumbPos->setVisibility(false);
+        scrollThumb.get<Simple2DObject>()->setViewport(UI_VP);
+        scrollThumbEntityId = scrollThumb.entity->id;
+
+        auto thumbAnchor = ecsRef->attach<UiAnchor>(scrollThumb.entity);
+        thumbAnchor->setLeftAnchor(PosAnchor{scrollTrackEntityId, AnchorType::Left});
+        thumbAnchor->setTopAnchor(PosAnchor{scrollTrackEntityId, AnchorType::Top});
+        thumbAnchor->setTopMargin(0.0f);
     }
 
     // Progress bar — anchored to backdrop
@@ -862,6 +926,8 @@ void CraftingUISystem::refreshRows()
             setEntityVisibility(row.demoBtnEntityId, false);
         }
     }
+
+    refreshScrollbar();
 }
 
 void CraftingUISystem::tintRow(uint64_t bgId, RowTint tint)
@@ -895,6 +961,35 @@ void CraftingUISystem::refreshProgressBar()
     float barMaxW = barBgEnt ? barBgEnt->get<PositionComponent>()->getWidth() : 0.0f;
     float ratio = handCrafting ? handCrafting->getProgressRatio() : 0.0f;
     fillEnt->get<PositionComponent>()->setWidth(barMaxW * ratio);
+}
+
+void CraftingUISystem::refreshScrollbar()
+{
+    size_t totalRecipes = visibleRecipes.size();
+    bool scrollable = totalRecipes > VISIBLE_ROWS;
+
+    setEntityVisibility(scrollTrackEntityId, visible and scrollable);
+    setEntityVisibility(scrollThumbEntityId, visible and scrollable);
+
+    if (not scrollable)
+        return;
+
+    float listH = VISIBLE_ROWS * ROW_HEIGHT + (VISIBLE_ROWS - 1) * ROW_SPACING;
+
+    float thumbH = (static_cast<float>(VISIBLE_ROWS) / static_cast<float>(totalRecipes)) * listH;
+    if (thumbH < 16.0f)
+        thumbH = 16.0f;
+
+    size_t maxOffset = totalRecipes - VISIBLE_ROWS;
+    float trackTravel = listH - thumbH;
+    float thumbY = (static_cast<float>(scrollOffset) / static_cast<float>(maxOffset)) * trackTravel;
+
+    auto thumbEnt = ecsRef->getEntity(scrollThumbEntityId);
+    if (thumbEnt)
+    {
+        thumbEnt->get<PositionComponent>()->setHeight(thumbH);
+        thumbEnt->get<UiAnchor>()->setTopMargin(thumbY);
+    }
 }
 
 // ---------------------------------------------------------------------------
